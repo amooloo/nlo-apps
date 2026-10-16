@@ -1211,13 +1211,19 @@ service cloud.firestore {
     // Nothing here is patient data, so nothing is sealed.
     // - Every write says who made it and when (upBy = the member's staff id, up = the database's time) and moves the
     //   change counter (invState/rev) in the same save: the alert script watches that one number.
-    // - The activity log only grows (one record a month, invLog/m<YYYY-MM>, its entries keyed by id). Supplies and vendors
-    //   are hidden with a flag, never deleted; orders are never deleted.
+    // - The steps people take carry the name of whoever saved them: the activity log is one record per person per month
+    //   (invLog/m<YYYY-MM>~<staff id>), each person adding only to their own, entries only ever added; an order's trail only
+    //   grows by the step being saved, in the saver's name; expenses bought outside an order are records of their own
+    //   (invExpenses) in the name of whoever added them, taken off only by them or the people Dr. A picked. (Dr. A's own
+    //   saves aren't held to this: the one-time move brings the old records over as the old app stamped them.)
+    // - Supplies and vendors are hidden with a flag, never deleted; orders are never deleted. Once an order is received,
+    //   everyone else only adds its paperwork (invoice numbers and amounts, prices from the packing slip, the slip photo).
     // - Who changes settings (budget amounts, vendors, storage locations, archiving and deleting supplies, voiding and
     //   reopening orders): Dr. A and the people ticked in Settings (invState/settings.invAdmins, by staff id). Only Dr. A
     //   changes that list, the alert switch and the AI keys.
-    // - The alert script (Dr. A's Apps Script) has its own login (invBots): it reads Inventory, sends and clears the alerts,
-    //   and copies the supply numbers to the old database, where Staff Meeting and AISA read them.
+    // - The alert script (Dr. A's Apps Script) has its own login (invBots): it reads Inventory (and the AI keys, which Staff
+    //   Meeting and Month-End read from the old database), sends and clears the alerts, and copies the supply numbers to the
+    //   old database, where Staff Meeting and AISA read them.
     // =====================================================================
     function invRevDoc() { return /databases/$(db)/documents/invState/rev; }
     function invSetDoc() { return /databases/$(db)/documents/invState/settings; }
@@ -1240,33 +1246,64 @@ service cloud.firestore {
     match /invOrders/{id} {
       function okSt(s) { return s == 'open' || s == 'backordered' || s == 'received'; }
       function okMove(a, b) { return a == b || ((a == 'open' || a == 'backordered') && b == 'received') || (a == 'open' && b == 'backordered') || (a == 'backordered' && b == 'open'); }
+      // the trail (n, was o) only grows by the step being saved, and that step is the saver's (the oldest drops off at 40)
+      function trailOk(n, o) {
+        return n == o || (n is list && n.size() == (o.size() < 40 ? o.size() + 1 : 40) && n[n.size() - 1] is map
+          && n[n.size() - 1].get('byId', '') == mySid() && (o.size() == 0 || n[0:n.size() - 1] == o[o.size() - (n.size() - 1):o.size()]));
+      }
+      // what everyone else may still change on a received order: its paperwork
+      function paperworkOnly() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['items', 'invoiceNumber', 'invoiceDate', 'invoiceSubtotal', 'invoiceTaxes',
+          'invoiceShipping', 'slipPhoto', 'trail', 'up', 'upBy']);
+      }
       allow read: if invReader();
       allow create: if invOk(request.resource.data) && request.resource.data.id == id && request.resource.data.size() <= 120
-        && (isInvAdmin() || okSt(request.resource.data.get('status', '')));
+        && (isInvAdmin() || okSt(request.resource.data.get('status', '')))
+        && (isOwner() || (trailOk(request.resource.data.get('trail', []), [])
+          && (request.resource.data.get('orderedById', mySid()) == mySid() || 'backorderOf' in request.resource.data)));
       allow update: if invOk(request.resource.data) && request.resource.data.id == id && request.resource.data.size() <= 120
-        && (isInvAdmin() || okMove(invWas('status'), request.resource.data.get('status', '')));
+        && (isInvAdmin() || (okMove(invWas('status'), request.resource.data.get('status', ''))
+          && (invWas('status') != 'received' || paperworkOnly())))
+        && (isOwner() || (trailOk(request.resource.data.get('trail', []), resource.data.get('trail', []))
+          && (!invChanged(['receivedById']) || request.resource.data.get('receivedById', mySid()) == mySid())));
       allow delete: if false;
     }
     match /invVendors/{id} {
-      // anyone may add a vendor (one typed on a supply joins the list) and fill in an account number or address a packing slip
-      // shows when there wasn't one; everything else is for the people Dr. A picked
+      // anyone may add a vendor (one typed on a supply joins the list: a new v-… record with just its name) and fill in an
+      // account number or address a packing slip shows when there wasn't one; everything else (website, phone, order email,
+      // rep…) is for the people Dr. A picked
       function blank(k) { return !(k in resource.data) || resource.data[k] == null || resource.data[k] == ''; }
       allow read: if invReader();
       allow create: if invOk(request.resource.data) && request.resource.data.id == id && request.resource.data.size() <= 60
-        && (isInvAdmin() || request.resource.data.get('deleted', false) != true);
+        && (isInvAdmin() || (request.resource.data.keys().hasOnly(['id', 'name', 'acct', 'address', 'up', 'upBy'])
+          && (id.matches('^v-.+$') || !('name' in request.resource.data))));
       allow update: if invOk(request.resource.data) && request.resource.data.id == id && request.resource.data.size() <= 60
         && (isInvAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acct', 'address', 'up', 'upBy'])
           && (!invChanged(['acct']) || blank('acct')) && (!invChanged(['address']) || blank('address'))));
       allow delete: if false;
     }
-    match /invLog/{m} {
-      function okLog(d) { return d.keys().hasOnly(['e', 'up', 'upBy']) && d.e is map && d.e.size() <= 3000; }
+    match /invLog/{d} {
+      // one record per person per month, m<YYYY-MM>~<staff id> (the moved entries under the id the old app stamped them with)
+      function okLog(x) { return x.keys().hasOnly(['e', 'mon', 'who', 'up', 'upBy']) && x.e is map && x.e.size() <= 1500
+        && x.mon is string && x.mon.matches('^[0-9]{4}-[0-9]{2}$') && x.who is string && d == 'm' + x.mon + '~' + x.who; }
       allow read: if invReader();
-      allow create: if invOk(request.resource.data) && m.matches('^m[0-9]{4}-[0-9]{2}$') && okLog(request.resource.data);
-      allow update: if invOk(request.resource.data) && okLog(request.resource.data)
+      allow create: if invOk(request.resource.data) && okLog(request.resource.data) && (request.resource.data.who == mySid() || isOwner());
+      allow update: if invOk(request.resource.data) && okLog(request.resource.data) && (resource.data.who == mySid() || isOwner())
         && request.resource.data.e.diff(resource.data.e).changedKeys().size() == 0
         && request.resource.data.e.diff(resource.data.e).removedKeys().size() == 0;
       allow delete: if false;
+    }
+    // expenses bought outside an order (a card at a store), in the name of whoever added them
+    match /invExpenses/{id} {
+      function okEx(x) { return x.keys().hasOnly(['id', 'date', 'amount', 'category', 'vendor', 'note', 'description', 'by', 'byId', 'addedAt', 'up', 'upBy'])
+        && x.id == id && x.amount is number && x.amount >= 0 && x.amount <= 100000 && x.date is string && x.date.size() <= 40
+        && x.get('category', '') is string && x.get('category', '').size() <= 60 && x.get('vendor', '') is string && x.get('vendor', '').size() <= 200
+        && x.get('note', '') is string && x.get('note', '').size() <= 500 && x.get('by', '') is string && x.get('by', '').size() <= 80; }
+      allow read: if invReader();
+      allow create: if invOk(request.resource.data) && (isOwner() || (okEx(request.resource.data) && request.resource.data.get('byId', '') == mySid()));
+      allow delete: if isMember() && invBumped() && (isInvAdmin() || resource.data.get('byId', '') == mySid()
+        || resource.data.get('byId', '') == get(/databases/$(db)/documents/roster/$(mySid())).data.get('rid', '-'));
+      allow update: if false;
     }
     match /invState/rev {
       function okRev(d) { return d.keys().hasOnly(['n', 'up', 'upBy']) && d.n is int && d.up == request.time && d.upBy == mySid(); }
@@ -1292,12 +1329,10 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /invState/budget {
-      // everyone adds (and takes off) the expenses bought outside an order; the amounts are for the people Dr. A picked
-      function okBud(d) { return d.keys().hasOnly(['monthly', 'categories', 'expenses', 'history', 'changedBy', 'changedAt', 'up', 'upBy']); }
+      // the budget amounts, for the people Dr. A picked (the expenses are records of their own: invExpenses)
+      function okBud(d) { return d.keys().hasOnly(['monthly', 'categories', 'history', 'changedBy', 'changedAt', 'up', 'upBy']); }
       allow get: if invReader();
-      allow create: if invOk(request.resource.data) && okBud(request.resource.data) && isInvAdmin();
-      allow update: if invOk(request.resource.data) && okBud(request.resource.data)
-        && (isInvAdmin() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expenses', 'up', 'upBy']));
+      allow create, update: if invOk(request.resource.data) && okBud(request.resource.data) && isInvAdmin();
       allow delete: if false;
     }
     match /invState/settings {
@@ -1309,16 +1344,22 @@ service cloud.firestore {
         && (isOwner() || !invChanged(['invAdmins', 'alertsOn', 'geminiProxyUrl']));
       allow delete: if false;
     }
-    // the AI keys for reading packing slips (and product photos): everyone signed in uses them, only Dr. A sets them
+    // the AI keys for reading packing slips (and product photos): everyone signed in uses them, only Dr. A sets them; the
+    // alert script copies them to the old database, where Staff Meeting and Month-End read them
     match /invState/ai {
-      allow get: if isMember();
+      allow get: if isMember() || isInvBot();
       allow create, update: if invOk(request.resource.data) && isOwner() && request.resource.data.keys().hasOnly(['gemini', 'openai', 'up', 'upBy']);
       allow delete: if false;
     }
     // the cart, order and receiving emails to Dr. A: written as they happen, sent and cleared by the alert script
     match /invAlerts/{id} {
-      allow create: if invOk(request.resource.data) && request.resource.data.size() <= 20
-        && request.resource.data.get('t', '') in ['cart', 'ordered', 'reopened', 'received'];
+      function okAlert(x) { return x.keys().hasOnly(['t', 'at', 'id', 'vendor', 'by', 'lines', 'total', 'note', 'ordered', 'how', 'noCount', 'inCart', 'up', 'upBy'])
+        && x.get('t', '') in ['cart', 'ordered', 'reopened', 'received']
+        && x.get('by', '') is string && x.get('by', '').size() <= 80 && x.get('vendor', '') is string && x.get('vendor', '').size() <= 120
+        && x.get('note', '') is string && x.get('note', '').size() <= 300 && x.get('id', '') is string && x.get('id', '').size() <= 80
+        && x.get('ordered', '') is string && x.get('ordered', '').size() <= 40 && x.get('how', '') is string && x.get('how', '').size() <= 40
+        && x.get('lines', []) is list && x.get('lines', []).size() <= 60; }
+      allow create: if invOk(request.resource.data) && okAlert(request.resource.data);
       allow read, delete: if isOwner() || isInvBot();
       allow update: if false;
     }

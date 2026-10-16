@@ -30,6 +30,9 @@ function rosterPeople(list) {
 const activePeople = () => (S.people || []).filter(p => p.active);
 /* the person behind an id on a record: today's staff id, or a Staff Hub id on records from before the move */
 function personById(id) { if (!id) return null; return (S.people || []).find(p => p.id === id) || (S.people || []).find(p => p.rid && p.rid === id) || null; }
+/* the name shown on a stamp: the person behind its id as NLO Cases knows them today (the database checks the ids on the log,
+   orders and expenses), else the name stamped (an old record, or someone no longer on the team) */
+function stampName(by, byId) { const p = byId && personById(byId); return p ? p.short : String(by || ''); }
 /* the person behind a stamped name on an old record (a short name such as "Pat L.") */
 function personByName(name) {
   const n = String(name || '').trim().toLowerCase(); if (!n) return null;

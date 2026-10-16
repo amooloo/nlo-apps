@@ -13,21 +13,37 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
 - **Signing in**: each person's own NLO Cases username and password (no Google account, no tapping a name). Every cart line,
   order, receipt, stock step and expense is stamped with the person signed in. The page locks after the office's idle minutes
   and on Lock; a reload means signing in again (as NLO Cases). Someone whose login is turned off is locked out at once.
-- **Who changes settings** (budget amounts, vendors, storage locations, archiving/deleting supplies, voiding/reopening orders):
-  Dr. A and the people he ticks in Settings — and now the **database itself** holds everyone else to that, not just the page.
+- **Who changes settings** (budget amounts, vendors, storage locations, archiving/deleting supplies, voiding/reopening orders,
+  bringing back a voided order): Dr. A and the people he ticks in Settings — and now the **database itself** holds everyone
+  else to that, not just the page.
+- **The names on the steps are checked by the database**: each person adds only to their own activity-log record, an
+  order's trail only grows by the saver's own step (and who received it is whoever saved the receipt), and an expense is in
+  the name of whoever added it (only they, or the people Dr. A picked, take it off). The screens show the person behind the
+  id, as NLO Cases knows them today. Once an order is received, everyone else only adds its paperwork (invoice numbers and
+  amounts, prices from the packing slip, the slip photo). Anyone may add a vendor by name, or fill in a missing account
+  number or address; websites, phones, order emails and reps are for the people Dr. A picked (and a website opens only if
+  it's an http(s) address).
 - **Quick-order prices** save for everyone (the old database's rules refused them).
 - **Photos** kept inside records (old supplies, packing slips) are records of their own (`invPics`), read when shown.
 - **Vendor account numbers, reps and card notes** are no longer built into the page (it's published from the public repo):
   they live in the database (saved vendors), put there once at the move.
 - **The activity log is no longer trimmed**: one record a month, entries only ever added (the page reads the last 36 months).
 - **Offline**: steps that need the database itself (stock, cart, receiving, reopening) say at once that there's no internet,
-  instead of queueing; other saves go when it's back.
+  instead of queueing; other saves go when it's back. A save still waiting holds off the idle lock two minutes at most (the
+  lock then says it may not have been saved).
+- **A slow receive or reopen** ("not confirmed: the internet is very slow") finishes its stock and dollars by itself if it
+  goes through after all, and says so — an order is never left received with nothing booked.
 
 ## The data (Firestore `nlo-cases`; rules: `../nlo-cases-src/firestore.rules`, block "NLO Inventory")
 - `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before.
-- `invLog/m<YYYY-MM>` — `{ e: { <entryId>: entry } }`, entries only added.
-- `invState/cart {lines}`, `invState/budget`, `invState/prices {p}`, `invState/bracket {v}`, `invState/settings
-  {locations, invAdmins (staff ids), alertsOn, geminiProxyUrl, invPrefs}`, `invState/ai {gemini, openai}` (Dr. A sets; members read).
+- `invLog/m<YYYY-MM>~<staff id>` — `{ e: { <entryId>: entry }, mon, who }`: one record per person per month, entries only
+  added, each person only to their own (whose record it is says who made an entry). The moved entries are under `~old`
+  (`~old2`… past a thousand in a month), with the old app's stamps.
+- `invExpenses/{id}` — the expenses bought outside an order, in the name of whoever added them (`byId`); added and taken off,
+  never changed.
+- `invState/cart {lines}`, `invState/budget {monthly, categories, history, changedBy, changedAt}`, `invState/prices {p}`,
+  `invState/bracket {v}`, `invState/settings {locations, invAdmins (staff ids), alertsOn, geminiProxyUrl, invPrefs}`,
+  `invState/ai {gemini, openai}` (Dr. A sets; members and the alert script read).
 - Every record carries `up` (the database's time) and `upBy` (the staff id), and every save moves `invState/rev.n` by one in
   the same save (the rules check both).
 - `invAlerts/{auto}` — the cart/order/receiving emails waiting for the alert script; `invPics/{id}` `{m, b, kind}`;
@@ -35,12 +51,25 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
 - Old records keep Staff Hub's ids in their stamps (`s_sarah`…): a roster entry linked to Staff Hub (`rid`) answers to both.
 
 ## The move (once, Dr. A)
-The page shows Dr. A "Move Inventory over" until `invMeta/moved` exists (staff see "Inventory is moving"). He connects to the
-old database with Google (the same sign-in NLO Cases' "Connect to the office roster" uses, app name `ipr`), the page reads
-`nlo/{items,orders,vendors,log,cart,budget,bracketOrder,elastoPrices,settings/…}` over REST, shows what it found (counts, money in
-the log, this month's spending, who changes settings mapped to NLO Cases logins, notes), and on "Move it now" saves photos, then
-everything else, counts it all against what it read (money included), and only then writes `invMeta/moved`. Running it again
-saves the same records under the same ids (a photo already saved stays). The old database isn't changed.
+The page shows Dr. A "Move Inventory over" until `invMeta/moved` exists (staff see "Inventory is moving").
+- **First the old Inventory is made read-only** (`freeze_old.py --freeze`, go-live step 3): the old database's write rules for
+  Inventory's eight parts become Dr. A's Google account alone, so an office computer still showing the old page can change
+  nothing (it's refused there, so nobody thinks they did something that's lost); the alert script, which runs as Dr. A, still
+  copies there. It leaves `nlo/settings/invFrozen`, and the move card won't move without it. `--unfreeze` puts the saved rules
+  back (`deploy/rtdb-rules-before-*.json`).
+- He connects to the old database with Google (its own sign-in, `invMove`, kept only while the page is open and closed after
+  the move); the page reads `nlo/{items,orders,vendors,log,cart,budget,bracketOrder,elastoPrices,settings/…}` over REST and shows
+  what it found (counts, money in the log, this month's spending, who changes settings mapped to NLO Cases logins, notes).
+- **"Move it now" reads it all again** and stops if anything differs from what the card showed (the new numbers are shown
+  instead), **saves a copy of what it read to the computer's Downloads** (`nlo-inventory-before-the-move-<date>.json`, without the
+  AI keys), then saves photos (photos kept anywhere inside a record become records of their own) and everything else in saves
+  of at most 8 MB / 400 records, adding to the log only the entries not already there and skipping expenses already saved.
+  Then it looks for every record and log entry it meant to save (money included) and only then writes `invMeta/moved`.
+  A record still over 1 MB without its photos stays behind, named in the notes.
+- Running it again (one that stopped half way) saves the same records under the same ids; nothing doubles, nothing already
+  saved is removed. The old database isn't changed by the move.
+- The email alerts start **off** (with a note if they were on): the first "Get the alert script" turns them on, so they don't
+  pile up for a script that isn't running yet.
 Before it, the vendor details go into the old database's saved vendors (`vendor_details.py`, only what's missing), so the move
 carries them.
 
@@ -48,12 +77,20 @@ carries them.
 `robot/script.js` → `dist/nlo-inventory-alerts.gs` (published as `../nlo-inventory-alerts.gs`). Settings → Email alerts → Get
 the alert script makes it a login of its own (`invBots`; the newest two kept) and copies the script with that login filled in;
 Dr. A pastes it over the old code (same project, same every-minute trigger, no new permissions) and runs `setup`.
-Every minute (every 10 at night) it reads `invState/rev`; when it moved: emails the alerts and clears them, and copies what
-changed (`up` > last) from `invItems`, `invOrders`, `invLog` and `invState/budget` into the old database (`nlo/items`,
-`nlo/orders`, `nlo/log`, `nlo/budget`) — where **Staff Meeting's spending card and AISA's stock answers read them**. Everything
-is copied again once a night. It only adds and changes records there, never removes any, and copies nothing before the move.
+Every minute (every 10 at night) it reads `invState/rev`; when it moved:
+- **emails the alerts** in emails of at most 25 alerts and ~150 KB (each alert cut to 60 lines), remembers each email's
+  alerts as it goes (nothing is sent twice) and clears them; if Gmail's daily limit is used up they wait (the check-in in
+  Settings says so);
+- **copies** what changed (`up` after the last copy, looking 5 minutes further back each time, since a save's time is when it
+  was sent) from `invItems`, `invOrders` and `invLog` into the old database (`nlo/items`, `nlo/orders`, `nlo/log`; an entry's
+  `byId` is whose record it's in), the budget with its expenses as one list (`nlo/budget`: only the keys the app keeps, so
+  anything else there stays), and the AI keys (`nlo/settings/geminiKey`, `openaiKey`) — where **Staff Meeting's spending card,
+  Month-End and AISA's stock answers read them**. Everything is copied again once a night. It only adds and changes records
+  there, never removes any (an expense taken off leaves the list), and copies nothing before the move.
+- The emails and the copy are separate steps: one failing never holds up the other; both are tried again the next minute.
 If an old Inventory page is still open somewhere and used (it leaves alerts in `nlo/settings/alertQueue`), it emails Dr. A to
-reload that computer (once an hour) and clears that queue.
+reload that computer (once an hour) and clears that queue. "Get the alert script" makes a new login and keeps the one whose
+script checked in last (the copy running now); any others stop.
 
 ## Build, test, publish
 - `python3 build.py` → `dist/nlo-inventory.html`, `dist/nlo-inventory-alerts.gs`, `dist/firestore.rules` (OWNER_EMAIL),
@@ -71,3 +108,6 @@ reload that computer (once an hour) and clears that queue.
 - The old address: `python3 deploy.py` (refuses unless the live page is the expected one) → `deploy/` → `npx firebase deploy
   --only hosting --project nlo-inventory` (Dr. A approves the sign-in link) → `npx firebase logout`. Rollback: Hosting → Release
   history, or the dated backup copies.
+- The old Inventory read-only (with the same sign-in, before the move): `python3 freeze_old.py` (shows what would change),
+  `--freeze`, and `--unfreeze` for a rollback. Tested on the emulator: `npx firebase emulators:exec --only database --project
+  demo-nlo-cases "python3 test/freeze.test.py"`.

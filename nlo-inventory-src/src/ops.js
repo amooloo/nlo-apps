@@ -122,7 +122,12 @@ async function editOrder(id, patch, what) {
 }
 async function backorderOrder(id) { const s = stamp(); const o = orderById(id); await B.patchOrder(id, { status: 'backordered', dateBackordered: s.at, trail: trailAdd(o && o.trail, 'backordered', s) }); }
 async function unbackorderOrder(id) { const s = stamp(); const o = orderById(id); await B.patchOrder(id, { status: 'open', trail: trailAdd(o && o.trail, 'unbackordered', s) }); }
-async function voidOrder(id, why) { const s = stamp(); const o = orderById(id); await B.patchOrder(id, { status: 'voided', dateVoided: s.at, voidedBy: s.by, trail: trailAdd(o && o.trail, 'voided', s, why ? { note: why } : null) }); }
+async function voidOrder(id, why) { const s = stamp(); const o = orderById(id); await B.patchOrder(id, { status: 'voided', dateVoided: s.at, voidedBy: s.by, voidedById: s.byId || null, trail: trailAdd(o && o.trail, 'voided', s, why ? { note: why } : null) }); }
+/* a claim that didn't answer in time may still go through: then the rest of the step is done when it does (finish()), and the
+   person is told; the error itself says it wasn't confirmed */
+function finishLate(e, finish, okMsg) {
+  if (e && e.code === 'timeout' && e.late) e.late.then(() => finish()).then(() => toast(okMsg, { ms: 8000 }), err => { if (err && err.code !== 'aborted') console.warn('late step', err); });
+}
 
 /* ---------- receiving ---------- */
 /* what an order has already put into stock, per supply (a reopen nets it back to 0) */
@@ -161,11 +166,8 @@ async function receiveOrder(orderId, opts) {
       return n;
     });
   }
-  /* claim it first, in one step: if another computer is receiving the same order right now, only one of them goes on */
-  try { await B.claimOrder(orderId, cur => cur === 'received' ? undefined : 'received'); }
-  catch (e) { const o2 = orderById(orderId); throw new Error('That order was just received' + (o2 && o2.receivedBy ? ' by ' + o2.receivedBy : ' on another computer') + '.'); }
   const ship = opts.shipping != null && opts.shipping !== '' ? (parseFloat(opts.shipping) || 0) : (Number(order.shipping) || 0);
-  const patch = { status: 'received', dateReceived: s.at, countUpdated: count, receivedBy: s.by, receivedById: s.byId || null, shipping: ship, trail: trailAdd(order.trail, 'received', s, count ? null : { note: 'stock not counted' }) };
+  const patch = { status: 'received', dateReceived: s.at, countUpdated: count, receivedBy: s.by, receivedById: s.byId || null, shipping: ship };
   if (confirmed) {
     Object.assign(patch, { items, discount: (Number(opts.discount) || 0) > 0 ? round2(Number(opts.discount)) : null, invoiceTaxes: (Number(opts.tax) || 0) > 0 ? round2(Number(opts.tax)) : null,
       invoiceShipping: ship > 0 ? round2(ship) : null, receiveMethod: opts.method || 'manual' });
@@ -173,7 +175,19 @@ async function receiveOrder(orderId, opts) {
   }
   if (opts.invoiceNumber) patch.invoiceNumber = opts.invoiceNumber;
   if (opts.patch) Object.keys(opts.patch).forEach(k => { if (opts.patch[k] != null && opts.patch[k] !== '') patch[k] = opts.patch[k]; });
-  await B.patchOrder(orderId, patch);
+  /* claim it, receipt and all, in one step: if another computer is receiving the same order right now, only one of them goes on
+     (the trail step is added to the trail as the database has it) */
+  const rest = () => receiveRest(order, orderId, patch, opts, s, count, confirmed, items, backorder, reason, zeroCost, ship);
+  try { await B.claimOrder(orderId, cur => cur === 'received' ? undefined : 'received', cur => Object.assign({}, patch, { status: undefined, trail: trailAdd(cur.trail, 'received', s, count ? null : { note: 'stock not counted' }) })); }
+  catch (e) {
+    if (e && e.code === 'aborted') { const o2 = orderById(orderId); throw new Error('That order was just received' + (o2 && o2.receivedBy ? ' by ' + o2.receivedBy : ' on another computer') + '.'); }
+    finishLate(e, rest, 'The ' + (order.vendor || '') + ' order went through after all: it’s received, with its stock and dollars.');
+    throw e;
+  }
+  await rest();
+}
+/* after the claim: the backorder for what didn't come, the stock and the dollars */
+async function receiveRest(order, orderId, patch, opts, s, count, confirmed, items, backorder, reason, zeroCost, ship) {
   if (backorder.length) {
     await B.putOrder({ id: 'order-' + uid(), vendor: order.vendor || '', items: backorder.map(b => Object.assign(b, { lineTotal: round2(b.qty * b.price) })), dateOrdered: order.dateOrdered || '', orderedAt: order.orderedAt || null,
       orderedBy: order.orderedBy || null, orderedById: order.orderedById || null, method: order.method || null, expectedDelivery: '', status: 'open',
@@ -238,9 +252,17 @@ function planReopen(order) {
 async function reopenOrder(orderId) {
   const order = orderById(orderId); if (!order) return; const s = stamp();
   if (order.status !== 'received') throw new Error('That order isn’t received, so there’s nothing to undo.');
-  /* claim it first: two computers reopening at once must not take the stock out twice */
-  try { await B.claimOrder(orderId, cur => cur === 'received' ? 'open' : undefined); }
-  catch (e) { throw new Error('That order was just reopened on another computer.'); }
+  /* claim it first, in one step with its new status: two computers reopening at once must not take the stock out twice */
+  const rest = () => reopenRest(order, orderId, s);
+  try { await B.claimOrder(orderId, cur => cur === 'received' ? 'open' : undefined, cur => ({ dateReceived: null, countUpdated: false, trail: trailAdd(cur.trail, 'reopened', s) })); }
+  catch (e) {
+    if (e && e.code === 'aborted') throw new Error('That order was just reopened on another computer.');
+    finishLate(e, rest, 'The ' + (order.vendor || '') + ' order was reopened after all: its stock and dollars are taken back.');
+    throw e;
+  }
+  await rest();
+}
+async function reopenRest(order, orderId, s) {
   const P = planReopen(order), entries = [], stock = [];
   Object.keys(P.rec).forEach(itemId => {
     const r = P.rec[itemId], delta = r.delta > 0 ? r.delta : 0, amt = round2(r.amt);
@@ -254,7 +276,6 @@ async function reopenOrder(orderId) {
   /* the log entries go first: if the stock step then fails, the money is still right and the stock can be counted */
   await B.addLog(entries);
   await B.addStockMany(stock);
-  await B.patchOrder(orderId, { status: 'open', dateReceived: null, countUpdated: false, trail: trailAdd(order.trail, 'reopened', s) });
   B.alert([alertOrderEvent('reopened', Object.assign({}, order, { status: 'open' }))]);
 }
 /* shipping and tax for an order that already came in (the paper invoice arrives later), once per order */

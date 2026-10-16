@@ -10,14 +10,14 @@ function orderSearchText(o) { return [o.vendor, o.orderNumber, o.invoiceNumber, 
 function orderWhen(o) { return msOf(o.status === 'received' ? o.dateReceived : (o.orderedAt || o.dateOrdered)); }
 /* the three steps: added to the cart → ordered → received */
 function trailHTML(o) {
-  const adders = []; o.items.forEach(l => { if (l.addedBy && !adders.some(a => a.by === l.addedBy)) adders.push({ by: l.addedBy, byId: l.addedById, at: l.addedAt }); });
+  const adders = []; o.items.forEach(l => { if (l.addedBy && !adders.some(a => (a.byId && a.byId === l.addedById) || a.by === l.addedBy)) adders.push({ by: l.addedBy, byId: l.addedById, at: l.addedAt }); });
   const firstAdd = o.items.map(l => msOf(l.addedAt)).filter(Boolean).sort((a, b) => a - b)[0];
   const tr = listOf(o.trail), last = k => tr.filter(t => t.t === k).slice(-1)[0];
   const ord = last('ordered'), rec = o.status === 'received' ? (last('received') || { by: o.receivedBy, at: o.dateReceived }) : null, back = o.status === 'backordered' ? last('backordered') || { at: o.dateBackordered } : null, vd = o.status === 'voided' ? last('voided') || { by: o.voidedBy, at: o.dateVoided } : null;
   /* who: one name, or a list of {by, byId} (several people can add to one order) */
   const step = (cls, icon, label, who, whoId, when, extra) => {
     const ppl = Array.isArray(who) ? who : who ? [{ by: who, byId: whoId }] : [];
-    const names = ppl.slice(0, 2).map(p => p.by).join(', ') + (ppl.length > 2 ? ' +' + (ppl.length - 2) : '');
+    const names = ppl.slice(0, 2).map(p => stampName(p.by, p.byId)).join(', ') + (ppl.length > 2 ? ' +' + (ppl.length - 2) : '');
     return '<div class="tstep ' + cls + '"><span class="dot">' + ic(icon, 14) + '</span><div class="tx"><span class="l">' + esc(label) + '</span><b>' + (ppl.length ? '<span class="avs">' + ppl.slice(0, 2).map(p => avatarHTML(p.by, 'xs', p.byId)).join('') + '</span><span class="nm">' + esc(names) + '</span>' : '—') + '</b><span>' + esc(when || '') + (extra ? ' · ' + esc(extra) : '') + '</span></div></div>';
   };
   let h = '<div class="trail">';
@@ -85,11 +85,13 @@ DRAWERS.order = id => {
   if (o.status === 'open' || o.status === 'backordered') h += '<button class="btn btn-act" data-act="receive" data-id="' + esc(o.id) + '">' + ic('receive', 16) + 'Receive</button><button class="btn btn-sec" data-act="slipFor" data-id="' + esc(o.id) + '">' + ic('camera', 15) + 'Scan slip</button><button class="btn btn-ghost" data-act="orderEdit" data-id="' + esc(o.id) + '">' + ic('edit', 15) + 'Edit</button>' +
     (o.status === 'open' ? '<button class="btn btn-ghost" data-act="orderBack" data-id="' + esc(o.id) + '">' + ic('pause', 15) + 'Backordered</button>' : '<button class="btn btn-ghost" data-act="orderUnback" data-id="' + esc(o.id) + '">Back to On the way</button>') + '<button class="btn btn-ghost" data-act="orderVoid" data-id="' + esc(o.id) + '" style="color:var(--coral-700)">' + ic('x', 15) + 'Void</button>';
   if (o.status === 'received') h += '<button class="btn btn-sec" data-act="reorder" data-id="' + esc(o.id) + '">' + ic('refresh', 15) + 'Order again</button><button class="btn btn-ghost" data-act="orderReopen" data-id="' + esc(o.id) + '">' + ic('undo', 15) + 'Reopen (undo the receive)</button>';
-  if (o.status === 'voided') h += '<button class="btn btn-ghost" data-act="orderUnback" data-id="' + esc(o.id) + '">Bring it back</button>';
+  if (o.status === 'voided') h += '<button class="btn btn-ghost" data-act="orderUnvoid" data-id="' + esc(o.id) + '">Bring it back</button>';
   return h + '</div>';
 };
 ACT.orderBack = t => withWho(() => act(() => backorderOrder(t.dataset.id), 'Marked backordered.'), 'Who’s marking it backordered?');
 ACT.orderUnback = t => withWho(() => act(() => unbackorderOrder(t.dataset.id), 'Back under On the way.'));
+/* a voided order back under On the way: for the people who void them */
+ACT.orderUnvoid = t => withAdmin(() => act(() => unbackorderOrder(t.dataset.id), 'Back under On the way.'), 'Who’s bringing it back?', 'bring back a voided order');
 ACT.orderVoid = t => {
   const o = orderById(t.dataset.id); if (!o) return;
   withAdmin(async () => {

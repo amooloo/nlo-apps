@@ -134,7 +134,7 @@ function spendBetween(start, end, log, orders, expenses, idx) {
   (expenses || []).forEach(x => { if (!x || !inRange(parseDateLocal(x.date))) return; add(manual, budgetCat(x.category), parseFloat(x.amount) || 0); });
   return { auto, manual, shipping, tax, total };
 }
-function monthSpend(key, D) { return spendBetween(monthStart(key), monthEnd(key), D.log, D.orders, (D.budget && listOf(D.budget.expenses)) || [], spendIndex(D.items, D.orders)); }
+function monthSpend(key, D) { return spendBetween(monthStart(key), monthEnd(key), D.log, D.orders, D.expenses ? listOf(D.expenses) : (D.budget && listOf(D.budget.expenses)) || [], spendIndex(D.items, D.orders)); }
 /* the oldest month the log still fully covers (older months may be missing receipts that were trimmed) */
 function logCoversFrom(log) {
   const money = (log || []).filter(isMoneyEntry);

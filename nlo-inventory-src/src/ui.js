@@ -164,10 +164,12 @@ async function enterApp() {
   renderShell(); renderView();
   clearInterval(S.idleTimer);
   S.idleTimer = setInterval(() => {
-    if (!S.inApp) return;
-    if ((B && B.pending > 0) || S.busy) S.lastAct = Date.now(); // a save still going, or the move, counts as activity
-    const mins = idleMinutes();
-    if (!S.demo && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
+    if (!S.inApp || S.demo) return;
+    /* a save still on its way (or the move) holds the lock off two more minutes at most: with no internet a save can wait
+       for good, and a shared computer mustn't stay signed in that long */
+    const mins = idleMinutes(), waiting = (B && B.pending > 0) || S.busy;
+    if (Date.now() - S.lastAct > mins * 60000 + (waiting ? IDLE_GRACE_MS : 0))
+      lockOut('Locked after ' + mins + ' minutes without activity.' + (B && B.pending > 0 ? ' A change was still waiting for the internet, so it may not have been saved.' : ''));
   }, 15000);
   let r;
   try { r = await B.open(); } catch (e) { r = { st: 'error' }; S.loadErr = errText(e); }
@@ -205,7 +207,7 @@ ACT.lock = async () => {
   if (B.pending && !(await confirmBox('Lock now?', 'A change is still being saved (is the internet connected?). Locking now may lose it.', 'Lock anyway', true))) return;
   lockOut('Locked. Sign in to continue.');
 };
-function allLoaded() { return S.gate === 'ready' && ['items', 'orders', 'vendors', 'log', 'cart', 'budget'].every(k => S.loaded[k]); }
+function allLoaded() { return S.gate === 'ready' && ['items', 'orders', 'vendors', 'log', 'cart', 'budget', 'expenses'].every(k => S.loaded[k]); }
 
 /* ---------- the data, as the screens use it ---------- */
 function setData(key, val) {
@@ -216,7 +218,8 @@ function setData(key, val) {
   else if (key === 'log') S.D.log = sortLogNewestFirst(listOf(val).filter(e => e && e.id != null));
   else if (key === 'cart') S.D.cart = listOf(val).filter(c => c && (c.itemId || c.name)).map(normCartLine);
   else if (key === 'bracketOrder') S.D.bracketOrder = val || {};
-  else if (key === 'budget') S.D.budget = Object.assign({ monthly: 8000, categories: {}, expenses: [], history: [] }, val || {});
+  else if (key === 'budget') S.D.budget = Object.assign({ monthly: 8000, categories: {}, history: [] }, val || {});
+  else if (key === 'expenses') S.D.expenses = listOf(val).filter(x => x && x.id != null);
   else if (key === 'elastoPrices') S.D.elastoPrices = val || {};
   else if (key === 'settings') S.settings = val || {};
   else if (key === 'roster') { if (val) { S.people = rosterPeople(val); renderWho(); } }

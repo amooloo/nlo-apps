@@ -19,9 +19,20 @@ function syncFetch(url, opt) {
 }
 function services(box, clock) {
   const props = {}, cache = {}, triggers = [], mail = [], logs = [];
+  // Gmail: what's left of the day's emails, and a failure to put on (mailCtl.fail: the next sendEmail throws)
+  const mailCtl = { quota: 100, fail: false };
   const PropertiesService = { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); }, deleteProperty: k => { delete props[k]; } }) };
   const CacheService = { getScriptCache: () => ({ get: k => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = String(v); }, remove: k => { delete cache[k]; } }) };
-  const MailApp = { getRemainingDailyQuota: () => 100, sendEmail: (a, b, c, d) => { mail.push(typeof a === 'object' ? a : Object.assign({ to: a, subject: b, body: c }, d || {})); } };
+  const MailApp = {
+    getRemainingDailyQuota: () => mailCtl.quota,
+    sendEmail: (a, b, c, d) => {
+      if (mailCtl.fail) throw new Error('Mail failed (test)');
+      if (mailCtl.quota <= 0) throw new Error('Service invoked too many times for one day: email.');
+      const m = typeof a === 'object' ? a : Object.assign({ to: a, subject: b, body: c }, d || {});
+      if (String(m.htmlBody || '').length + String(m.body || '').length > 200 * 1024) throw new Error('Email body too large');
+      mailCtl.quota--; mail.push(m);
+    }
+  };
   const ScriptApp = {
     newTrigger: fn => { const t = { fn, every: 0 }; const b = { timeBased: () => b, everyMinutes: n => { t.every = n; return b; }, create: () => { triggers.push(t); return t; } }; return b; },
     getProjectTriggers: () => triggers.map(t => ({ getHandlerFunction: () => t.fn, _t: t })),
@@ -45,7 +56,7 @@ function services(box, clock) {
   };
   class FakeDate extends Date { constructor(...a) { if (a.length) super(...a); else super(Date.now() + clock.off); } static now() { return Date.now() + clock.off; } }
   return {
-    props, cache, triggers, mail, logs,
+    props, cache, triggers, mail, logs, mailCtl,
     g: {
       PropertiesService, CacheService, MailApp, ScriptApp, Utilities,
       UrlFetchApp: { fetch: syncFetch }, LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => { } }) },

@@ -10,7 +10,7 @@ const DEMO = {
   AS: [['amir', 'Dr. A'], ['sarah', 'Coordinator'], ['gwen', 'Assistant']],
   init() {
     const st = demoStore().nlo, store = {
-      items: st.items, orders: st.orders, vendors: st.vendors, log: st.log, cart: st.cart, bracketOrder: st.bracketOrder, budget: st.budget,
+      items: st.items, orders: st.orders, vendors: st.vendors, log: st.log, cart: st.cart, bracketOrder: st.bracketOrder, budget: st.budget, expenses: st.expenses,
       elastoPrices: st.elastoPrices, settings: Object.assign({ invAdmins: ['amir', 'sarah'] }, st.settings), ai: {}, pics: {}
     };
     return DEMO.backend(store);
@@ -27,10 +27,10 @@ const DEMO = {
       async open() { return { st: 'ready', moved: { at: Date.now() } }; },
       /* each change shows up a moment later, as a real one comes back from the database */
       emit(key) {
-        const v = key === 'items' || key === 'orders' || key === 'vendors' || key === 'log' ? Object.values(store[key]) : key === 'roster' ? roster : key === 'cases' ? { idleMin: 10 } : store[key];
+        const v = key === 'items' || key === 'orders' || key === 'vendors' || key === 'log' || key === 'expenses' ? Object.values(store[key]) : key === 'roster' ? roster : key === 'cases' ? { idleMin: 10 } : store[key];
         setTimeout(() => { if (M.h) M.h.data(key, clone(v)); }, 0);
       },
-      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cart', 'bracketOrder', 'budget', 'elastoPrices'].forEach(M.emit); },
+      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cart', 'bracketOrder', 'budget', 'expenses', 'elastoPrices'].forEach(M.emit); },
       stop() { M.h = null; },
       async rosterOnce() { return clone(roster); },
       patchOf(rec, patch) { Object.keys(patch || {}).forEach(k => { const v = patch[k] === undefined ? null : clone(patch[k]); if (v == null) delete rec[k]; else rec[k] = v; }); return rec; },
@@ -42,14 +42,15 @@ const DEMO = {
       async putItem(item) { store.items[item.id] = clone(item); M.emit('items'); },
       async patchOrder(id, patch) { if (!store.orders[id]) throw errCode('not-found', 'That order is gone.'); M.patchOf(store.orders[id], patch); M.emit('orders'); },
       async putOrder(o) { store.orders[o.id] = clone(o); M.emit('orders'); },
-      async claimOrder(id, fn) { const o = store.orders[id]; const next = o ? fn(o.status) : undefined; if (next === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.'); o.status = next; M.emit('orders'); return next; },
+      async claimOrder(id, fn, patchFn) { const o = store.orders[id]; const next = o ? fn(o.status) : undefined; if (next === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.'); if (patchFn) M.patchOf(o, patchFn(clone(o))); o.status = next; M.emit('orders'); return next; },
       async putVendor(v) { store.vendors[v.id] = clone(v); M.emit('vendors'); },
       async patchVendor(id, patch) { store.vendors[id] = M.patchOf(store.vendors[id] || { id }, patch); M.emit('vendors'); },
       async cart(fn) { const next = fn(clone(listOf(store.cart)) || []); if (next !== undefined) { store.cart = clone(listOf(next)); M.emit('cart'); } return next; },
       async addLog(entries) { (entries || []).filter(Boolean).forEach(e => { store.log[e.id] = clone(e); }); M.emit('log'); },
       async removeLog() { }, async trimLog() { },
       async budget(patch) { store.budget = M.patchOf(store.budget || {}, patch); M.emit('budget'); },
-      async budgetTx(key, fn) { const next = fn(clone((store.budget || {})[key])); if (next !== undefined) { store.budget = Object.assign({}, store.budget, { [key]: clone(next) }); M.emit('budget'); } return next; },
+      async addExpense(x) { store.expenses[x.id] = clone(Object.assign({}, x, { byId: M.me.staffId })); M.emit('expenses'); },
+      async removeExpense(id) { delete store.expenses[id]; M.emit('expenses'); },
       async setElastoPrice(sku, price) { store.elastoPrices = Object.assign({}, store.elastoPrices, { [fbKey(sku)]: { price: round2(price), date: todayISO() } }); M.emit('elastoPrices'); },
       async bracketOrder(v) { store.bracketOrder = clone(v); M.emit('bracketOrder'); },
       async setSetting(k, v) { if (k === 'geminiKey' || k === 'openaiKey') { store.ai[k] = v; return; } store.settings = M.patchOf(Object.assign({}, store.settings), { [k]: v }); M.emit('settings'); },
@@ -129,7 +130,7 @@ function demoStore() {
     const e = { id: 'u' + k, itemId: it.id, itemName: it.name, delta: dlt, type: 'use', note: 'Used', date: iso(at(d, h, 30)), by: DEMO_PEOPLE[who].short, byId: who }; log[e.id] = e;
   });
   const vendors = {};
-  const budget = { monthly: 8000, categories: { 'brackets-tubes': 2500, archwires: 900, elastics: 800, 'infection-control': 1200, 'clinical-supplies': 900, adhesives: 600, misc: 500 },
-    expenses: [{ id: 'x1', date: ymd(at(9, 12)), amount: 145.0, category: 'patient-care', vendor: 'Amazon Business', note: 'Retainer cases', by: 'Mara Q.' }], history: [] };
-  return { nlo: { items, orders, vendors, log, cart, budget, bracketOrder: null, elastoPrices: {}, settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
+  const budget = { monthly: 8000, categories: { 'brackets-tubes': 2500, archwires: 900, elastics: 800, 'infection-control': 1200, 'clinical-supplies': 900, adhesives: 600, misc: 500 }, history: [] };
+  const expenses = { x1: { id: 'x1', date: ymd(at(9, 12)), amount: 145.0, category: 'patient-care', vendor: 'Amazon Business', note: 'Retainer cases', by: 'Mara Q.', byId: 's_sarah' } };
+  return { nlo: { items, orders, vendors, log, cart, budget, expenses, bracketOrder: null, elastoPrices: {}, settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
 }

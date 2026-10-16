@@ -1,6 +1,7 @@
 /* =====================================================================
    Budget — what supplies cost each month against the supply budget
-   (nlo/budget: monthly, per-category allocations, manual expenses).
+   (invState/budget: monthly, per-category allocations; invExpenses: the
+   expenses bought outside an order, each in the name of whoever added it).
    Spend comes from what was received (money.js), never from stock
    counts. Lab, Appliances & 3D Printing has its own budget and isn't
    counted here, as before.
@@ -38,9 +39,9 @@ VIEWS.budget = {
     if (covers && u.mk < covers) h += '<div class="notice">The activity log only keeps the newest receipts, and ' + esc(monthLabel(u.mk, true)) + ' is older than what it still holds in full — this month may read low.</div>';
     h += '<div class="twoCol"><div>' + budgetSummaryCard(u.mk, sp, budget, false);
     /* expenses entered by hand */
-    const ex = listOf(D.budget.expenses).filter(x => x && monthKey(x.date) === u.mk).sort((a, b) => msOf(b.date) - msOf(a.date));
+    const ex = listOf(D.expenses).filter(x => x && monthKey(x.date) === u.mk).sort((a, b) => msOf(b.date) - msOf(a.date));
     h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Other supply expenses</h3><span class="sub">bought outside an order</span><span style="flex:1"></span><button class="btn btn-sec btn-sm" data-act="expenseAdd">' + ic('plus', 15) + 'Add</button></div><div class="cardBd">';
-    h += ex.length ? ex.map(x => '<div class="row" style="cursor:default"><div class="grow"><span class="pt">' + esc(x.vendor || x.description || x.note || catLabel(x.category)) + ' <span class="muted" style="font-weight:600">· ' + esc(catLabel(x.category)) + '</span></span><span class="meta">' + esc(fmtDate(x.date)) + (x.note && x.vendor ? ' · ' + esc(x.note) : '') + (x.by ? ' · added by ' + esc(x.by) : '') + '</span></div><b class="nowrap">' + money(x.amount) + '</b>' +
+    h += ex.length ? ex.map(x => '<div class="row" style="cursor:default"><div class="grow"><span class="pt">' + esc(x.vendor || x.description || x.note || catLabel(x.category)) + ' <span class="muted" style="font-weight:600">· ' + esc(catLabel(x.category)) + '</span></span><span class="meta">' + esc(fmtDate(x.date)) + (x.note && x.vendor ? ' · ' + esc(x.note) : '') + (x.by || x.byId ? ' · added by ' + esc(stampName(x.by, x.byId)) : '') + '</span></div><b class="nowrap">' + money(x.amount) + '</b>' +
       (isAdmin() || isMine(x.byId) ? '<button class="iconBtn" data-act="expenseDel" data-id="' + esc(x.id) + '" aria-label="Remove">' + ic('trash', 16) + '</button>' : '') + '</div>').join('') : '<div class="empty">None this month. Use <b>Add</b> for supplies bought on a card at a store, for example.</div>';
     h += '</div></div></div><div>';
     /* 12 months */
@@ -116,12 +117,12 @@ ACT.expenseSave = async t => {
   const amt = round2(val('exAmt')); if (!(amt > 0)) return toast('Type the amount.', { bad: true });
   const s = stamp(), x = { id: uid(), date: val('exDate') || todayISO(), amount: amt, category: val('exCat') || 'misc', vendor: val('exVendor').trim(), note: val('exNote').trim(), by: s.by, byId: s.byId || null, addedAt: s.at };
   busyBtn(t, true, 'Saving…');
-  if (await act(() => B.budgetTx('expenses', cur => [x].concat(listOf(cur)).slice(0, 500)), 'Expense added.')) closeModal(true); else busyBtn(t, false);
+  if (await act(() => B.addExpense(x), 'Expense added.')) closeModal(true); else busyBtn(t, false);
 };
 ACT.expenseDel = async t => {
-  const x = listOf(S.D.budget.expenses).find(e => e && e.id === t.dataset.id); if (!x) return;
+  const x = listOf(S.D.expenses).find(e => e && e.id === t.dataset.id); if (!x) return;
   if (!await confirmBox('Remove this expense?', money(x.amount) + (x.vendor ? ' from ' + x.vendor : '') + (x.note ? ' — ' + x.note : '') + '. It comes off the month’s spending.', 'Remove', true)) return;
-  withWho(() => act(() => B.budgetTx('expenses', cur => listOf(cur).filter(e => e && e.id !== x.id)), 'Expense removed.'));
+  withWho(() => act(() => B.removeExpense(x.id), 'Expense removed.'));
 };
 ACT.budgetEdit = () => withAdmin(openBudgetEdit, 'Who’s changing the budget?', 'change budget amounts');
 function openBudgetEdit() {

@@ -33,7 +33,7 @@ VIEWS.cart = {
     vendorsIn(cart).forEach(vn => {
       const ls = cartLinesFor(vn), v = vendorByName(vn);
       h += '<div class="card vcard"><div class="cardHd">' + (vn ? vlogoHTML(v || { name: vn }, 'lg') : '<span class="vlogo lg none">' + ic('warn', 16) + '</span>') + '<div class="grow"><h3>' + esc(vn || 'No vendor yet') + '</h3>' +
-        (v ? '<div class="vmeta">' + (v.acct ? '<span>Account ' + esc(v.acct) + '</span>' : '') + (v.portal ? '<a href="' + esc(v.portal) + '" target="_blank" rel="noopener">' + ic('web', 12) + ' Website</a>' : '') + (v.phone || v.tollFree ? '<a href="tel:' + esc(String(v.tollFree || v.phone).replace(/[^\d+]/g, '')) + '">' + ic('call', 12) + ' ' + esc(v.tollFree || v.phone) + '</a>' : '') + (v.rep ? '<span>Rep: ' + esc(v.rep) + '</span>' : '') + '</div>' : !vn ? '<div class="vmeta">Pick a vendor for these lines before ordering (the pencil on each line).</div>' : '') + '</div></div>' +
+        (v ? '<div class="vmeta">' + (v.acct ? '<span>Account ' + esc(v.acct) + '</span>' : '') + (webUrl(v.portal) ? '<a href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 12) + ' Website</a>' : '') + (v.phone || v.tollFree ? '<a href="tel:' + esc(String(v.tollFree || v.phone).replace(/[^\d+]/g, '')) + '">' + ic('call', 12) + ' ' + esc(v.tollFree || v.phone) + '</a>' : '') + (v.rep ? '<span>Rep: ' + esc(v.rep) + '</span>' : '') + '</div>' : !vn ? '<div class="vmeta">Pick a vendor for these lines before ordering (the pencil on each line).</div>' : '') + '</div></div>' +
         ls.map(cartLineHTML).join('') +
         '<div class="vfoot"><span class="sum">' + ls.length + ' line' + (ls.length === 1 ? '' : 's') + ' · subtotal<b>' + money(cartValue(ls)) + '</b></span><span style="flex:1"></span>' +
         (vn ? '<button class="btn btn-pri" data-act="placeOrder" data-v="' + esc(vn) + '">' + ic('truck', 16) + 'Place this order</button>' : '') + '</div></div>';
@@ -79,14 +79,14 @@ function orderText(vn, lines, who) {
 }
 ACT.placeOrder = t => withWho(w => {
   const vn = t.dataset.v, ls = cartLinesFor(vn), v = vendorByName(vn) || {};
-  S.ui.place = { vendor: vn, ids: ls.map(c => c.itemId), how: v.portal ? 'online' : (v.email || v.repEmail) ? 'email' : (v.phone || v.tollFree) ? 'call' : 'other' };
+  S.ui.place = { vendor: vn, ids: ls.map(c => c.itemId), how: webUrl(v.portal) ? 'online' : (v.email || v.repEmail) ? 'email' : (v.phone || v.tollFree) ? 'call' : 'other' };
   renderPlace();
 }, 'Who’s placing this order?');
 function renderPlace() {
   const P = S.ui.place, v = vendorByName(P.vendor) || { name: P.vendor }, w = whoNow(), ls = S.D.cart.filter(c => P.ids.includes(c.itemId));
   const text = orderText(P.vendor, ls, w), email = v.repEmail || v.email || '', phone = v.tollFree || v.phone || '', cell = v.repPhone || '';
   let detail = '';
-  if (P.how === 'online') detail = v.portal ? '<a class="btn btn-act" href="' + esc(v.portal) + '" target="_blank" rel="noopener">' + ic('web', 16) + 'Open ' + esc(v.name) + '’s website</a><div class="hint">Add the lines below on their site and check out, then come back here.' + (v.acct ? ' Account: <b>' + esc(v.acct) + '</b>.' : '') + '</div>' : '<div class="notice">There’s no website saved for ' + esc(v.name) + '. Add it under Vendors.</div>';
+  if (P.how === 'online') detail = webUrl(v.portal) ? '<a class="btn btn-act" href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 16) + 'Open ' + esc(v.name) + '’s website</a><div class="hint">Add the lines below on their site and check out, then come back here.' + (v.acct ? ' Account: <b>' + esc(v.acct) + '</b>.' : '') + '</div>' : '<div class="notice">There’s no website saved for ' + esc(v.name) + '. Add it under Vendors.</div>';
   else if (P.how === 'call') detail = phone ? '<a class="btn btn-act" href="tel:' + esc(phone.replace(/[^\d+]/g, '')) + '">' + ic('call', 16) + 'Call ' + esc(phone) + '</a>' + (v.acct ? '<div class="hint">Account: <b>' + esc(v.acct) + '</b></div>' : '') : '<div class="notice">No phone number saved for ' + esc(v.name) + '.</div>';
   else if (P.how === 'email') detail = email ? '<a class="btn btn-act" href="mailto:' + esc(email) + '?subject=' + encodeURIComponent('Order — ' + OFFICE.name + (v.acct ? ' (acct ' + v.acct + ')' : '')) + '&body=' + encodeURIComponent(text) + '">' + ic('email', 16) + 'Write the email to ' + esc(email) + '</a><div class="hint">It opens in your email program with the order filled in.</div>' : '<div class="notice">No email saved for ' + esc(v.name) + '. Copy the order below into an email.</div>';
   else if (P.how === 'text') detail = cell ? '<a class="btn btn-act" href="sms:' + esc(cell.replace(/[^\d+]/g, '')) + '?&body=' + encodeURIComponent(text) + '">' + ic('text', 16) + 'Text ' + esc(v.rep || cell) + '</a>' : '<div class="notice">No mobile number saved for ' + esc(v.name) + '’s rep.</div>';

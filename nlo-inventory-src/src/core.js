@@ -39,12 +39,13 @@ const ALERT_SCRIPT_URL = 'https://script.google.com/home/projects/1wwUm4vUhGrabE
 /* synthetic login addresses (no mail is ever sent to them), as NLO Cases issues them */
 const STAFF_DOMAIN = 'staff.thenextlevelorthodontics.com';
 const INV_RULES = ""; // the build puts the office's whole Firestore rules file here (Dr. A's "publish the rules" card)
+const IDLE_GRACE_MS = 120000;     // a save still on its way holds the lock off this much longer, no more
 const IDLE_MIN = 10;               // the lock after this many minutes without activity, unless NLO Cases sets another (meta/settings.idleMin)
 
 /* ---------- app state ---------- */
 const S = {
   demo: false, emu: false, inApp: false, gate: 'opening', view: 'home', q: '', people: [], online: true, loadErr: '', cases: {}, lastAct: Date.now(), idleTimer: null, lastLogin: '',
-  D: { items: [], orders: [], vendors: [], log: [], cart: [], bracketOrder: {}, budget: { monthly: 8000, categories: {}, expenses: [], history: [] }, elastoPrices: {}, roster: null },
+  D: { items: [], orders: [], vendors: [], log: [], cart: [], bracketOrder: {}, budget: { monthly: 8000, categories: {}, history: [] }, expenses: [], elastoPrices: {}, roster: null },
   loaded: {}, denied: {}, settings: {}, ui: {}, drawer: null, renderQ: false, imgCache: new Map(), moved: null
 };
 /* the backend in use (FB, on the real or the demo database) and the screens' registries: clicks (data-act), changes (data-chg),
@@ -72,6 +73,8 @@ function initials(name) { const p = String(name || '').replace(/^dr\.?\s+/i, 'Dr
 function firstName(n) { return String(n || '').replace(/^dr\.?\s+/i, '').split(/\s+/)[0] || ''; }
 function plainText(s, max) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return max && s.length > max ? s.slice(0, max - 1) + '…' : s; }
 function hexId(n) { return Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join(''); }
+/* a web address that's safe to open from a link (http or https only), else '' */
+function webUrl(u) { u = String(u == null ? '' : u).trim(); return /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : ''; }
 function errCode(code, msg) { const e = new Error(msg || code); e.code = code; return e; }
 function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30); }
 /* a long random password for a login only a script uses */

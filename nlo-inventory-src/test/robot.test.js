@@ -49,7 +49,7 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   // the old database as the old app left it (Staff Meeting reads items, orders, log and budget; the old page's alert queue)
   await rt('PUT', '/', { nlo: { items: { 'ppe-1': { id: 'ppe-1', name: 'Gloves SM', qty: 14 }, 'old-only': { id: 'old-only', name: 'Only in the old one', qty: 1 } },
     orders: { 'o-1': { id: 'o-1', vendor: 'SunSurgical', status: 'open' } }, log: { l1: { id: 'l1', type: 'use', delta: -1, date: '2026-10-01T12:00:00.000Z' } },
-    budget: { monthly: 8000 }, settings: { alertsOn: true, geminiKey: 'AIzaKEEP' }, cadence: { roster: { v: 1 } } } });
+    budget: { monthly: 8000, months: { '2026-09': { total: 1 } } }, settings: { alertsOn: true, geminiKey: 'AIzaKEEP', aisaAdminKey: 'keep-me' }, cadence: { roster: { v: 1 } } } });
   // the office: Dr. A, Gwen; the script's login (as Inventory → Settings → Email alerts makes it)
   const signup = async (email, pw) => (await (await fetch(AUTH + '/accounts:signUp?key=any', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw, returnSecureToken: true }) })).json()).localId;
   const owner = await signup('dr.test@example.com', 'owner-pass-1');
@@ -77,8 +77,11 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   await put('invItems/ppe-1', { id: 'ppe-1', name: 'Gloves SM', qty: 12, sources: [{ vendor: 'SunSurgical', price: 9.13 }], note: null, up: T, upBy: 'gwen' });
   await put('invItems/ad.1', { id: 'ad.1', name: 'Odd id', qty: 3, up: T, upBy: 'gwen' });
   await put('invOrders/o-1', { id: 'o-1', vendor: 'SunSurgical', status: 'received', items: [{ itemId: 'ppe-1', qty: 2, price: 9.13 }], up: T, upBy: 'gwen' });
-  await put('invLog/m2026-10', { e: { l1: { id: 'l1', type: 'use', delta: -1, date: '2026-10-01T12:00:00.000Z' }, l2: { id: 'l2', type: 'receive', delta: 2, amount: 18.26, orderId: 'o-1', date: '2026-10-15T15:00:00.000Z' } }, up: T, upBy: 'gwen' });
-  await put('invState/budget', { monthly: 8500, categories: { misc: 100 }, expenses: [{ id: 'x1', amount: 12 }], up: T, upBy: 'sarah' });
+  // the log: the moved entries (as the old app stamped them) and Gwen's own record (one entry naming someone else: it's hers)
+  await put('invLog/m2026-10~old', { e: { l1: { id: 'l1', type: 'use', delta: -1, date: '2026-10-01T12:00:00.000Z', byId: 's_kim' } }, mon: '2026-10', who: 'old', up: T, upBy: 'amir' });
+  await put('invLog/m2026-10~gwen', { e: { l2: { id: 'l2', type: 'receive', delta: 2, amount: 18.26, orderId: 'o-1', date: '2026-10-15T15:00:00.000Z', by: 'Sarah B.', byId: 'sarah' } }, mon: '2026-10', who: 'gwen', up: T, upBy: 'gwen' });
+  await put('invState/budget', { monthly: 8500, categories: { misc: 100 }, up: T, upBy: 'sarah' });
+  await put('invExpenses/x1', { id: 'x1', amount: 12, date: '2026-10-02', category: 'misc', byId: 'gwen', addedAt: '2026-10-02T10:00:00Z', up: T, upBy: 'gwen' });
   await put('invMeta/moved', { at: Date.now(), up: T, upBy: 'amir' });
   await bump();
   r = sv.run('setup()');
@@ -91,9 +94,11 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   ok('copy: orders', (await rt('GET', '/nlo/orders/o-1')).status === 'received');
   const log = await rt('GET', '/nlo/log');
   ok('copy: the log, entry by entry', log.l2 && log.l2.amount === 18.26 && log.l1.delta === -1, log);
+  ok('copy: an entry in Gwen’s record is Gwen’s, whatever name it carries; a moved one keeps its old stamp', log.l2.byId === 'gwen' && log.l1.byId === 's_kim', log);
   const bud = await rt('GET', '/nlo/budget');
-  ok('copy: the budget', bud.monthly === 8500 && bud.expenses[0].amount === 12 && !('up' in bud), bud);
-  ok('copy: the rest of the old database untouched (keys, roster)', (await rt('GET', '/nlo/settings/geminiKey')) === 'AIzaKEEP' && (await rt('GET', '/nlo/cadence/roster/v')) === 1);
+  ok('copy: the budget, its expenses as the list Staff Meeting reads', bud.monthly === 8500 && bud.expenses && bud.expenses[0].amount === 12 && !('up' in bud) && !('up' in bud.expenses[0]), bud);
+  ok('copy: a budget key the app doesn’t keep stays as it was', bud.months && bud.months['2026-09'].total === 1, bud);
+  ok('copy: the rest of the old database untouched (keys, roster)', (await rt('GET', '/nlo/settings/geminiKey')) === 'AIzaKEEP' && (await rt('GET', '/nlo/settings/aisaAdminKey')) === 'keep-me' && (await rt('GET', '/nlo/cadence/roster/v')) === 1);
   const beat = (await list('invBeat'))[0];
   ok('setup: noted when it checked (version 2)', beat && beat.fields.ver.stringValue === '2' && beat.name.endsWith('/' + bot), beat);
 
@@ -125,11 +130,61 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   r = sv.run('checkInventoryAlerts()');
   ok('changed: one supply copied', r.copied === 1 && (await rt('GET', '/nlo/items/ppe-1')).qty === 9, r);
   ok('changed: the others left as they were', (await rt('GET', '/nlo/items/ad_1')).qty === 3);
-  await put('invLog/m2026-10', { e: { l1: { id: 'l1', type: 'use', delta: -1, date: '2026-10-01T12:00:00.000Z' }, l2: { id: 'l2', type: 'receive', delta: 2, amount: 18.26, orderId: 'o-1', date: '2026-10-15T15:00:00.000Z' }, l3: { id: 'l3', type: 'tax', amount: 1.1, orderId: 'o-1', date: '2026-10-16T15:00:00.000Z' } }, up: new Date(), upBy: 'gwen' });
-  await put('invState/budget', { monthly: 9000, categories: {}, expenses: [], up: new Date(), upBy: 'sarah' });
+  await put('invLog/m2026-10~gwen', { e: { l2: { id: 'l2', type: 'receive', delta: 2, amount: 18.26, orderId: 'o-1', date: '2026-10-15T15:00:00.000Z', byId: 'gwen' }, l3: { id: 'l3', type: 'tax', amount: 1.1, orderId: 'o-1', date: '2026-10-16T15:00:00.000Z', byId: 'gwen' } }, mon: '2026-10', who: 'gwen', up: new Date(), upBy: 'gwen' });
+  await put('invState/budget', { monthly: 9000, categories: {}, up: new Date(), upBy: 'sarah' });
   await bump();
   r = sv.run('checkInventoryAlerts()');
   ok('changed: a new log entry and the budget', (await rt('GET', '/nlo/log/l3')).amount === 1.1 && (await rt('GET', '/nlo/budget/monthly')) === 9000, r);
+  // an expense taken off here comes off the list there
+  await del('invExpenses/x1'); await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('changed: an expense taken off comes off the list Staff Meeting reads', !(await rt('GET', '/nlo/budget')).expenses && (await rt('GET', '/nlo/budget/months/2026-09/total')) === 1, await rt('GET', '/nlo/budget'));
+  // the AI keys: copied where Staff Meeting and Month-End read them
+  await put('invState/ai', { gemini: 'AIzaNEW', up: new Date(), upBy: 'amir' }); await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('changed: the Gemini key copied for Staff Meeting and Month-End (the other settings left alone)', (await rt('GET', '/nlo/settings/geminiKey')) === 'AIzaNEW' && (await rt('GET', '/nlo/settings/aisaAdminKey')) === 'keep-me', r);
+  // a save sent a moment before the last one copied but that landed after it: the next copy still finds it
+  const last = JSON.parse(sv.props.INV_UP).invItems;
+  await put('invItems/late-1', { id: 'late-1', name: 'Landed late', qty: 5, up: new Date(last - 60000), upBy: 'gwen' }); await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('changed: a save that landed late is still copied (each copy looks 5 minutes back)', (await rt('GET', '/nlo/items/late-1')).qty === 5, r);
+
+  /* ---------- many alerts at once: a few emails; a huge one; Gmail's daily limit; a mail failure ---------- */
+  sv.mail.length = 0;
+  for (let i = 0; i < 60; i++) await put('invAlerts/m' + String(i).padStart(2, '0'), { t: 'cart', at: Date.now() - 60000 + i, by: 'Gwen R.', lines: [{ n: 'Item ' + i, q: 1 }], up: new Date(), upBy: 'gwen' });
+  await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('many: 60 alerts come as 3 emails (25, 25, 10)', r.sent === 60 && sv.mail.length === 3 && /^Inventory: 25 added to cart/.test(sv.mail[0].subject) && /^Inventory: 10 added to cart/.test(sv.mail[2].subject), { r, subjects: sv.mail.map(m => m.subject) });
+  ok('many: all cleared', (await list('invAlerts')).length === 0);
+  sv.mail.length = 0;
+  const huge = Array.from({ length: 300 }, (_, i) => ({ n: 'A very long supply name '.repeat(20) + i, q: 1, u: 'box', p: 1, v: 'Vendor '.repeat(30) }));
+  for (let i = 0; i < 3; i++) await put('invAlerts/h' + i, { t: 'received', at: Date.now() + i, by: 'Gwen R. '.repeat(40), vendor: 'V'.repeat(5000), note: 'N'.repeat(100000), lines: huge, up: new Date(), upBy: 'gwen' });
+  await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('huge: three oversized alerts still go out, each email under Gmail’s size', r.sent === 3 && sv.mail.length >= 1 && sv.mail.every(m => m.htmlBody.length + m.body.length < 200 * 1024), { r, sizes: sv.mail.map(m => m.htmlBody.length + m.body.length) });
+  ok('huge: a long alert is cut short (60 lines, and it says how many more)', /and 240 more line\(s\)/.test(sv.mail[0] && sv.mail[0].body || ''), (sv.mail[0] && sv.mail[0].body || '').slice(-300));
+  // Gmail's daily limit used up: the alerts wait (not cleared), the copy goes on, the check-in says why
+  sv.mail.length = 0; sv.mailCtl.quota = 0;
+  await put('invAlerts/q1', { t: 'cart', at: Date.now(), by: 'Gwen R.', lines: [{ n: 'Masks', q: 1 }], up: new Date(), upBy: 'gwen' });
+  await put('invItems/ppe-1', { id: 'ppe-1', name: 'Gloves SM', qty: 8, up: new Date(), upBy: 'gwen' });
+  await bump();
+  r = sv.run('checkInventoryAlerts()');
+  const beat2 = (await list('invBeat'))[0].fields;
+  ok('out of email: nothing sent, the alert waits, the copy still goes', r.sent === 0 && r.waiting === 1 && (await list('invAlerts')).length === 1 && (await rt('GET', '/nlo/items/ppe-1')).qty === 8, r);
+  ok('out of email: the check-in says why (Settings shows it)', /daily email limit/.test(beat2.err.stringValue) && !sv.props.FAILS, beat2.err);
+  sv.mailCtl.quota = 100;
+  r = sv.run('checkInventoryAlerts()');
+  ok('out of email: the next check sends it', r.sent === 1 && sv.mail.length === 1 && (await list('invAlerts')).length === 0, r);
+  // an email that fails: the copy still goes; nothing is sent twice when it works again
+  sv.mail.length = 0; sv.mailCtl.fail = true;
+  await put('invAlerts/f1', { t: 'cart', at: Date.now(), by: 'Gwen R.', lines: [{ n: 'Cups', q: 1 }], up: new Date(), upBy: 'gwen' });
+  await put('invItems/ppe-1', { id: 'ppe-1', name: 'Gloves SM', qty: 7, up: new Date(), upBy: 'gwen' });
+  await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('mail fails: the copy still goes (Staff Meeting and AISA don’t stall)', (await rt('GET', '/nlo/items/ppe-1')).qty === 7 && Number(sv.props.FAILS) === 1 && (await list('invAlerts')).length === 1, { r, fails: sv.props.FAILS });
+  sv.mailCtl.fail = false;
+  r = sv.run('checkInventoryAlerts()');
+  ok('mail fails: the next check sends it, once', r.sent === 1 && sv.mail.length === 1 && (await list('invAlerts')).length === 0 && !sv.props.FAILS, r);
 
   /* ---------- an old Inventory page still open somewhere ---------- */
   sv.mail.length = 0;
@@ -156,7 +211,7 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   clock.off = tenAm + 18 * 3600000;   // 4 AM tomorrow
   await rt('PUT', '/nlo/items/ppe-1/qty', 999);   // (drift in the old database)
   r = sv.run('checkInventoryAlerts()');
-  ok('nightly: everything copied again (drift put right)', r.copied >= 6 && (await rt('GET', '/nlo/items/ppe-1/qty')) === 9, r);
+  ok('nightly: everything copied again (drift put right)', r.copied >= 6 && (await rt('GET', '/nlo/items/ppe-1/qty')) === 7, r);
   clock.off += 11 * 60000;   // (still night: every 10 minutes)
   r = sv.run('checkInventoryAlerts()');
   ok('nightly: once (the next check copies nothing)', !r.quiet && r.copied === 0, r);

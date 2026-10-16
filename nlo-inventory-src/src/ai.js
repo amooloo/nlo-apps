@@ -536,7 +536,7 @@ function askContext() {
     orders: S.D.orders.filter(o => o.status !== 'voided').sort((a, b) => orderWhen(b) - orderWhen(a)).slice(0, 200).map(o => ({ vendor: o.vendor, status: o.status, dateOrdered: o.dateOrdered, orderedBy: o.orderedBy, method: o.method, dateReceived: o.dateReceived ? dayOf(o.dateReceived) : undefined, receivedBy: o.receivedBy, total: orderTotal(o),
       lines: o.items.map(l => ({ name: l.name, qty: l.qty, unit: l.unit, unitPrice: l.price, lineTotal: orderItemCost(l), addedBy: l.addedBy })) })),
     activityLog: S.D.log.slice(0, 300).map(e => ({ item: e.itemName, type: e.type, delta: e.delta, amount: e.amount, date: e.date, by: e.by })),
-    manualExpenses: listOf(S.D.budget.expenses).map(x => ({ category: catLabel(x.category), amount: x.amount, date: x.date, note: x.note || x.vendor, by: x.by })),
+    manualExpenses: listOf(S.D.expenses).map(x => ({ category: catLabel(x.category), amount: x.amount, date: x.date, note: x.note || x.vendor, by: x.by })),
     monthlyBudget: budgetMonthly()
   };
 }

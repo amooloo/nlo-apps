@@ -117,6 +117,8 @@ def seed_old():
     data['nlo']['items']['adh-1']['img'] = 'data:image/png;base64,' + png(24, 24)
     data['nlo']['items']['ppe-1']['imgFull'] = 'data:image/png;base64,' + png(760, 520)
     data['nlo']['orders']['order-r1']['slipPhoto'] = 'data:image/jpeg;base64,bm90IGEgcGljdHVyZQ=='
+    # the mark the go-live step leaves when it makes the old Inventory read-only (freeze_old.py)
+    data['nlo']['settings']['invFrozen'] = {'at': int(time.time() * 1000), 'by': 'go-live'}
     c, j = rt('PUT', '/', data); assert c == 200, j
     return data
 
@@ -130,7 +132,7 @@ def png(w, h):
 SNAP = {}
 def snapshot():
     SNAP.clear()
-    for coll in ['invItems', 'invOrders', 'invVendors', 'invLog', 'invState', 'invPics', 'invMeta', 'invAlerts', 'invBots', 'logins', 'members', 'roster', 'meta']:
+    for coll in ['invItems', 'invOrders', 'invVendors', 'invExpenses', 'invLog', 'invState', 'invPics', 'invMeta', 'invAlerts', 'invBots', 'invBeat', 'logins', 'members', 'roster', 'meta']:
         SNAP[coll] = raw_docs(coll)
 def restore():
     req('DELETE', 'http://127.0.0.1:8080/emulator/v1/projects/' + P + '/databases/(default)/documents')
@@ -182,10 +184,19 @@ def store(path):
     if parts[0] == 'orders': return strip(get('invOrders/' + parts[1])) if len(parts) > 1 else {k: strip(v) for k, v in query('invOrders').items()}
     if parts[0] == 'vendors': return {k: strip(v) for k, v in query('invVendors').items()}
     if parts[0] == 'log':
+        # one record per person per month: whose record an entry is in is who made it (the moved ones, in old…, as stamped)
         out = {}
-        for m in query('invLog').values(): out.update((m or {}).get('e') or {})
+        for m in query('invLog').values():
+            who = (m or {}).get('who') or ''
+            for k, e in ((m or {}).get('e') or {}).items():
+                e = dict(e)
+                if who and not re.match(r'^old\d*$', who): e['byId'] = who
+                out[k] = e
         return out
-    if parts[0] == 'budget': return strip(get('invState/budget'))
+    if parts[0] == 'budget':
+        b = strip(get('invState/budget'))
+        if b is not None: b['expenses'] = sorted([strip(x) for x in query('invExpenses').values()], key=lambda x: str(x.get('addedAt') or x.get('date') or ''), reverse=True)
+        return b
     if parts[0] == 'elastoPrices': return (get('invState/prices') or {}).get('p') or {}
     if parts[:2] == ['settings', 'alertQueue']: return {k: strip(v) for k, v in query('invAlerts').items()}
     if parts[0] == 'settings': return strip(get('invState/settings'))
@@ -230,24 +241,38 @@ def t_move(b):
     ctx, pg, errs = new_page(b); sign_in(pg, 'amir', wait_app=False)
     pg.wait_for_function("() => S.inApp && S.gate === 'move'", timeout=15000)
     check('before the move: Dr. A sees the move card', J(pg, "!!document.querySelector('.moveCard')"))
+    # the old Inventory isn't read-only yet: the card says so, and won't move
+    frozen = rt('GET', '/nlo/settings/invFrozen')[1]
+    rt('DELETE', '/nlo/settings/invFrozen')
     pg.click('[data-act="mvConnect"]')
     pg.wait_for_function("() => MV.step === 'ready' || MV.err", timeout=20000)
     check('move: read the old Inventory', J(pg, "MV.step") == 'ready', J(pg, "MV.err"))
+    check('move: not read-only yet → the card says so', J(pg, "MV.plan.frozen") is False and 'still takes changes' in J(pg, "document.querySelector('.moveCard').textContent"), J(pg, "document.querySelector('.moveCard').textContent")[-400:])
+    check('move: …and Move it now is off', J(pg, "document.querySelector('[data-act=mvGo]').disabled") is True)
+    rt('PUT', '/nlo/settings/invFrozen', frozen)
+    pg.click('[data-act="mvRead"]'); pg.wait_for_function("() => MV.step === 'ready' && MV.plan && MV.plan.frozen", timeout=20000)
+    check('move: read-only now → Move it now is on', J(pg, "!document.querySelector('[data-act=mvGo]').disabled"))
     c = J(pg, "MV.plan && MV.plan.counts") or {}
     check('move: counts what the old one has (6 supplies, 3 orders, 1 vendor, 4 log entries, 1 cart line, 1 expense)',
           [c.get('items'), c.get('orders'), c.get('vendors'), c.get('log'), c.get('cart'), c.get('expenses')] == [6, 3, 1, 4, 1, 1], c)
     check('move: money in the log $136.50', abs((c.get('money') or 0) - 136.5) < 0.001, c)
     check('move: two photos kept inside supplies become photo records', c.get('pics') == 2, c)
     notes = J(pg, "MV.plan.notes")
-    check('move: the slip photo that isn’t a picture is named, left behind', any('couldn’t be read' in n for n in notes), notes)
+    check('move: the slip photo that isn’t a picture is named, not moved', any('couldn’t be read' in n for n in notes), notes)
+    check('move: the alerts were on — they start with the new alert script', any('Email alerts were on' in n for n in notes), notes)
     check('move: who changes settings mapped to NLO Cases logins (Dr. A, Sarah B.)', J(pg, "MV.plan.adminNames") == ['Dr. A', 'Sarah B.'], J(pg, "MV.plan.adminNames"))
     txt = J(pg, "document.querySelector('.moveCard').textContent")
-    check('move: the card shows what it found', 'Supplies' in txt and 'Activity log' in txt and '$136.50' in txt and 'yes, moved too' in txt, txt[:600])
-    pg.click('[data-act="mvGo"]'); pg.wait_for_selector('#cbYes'); pg.click('#cbYes')
-    pg.wait_for_function("() => MV.step === 'done' || MV.step === 'error'", timeout=30000)
-    check('move: done, every count and dollar matched', J(pg, "MV.step") == 'done', J(pg, "MV.err"))
+    check('move: the card shows what it found', 'Supplies' in txt and 'Activity log' in txt and '$136.50' in txt and 'yes, moved too' in txt and 'read-only' in txt, txt[:600])
+    pg.click('[data-act="mvGo"]'); pg.wait_for_selector('#cbYes')
+    with pg.expect_download(timeout=30000) as dl:
+        pg.click('#cbYes')
+    d = dl.value; copy = json.loads(open(d.path()).read())
+    parts = copy.get('parts') or {}
+    check('move: a copy of the old Inventory saved to this computer first (without the AI keys)', d.suggested_filename.startswith('nlo-inventory-before-the-move-') and ((parts.get('items') or {}).get('ppe-1') or {}).get('qty') == 14 and 'settings/geminiKey' not in parts and 'log' in parts, (d.suggested_filename, list(parts)))
+    pg.wait_for_function("() => MV.step === 'done' || MV.step === 'error'", timeout=60000)
+    check('move: done, every record and dollar found', J(pg, "MV.step") == 'done', J(pg, "MV.err"))
     mv = get('invMeta/moved') or {}
-    check('move: marked moved, by Dr. A, with the counts', mv.get('upBy') == 'amir' and (mv.get('counts') or {}).get('items') == 6, mv)
+    check('move: marked moved, by Dr. A, with the counts', mv.get('upBy') == 'amir' and (mv.get('counts') or {}).get('items') == 6 and (mv.get('counts') or {}).get('expenses') == 1 and mv.get('alertsWere') is True, mv)
     items = query('invItems')
     check('move: 6 supply records, under their old ids', sorted(items) == ['adh-1', 'cs-9', 'gone-1', 'ppe-1', 'ppe-2', 'ppe-3'], sorted(items))
     adh = items.get('adh-1') or {}
@@ -258,40 +283,87 @@ def t_move(b):
     check('move: the big one made smaller (a JPEG that fits)', (pics.get(big) or {}).get('m') == 'image/jpeg' and 1000 < len((pics.get(big) or {}).get('b') or '') <= 990000, (pics.get(big) or {}).get('m'))
     check('move: the order lost only its unreadable slip photo', 'slipPhoto' not in (query('invOrders').get('order-r1') or {}) and (query('invOrders').get('order-r1') or {}).get('vendor') == 'American Orthodontics')
     check('move: archived and deleted supplies keep their flags', items['cs-9'].get('archived') is True and items['gone-1'].get('deleted') is True)
-    log = store('nlo/log')
-    check('move: 4 log entries, in month records', len(log) == 4 and all(k.startswith('m') for k in query('invLog')), (len(log), list(query('invLog'))))
+    log = store('nlo/log'); recs = query('invLog')
+    check('move: 4 log entries, in each month’s “old” record (as the old app stamped them)', len(log) == 4 and recs and all(re.match(r'^m\d{4}-\d{2}~old$', k) and v.get('who') == 'old' for k, v in recs.items()), (len(log), list(recs)))
     st = get('invState/settings') or {}
-    check('move: settings (locations, who changes settings, alerts on)', st.get('locations') == ['Lab cabinet', 'Sterilization closet'] and st.get('invAdmins') == ['amir', 'sarah'] and st.get('alertsOn') is True, st)
+    check('move: settings (locations, who changes settings; alerts off until the new script runs)', st.get('locations') == ['Lab cabinet', 'Sterilization closet'] and st.get('invAdmins') == ['amir', 'sarah'] and st.get('alertsOn') is False, st)
     check('move: the AI key moved (Dr. A only sets it)', (get('invState/ai') or {}).get('gemini') == 'AIzaFAKEKEYFORTESTS')
     check('move: the cart line moved', len(store('nlo/cart')) == 1 and store('nlo/cart')[0].get('itemId') == 'adh-1', store('nlo/cart'))
-    check('move: the budget moved', (store('nlo/budget') or {}).get('monthly') == 8000 and len((store('nlo/budget') or {}).get('expenses') or []) == 1, store('nlo/budget'))
-    check('move: the old database is untouched', rt('GET', '/nlo/items/adh-1')[1].get('img', '').startswith('data:image/png'))
+    ex = query('invExpenses')
+    check('move: the expense is a record of its own', list(ex) == ['x1'] and ex['x1'].get('amount') == 145, ex)
+    check('move: the budget moved (amounts only)', (store('nlo/budget') or {}).get('monthly') == 8000 and 'expenses' not in (get('invState/budget') or {}), get('invState/budget'))
+    check('move: the old database is untouched', rt('GET', '/nlo/items/adh-1')[1].get('img', '').startswith('data:image/png') and len(rt('GET', '/nlo/log')[1]) == 4)
+    check('move: the connection to the old Inventory is closed', J(pg, "!(OLD.auth && OLD.auth.currentUser)"))
     pg.click('[data-act="mvOpen"]')
     pg.wait_for_function("() => S.inApp && allLoaded()", timeout=15000)
-    check('move: Inventory opens for Dr. A', J(pg, "S.gate") == 'ready' and J(pg, "S.D.items.length") == 6)
+    check('move: Inventory opens for Dr. A', J(pg, "S.gate") == 'ready' and J(pg, "S.D.items.length") == 6 and J(pg, "S.D.expenses.length") == 1)
     check('move: no page errors', not errs, errs)
     ctx.close()
-    # moving again (a move that stopped half way is just run again): same records, nothing doubled
-    rev0 = (get('invState/rev') or {}).get('n')
+    remote_field('invState/settings', 'alertsOn', True)   # (as once Dr. A has the new alert script: the other tests run with alerts on)
     snapshot()
 
 @test
 def t_move_again(b):
-    """running the move a second time (as after one that stopped half way) saves the same records — nothing doubles"""
+    """running the move a second time (as after one that stopped half way) after the old log changed meanwhile (the old app
+    trims it): it adds what's missing, keeps what's there, nothing doubles; and it reads the old one again just before saving"""
     delete('invMeta/moved')
+    rt('DELETE', '/nlo/log/l3')       # trimmed by the old app since the first run
+    rt('PUT', '/nlo/log/l5', {'id': 'l5', 'type': 'use', 'itemId': 'ppe-2', 'itemName': 'Gloves Pulse Nitrile — LG', 'delta': -1, 'date': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())})
     ctx, pg, errs = new_page(b); sign_in(pg, 'amir', wait_app=False)
     pg.wait_for_function("() => S.inApp && S.gate === 'move'", timeout=15000)
+    pg.wait_for_timeout(500)
+    check('move again: this page isn’t connected to the old Inventory (that sign-in isn’t kept)', not J(pg, "MV.who"), J(pg, "MV.who"))
     pg.click('[data-act="mvConnect"]'); pg.wait_for_function("() => MV.step === 'ready'", timeout=20000)
+    check('move again: reads 4 log entries now (l3 trimmed, l5 new)', J(pg, "MV.plan.counts.log") == 4, J(pg, "MV.plan.counts"))
+    # something changes in the old one after it was read
+    rt('PUT', '/nlo/log/l6', {'id': 'l6', 'type': 'receive', 'itemId': 'adh-1', 'itemName': 'Transbond XT Syringe', 'delta': 1, 'amount': 10, 'date': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())})
     pg.click('[data-act="mvGo"]'); pg.wait_for_selector('#cbYes'); pg.click('#cbYes')
-    pg.wait_for_function("() => MV.step === 'done' || MV.step === 'error'", timeout=30000)
+    pg.wait_for_function("() => MV.step === 'ready' && !!MV.err", timeout=20000)
+    check('move again: changed since it was read → nothing saved, the new numbers shown (5 entries, $146.50)', 'changed since you read it' in J(pg, "MV.err") and J(pg, "MV.plan.counts.log") == 5 and abs(J(pg, "MV.plan.counts.money") - 146.5) < 0.001 and not get('invMeta/moved'), (J(pg, "MV.err"), J(pg, "MV.plan.counts")))
+    pg.click('[data-act="mvGo"]'); pg.wait_for_selector('#cbYes')
+    with pg.expect_download(timeout=30000):
+        pg.click('#cbYes')
+    pg.wait_for_function("() => MV.step === 'done' || MV.step === 'error'", timeout=60000)
     check('move again: done', J(pg, "MV.step") == 'done', J(pg, "MV.err"))
-    check('move again: still 6 supplies, 2 photos, 4 log entries', len(query('invItems')) == 6 and len(query('invPics')) == 2 and len(store('nlo/log')) == 4)
-    delete('invMeta/moved')
-    pg.reload(); sign_in(pg, 'amir', wait_app=False); pg.wait_for_function("() => S.inApp && S.gate === 'move'", timeout=15000)
-    pg.wait_for_function("() => !!MV.who", timeout=10000)
-    check('move again: this computer stays connected to the old Inventory (the roster’s shared sign-in)', bool(J(pg, "MV.who")))
+    log = store('nlo/log')
+    check('move again: the log keeps what was saved before and adds what’s new (l1–l6), nothing doubled', sorted(log) == ['l1', 'l2', 'l3', 'l4', 'l5', 'l6'], sorted(log))
+    check('move again: still 6 supplies, 2 photos, 1 expense', len(query('invItems')) == 6 and len(query('invPics')) == 2 and len(query('invExpenses')) == 1)
     check('move again: no page errors', not errs, errs)
     ctx.close()
+    seed_old()
+
+@test
+def t_move_big(b):
+    """a big old Inventory: large photos (more than one save can carry), a photo inside an order's line, a month with more
+    than a thousand log entries — all moved, in saves that fit"""
+    req('DELETE', 'http://127.0.0.1:8080/emulator/v1/projects/' + P + '/databases/(default)/documents')
+    seed_people()
+    for i in range(12): rt('PUT', '/nlo/items/big-%d' % i, {'id': 'big-%d' % i, 'name': 'Big photo %d' % i, 'qty': 1, 'cat': 'misc', 'img': 'data:image/png;base64,' + png(500, 460)})
+    rt('PUT', '/nlo/orders/order-r1/items/0/img', 'data:image/png;base64,' + png(20, 20))
+    day = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime(time.time() - 86400))
+    rt('PATCH', '/nlo/log', {'n%04d' % i: {'id': 'n%04d' % i, 'type': 'use', 'itemId': 'ppe-1', 'delta': -1, 'date': day} for i in range(1200)})
+    ctx, pg, errs = new_page(b); sign_in(pg, 'amir', wait_app=False)
+    pg.wait_for_function("() => S.inApp && S.gate === 'move'", timeout=15000)
+    pg.click('[data-act="mvConnect"]'); pg.wait_for_function("() => MV.step === 'ready' || MV.err", timeout=60000)
+    c = J(pg, "MV.plan && MV.plan.counts") or {}
+    check('big: 18 supplies, 15 photos (12 large, 2 as before, 1 inside an order line), 1204 log entries', [c.get('items'), c.get('pics'), c.get('log')] == [18, 15, 1204], c)
+    J(pg, "window.__saves = []; const sv = B.save; B.save = f => { let n = 0; const p = sv(b => f(new Proxy(b, { get: (t, k) => k === 'set' ? (...a) => { n += a[1] && typeof a[1].b === 'string' ? a[1].b.length : 0; return t.set(...a); } : (typeof t[k] === 'function' ? t[k].bind(t) : t[k]) }))); window.__saves.push(n); return p; }; 0")
+    pg.click('[data-act="mvGo"]'); pg.wait_for_selector('#cbYes')
+    with pg.expect_download(timeout=60000):
+        pg.click('#cbYes')
+    pg.wait_for_function("() => MV.step === 'done' || MV.step === 'error'", timeout=180000)
+    check('big: done', J(pg, "MV.step") == 'done', J(pg, "MV.err"))
+    saves = J(pg, "window.__saves")
+    check('big: the large photos went in more than one save, each well under what a save may carry', len([x for x in saves if x > 0]) >= 2 and max(saves) < 9 * 1024 * 1024, saves)
+    pics = query('invPics')
+    check('big: 15 photo records', len(pics) == 15, len(pics))
+    o = query('invOrders').get('order-r1') or {}
+    check('big: the photo inside the order’s line is a pic: record too', str(((o.get('items') or [{}])[0]).get('img', '')).startswith('pic:pm_'), (o.get('items') or [{}])[0])
+    recs = query('invLog'); mon = [k for k in recs if k.endswith('~old2')]
+    check('big: a month with more than a thousand entries takes two records (old, old2)', len(mon) == 1 and len(store('nlo/log')) == 1204, sorted(recs))
+    check('big: no page errors', not errs, errs)
+    ctx.close()
+    seed_old()
 
 @test
 def t_boot(b):
@@ -347,9 +419,13 @@ def t_idle_lock(b):
     check('idle: follows NLO Cases’ setting live (3 minutes)', J(pg, "idleMinutes()") == 3)
     J(pg, "S.lastAct = Date.now() - 2 * 60000"); pg.wait_for_timeout(16000)
     check('idle: not locked at 2 minutes', J(pg, "S.inApp") is True)
-    J(pg, "S.lastAct = Date.now() - 4 * 60000")
-    pg.wait_for_selector('#lgPw', timeout=20000)
-    check('idle: locked after 3 minutes without activity', 'Locked after 3 minutes' in J(pg, "(document.querySelector('.lockOk')||{}).textContent || ''"), J(pg, "document.querySelector('#lockCard').textContent"))
+    # a save still on its way (no internet) holds the lock off — two minutes more at most
+    J(pg, "FB.pending = 1; S.lastAct = Date.now() - 4 * 60000"); pg.wait_for_timeout(16000)
+    check('idle: a save still on its way holds the lock off a little', J(pg, "S.inApp") is True)
+    J(pg, "S.lastAct = Date.now() - 6 * 60000")
+    pg.wait_for_selector('#lgPw', timeout=25000)
+    msg = J(pg, "(document.querySelector('.lockOk')||{}).textContent || ''")
+    check('idle: …not for good: locked after 3 minutes without activity, and it says the change may not have been saved', 'Locked after 3 minutes' in msg and 'may not have been saved' in msg, msg)
     put('meta/settings', {'idleMin': 10})
     check('idle: no page errors', not errs, errs)
     ctx.close()
@@ -366,7 +442,7 @@ def t_turned_off(b):
 @test
 def t_rules_gate(b):
     """with the rules published today (no Inventory), Dr. A gets the card to publish the new ones; staff are told to wait"""
-    old = subprocess.run(['git', 'show', 'HEAD:nlo-cases-src/firestore.rules'], cwd=SRC.parent, capture_output=True, text=True, check=True).stdout.replace('__OWNER_EMAIL__', 'dr.test@example.com')
+    old = subprocess.run(['git', 'show', 'origin/main:nlo-cases-src/firestore.rules'], cwd=SRC.parent, capture_output=True, text=True, check=True).stdout.replace('__OWNER_EMAIL__', 'dr.test@example.com')
     assert 'invItems' not in old
     set_rules(old)
     try:
@@ -564,6 +640,10 @@ def t_admin(b):
     bud = store('nlo/budget')
     ex = [x for x in (bud.get('expenses') or []) if x.get('vendor') == 'Walmart']
     check('admin: Kaylee can add an expense, stamped', len(ex) == 1 and ex[0].get('by') == 'Kaylee D.' and ex[0].get('byId') == 'kaylee', bud.get('expenses'))
+    check('admin: …a record of its own, in her name', any(x.get('vendor') == 'Walmart' and x.get('upBy') == 'kaylee' and x.get('byId') == 'kaylee' for x in query('invExpenses').values()), query('invExpenses'))
+    check('admin: she can take off her own (the button), not someone else’s', J(pg, "!!document.querySelector('[data-act=expenseDel][data-id=\"%s\"]')" % ex[0]['id']) and not J(pg, "!!document.querySelector('[data-act=expenseDel][data-id=\"x1\"]')"))
+    r = J(pg, "B.removeExpense('x1').then(()=>'went through', e=>e.code || e.message)")
+    check('admin: …and the database refuses her someone else’s', 'permission' in r and 'x1' in query('invExpenses'), r)
     switch_to(pg, 'sarah')
     J(pg, "go('budget')"); pg.wait_for_timeout(150)
     click(pg, '[data-act="budgetEdit"]', 300)
@@ -871,10 +951,13 @@ def t_alerts(b):
 @test
 def t_alert_script(b):
     """Dr. A gets the alert script: a login of its own is made, and the copied script carries it"""
+    remote_field('invState/settings', 'alertsOn', False)   # (as the move leaves them)
     ctx, pg, errs = open_as(b, 'amir')
     ctx.grant_permissions(['clipboard-read', 'clipboard-write'], origin='http://127.0.0.1:%d' % PORT)
     J(pg, "go('settings')"); pg.wait_for_timeout(300)
+    check('script: before it’s set up, the card says getting it turns the alerts on', 'getting it turns the alerts on' in J(pg, "document.querySelector('#view').textContent"))
     click(pg, '[data-act="alertScript"]', 2500)
+    check('script: the first one turns the alerts on', (store('nlo/settings') or {}).get('alertsOn') is True)
     code = J(pg, "navigator.clipboard.readText()")
     m = re.search(r'var CONFIG = (\{.*?\});', code or '')
     cfg = json.loads(m.group(1)) if m else {}
@@ -889,8 +972,79 @@ def t_alert_script(b):
     check('script: it copied the supplies to the old database for Staff Meeting and AISA', (rt('GET', '/nlo/items/ppe-1')[1] or {}).get('qty') == 14 and 'up' not in (rt('GET', '/nlo/items/ppe-1')[1] or {}), rt('GET', '/nlo/items/ppe-1')[1])
     click(pg, '[data-act="alertScript"]', 2500); click(pg, '[data-act="alertScript"]', 2500)
     bots = query('invBots')
-    check('script: getting it again keeps the newest two logins (the one running keeps working until replaced)', len(bots) == 2, list(bots.values()))
+    check('script: getting it twice more keeps two logins: the newest and the one running (it checked in), not the one in between', len(bots) == 2 and any(v.get('email') == cfg.get('botEmail') for v in bots.values()), list(bots.values()))
     check('script: no page errors', not errs, errs)
+    ctx.close()
+
+@test
+def t_stamps(b):
+    """the names on the steps are the people who took them: the database holds everyone to it, and the screens show the person
+    behind the id; received orders keep their numbers; vendors' websites; a voided order back for the people who void"""
+    ctx, pg, errs = open_as(b, 'gwen', quiet=True)
+    mon = J(pg, "monthKey(Date.now())")
+    r = J(pg, "FB.save(b => b.set(FB.logRef(%s, 'sarah'), Object.assign({ e: { zz0: { id: 'zz0', type: 'use', itemId: 'ppe-1', delta: -1, date: nowISO(), by: 'Sarah B.', byId: 'sarah' } }, mon: %s, who: 'sarah' }, FB.st()), { merge: true })).then(()=>'went through', e=>e.code || e.message)" % (json.dumps(mon), json.dumps(mon)))
+    check('stamps: Gwen can’t add to Sarah’s activity log', 'permission' in r, r)
+    r = J(pg, "FB.save(b => b.set(FB.logRef(%s, 'gwen'), Object.assign({ e: { zz1: { id: 'zz1', type: 'use', itemId: 'ppe-1', itemName: 'Gloves Pulse Nitrile — SM', delta: -1, date: nowISO(), by: 'Sarah B.', byId: 'sarah' } }, mon: %s, who: 'gwen' }, FB.st()), { merge: true })).then(()=>'went through', e=>e.code || e.message)" % (json.dumps(mon), json.dumps(mon)))
+    settle(pg, 400)
+    e = store('nlo/log').get('zz1') or {}
+    check('stamps: an entry Gwen saves goes in her own record, whatever name it carries — and counts as hers', r == 'went through' and e.get('byId') == 'gwen' and J(pg, "(S.D.log.find(x => x.id === 'zz1') || {}).byId") == 'gwen', (r, e))
+    J(pg, "go('activity')"); pg.wait_for_timeout(300)
+    txt = J(pg, "document.querySelector('#view').textContent")
+    check('stamps: Activity shows her name on it', 'Gwen R. used' in txt and 'Sarah B. used' not in txt, txt[:500])
+    r = J(pg, "B.patchOrder('order-old1', { trail: trailAdd(orderById('order-old1').trail, 'edited', { by: 'Sarah B.', byId: 'sarah', at: nowISO() }) }).then(()=>'went through', e=>e.code || e.message)")
+    check('stamps: an order step in someone else’s name is refused', 'permission' in r, r)
+    J(pg, "editOrder('order-old1', { note: 'Leave at the back door' }, 'note')"); settle(pg, 400)
+    o = store('nlo/orders/order-old1') or {}
+    check('stamps: her own step on it goes in', o.get('note') == 'Leave at the back door' and (o.get('trail') or [{}])[-1].get('byId') == 'gwen', o.get('trail'))
+    r = J(pg, "B.patchOrder('order-old1', { trail: [] }).then(()=>'went through', e=>e.code || e.message)")
+    check('stamps: wiping an order’s trail is refused', 'permission' in r, r)
+    # a received order: everyone else only adds its paperwork
+    J(pg, "receiveOrder('order-old1', {})"); settle(pg, 600)
+    r = J(pg, "B.patchOrder('order-old1', { discount: 5 }).then(()=>'went through', e=>e.code || e.message)")
+    check('received: Gwen can’t change its discount', 'permission' in r, r)
+    r = J(pg, "B.patchOrder('order-old1', { receivedBy: 'Kaylee D.', receivedById: 'kaylee' }).then(()=>'went through', e=>e.code || e.message)")
+    check('received: …or who received it', 'permission' in r, r)
+    r = J(pg, "B.patchOrder('order-old1', { invoiceNumber: 'INV-77', trail: trailAdd(orderById('order-old1').trail, 'invoice', stamp()) }).then(()=>'went through', e=>e.code || e.message)")
+    check('received: she adds the invoice number', r == 'went through' and (store('nlo/orders/order-old1') or {}).get('invoiceNumber') == 'INV-77', r)
+    # vendors: a built-in vendor's website, phone or email are for the people Dr. A picked; a new one is just a name
+    r = J(pg, "B.patchVendor('henry-schein', { portal: 'https://example.com/look-alike' }).then(()=>'went through', e=>e.code || e.message)")
+    check('vendors: Gwen can’t give a built-in vendor a website', 'permission' in r, r)
+    r = J(pg, "B.putVendor({ id: 'v-new1', name: 'Corner Store', portal: 'https://example.com' }).then(()=>'went through', e=>e.code || e.message)")
+    check('vendors: …or a new one', 'permission' in r, r)
+    r = J(pg, "B.putVendor({ id: 'v-new2', name: 'Corner Store' }).then(()=>'went through', e=>e.code || e.message)")
+    check('vendors: she adds a new vendor by name', r == 'went through', r)
+    remote('invVendors/v-odd', {'id': 'v-odd', 'name': 'Odd Vendor', 'portal': 'javascript:alert(1)'})
+    J(pg, "go('vendors')"); pg.wait_for_timeout(300)
+    check('vendors: a website that isn’t a web address isn’t a link', J(pg, "![...document.querySelectorAll('#view a[href]')].some(a => /^javascript:/i.test(a.getAttribute('href')))") and 'javascript:alert(1)' in J(pg, "document.querySelector('#view').textContent"))
+    # a voided order back: for the people who void them
+    switch_to(pg, 'sarah')
+    J(pg, "voidOrder('abc123', 'test')"); settle(pg, 400)
+    switch_to(pg, 'gwen')
+    J(pg, "go('orders'); openDrawer('order', 'abc123')"); pg.wait_for_timeout(300)
+    click(pg, '[data-act="orderUnvoid"]', 300)
+    check('voided: Gwen is told who can bring it back', 'can bring back a voided order' in toasts(pg) and (store('nlo/orders/abc123') or {}).get('status') == 'voided', toasts(pg))
+    switch_to(pg, 'sarah')
+    J(pg, "go('orders'); openDrawer('order', 'abc123')"); pg.wait_for_timeout(300)
+    click(pg, '[data-act="orderUnvoid"]', 600)
+    check('voided: Sarah brings it back', (store('nlo/orders/abc123') or {}).get('status') == 'open')
+    check('stamps: no page errors (but the refusals tried on purpose)', not [x for x in errs if 'PERMISSION_DENIED' not in x and not re.search(r'HTTP 403 .*documents:commit', x)], errs)
+    ctx.close()
+
+@test
+def t_claim_slow(b):
+    """a receive the database is slow to confirm: it says it isn't confirmed; when it goes through after all, its stock and
+    dollars are added then — never left received with nothing booked"""
+    ctx, pg, errs = open_as(b, 'gwen')
+    q0 = store('nlo/items/ppe-1')['qty']
+    r = J(pg, "B.TXN_MS = 1; receiveOrder('order-old1', {}).then(()=>'went through', e=>e.code)")
+    J(pg, "B.TXN_MS = 30000")
+    check('slow: not confirmed in time', r == 'timeout', r)
+    pg.wait_for_function("() => document.querySelector('#toasts').textContent.includes('went through after all')", timeout=20000)
+    settle(pg, 600)
+    o = store('nlo/orders/order-old1') or {}; q1 = store('nlo/items/ppe-1')['qty']
+    lg = [e for e in store('nlo/log').values() if e.get('orderId') == 'order-old1' and e.get('type') == 'receive']
+    check('slow: it went through after all — received, with its stock and dollars', o.get('status') == 'received' and q1 - q0 == 2 and len(lg) == 1 and abs((lg[0].get('amount') or 0) - 18.26) < 0.001, (o.get('status'), q0, q1, lg))
+    check('slow: no page errors', not errs, errs)
     ctx.close()
 
 @test

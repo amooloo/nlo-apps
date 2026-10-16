@@ -13,7 +13,7 @@ function orderWords(k, vendor) { return esc(ORDER_WORDS[k] || k + ' the {v} orde
 const HOW_WORDS = { online: 'online', call: 'by phone', phone: 'by phone', email: 'by email', text: 'by text', rep: 'through the rep', portal: 'online', other: '' };
 function feedEvents(opt) {
   opt = opt || {}; const ev = [], D = S.D;
-  const add = (o) => { if (!o.at) return; ev.push(o); };
+  const add = (o) => { if (!o.at) return; if (o.whoId) o.who = stampName(o.who, o.whoId); ev.push(o); };
   const vname = n => esc(n || 'a vendor');
   const lineTxt = l => '<b>' + esc(lineQtyLabel(l)) + '</b> of ' + esc(l.name || 'a supply');
   /* the cart */

@@ -27,7 +27,7 @@ VIEWS.settings = {
       '<div class="kvRow"><span>Packing-slip photos on orders received over a year ago</span><b>' + oldSlipOrders().length + '</b></div>' +
       '<div class="btnRow"><button class="btn btn-ghost btn-sm" data-act="slipClean">Remove old slip photos</button></div></div></div>';
     h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Download</h3></div><div class="cardBd"><div class="hint" style="margin-top:0">Everything Inventory keeps (supplies without photos, orders, vendors, the activity log, the budget), as one file. The database also keeps 7 days of every change, for a restore.</div><div class="btnRow"><button class="btn btn-sec btn-sm" data-act="exportAll">' + ic('download', 15) + 'Download everything</button><button class="btn btn-ghost btn-sm" data-act="exportCsv">Supplies as a spreadsheet (CSV)</button></div></div></div>';
-    h += '<div class="card" style="margin-top:18px"><div class="cardBd" style="padding-top:16px"><div class="kvRow"><span>Version</span><b>' + esc(APP_VERSION) + '</b></div>' + (S.moved && S.moved.at ? '<div class="kvRow"><span>Moved from the old Inventory</span><b>' + esc(fmtWhen(S.moved.at)) + '</b></div>' : '') + '<div class="hint">The old Inventory’s database is kept as it was on the day of the move (a backup); the alert script keeps a copy of the supply numbers there for Staff Meeting and AISA.</div></div></div>';
+    h += '<div class="card" style="margin-top:18px"><div class="cardBd" style="padding-top:16px"><div class="kvRow"><span>Version</span><b>' + esc(APP_VERSION) + '</b></div>' + (S.moved && S.moved.at ? '<div class="kvRow"><span>Moved from the old Inventory</span><b>' + esc(fmtWhen(S.moved.at)) + '</b></div>' : '') + '<div class="hint">Since the move, the old Inventory’s database holds a copy of the supply numbers for Staff Meeting and AISA (the alert script keeps it up to date) and can no longer be changed from the old page. Its daily backups keep it as it was before the move.</div></div></div>';
     return h + '</div></div>';
   },
   after() { if (isOwnerAccount() && !S.demo && !S.ui.beatAsked) { S.ui.beatAsked = true; B.beat().then(b => { S.ui.beat = b || { none: true }; if (S.view === 'settings') renderView(true); }).catch(() => { }); } }
@@ -48,7 +48,7 @@ function alertsCardHTML(owner) {
     '<div class="kvRow"><span>Emails to Dr. A when something goes in the cart, an order is placed, received or reopened</span><b>' + (on ? '<span class="stat ok">On</span>' : '<span class="stat off">Off</span>') + '</b></div>';
   if (!owner) return h + '<div class="hint">Dr. A turns these on and off. Each email says who did it.</div></div></div>';
   if (b && !b.none) h += '<div class="kvRow"><span>The alert script last checked</span><b>' + esc(fmtAgo(b.at)) + (b.err ? ' <span class="stat off" title="' + esc(b.err) + '">problem</span>' : '') + '</b></div>' + (b.err ? '<div class="hint" style="color:var(--red)">' + esc(b.err) + '</div>' : '');
-  else if (b && b.none) h += '<div class="hint">The alert script hasn’t checked in yet. Get it below and paste it over the old one.</div>';
+  else if (b && b.none) h += '<div class="hint">The alert script hasn’t checked in yet. Get it below and paste it over the old one' + (on ? '' : ' (getting it turns the alerts on)') + '.</div>';
   h += '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="alertsToggle">' + (on ? 'Turn off' : 'Turn on') + '</button><button class="btn btn-pri btn-sm" data-act="alertScript">' + ic('copy', 15) + 'Get the alert script</button></div>' +
     '<details class="help"><summary>How to update the script</summary><ol class="steps small"><li>Press <b>Get the alert script</b> (it copies it, with a login of its own).</li>' +
     '<li>Open your <a href="' + ALERT_SCRIPT_URL + '" target="_blank" rel="noopener noreferrer">NLO Inventory Alerts</a> script, click in <b>Code.gs</b>, select everything (Ctrl+A) and paste over it. Press <b>Save</b>.</li>' +
@@ -68,7 +68,12 @@ ACT.alertScript = async t => {
     if (S.emu) Object.assign(cfg, { authBase: 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1', fsBase: 'http://127.0.0.1:8080/v1', dbUrl: 'http://127.0.0.1:9000', dbNs: 'demo-nlo-cases' });
     const code = text.replace('/*INV_CONFIG*/null', JSON.stringify(cfg));
     S.ui.lastScript = code;
-    try { await navigator.clipboard.writeText(code); toast('The alert script is copied. Paste it over the old one in NLO Inventory Alerts, Save, then Run setup.', { ms: 9000 }); }
+    /* the first time (the script has never checked in): the alerts go on with it — the move leaves them off until then, so a
+       pile of them doesn't wait for a script that isn't there yet */
+    let on = '', b = S.ui.beat;
+    if (!b) { try { b = S.ui.beat = (await B.beat()) || { none: true }; } catch (e) { b = null; } }
+    if (S.settings.alertsOn !== true && b && b.none) { await B.setSetting('alertsOn', true); on = ', and the alerts are on'; }
+    try { await navigator.clipboard.writeText(code); toast('The alert script is copied' + on + '. Paste it over the old one in NLO Inventory Alerts, Save, then Run setup.', { ms: 9000 }); }
     catch (e) { openModal('<h3>The alert script</h3><div class="lsub">Copy all of it, paste it over the old one in NLO Inventory Alerts, Save, then Run setup.</div><textarea readonly class="codeBox" rows="10">' + esc(code) + '</textarea><div class="mFt"><button class="btn btn-pri" data-act="closeModal">Done</button></div>', { cls: 'mid' }); }
   } catch (e) { toast(errText(e), { bad: true }); }
   busyBtn(t, false);
@@ -83,7 +88,7 @@ ACT.slipClean = () => {
 };
 ACT.exportAll = () => {
   const strip = i => { const o = Object.assign({}, i); delete o.img; delete o.imgFull; return o; };
-  const data = { exportedAt: nowISO(), by: (whoNow() || {}).name || '', items: S.D.items.map(strip), orders: S.D.orders.map(o => Object.assign({}, o, { slipPhoto: o.slipPhoto ? '(photo)' : null })), vendors: S.D.vendors, log: S.D.log, cart: S.D.cart, budget: S.D.budget, elastoPrices: S.D.elastoPrices };
+  const data = { exportedAt: nowISO(), by: (whoNow() || {}).name || '', items: S.D.items.map(strip), orders: S.D.orders.map(o => Object.assign({}, o, { slipPhoto: o.slipPhoto ? '(photo)' : null })), vendors: S.D.vendors, log: S.D.log, cart: S.D.cart, budget: Object.assign({}, S.D.budget, { expenses: S.D.expenses }), elastoPrices: S.D.elastoPrices };
   downloadText('nlo-inventory-' + todayISO() + '.json', JSON.stringify(data, null, 1), 'application/json');
 };
 ACT.exportCsv = () => {

@@ -9,10 +9,14 @@
  *
  * Since October 2026 Inventory signs in with NLO Cases logins and keeps its
  * records in the NLO Cases database. This script also keeps a copy of the
- * supply numbers (supplies, orders, the activity log, the budget) in the old
- * Inventory database, where Staff Meeting's spending card and AISA's stock
- * answers read them. And if an old Inventory page is still open on some
- * computer and someone uses it, it emails Dr. A to reload that computer.
+ * supply numbers (supplies, orders, the activity log, the budget and its
+ * expenses) and the AI keys in the old Inventory database, where Staff
+ * Meeting's spending card, Month-End and AISA's stock answers read them. And
+ * if an old Inventory page is still open on some computer and someone uses
+ * it, it emails Dr. A to reload that computer.
+ * The emails and the copy are separate steps: one failing never holds up the
+ * other. Many alerts at once come as a few emails (at most 25 alerts each),
+ * and if Gmail's daily limit is used up they wait for the next day.
  *
  *   setup()           one time: checks both databases, starts the
  *                     every-minute check, and copies everything once
@@ -41,6 +45,11 @@ var TZ = 'America/New_York';
 var HANDLER = 'checkInventoryAlerts';
 var FAILS_BEFORE_NOTICE = 15;   // ~15 minutes of failed checks
 var MAX_PER_RUN = 200;
+var PER_EMAIL = 25;              // alerts in one email at most
+var EMAIL_BYTES = 150000;        // and about this much of it (Gmail takes 200 KB)
+var OVERLAP_MS = 5 * 60000;      // each copy looks this far back again (a save's time is when it was sent: one sent a moment
+                                 // before another can land after it)
+var BUDGET_KEYS = ['monthly', 'categories', 'history', 'changedBy', 'changedAt'];
 
 var TYPE_INFO = {
   cart:     { label: 'Added to cart',       color: '#7c3aed', tag: 'shopping_cart' },
@@ -56,7 +65,7 @@ function setup() {
   }
   var props = PropertiesService.getScriptProperties();
   props.setProperty('INV_CFG', JSON.stringify(CONFIG));
-  ['FAILS', 'FAIL_NOTICE_DAY', 'INV_REV', 'INV_UP', 'INV_FULL_DAY', 'INV_BEAT', 'INV_LAST'].forEach(function (k) { props.deleteProperty(k); });
+  ['FAILS', 'FAIL_NOTICE_DAY', 'INV_REV', 'INV_UP', 'INV_FULL_DAY', 'INV_BEAT', 'INV_LAST', 'INV_BUD', 'INV_AI'].forEach(function (k) { props.deleteProperty(k); });
   try { CacheService.getScriptCache().remove('inv_login'); } catch (e) { }
   var cfg = cfg_(props), s = session_(cfg, true);
   getDoc_(cfg, s, 'meta/rules_inv_1', 'the rules');      // proves the login works (and the rules know Inventory)
@@ -107,8 +116,8 @@ function checkInventoryAlerts() { return run_(false); }
 function run_(force) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(2000)) return { busy: true };          // a previous run is still going
-  var props = PropertiesService.getScriptProperties(), now = Date.now(), out = { sent: 0, copied: 0, old: 0, moved: false };
-  var cfg = null, s = null;
+  var props = PropertiesService.getScriptProperties(), now = Date.now(), out = { sent: 0, waiting: 0, copied: 0, old: 0, moved: false };
+  var cfg = null, s = null, errs = [], notes = [];
   try {
     cfg = cfg_(props);
     var hr = Number(Utilities.formatDate(new Date(now), TZ, 'H')), last = Number(props.getProperty('INV_LAST') || 0);
@@ -119,14 +128,20 @@ function run_(force) {
     var rev = revDoc && revDoc.fields && revDoc.fields.n ? String(val_(revDoc.fields.n)) : '0';
     var full = force || fullDue_(props, now);
     if (rev !== props.getProperty('INV_REV') || full) {
-      out.sent = alerts_(cfg, s, props);
-      var c = copy_(cfg, s, props, full);
-      out.copied = c.n; out.moved = c.moved;
-      if (full && c.moved) props.setProperty('INV_FULL_DAY', day_(now));
-      props.setProperty('INV_REV', rev);               // (read before the work: a change made meanwhile is seen next minute)
+      var done = true;
+      // the emails and the copy each on their own: one failing never holds up the other (both are tried again next minute)
+      try { var a = alerts_(cfg, s, props); out.sent = a.sent; out.waiting = a.waiting; if (a.note) notes.push(a.note); if (a.waiting) done = false; }
+      catch (e) { done = false; errs.push(msg_(e)); }
+      try {
+        var c = copy_(cfg, s, props, full);
+        out.copied = c.n; out.moved = c.moved; if (c.note) notes.push(c.note);
+        if (full && c.moved) props.setProperty('INV_FULL_DAY', day_(now));
+      } catch (e) { done = false; errs.push(msg_(e)); }
+      if (done) props.setProperty('INV_REV', rev);    // (read before the work: a change made meanwhile is seen next minute)
     }
-    out.old = oldPage_(cfg, props, now);
-    beat_(cfg, s, props, out, '', now);
+    try { out.old = oldPage_(cfg, props, now); } catch (e) { errs.push(msg_(e)); }
+    if (errs.length) throw new Error(errs.join(' · '));
+    beat_(cfg, s, props, out, notes.join(' · '), now);
     if (props.getProperty('FAILS')) props.deleteProperty('FAILS');
   } catch (err) {
     noteFailure_(props, err);
@@ -140,58 +155,98 @@ function run_(force) {
 function summary_(r) {
   if (!r || r.busy) return '';
   return (r.moved ? 'Copied ' + r.copied + ' supply records to the old database for Staff Meeting and AISA.' : 'Inventory hasn’t been moved over yet, so nothing was copied (the old database is left as it is).') +
-    (r.sent ? ' Sent ' + r.sent + ' alert(s).' : '');
+    (r.sent ? ' Sent ' + r.sent + ' alert(s).' : '') + (r.waiting ? ' ' + r.waiting + ' alert(s) wait for the next check.' : '');
 }
 
 // ─── Alerts: the ones Inventory left, emailed once, then cleared ───────────
+/* → { sent, waiting, note }: emails of at most PER_EMAIL alerts and about EMAIL_BYTES each; what was sent is remembered one
+   email at a time (so a failure part way never sends anything twice) and cleared; the rest waits for the next check */
 function alerts_(cfg, s, props) {
   var docs = query_(cfg, s, 'invAlerts', [], 'at', MAX_PER_RUN).docs;
-  if (!docs.length) return 0;
+  if (!docs.length) return { sent: 0, waiting: 0 };
   var sent = readJson_(props, 'SENT_KEYS', []), already = {};
   sent.forEach(function (k) { already[k] = true; });
-  var fresh = docs.filter(function (d) { return !already[idOf_(d)]; });
-  if (fresh.length) {
-    deliver_(fresh.map(function (d) { return plain_(d.fields); }));
-    props.setProperty('SENT_KEYS', JSON.stringify(sent.concat(fresh.map(idOf_)).slice(-400)));
+  var fresh = docs.filter(function (d) { return !already[idOf_(d)]; }).map(function (d) { return { id: idOf_(d), e: plain_(d.fields) }; });
+  var groups = emailGroups_(fresh), n = 0, note = '';
+  for (var i = 0; i < groups.length; i++) {
+    if (quota_() < 1) { note = 'Gmail’s daily email limit is used up: ' + (fresh.length - n) + ' alert(s) wait until tomorrow.'; break; }
+    deliver_(groups[i].map(function (g) { return g.e; }));
+    sent = sent.concat(groups[i].map(function (g) { return g.id; })).slice(-400);
+    props.setProperty('SENT_KEYS', JSON.stringify(sent));
+    n += groups[i].length;
   }
-  var r = commit_(cfg, s, docs.map(function (d) { return { delete: d.name }; }));
-  if (r.code !== 200) throw new Error('Couldn’t clear the alerts it sent (' + why_(r) + ').');
-  return fresh.length;
+  var gone = {}; sent.forEach(function (k) { gone[k] = true; });
+  var clear = docs.filter(function (d) { return gone[idOf_(d)]; });
+  if (clear.length) {
+    var r = commit_(cfg, s, clear.map(function (d) { return { delete: d.name }; }));
+    if (r.code !== 200) throw new Error('Couldn’t clear the alerts it sent (' + why_(r) + ').');
+  }
+  return { sent: n, waiting: fresh.length - n, note: note };
 }
+/* alerts → emails: in order, a new email at PER_EMAIL alerts or about EMAIL_BYTES */
+function emailGroups_(list) {
+  var out = [], cur = [], size = 0;
+  list.forEach(function (x) {
+    var p = describe_(x.e), n = p.html.length + p.text.length + 200;
+    if (cur.length && (cur.length >= PER_EMAIL || size + n > EMAIL_BYTES)) { out.push(cur); cur = []; size = 0; }
+    cur.push(x); size += n;
+  });
+  if (cur.length) out.push(cur);
+  return out;
+}
+function quota_() { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return 100; } }
 
 // ─── The copy in the old database (Staff Meeting's spending card, AISA's stock answers) ───
 /* changed records only, each minute something changed; everything once a night. Records are only ever added or changed in
-   the old database here (never removed), and nothing is copied before Inventory has moved over. */
+   the old database here (never removed), and nothing is copied before Inventory has moved over. → { n (new changes
+   copied), moved, note } */
 function copy_(cfg, s, props, full) {
   var moved = getDoc_(cfg, s, 'invMeta/moved', 'whether Inventory moved');
   if (!moved) return { n: 0, moved: false };
-  var up = readJson_(props, 'INV_UP', {}), n = 0;
+  var up = readJson_(props, 'INV_UP', {}), n = 0, note = '';
   [['invItems', '/nlo/items'], ['invOrders', '/nlo/orders'], ['invLog', '/nlo/log']].forEach(function (x) {
     var coll = x[0], path = x[1], since = full ? 0 : Number(up[coll] || 0);
-    var docs = (since ? query_(cfg, s, coll, [ff_('up', 'GREATER_THAN', tsv_(since))], 'up') : query_(cfg, s, coll, [], null)).docs;
+    var docs = (since ? query_(cfg, s, coll, [ff_('up', 'GREATER_THAN', tsv_(since - OVERLAP_MS))], 'up') : query_(cfg, s, coll, [], null)).docs;
     if (!docs.length) return;
     var patch = {}, newest = since;
     docs.forEach(function (d) {
-      var o = plain_(d.fields), t = d.fields.up ? tsMs_(d.fields.up.timestampValue) : 0;
+      var o = plain_(d.fields), t = d.fields.up ? tsMs_(d.fields.up.timestampValue) : 0, isNew = !since || t > since;
       if (t > newest) newest = t;
       delete o.up; delete o.upBy;
-      if (coll === 'invLog') { var e = o.e || {}; Object.keys(e).forEach(function (k) { if (e[k] && typeof e[k] === 'object') { patch[rtKey_(k)] = rtdb_(e[k]); n++; } }); }
-      else { patch[rtKey_(String(o.id != null ? o.id : idOf_(d)))] = rtdb_(o); n++; }
+      if (coll === 'invLog') {
+        // whose record an entry is in says who made it (the moved entries, in old…, keep the old app's stamps)
+        var who = String(o.who || ''), e = o.e || {};
+        Object.keys(e).forEach(function (k) { var x = e[k]; if (!x || typeof x !== 'object') return; if (who && !/^old\d*$/.test(who)) x.byId = who; patch[rtKey_(k)] = rtdb_(x); if (isNew) n++; });
+      } else { patch[rtKey_(String(o.id != null ? o.id : idOf_(d)))] = rtdb_(o); if (isNew) n++; }
     });
     patchInParts_(cfg, path, patch);
     up[coll] = newest;
   });
+  // the budget: its amounts and the expenses (records of their own here, one list there); only the keys the app keeps, so
+  // anything else in the old budget stays
   var bud = getDoc_(cfg, s, 'invState/budget', 'the budget');
   if (bud) {
-    var bt = bud.fields && bud.fields.up ? tsMs_(bud.fields.up.timestampValue) : 0;
-    if (full || bt > Number(up.budget || 0)) {
-      var b = plain_(bud.fields); delete b.up; delete b.upBy;
-      db_(cfg, 'put', '/nlo/budget', '', rtdb_(b)); up.budget = bt; n++;
-    }
+    var b = plain_(bud.fields), out = {};
+    BUDGET_KEYS.forEach(function (k) { out[k] = b[k] == null ? null : rtdb_(b[k]); });
+    var ex = query_(cfg, s, 'invExpenses', [], null).docs.map(function (d) { var o = plain_(d.fields); delete o.up; delete o.upBy; return o; });
+    ex.sort(function (a, z) { return String(z.addedAt || z.date || '').localeCompare(String(a.addedAt || a.date || '')); });
+    out.expenses = ex.length ? rtdb_(ex) : null;
+    var sig = hash_(JSON.stringify(out));
+    if (full || sig !== props.getProperty('INV_BUD')) { db_(cfg, 'patch', '/nlo/budget', '', out); props.setProperty('INV_BUD', sig); n++; }
   }
+  // the AI keys: Staff Meeting and Month-End read them there
+  try {
+    var ai = getDoc_(cfg, s, 'invState/ai', 'the AI keys');
+    if (ai) {
+      var k = plain_(ai.fields), keys = { geminiKey: k.gemini || null, openaiKey: k.openai || null }, sigAi = hash_(JSON.stringify(keys));
+      if (full || sigAi !== props.getProperty('INV_AI')) { db_(cfg, 'patch', '/nlo/settings', '', keys); props.setProperty('INV_AI', sigAi); }
+    }
+  } catch (e) { note = 'The AI keys weren’t copied for Staff Meeting (' + msg_(e) + ').'; }
   props.setProperty('INV_UP', JSON.stringify(up));
-  return { n: n, moved: true };
+  return { n: n, moved: true, note: note };
 }
+/* a short fingerprint of a text (whether something changed since the last copy) */
+function hash_(t) { var h = 0x811c9dc5; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = (h * 16777619) >>> 0; } return h.toString(36) + ':' + t.length; }
 /* a big copy in pieces (one request each, well under the size a request may have) */
 function patchInParts_(cfg, path, patch) {
   var keys = Object.keys(patch), part = {}, size = 0;
@@ -283,10 +338,12 @@ function buildMessage_(events) {
 
 function describe_(e) {
   var info = TYPE_INFO[e.t] || { label: 'Inventory update', color: '#6b7280', tag: 'bell' };
-  var lines = Array.isArray(e.lines) ? e.lines.filter(Boolean) : [];
-  var by = clean_(e.by);
-  var vendor = clean_(e.vendor);
-  var nItems = lines.length + ' item' + (lines.length === 1 ? '' : 's');
+  var all = Array.isArray(e.lines) ? e.lines.filter(function (l) { return l && typeof l === 'object'; }) : [];
+  var lines = all.slice(0, 60).map(function (l) { return { n: cut_(l.n, 120), q: l.q, u: cut_(l.u, 20), p: l.p, v: cut_(l.v, 80) }; });
+  var by = cut_(e.by, 60);
+  var vendor = cut_(e.vendor, 100);
+  e = { t: e.t, at: e.at, test: e.test, inCart: Number(e.inCart) || 0, total: e.total, note: cut_(e.note, 300), ordered: cut_(e.ordered, 24), noCount: e.noCount };
+  var nItems = all.length + ' item' + (all.length === 1 ? '' : 's');
   var total = Number(e.total) || 0;
   var headline, subject, extra = [];
 
@@ -330,6 +387,7 @@ function describe_(e) {
     (rows ? '<table style="width:100%;border-collapse:collapse;font-size:14px">' + rows + '</table>' : '') +
     (extra.length ? '<div style="font-size:12px;color:#6b7280;margin-top:6px">' + extra.map(esc_).join(' · ') + '</div>' : '') +
     '</div>';
+  if (all.length > lines.length) extra.push('and ' + (all.length - lines.length) + ' more line(s)');
   var text = when + ' — ' + headline + (lines.length ? '\n' + lines.map(function (l) {
     return '  • ' + clean_(l.n) + ' — ' + num_(l.q) + (l.u ? ' ' + clean_(l.u) : '') + (l.p ? ' (' + money_(l.p) + ')' : '');
   }).join('\n') : '') + (extra.length ? '\n  ' + extra.join(' · ') : '');
@@ -507,6 +565,7 @@ function readJson_(props, key, fallback) {
   try { var v = props.getProperty(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
 }
 function clean_(v) { return v == null ? '' : String(v).replace(/\s+/g, ' ').trim(); }
+function cut_(v, max) { v = clean_(v); return v.length > max ? v.slice(0, max - 1) + '…' : v; }
 function esc_(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

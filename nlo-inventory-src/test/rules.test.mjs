@@ -29,19 +29,22 @@ async function seed() {
     await setDoc(doc(db, 'meta/settings'), { idleMin: 10 });
     for (const [uid, role, active] of [['owner', 'owner', true], ['fc', 'staff', true], ['ca', 'staff', true], ['ca2', 'staff', true], ['gone', 'staff', false]]) {
       await setDoc(doc(db, 'members/' + uid), { staffId: SID[uid], role, active, name: SID[uid] });
-      await setDoc(doc(db, 'roster/' + SID[uid]), { name: SID[uid], initials: 'X', role, active, username: SID[uid], gen: 0 });
+      await setDoc(doc(db, 'roster/' + SID[uid]), Object.assign({ name: SID[uid], initials: 'X', role, active, username: SID[uid], gen: 0 }, uid === 'ca2' ? { rid: 's_kim' } : {}));
     }
     await setDoc(doc(db, 'invBots/bot1'), { email: 'invbot@example.com', at: T });
     await setDoc(doc(db, 'invState/rev'), { n: 5, up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invState/settings'), { locations: ['Lab'], invAdmins: ['amir', 'sarah'], alertsOn: true, up: T, upBy: 'amir' });
-    await setDoc(doc(db, 'invState/budget'), { monthly: 8000, categories: {}, expenses: [], up: T, upBy: 'amir' });
+    await setDoc(doc(db, 'invState/budget'), { monthly: 8000, categories: {}, up: T, upBy: 'amir' });
+    await setDoc(doc(db, 'invExpenses/x1'), { id: 'x1', date: '2026-10-01', amount: 12.5, category: 'misc', vendor: 'Walmart', by: 'Kim', byId: 'kim', up: T, upBy: 'kim' });
+    await setDoc(doc(db, 'invExpenses/x-old'), { id: 'x-old', date: '2026-09-01', amount: 40, category: 'misc', by: 'Kim', byId: 's_kim', up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invState/ai'), { gemini: 'AIzaTEST', openai: '', up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invState/cart'), { lines: [], up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invItems/ppe-1'), { id: 'ppe-1', name: 'Gloves SM', qty: 4, min: 2, cat: 'infection-control', up: T, upBy: 'amir' });
-    await setDoc(doc(db, 'invOrders/order-1'), { id: 'order-1', vendor: 'SunSurgical', status: 'open', items: [], up: T, upBy: 'amir' });
-    await setDoc(doc(db, 'invOrders/order-2'), { id: 'order-2', vendor: 'SunSurgical', status: 'received', items: [], up: T, upBy: 'amir' });
+    await setDoc(doc(db, 'invOrders/order-1'), { id: 'order-1', vendor: 'SunSurgical', status: 'open', items: [], orderedById: 'sarah', trail: [{ t: 'ordered', by: 'Sarah', byId: 'sarah', at: '2026-10-01T10:00:00Z' }], up: T, upBy: 'amir' });
+    await setDoc(doc(db, 'invOrders/order-2'), { id: 'order-2', vendor: 'SunSurgical', status: 'received', items: [{ itemId: 'ppe-1', qty: 2, price: 9 }], discount: 1, shipping: 5, receivedById: 'sarah', up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invVendors/v-1'), { id: 'v-1', name: 'Acme', acct: '', phone: '555', address: '1 Main St', up: T, upBy: 'amir' });
-    await setDoc(doc(db, 'invLog/m2026-10'), { e: { a1: { id: 'a1', type: 'use', delta: -1 } }, up: T, upBy: 'amir' });
+    await setDoc(doc(db, 'invLog/m2026-10~gwen'), { e: { a1: { id: 'a1', type: 'use', delta: -1, byId: 'gwen' } }, mon: '2026-10', who: 'gwen', up: T, upBy: 'gwen' });
+    await setDoc(doc(db, 'invLog/m2026-10~old'), { e: { o1: { id: 'o1', type: 'receive', amount: 10, byId: 's_kim' } }, mon: '2026-10', who: 'old', up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invAlerts/al1'), { t: 'cart', at: 1, by: 'Gwen', lines: [], up: T, upBy: 'gwen' });
     await setDoc(doc(db, 'invPics/p1'), { m: 'image/jpeg', b: 'AAAA', kind: 'thumb', up: T, upBy: 'amir' });
   });
@@ -72,6 +75,7 @@ for (const [who, db] of [['Gwen', as('ca')], ['Sarah', as('fc')], ['Dr. A', as('
   await ok(who + ' reads the activity log', getDocs(collection(db, 'invLog')));
   await ok(who + ' reads the cart', getDoc(doc(db, 'invState/cart')));
   await ok(who + ' reads the budget', getDoc(doc(db, 'invState/budget')));
+  await ok(who + ' reads the expenses', getDocs(collection(db, 'invExpenses')));
   await ok(who + ' reads the settings', getDoc(doc(db, 'invState/settings')));
   await ok(who + ' reads the AI keys (to read packing slips)', getDoc(doc(db, 'invState/ai')));
   await ok(who + ' reads a photo', getDoc(doc(db, 'invPics/p1')));
@@ -88,6 +92,7 @@ for (const [who, db] of [['someone who left', as('gone')], ['a stranger with a l
   await no(who + ': no orders', getDoc(doc(db, 'invOrders/order-1')));
   await no(who + ': no log', getDocs(collection(db, 'invLog')));
   await no(who + ': no cart', getDoc(doc(db, 'invState/cart')));
+  await no(who + ': no expenses', getDocs(collection(db, 'invExpenses')));
   await no(who + ': no AI keys', getDoc(doc(db, 'invState/ai')));
   await no(who + ': no photos', getDoc(doc(db, 'invPics/p1')));
   await no(who + ': no rules marker', getDoc(doc(db, 'meta/rules_inv_1')));
@@ -101,12 +106,14 @@ for (const [who, db] of [['someone who left', as('gone')], ['a stranger with a l
   await ok('script reads the orders', getDocs(collection(bot, 'invOrders')));
   await ok('script reads the log', getDocs(collection(bot, 'invLog')));
   await ok('script reads the budget', getDoc(doc(bot, 'invState/budget')));
+  await ok('script reads the expenses', getDocs(collection(bot, 'invExpenses')));
   await ok('script reads the change counter', getDoc(doc(bot, 'invState/rev')));
   await ok('script reads the settings (alerts on?)', getDoc(doc(bot, 'invState/settings')));
   await ok('script reads the alerts', getDocs(collection(bot, 'invAlerts')));
   await ok('script reads the rules marker', getDoc(doc(bot, 'meta/rules_inv_1')));
   await ok('script reads its own login record', getDoc(doc(bot, 'invBots/bot1')));
-  await no('script can’t read the AI keys', getDoc(doc(bot, 'invState/ai')));
+  await ok('script reads the AI keys (to copy them where Staff Meeting and Month-End read them)', getDoc(doc(bot, 'invState/ai')));
+  await no('script can’t change the AI keys', setDoc(doc(bot, 'invState/ai'), { gemini: 'x', up: serverTimestamp(), upBy: 'bot1' }));
   await no('script can’t read photos', getDoc(doc(bot, 'invPics/p1')));
   await no('script can’t read the people', getDocs(collection(bot, 'members')));
   await no('script can’t change a supply', updateDoc(doc(bot, 'invItems/ppe-1'), { qty: 99 }));
@@ -169,20 +176,43 @@ await seed();
 await seed();
 {
   const g = as('ca'), s = as('fc'), a = as('owner');
-  await ok('Gwen places an order (open)', save(g, 'ca', [['set', 'invOrders/order-9', { id: 'order-9', vendor: 'Henry Schein', status: 'open', items: [{ itemId: 'ppe-1', qty: 2 }], orderedBy: 'Gwen' }]]));
-  await ok('…files one already received (a packing slip with no order)', save(g, 'ca', [['set', 'invOrders/order-10', { id: 'order-10', status: 'received', items: [] }]]));
+  const step = (t, byId) => ({ t, by: byId, byId, at: new Date().toISOString() });
+  await ok('Gwen places an order (open, in her name)', save(g, 'ca', [['set', 'invOrders/order-9', { id: 'order-9', vendor: 'Henry Schein', status: 'open', items: [{ itemId: 'ppe-1', qty: 2 }], orderedBy: 'Gwen', orderedById: 'gwen', trail: [step('ordered', 'gwen')] }]]));
+  await no('…not in Sarah’s name', save(g, 'ca', [['set', 'invOrders/order-9b', { id: 'order-9b', status: 'open', items: [], orderedBy: 'Sarah', orderedById: 'sarah', trail: [step('ordered', 'gwen')] }]]));
+  await no('…not with a step by Sarah', save(g, 'ca', [['set', 'invOrders/order-9c', { id: 'order-9c', status: 'open', items: [], orderedById: 'gwen', trail: [step('ordered', 'sarah')] }]]));
+  await no('…not with a made-up history', save(g, 'ca', [['set', 'invOrders/order-9d', { id: 'order-9d', status: 'open', items: [], orderedById: 'gwen', trail: [step('ordered', 'sarah'), step('edited', 'gwen')] }]]));
+  await ok('…the backorder for what didn’t come (ordered by whoever ordered the first one)', save(g, 'ca', [['set', 'invOrders/order-bo', { id: 'order-bo', status: 'open', items: [], orderedById: 'sarah', backorderOf: 'order-1', trail: [step('backorder', 'gwen')] }]]));
+  await ok('…files one already received (a packing slip with no order)', save(g, 'ca', [['set', 'invOrders/order-10', { id: 'order-10', status: 'received', items: [], trail: [step('scanned', 'gwen')] }]]));
   await no('…not a voided one', save(g, 'ca', [['set', 'invOrders/order-11', { id: 'order-11', status: 'voided', items: [] }]]));
   await no('…not under another id', save(g, 'ca', [['set', 'invOrders/order-12', { id: 'order-13', status: 'open', items: [] }]]));
-  await ok('Gwen marks it backordered', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'backordered' }]]));
-  await ok('…and back', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'open' }]]));
-  await ok('Gwen receives it', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'received', receivedBy: 'Gwen' }]]));
-  await ok('…and fills in what came (status unchanged)', save(g, 'ca', [['update', 'invOrders/order-1', { items: [{ itemId: 'ppe-1', qty: 2, price: 9 }], invoiceNumber: 'INV-1' }]]));
+  const t1 = (await raw('invOrders/order-1')).trail;
+  await ok('Gwen marks it backordered (her step on the trail)', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'backordered', trail: t1.concat([step('backordered', 'gwen')]) }]]));
+  const t2 = (await raw('invOrders/order-1')).trail;
+  await no('…not a step in Sarah’s name', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'open', trail: t2.concat([step('unbackordered', 'sarah')]) }]]));
+  await no('…not changing a step already there', save(g, 'ca', [['update', 'invOrders/order-1', { trail: [Object.assign({}, t2[0], { byId: 'gwen' }), t2[1]] }]]));
+  await no('…not dropping steps', save(g, 'ca', [['update', 'invOrders/order-1', { trail: [] }]]));
+  await ok('…and back', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'open', trail: t2.concat([step('unbackordered', 'gwen')]) }]]));
+  await no('Gwen can’t receive it in Kim’s name', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'received', receivedBy: 'Kim', receivedById: 'kim' }]]));
+  const t3 = (await raw('invOrders/order-1')).trail;
+  await ok('Gwen receives it (the receipt in one step: who, what came, the trail)', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'received', receivedBy: 'Gwen', receivedById: 'gwen', items: [{ itemId: 'ppe-1', qty: 2, price: 9 }], discount: 1, trail: t3.concat([step('received', 'gwen')]) }]]));
+  await ok('…and adds the paperwork after (invoice, prices from the slip, the slip photo)', save(g, 'ca', [['update', 'invOrders/order-1', { items: [{ itemId: 'ppe-1', qty: 2, price: 9.5 }], invoiceNumber: 'INV-1', invoiceTaxes: 1.2, slipPhoto: 'pic:p1' }]]));
+  await no('…but not its discount', save(g, 'ca', [['update', 'invOrders/order-1', { discount: 0 }]]));
+  await no('…or its shipping', save(g, 'ca', [['update', 'invOrders/order-1', { shipping: 0 }]]));
+  await no('…or its vendor', save(g, 'ca', [['update', 'invOrders/order-1', { vendor: 'Someone else' }]]));
+  await no('…or who received it', save(g, 'ca', [['update', 'invOrders/order-2', { receivedById: 'gwen', receivedBy: 'Gwen' }]]));
   await no('Gwen can’t reopen a received order', save(g, 'ca', [['update', 'invOrders/order-1', { status: 'open' }]]));
   await no('Gwen can’t void an order', save(g, 'ca', [['update', 'invOrders/order-9', { status: 'voided' }]]));
   await no('…or make up a status', save(g, 'ca', [['update', 'invOrders/order-9', { status: 'lost' }]]));
-  await ok('Sarah (ticked) reopens it', save(s, 'fc', [['update', 'invOrders/order-1', { status: 'open' }]]));
-  await ok('Sarah voids one', save(s, 'fc', [['update', 'invOrders/order-9', { status: 'voided' }]]));
-  await ok('Dr. A files an old order as it was (the move)', save(a, 'owner', [['set', 'invOrders/old-1', { id: 'old-1', status: 'voided', items: [] }]]));
+  const t4 = (await raw('invOrders/order-1')).trail;
+  await ok('Sarah (ticked) reopens it, her step on the trail', save(s, 'fc', [['update', 'invOrders/order-1', { status: 'open', dateReceived: null, trail: t4.concat([step('reopened', 'sarah')]) }]]));
+  await ok('Sarah changes a received order’s numbers (the people Dr. A picked)', save(s, 'fc', [['update', 'invOrders/order-2', { discount: 2, shipping: 6 }]]));
+  await no('…but not with a step in Gwen’s name', save(s, 'fc', [['update', 'invOrders/order-2', { trail: [step('edited', 'gwen')] }]]));
+  await ok('Sarah voids one', save(s, 'fc', [['update', 'invOrders/order-9', { status: 'voided', voidedById: 'sarah', trail: (await raw('invOrders/order-9')).trail.concat([step('voided', 'sarah')]) }]]));
+  // a long trail: the oldest step drops off at 40
+  const long = Array.from({ length: 40 }, (_, i) => step('edited', i % 2 ? 'sarah' : 'gwen'));
+  await put('invOrders/order-long', { id: 'order-long', status: 'open', items: [], trail: long, up: Timestamp.now(), upBy: 'amir' });
+  await ok('a trail of 40: the newest step goes on, the oldest drops off', save(g, 'ca', [['update', 'invOrders/order-long', { trail: long.slice(1).concat([step('edited', 'gwen')]) }]]));
+  await ok('Dr. A files an old order as it was (the move: the old app’s stamps)', save(a, 'owner', [['set', 'invOrders/old-1', { id: 'old-1', status: 'voided', items: [], orderedById: 's_sarah', trail: [step('ordered', 's_sarah'), step('voided', 's_kim')] }]]));
   await no('nobody deletes an order', save(a, 'owner', [['delete', 'invOrders/order-2']]));
 }
 
@@ -190,7 +220,11 @@ await seed();
 await seed();
 {
   const g = as('ca'), s = as('fc');
-  await ok('Gwen adds a vendor (typed on a supply)', save(g, 'ca', [['set', 'invVendors/v-9', { id: 'v-9', name: 'Amazon', acct: null, phone: null }]]));
+  await ok('Gwen adds a vendor (typed on a supply: a new v-… record, its name)', save(g, 'ca', [['set', 'invVendors/v-9', { id: 'v-9', name: 'Amazon' }]]));
+  await no('…not with a website', save(g, 'ca', [['set', 'invVendors/v-9b', { id: 'v-9b', name: 'Amazon', portal: 'https://example.com' }]]));
+  await no('…or an order email or phone', save(g, 'ca', [['set', 'invVendors/v-9c', { id: 'v-9c', name: 'Amazon', email: 'orders@example.com', phone: '555' }]]));
+  await no('…not a built-in vendor’s record with a website of its own', save(g, 'ca', [['set', 'invVendors/henry-schein', { id: 'henry-schein', portal: 'https://example.com/look-alike' }, { merge: true }]]));
+  await no('…or a name of its own', save(g, 'ca', [['set', 'invVendors/henry-schein', { id: 'henry-schein', name: 'Henry Schein (new)' }, { merge: true }]]));
   await no('…not a removed one', save(g, 'ca', [['set', 'invVendors/v-10', { id: 'v-10', name: 'X', deleted: true }]]));
   await ok('a packing slip fills in a missing account number', save(g, 'ca', [['set', 'invVendors/v-1', { id: 'v-1', acct: '12345' }, { merge: true }]]));
   await no('…but doesn’t change one already there', save(g, 'ca', [['set', 'invVendors/v-1', { id: 'v-1', acct: '99999' }, { merge: true }]]));
@@ -203,22 +237,31 @@ await seed();
   await no('nobody deletes a vendor record', save(s, 'fc', [['delete', 'invVendors/v-1']]));
 }
 
-/* ---------- the activity log: only grows ---------- */
+/* ---------- the activity log: one record per person per month, only grows ---------- */
 await seed();
 {
-  const g = as('ca'), a = as('owner');
-  const e = id => ({ id, date: new Date().toISOString(), by: 'Gwen', byId: 'gwen', type: 'use', delta: -1, itemId: 'ppe-1' });
-  await ok('Gwen adds an entry to this month', save(g, 'ca', [['set', 'invLog/m2026-10', { e: { b1: e('b1') } }, { merge: true }]]));
-  is('…the month keeps both', Object.keys((await raw('invLog/m2026-10')).e).sort().join() === 'a1,b1', await raw('invLog/m2026-10'));
-  await ok('…starts a new month', save(g, 'ca', [['set', 'invLog/m2026-11', { e: { c1: e('c1') } }, { merge: true }]]));
-  await ok('…adds to two months in one save (a receipt and its reversal)', save(g, 'ca', [['set', 'invLog/m2026-10', { e: { d1: e('d1') } }, { merge: true }], ['set', 'invLog/m2026-11', { e: { d2: e('d2') } }, { merge: true }]]));
-  await no('…can’t change an entry', save(g, 'ca', [['set', 'invLog/m2026-10', { e: { a1: e('a1') } }, { merge: true }]]));
-  await no('…can’t remove one', save(g, 'ca', [['update', 'invLog/m2026-10', { 'e.a1': deleteField() }]]));
-  await no('Dr. A can’t either', save(a, 'owner', [['update', 'invLog/m2026-10', { 'e.a1': deleteField() }]]));
-  await no('…or replace the month', save(a, 'owner', [['set', 'invLog/m2026-10', { e: { z: e('z') } }]]));
-  await no('a month has to be named m<year>-<month>', save(g, 'ca', [['set', 'invLog/october', { e: { x: e('x') } }, { merge: true }]]));
-  await no('nothing else in a month', save(g, 'ca', [['set', 'invLog/m2026-12', { e: { x: e('x') }, note: 'hi' }, { merge: true }]]));
-  await no('nobody deletes a month', save(a, 'owner', [['delete', 'invLog/m2026-10']]));
+  const g = as('ca'), s = as('fc'), a = as('owner');
+  const e = (id, byId) => ({ id, date: new Date().toISOString(), by: 'Gwen', byId: byId || 'gwen', type: 'use', delta: -1, itemId: 'ppe-1' });
+  const rec = (mon, who, entries) => Object.assign({ e: entries, mon, who });
+  await ok('Gwen adds an entry to her record for this month', save(g, 'ca', [['set', 'invLog/m2026-10~gwen', rec('2026-10', 'gwen', { b1: e('b1') }), { merge: true }]]));
+  is('…her record keeps both', Object.keys((await raw('invLog/m2026-10~gwen')).e).sort().join() === 'a1,b1', await raw('invLog/m2026-10~gwen'));
+  await ok('…starts her record for a new month', save(g, 'ca', [['set', 'invLog/m2026-11~gwen', rec('2026-11', 'gwen', { c1: e('c1') }), { merge: true }]]));
+  await ok('…adds to two months in one save (a receipt and its reversal)', save(g, 'ca', [['set', 'invLog/m2026-10~gwen', rec('2026-10', 'gwen', { d1: e('d1') }), { merge: true }], ['set', 'invLog/m2026-11~gwen', rec('2026-11', 'gwen', { d2: e('d2') }), { merge: true }]]));
+  await no('Gwen can’t add to Sarah’s record', save(g, 'ca', [['set', 'invLog/m2026-10~sarah', rec('2026-10', 'sarah', { f1: e('f1', 'sarah') }), { merge: true }]]));
+  await no('…or start one in her name', save(g, 'ca', [['set', 'invLog/m2026-12~sarah', rec('2026-12', 'sarah', { f2: e('f2', 'sarah') }), { merge: true }]]));
+  await no('…or add to the moved entries', save(g, 'ca', [['set', 'invLog/m2026-10~old', rec('2026-10', 'old', { f3: e('f3') }), { merge: true }]]));
+  await no('…or name a record one thing and say it’s another’s', save(g, 'ca', [['set', 'invLog/m2026-10~gwen', rec('2026-10', 'sarah', { f4: e('f4') }), { merge: true }]]));
+  await no('…or file it under another month', save(g, 'ca', [['set', 'invLog/m2026-10~gwen', rec('2026-09', 'gwen', { f5: e('f5') }), { merge: true }]]));
+  await no('…can’t change an entry', save(g, 'ca', [['set', 'invLog/m2026-10~gwen', rec('2026-10', 'gwen', { a1: e('a1') }), { merge: true }]]));
+  await no('…can’t remove one', save(g, 'ca', [['update', 'invLog/m2026-10~gwen', { 'e.a1': deleteField() }]]));
+  await ok('Sarah adds to her own', save(s, 'fc', [['set', 'invLog/m2026-10~sarah', rec('2026-10', 'sarah', { s1: e('s1', 'sarah') }), { merge: true }]]));
+  await no('Dr. A can’t remove an entry either', save(a, 'owner', [['update', 'invLog/m2026-10~gwen', { 'e.a1': deleteField() }]]));
+  await no('…or replace a record', save(a, 'owner', [['set', 'invLog/m2026-10~gwen', rec('2026-10', 'gwen', { z: e('z') })]]));
+  await ok('Dr. A adds the moved entries (the old app’s stamps, under old)', save(a, 'owner', [['set', 'invLog/m2026-10~old', rec('2026-10', 'old', { o2: e('o2', 's_kim') }), { merge: true }], ['set', 'invLog/m2026-10~old2', rec('2026-10', 'old2', { o3: e('o3', 's_kim') })]]));
+  await no('a record has to be named m<year>-<month>~<who>', save(g, 'ca', [['set', 'invLog/october~gwen', rec('2026-10', 'gwen', { x: e('x') }), { merge: true }]]));
+  await no('…its month a month', save(g, 'ca', [['set', 'invLog/m2026-1x~gwen', rec('2026-1x', 'gwen', { x: e('x') }), { merge: true }]]));
+  await no('nothing else in a record', save(g, 'ca', [['set', 'invLog/m2026-12~gwen', Object.assign(rec('2026-12', 'gwen', { x: e('x') }), { note: 'hi' }), { merge: true }]]));
+  await no('nobody deletes a record', save(a, 'owner', [['delete', 'invLog/m2026-10~gwen']]));
 }
 
 /* ---------- the cart, prices, the bracket order ---------- */
@@ -234,18 +277,32 @@ await seed();
   await no('an unknown state record', save(g, 'ca', [['set', 'invState/other', { x: 1 }]]));
 }
 
-/* ---------- the budget ---------- */
+/* ---------- the budget and the expenses ---------- */
 await seed();
 {
-  const g = as('ca'), s = as('fc'), a = as('owner');
-  await ok('Gwen adds an expense', save(g, 'ca', [['set', 'invState/budget', { expenses: [{ id: 'x1', amount: 12.5, by: 'Gwen' }] }, { merge: true }]]));
+  const g = as('ca'), k = as('ca2'), s = as('fc'), a = as('owner');
+  const x = (id, byId, extra) => Object.assign({ id, date: '2026-10-16', amount: 12.5, category: 'misc', vendor: 'Walmart', note: 'Cups', by: 'Gwen', byId, addedAt: new Date().toISOString() }, extra || {});
+  await ok('Gwen adds an expense, in her name', save(g, 'ca', [['set', 'invExpenses/x2', x('x2', 'gwen')]]));
+  await no('…not in Kim’s', save(g, 'ca', [['set', 'invExpenses/x3', x('x3', 'kim')]]));
+  await no('…not under another id', save(g, 'ca', [['set', 'invExpenses/x4', x('x5', 'gwen')]]));
+  await no('…not a made-up amount', save(g, 'ca', [['set', 'invExpenses/x6', x('x6', 'gwen', { amount: 'lots' })]]));
+  await no('…not a huge one', save(g, 'ca', [['set', 'invExpenses/x7', x('x7', 'gwen', { amount: 2e6 })]]));
+  await no('…nothing else in it', save(g, 'ca', [['set', 'invExpenses/x8', x('x8', 'gwen', { other: 1 })]]));
+  await no('…expenses aren’t changed (take one off and add it again)', save(g, 'ca', [['set', 'invExpenses/x2', x('x2', 'gwen', { amount: 1 })]]));
+  await no('Gwen can’t take off Kim’s', save(g, 'ca', [['delete', 'invExpenses/x1']]));
+  await no('…not without the change counter', save(g, 'ca', [['delete', 'invExpenses/x2']], { noBump: true }));
+  await ok('…she takes off her own', save(g, 'ca', [['delete', 'invExpenses/x2']]));
+  await ok('Kim takes off one the old app stamped with her Staff Hub id', save(k, 'ca2', [['delete', 'invExpenses/x-old']]));
+  await ok('Sarah (ticked) takes off anyone’s', save(s, 'fc', [['delete', 'invExpenses/x1']]));
+  await ok('Dr. A adds the moved ones (the old app’s stamps, any shape)', save(a, 'owner', [['set', 'invExpenses/x9', { id: 'x9', amount: '12.40', by: 'Kim', category: 'misc' }]]));
   await no('Gwen can’t change the monthly budget', save(g, 'ca', [['set', 'invState/budget', { monthly: 20000 }, { merge: true }]]));
   await no('…or the categories', save(g, 'ca', [['set', 'invState/budget', { categories: { misc: 1 } }, { merge: true }]]));
+  await no('…and expenses don’t go in the budget any more', save(s, 'fc', [['set', 'invState/budget', { expenses: [] }, { merge: true }]]));
   await ok('Sarah (ticked) changes the budget', save(s, 'fc', [['set', 'invState/budget', { monthly: 9000, categories: { misc: 500 }, changedBy: 'Sarah' }, { merge: true }]]));
   await no('…nothing else goes in it', save(s, 'fc', [['set', 'invState/budget', { note: 'x' }, { merge: true }]]));
   await env.withSecurityRulesDisabled(async c => { await deleteDoc(doc(c.firestore(), 'invState/budget')); });
-  await no('Gwen can’t start the budget', save(g, 'ca', [['set', 'invState/budget', { expenses: [] }]]));
-  await ok('Dr. A starts it (the move)', save(a, 'owner', [['set', 'invState/budget', { monthly: 8000, categories: {}, expenses: [], history: [] }]]));
+  await no('Gwen can’t start the budget', save(g, 'ca', [['set', 'invState/budget', { monthly: 1 }]]));
+  await ok('Dr. A starts it (the move)', save(a, 'owner', [['set', 'invState/budget', { monthly: 8000, categories: {}, history: [] }]]));
 }
 
 /* ---------- settings and the AI keys ---------- */
@@ -279,6 +336,9 @@ await seed();
   for (const tt of ['ordered', 'reopened', 'received']) await ok('…an alert: ' + tt, save(g, 'ca', [['set', 'invAlerts/al-' + tt, { t: tt, at: Date.now(), by: 'Gwen', lines: [] }]]));
   await no('…not a made-up kind', save(g, 'ca', [['set', 'invAlerts/al3', { t: 'spam', at: Date.now() }]]));
   await no('…not a huge one', save(g, 'ca', [['set', 'invAlerts/al4', Object.assign({ t: 'cart' }, Object.fromEntries(Array.from({ length: 30 }, (_, i) => ['f' + i, i])))]]));
+  await no('…not one with a long note', save(g, 'ca', [['set', 'invAlerts/al5', { t: 'received', at: Date.now(), by: 'Gwen', note: 'x'.repeat(301), lines: [] }]]));
+  await no('…or more than 60 lines', save(g, 'ca', [['set', 'invAlerts/al6', { t: 'cart', at: Date.now(), by: 'Gwen', lines: Array.from({ length: 61 }, () => ({ n: 'X', q: 1 })) }]]));
+  await no('…or something else in it', save(g, 'ca', [['set', 'invAlerts/al7', { t: 'cart', at: Date.now(), by: 'Gwen', lines: [], html: '<b>x</b>' }]]));
   await no('Gwen can’t take one back', deleteDoc(doc(g, 'invAlerts/al2')));
   await no('…or change it', save(g, 'ca', [['set', 'invAlerts/al2', { t: 'cart', by: 'Someone else' }]]));
   await ok('Dr. A can clear one', deleteDoc(doc(a, 'invAlerts/al2')));
@@ -312,12 +372,12 @@ await seed();
   const writes = [];
   for (let i = 0; i < 150; i++) writes.push(['set', 'invItems/m-' + i, { id: 'm-' + i, name: 'Supply ' + i, qty: i, sources: [{ vendor: 'Acme', price: 1 }] }]);
   for (let i = 0; i < 100; i++) writes.push(['set', 'invOrders/mo-' + i, { id: 'mo-' + i, status: i % 3 ? 'received' : 'open', items: [{ itemId: 'm-' + i, qty: 1 }] }]);
-  for (let i = 0; i < 24; i++) writes.push(['set', 'invLog/m2025-' + String(1 + (i % 12)).padStart(2, '0') + (i < 12 ? '' : 'x'), { e: { ['e' + i]: { id: 'e' + i } } }]);
-  await no('(a month name with extra letters is refused even in a big save)', save(a, 'owner', writes));
+  for (let i = 0; i < 24; i++) { const mon = '2025-' + String(1 + (i % 12)).padStart(2, '0'); writes.push(['set', 'invLog/m' + mon + '~old' + (i < 12 ? '' : 'x'), { e: { ['e' + i]: { id: 'e' + i } }, mon, who: 'old' }]); }
+  await no('(a record named for one person and saying another is refused even in a big save)', save(a, 'owner', writes));
   writes.splice(250);
-  for (let i = 0; i < 12; i++) writes.push(['set', 'invLog/m2025-' + String(1 + i).padStart(2, '0'), { e: { ['e' + i]: { id: 'e' + i } } }]);
+  for (let i = 0; i < 12; i++) { const mon = '2025-' + String(1 + i).padStart(2, '0'); writes.push(['set', 'invLog/m' + mon + '~old', { e: { ['e' + i]: { id: 'e' + i } }, mon, who: 'old' }]); }
   for (let i = 0; i < 30; i++) writes.push(['set', 'invVendors/mv-' + i, { id: 'mv-' + i, name: 'Vendor ' + i }]);
-  writes.push(['set', 'invState/cart', { lines: [] }], ['set', 'invState/budget', { monthly: 8000, categories: {}, expenses: [], history: [] }], ['set', 'invState/prices', { p: {} }]);
+  writes.push(['set', 'invState/cart', { lines: [] }], ['set', 'invState/budget', { monthly: 8000, categories: {}, history: [] }], ['set', 'invState/prices', { p: {} }]);
   await ok('Dr. A saves 295 records in one go (the move)', save(a, 'owner', writes));
   is('…all there', (await getDocs(collection(a, 'invItems'))).size === 151 && (await getDocs(collection(a, 'invOrders'))).size === 102, '');
   const big = []; for (let i = 0; i < 450; i++) big.push(['set', 'invItems/b-' + i, { id: 'b-' + i, name: 'S' + i }]);
