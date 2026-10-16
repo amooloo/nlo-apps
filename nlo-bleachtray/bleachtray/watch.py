@@ -4,7 +4,7 @@
 
 * Any *.stl dropped in the inbox is picked up once its size has stopped changing.
 * Patient name and arch are read from the scanner's file name, e.g.
-  "Armaan_Shetty_20261015_09-20-31_upper.stl" -> Armaan Shetty, upper. Arch falls back to
+  "Jane_Doe_20261015_09-20-31_upper.stl" -> Jane Doe, upper. Arch falls back to
   geometry detection; a name that can't be parsed uses the file stem as the last name.
 * An upper and a lower for the same patient arriving within `pair_wait` seconds become ONE order.
 * Each order folder is written into the Titan input folder (Titan_Angled, Template pieces by

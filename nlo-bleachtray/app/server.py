@@ -1,6 +1,7 @@
 """Local web app: drop a scan STL, get a print-ready bleaching-tray model + Trimlign trimline."""
 import os, sys, io, json, uuid, threading, time, struct, traceback, mimetypes
 import numpy as np
+import trimesh
 
 # Windows PCs often have ".js = text/plain" in the registry, which Python's mimetypes picks up and the
 # browser then refuses to run the 3D viewer ("Expected a JavaScript module script"). Force the right types.
@@ -204,18 +205,26 @@ def _run(job):
         job.setdefault("feat_cache", {})
         fixed = job.setdefault("fixed_labels", {})   # brush fixes, kept for every later re-run of this case
         overrides = {}                                # ... and applied to every model made from the same scan file
+        # "cut away" strokes: those parts leave the scan file itself (every model from it, every later re-run)
+        remap = None
+        if me is not None and me.get("cut"):
+            job["progress"] = dict(frac=0.01, label="cutting away the painted parts of the scan", scan=me.get("scan", 0), of=len(job["scans"]))
+            remap = _apply_cut(job, me.get("scan", 0), me["cut"], log=log)
         for i, k in enumerate(todo):
             scan = job["scans"][k]
             def progress(frac, label, i=i, k=k):
                 job["progress"] = dict(frac=round((i + frac) / n, 3), label=label, scan=k, of=len(job["scans"]), step=i, steps=n)
-            if me is not None and job["scans"][me.get("scan", 0)]["path"] == scan["path"] and scan["path"] not in overrides:
+            if me is not None and job["scans"][me.get("scan", 0)]["path"] == scan["path"] and scan["path"] not in overrides and (me.get("add") or me.get("remove")):
                 progress(0.02, "applying your brush fixes")
-                overrides[scan["path"]] = _apply_mask_edit(job, me.get("scan", 0), edit=me)
+                overrides[scan["path"]] = _apply_mask_edit(job, me.get("scan", 0), edit=me, remap=remap)
                 fixed[scan["path"]] = overrides[scan["path"]]
             override = overrides.get(scan["path"], fixed.get(scan["path"]))
             params = dict(job["params"]); params["arch"] = scan.get("arch") or None
             if scan.get("preset"):
                 params.update(PRESETS.get(scan["preset"], {}))
+            # the page's per-type settings (whitening tray / retainer) sit on top of the preset
+            per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") == "TT" else None) or {}
+            params.update({k: v for k, v in per_type.items() if v is not None})
             params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
             rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
                           label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
@@ -291,8 +300,63 @@ def register_watcher_result(ent, work, results, log=print):
     return jid
 
 
-def _apply_mask_edit(job, k=0, edit=None):
-    """Turn brush edits (vertex index lists) into corrected per-tooth labels."""
+def _apply_cut(job, k, cut, log=print):
+    """Remove the painted vertices from the scan: the scan file is rewritten without them (faces
+    touching a cut vertex go, then only the largest connected piece is kept, so a pad or a flap that
+    was cut loose disappears entirely). Every model made from that scan now points at the new file;
+    brush fixes kept for it are re-indexed. Returns the old->new vertex index map (-1 = gone)."""
+    from bleachtray.mesh_utils import load_scan
+    scan = job["scans"][k]
+    old_path = scan["path"]
+    raw = load_scan(old_path)
+    V, F = np.asarray(raw.vertices), np.asarray(raw.faces)
+    cut = np.asarray(cut, dtype=int)
+    cut = cut[(cut >= 0) & (cut < len(V))]
+    if len(cut) == 0:
+        return None
+    gone = np.zeros(len(V), bool); gone[cut] = True
+    keep_f = ~gone[F].any(axis=1)
+    sub = trimesh.Trimesh(V, F[keep_f], process=False)
+    comps = trimesh.graph.connected_components(sub.face_adjacency, nodes=np.arange(len(sub.faces)))
+    if len(comps) > 1:
+        areas = [sub.area_faces[c].sum() for c in comps]
+        keep_f2 = np.zeros(len(sub.faces), bool); keep_f2[comps[int(np.argmax(areas))]] = True
+        sub = trimesh.Trimesh(V, sub.faces[keep_f2], process=False)
+    used = np.zeros(len(V), bool); used[np.unique(sub.faces)] = True
+    first = -np.ones(len(V), dtype=np.int64); first[used] = np.arange(int(used.sum()))
+    out = trimesh.Trimesh(V[used], first[sub.faces], process=False)
+    n_cut = job.setdefault("cuts", 0) + 1
+    job["cuts"] = n_cut
+    base = os.path.basename(old_path)
+    base = base.rsplit("_cut", 1)[0] if "_cut" in base else os.path.splitext(base)[0]
+    new_path = os.path.join(job["dir"], f"{base}_cut{n_cut}.stl")
+    out.export(new_path)
+    # the pipeline will read the new file through load_scan, which may order the vertices its own way:
+    # map old -> new by position (exact: float32 in, float32 out)
+    from scipy.spatial import cKDTree
+    re = load_scan(new_path)
+    d, idx = cKDTree(np.asarray(re.vertices)).query(V[used])
+    remap = -np.ones(len(V), dtype=np.int64)
+    ok = d < 1e-3
+    remap[np.where(used)[0][ok]] = idx[ok]
+    used = remap >= 0
+    # re-index what we keep per scan file
+    fixed = job.setdefault("fixed_labels", {})
+    if old_path in fixed:
+        lab = np.asarray(fixed.pop(old_path)); newlab = np.zeros(len(re.vertices), dtype=lab.dtype); newlab[remap[used]] = lab[used]; fixed[new_path] = newlab
+    for key in [key for key in job.get("feat_cache", {}) if (key if isinstance(key, str) else key[0]) == old_path]:
+        job["feat_cache"].pop(key, None)
+    for sc in job["scans"]:
+        if sc["path"] == old_path:
+            sc["path"] = new_path
+    log(f"cut away: {int(gone.sum())} painted vertices, {int((~used).sum() - gone.sum())} more came loose with them; "
+        f"the scan is now {len(out.vertices)} vertices ({os.path.basename(new_path)})")
+    return remap
+
+
+def _apply_mask_edit(job, k=0, edit=None, remap=None):
+    """Turn brush edits (vertex index lists) into corrected per-tooth labels. `remap` (old->new
+    vertex index, from a cut in the same re-run) re-indexes the saved labels and the strokes."""
     edit = edit if edit is not None else (job.get("mask_edit") or {})
     from bleachtray.mesh_utils import load_scan
     from bleachtray.orient import rough_orient
@@ -301,9 +365,14 @@ def _apply_mask_edit(job, k=0, edit=None):
     scan = job["scans"][k]
     st = np.load(os.path.join(job["dir"], f"{scan['name']}_state.npz"))
     labels = st["labels"]
-    mask = labels > 0
     add = np.array(edit.get("add", []), dtype=int)
     rem = np.array(edit.get("remove", []), dtype=int)
+    if remap is not None and len(remap) == len(labels):
+        kept = remap >= 0
+        newlab = np.zeros(int(remap.max()) + 1, dtype=labels.dtype); newlab[remap[kept]] = labels[kept]; labels = newlab
+        add = remap[add[(add >= 0) & (add < len(remap))]]; add = add[add >= 0]
+        rem = remap[rem[(rem >= 0) & (rem < len(remap))]]; rem = rem[rem >= 0]
+    mask = labels > 0
     if len(add):
         mask[add] = True
     if len(rem):
@@ -373,10 +442,14 @@ def _open_case_for(first, last, arch, max_age=45 * 60):
 
 
 def _add_scans(job, path, filename, arch, preset, variants=None):
-    stem = "".join(c for c in os.path.splitext(filename)[0] if c.isalnum() or c in "-_ ").strip().replace(" ", "_") or "scan"
-    k = len({sc["path"] for sc in job["scans"]})
-    if any(sc["name"].startswith(stem) for sc in job["scans"]):
-        stem = f"{stem}_{k + 1}"
+    same = [sc for sc in job["scans"] if sc["path"] == path]
+    if same:   # another model from a scan the case already holds: keep its name stem
+        stem = same[0]["name"][: -len(same[0]["tag"]) - 1] if same[0].get("tag") and same[0]["name"].endswith("_" + same[0]["tag"]) else same[0]["name"]
+    else:
+        stem = "".join(c for c in os.path.splitext(filename)[0] if c.isalnum() or c in "-_ ").strip().replace(" ", "_") or "scan"
+        k = len({sc["path"] for sc in job["scans"]})
+        if any(sc["name"].startswith(stem) for sc in job["scans"]):
+            stem = f"{stem}_{k + 1}"
     for vpreset, tag, kind, stage in (variants or variants_for(preset)):
         job["scans"].append(dict(path=path, name=f"{stem}_{tag}", filename=filename, arch=arch, preset=vpreset, tag=tag, kind=kind, stage=stage))
     job["filename"] = ", ".join(dict.fromkeys(sc["filename"] for sc in job["scans"]))
@@ -496,6 +569,30 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
     return {"id": ids[0], "ids": ids, "joined": joined, "cases": len(ids), "filed": filed}
 
 
+@app.post("/api/jobs/{jid}/add")
+async def add_model(jid: str, arch: str = Form(...), make: str = Form(...)):
+    """One more model from a scan the case already holds (chose the retainer, now the whitening tray
+    is wanted too): the scan is not uploaded again, its tooth split is reused, and the case goes back
+    to review - Send then writes the order with every model."""
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    if job.get("status") in ("running", "queued"):
+        raise HTTPException(409, "the case is still being processed - add it when it is done")
+    make = (make or "").upper()
+    src = next((sc for sc in job["scans"] if sc.get("arch") == arch), None)
+    if src is None or make not in ("WT", "TT"):
+        raise HTTPException(400, "no such scan in this case")
+    if any(sc["path"] == src["path"] and sc.get("tag") == make for sc in job["scans"]):
+        raise HTTPException(409, f"{make} {arch} is already part of this case")
+    variants = _variants_from_makes([make], job.get("preset") or "bleaching")
+    _add_scans(job, src["path"], src["filename"], arch, job.get("preset") or "bleaching", variants=variants)
+    job.setdefault("log", []).append(f"{'whitening tray' if make == 'WT' else 'retainer'} added for the {arch} from the scan already in the case")
+    job["auto_order"] = False
+    _enqueue(job)
+    return {"id": jid, "models": len(job["scans"])}
+
+
 @app.post("/api/jobs/{jid}/rerun")
 async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     job = JOBS.get(jid)
@@ -504,7 +601,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     try:
         me = json.loads(edits or "{}")
         # a re-run without any painted vertex is just a re-run: it must not count as a brush correction
-        job["mask_edit"] = me if (me.get("add") or me.get("remove")) else None
+        job["mask_edit"] = me if (me.get("add") or me.get("remove") or me.get("cut")) else None
     except Exception:
         job["mask_edit"] = None
     try:

@@ -137,6 +137,28 @@
   /* ---------- 3D viewer card ---------- */
   section.viewer{position:relative;min-height:0;background:var(--grey-50);border-radius:var(--r);border:1px solid var(--grey-100);box-shadow:var(--sh-xs);overflow:hidden}
   canvas{display:block;position:absolute;inset:0;width:100% !important;height:100% !important;z-index:0}
+
+  /* ---- illustrated settings panel (over the viewer) ---- */
+  .settings{display:none;position:absolute;inset:0;z-index:4;background:var(--grey-50);overflow:auto}
+  .settings.on{display:block}
+  .setHd{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;padding:14px 18px;background:rgba(247,248,249,.96);border-bottom:1px solid var(--grey-100);backdrop-filter:blur(6px)}
+  .setHd h3{font-family:var(--fd);font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:0}
+  .setBd{padding:6px 18px 28px}
+  .setSec{font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-600);margin:22px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--grey-200)}
+  .setGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .scard{background:#fff;border:1px solid var(--grey-100);border-radius:12px;padding:12px 12px 12px;box-shadow:var(--sh-xs);display:flex;flex-direction:column;gap:8px}
+  .scard.wide{grid-column:1 / -1}
+  .sLab{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;color:var(--grey-700)}
+  .info{margin-left:auto;flex:none;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--grey-300);color:var(--grey-500);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;cursor:help;font-family:Georgia,serif;font-style:italic}
+  .sPic{height:84px;display:flex;align-items:center;justify-content:center;background:var(--grey-50);border-radius:10px}
+  .sPic svg{width:140px;height:84px}
+  .stepper{display:grid;grid-template-columns:36px 1fr 36px;border:1.5px solid var(--grey-200);border-radius:10px;overflow:hidden}
+  .stepper button{min-height:38px;font-size:18px;color:var(--navy);background:var(--grey-50)}
+  .stepper button:hover{background:var(--grey-100)}
+  .stepper input{border:0;border-radius:0;text-align:center;min-height:38px;font-weight:600;-moz-appearance:textfield}
+  .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .sVal{min-height:38px;display:flex;align-items:center;justify-content:center;border:1.5px dashed var(--grey-200);border-radius:10px;color:var(--grey-500);font-weight:600;font-size:12.5px}
+  .scard select,.scard input[type=text]{margin:0}
   .toolbar,.brush,.place,.stats,#fatal,#errline{z-index:2}
   .toolbar{position:absolute;top:12px;left:12px;display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:999px;padding:5px 6px;backdrop-filter:blur(6px);box-shadow:var(--sh-sm)}
   .toolbar .tab{padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--grey-600);font-weight:600;font-size:12.5px;user-select:none}
@@ -145,7 +167,7 @@
   .toolbar label{font-size:12px;color:var(--grey-600);font-weight:600;padding:0 10px 0 4px;display:flex;align-items:center;gap:5px}
   .toolbar label input{accent-color:var(--blue)}
   .brush,.place{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
-  .brush{width:262px} .place{width:318px}
+  .brush{width:300px} .place{width:318px}
   .brush.on,.place.on{display:block}
   .brush h4,.place h4{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin-bottom:8px}
   .prow{display:grid;grid-template-columns:76px 1fr 1fr 54px 1fr 1fr;gap:4px;align-items:center;margin:4px 0;font-size:12px;color:var(--grey-500)}
@@ -192,8 +214,8 @@
             <div class="drop" id="drop"><b>Drop the scan STL here</b>anywhere on this page works · one arch at a time — the app then asks what to make and whether the opposing arch is coming. A whole day's scans at once run with the defaults. Or click to choose.</div>
             <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
             <div class="row">
-              <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="Arman"></div>
-              <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Shetty"></div>
+              <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="First"></div>
+              <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Last"></div>
             </div>
             <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
             <div class="hint" id="filehint">No file yet.</div>
@@ -203,53 +225,7 @@
               <div class="btns" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="primary small" id="startcase">Start</button><button class="small" id="addopp">Add the opposing arch…</button><button class="small" id="cancelcase">Cancel</button></div>
             </div>
             <div id="rerunbox" style="display:none;margin-top:10px"><button class="small" id="go">Run again with these settings</button></div>
-            <details class="adv">
-              <summary>Advanced settings</summary>
-              <div class="opt"><svg class="ico"><use href="#ico-res"/></svg><div>
-                <label class="f">Gel reservoirs</label>
-                <div class="row"><div><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"><div class="hint">height (mm)</div></div>
-                <div><input type="number" id="res_n" step="1" min="0" max="7" value="5"><div class="hint">teeth from the midline (5 = canine to 2nd premolar)</div></div></div>
-              </div></div>
-              <div class="opt"><svg class="ico"><use href="#ico-trim"/></svg><div>
-                <label class="f">Trim line</label>
-                <select id="tl_off"><option value="0">At the gum line (bleaching trays)</option><option value="0.5">0.5 mm onto the gum</option><option value="1">1 mm onto the gum</option><option value="1.25">1.25 mm onto the gum (aligners)</option><option value="1.5">1.5 mm onto the gum</option><option value="2">2 mm onto the gum</option></select>
-              </div></div>
-              <div class="opt"><svg class="ico"><use href="#ico-gap"/></svg><div>
-                <label class="f">Between the teeth</label>
-                <select id="bridge"><option value="3">Straight across the gum points (semi-scallop)</option><option value="4">Straight across, wider bridges</option><option value="0">Follow the gum down into every gap (full scallop)</option></select>
-              </div></div>
-              <div class="opt"><svg class="ico"><use href="#ico-base"/></svg><div>
-                <label class="f">Trimlign base</label>
-                <select id="base"><option value="1">Add the base (Titan placement)</option><option value="0">No base</option></select>
-              </div></div>
-              <div class="opt"><svg class="ico"><use href="#ico-eng"/></svg><div>
-                <label class="f">Engraving on the base (inside the arch)</label>
-                <select id="engrave"><option value="1">Patient name + WHITENING / RETAINER</option><option value="0">None</option></select>
-                <input type="text" id="engrave_text" placeholder="custom text, e.g. K. POST | UPPER" style="margin-top:6px">
-              </div></div>
-            <div class="row">
-              <div><label class="f">Arch (bulk drops)</label><select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select></div>
-              <div><label class="f">Default (bulk drops, drop folder)</label><select id="preset">
-                <option value="both">Whitening tray + retainer (both)</option>
-                <option value="bleaching">Whitening tray 5-5 only</option>
-                <option value="bleaching_3_3">Whitening tray 3-3 only</option>
-                <option value="aligner_high">Retainer only (line 1.25 mm onto the gum)</option>
-                <option value="plain_model">Plain model</option>
-              </select></div>
-            </div>
-              <label class="f">Learning</label>
-              <div class="hint" id="learnhint" style="margin-top:0">…</div>
-              <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="small" id="learnnow">Retrain now</button><span class="hint" id="learnmsg" style="margin:0"></span></div>
-              <label class="f">Patient ID in Edge (optional)</label><input type="text" id="pid" placeholder="80010">
-              <label class="f">OrthoFactory input folder (approved orders are written there)</label>
-              <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
-              <div class="hint" id="exporthint" style="margin-top:2px"></div>
-              <label class="f">Doctor (for the order folder name)</label>
-              <input type="text" id="doctor" value="Dr. Amir Akhavan">
-              <label class="f">Scanner export folder(s) — lists recent scans in the sidebar (several PCs: separate with ;)</label>
-              <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
-              <div class="hint" id="scanfolder_hint"></div>
-            </details>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center"><button class="small" id="openSettings">&#9881; Settings</button><span class="hint" style="margin:0" id="setsum"></span></div>
           </div>
         </div>
         <div class="card" id="detail" style="display:none">
@@ -300,10 +276,10 @@
         </div>
         <div class="brush" id="brush">
           <h4>Brush — fix tooth / gum labels</h4>
-          <div class="seg"><button class="on" data-mode="tooth">Paint tooth</button><button data-mode="gum">Paint gum</button><button data-mode="off">Off</button></div>
+          <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button><button data-mode="off">Off</button></div>
           <label class="f">Brush size: <span id="rv">1.5</span> mm radius</label>
           <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
-          <div class="hint">The ball on the model is the brush. Hold <b>Shift</b> and drag to paint; rotate with the mouse otherwise.</div>
+          <div class="hint">The ball on the model is the brush. Hold <b>Shift</b> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built.</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
           <div class="hint" id="fixcount">No edits.</div>
         </div>
@@ -320,6 +296,204 @@
         <div class="stats" id="stats">Drop a scan to begin.</div>
         <div id="fatal"></div>
         <div id="errline"></div>
+<!-- SETTINGS PANEL (illustrated): opened from "Settings" in the New case card; sits over the viewer -->
+<div class="settings" id="settings">
+  <div class="setHd">
+    <h3>Settings</h3>
+    <div class="hint" style="margin:0 auto 0 14px">Each number has a picture of what it means. Changes apply to the next case (or <b>Run again</b>).</div>
+    <button class="small" id="setDefaults">Back to defaults</button>
+    <button class="small primary" id="setClose">Done</button>
+  </div>
+  <div class="setBd">
+
+    <h4 class="setSec">Whitening tray — gel reservoirs</h4>
+    <div class="setGrid">
+      <div class="scard"><div class="sLab">Reservoir region <span class="info" title="Which teeth get a gel reservoir on the facial surface. The tray fits snugly on the teeth outside the region.">i</span></div>
+        <div class="sPic" id="pic_region"></div>
+        <select id="res_n"><option value="3">3-3 · canine to canine</option><option value="4">4-4 · to the 1st premolars</option><option value="5" selected>5-5 · to the 2nd premolars</option><option value="6">6-6 · to the 1st molars</option><option value="0">No reservoirs</option></select>
+      </div>
+      <div class="scard"><div class="sLab">Reservoir depth (mm) <span class="info" title="How much gel space is built into the facial of each tooth in the region. 0.5 mm is the usual.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M70 10 C78 8 86 12 88 20 L92 46 C94 60 82 68 70 66 C58 64 54 54 52 44 L50 22 C50 14 60 11 70 10 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M40 46 Q60 40 96 48 L100 72 L36 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M52 22 C52 14 60 11 70 10 C78 8 86 12 88 20 L91 42" fill="none" stroke="#FA624D" stroke-width="5" stroke-linecap="round" opacity=".55"/>
+          <path d="M24 16 L24 40" stroke="#1D3EA9" stroke-width="1.4"/><path d="M20 20 L24 16 L28 20 M20 36 L24 40 L28 36" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+          <path d="M30 14 L48 14 M30 42 L48 42" stroke="#1D3EA9" stroke-width="1" stroke-dasharray="2 2"/>
+        </svg></div>
+        <div class="stepper"><button data-step="-0.1" data-for="res_h">−</button><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"><button data-step="0.1" data-for="res_h">+</button></div>
+      </div>
+      <div class="scard"><div class="sLab">Distance to the gum edge (mm) <span class="info" title="The reservoir stops this far short of the gum line, so the tray seals on the tooth and gel does not sit on the gum.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M60 8 C72 6 82 12 84 22 L88 46 C90 60 76 68 60 66 C44 64 38 54 36 44 L34 22 C34 12 48 10 60 8 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M40 12 C50 14 70 14 80 12 L82 34 C80 38 40 38 38 34 Z" fill="#FFC8BF" opacity=".75"/>
+          <path d="M26 48 Q60 40 98 48 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M38 36 L82 36" stroke="#FA624D" stroke-width="1.4"/><path d="M34 45 Q60 39 88 45" fill="none" stroke="#1B2F4C" stroke-width="1.2"/>
+          <path d="M104 36 L104 44" stroke="#1D3EA9" stroke-width="1.4"/><path d="M101 39 L104 36 L107 39 M101 41 L104 44 L107 41" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+        </svg></div>
+        <div class="stepper"><button data-step="-0.1" data-for="res_sb">−</button><input type="number" id="res_sb" step="0.1" min="0" max="2" value="0.5"><button data-step="0.1" data-for="res_sb">+</button></div>
+      </div>
+    </div>
+
+    <h4 class="setSec">Trim line</h4>
+    <div class="setGrid">
+      <div class="scard"><div class="sLab">Whitening tray line <span class="info" title="Where the tray edge is cut. At the gum line (scalloped) is the usual for whitening trays.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M26 46 Q60 36 98 46 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M40 10 C48 6 56 10 58 18 L60 40 C58 46 42 46 40 40 Z M62 10 C70 6 78 10 80 18 L82 40 C80 46 64 46 62 40 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M28 44 Q44 36 50 42 Q60 50 70 42 Q76 36 96 44" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
+        </svg></div>
+        <select id="tl_off"><option value="0">At the gum line (scalloped)</option><option value="0.5">0.5 mm onto the gum</option><option value="1">1 mm onto the gum</option><option value="1.5">1.5 mm onto the gum</option></select>
+      </div>
+      <div class="scard"><div class="sLab">Retainer line (mm onto the gum) <span class="info" title="Thermoformed retainers are cut a little onto the gum for strength and retention. 1.25 mm matches the aligner line.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M26 46 Q60 36 98 46 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M40 10 C48 6 56 10 58 18 L60 40 C58 46 42 46 40 40 Z M62 10 C70 6 78 10 80 18 L82 40 C80 46 64 46 62 40 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M28 44 Q60 36 96 44" fill="none" stroke="#C3C9D0" stroke-width="1" stroke-dasharray="2 2"/>
+          <path d="M26 56 Q60 48 98 56" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
+          <path d="M108 42 L108 54" stroke="#1D3EA9" stroke-width="1.4"/><path d="M105 45 L108 42 L111 45 M105 51 L108 54 L111 51" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+        </svg></div>
+        <div class="stepper"><button data-step="-0.25" data-for="tt_off">−</button><input type="number" id="tt_off" step="0.25" min="0" max="3" value="1.25"><button data-step="0.25" data-for="tt_off">+</button></div>
+      </div>
+      <div class="scard"><div class="sLab">Between the teeth <span class="info" title="How the line crosses the gum between two teeth: straight across the papilla (easier to trim, seals well) or following the gum down into every gap.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M26 46 Q60 36 98 46 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M30 10 C40 6 50 10 52 18 L54 40 C52 46 32 46 30 40 Z M66 10 C76 6 86 10 88 18 L90 40 C88 46 68 46 66 40 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M54 40 L60 30 L66 40 Z" fill="#FFC8BF"/>
+          <path d="M28 44 L54 42 L66 42 L92 44" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
+          <path d="M54 42 L60 52 L66 42" fill="none" stroke="#C3C9D0" stroke-width="1.2" stroke-dasharray="2 2"/>
+        </svg></div>
+        <select id="bridge"><option value="3">Straight across</option><option value="4">Straight, wider bridges</option><option value="0">Into every gap (full scallop)</option></select>
+      </div>
+    </div>
+
+    <h4 class="setSec">Model base</h4>
+    <div class="setGrid">
+      <div class="scard"><div class="sLab">Rim beyond the trim line (mm) <span class="info" title="How much model is kept outside the trim line, facial and lingual. Titan keeps very little; 3 mm gives the bur something to ride on.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M18 66 C14 30 40 8 60 8 C80 8 106 30 102 66 L90 66 C92 36 74 20 60 20 C46 20 28 36 30 66 Z" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>
+          <path d="M26 66 C24 38 42 15 60 15 C78 15 96 38 94 66" fill="none" stroke="#FA624D" stroke-width="1.6" stroke-dasharray="3 2"/>
+          <g fill="#fff" stroke="#1B2F4C" stroke-width="1.2"><ellipse cx="60" cy="17" rx="5" ry="4"/><ellipse cx="49" cy="20" rx="5" ry="4"/><ellipse cx="71" cy="20" rx="5" ry="4"/><ellipse cx="40" cy="27" rx="5" ry="4"/><ellipse cx="80" cy="27" rx="5" ry="4"/><ellipse cx="34" cy="38" rx="5" ry="4.5"/><ellipse cx="86" cy="38" rx="5" ry="4.5"/><ellipse cx="31" cy="51" rx="5.5" ry="5"/><ellipse cx="89" cy="51" rx="5.5" ry="5"/></g>
+          <path d="M8 50 L22 50" stroke="#1D3EA9" stroke-width="1.4"/><path d="M11 47 L8 50 L11 53 M19 47 L22 50 L19 53" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+        </svg></div>
+        <div class="stepper"><button data-step="-0.5" data-for="rim">−</button><input type="number" id="rim" step="0.5" min="1" max="6" value="3"><button data-step="0.5" data-for="rim">+</button></div>
+      </div>
+      <div class="scard"><div class="sLab">Floor below the trim line (mm) <span class="info" title="The model floor sits this far below the lowest point of the trim line. 3 mm is what Titan uses; deeper = taller model.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M44 8 C56 5 66 10 68 18 L72 36 C70 42 46 42 44 36 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M14 44 Q58 32 106 44 L106 58 L14 58 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M16 42 Q58 31 104 42" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
+          <rect x="8" y="58" width="104" height="8" rx="2" fill="#C3C9D0" stroke="#5471A0" stroke-width="1"/>
+          <path d="M112 40 L112 58" stroke="#1D3EA9" stroke-width="1.4"/><path d="M109 43 L112 40 L115 43 M109 55 L112 58 L115 55" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+        </svg></div>
+        <div class="stepper"><button data-step="-0.5" data-for="floor_below">−</button><input type="number" id="floor_below" step="0.5" min="1.5" max="8" value="3"><button data-step="0.5" data-for="floor_below">+</button></div>
+      </div>
+      <div class="scard"><div class="sLab">Behind the last molar (mm) <span class="info" title="The model ends this far behind the last tooth on each side, and the tissue there is lowered 2 mm under the trim line so the bur can get round the distal surface.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M10 44 Q40 34 70 40 L96 40 L96 58 L10 58 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <g fill="#fff" stroke="#1B2F4C" stroke-width="1.4" stroke-linejoin="round"><path d="M16 42 C16 24 26 20 30 22 L32 40 Z"/><path d="M34 40 C36 20 50 18 54 24 L56 40 Z"/><path d="M58 40 C58 22 76 18 80 26 L82 40 Z"/></g>
+          <path d="M96 30 L96 62" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
+          <path d="M82 64 L96 64" stroke="#1D3EA9" stroke-width="1.4"/><path d="M85 61 L82 64 L85 67 M93 61 L96 64 L93 67" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+          <rect x="6" y="58" width="104" height="8" rx="2" fill="#C3C9D0" stroke="#5471A0" stroke-width="1"/>
+        </svg></div>
+        <div class="stepper"><button data-step="-0.5" data-for="distal_keep">−</button><input type="number" id="distal_keep" step="0.5" min="0" max="8" value="3"><button data-step="0.5" data-for="distal_keep">+</button></div>
+      </div>
+      <div class="scard"><div class="sLab">Level to the gum line <span class="info" title="Tilt the model so the facial gum line is level, the way Titan bases it: low, even walls all the way round instead of tall walls under the front teeth.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M12 54 L28 50 Q58 40 100 44 L104 62 L12 62 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <g fill="#fff" stroke="#1B2F4C" stroke-width="1.3" stroke-linejoin="round"><path d="M30 48 C30 34 40 30 44 32 L46 46 Z"/><path d="M50 45 C52 28 66 26 70 32 L72 44 Z"/><path d="M76 44 C78 24 94 22 96 32 L98 44 Z"/></g>
+          <path d="M14 50 L104 42" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
+          <path d="M8 38 L112 38" stroke="#1D3EA9" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <path d="M104 24 A14 14 0 0 1 112 32" fill="none" stroke="#1D3EA9" stroke-width="1.4"/><path d="M110 28 L112 32 L108 33" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+          <rect x="8" y="62" width="104" height="6" rx="2" fill="#C3C9D0" stroke="#5471A0" stroke-width="1"/>
+        </svg></div>
+        <select id="level"><option value="1">On · Titan style</option><option value="0">Off · occlusal plane flat</option></select>
+      </div>
+      <div class="scard"><div class="sLab">Trimlign base <span class="info" title="The locating base the Trimlign needs, placed the way Titan places it.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M28 42 Q60 14 92 42 L92 50 Q60 28 28 50 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.4" stroke-linejoin="round"/>
+          <rect x="14" y="50" width="92" height="14" rx="3" fill="#C3C9D0" stroke="#5471A0" stroke-width="1.2"/>
+          <circle cx="60" cy="57" r="3" fill="#1B2F4C"/><rect x="24" y="54" width="10" height="6" rx="1" fill="#969FAB"/><rect x="86" y="54" width="10" height="6" rx="1" fill="#969FAB"/>
+        </svg></div>
+        <select id="base"><option value="1">Add the base</option><option value="0">No base</option></select>
+      </div>
+      <div class="scard"><div class="sLab">Scan clean-up <span class="info" title="Done on its own: loose bits of scan, tissue the floor cuts free, and the pad behind the last molar are removed. Anything else (tongue, cheek, a flap): the Cut away brush.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M18 66 C14 30 40 8 60 8 C80 8 106 30 102 66 Z" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>
+          <g fill="#fff" stroke="#1B2F4C" stroke-width="1.2"><ellipse cx="60" cy="17" rx="5" ry="4"/><ellipse cx="49" cy="20" rx="5" ry="4"/><ellipse cx="71" cy="20" rx="5" ry="4"/><ellipse cx="40" cy="27" rx="5" ry="4"/><ellipse cx="80" cy="27" rx="5" ry="4"/><ellipse cx="34" cy="38" rx="5" ry="4.5"/><ellipse cx="86" cy="38" rx="5" ry="4.5"/><ellipse cx="31" cy="51" rx="5.5" ry="5"/><ellipse cx="89" cy="51" rx="5.5" ry="5"/></g>
+          <path d="M10 60 Q6 50 14 48 Q20 52 16 60 Z" fill="none" stroke="#FA624D" stroke-width="1.4" stroke-dasharray="2 2"/>
+          <path d="M100 20 Q110 14 112 24 Q106 30 100 26 Z" fill="none" stroke="#FA624D" stroke-width="1.4" stroke-dasharray="2 2"/>
+          <path d="M50 50 Q60 40 70 50 Q60 58 50 50 Z" fill="none" stroke="#FA624D" stroke-width="1.4" stroke-dasharray="2 2"/>
+        </svg></div>
+        <div class="sVal">Automatic</div>
+      </div>
+    </div>
+
+    <h4 class="setSec">Marks on the model</h4>
+    <div class="setGrid">
+      <div class="scard"><div class="sLab">Initials on a molar <span class="info" title="Patient initials + W (whitening) or R (retainer) raised 0.35 mm on the cheek side of a first molar, so they show on the tray itself.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M34 14 C48 6 72 6 86 14 L90 44 C88 60 72 66 60 66 C48 66 32 60 30 44 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M44 24 Q60 18 76 24" fill="none" stroke="#C3C9D0" stroke-width="1"/>
+          <text x="60" y="48" text-anchor="middle" font-family="Oswald, Arial, sans-serif" font-weight="700" font-size="16" fill="#1D3EA9">KP W</text>
+        </svg></div>
+        <select id="tooth_mark"><option value="1">On · initials + W / R</option><option value="0">Off</option></select>
+      </div>
+      <div class="scard"><div class="sLab">Engraving on the base <span class="info" title="Patient name and tray type cut into the base, inside the arch. Type your own text to replace it.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <rect x="12" y="16" width="96" height="40" rx="4" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>
+          <text x="60" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="11" fill="#1B2F4C">K. POST</text>
+          <text x="60" y="48" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="8.5" fill="#1B2F4C">WHITENING</text>
+        </svg></div>
+        <select id="engrave"><option value="1">Name + tray type</option><option value="0">Off</option></select>
+        <input type="text" id="engrave_text" placeholder="custom text, e.g. K. POST | UPPER" style="margin-top:6px">
+      </div>
+    </div>
+
+    <h4 class="setSec">Bulk drops &amp; the drop folder</h4>
+    <div class="setGrid">
+      <div class="scard"><div class="sLab">What to make <span class="info" title="Used when several patients are dropped at once or a scan lands in the drop folder (a single scan on the page asks instead).">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M14 50 Q60 30 106 50 L106 62 Q60 42 14 62 Z" fill="#E5EAF8" stroke="#1D3EA9" stroke-width="1.3"/>
+          <path d="M14 34 Q60 14 106 34 L106 44 Q60 24 14 44 Z" fill="#FFE7E1" stroke="#FA624D" stroke-width="1.3"/>
+          <text x="60" y="22" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-weight="600" font-size="8" fill="#FA624D">WT</text>
+          <text x="60" y="66" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-weight="600" font-size="8" fill="#1D3EA9">TT</text>
+        </svg></div>
+        <select id="preset"><option value="both">Whitening tray + retainer (both)</option><option value="bleaching">Whitening tray only</option><option value="bleaching_3_3">Whitening tray 3-3 only</option><option value="aligner_high">Retainer only</option><option value="plain_model">Plain model</option></select>
+      </div>
+      <div class="scard"><div class="sLab">Arch <span class="info" title="Auto-detect reads the file name (upper / lower) and falls back to the shape of the scan. Force one only if a file is misnamed.">i</span></div>
+        <div class="sPic"><svg viewBox="0 0 120 72">
+          <path d="M22 30 C22 12 40 8 60 8 C80 8 98 12 98 30" fill="none" stroke="#1B2F4C" stroke-width="1.6"/>
+          <g fill="#fff" stroke="#1B2F4C" stroke-width="1.1"><ellipse cx="60" cy="10" rx="5" ry="3.5"/><ellipse cx="48" cy="12" rx="5" ry="3.5"/><ellipse cx="72" cy="12" rx="5" ry="3.5"/><ellipse cx="37" cy="17" rx="5" ry="3.5"/><ellipse cx="83" cy="17" rx="5" ry="3.5"/><ellipse cx="28" cy="26" rx="5" ry="4"/><ellipse cx="92" cy="26" rx="5" ry="4"/></g>
+          <path d="M22 44 C22 62 40 66 60 66 C80 66 98 62 98 44" fill="none" stroke="#1B2F4C" stroke-width="1.6"/>
+          <g fill="#fff" stroke="#1B2F4C" stroke-width="1.1"><ellipse cx="60" cy="64" rx="5" ry="3.5"/><ellipse cx="48" cy="62" rx="5" ry="3.5"/><ellipse cx="72" cy="62" rx="5" ry="3.5"/><ellipse cx="37" cy="57" rx="5" ry="3.5"/><ellipse cx="83" cy="57" rx="5" ry="3.5"/><ellipse cx="28" cy="48" rx="5" ry="4"/><ellipse cx="92" cy="48" rx="5" ry="4"/></g>
+        </svg></div>
+        <select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select>
+      </div>
+    </div>
+
+    <h4 class="setSec">Learning</h4>
+    <div class="setGrid">
+      <div class="scard wide"><div class="sLab">The model learns from your corrections <span class="info" title="Cases fixed with the brush and marked Looks good or Sent are lessons. Retraining runs at night, or now with the button; a new model is only used if it scores at least as well.">i</span></div>
+        <div class="hint" id="learnhint" style="margin-top:0">…</div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="small" id="learnnow">Retrain now</button><span class="hint" id="learnmsg" style="margin:0"></span></div>
+      </div>
+    </div>
+
+    <h4 class="setSec">This office</h4>
+    <div class="setGrid">
+      <div class="scard"><div class="sLab">OrthoFactory input folder <span class="info" title="Sent cases are written here as Titan-style orders.">i</span></div>
+        <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
+        <div class="hint" id="exporthint" style="margin-top:2px"></div>
+      </div>
+      <div class="scard"><div class="sLab">Doctor (order folder name)</div><input type="text" id="doctor" value="Dr. Amir Akhavan"></div>
+      <div class="scard"><div class="sLab">Patient ID in Edge (optional)</div><input type="text" id="pid" placeholder="80010"></div>
+      <div class="scard wide"><div class="sLab">Scanner export folder(s) <span class="info" title="Lists recent scans in the sidebar. Several PCs: separate with ;">i</span></div>
+        <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
+        <div class="hint" id="scanfolder_hint"></div>
+      </div>
+    </div>
+  </div>
+</div>
         <canvas id="c"></canvas>
       </section>
     </main>
@@ -381,7 +555,7 @@ let currentJob = null, tab = 'result';
 const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new THREE.Group() };
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null;
-const edits = { add: new Set(), remove: new Set() };
+const edits = { add: new Set(), remove: new Set(), cut: new Set() };
 let brushMode = 'tooth';
 // The brush is a sphere of the chosen radius around the point under the mouse - the cursor shows exactly
 // that: a translucent ball (blue = paint tooth, amber = paint gum) with an outline that stays visible
@@ -507,8 +681,46 @@ $('#startcase').onclick = () => {
   $('#go').click();
 };
 
-$('#preset').onchange = () => { const p = $('#preset').value; const map = { both:[0.5,5,'0','3'], bleaching:[0.5,5,'0','3'], bleaching_3_3:[0.5,3,'0','3'], aligner_high:[0,0,'1.25','4'], plain_model:[0,0,'0','3'] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
-function params(){ return { tracker_case: (TRACKER && TRACKER.case) || '', reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(), adjust: { ...adjust } }; }
+function params(){ return {
+  tracker_case: (TRACKER && TRACKER.case) || '',
+  // per model type: the whitening tray gets reservoirs and its own line, the retainer its line onto the gum
+  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value },
+  tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0) },
+  // the base
+  facial_offset: +$('#rim').value, lingual_offset: +$('#rim').value, floor_below: +$('#floor_below').value, distal_keep: +$('#distal_keep').value,
+  level: $('#level').value === '1', add_base: $('#base').value === '1', tooth_mark: $('#tooth_mark').value === '1',
+  engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(),
+  patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null,
+  order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust: { ...adjust } }; }
+// ---------- settings panel ----------
+const SETTING_IDS = ['res_n','res_h','res_sb','tl_off','tt_off','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
+const SETTING_DEFAULTS = {};
+SETTING_IDS.forEach(id => { SETTING_DEFAULTS[id] = $('#' + id).value; });
+function saveSettings(){ try { const o = {}; SETTING_IDS.forEach(id => o[id] = $('#' + id).value); localStorage.setItem('nlo.bleachtray.settings', JSON.stringify(o)); } catch (e) {} summarizeSettings(); }
+function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bleachtray.settings') || '{}'); SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
+function summarizeSettings(){
+  const bits = [];
+  if ($('#res_n').value !== SETTING_DEFAULTS.res_n || $('#res_h').value !== SETTING_DEFAULTS.res_h) bits.push(`reservoirs ${$('#res_n').value}-${$('#res_n').value} · ${$('#res_h').value} mm`);
+  if ($('#tt_off').value !== SETTING_DEFAULTS.tt_off) bits.push(`retainer line ${$('#tt_off').value} mm`);
+  if ($('#rim').value !== SETTING_DEFAULTS.rim || $('#floor_below').value !== SETTING_DEFAULTS.floor_below) bits.push(`base ${$('#rim').value} / ${$('#floor_below').value} mm`);
+  if ($('#level').value !== '1') bits.push('not levelled');
+  $('#setsum').textContent = bits.length ? 'Changed: ' + bits.join(', ') : 'Defaults';
+}
+// the region picture follows the choice: teeth with a reservoir are coloured
+function archSvg(n){
+  const teeth = [[60,17,5,4],[49,20,5,4],[71,20,5,4],[40,27,5,4],[80,27,5,4],[34,38,5,4.5],[86,38,5,4.5],[31,51,5.5,5],[89,51,5.5,5],[30,64,6,5],[90,64,6,5]];   // [cx,cy,rx,ry] - position 1..6 per side
+  const pos = [1,2,2,3,3,4,4,5,5,6,6];
+  return `<svg viewBox="0 0 120 72"><path d="M18 70 C14 30 40 8 60 8 C80 8 106 30 102 70" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>` +
+    teeth.map((t, i) => `<ellipse cx="${t[0]}" cy="${t[1]}" rx="${t[2]}" ry="${t[3]}" fill="${pos[i] <= n ? '#FA624D' : '#fff'}" stroke="${pos[i] <= n ? '#D8412E' : '#1B2F4C'}" stroke-width="1.2"/>`).join('') + `</svg>`;
+}
+function drawRegion(){ $('#pic_region').innerHTML = archSvg(+$('#res_n').value); }
+$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); };
+$('#setClose').onclick = () => { $('#settings').classList.remove('on'); saveSettings(); requestRender(); };
+$('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
+document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => { const inp = $('#' + b.dataset.for); const step = +b.dataset.step; const dec = (String(step).split('.')[1] || '').length;
+  let v = +inp.value + step; v = Math.min(+inp.max, Math.max(+inp.min, v)); inp.value = v.toFixed(dec); inp.dispatchEvent(new Event('change')); });
+SETTING_IDS.forEach(id => $('#' + id).addEventListener('change', () => { if (id === 'res_n') drawRegion(); saveSettings(); }));
+loadSettings(); summarizeSettings();
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
 // The folder install.bat found on the lab PC is the default, so nobody has to type it.
@@ -627,17 +839,33 @@ function renderReview(id, j){
   // what the night-time retraining gets from this case: only a case someone marked as right (Send or Looks good)
   // is a lesson, and only when the brush was used - an untouched automatic result teaches nothing new
   const learnedLine = j.learned ? `<div class="hint">✓ Saved for learning${j.learned.corrected && j.learned.corrected.length ? ` (brush-corrected ${j.learned.corrected.join(' + ')})` : ' (no brush fixes — kept on file, not a lesson)'}</div>` : '';
+  // one more model from a scan already in the case (chose the retainer, now the whitening tray is wanted too)
+  const have = new Set((j.scans || []).map(s => `${s.arch}|${s.tag}`));
+  const archesIn = [...new Set((j.scans || []).map(s => s.arch).filter(Boolean))];
+  const addable = archesIn.flatMap(a => [['WT', 'whitening tray'], ['TT', 'retainer']].filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));
+  const addLine = addable.length ? `<div class="hint" style="margin-top:8px">Also make from the scan${archesIn.length > 1 ? 's' : ''} already here: ` +
+    addable.map(o => `<button class="small addmodel" data-arch="${o.a}" data-make="${o.t}" style="margin:3px 4px 0 0">+ ${o.lab} ${o.a}</button>`).join('') + `</div>` : '';
+  const wireAdd = () => box.querySelectorAll('.addmodel').forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = 'Adding…';
+    const fd = new FormData(); fd.append('arch', b.dataset.arch); fd.append('make', b.dataset.make);
+    const rs = await fetch(`/api/jobs/${id}/add`, { method: 'POST', body: fd }); const r = await rs.json();
+    if (!rs.ok) { showErr(r.detail || 'Could not add the model.'); renderReview(id, j); return; }
+    $('#dl').innerHTML = ''; refreshJobs(); selectJob(id);
+  });
   if (j.review === 'sent') {
-    box.innerHTML = `<b>Sent to OrthoFactory.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${learnedLine}`;
+    box.innerHTML = `<b>Sent to OrthoFactory.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${learnedLine}` +
+      (addLine ? addLine.replace('Also make', 'Need more? Also make') + `<div class="hint">(the case comes back for a check; Send then replaces the order with every model)</div>` : '');
+    wireAdd();
   } else if (j.review === 'discarded') {
     box.innerHTML = `<b>Discarded</b> — nothing was sent to OrthoFactory.`;
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
     box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
       `<div class="btns"><button class="primary small" id="sendbtn">Send to OrthoFactory</button><button class="small" id="learnbtn" title="File this case for the night-time retraining without ordering anything (Send does this too)">Looks good — save for learning</button><button class="small" id="discardbtn">Discard</button></div>` +
-      (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine;
+      (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine;
+    wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
-    const unapplied = () => { if (edits.add.size || edits.remove.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Looks good.'); showTab('seg'); return true; } return false; };
+    const unapplied = () => { if (edits.add.size || edits.remove.size || edits.cut.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Looks good.'); showTab('seg'); return true; } return false; };
     $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
     $('#learnbtn').onclick = async () => { if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: new FormData() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
     $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); };
@@ -699,8 +927,8 @@ async function loadResult(id, j){
   adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0];
   updatePlacement();
   // segmentation mesh
+  edits.add.clear(); edits.remove.clear(); edits.cut.clear(); updateFixCount();   // before the mesh loads: old strokes index the old mesh
   await loadSeg(id, scanIdx);
-  edits.add.clear(); edits.remove.clear(); updateFixCount();
   showTab(tab);
 }
 // ---------- placement on the base ----------
@@ -757,8 +985,8 @@ async function loadSeg(id, k=0){
 function paintColors(){
   const c = new THREE.Color();
   for (let i=0;i<segLabels.length;i++){
-    let lab = segLabels[i]; if (edits.add.has(i)) lab = 99; if (edits.remove.has(i)) lab = 0;
-    c.setHex(lab === 0 ? 0xe9e4d8 : lab === 99 ? 0x1d4ed8 : palette[lab % palette.length]);
+    let lab = segLabels[i]; if (edits.add.has(i)) lab = 99; if (edits.remove.has(i)) lab = 0; if (edits.cut.has(i)) lab = 98;
+    c.setHex(lab === 0 ? 0xe9e4d8 : lab === 99 ? 0x1d4ed8 : lab === 98 ? 0x7f1d1d : palette[lab % palette.length]);
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
   }
   if (segMesh) segMesh.geometry.getAttribute('color').needsUpdate = true;
@@ -770,7 +998,7 @@ $('#radius').oninput = () => { $('#rv').textContent = $('#radius').value; brushC
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
 const brushOn = () => !!segMesh && tab === 'seg' && brushMode !== 'off';
 function syncBrush(){
-  brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : 0x1d4ed8);
+  brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : brushMode === 'cut' ? 0x991b1b : 0x1d4ed8);
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
   if (!brushOn() && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
 }
@@ -791,7 +1019,10 @@ function paintAt(ev){
   if (!brushOn()) return;
   const hit = hitAt(ev); placeCursor(hit); if (!hit) return;
   const rad = +$('#radius').value, r2 = rad*rad, p = hit.point;
-  for (let i=0;i<segLabels.length;i++){ const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z; if (dx*dx+dy*dy+dz*dz < r2){ if (brushMode === 'tooth'){ edits.remove.delete(i); if (segLabels[i]===0) edits.add.add(i); } else { edits.add.delete(i); if (segLabels[i]!==0) edits.remove.add(i); } } }
+  for (let i=0;i<segLabels.length;i++){ const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z; if (dx*dx+dy*dy+dz*dz < r2){
+    if (brushMode === 'cut'){ edits.add.delete(i); edits.remove.delete(i); edits.cut.add(i); }
+    else if (brushMode === 'tooth'){ edits.remove.delete(i); edits.cut.delete(i); if (segLabels[i]===0) edits.add.add(i); }
+    else { edits.add.delete(i); edits.cut.delete(i); if (segLabels[i]!==0) edits.remove.add(i); } } }
   paintColors(); updateFixCount();
 }
 canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && tab === 'seg'){ painting = true; controls.enabled = false; paintAt(ev); } });
@@ -805,11 +1036,11 @@ canvas.addEventListener('pointermove', ev => {
 });
 canvas.addEventListener('pointerleave', () => placeCursor(null));
 window.addEventListener('pointerup', () => { painting = false; controls.enabled = true; });
-function updateFixCount(){ $('#fixcount').textContent = (edits.add.size || edits.remove.size) ? `${edits.add.size} vertices → tooth, ${edits.remove.size} → gum` : 'No edits.'; }
-$('#clearfix').onclick = () => { edits.add.clear(); edits.remove.clear(); paintColors(); updateFixCount(); };
+function updateFixCount(){ const n = edits.add.size + edits.remove.size + edits.cut.size; $('#fixcount').textContent = n ? [edits.add.size ? `${edits.add.size} → tooth` : '', edits.remove.size ? `${edits.remove.size} → gum` : '', edits.cut.size ? `${edits.cut.size} cut away` : ''].filter(Boolean).join(', ') + ' (vertices)' : 'No edits.'; }
+$('#clearfix').onclick = () => { edits.add.clear(); edits.remove.clear(); edits.cut.clear(); paintColors(); updateFixCount(); };
 $('#rerun').onclick = async () => {
   if (!currentJob) return;
-  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove] })); fd.append('params', JSON.stringify(params()));
+  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut] })); fd.append('params', JSON.stringify(params()));
   await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 async function refreshLearn(){
@@ -829,6 +1060,7 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
+window.__view = { camera, controls, requestRender, project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh };   // for automated checks
 window.__appReady = true;
 </script>
 </body>
