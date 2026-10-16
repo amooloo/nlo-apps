@@ -1,51 +1,79 @@
 /* =====================================================================
-   The demo (?demo, and the stand-alone demo page): a made-up office in
-   an in-memory database with the same shape as the real one, so every
-   screen and every step runs the same code it runs for real. Nothing is
-   saved; reloading starts over.
+   The demo (?demo, and the stand-alone demo page): a made-up office kept
+   in memory, answering the same calls the real database does (backend.js),
+   so every screen and every step runs the same code it runs for real.
+   Nothing is saved; reloading starts over. "Sign in as" picks Dr. A, the
+   office coordinator (changes settings) or an assistant.
    ===================================================================== */
-function MemDB(store) {
-  this.store = store || {}; this.ls = [];
-  const self = this, parts = p => String(p || '').replace(/^\/+|\/+$/g, '').split('/').filter(Boolean), clone = v => v == null ? null : JSON.parse(JSON.stringify(v));
-  const tidy = v => { if (v == null || typeof v !== 'object') return v == null ? null : v; const o = Array.isArray(v) ? [] : {}; let n = 0; Object.keys(v).forEach(k => { const c = tidy(v[k]); if (c != null) { o[k] = c; n++; } }); if (!n) return null; if (Array.isArray(o)) return o.filter(x => x != null); return o; };
-  const get = p => { if (String(p) === '.info/connected') return true; let o = self.store; for (const k of parts(p)) { if (o == null || typeof o !== 'object') return null; o = o[k]; } return o === undefined ? null : o; };
-  const put = (p, v) => { v = tidy(clone(v)); const ks = parts(p); let o = self.store; for (let i = 0; i < ks.length - 1; i++) { if (o[ks[i]] == null || typeof o[ks[i]] !== 'object') { if (v == null) return; o[ks[i]] = {}; } o = o[ks[i]]; } if (v == null) delete o[ks[ks.length - 1]]; else o[ks[ks.length - 1]] = v; };
-  const rel = (a, b) => { a = parts(a).join('/'); b = parts(b).join('/'); return a === b || !a || !b || a.indexOf(b + '/') === 0 || b.indexOf(a + '/') === 0; };
-  const fire = p => self.ls.slice().forEach(l => { if (rel(l.p, p)) setTimeout(() => { if (self.ls.includes(l)) l.cb(snap(l.p)); }, 0); });
-  const snap = p => { const v = clone(get(p)); return { val: () => v, exists: () => v != null, key: parts(p).pop() || null }; };
-  this.ref = p => {
-    const r = {
-      on(ev, cb) { const l = { p, cb }; self.ls.push(l); setTimeout(() => cb(snap(p)), 0); return cb; },
-      off(ev, cb) { self.ls = self.ls.filter(l => !(l.p === p && (!cb || l.cb === cb))); },
-      once() { return Promise.resolve(snap(p)); },
-      set(v) { put(p, v); fire(p); return Promise.resolve(); },
-      update(o) { Object.keys(o).forEach(k => put(p + '/' + k, o[k])); fire(p); return Promise.resolve(); },
-      remove() { put(p, null); fire(p); return Promise.resolve(); },
-      transaction(fn) { const next = fn(clone(get(p))); if (next === undefined) return Promise.resolve({ committed: false }); put(p, next); fire(p); return Promise.resolve({ committed: true, snapshot: snap(p) }); },
-      push(v) { const k = 'd' + uid(); const c = self.ref(p + '/' + k); if (v !== undefined) c.set(v); return c; },
-      child(c) { return self.ref(p + '/' + c); }
-    };
-    return r;
-  };
-}
 const DEMO = {
+  as: 'amir',
+  AS: [['amir', 'Dr. A'], ['sarah', 'Coordinator'], ['gwen', 'Assistant']],
   init() {
-    FB.db = new MemDB(demoStore()); FB.user = { email: 'demo@example.com', emailVerified: true }; FB.alertsOn = false;
-    FB.signOut = () => { location.reload(); return Promise.resolve(); };
-    FB.getSetting = () => Promise.resolve(null);
-    FB.uploadPhoto = (id, blob) => Promise.resolve({ url: URL.createObjectURL(blob), path: 'demo/' + id });
-    FB.alert = () => { };
+    const st = demoStore().nlo, store = {
+      items: st.items, orders: st.orders, vendors: st.vendors, log: st.log, cart: st.cart, bracketOrder: st.bracketOrder, budget: st.budget,
+      elastoPrices: st.elastoPrices, settings: Object.assign({ invAdmins: ['amir', 'sarah'] }, st.settings), ai: {}, pics: {}
+    };
+    return DEMO.backend(store);
+  },
+  backend(store) {
+    const clone = v => v == null ? null : JSON.parse(JSON.stringify(v));
+    const roster = Object.values(DEMO_PEOPLE).map(p => ({ sid: p.sid, name: p.name, role: p.sid === 'amir' ? 'owner' : 'staff', active: true, rid: p.id, initials: initials(p.name) }));
+    const M = {
+      me: null, pending: 0, onSync: null, h: null, alertsOn: false, store,
+      isOwner() { return !!(M.me && M.me.role === 'owner'); }, isPerm: e => /permission/i.test((e && (e.code || e.message)) || ''),
+      async signIn(as) { const r = roster.find(x => x.sid === as) || roster[0]; M.me = { uid: 'u-' + r.sid, staffId: r.sid, role: r.role, name: r.name, email: r.sid + '@example.com' }; return M.me; },
+      async signOut() { M.stop(); M.me = null; },
+      async sendReset() { throw errCode('demo', 'Not in the demo.'); },
+      async open() { return { st: 'ready', moved: { at: Date.now() } }; },
+      /* each change shows up a moment later, as a real one comes back from the database */
+      emit(key) {
+        const v = key === 'items' || key === 'orders' || key === 'vendors' || key === 'log' ? Object.values(store[key]) : key === 'roster' ? roster : key === 'cases' ? { idleMin: 10 } : store[key];
+        setTimeout(() => { if (M.h) M.h.data(key, clone(v)); }, 0);
+      },
+      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cart', 'bracketOrder', 'budget', 'elastoPrices'].forEach(M.emit); },
+      stop() { M.h = null; },
+      async rosterOnce() { return clone(roster); },
+      patchOf(rec, patch) { Object.keys(patch || {}).forEach(k => { const v = patch[k] === undefined ? null : clone(patch[k]); if (v == null) delete rec[k]; else rec[k] = v; }); return rec; },
+      async addStock(id, delta) { const it = store.items[id]; if (!it) throw errCode('not-found', 'That supply is gone.'); it.qty = Math.max(0, Math.round(((Number(it.qty) || 0) + delta) * 1000) / 1000); M.emit('items'); return it.qty; },
+      async addStockMany(pairs) { (pairs || []).forEach(([id, d]) => { const it = store.items[id]; if (it && Number(d)) it.qty = Math.max(0, Math.round(((Number(it.qty) || 0) + Number(d)) * 1000) / 1000); }); M.emit('items'); },
+      async patchItems(list) { (list || []).forEach(([id, patch]) => { if (store.items[id]) M.patchOf(store.items[id], patch); }); M.emit('items'); },
+      async setStock(id, qty) { if (store.items[id]) store.items[id].qty = qty; M.emit('items'); },
+      async patchItem(id, patch) { if (!store.items[id]) throw errCode('not-found', 'That supply is gone.'); M.patchOf(store.items[id], patch); M.emit('items'); },
+      async putItem(item) { store.items[item.id] = clone(item); M.emit('items'); },
+      async patchOrder(id, patch) { if (!store.orders[id]) throw errCode('not-found', 'That order is gone.'); M.patchOf(store.orders[id], patch); M.emit('orders'); },
+      async putOrder(o) { store.orders[o.id] = clone(o); M.emit('orders'); },
+      async claimOrder(id, fn) { const o = store.orders[id]; const next = o ? fn(o.status) : undefined; if (next === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.'); o.status = next; M.emit('orders'); return next; },
+      async putVendor(v) { store.vendors[v.id] = clone(v); M.emit('vendors'); },
+      async patchVendor(id, patch) { store.vendors[id] = M.patchOf(store.vendors[id] || { id }, patch); M.emit('vendors'); },
+      async cart(fn) { const next = fn(clone(listOf(store.cart)) || []); if (next !== undefined) { store.cart = clone(listOf(next)); M.emit('cart'); } return next; },
+      async addLog(entries) { (entries || []).filter(Boolean).forEach(e => { store.log[e.id] = clone(e); }); M.emit('log'); },
+      async removeLog() { }, async trimLog() { },
+      async budget(patch) { store.budget = M.patchOf(store.budget || {}, patch); M.emit('budget'); },
+      async budgetTx(key, fn) { const next = fn(clone((store.budget || {})[key])); if (next !== undefined) { store.budget = Object.assign({}, store.budget, { [key]: clone(next) }); M.emit('budget'); } return next; },
+      async setElastoPrice(sku, price) { store.elastoPrices = Object.assign({}, store.elastoPrices, { [fbKey(sku)]: { price: round2(price), date: todayISO() } }); M.emit('elastoPrices'); },
+      async bracketOrder(v) { store.bracketOrder = clone(v); M.emit('bracketOrder'); },
+      async setSetting(k, v) { if (k === 'geminiKey' || k === 'openaiKey') { store.ai[k] = v; return; } store.settings = M.patchOf(Object.assign({}, store.settings), { [k]: v }); M.emit('settings'); },
+      async getSetting(k) { return k === 'geminiKey' || k === 'openaiKey' ? (store.ai[k] || null) : (store.settings[k] == null ? null : store.settings[k]); },
+      async uploadPhoto(id, blob) { const pid = 'p' + uid(); store.pics[pid] = 'data:' + (blob.type || 'image/jpeg') + ';base64,' + await blobBase64(blob); return { url: 'pic:' + pid, path: 'pic:' + pid }; },
+      async pic(ref) { return store.pics[String(ref || '').replace(/^pic:/, '')] || ''; },
+      async dropPic(ref) { delete store.pics[String(ref || '').replace(/^pic:/, '')]; },
+      alert() { },
+      async makeBot() { throw errCode('demo', 'The alert script isn’t part of the demo.'); },
+      async beat() { return null; },
+      async havePics() { return new Set(); }
+    };
+    return M;
   }
 };
 /* ---------- the made-up office ---------- */
 const DEMO_PEOPLE = {
-  s_amir: { id: 's_amir', name: 'Dr. Avery Lane', short: 'Dr. L', title: 'Orthodontist / Owner', active: true },
-  s_sarah: { id: 's_sarah', name: 'Mara Quinn', short: 'Mara Q.', title: 'Office Coordinator', active: true },
-  s_gwen: { id: 's_gwen', name: 'Tessa Ruiz', short: 'Tessa R.', title: 'Clinical Assistant', active: true },
-  s_kaylee: { id: 's_kaylee', name: 'Jordan Kim', short: 'Jordan K.', title: 'Clinical Assistant', active: true },
-  s_angelika: { id: 's_angelika', name: 'Priya Shah', short: 'Priya S.', title: 'Clinical Assistant', active: true },
-  s_savannah: { id: 's_savannah', name: 'Lena Ortiz', short: 'Lena O.', title: 'Scheduling Coordinator', active: true },
-  s_wila: { id: 's_wila', name: 'Nina Park', short: 'Nina P.', title: 'Treatment Coordinator', active: true }
+  s_amir: { id: 's_amir', sid: 'amir', name: 'Dr. Avery Lane', short: 'Dr. A', title: 'Orthodontist / Owner', active: true },
+  s_sarah: { id: 's_sarah', sid: 'sarah', name: 'Mara Quinn', short: 'Mara Q.', title: 'Office Coordinator', active: true },
+  s_gwen: { id: 's_gwen', sid: 'gwen', name: 'Tessa Ruiz', short: 'Tessa R.', title: 'Clinical Assistant', active: true },
+  s_kaylee: { id: 's_kaylee', sid: 'kaylee', name: 'Jordan Kim', short: 'Jordan K.', title: 'Clinical Assistant', active: true },
+  s_angelika: { id: 's_angelika', sid: 'angelika', name: 'Priya Shah', short: 'Priya S.', title: 'Clinical Assistant', active: true },
+  s_savannah: { id: 's_savannah', sid: 'savannah', name: 'Lena Ortiz', short: 'Lena O.', title: 'Scheduling Coordinator', active: true },
+  s_wila: { id: 's_wila', sid: 'wila', name: 'Nina Park', short: 'Nina P.', title: 'Treatment Coordinator', active: true }
 };
 function demoStore() {
   const day = 864e5, now = Date.now(), iso = ms => new Date(ms).toISOString(), ymd = ms => isoOf(new Date(ms));

@@ -110,7 +110,7 @@ async function createOrder(o) {
 }
 function stampLastOrdered(order) {
   const v = vendorByName(order.vendor), t = Date.now();
-  order.items.forEach(l => { if (l.itemId && itemById(l.itemId)) B.patchItem(l.itemId, { lastOrderedVendorId: order.vendor || (v && v.name) || '', lastOrderedTimestamp: t }).catch(() => { }); });
+  B.patchItems(order.items.filter(l => l.itemId && itemById(l.itemId)).map(l => [l.itemId, { lastOrderedVendorId: order.vendor || (v && v.name) || '', lastOrderedTimestamp: t }])).catch(() => { });
 }
 async function editOrder(id, patch, what) {
   const o = orderById(id); if (!o) return; const s = stamp();
@@ -162,7 +162,7 @@ async function receiveOrder(orderId, opts) {
     });
   }
   /* claim it first, in one step: if another computer is receiving the same order right now, only one of them goes on */
-  try { await B.tx('nlo/orders/' + orderId + '/status', cur => cur === 'received' ? undefined : 'received'); }
+  try { await B.claimOrder(orderId, cur => cur === 'received' ? undefined : 'received'); }
   catch (e) { const o2 = orderById(orderId); throw new Error('That order was just received' + (o2 && o2.receivedBy ? ' by ' + o2.receivedBy : ' on another computer') + '.'); }
   const ship = opts.shipping != null && opts.shipping !== '' ? (parseFloat(opts.shipping) || 0) : (Number(order.shipping) || 0);
   const patch = { status: 'received', dateReceived: s.at, countUpdated: count, receivedBy: s.by, receivedById: s.byId || null, shipping: ship, trail: trailAdd(order.trail, 'received', s, count ? null : { note: 'stock not counted' }) };
@@ -204,14 +204,15 @@ async function receiveOrder(orderId, opts) {
   if (confirmed && isFinite(tax) && tax > 0 && priorTax <= 0) entries.push(logEntry({ type: 'tax', amount: round2(tax), note: 'Sales tax: ' + (order.vendor || ''), orderId }, s));
   /* money first: if the stock step then fails, the budget is still right (and receiving it again can't count it twice) */
   await B.addLog(entries);
-  await Promise.all(stock.map(([it, delta]) => B.addStock(it.id, delta)));
-  /* remember what was paid, per counted unit, for this vendor */
-  const day = todayISO();
-  await Promise.all(stock.map(([it, , oi, known]) => {
-    const pr = Number(oi.price) || 0, upd = { chk: s.at, chkBy: s.by };
-    if (known && confirmed && !zeroCost && order.vendor && pr > 0) upd.sources = rememberPrice(it, order.vendor, pr / linePer(oi), oi.sku, day);
-    return B.patchItem(it.id, upd);
-  }));
+  await B.addStockMany(stock.map(([it, delta]) => [it.id, delta]));
+  /* remember what was paid, per counted unit, for this vendor (all in one save) */
+  const day = todayISO(), known = {};
+  stock.forEach(([it, , oi, isKnown]) => {
+    const pr = Number(oi.price) || 0, upd = known[it.id] || { chk: s.at, chkBy: s.by };
+    if (isKnown && confirmed && !zeroCost && order.vendor && pr > 0) upd.sources = rememberPrice(Object.assign({}, it, upd.sources ? { sources: upd.sources } : {}), order.vendor, pr / linePer(oi), oi.sku, day);
+    known[it.id] = upd;
+  });
+  await B.patchItems(Object.keys(known).map(id => [id, known[id]]));
   B.alert([alertOrderEvent('received', Object.assign({}, order, patch))]);
 }
 function rememberPrice(item, vendor, countPriceVal, sku, day) {
@@ -238,7 +239,7 @@ async function reopenOrder(orderId) {
   const order = orderById(orderId); if (!order) return; const s = stamp();
   if (order.status !== 'received') throw new Error('That order isn’t received, so there’s nothing to undo.');
   /* claim it first: two computers reopening at once must not take the stock out twice */
-  try { await B.tx('nlo/orders/' + orderId + '/status', cur => cur === 'received' ? 'open' : undefined); }
+  try { await B.claimOrder(orderId, cur => cur === 'received' ? 'open' : undefined); }
   catch (e) { throw new Error('That order was just reopened on another computer.'); }
   const P = planReopen(order), entries = [], stock = [];
   Object.keys(P.rec).forEach(itemId => {
@@ -252,7 +253,7 @@ async function reopenOrder(orderId) {
   if (P.tax > 0) entries.push(logEntry({ type: 'tax', amount: -P.tax, note: 'Order reopened (tax undone): ' + (order.vendor || ''), orderId }, s));
   /* the log entries go first: if the stock step then fails, the money is still right and the stock can be counted */
   await B.addLog(entries);
-  await Promise.all(stock.map(([id, d]) => B.addStock(id, d)));
+  await B.addStockMany(stock);
   await B.patchOrder(orderId, { status: 'open', dateReceived: null, countUpdated: false, trail: trailAdd(order.trail, 'reopened', s) });
   B.alert([alertOrderEvent('reopened', Object.assign({}, order, { status: 'open' }))]);
 }

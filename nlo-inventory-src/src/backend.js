@@ -1,115 +1,322 @@
 /* =====================================================================
-   Firebase: Google sign-in (office accounts only) and the Realtime
-   Database at nlo/*. Every write touches only what changed:
-   - one record at a time for items, orders and vendors (never a whole list)
-   - stock counts change by a transaction (two computers receiving at once
-     both count), and so does the cart (two people adding at once both stay)
-   - the activity log only grows here; old entries are trimmed the same way
-     the old app trimmed them (receipts kept first)
-   The same calls are made by the demo backend (demo.js) on made-up data.
+   Firebase: the NLO Cases project (Firestore). Sign-in is NLO Cases'
+   (same people, same passwords); nothing is sealed — Inventory holds no
+   patient data. The rules (../nlo-cases-src/firestore.rules, "NLO
+   Inventory") decide who reads and changes what.
+   - one record a supply, an order, a vendor (invItems, invOrders,
+     invVendors); the shared cart, the budget, the quick-order prices,
+     the bracket order and the settings each one record (invState/…);
+     the activity log one record a month (invLog/m<YYYY-MM>), entries
+     only ever added
+   - every save carries who (upBy, the staff id) and when (up, the
+     database's time) and moves the change counter (invState/rev) the
+     alert script watches — all in the same save
+   - stock counts and the cart change in transactions (two computers at
+     once both count); receiving and reopening claim the order first
+   - photos are records of their own (invPics), read when shown
+   The demo (demo.js) answers the same calls on made-up data.
    ===================================================================== */
-const NODES = ['items', 'orders', 'vendors', 'log', 'cart', 'bracketOrder', 'budget', 'elastoPrices'];
-/* the quick-order price list isn't in the database rules published in Sept 2026: until it is, it reads as empty — noted on Quick order, not a red banner on every screen */
-const OPTIONAL_NODES = ['elastoPrices'];
-const ALERT_QUEUE = 'nlo/settings/alertQueue';
+const PIC_MAX = 990000;   // a photo's base64 (the rules allow 1,000,000)
+const LOG_MONTHS = 36;    // months of the activity log kept open on the page
 const FB = {
-  app: null, db: null, user: null, pending: 0, subs: [], userCbs: [], started: false, alertsOn: false,
+  emu: false, cfg: null, app: null, auth: null, db: null,
+  me: null, unsubs: [], pending: 0, onSync: null, h: null, alertsOn: false, picCache: new Map(),
+
+  ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
+  inc(n) { return firebase.firestore.FieldValue.increment(n); },
+  del() { return firebase.firestore.FieldValue.delete(); },
+  tsMs(t) { return t && t.toMillis ? t.toMillis() : (typeof t === 'number' ? t : 0); },
+  isOwner() { return !!(FB.me && FB.me.role === 'owner'); },
+  isPerm(e) { return /permission/i.test((e && (e.code || e.message)) || ''); },
+  isNet(e) { return /unavailable|network|offline|timeout|deadline/i.test((e && (e.code || e.message)) || ''); },
+  available() { return typeof firebase !== 'undefined' && !!firebase.initializeApp && !!firebase.firestore; },
+  configured() { return FB.emu || FB_CONFIG.apiKey.indexOf('__') !== 0; },
   init(emu) {
-    if (!window.firebase || !firebase.initializeApp) return false;
-    try { FB.app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG); } catch (e) { console.error(e); return false; }
-    FB.db = firebase.database();
-    firebase.auth().onAuthStateChanged(u => { FB.user = u || null; FB.userCbs.forEach(cb => cb(FB.user)); });
-    firebase.auth().getRedirectResult && firebase.auth().getRedirectResult().catch(e => console.warn('redirect sign-in', e));
+    FB.emu = !!emu;
+    FB.cfg = FB.emu ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-nlo-cases', appId: 'demo' } : FB_CONFIG;
+    if (!FB.available() || !FB.configured()) return false;
+    // its own named app: NLO Cases' and Time Off's sign-ins on this computer are never touched
+    try { FB.app = firebase.app('inv'); } catch (e) { FB.app = firebase.initializeApp(FB.cfg, 'inv'); }
+    FB.auth = FB.app.auth(); FB.db = FB.app.firestore();
+    if (FB.emu) { FB.auth.useEmulator('http://127.0.0.1:9099', { disableWarnings: true }); FB.db.useEmulator('127.0.0.1', 8080); }
     return true;
   },
-  onUser(cb) { FB.userCbs.push(cb); cb(undefined); },
-  allowed(u) { return !!u && !!u.email && ALLOWED_EMAILS.includes(String(u.email).toLowerCase()) && u.emailVerified !== false; },
-  async signIn() {
-    const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
-    try { await firebase.auth().signInWithPopup(p); }
-    catch (e) { if (/popup-blocked|operation-not-supported/.test(e && e.code || '')) return firebase.auth().signInWithRedirect(p); throw e; }
-  },
-  signOut() { FB.stop(); return firebase.auth().signOut(); },
+  /* never a session across reloads (as NLO Cases): a reload, or the lock, means signing in again */
+  async ready() { try { await FB.auth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { } },
+  busy(n) { FB.pending += n; if (FB.onSync) FB.onSync(); },
+  track(p) { FB.busy(1); return Promise.resolve(p).finally(() => FB.busy(-1)); },
 
-  /* ---------- reading ---------- */
-  start(h) {
-    FB.stop(); FB.started = true; FB.h = h;
-    let loaded = 0;
-    const listen = (path, key, required) => {
-      const ref = FB.db.ref(path); let first = true;
-      const cb = ref.on('value', snap => {
-        h.data(key, snap.val());
-        if (first) { first = false; if (required && ++loaded === NODES.length) h.loaded(); }
-      }, err => { if (OPTIONAL_NODES.includes(key)) { console.warn(key, err); if (h.soft) h.soft(key, err); } else h.error(key, err); if (first && required) { first = false; h.data(key, null); if (++loaded === NODES.length) h.loaded(); } });
-      FB.subs.push(() => ref.off('value', cb));
-    };
-    NODES.forEach(k => listen('nlo/' + k, k, true));
-    /* settings: each piece on its own (the alert queue lives under settings too, and isn't wanted here) */
-    const set = {};
-    ['locations', 'invAdmins', 'alertsOn', 'geminiProxyUrl', 'invPrefs'].forEach(k => {
-      const ref = FB.db.ref('nlo/settings/' + k);
-      const cb = ref.on('value', s => { set[k] = s.val(); if (k === 'alertsOn') FB.alertsOn = s.val() === true; h.data('settings', Object.assign({}, set)); }, () => { });
-      FB.subs.push(() => ref.off('value', cb));
-    });
-    const roster = FB.db.ref('nlo/cadence/roster');
-    const rcb = roster.on('value', s => h.data('roster', s.val()), e => { console.warn('roster', e); h.data('roster', null); });
-    FB.subs.push(() => roster.off('value', rcb));
-    const con = FB.db.ref('.info/connected');
-    const ccb = con.on('value', s => h.online(s.val() === true));
-    FB.subs.push(() => con.off('value', ccb));
+  /* ---------- signing in (same logins as NLO Cases) ---------- */
+  async emailFor(login) {
+    const s = String(login || '').trim();
+    if (s.includes('@')) return s.toLowerCase();
+    const un = slug(s); if (!un) throw errCode('no-user');
+    const snap = await FB.db.doc('logins/' + un).get();
+    if (!snap.exists) throw errCode('no-user');
+    return snap.data().email;
   },
-  stop() { FB.subs.forEach(f => { try { f(); } catch (e) { } }); FB.subs = []; FB.started = false; },
-  /* the AI keys are read only when they're needed, and never kept on the computer */
-  async getSetting(k) { const s = await FB.db.ref('nlo/settings/' + k).once('value'); return s.val(); },
+  async signIn(login, pw) {
+    const email = await FB.emailFor(login);
+    const cred = await FB.auth.signInWithEmailAndPassword(email, pw);
+    return FB.loadMe(cred.user);
+  },
+  async loadMe(user) {
+    const ms = await FB.db.doc('members/' + user.uid).get();
+    if (!ms.exists) { await FB.signOut(); throw errCode('not-member'); }
+    const m = ms.data();
+    if (m.active !== true) { await FB.signOut(); throw errCode('inactive'); }
+    if (m.mustSetup) { await FB.signOut(); throw errCode('first-login'); }
+    FB.me = { uid: user.uid, staffId: String(m.staffId || ''), role: m.role === 'owner' ? 'owner' : 'staff', name: String(m.name || ''), email: String(user.email || '') };
+    FB.db.doc('members/' + user.uid).update({ lastLogin: FB.ts() }).catch(() => { });
+    return FB.me;
+  },
+  async signOut() { FB.stop(); FB.me = null; FB.alertsOn = false; FB.picCache = new Map(); try { await FB.auth.signOut(); } catch (e) { } },
+  sendReset(email) { return FB.auth.sendPasswordResetEmail(String(email || '').trim()); },
+
+  /* ---------- opening: 'rules' (the database's rules don't know Inventory yet) | 'move' (Dr. A: nothing moved over yet) |
+     'notyet' (staff: not moved over yet) | 'ready' ---------- */
+  async open() {
+    try { await FB.db.doc('meta/rules_inv_1').get(); } catch (e) { if (FB.isPerm(e)) return { st: 'rules' }; throw e; }
+    const mv = await FB.db.doc('invMeta/moved').get();
+    if (!mv.exists) return { st: FB.isOwner() ? 'move' : 'notyet' };
+    const d = mv.data() || {};
+    return { st: 'ready', moved: { at: FB.tsMs(d.up) || Number(d.at) || 0, by: d.by || '', counts: d.counts || {} } };
+  },
+
+  /* ---------- reading: everything live ---------- */
+  plain(snap) { const d = Object.assign({}, snap.data() || {}); delete d.up; delete d.upBy; return d; },
+  start(h) {
+    FB.stop(); FB.h = h;
+    const on = (ref, fn, key) => FB.unsubs.push(ref.onSnapshot(fn, e => h.error(key, e)));
+    const coll = (name, key) => on(FB.db.collection(name), s => h.data(key, s.docs.map(d => Object.assign(FB.plain(d), { id: (d.data() || {}).id != null ? d.data().id : d.id }))), key);
+    coll('invItems', 'items'); coll('invOrders', 'orders'); coll('invVendors', 'vendors');
+    // the activity log: the last three years of months (older months stay in the database)
+    const from = 'm' + shiftMonth(monthKey(Date.now()), -LOG_MONTHS);
+    on(FB.db.collection('invLog').where(firebase.firestore.FieldPath.documentId(), '>=', from), s => {
+      const all = [];
+      s.docs.forEach(d => { const e = (d.data() || {}).e || {}; Object.keys(e).forEach(k => { const x = e[k]; if (x && typeof x === 'object') all.push(Object.assign({}, x, { id: x.id || k })); }); });
+      h.data('log', all);
+    }, 'log');
+    const one = (path, key, pick) => on(FB.db.doc(path), s => h.data(key, s.exists ? pick(FB.plain(s)) : null), key);
+    one('invState/cart', 'cart', d => d.lines || []);
+    one('invState/bracket', 'bracketOrder', d => d.v || null);
+    one('invState/budget', 'budget', d => d);
+    one('invState/prices', 'elastoPrices', d => d.p || {});
+    one('invState/settings', 'settings', d => { FB.alertsOn = d.alertsOn === true; return d; });
+    // NLO Cases' people (names and photos), its idle lock, and this login (turned off → locked out)
+    FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.data('roster', s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => { console.warn('roster', e); h.data('roster', null); }));
+    FB.unsubs.push(FB.db.doc('meta/settings').onSnapshot(s => h.data('cases', s.exists ? s.data() : {}), () => { }));
+    FB.unsubs.push(FB.db.doc('members/' + FB.me.uid).onSnapshot(s => { if (!s.exists || s.data().active !== true) h.revoked(); }, e => { if (FB.isPerm(e)) h.revoked(); }));
+  },
+  async rosterOnce() { const s = await FB.db.collection('roster').get(); return s.docs.map(d => Object.assign({ sid: d.id }, d.data())); },
+  stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
 
   /* ---------- writing ---------- */
-  track(p) { FB.pending++; renderSync(); return Promise.resolve(p).finally(() => { FB.pending--; renderSync(); }); },
-  update(path, patch) { return FB.track(FB.db.ref(path).update(fbSafe(patch))); },
-  set(path, v) { return FB.track(FB.db.ref(path).set(fbSafe(v))); },
-  tx(path, fn) {
-    return FB.track(FB.db.ref(path).transaction(cur => fbSafe(fn(cur)))).then(r => { if (r && r.committed === false) throw new Error('That change didn’t go through. Try again.'); return r; });
+  st() { return { up: FB.ts(), upBy: FB.me.staffId }; },
+  /* the change counter, in the same save (a batch or a transaction) */
+  bump(w) { w.set(FB.db.doc('invState/rev'), Object.assign({ n: FB.inc(1) }, FB.st()), { merge: true }); },
+  save(build) { const b = FB.db.batch(); build(b); FB.bump(b); return FB.track(b.commit()); },
+  /* fn(t) reads, then writes and returns what it wants back; returning FB.SKIP writes nothing */
+  SKIP: { skip: true },
+  /* (a transaction needs the database itself: with no internet it says so at once, and a very slow one is reported, not waited out) */
+  txn(fn) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(errCode('unavailable', 'Can’t reach the database. Check the internet connection.'));
+    const run = FB.db.runTransaction(async t => { const r = await fn(t); if (r !== FB.SKIP) FB.bump(t); return r; });
+    let timer;
+    const slow = new Promise((res, rej) => { timer = setTimeout(() => rej(errCode('timeout')), 30000); });
+    return FB.track(Promise.race([run, slow]).finally(() => clearTimeout(timer)));
   },
+  /* what the database takes: no undefined, no NaN, no nulls kept (as the old database dropped them), no list inside a list */
+  clean(v) {
+    if (v === undefined) return null;
+    const tidy = x => {
+      if (x == null) return null;
+      if (Array.isArray(x)) return x.filter(y => y != null).map(y => Array.isArray(y) ? Object.assign({}, y.map(tidy)) : tidy(y));
+      if (typeof x === 'object') { const o = {}; Object.keys(x).forEach(k => { const c = tidy(x[k]); if (c != null) o[k] = c; }); return o; }
+      if (typeof x === 'number' && !isFinite(x)) return null;
+      return x;
+    };
+    return tidy(JSON.parse(JSON.stringify(v)));
+  },
+  /* a patch, the old database's way: each top-level field replaced as a whole, a null one removed, nothing else touched */
+  patchOf(patch) { const o = {}; Object.keys(patch || {}).forEach(k => { const v = patch[k] === undefined ? null : FB.clean(patch[k]); o[k] = v == null ? FB.del() : v; }); return o; },
+  setPatch(w, ref, patch, extra) {
+    const data = Object.assign(FB.patchOf(patch), extra || {}, FB.st());
+    w.set(ref, data, { mergeFields: Object.keys(data) });
+  },
+  itemRef(id) { return FB.db.doc('invItems/' + id); },
+  orderRef(id) { return FB.db.doc('invOrders/' + id); },
+  vendorRef(id) { return FB.db.doc('invVendors/' + id); },
+  logRef(m) { return FB.db.doc('invLog/' + m); },
+  logMonth(e) { const k = monthKey(e && e.date); return 'm' + (/^\d{4}-\d{2}$/.test(k) ? k : monthKey(Date.now())); },
+
   /* add (or take away) stock without overwriting what another computer just did */
-  addStock(itemId, delta) { return FB.tx('nlo/items/' + itemId + '/qty', cur => Math.max(0, Math.round(((Number(cur) || 0) + delta) * 1000) / 1000)); },
-  setStock(itemId, qty) { return FB.set('nlo/items/' + itemId + '/qty', qty); },
-  patchItem(id, patch) { return FB.update('nlo/items/' + id, patch); },
-  putItem(item) { return FB.set('nlo/items/' + item.id, item); },
-  patchOrder(id, patch) { return FB.update('nlo/orders/' + id, patch); },
-  putOrder(o) { return FB.set('nlo/orders/' + o.id, o); },
-  putVendor(v) { return FB.set('nlo/vendors/' + v.id, v); },
-  patchVendor(id, patch) { return FB.update('nlo/vendors/' + id, patch); },
+  addStock(itemId, delta) {
+    return FB.txn(async t => {
+      const ref = FB.itemRef(itemId), s = await t.get(ref);
+      if (!s.exists) throw errCode('not-found', 'That supply is gone.');
+      const qty = Math.max(0, Math.round(((Number(s.data().qty) || 0) + delta) * 1000) / 1000);
+      t.update(ref, Object.assign({ qty }, FB.st()));
+      return qty;
+    });
+  },
+  /* several supplies' stock in one step (receiving or reopening an order): [[itemId, delta], …]; a supply that's gone is skipped */
+  addStockMany(pairs) {
+    const sum = {}; (pairs || []).forEach(([id, d]) => { if (id && Number(d)) sum[id] = (sum[id] || 0) + Number(d); });
+    const ids = Object.keys(sum); if (!ids.length) return Promise.resolve({});
+    return FB.txn(async t => {
+      const snaps = await Promise.all(ids.map(id => t.get(FB.itemRef(id)))), out = {};
+      snaps.forEach((s, k) => {
+        if (!s.exists) { console.warn('stock: supply gone', ids[k]); return; }
+        out[ids[k]] = Math.max(0, Math.round(((Number(s.data().qty) || 0) + sum[ids[k]]) * 1000) / 1000);
+        t.update(FB.itemRef(ids[k]), Object.assign({ qty: out[ids[k]] }, FB.st()));
+      });
+      return Object.keys(out).length ? out : FB.SKIP;
+    });
+  },
+  /* several supplies' details in one save: [[itemId, patch], …] */
+  patchItems(list) {
+    list = (list || []).filter(x => x && x[0]); if (!list.length) return Promise.resolve();
+    return FB.save(b => list.forEach(([id, patch]) => FB.setPatch(b, FB.itemRef(id), patch)));
+  },
+  setStock(itemId, qty) { return FB.save(b => b.update(FB.itemRef(itemId), Object.assign({ qty }, FB.st()))); },
+  patchItem(id, patch) { return FB.save(b => FB.setPatch(b, FB.itemRef(id), patch)); },
+  putItem(item) { return FB.save(b => b.set(FB.itemRef(item.id), Object.assign(FB.clean(item), FB.st()))); },
+  patchOrder(id, patch) { return FB.save(b => FB.setPatch(b, FB.orderRef(id), patch)); },
+  putOrder(o) { return FB.save(b => b.set(FB.orderRef(o.id), Object.assign(FB.clean(o), FB.st()))); },
+  /* an order's status, in one step: fn(current) gives the new one, or undefined to leave it (then this fails) */
+  claimOrder(id, fn) {
+    return FB.txn(async t => {
+      const ref = FB.orderRef(id), s = await t.get(ref);
+      const next = s.exists ? fn(s.data().status) : undefined;
+      if (next === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.');
+      t.update(ref, Object.assign({ status: next }, FB.st()));
+      return next;
+    });
+  },
+  putVendor(v) { return FB.save(b => b.set(FB.vendorRef(v.id), Object.assign(FB.clean(v), FB.st()))); },
+  /* a built-in vendor has no record until something about it is saved: this makes one */
+  patchVendor(id, patch) { return FB.save(b => FB.setPatch(b, FB.vendorRef(id), patch, { id })); },
   /* the cart is one list everyone shares: every change is made to the latest copy */
-  cart(fn) { return FB.tx('nlo/cart', cur => fn(listOf(cur))); },
+  cart(fn) {
+    return FB.txn(async t => {
+      const ref = FB.db.doc('invState/cart'), s = await t.get(ref);
+      const next = fn(listOf(s.exists ? s.data().lines : null).map(x => Object.assign({}, x)));
+      if (next === undefined) return FB.SKIP;
+      t.set(ref, Object.assign({ lines: FB.clean(listOf(next)) || [] }, FB.st()));
+      return next;
+    });
+  },
+  /* the activity log only grows: each entry goes into its month's record */
   addLog(entries) {
     entries = (entries || []).filter(Boolean); if (!entries.length) return Promise.resolve();
-    const up = {}; entries.forEach(e => { up[e.id] = e; });
-    return FB.update('nlo/log', up).then(() => FB.trimLog());
+    const months = {};
+    entries.forEach(e => { const m = FB.logMonth(e); (months[m] = months[m] || {})[e.id] = FB.clean(e); });
+    return FB.save(b => Object.keys(months).forEach(m => b.set(FB.logRef(m), Object.assign({ e: months[m] }, FB.st()), { merge: true })));
   },
-  removeLog(ids) { const up = {}; ids.forEach(id => { up[id] = null; }); return FB.update('nlo/log', up); },
-  /* the same trim as before: keep receipts first, never more than ~40% in one go */
-  trimLog() {
-    const all = S.D.log; if (all.length <= LOG_CAP) return Promise.resolve();
-    const keep = new Set(pruneLog(all).map(e => e.id)), gone = all.filter(e => !keep.has(e.id)).map(e => e.id);
-    return gone.length ? FB.removeLog(gone) : Promise.resolve();
+  removeLog() { return Promise.resolve(); },  // (nothing leaves the log any more)
+  trimLog() { return Promise.resolve(); },
+  budget(patch) { return FB.save(b => FB.setPatch(b, FB.db.doc('invState/budget'), patch)); },
+  budgetTx(key, fn) {
+    return FB.txn(async t => {
+      const ref = FB.db.doc('invState/budget'), s = await t.get(ref);
+      const next = fn(s.exists ? s.data()[key] : null);
+      if (next === undefined) return FB.SKIP;
+      const data = Object.assign({ [key]: FB.clean(next) }, FB.st());
+      t.set(ref, data, { mergeFields: Object.keys(data) });
+      return next;
+    });
   },
-  budget(patch) { return FB.update('nlo/budget', patch); },
-  budgetTx(key, fn) { return FB.tx('nlo/budget/' + key, cur => fn(cur)); },
-  setElastoPrice(sku, price) { return FB.set('nlo/elastoPrices/' + fbKey(sku), { price: round2(price), date: todayISO() }); },
-  bracketOrder(v) { return FB.set('nlo/bracketOrder', v || null); },
-  setSetting(k, v) { return FB.set('nlo/settings/' + k, v); },
-  /* a photo: to Cloud Storage, so it isn't downloaded with every item on every computer */
-  /* same folder the old app's photo optimizer used (itemPhotos/), so the storage rules already allow it */
+  setElastoPrice(sku, price) { return FB.save(b => b.set(FB.db.doc('invState/prices'), Object.assign({ p: { [fbKey(sku)]: { price: round2(price), date: todayISO() } } }, FB.st()), { merge: true })); },
+  bracketOrder(v) { return FB.save(b => b.set(FB.db.doc('invState/bracket'), Object.assign({ v: FB.clean(v) || null }, FB.st()))); },
+  /* settings: the AI keys in their own record (only Dr. A sets them); the rest in invState/settings */
+  AI_FIELDS: { geminiKey: 'gemini', openaiKey: 'openai' },
+  setSetting(k, v) {
+    if (FB.AI_FIELDS[k]) return FB.save(b => FB.setPatch(b, FB.db.doc('invState/ai'), { [FB.AI_FIELDS[k]]: v }));
+    return FB.save(b => FB.setPatch(b, FB.db.doc('invState/settings'), { [k]: v }));
+  },
+  /* the AI keys are read only when a step needs them, and never kept on the computer */
+  async getSetting(k) {
+    if (FB.AI_FIELDS[k]) { const s = await FB.db.doc('invState/ai').get(); return s.exists ? (s.data()[FB.AI_FIELDS[k]] || null) : null; }
+    return (S.settings || {})[k] == null ? null : S.settings[k];
+  },
+  /* a photo: a record of its own (read when it's shown); the item or order keeps "pic:<id>" */
   async uploadPhoto(itemId, blob, which) {
-    const ext = /png/.test(blob.type) ? 'png' : /jpe?g/.test(blob.type) ? 'jpg' : 'webp';
-    const path = 'itemPhotos/' + itemId + '-' + Date.now().toString(36) + (which === 'full' ? '_full' : '') + '.' + ext;
-    const ref = firebase.storage().ref(path);
-    await FB.track(ref.put(blob, { contentType: blob.type || 'image/webp', cacheControl: 'public,max-age=31536000' }));
-    return { url: await ref.getDownloadURL(), path };
+    const m = /png/.test(blob.type) ? 'image/png' : /webp/.test(blob.type) ? 'image/webp' : 'image/jpeg';
+    const b64 = await blobBase64(blob);
+    if (b64.length > PIC_MAX) throw errCode('too-big', 'That photo is too big to save. Try a smaller one.');
+    const id = 'p' + uid();
+    await FB.save(b => b.set(FB.db.doc('invPics/' + id), Object.assign({ m, b: b64, kind: which === 'full' ? 'full' : 'thumb' }, FB.st())));
+    FB.picCache.set(id, Promise.resolve('data:' + m + ';base64,' + b64));
+    return { url: 'pic:' + id, path: 'pic:' + id };
   },
-  /* the "NLO Inventory Alerts" script emails Dr. A whatever is queued here (when alerts are on) */
+  /* "pic:<id>" → a data: URL ('' when it's gone) */
+  pic(ref) {
+    const id = String(ref || '').replace(/^pic:/, '');
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return Promise.resolve('');
+    if (!FB.picCache.has(id)) FB.picCache.set(id, FB.db.doc('invPics/' + id).get().then(s => s.exists ? 'data:' + s.data().m + ';base64,' + s.data().b : '').catch(e => { FB.picCache.delete(id); console.warn('photo', id, e); return ''; }));
+    return FB.picCache.get(id);
+  },
+  dropPic(ref) { const id = String(ref || '').replace(/^pic:/, ''); if (!/^p[A-Za-z0-9_-]+$/.test(id)) return Promise.resolve(); FB.picCache.delete(id); return FB.track(FB.db.doc('invPics/' + id).delete()); },
+  /* the "NLO Inventory Alerts" script emails Dr. A what's left here (while the alerts are on) */
   alert(events) {
     if (!FB.alertsOn || !events || !events.length) return;
-    const ref = FB.db.ref(ALERT_QUEUE);
-    events.forEach(e => { try { const r = ref.push(fbSafe(e)); if (r && typeof r.catch === 'function') r.catch(err => console.warn('[alerts] queue write failed', err)); } catch (err) { console.warn('[alerts] queue write failed', err); } });
-  }
+    FB.save(b => events.forEach(e => b.set(FB.db.collection('invAlerts').doc(), Object.assign(FB.clean(e), FB.st())))).catch(err => console.warn('[alerts] not saved', err));
+  },
+
+  /* ---------- Dr. A: the alert script's own login (a new one each time; the one before keeps working until the new copy runs) ---------- */
+  async makeBot() {
+    if (!FB.isOwner()) throw errCode('permission');
+    const email = 'inv-alerts-' + hexId(6) + '@' + STAFF_DOMAIN, password = randomPassword();
+    const tmp = firebase.initializeApp(FB.cfg, 'invBot' + hexId(4));
+    let uid;
+    try {
+      if (FB.emu) tmp.auth().useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+      await tmp.auth().setPersistence(firebase.auth.Auth.Persistence.NONE);
+      uid = (await FB.track(tmp.auth().createUserWithEmailAndPassword(email, password))).user.uid;
+      await tmp.auth().signOut();
+    } finally { tmp.delete().catch(() => { }); }
+    const old = (await FB.db.collection('invBots').get()).docs.map(d => ({ ref: d.ref, at: FB.tsMs(d.data().at) })).sort((a, z) => z.at - a.at);
+    const b = FB.db.batch();
+    b.set(FB.db.doc('invBots/' + uid), { email, at: FB.ts() });
+    old.slice(1).forEach(x => b.delete(x.ref)); // the newest one before stays (the copy running now), older ones stop
+    await FB.track(b.commit());
+    return { email, password, uid };
+  },
+  /* when the alert script last checked (null: never) */
+  async beat() {
+    const s = await FB.db.collection('invBeat').get();
+    const list = s.docs.map(d => Object.assign({ uid: d.id }, d.data(), { at: FB.tsMs(d.data().at) })).sort((a, z) => z.at - a.at);
+    return list[0] || null;
+  },
+
+  /* ---------- the one-time move (move.js): many records in a few saves ---------- */
+  async moveWrite(writes, onStep) {
+    const per = 300; let done = 0;
+    for (let i = 0; i < writes.length; i += per) {
+      const part = writes.slice(i, i + per);
+      await FB.save(b => part.forEach(([path, data]) => b.set(FB.db.doc(path), Object.assign({}, data, FB.st()))));
+      done += part.length; if (onStep) onStep(done, writes.length);
+    }
+  },
+  /* which of these photo records are already saved */
+  async havePics(ids) {
+    const have = new Set();
+    for (let i = 0; i < ids.length; i += 30) {
+      const part = ids.slice(i, i + 30); if (!part.length) continue;
+      const s = await Promise.all(part.map(id => FB.db.doc('invPics/' + id).get().catch(() => null)));
+      s.forEach((d, k) => { if (d && d.exists) have.add(part[k]); });
+    }
+    return have;
+  },
+  async moveCounts() {
+    const [it, or, ve, lg] = await Promise.all(['invItems', 'invOrders', 'invVendors', 'invLog'].map(c => FB.db.collection(c).get()));
+    let entries = 0, money = 0;
+    lg.docs.forEach(d => { const e = (d.data() || {}).e || {}; Object.keys(e).forEach(k => { entries++; if (e[k] && isMoneyEntry(e[k]) && isFinite(Number(e[k].amount))) money += Number(e[k].amount); }); });
+    return { items: it.size, orders: or.size, vendors: ve.size, log: entries, money: Math.round(money * 100) / 100 };
+  },
+  async markMoved(info) { await FB.save(b => b.set(FB.db.doc('invMeta/moved'), Object.assign({}, FB.clean(info), FB.st()))); }
 };
+function blobBase64(blob) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).slice(String(r.result).indexOf(',') + 1)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+}

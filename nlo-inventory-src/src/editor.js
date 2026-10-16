@@ -212,6 +212,7 @@ ACT.edPhotoAi = async () => {
 };
 /* a saved photo (Cloud Storage, or one just picked) as a data URL, for the AI */
 async function urlToDataUrl(u) {
+  if (/^pic:/.test(u)) { const d = await B.pic(u); if (d) return d; throw new Error('The saved photo couldn’t be loaded.'); }
   if (/^blob:/.test(u) || /^https:\/\/firebasestorage\.googleapis\.com\//.test(u)) {
     const r = await fetch(u); if (!r.ok) throw new Error('The saved photo couldn’t be loaded.');
     const b = await r.blob(); return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(new Error('The saved photo couldn’t be read.')); fr.readAsDataURL(b); });

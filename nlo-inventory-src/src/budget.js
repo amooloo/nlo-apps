@@ -41,7 +41,7 @@ VIEWS.budget = {
     const ex = listOf(D.budget.expenses).filter(x => x && monthKey(x.date) === u.mk).sort((a, b) => msOf(b.date) - msOf(a.date));
     h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Other supply expenses</h3><span class="sub">bought outside an order</span><span style="flex:1"></span><button class="btn btn-sec btn-sm" data-act="expenseAdd">' + ic('plus', 15) + 'Add</button></div><div class="cardBd">';
     h += ex.length ? ex.map(x => '<div class="row" style="cursor:default"><div class="grow"><span class="pt">' + esc(x.vendor || x.description || x.note || catLabel(x.category)) + ' <span class="muted" style="font-weight:600">· ' + esc(catLabel(x.category)) + '</span></span><span class="meta">' + esc(fmtDate(x.date)) + (x.note && x.vendor ? ' · ' + esc(x.note) : '') + (x.by ? ' · added by ' + esc(x.by) : '') + '</span></div><b class="nowrap">' + money(x.amount) + '</b>' +
-      (isAdmin() || (whoNow() && x.byId === whoNow().id) ? '<button class="iconBtn" data-act="expenseDel" data-id="' + esc(x.id) + '" aria-label="Remove">' + ic('trash', 16) + '</button>' : '') + '</div>').join('') : '<div class="empty">None this month. Use <b>Add</b> for supplies bought on a card at a store, for example.</div>';
+      (isAdmin() || isMine(x.byId) ? '<button class="iconBtn" data-act="expenseDel" data-id="' + esc(x.id) + '" aria-label="Remove">' + ic('trash', 16) + '</button>' : '') + '</div>').join('') : '<div class="empty">None this month. Use <b>Add</b> for supplies bought on a card at a store, for example.</div>';
     h += '</div></div></div><div>';
     /* 12 months */
     const ms = monthsBack(12), vals = ms.map(k => monthSpend(k, D).total), max = Math.max(budget, ...vals, 1);

@@ -738,3 +738,20 @@ body.demo .askFab{bottom:50px}
 .caseRow{padding:8px 0;border-bottom:1px solid var(--grey-100);align-items:flex-start}
 .caseRow .grow{display:flex;flex-direction:column}
 .caseRow small{font-weight:500;color:var(--grey-500);font-size:11.5px}
+/* before Inventory opens: the rules card and the one-time move */
+.gateCard{max-width:720px}
+ol.steps{padding-left:20px;line-height:1.6;margin:6px 0 12px}
+ol.steps li{margin-bottom:6px}
+details.help{margin-top:10px}
+details.help summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--grey-600);padding:6px 0}
+.rulesBox textarea,.codeBox{width:100%;min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;border:1.5px solid var(--grey-200);border-radius:10px;padding:10px;box-sizing:border-box}
+.moveCard .bar{margin:12px 0 4px}
+.mvNotes{margin:6px 0 0;padding-left:18px}
+.mvNotes li{margin-bottom:4px}
+/* who's signed in: the side menu's chip with Lock, and the phone's */
+.whoChip .lockBtn{color:#C9D4E5;flex:0 0 auto}
+.whoChip .lockBtn:hover{background:rgba(255,255,255,.14);color:#fff}
+.whoHead{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+/* the app's own Ask button sits to the left of Ask AISA (nlo-aisa.js), and only once Inventory is open */
+html.nlo-aisa-on .askFab{right:var(--nlo-aisa-space)}
+body.gated .askFab{display:none}

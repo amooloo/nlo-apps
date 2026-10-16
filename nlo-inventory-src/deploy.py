@@ -1,9 +1,10 @@
-"""Get NLO Inventory ready to publish to Firebase Hosting (nlo-inventory.web.app).
+"""Get the old address (nlo-inventory.web.app, Firebase Hosting in the nlo-inventory project) ready to send people to NLO
+Inventory's new page on the NLO Apps site, once Inventory has moved over (5.0, Oct 2026).
 
     python3 build.py && python3 deploy.py
 
 It makes deploy/ with firebase.json (every file served no-cache, as before) and public/:
-  - index.html and logo-white.png from dist/
+  - index.html: the page that opens the new Inventory (dist/redirect/index.html), and logo-white.png
   - a copy of the page that's live right now, saved as index.html.backup-<today>-v<its version>
   - the older backup copies already on the site (a Hosting deploy replaces the whole site, so they go up again)
 It stops without making anything if the live page isn't the one expected (EXPECT_LIVE_SHA256 below, or --expect <sha>),
@@ -31,11 +32,8 @@ def sha(b): return hashlib.sha256(b).hexdigest()
 
 expect = EXPECT_LIVE_SHA256
 if '--expect' in sys.argv: expect = sys.argv[sys.argv.index('--expect') + 1]
-for f in ['index.html', 'logo-white.png']:
+for f in ['redirect/index.html', 'logo-white.png']:
     if not (dist / f).exists(): sys.exit('dist/' + f + ' is missing — run python3 build.py first.')
-info = json.loads((dist / 'build-info.json').read_text()) if (dist / 'build-info.json').exists() else {}
-if not info.get('vendorDetails'):
-    sys.exit('This build has no vendor account numbers or reps (src/vendors.private.js was missing). Run python3 build.py --vendors-from-live, then this again.')
 
 live = fetch('index.html')
 if sha(live) != expect:
@@ -46,7 +44,7 @@ ver = m.group(1).decode() if m else 'unknown'
 
 if out.exists(): shutil.rmtree(out)
 pub.mkdir(parents=True)
-shutil.copy(dist / 'index.html', pub / 'index.html')
+shutil.copy(dist / 'redirect' / 'index.html', pub / 'index.html')
 shutil.copy(dist / 'logo-white.png', pub / 'logo-white.png')
 today = datetime.date.today().isoformat()
 (pub / ('index.html.backup-' + today + '-v' + ver)).write_bytes(live)

@@ -64,11 +64,18 @@ function toast(msg, opt) {
 }
 function errText(e) {
   const c = String((e && (e.code || e.message)) || '');
-  if (/PERMISSION_DENIED|permission/i.test(c)) return 'The database said no. This account may not be allowed to change that.';
+  if (/no-user/.test(c)) return 'No login with that username.';
+  if (/invalid-credential|wrong-password|user-not-found|invalid-login|invalid-email/.test(c)) return 'Username or password is incorrect.';
+  if (/inactive/.test(c)) return 'This login has been turned off. Ask Dr. A.';
+  if (/not-member/.test(c)) return 'That account isn’t part of the office.';
+  if (/first-login/.test(c)) return 'Finish setting up your login in NLO Cases first (sign in there with your temporary password and choose your own), then come back.';
+  if (/too-many-requests/.test(c)) return 'Too many attempts. Wait a minute and try again.';
+  if (/PERMISSION_DENIED|permission/i.test(c)) return 'The database said no. This login may not be allowed to change that.';
   if (/network|unavailable|offline/i.test(c)) return 'Can’t reach the database. Check the internet connection.';
-  if (/popup-closed|cancelled-popup/i.test(c)) return 'Sign-in window closed before it finished.';
+  if (/popup-closed|cancelled-popup/i.test(c)) return 'The sign-in window closed before it finished.';
   if (/popup-blocked/i.test(c)) return 'The browser blocked the sign-in window. Allow pop-ups for this page and try again.';
-  if (/not-allowed/i.test(c)) return 'That Google account isn’t one of the office accounts.';
+  if (/^timeout$/.test(c)) return 'Not confirmed: the internet is very slow. Check in a minute whether it went through before trying again.';
+  if (/^aborted$|failed-precondition/.test(c)) return (e && e.message && !/^\w+$/.test(e.message)) ? e.message : 'Someone changed that at the same moment. Try again.';
   return (e && e.message) ? String(e.message).replace(/^Firebase:\s*/, '') : 'Something went wrong.';
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); return true; } catch (e) { console.error(e); toast(errText(e), { bad: true }); return false; } }
@@ -84,51 +91,121 @@ function boot() {
   document.addEventListener('input', onInput);
   document.addEventListener('keydown', onKey);
   document.addEventListener('pointerdown', e => { S.downOn = e.target; }, true);
-  whoLoad();
-  setInterval(() => { renderWho(); if (S.inApp && !whoNow() && S.who) { S.who = null; whoSave(); renderWho(); } }, 20000);
-  if (S.demo) { DEMO.init(); B = FB; $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo'); enterApp(); return; }
+  ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { S.lastAct = Date.now(); }, { passive: true }));
+  window.addEventListener('online', () => { S.online = true; renderSync(); renderBanner(); });
+  window.addEventListener('offline', () => { S.online = false; renderSync(); renderBanner(); });
+  let lockMsg = ''; try { lockMsg = sessionStorage.getItem('nloInv.lockMsg') || ''; sessionStorage.removeItem('nloInv.lockMsg'); } catch (e) { }
+  try { S.lastLogin = localStorage.getItem('nloInv.lastLogin') || localStorage.getItem('nloTO.lastLogin') || localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
+  /* the old app kept copies of the AI keys, and the name tapped last, on each office computer */
+  try { ['nlo-gemini-key', 'nlo_openai_key', 'nloInv.who'].forEach(k => localStorage.removeItem(k)); } catch (e) { }
+  const first = lockMsg ? { ok: lockMsg } : {};
+  if (S.demo) { B = DEMO.init(); $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo'); const m = $('.lockMeta'); if (m) m.textContent = 'Demo · made-up supplies and people · nothing is saved'; lockScreen('login', first); return; }
   B = FB;
-  /* the old app kept copies of the AI keys on each office computer; this one reads them only when a step needs them */
-  try { ['nlo-gemini-key', 'nlo_openai_key'].forEach(k => localStorage.removeItem(k)); } catch (e) { }
   if (!FB.init(S.emu)) { lockScreen('unconfigured'); return; }
-  FB.onUser(u => {
-    if (u === undefined) return lockScreen('loading');
-    if (!u) { if (S.inApp) leaveApp(); return lockScreen('signin'); }
-    if (!FB.allowed(u)) { FB.signOut(); return lockScreen('signin', { err: 'That Google account (' + u.email + ') isn’t one of the office accounts. Sign in with the office account.' }); }
-    if (!S.inApp) enterApp();
-  });
-  window.addEventListener('online', renderSync); window.addEventListener('offline', renderSync);
+  FB.onSync = renderSync;
+  FB.ready().then(() => lockScreen('login', first));
 }
+/* ---------- lock screens (same logins as NLO Cases) ---------- */
 function lockScreen(mode, info) {
   info = info || {};
   $('#lockWrap').classList.remove('hidden'); $('#app').classList.add('hidden');
   const card = $('#lockCard'); let h = '';
   const err = info.err ? '<div class="lockErr" role="alert">' + esc(info.err) + '</div>' : '';
-  if (mode === 'loading') h = '<div class="lsub" style="text-align:center"><span class="spin"></span> Loading…</div>';
-  else if (mode === 'unconfigured') h = '<h1>Almost ready</h1><div class="lsub">This copy can’t reach the office database.</div><p class="desc">To look around with made-up supplies, open the demo.</p><a class="btn btn-pri btn-block" href="?demo">Open the demo</a>';
-  else h = '<h1>Sign in</h1><div class="lsub">Next Level Orthodontics · supplies and orders</div>' + err +
-    '<p class="desc">Use the office Google account. After that, each person just taps their name.</p>' +
-    '<button class="btn btn-pri btn-block" data-act="signIn" id="signInBtn">' + ic('google', 18) + 'Sign in with Google</button>' +
-    '<div class="lockFoot">Office computers stay signed in. Only the office accounts can open Inventory.</div>';
+  const ok = info.ok ? '<div class="lockOk" role="status">' + esc(info.ok) + '</div>' : '';
+  if (mode === 'unconfigured') h = '<h1>Almost ready</h1><div class="lsub">This copy can’t reach the office database.</div><p class="desc">To look around with made-up supplies, open the demo.</p><a class="btn btn-pri btn-block" href="?demo">Open the demo</a>';
+  else if (mode === 'forgot') h = '<h1>Reset by email</h1><div class="lsub">For Dr. A’s email login</div>' + err + ok +
+    '<form id="forgotForm" style="margin-top:16px"><div class="field"><label for="fgEmail">Your email</label><input id="fgEmail" type="email" autocomplete="email" required></div>' +
+    '<button class="btn btn-pri btn-block" type="submit">Send reset link</button></form>' +
+    '<p class="desc small" style="margin:14px 0 0">After you pick a new password, sign in to NLO Cases with it first (it asks for your recovery code once), then come back.</p>' +
+    '<div class="lockFoot"><button class="linkBtn" data-act="toLogin" type="button">Back to sign in</button></div>';
+  else if (S.demo) h = '<h1>Try the demo</h1><div class="lsub">A made-up office · nothing is saved</div>' + err + ok +
+    '<form id="loginForm" style="margin-top:16px"><div class="field"><span class="flabel">Sign in as</span><div class="seg" role="group" style="display:flex">' +
+    DEMO.AS.map(([k, l]) => '<button type="button" data-act="demoAs" data-as="' + k + '" aria-pressed="' + (DEMO.as === k) + '" style="flex:1;justify-content:center">' + esc(l) + '</button>').join('') + '</div></div>' +
+    '<button class="btn btn-pri btn-block" id="lgBtn" type="submit">Open the demo</button></form>' +
+    '<div class="lockFoot">Dr. A and the office coordinator change settings; an assistant adds to the cart, orders and receives. Lock to switch — what you did stays until the page is reloaded.</div>';
+  else h = '<h1>Sign in</h1><div class="lsub">Next Level Orthodontics · supplies and orders</div>' + err + ok +
+    '<form id="loginForm" autocomplete="on" style="margin-top:16px">' +
+    '<div class="field"><label for="lgUser">Username</label><input id="lgUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(S.lastLogin) + '" required></div>' +
+    '<div class="field"><label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" required></div>' +
+    '<button class="btn btn-pri btn-block" id="lgBtn" type="submit">Sign in</button></form>' +
+    '<div class="lockFoot">Same username and password as NLO Cases. Forgot your password? Ask Dr. A to reissue your login.<br><button class="linkBtn" data-act="forgot" type="button">Dr. A: reset by email</button></div>';
   card.innerHTML = h;
+  const f = mode === 'login' && !S.demo && $('#lgUser') && $('#lgUser').value ? $('#lgPw') : $('input', card) || $('#lgBtn');
+  if (f) f.focus();
+  bindLockForms();
 }
-ACT.signIn = async t => { busyBtn(t, true, 'Opening Google…'); try { await FB.signIn(); } catch (e) { busyBtn(t, false); lockScreen('signin', { err: errText(e) }); } };
-ACT.signOut = async () => { if (!await confirmBox('Sign this computer out?', 'Everyone on it will need the office Google password to get back in.', 'Sign out', true)) return; whoClear(); await FB.signOut(); };
+function bindLockForms() {
+  const lf = $('#loginForm');
+  if (lf) lf.onsubmit = async e => {
+    e.preventDefault(); const btn = $('#lgBtn'); const user = S.demo ? DEMO.as : $('#lgUser').value.trim(), pw = S.demo ? 'demo' : $('#lgPw').value;
+    busyBtn(btn, true, S.demo ? 'Opening…' : 'Signing in…');
+    try {
+      await B.signIn(user, pw);
+      if (!S.demo) { S.lastLogin = user; try { localStorage.setItem('nloInv.lastLogin', user); } catch (x) { } }
+      enterApp();
+    } catch (x) { busyBtn(btn, false); lockScreen('login', { err: errText(x) }); }
+  };
+  const fg = $('#forgotForm');
+  if (fg) fg.onsubmit = async e => {
+    e.preventDefault();
+    try { await B.sendReset($('#fgEmail').value.trim()); lockScreen('forgot', { ok: 'If that email has a login, a reset link is on its way.' }); }
+    catch (x) { lockScreen('forgot', { err: errText(x) }); }
+  };
+}
+ACT.forgot = () => lockScreen('forgot');
+ACT.toLogin = () => lockScreen('login');
+ACT.demoAs = t => { DEMO.as = t.dataset.as; $$('[data-act=demoAs]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.as === DEMO.as))); };
 
-function enterApp() {
-  S.inApp = true; S.view = (location.hash || '').replace('#', '') || 'home'; if (!VIEWS[S.view]) S.view = 'home';
+/* ---------- in and out ---------- */
+async function enterApp() {
+  S.inApp = true; S.gate = 'opening'; S.loadErr = ''; S.lastAct = Date.now(); S.loaded = {};
+  S.view = (location.hash || '').replace('#', '') || 'home'; if (!VIEWS[S.view]) S.view = 'home';
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
+  clearInterval(S.idleTimer);
+  S.idleTimer = setInterval(() => {
+    if (!S.inApp) return;
+    if ((B && B.pending > 0) || S.busy) S.lastAct = Date.now(); // a save still going, or the move, counts as activity
+    const mins = idleMinutes();
+    if (!S.demo && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
+  }, 15000);
+  let r;
+  try { r = await B.open(); } catch (e) { r = { st: 'error' }; S.loadErr = errText(e); }
+  if (!S.inApp) return;
+  S.moved = r.moved || null;
+  if (r.st === 'ready') startLive(); else { S.gate = r.st; renderShell(); renderView(); }
+}
+function startLive() {
+  S.gate = 'ready'; S.loadErr = '';
+  renderShell(); renderView();
   B.start({
-    data(key, val) { setData(key, val); queueRender(); },
-    loaded() { S.loadErr = ''; queueRender(); },
-    error(key, e) { S.loadErr = errText(e); console.error(key, e); queueRender(); },
-    soft(key) { S.denied[key] = true; queueRender(); },
-    online(on) { S.online = on; renderSync(); renderBanner(); }
+    data(key, val) { if (!S.inApp) return; setData(key, val); queueRender(); },
+    error(key, e) {
+      if (!S.inApp) return;
+      if (B.isPerm && B.isPerm(e)) { lockOut('Your access changed. Sign in again.'); return; }
+      S.loadErr = errText(e); console.error(key, e); queueRender();
+    },
+    revoked() { lockOut('Your access was turned off.'); }
   });
 }
-function leaveApp() { S.inApp = false; B.stop && B.stop(); closeModal(true); closeDrawer(); }
-function allLoaded() { return ['items', 'orders', 'vendors', 'log', 'cart', 'budget'].every(k => S.loaded[k]); }
+/* locked: the page starts over, so nothing is left in this tab's memory */
+async function lockOut(msg) {
+  if (!S.inApp) return;
+  S.inApp = false; clearInterval(S.idleTimer);
+  closeModal(true); closeDrawer(); $('#toasts').innerHTML = '';
+  ['#view', '#topSlot', '#side', '#mobTop', '#mobNav', '#bannerSlot'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; });
+  document.title = APP_NAME;
+  for (let i = 0; i < 30 && B.pending; i++) await new Promise(r => setTimeout(r, 100));
+  await B.signOut();
+  if (S.demo) { lockScreen('login', { ok: msg }); return; }
+  try { sessionStorage.setItem('nloInv.lockMsg', msg || ''); } catch (e) { }
+  location.reload();
+}
+ACT.lock = async () => {
+  if (B.pending && !(await confirmBox('Lock now?', 'A change is still being saved (is the internet connected?). Locking now may lose it.', 'Lock anyway', true))) return;
+  lockOut('Locked. Sign in to continue.');
+};
+function allLoaded() { return S.gate === 'ready' && ['items', 'orders', 'vendors', 'log', 'cart', 'budget'].every(k => S.loaded[k]); }
 
 /* ---------- the data, as the screens use it ---------- */
 function setData(key, val) {
@@ -142,7 +219,8 @@ function setData(key, val) {
   else if (key === 'budget') S.D.budget = Object.assign({ monthly: 8000, categories: {}, expenses: [], history: [] }, val || {});
   else if (key === 'elastoPrices') S.D.elastoPrices = val || {};
   else if (key === 'settings') S.settings = val || {};
-  else if (key === 'roster') { S.D.roster = val; S.people = rosterPeople(val); renderWho(); }
+  else if (key === 'roster') { if (val) { S.people = rosterPeople(val); renderWho(); } }
+  else if (key === 'cases') S.cases = val || {};
 }
 function normItem(i) { if (i.cat && CAT_MIGRATION[i.cat]) i.cat = CAT_MIGRATION[i.cat]; if (!CAT_BY_ID[i.cat]) i.cat = 'misc'; return i; }
 function normOrder(o) { o.items = listOf(o.items).filter(Boolean); o.trail = listOf(o.trail).filter(Boolean); return o; }
@@ -170,11 +248,10 @@ function renderShell() {
   $('#side').innerHTML = '<div class="sideTop"><img data-src="' + LOGO + '" alt="Next Level Orthodontics"><div class="appTag">Inventory</div></div>' +
     '<nav class="nav" aria-label="Main">' + navBtns(false) + '</nav>' +
     '<div class="sideFoot"><div id="whoSlot"></div>' +
-    '<a class="sideLink" href="' + APPS_HOME + '">' + ic('apps', 14) + 'NLO Apps</a>' +
     '<div class="syncLine" id="syncLine"></div></div>';
   $('#mobTop').innerHTML = '<img data-src="' + LOGO + '" alt="NLO"><span class="appTag" style="font-size:11px;letter-spacing:.24em">Inventory</span><span style="flex:1"></span>' +
     '<button class="iconBtn" style="color:#fff" data-act="scan" aria-label="Scan a barcode">' + ic('scan') + '</button>' +
-    '<a class="iconBtn" style="color:#fff" href="' + APPS_HOME + '" aria-label="NLO Apps" title="NLO Apps">' + ic('apps') + '</a>' +
+
     '<button class="iconBtn" data-act="who" aria-label="Who’s using this" id="mobWho"></button>';
   $('#mobNav').innerHTML = navBtns(true);
   if (!$('#askFab')) document.body.insertAdjacentHTML('beforeend', '<button id="askFab" class="askFab" data-act="askOpen" title="Ask about spending, orders and who did what" aria-label="Ask">' + ic('spark', 16) + '<span class="t">Ask</span></button>');
@@ -194,14 +271,14 @@ function renderNav() {
 function renderSync() {
   const el = $('#syncLine'); if (!el) return;
   let cls = 'ok', t = S.demo ? 'Demo · nothing saved' : 'Live · v' + APP_VERSION;
-  if (!S.demo && (!navigator.onLine || !S.online)) { cls = 'bad'; t = 'Offline · saves when back'; }
+  if (!S.demo && !navigator.onLine) { cls = 'bad'; t = 'Offline · saves when back'; }
   else if (B && B.pending > 0) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
 }
 function renderBanner() {
   const el = $('#bannerSlot'); if (!el) return;
   let h = '';
-  if (!S.demo && (!navigator.onLine || !S.online) && allLoaded()) h = '<div class="banner off">' + ic('warn', 16) + 'No connection. What you do now saves as soon as it’s back — keep this page open.</div>';
+  if (!S.demo && !navigator.onLine && allLoaded()) h = '<div class="banner off">' + ic('warn', 16) + 'No connection. Changes to the cart, stock and orders need the internet — wait until it’s back.</div>';
   else if (S.loadErr) h = '<div class="banner off">' + ic('warn', 16) + esc(S.loadErr) + '</div>';
   el.innerHTML = h;
 }
@@ -218,6 +295,8 @@ function renderView(keep) {
   if (!S.inApp) return;
   const v = $('#view'), qf = document.activeElement && document.activeElement.id === 'q';
   const y = keep ? window.scrollY : 0;
+  document.body.classList.toggle('gated', S.gate !== 'ready');
+  if (S.gate !== 'ready') { $('#topSlot').innerHTML = '<div class="topBar"><h2>Inventory</h2><span style="flex:1"></span></div>'; v.innerHTML = gateHTML(); if (typeof moveAfter === 'function') moveAfter(); renderNav(); return; }
   $('#topSlot').innerHTML = topBar();
   if (!allLoaded()) v.innerHTML = '<div class="card loadCard"><span class="spin"></span><div style="margin-top:10px">Loading the office’s supplies…</div></div>';
   else { try { v.innerHTML = VIEWS[S.view].render(); } catch (e) { console.error(e); v.innerHTML = '<div class="card loadCard">This screen hit a problem: ' + esc(e.message) + '</div>'; } }
@@ -252,17 +331,22 @@ function thumbHTML(item, cls) {
   const has = !!photoOf(item);
   return '<span class="thumb ' + (cls || '') + '">' + (has ? '<img data-img="' + esc(item.id) + '" alt="">' : ic('box', cls === 'lg' ? 34 : 20)) + '</span>';
 }
+/* a photo saved as a record of its own ("pic:<id>") is read when it's first shown, then kept for the visit */
+function setImg(im, u) {
+  if (/^pic:/.test(u)) { B.pic(u).then(d => { if (d) im.src = imgSrc(d); else im.removeAttribute('src'); }); return; }
+  im.src = imgSrc(u);
+}
 /* images are written as data-src (never src="…" inside the script: the browser's look-ahead would try to fetch those bits of script) and filled in here */
 function hydrateSrc(root) {
   if (!root || root.nodeType !== 1) return;
-  const one = im => { const u = im.getAttribute('data-src'); im.removeAttribute('data-src'); if (u) im.src = imgSrc(u); };
+  const one = im => { const u = im.getAttribute('data-src'); im.removeAttribute('data-src'); if (u) setImg(im, u); };
   if (root.matches('img[data-src]')) one(root);
   $$('img[data-src]', root).forEach(one);
 }
 new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(hydrateSrc))).observe(document.documentElement, { childList: true, subtree: true });
 function hydrateImages(root) {
   hydrateSrc(root || document.body);
-  $$('img[data-img]', root || document).forEach(im => { const it = itemById(im.dataset.img); const s = it && photoOf(it, im.dataset.full === '1'); if (s) im.src = imgSrc(s); im.removeAttribute('data-img'); });
+  $$('img[data-img]', root || document).forEach(im => { const it = itemById(im.dataset.img); const s = it && photoOf(it, im.dataset.full === '1'); if (s) setImg(im, s); im.removeAttribute('data-img'); });
   $$('img[data-vlogo]', root || document).forEach(im => { im.onerror = () => { im.replaceWith(Object.assign(document.createElement('span'), { className: 'vlogo none', innerHTML: ic('build', 14) })); }; im.removeAttribute('data-vlogo'); });
 }
 function vlogoHTML(v, cls) {

@@ -1,5 +1,8 @@
 dist/
 deploy/
 test/www/
+test/vendor/
 __pycache__/
 src/vendors.private.js
+node_modules
+*-debug.log

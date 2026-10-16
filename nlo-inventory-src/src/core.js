@@ -2,38 +2,50 @@
 /* =====================================================================
    NLO Inventory — supplies, the cart, orders, receiving and the supply
    budget for Next Level Orthodontics.
-   - Same data as the Inventory app it replaces: the nlo-inventory
-     Realtime Database, nlo/{items,orders,vendors,log,cart,bracketOrder,
-     budget,elastoPrices,settings}. Nothing moves; old records read as is.
-   - Office computers sign in with the office Google account; the person
-     at the computer taps their name (kept for 10 minutes), and every
-     cart, order and receiving step is stamped with who and when.
-   - Names come from Staff Hub's office roster (nlo/cadence/roster).
+   - Since 5.0 (Oct 2026) it lives on the NLO Cases platform: the same
+     Firebase project (nlo-cases, Firestore), the same logins and roster,
+     and the same lock after the office's idle minutes as NLO Cases,
+     Time Off and the Time Clock. Every step is stamped with the person
+     signed in and the time.
+   - Its records moved over once from its own Realtime Database
+     (nlo-inventory, nlo/*), which the alert script keeps a copy of for
+     Staff Meeting's spending card and AISA's stock answers.
    ===================================================================== */
 
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '5.0.0';
+const APP_NAME = 'NLO Inventory';
 const DEMO_ONLY = false;          // the demo page sets this (build.py)
 const LOGO = 'logo-white.png';     // the demo page carries the logo inside it
-/* the Firebase web config (public by design; the database rules decide who can read and write) */
+/* the NLO Cases project's web config (public by design; the database's rules decide who reads and writes what). build.py fills it in. */
 const FB_CONFIG = {
-  apiKey: 'AIzaSyAwpqHFcvfFnmAVUk0ydyw8erCvmbNfPlY',
+  apiKey: "__API_KEY__",
+  authDomain: "__AUTH_DOMAIN__",
+  projectId: "__PROJECT_ID__",
+  appId: "__APP_ID__"
+};
+/* the old Inventory's project (nlo-inventory), only for the one-time move: the same web config the IPR Tracker, NLO Cases and
+   Time Off use for the office roster (a second sign-in named 'ipr', shared by those pages on this site) */
+const OLD_FB = {
+  apiKey: 'AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4',
   authDomain: 'nlo-inventory.firebaseapp.com',
   databaseURL: 'https://nlo-inventory-default-rtdb.firebaseio.com',
-  projectId: 'nlo-inventory',
-  storageBucket: 'nlo-inventory.firebasestorage.app',
-  messagingSenderId: '471691286148',
-  appId: '1:471691286148:web:b362a98186f648bd4914d1'
+  projectId: 'nlo-inventory'
 };
-const OWNER_EMAIL = 'akhavan.ak@gmail.com';
-const ALLOWED_EMAILS = [OWNER_EMAIL, 'records@thenextlevelorthodontics.com'];
+const OLD_URL = 'https://nlo-inventory.web.app';
 const APPS_HOME = 'https://amooloo.github.io/nlo-apps/';
-const WHO_MINUTES = 10;            // a tapped name stays on a computer this long after its last step
+const APP_URL = 'https://amooloo.github.io/nlo-apps/nlo-inventory.html';
+const SCRIPT_FILE = 'nlo-inventory-alerts.gs';   // the alert script, published beside the page (Settings → Email alerts fills in its login)
+const ALERT_SCRIPT_URL = 'https://script.google.com/home/projects/1wwUm4vUhGrabEA4LGRFfvk4NxjH7r9_GtozvrQNCYrZ66spTrWSckdNw/edit';
+/* synthetic login addresses (no mail is ever sent to them), as NLO Cases issues them */
+const STAFF_DOMAIN = 'staff.thenextlevelorthodontics.com';
+const INV_RULES = ""; // the build puts the office's whole Firestore rules file here (Dr. A's "publish the rules" card)
+const IDLE_MIN = 10;               // the lock after this many minutes without activity, unless NLO Cases sets another (meta/settings.idleMin)
 
 /* ---------- app state ---------- */
 const S = {
-  demo: false, emu: false, inApp: false, view: 'home', q: '', who: null, people: [], online: true, loadErr: '',
+  demo: false, emu: false, inApp: false, gate: 'opening', view: 'home', q: '', people: [], online: true, loadErr: '', cases: {}, lastAct: Date.now(), idleTimer: null, lastLogin: '',
   D: { items: [], orders: [], vendors: [], log: [], cart: [], bracketOrder: {}, budget: { monthly: 8000, categories: {}, expenses: [], history: [] }, elastoPrices: {}, roster: null },
-  loaded: {}, denied: {}, settings: {}, ui: {}, drawer: null, renderQ: false, whoThen: null, imgCache: new Map()
+  loaded: {}, denied: {}, settings: {}, ui: {}, drawer: null, renderQ: false, imgCache: new Map(), moved: null
 };
 /* the backend in use (FB, on the real or the demo database) and the screens' registries: clicks (data-act), changes (data-chg),
    typing (data-inp), screens and drawers. Declared first, since every file adds to them. */
@@ -59,6 +71,12 @@ function qtyFmt(n) { const v = Number(n) || 0; return Number.isInteger(v) ? Stri
 function initials(name) { const p = String(name || '').replace(/^dr\.?\s+/i, 'Dr ').trim().split(/\s+/).filter(Boolean); if (!p.length) return '?'; if (/^dr$/i.test(p[0]) && p.length > 1) return 'D' + (p[1][0] || '').toUpperCase(); return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
 function firstName(n) { return String(n || '').replace(/^dr\.?\s+/i, '').split(/\s+/)[0] || ''; }
 function plainText(s, max) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return max && s.length > max ? s.slice(0, max - 1) + '…' : s; }
+function hexId(n) { return Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join(''); }
+function errCode(code, msg) { const e = new Error(msg || code); e.code = code; return e; }
+function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30); }
+/* a long random password for a login only a script uses */
+function randomPassword() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; return Array.from(crypto.getRandomValues(new Uint8Array(28)), b => a[b % a.length]).join(''); }
+function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
 function debounce(fn, ms) { let t; return function () { const a = arguments, self = this; clearTimeout(t); t = setTimeout(() => fn.apply(self, a), ms); }; }
 /* Firebase refuses a whole write when any field is undefined; a JSON round trip drops them */
 function fbSafe(v) { return v === undefined ? null : JSON.parse(JSON.stringify(v)); }

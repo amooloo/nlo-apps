@@ -397,7 +397,7 @@ async function slipApply(U) {
     if (slipUrl) p.slipPhoto = slipUrl;
     await B.patchOrder(rcv.id, p);
     await addCostEntries(rcv.id, rcv.vendor || supplier, ship, tax);
-    await Promise.all(rows.map(r => { const it = itemById(r.itemId), tp = slipTrackedPrice(r); return it && tp > 0 && slipPriceOk(it, rcv.vendor || supplier, tp) ? B.patchItem(it.id, { sources: rememberPrice(it, rcv.vendor || supplier, tp, r.sku, day) }) : null; }));
+    await B.patchItems(rows.map(r => { const it = itemById(r.itemId), tp = slipTrackedPrice(r); return it && tp > 0 && slipPriceOk(it, rcv.vendor || supplier, tp) ? [it.id, { sources: rememberPrice(it, rcv.vendor || supplier, tp, r.sku, day) }] : null; }));
     msg = 'Updated the ' + (rcv.vendor || '') + ' order from the invoice. Stock didn’t change.';
   } else {
     let receivedCount = 0, lines = null, extra = [];

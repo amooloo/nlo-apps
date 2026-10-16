@@ -1,39 +1,35 @@
 /* =====================================================================
-   Who's at the computer.
-   The office computers stay signed in with the office Google account, so
-   the account can't say who's using it. The person taps their name once;
-   it's kept on that computer for WHO_MINUTES after their last step, shown
-   in the side menu with a one-tap switch (Amir, 15 Oct 2026: "Tap name,
-   kept 10 min"). Every cart, order, receiving and stock step is stamped
-   with that name and the time.
-   Names and photos come from Staff Hub's office roster
-   (nlo/cadence/roster); the built-in list below is only for when it
-   can't be read.
+   Who's signed in.
+   Each person signs in with their own NLO Cases login (same username and
+   password as NLO Cases, Time Off and the Time Clock; Amir, 16 Oct 2026:
+   "use the same logins and logout after 10 mins same rules"). The page
+   locks after the office's idle minutes (NLO Cases → Team & security,
+   10 by default), and every cart, order, receiving and stock step is
+   stamped with the person signed in and the time.
+   Names and photos come from NLO Cases' roster. Records from before the
+   move carry Staff Hub's ids (s_sarah…): a roster entry linked to Staff
+   Hub (rid) answers to both.
    ===================================================================== */
-const WHO_KEY = 'nloInv.who';
-const OWNER_ID = 's_amir';
-/* who can change settings, budgets, vendors and prices (as in the old app: Dr. A and Sarah); Settings → Who can change settings */
-const DEFAULT_ADMINS = ['s_amir', 's_sarah'];
-/* only if the shared roster (Staff Hub) can't be read: short names only, since this page itself is public */
-const FALLBACK_STAFF = [
-  { id: 's_amir', name: 'Dr. Akhavan', short: 'Dr. A', title: 'Orthodontist / Owner' },
-  { id: 's_sarah', name: 'Sarah B.', short: 'Sarah B.', title: 'Office Coordinator' },
-  { id: 's_savannah', name: 'Savannah S.', short: 'Savannah S.', title: 'Scheduling Coordinator' },
-  { id: 's_wila', name: 'Wila J.', short: 'Wila J.', title: 'Treatment Coordinator' },
-  { id: 's_eve', name: 'Eve P.', short: 'Eve P.', title: 'Clinical & Marketing Coordinator' },
-  { id: 's_angelika', name: 'Angelika R.', short: 'Angelika R.', title: 'Clinical Assistant' },
-  { id: 's_gwen', name: 'Gwen R.', short: 'Gwen R.', title: 'Clinical Assistant' },
-  { id: 's_kaylee', name: 'Kaylee D.', short: 'Kaylee D.', title: 'Clinical Assistant' }
-];
-/* the roster as a list of current people: { id, name, short, title, photo } (Dr. A first) */
-function rosterPeople(roster) {
-  const people = Object.values((roster && roster.people) || {}).filter(p => p && p.id && p.name && p.active !== false && !(p.end && p.end < todayISO()));
-  if (!people.length) return FALLBACK_STAFF.slice();
-  return people.map(p => ({ id: p.id, name: p.name, short: p.short || p.nick || firstName(p.name), title: p.title || '', photo: typeof p.photo === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(p.photo) ? p.photo : '' }))
-    .sort((a, b) => (a.id === OWNER_ID ? -1 : b.id === OWNER_ID ? 1 : a.name.localeCompare(b.name)));
+/* who can change settings when nobody has been picked yet: Dr. A (and, after the move, the people the old app had) */
+const DEFAULT_ADMINS = [];
+/* "Pat L.", "Dr. A" — how a name shows on a stamp (the old app's short names looked the same) */
+function shortName(name) {
+  const n = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim(); if (!n) return '';
+  const p = n.split(' ');
+  if (/^dr\.?$/i.test(p[0])) return p.length > 1 ? 'Dr. ' + p[p.length - 1][0].toUpperCase() : 'Dr.';
+  return p.length > 1 ? p[0] + ' ' + p[p.length - 1][0].toUpperCase() + '.' : p[0];
 }
-/* everyone the roster has ever had, for names on old records */
-function personById(id) { return (S.people || []).find(p => p.id === id) || null; }
+/* NLO Cases' roster → { id (staff id), rid (Staff Hub id), name, short, title, photo, role, active }, current people first, Dr. A first */
+function rosterPeople(list) {
+  return listOf(list).filter(r => r && r.sid && r.name).map(r => ({
+    id: String(r.sid), rid: typeof r.rid === 'string' && r.rid !== '-' ? r.rid : '', name: String(r.name), short: r.role === 'owner' ? 'Dr. A' : shortName(r.name),
+    title: r.role === 'owner' ? 'Orthodontist / Owner' : '', role: r.role === 'owner' ? 'owner' : 'staff', active: r.active === true,
+    photo: typeof r.photo === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(r.photo) ? r.photo : ''
+  })).sort((a, b) => (b.active - a.active) || (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : a.name.localeCompare(b.name)));
+}
+const activePeople = () => (S.people || []).filter(p => p.active);
+/* the person behind an id on a record: today's staff id, or a Staff Hub id on records from before the move */
+function personById(id) { if (!id) return null; return (S.people || []).find(p => p.id === id) || (S.people || []).find(p => p.rid && p.rid === id) || null; }
 /* the person behind a stamped name on an old record (a short name such as "Pat L.") */
 function personByName(name) {
   const n = String(name || '').trim().toLowerCase(); if (!n) return null;
@@ -48,65 +44,41 @@ function avatarHTML(name, cls, id) {
 }
 function avColor(n) { const C = ['#385686', '#1D3EA9', '#1F9E7E', '#C2820A', '#D8412E', '#7A5AC8', '#1A8FB0', '#B4304E']; let h = 0; String(n || '').split('').forEach(c => { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return C[h % C.length]; }
 
-/* ---------- the current person ---------- */
-function whoLoad() { try { const w = JSON.parse(localStorage.getItem(WHO_KEY) || 'null'); if (w && w.id && w.short && w.at) S.who = w; } catch (e) { } }
-function whoSave() { try { if (S.who) localStorage.setItem(WHO_KEY, JSON.stringify(S.who)); else localStorage.removeItem(WHO_KEY); } catch (e) { } }
-function whoLeftMs() { return S.who ? Math.max(0, S.who.at + WHO_MINUTES * 60000 - Date.now()) : 0; }
-function whoNow() { return S.who && whoLeftMs() > 0 ? S.who : null; }
-function whoTouch() { if (whoNow()) { S.who.at = Date.now(); whoSave(); } }
-function whoSet(p) { S.who = { id: p.id, short: p.short, name: p.name, at: Date.now() }; whoSave(); renderWho(); }
-function whoClear() { S.who = null; whoSave(); renderWho(); }
+/* ---------- the person signed in ---------- */
+function whoNow() {
+  const me = B && B.me; if (!me) return null;
+  const p = personById(me.staffId);
+  const name = (p && p.name) || me.name || 'Someone';
+  return { id: me.staffId, short: me.role === 'owner' ? 'Dr. A' : shortName(name), name };
+}
+/* a record stamped by the person signed in (old records carry Staff Hub's id for them) */
+function isMine(id) { const w = whoNow(), p = id && personById(id); return !!(w && p && p.id === w.id); }
 /* the stamp put on a step: who did it and when */
 function stamp() { const w = whoNow(); return { by: w ? w.short : 'Office', byId: w ? w.id : '', at: nowISO() }; }
-/* run a step that needs a name: straight away when someone's tapped in, else after they tap their name */
-function withWho(fn, why) {
-  const w = whoNow();
-  if (w) { whoTouch(); return fn(w); }
-  openWhoPicker(why, () => { const n = whoNow(); if (n) fn(n); });
-}
-function isAdmin() {
-  if (S.demo) return true;
-  const w = whoNow(), list = (S.settings && Array.isArray(S.settings.invAdmins) && S.settings.invAdmins.length) ? S.settings.invAdmins : DEFAULT_ADMINS;
-  return isOwnerAccount() || !!(w && list.includes(w.id));
-}
+/* a step that needs a name: the signed-in person's (the old app asked people to tap their name; signing in says it now) */
+function withWho(fn) { const w = whoNow(); if (!w) return toast('Sign in first.', { bad: true }); return fn(w); }
+function adminList() { const l = S.settings && Array.isArray(S.settings.invAdmins) ? S.settings.invAdmins.filter(x => typeof x === 'string') : []; return l.length ? l : DEFAULT_ADMINS; }
+function isOwnerAccount() { return !!(B && B.isOwner && B.isOwner()); }
+function isAdmin() { if (isOwnerAccount()) return true; const w = whoNow(); return !!(w && adminList().includes(w.id)); }
 /* who can change settings, by name ("Dr. A or Pat L.") */
 function adminNames() {
-  const list = (S.settings && Array.isArray(S.settings.invAdmins) && S.settings.invAdmins.length) ? S.settings.invAdmins : DEFAULT_ADMINS;
-  const names = list.map(id => (personById(id) || {}).short).filter(Boolean);
-  return names.length ? names.slice(0, -1).join(', ') + (names.length > 1 ? ' or ' : '') + names[names.length - 1] : 'Dr. A or the office coordinator';
+  const names = ['Dr. A'].concat(adminList().map(id => personById(id)).filter(p => p && p.role !== 'owner' && p.active).map(p => p.short));
+  return names.length > 1 ? names.slice(0, -1).join(', ') + ' or ' + names[names.length - 1] : names[0];
 }
-/* a step only Dr. A and the people he picks can take: asks for a name first, then checks it */
-function withAdmin(fn, why, what) {
-  return withWho(() => { if (!isAdmin()) return toast('Only ' + adminNames() + ' can ' + (what || 'do that') + '.', { bad: true }); return fn(); }, why);
-}
-/* Dr. A's own Google account (his laptop, his phone) */
-function isOwnerAccount() { return !!(B && B.user && String(B.user.email || '').toLowerCase() === OWNER_EMAIL); }
+/* a step only Dr. A and the people he picks can take */
+function withAdmin(fn, why, what) { if (!isAdmin()) return toast('Only ' + adminNames() + ' can ' + (what || 'do that') + '.', { bad: true }); return fn(); }
 
-function openWhoPicker(why, then) {
-  const cur = whoNow();
-  const people = S.people && S.people.length ? S.people : FALLBACK_STAFF;
-  openModal('<h3>Who’s this?</h3><div class="lsub">' + esc(why || 'Tap your name.') + ' It stays on this computer for ' + WHO_MINUTES + ' minutes after your last step.</div>' +
-    '<div class="whoGrid">' + people.map(p => '<button class="whoBtn' + (cur && cur.id === p.id ? ' me' : '') + '" data-act="whoPick" data-id="' + esc(p.id) + '">' + avatarHTML(p.name, 'xl', p.id) + '<span>' + esc(p.short) + '</span><span class="t">' + esc(firstWords(p.title, 3)) + '</span></button>').join('') + '</div>' +
-    '<div class="mFt">' + (cur ? '<button class="btn btn-ghost" data-act="whoOff">Not me — clear the name</button>' : '') + '<button class="btn btn-sec" data-act="closeModal">Cancel</button></div>', { cls: 'mid', onClose: () => { S.whoThen = null; } });
-  S.whoThen = then || null;
-}
-function firstWords(s, n) { return String(s || '').split(/\s+/).slice(0, n).join(' '); }
-ACT.whoPick = t => {
-  const p = (S.people && S.people.length ? S.people : FALLBACK_STAFF).find(x => x.id === t.dataset.id); if (!p) return;
-  whoSet(p); const then = S.whoThen; S.whoThen = null; closeModal(true);
-  toast('Hi, ' + firstName(p.name) + '. Your name stays on this computer for ' + WHO_MINUTES + ' minutes.');
-  if (then) then(); else renderView();
-};
-ACT.whoOff = () => { whoClear(); S.whoThen = null; closeModal(true); renderView(); };
-ACT.who = () => openWhoPicker('Tap your name, so your steps carry it.');
-/* the side-menu chip, refreshed every 20 seconds so the countdown is honest */
+/* the side-menu chip: who's signed in, and Lock */
 function renderWho() {
   const el = $('#whoSlot'); if (!el) return;
   const w = whoNow();
-  if (!w) el.innerHTML = '<button class="whoChip off" data-act="who"><span class="av ghost">?</span><span class="grow"><b>Tap your name</b><span class="sm">before adding or ordering</span></span></button>';
-  else {
-    const m = Math.max(1, Math.ceil(whoLeftMs() / 60000));
-    el.innerHTML = '<button class="whoChip" data-act="who" title="Change who’s using this computer">' + avatarHTML(w.short, '', w.id) + '<span class="grow"><b>' + esc(w.short) + '</b><span class="sm">Kept ' + m + ' more min · change</span></span></button>';
-  }
+  el.innerHTML = w ? '<div class="whoChip">' + avatarHTML(w.short, '', w.id) + '<span class="grow"><b>' + esc(w.name) + '</b><span class="sm">' + (isOwnerAccount() ? 'Dr. A' : isAdmin() ? 'Changes settings' : 'Signed in') + '</span></span><button class="iconBtn lockBtn" data-act="lock" title="Lock (sign out)" aria-label="Lock">' + ic('lock', 17) + '</button></div>' : '';
   const mob = $('#mobWho'); if (mob) mob.innerHTML = w ? avatarHTML(w.short, 'sm', w.id) : '<span class="av sm ghost">?</span>';
 }
+/* the phone's avatar button: who's signed in, Lock */
+ACT.who = () => {
+  const w = whoNow(); if (!w) return;
+  openModal('<div class="whoHead">' + avatarHTML(w.short, 'xl', w.id) + '<div><h3 style="margin:0">' + esc(w.name) + '</h3><div class="lsub" style="margin:2px 0 0">Signed in · locks after ' + idleMinutes() + ' minutes without activity</div></div></div>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Close</button><button class="btn btn-pri" data-act="lock">' + ic('lock', 16) + 'Lock</button></div>', { cls: 'mid' });
+};
+function idleMinutes() { const n = Number(S.cases && S.cases.idleMin); return n > 0 ? n : IDLE_MIN; }
