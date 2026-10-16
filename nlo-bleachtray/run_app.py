@@ -74,6 +74,8 @@ def _wait_for_port(seconds=40):
     for i in range(seconds):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
+            if os.name != "nt":   # Linux/mac: a port in TIME_WAIT is not "in use" (Windows handles that itself)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((host, port))
             s.close()
             return True

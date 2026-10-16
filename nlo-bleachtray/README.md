@@ -24,14 +24,23 @@ processed, or to `BleachTray\failed` with an `error.txt`. The small black window
 the PC that runs the app (it starts by itself at sign-in; if it's gone, double-click `start_app.bat` in the app
 folder). That one window watches the drop folder *and* serves the app page to the whole office.
 
-## It learns from your corrections
+## It learns from your corrections - by itself
 
 Every case that is sent is saved in the app folder under `training\<Last, First> - <date>\`: the scan of each
 arch, the tooth labels that were sent (marked *corrected* when someone used the brush) and a `case.json`. Titan
 exports (`First Last - 0 - Maxilla.stl` / `.pts`) dropped on the app page or into the drop folder are not processed;
-they are filed into the same patient folder as a reference. Zip `training\` and send it to Dr. Akhavan now and
-then: the model is retrained on the corrected cases and on the Titan references, and the next update needs fewer
-corrections.
+they are filed into the same patient folder, and one that carries a shell per tooth (Titan's own segmentation) is
+turned into a lesson too.
+
+Between 1 and 5 in the morning, when nothing is being processed and there are new corrections, the app retrains the
+tooth model on everything in `training\` (the base set under `training\_base` plus every corrected case). The new
+model is checked out-of-fold first: it must do better on the corrected cases than the current model and must not
+drop below F1 0.95 on the base set, otherwise it is thrown away. An accepted model replaces `assets\models.joblib`
+(the previous three are kept as `models_prev_*`) and is used from the next case on. The sidebar shows the model's
+state; *Retrain now* under Advanced settings runs it on the spot (10-30 minutes, the app keeps working).
+
+**One-time:** extract `bleachtray_base_training_set.zip` (from Dr. Akhavan) so that the `_base` folder sits inside
+`training\`. Without it the app would retrain on the corrections alone.
 
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 
