@@ -1149,7 +1149,7 @@ function computeOut(st) {
    + manual expenses. Lab, appliances & 3D printing stays out, as in Inventory. Monthly totals only. */
 const INV_CATS = { 'brackets-tubes': 'Brackets & Tubes', archwires: 'Archwires', elastics: 'Elastics & Elastomerics', adhesives: 'Adhesives & Cements', auxiliaries: 'Auxiliaries & Anchorage', 'clinical-supplies': 'Clinical Supplies', burs: 'Burs & Discs', instruments: 'Instruments', 'lab-3d': 'Lab, Appliances & 3D Printing', 'infection-control': 'Infection Control & PPE', 'patient-care': 'Patient Care & Giveaways', misc: 'Misc / Uncategorized' };
 const INV_CAT_MIGRATION = { sterilization: 'infection-control', 'steril-liquid': 'infection-control', disposables: 'clinical-supplies', bonding: 'adhesives', elastics: 'elastics', ppe: 'infection-control', 'wire-ligature': 'auxiliaries', cleaning: 'infection-control', oties: 'elastics', chain: 'elastics', wires: 'archwires', burs: 'burs', lab: 'lab-3d', ipr: 'burs', gauges: 'instruments', aligners: 'lab-3d' };
-const INV_URL = 'https://nlo-inventory.web.app';
+const INV_URL = 'nlo-inventory.html#budget';
 const invCat = c => { if (c && INV_CAT_MIGRATION[c]) c = INV_CAT_MIGRATION[c]; return c && INV_CATS[c] ? c : 'misc'; };
 const invLineCat = oi => { if (oi && oi.cat) return oi.cat; const sku = String((oi && oi.sku) || ''); if (/^AO-BRACKET/.test(sku)) return 'brackets-tubes'; if (/^(854|000)-/.test(sku)) return 'elastics'; return 'misc'; };
 const invLineCost = oi => (oi.lineTotal != null && isFinite(oi.lineTotal)) ? Number(oi.lineTotal) : (Number(oi.price) || 0) * (Number(oi.slipQty) || Number(oi.qty) || 0);
