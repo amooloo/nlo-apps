@@ -22,8 +22,8 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    the tooth split is reused, and Send writes the order with every model.
 4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`).
-   Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Looks good - save for
-   learning** files the case for the retraining without ordering anything (Send does that too, on the side).
+   Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Save as lesson** files a brush-corrected case for the retraining without ordering anything (Send does that
+   too, on the side); it is greyed out until a fix has been applied.
 
 Nothing reaches OrthoFactory without that click. Files dragged into the folder move to `BleachTray\done` when
 processed, or to `BleachTray\failed` with an `error.txt`. The small black window "NLO Bleach Tray" must be open on
@@ -32,7 +32,7 @@ folder). That one window watches the drop folder *and* serves the app page to th
 
 ## It learns from your corrections - by itself
 
-Every case that is sent (or marked *Looks good*) is saved in the app folder under `training\<Last, First> - <date>\`:
+Every case that is sent (or saved as a lesson) is saved in the app folder under `training\<Last, First> - <date>\`:
 the scan of each arch, the tooth labels as approved (marked *corrected* when someone used the brush - only those
 are lessons; an untouched automatic result teaches nothing new) and a `case.json`. Titan
 exports (`First Last - 0 - Maxilla.stl` / `.pts`) dropped on the app page or into the drop folder are not processed;
