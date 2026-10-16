@@ -562,6 +562,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const $ = s => document.querySelector(s);
 const canvas = $('#c'), viewer = $('section.viewer');
@@ -570,9 +571,16 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0xF7F8F9);
 const camera = new THREE.PerspectiveCamera(35, 1, 1, 2000); camera.position.set(0, 105, 70); camera.up.set(0,0,1);
 const controls = new OrbitControls(camera, canvas); controls.target.set(0,-15,5);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x9a9a9a, 1.1));
-const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(60,-80,140); scene.add(key);
-const fill = new THREE.DirectionalLight(0xffffff, .5); fill.position.set(-80,60,40); scene.add(fill);
+// Lighting: a studio rig that travels with the camera, so the model is always lit from over the viewer's
+// left shoulder whichever way it is turned - a strong key, a weak fill from the other side and a soft
+// back light for the silhouette - over a low ambient. Soft room reflections (environment map) model the
+// curvature of cusps and grooves; the ambient alone used to wash the anatomy out.
+scene.add(new THREE.HemisphereLight(0xffffff, 0x6b7280, .25));
+scene.add(camera);
+const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(-120, 160, 220); camera.add(key); key.target = new THREE.Object3D(); scene.add(key.target);
+const fill = new THREE.DirectionalLight(0xffffff, .4); fill.position.set(220, -60, 120); camera.add(fill); fill.target = new THREE.Object3D(); scene.add(fill.target);
+const rim = new THREE.DirectionalLight(0xffffff, .7); rim.position.set(40, 200, -260); camera.add(rim); rim.target = new THREE.Object3D(); scene.add(rim.target);
+{ const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; pmrem.dispose(); }
 const grid = new THREE.GridHelper(200, 20, 0xDCE0E4, 0xECEEF0); grid.rotation.x = Math.PI/2; grid.position.z = -0.05; scene.add(grid);
 
 function resize(){ const w = viewer.clientWidth, h = viewer.clientHeight; if (!w || !h) return; renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
@@ -970,7 +978,7 @@ async function loadResult(id, j){
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
   document.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => { scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
   // result: the arch body and the base as two pieces, so the arch can be moved on the base
-  const mat = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: .75, metalness: 0 });
+  const mat = new THREE.MeshStandardMaterial({ color: 0xd4cec0, roughness: .5, metalness: 0, envMapIntensity: .4 });
   const bodyRes = await fetch(`/api/jobs/${id}/file/body${q}`);
   const bodyBuf = await (bodyRes.ok ? bodyRes : await fetchOk(`/api/jobs/${id}/file/model${q}`)).arrayBuffer();
   const tl = await (await fetchOk(`/api/jobs/${id}/trimline.json${q}`)).json();
@@ -982,7 +990,7 @@ async function loadResult(id, j){
   g.add(new THREE.Mesh(parseSTL(bodyBuf), mat));
   addTrimline(g, tl);
   groups.result.add(g); archGroup = g;
-  if (baseBuf) groups.result.add(new THREE.Mesh(parseSTL(baseBuf), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .8, metalness: .05 })));
+  if (baseBuf) groups.result.add(new THREE.Mesh(parseSTL(baseBuf), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .6, metalness: .05, envMapIntensity: .4 })));
   requestRender();
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
   adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0];
@@ -1034,12 +1042,12 @@ async function loadSeg(id, k=0){
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(V.slice(), 3)); g.setIndex(new THREE.BufferAttribute(F.slice(), 1)); g.computeVertexNormals();
   segColors = new Float32Array(nV*3); paintColors();
   g.setAttribute('color', new THREE.BufferAttribute(segColors, 3));
-  segMesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.8 })); groups.seg.add(segMesh);
+  segMesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.55, envMapIntensity: .4 })); groups.seg.add(segMesh);
   // scan + reservoirs heat
   const g2 = g.clone(); const col2 = new Float32Array(nV*3); const c = new THREE.Color();
   for (let i=0;i<nV;i++){ const t = Math.min(segDisp[i]/0.5, 1); c.setHSL(0.08 - 0.08*t, t>0.02 ? 0.9 : 0, t>0.02 ? 0.35+0.3*t : 0.82); col2[i*3]=c.r; col2[i*3+1]=c.g; col2[i*3+2]=c.b; }
   g2.setAttribute('color', new THREE.BufferAttribute(col2, 3));
-  groups.scan.add(new THREE.Mesh(g2, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.8 })));
+  groups.scan.add(new THREE.Mesh(g2, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.55, envMapIntensity: .4 })));
   requestRender();
   const bb = new THREE.Box3().setFromBufferAttribute(g.getAttribute('position')); segBase = bb;
 }
