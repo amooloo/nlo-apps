@@ -366,8 +366,15 @@ const fill = new THREE.DirectionalLight(0xffffff, .5); fill.position.set(-80,60,
 const grid = new THREE.GridHelper(200, 20, 0xDCE0E4, 0xECEEF0); grid.rotation.x = Math.PI/2; grid.position.z = -0.05; scene.add(grid);
 
 function resize(){ const w = viewer.clientWidth, h = viewer.clientHeight; if (!w || !h) return; renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
-new ResizeObserver(resize).observe(viewer); resize();
-(function loop(){ controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
+resize();
+// Draw only when something changed (camera moved, a model loaded) - a 60 fps loop would keep the PC's
+// graphics chip busy around the clock for a picture that is not moving.
+let drawQueued = false;
+function requestRender(){ if (drawQueued || document.hidden) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; controls.update(); renderer.render(scene, camera); }); }
+controls.addEventListener('change', requestRender);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
+new ResizeObserver(() => { resize(); requestRender(); }).observe(viewer);
+requestRender();
 
 // ---------- state ----------
 let currentJob = null, tab = 'result';
@@ -377,9 +384,9 @@ let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos =
 const edits = { add: new Set(), remove: new Set() };
 let brushMode = 'tooth';
 
-function showTab(t){ tab = t; for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#place').classList.toggle('on', t === 'result' && !!archGroup); }
+function showTab(t){ tab = t; for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#place').classList.toggle('on', t === 'result' && !!archGroup); requestRender(); }
 document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
-$('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); };
+$('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); requestRender(); };
 
 // ---------- file handling ----------
 let files = [];
@@ -608,7 +615,7 @@ function parseSTL(buf){
   for (let i=0;i<n;i++){ o += 12; for (let k=0;k<9;k++){ pos[i*9+k] = dv.getFloat32(o, true); o += 4; } o += 2; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
 }
-function clear(group){ group.traverse(c => { if (c !== group) { c.geometry?.dispose(); c.material?.dispose(); } }); while(group.children.length) group.remove(group.children[0]); }
+function clear(group){ group.traverse(c => { if (c !== group) { c.geometry?.dispose(); c.material?.dispose(); } }); while(group.children.length) group.remove(group.children[0]); requestRender(); }
 function addTrimline(group, pts, color=0xe11d48){
   // the line lies on the surface, so parts of it would sink just under the mesh (gum bulges, 1 mm
   // onto the gum for retainers): draw it twice - solid where visible, faint where the model hides it
@@ -649,6 +656,7 @@ async function loadResult(id, j){
   addTrimline(g, tl);
   groups.result.add(g); archGroup = g;
   if (baseBuf) groups.result.add(new THREE.Mesh(parseSTL(baseBuf), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .8, metalness: .05 })));
+  requestRender();
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
   adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0];
   updatePlacement();
@@ -667,6 +675,7 @@ function placeMatrix(a){ // rotate about the trimline centroid, then shift (same
 }
 function updatePlacement(){
   if (archGroup) archGroup.matrix.copy(placeMatrix(adjust).multiply(placeMatrix(applied).invert()));
+  requestRender();
   $('#v_yaw_deg').innerHTML = adjust.yaw_deg.toFixed(2).replace(/\.?0+$/, '') + '&deg;';
   for (const k of ['dx', 'dy', 'dz']) $('#v_' + k).textContent = adjust[k].toFixed(2);
   const pending = ['yaw_deg', 'dx', 'dy', 'dz'].some(k => Math.abs(adjust[k] - applied[k]) > 1e-9);
@@ -704,6 +713,7 @@ async function loadSeg(id, k=0){
   for (let i=0;i<nV;i++){ const t = Math.min(segDisp[i]/0.5, 1); c.setHSL(0.08 - 0.08*t, t>0.02 ? 0.9 : 0, t>0.02 ? 0.35+0.3*t : 0.82); col2[i*3]=c.r; col2[i*3+1]=c.g; col2[i*3+2]=c.b; }
   g2.setAttribute('color', new THREE.BufferAttribute(col2, 3));
   groups.scan.add(new THREE.Mesh(g2, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.8 })));
+  requestRender();
   const bb = new THREE.Box3().setFromBufferAttribute(g.getAttribute('position')); segBase = bb;
 }
 function paintColors(){
@@ -714,6 +724,7 @@ function paintColors(){
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
   }
   if (segMesh) segMesh.geometry.getAttribute('color').needsUpdate = true;
+  requestRender();
 }
 // ---------- brush ----------
 document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { document.querySelectorAll('.seg button').forEach(x => x.classList.remove('on')); b.classList.add('on'); brushMode = b.dataset.mode; });
