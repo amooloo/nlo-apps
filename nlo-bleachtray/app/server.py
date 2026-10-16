@@ -515,6 +515,86 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     return {"id": jid}
 
 
+# ---------- learning: retrain at night from training/ (brush-corrected cases, Titan exports) ----------
+LEARN = dict(thread=None, last_run=None)
+
+
+def _learn_status():
+    from bleachtray.learn import status
+    st = status()
+    try:
+        st["model"] = dict(trained_on=len(MODELS.get("trained_on", [])), trained=MODELS.get("trained"))
+    except Exception:
+        st["model"] = {}
+    st["running"] = bool(st.get("running")) or bool(LEARN["thread"] and LEARN["thread"].is_alive())
+    return st
+
+
+def _run_learning(force=False):
+    """In a separate process (a crash or a memory spike never takes the app down), low priority."""
+    global MODELS
+    import subprocess
+    from bleachtray.segment import load_models
+    cmd = [sys.executable, "-m", "bleachtray.learn"] + (["--force"] if force else [])
+    flags = 0x4000 if os.name == "nt" else 0   # BELOW_NORMAL_PRIORITY_CLASS
+    try:
+        print(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  learning: retraining from the training folder...")
+        subprocess.run(cmd, cwd=ROOT, creationflags=flags, timeout=4 * 3600)
+    except Exception as ex:  # noqa
+        print(f"learning: could not run ({ex})")
+    LEARN["last_run"] = time.time()
+    try:
+        from bleachtray.learn import status
+        st = status()
+        if st.get("outcome") == "accepted":
+            MODELS = load_models()
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  learning: new model in use ({len(MODELS.get('trained_on', []))} arches)")
+        else:
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  learning: {st.get('outcome', '?')} - model unchanged")
+    except Exception as ex:  # noqa
+        print(f"learning: status unreadable ({ex})")
+
+
+def _start_learning(force=False):
+    if LEARN["thread"] and LEARN["thread"].is_alive():
+        return False
+    LEARN["thread"] = threading.Thread(target=_run_learning, args=(force,), daemon=True)
+    LEARN["thread"].start()
+    return True
+
+
+def _learn_loop():
+    """Between 1 and 5 in the morning, when nothing is being processed and there are new corrections."""
+    while True:
+        time.sleep(1800)
+        try:
+            h = time.localtime().tm_hour
+            busy = any(j.get("status") in ("queued", "running") for j in JOBS.values())
+            st = _learn_status()
+            fresh = time.time() - float(st.get("finished") or 0) < 20 * 3600
+            if 1 <= h < 5 and not busy and st.get("new_since_last") and not fresh and not st["running"]:
+                _start_learning()
+        except Exception:  # noqa
+            traceback.print_exc()
+
+
+threading.Thread(target=_learn_loop, daemon=True).start()
+
+
+@app.get("/api/learn")
+def learn_status():
+    return _learn_status()
+
+
+@app.post("/api/learn/run")
+def learn_run():
+    busy = any(j.get("status") in ("queued", "running") for j in JOBS.values())
+    if busy:
+        raise HTTPException(409, "a case is being processed - try again when the list is quiet")
+    started = _start_learning(force=True)
+    return dict(started=started, status=_learn_status())
+
+
 @app.get("/api/jobs")
 def list_jobs():
     return [{k: v for k, v in j.items() if k in ("id", "name", "status", "created", "filename", "preset", "review", "source")}

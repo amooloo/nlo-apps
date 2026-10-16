@@ -11,3 +11,5 @@ out_test/
 __pycache__/
 *.pyc
 samples/*.pts
+training/
+assets/models_prev_*

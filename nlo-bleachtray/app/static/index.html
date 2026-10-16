@@ -177,6 +177,7 @@
       <div class="sidebox" id="scanner"></div>
     </div>
     <div class="sideFoot">
+      <div class="syncLine" id="learnline" title="The model retrains at night from the cases you corrected with the brush and sent"><span class="sdot"></span>Model: …</div>
       <div class="syncLine"><span class="sdot"></span>App on this PC · OrthoFactory</div>
       <a href="https://amooloo.github.io/nlo-apps/nlo-bleachtray.html?help" target="_blank">How to use ↗</a>
     </div>
@@ -236,6 +237,9 @@
                 <option value="plain_model">Plain model</option>
               </select></div>
             </div>
+              <label class="f">Learning</label>
+              <div class="hint" id="learnhint" style="margin-top:0">…</div>
+              <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="small" id="learnnow">Retrain now</button><span class="hint" id="learnmsg" style="margin:0"></span></div>
               <label class="f">Patient ID in Edge (optional)</label><input type="text" id="pid" placeholder="80010">
               <label class="f">OrthoFactory input folder (approved orders are written there)</label>
               <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
@@ -733,7 +737,23 @@ $('#rerun').onclick = async () => {
   const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove] })); fd.append('params', JSON.stringify(params()));
   await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
-refreshJobs(); showTab('result'); setInterval(refreshJobs, 10000);
+async function refreshLearn(){
+  let st; try { st = await (await fetch('/api/learn')).json(); } catch (e) { return; }
+  const c = st.cases || {}; const m = st.model || {};
+  const when = st.finished ? new Date(st.finished * 1000).toLocaleDateString() : null;
+  $('#learnline').innerHTML = `<span class="sdot" style="background:${st.running ? 'var(--amber)' : 'var(--mint)'}"></span>Model: ${m.trained_on || '?'} arches${st.running ? ' · retraining…' : (when ? ' · ' + when : '')}`;
+  const pending = (st.new_since_last || []).length;
+  $('#learnhint').textContent = `${c.base || 0} base arches, ${(c.corrected || 0) + (c.titan || 0)} corrected by brush or Titan export. ` +
+    (st.running ? 'Retraining now (10–30 minutes)…' : pending ? `${pending} new correction${pending > 1 ? 's' : ''} waiting — the model retrains tonight between 1 and 5 am, when nothing is being processed.` : 'No new corrections since the last training.') +
+    (st.outcome ? ` Last run: ${st.outcome}${st.new_on_lessons != null ? ` (corrected cases ${st.cur_on_lessons} → ${st.new_on_lessons}, base ${st.new_on_base})` : ''}.` : '');
+  $('#learnnow').disabled = !!st.running;
+}
+$('#learnnow').onclick = async () => {
+  const r = await fetch('/api/learn/run', { method:'POST' }); const j = await r.json();
+  $('#learnmsg').textContent = r.ok ? (j.started ? 'Started — 10–30 minutes; the app keeps working meanwhile.' : 'Already running.') : (j.detail || 'Could not start.');
+  refreshLearn();
+};
+refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
 window.__appReady = true;
 </script>
 </body>

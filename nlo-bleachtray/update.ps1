@@ -27,7 +27,11 @@ $n = 0; $skipped = @()
 foreach ($e in $zip.Entries) {
   if (-not $e.FullName.StartsWith($prefix) -or -not $e.Name) { continue }
   $rel = $e.FullName.Substring($prefix.Length)
-  if ($rel -eq 'watch_config.json' -or $rel -like 'jobs/*' -or $rel -like 'out/*' -or $rel -like 'samples/*') { continue }
+  if ($rel -eq 'watch_config.json' -or $rel -like 'jobs/*' -or $rel -like 'out/*' -or $rel -like 'samples/*' -or $rel -like 'training/*') { continue }
+  # a model the app retrained itself on this PC (training/_learn) is newer than the shipped one: keep it
+  if ($rel -eq 'assets/models.joblib' -and (Test-Path (Join-Path $dst 'training\_learn\status.json'))) {
+    try { $st = Get-Content (Join-Path $dst 'training\_learn\status.json') -Raw | ConvertFrom-Json; if ($st.outcome -eq 'accepted') { $kept_model = $true; continue } } catch {}
+  }
   $target = Join-Path $dst ($rel -replace '/', '\')
   $dir = Split-Path $target
   if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
@@ -40,6 +44,7 @@ foreach ($e in $zip.Entries) {
 }
 $zip.Dispose()
 Write-Host "       $n files updated."
+if ($kept_model) { Write-Host '       The model this PC retrained itself was kept (newer than the shipped one).' }
 if ($skipped.Count) { Write-Host "       Not written (blocked on this PC, not needed to run): $($skipped -join ', ')" }
 Write-Host ' [3/4] Installing components (may take a minute)...'
 $py = @("$env:LOCALAPPDATA\Programs\Python\Python313\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
