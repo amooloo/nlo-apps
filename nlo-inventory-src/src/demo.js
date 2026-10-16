@@ -2,16 +2,16 @@
    The demo (?demo, and the stand-alone demo page): a made-up office kept
    in memory, answering the same calls the real database does (backend.js),
    so every screen and every step runs the same code it runs for real.
-   Nothing is saved; reloading starts over. "Sign in as" picks Dr. A, the
-   office coordinator (changes settings) or an assistant.
+   Nothing is saved; reloading starts over. "Sign in as" picks Dr. A (the
+   whole app; he OKs the cart) or an assistant (the simple view).
    ===================================================================== */
 const DEMO = {
   as: 'amir',
-  AS: [['amir', 'Dr. A'], ['sarah', 'Coordinator'], ['gwen', 'Assistant']],
+  AS: [['amir', 'Dr. A'], ['gwen', 'Assistant']],
   init() {
     const st = demoStore().nlo, store = {
-      items: st.items, orders: st.orders, vendors: st.vendors, log: st.log, cart: st.cart, bracketOrder: st.bracketOrder, budget: st.budget, expenses: st.expenses,
-      elastoPrices: st.elastoPrices, settings: Object.assign({ invAdmins: ['amir', 'sarah'] }, st.settings), ai: {}, pics: {}
+      items: st.items, orders: st.orders, vendors: st.vendors, log: st.log, cart: st.cart, cartOk: st.cartOk, bracketOrder: st.bracketOrder, budget: st.budget, expenses: st.expenses,
+      elastoPrices: st.elastoPrices, settings: Object.assign({}, st.settings), ai: {}, pics: {}, push: { topic: '' }
     };
     return DEMO.backend(store);
   },
@@ -19,7 +19,7 @@ const DEMO = {
     const clone = v => v == null ? null : JSON.parse(JSON.stringify(v));
     const roster = Object.values(DEMO_PEOPLE).map(p => ({ sid: p.sid, name: p.name, role: p.sid === 'amir' ? 'owner' : 'staff', active: true, rid: p.id, initials: initials(p.name) }));
     const M = {
-      me: null, pending: 0, onSync: null, h: null, alertsOn: false, store,
+      me: null, pending: 0, onSync: null, h: null, alertsOn: false, pushOn: false, store,
       isOwner() { return !!(M.me && M.me.role === 'owner'); }, isPerm: e => /permission/i.test((e && (e.code || e.message)) || ''),
       async signIn(as) { const r = roster.find(x => x.sid === as) || roster[0]; M.me = { uid: 'u-' + r.sid, staffId: r.sid, role: r.role, name: r.name, email: r.sid + '@example.com' }; return M.me; },
       async signOut() { M.stop(); M.me = null; },
@@ -30,9 +30,8 @@ const DEMO = {
         const v = key === 'items' || key === 'orders' || key === 'vendors' || key === 'log' || key === 'expenses' ? Object.values(store[key]) : key === 'roster' ? roster : key === 'cases' ? { idleMin: 10 } : store[key];
         setTimeout(() => { if (M.h) M.h.data(key, clone(v)); }, 0);
       },
-      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cart', 'bracketOrder', 'budget', 'expenses', 'elastoPrices'].forEach(M.emit); },
+      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cartOk', 'cart', 'bracketOrder', 'budget', 'expenses', 'elastoPrices'].forEach(M.emit); },
       stop() { M.h = null; },
-      async rosterOnce() { return clone(roster); },
       patchOf(rec, patch) { Object.keys(patch || {}).forEach(k => { const v = patch[k] === undefined ? null : clone(patch[k]); if (v == null) delete rec[k]; else rec[k] = v; }); return rec; },
       async addStock(id, delta) { const it = store.items[id]; if (!it) throw errCode('not-found', 'That supply is gone.'); it.qty = Math.max(0, Math.round(((Number(it.qty) || 0) + delta) * 1000) / 1000); M.emit('items'); return it.qty; },
       async addStockMany(pairs) { (pairs || []).forEach(([id, d]) => { const it = store.items[id]; if (it && Number(d)) it.qty = Math.max(0, Math.round(((Number(it.qty) || 0) + Number(d)) * 1000) / 1000); }); M.emit('items'); },
@@ -56,7 +55,15 @@ const DEMO = {
       },
       async putVendor(v) { store.vendors[v.id] = clone(v); M.emit('vendors'); },
       async patchVendor(id, patch) { store.vendors[id] = M.patchOf(store.vendors[id] || { id }, patch); M.emit('vendors'); },
-      async cart(fn) { const next = fn(clone(listOf(store.cart)) || []); if (next !== undefined) { store.cart = clone(listOf(next)); M.emit('cart'); } return next; },
+      async cart(fn) {
+        const ok = clone(store.cartOk) || {}, also = {}, next = fn((clone(listOf(store.cart)) || []).map(withLineId), ok, also);
+        if (next === undefined) return next;
+        store.cart = clone(listOf(next));
+        const live = new Set(store.cart.map(c => c && c.lineId)); Object.keys(ok).forEach(k => { if (!live.has(k)) delete ok[k]; });
+        store.cartOk = ok; (also.orders || []).forEach(o => { store.orders[o.id] = clone(o); });
+        M.emit('cartOk'); M.emit('cart'); if (also.orders) M.emit('orders');
+        return next;
+      },
       async addLog(entries) { (entries || []).filter(Boolean).forEach(e => { store.log[e.id] = clone(e); }); M.emit('log'); },
       async removeLog() { }, async trimLog() { },
       async budget(patch) { store.budget = M.patchOf(store.budget || {}, patch); M.emit('budget'); },
@@ -70,6 +77,10 @@ const DEMO = {
       async pic(ref) { return store.pics[String(ref || '').replace(/^pic:/, '')] || ''; },
       async dropPic(ref) { delete store.pics[String(ref || '').replace(/^pic:/, '')]; },
       alert() { },
+      async getPush() { return { topic: store.push.topic || '', test: 0 }; },
+      async timeClockTopic() { return 'nlo-office-demo'; },
+      async setPush(topic) { if (topic) store.push.topic = topic; store.settings = M.patchOf(Object.assign({}, store.settings), { pushOn: !!topic }); M.emit('settings'); },
+      async testPush() { throw errCode('demo', 'The alert script (which sends the pushes) isn’t part of the demo.'); },
       async makeBot() { throw errCode('demo', 'The alert script isn’t part of the demo.'); },
       async beat() { return null; },
       async havePics() { return new Set(); }
@@ -110,6 +121,10 @@ function demoStore() {
   const glove = Object.values(items).find(i => /Gloves Pulse Nitrile — SM/.test(i.name)) || pick(3);
   const cart = [line(glove, 2, 's_gwen', 0, 9), line(pick(5), 3, 's_kaylee', 1, 14), line(pick(11), 1, 's_angelika', 2, 10), line(pick(17), 2, 's_gwen', 0, 11)];
   cart[1].trail = [{ t: 'more', by: 'Mara Q.', byId: 's_sarah', at: iso(at(0, 8, 40)), qty: 1 }]; cart[1].qty = 4;
+  /* Dr. A's OKs: two lines OK'd, one raised after his OK (he OK'd 3), one still waiting */
+  const okd = (c, n, d, h) => ({ by: 'Dr. A', byId: 'amir', at: iso(at(d, h, 30)), n: n * linePer(c), it: c.itemId });
+  const cartOk = { [cart[0].lineId]: okd(cart[0], 2, 0, 9), [cart[1].lineId]: okd(cart[1], 3, 1, 15), [cart[3].lineId]: okd(cart[3], 2, 0, 11) };
+  [0, 1, 3].forEach(k => { cart[k].trail = (cart[k].trail || []).concat([{ t: 'ok', by: 'Dr. A', byId: 'amir', at: cartOk[cart[k].lineId].at }]).sort((a, z) => String(a.at).localeCompare(String(z.at))); });
   /* orders */
   const orders = {}, log = {};
   const mkOrder = (id, vendorName, lines, o) => {
@@ -143,5 +158,5 @@ function demoStore() {
   const vendors = {};
   const budget = { monthly: 8000, categories: { 'brackets-tubes': 2500, archwires: 900, elastics: 800, 'infection-control': 1200, 'clinical-supplies': 900, adhesives: 600, misc: 500 }, history: [] };
   const expenses = { x1: { id: 'x1', date: ymd(at(9, 12)), amount: 145.0, category: 'patient-care', vendor: 'Amazon Business', note: 'Retainer cases', by: 'Mara Q.', byId: 's_sarah' } };
-  return { nlo: { items, orders, vendors, log, cart, budget, expenses, bracketOrder: null, elastoPrices: {}, settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
+  return { nlo: { items, orders, vendors, log, cart, cartOk, budget, expenses, bracketOrder: null, elastoPrices: {}, settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
 }

@@ -45,7 +45,7 @@ const IDLE_MIN = 10;               // the lock after this many minutes without a
 /* ---------- app state ---------- */
 const S = {
   demo: false, emu: false, inApp: false, gate: 'opening', view: 'home', q: '', people: [], online: true, loadErr: '', cases: {}, lastAct: Date.now(), idleTimer: null, lastLogin: '',
-  D: { items: [], orders: [], vendors: [], log: [], cart: [], bracketOrder: {}, budget: { monthly: 8000, categories: {}, history: [] }, expenses: [], elastoPrices: {}, roster: null },
+  D: { items: [], orders: [], vendors: [], log: [], cart: [], cartOk: {}, bracketOrder: {}, budget: { monthly: 8000, categories: {}, history: [] }, expenses: [], elastoPrices: {}, roster: null },
   loaded: {}, denied: {}, settings: {}, ui: {}, drawer: null, renderQ: false, imgCache: new Map(), moved: null
 };
 /* the backend in use (FB, on the real or the demo database) and the screens' registries: clicks (data-act), changes (data-chg),

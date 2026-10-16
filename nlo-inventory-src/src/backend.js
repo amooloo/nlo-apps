@@ -23,7 +23,7 @@ const PIC_MAX = 990000;   // a photo's base64 (the rules allow 1,000,000)
 const LOG_MONTHS = 36;    // months of the activity log kept open on the page
 const FB = {
   emu: false, cfg: null, app: null, auth: null, db: null,
-  me: null, unsubs: [], pending: 0, onSync: null, h: null, alertsOn: false, picCache: new Map(),
+  me: null, unsubs: [], pending: 0, onSync: null, h: null, alertsOn: false, pushOn: false, picCache: new Map(),
 
   ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
   inc(n) { return firebase.firestore.FieldValue.increment(n); },
@@ -73,7 +73,7 @@ const FB = {
     FB.db.doc('members/' + user.uid).update({ lastLogin: FB.ts() }).catch(() => { });
     return FB.me;
   },
-  async signOut() { FB.stop(); FB.me = null; FB.alertsOn = false; FB.picCache = new Map(); try { await FB.auth.signOut(); } catch (e) { } },
+  async signOut() { FB.stop(); FB.me = null; FB.alertsOn = false; FB.pushOn = false; FB.picCache = new Map(); try { await FB.auth.signOut(); } catch (e) { } },
   sendReset(email) { return FB.auth.sendPasswordResetEmail(String(email || '').trim()); },
 
   /* ---------- opening: 'rules' (the database's rules don't know Inventory yet) | 'move' (Dr. A: nothing moved over yet) |
@@ -98,11 +98,12 @@ const FB = {
     // who made it (the rules let each person add only to their own); the moved entries keep the old app's stamps.
     on(FB.db.collection('invLog').where('mon', '>=', shiftMonth(monthKey(Date.now()), -LOG_MONTHS)), s => h.data('log', FB.logEntries(s.docs.map(d => d.data()))), 'log');
     const one = (path, key, pick) => on(FB.db.doc(path), s => h.data(key, s.exists ? pick(FB.plain(s)) : null), key);
-    one('invState/cart', 'cart', d => d.lines || []);
+    // the cart's lines, and Dr. A's OK on the ones he approved (by line id)
+    on(FB.db.doc('invState/cart'), s => { const d = s.exists ? FB.plain(s) : {}; h.data('cartOk', d.ok && typeof d.ok === 'object' ? d.ok : {}); h.data('cart', d.lines || []); }, 'cart');
     one('invState/bracket', 'bracketOrder', d => d.v || null);
     one('invState/budget', 'budget', d => d);
     one('invState/prices', 'elastoPrices', d => d.p || {});
-    one('invState/settings', 'settings', d => { FB.alertsOn = d.alertsOn === true; return d; });
+    one('invState/settings', 'settings', d => { FB.alertsOn = d.alertsOn === true; FB.pushOn = d.pushOn === true; return d; });
     // NLO Cases' people (names and photos), its idle lock, and this login (turned off → locked out)
     FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.data('roster', s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => { console.warn('roster', e); h.data('roster', null); }));
     FB.unsubs.push(FB.db.doc('meta/settings').onSnapshot(s => h.data('cases', s.exists ? s.data() : {}), () => { }));
@@ -117,7 +118,6 @@ const FB = {
     });
     return all;
   },
-  async rosterOnce() { const s = await FB.db.collection('roster').get(); return s.docs.map(d => Object.assign({ sid: d.id }, d.data())); },
   stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
 
   /* ---------- writing ---------- */
@@ -250,13 +250,19 @@ const FB = {
   putVendor(v) { return FB.save(b => b.set(FB.vendorRef(v.id), Object.assign(FB.clean(v), FB.st()))); },
   /* a built-in vendor has no record until something about it is saved: this makes one */
   patchVendor(id, patch) { return FB.save(b => FB.setPatch(b, FB.vendorRef(id), patch, { id })); },
-  /* the cart is one list everyone shares: every change is made to the latest copy */
+  /* the cart is one list everyone shares: every change is made to the latest copy. fn(lines, ok, also) gets the lines and
+     Dr. A's OKs (by line id) and returns the lines; only he adds to or changes ok (the rules hold everyone else to that), and an
+     OK whose line is gone (ordered, taken out) comes off with it. also.orders: orders saved in the same step (placing one) */
   cart(fn) {
     return FB.txn(async t => {
-      const ref = FB.db.doc('invState/cart'), s = await t.get(ref);
-      const next = fn(listOf(s.exists ? s.data().lines : null).map(x => Object.assign({}, x)));
+      const ref = FB.db.doc('invState/cart'), s = await t.get(ref), d = s.exists ? s.data() : {};
+      const ok = Object.assign({}, d.ok && typeof d.ok === 'object' ? d.ok : {}), also = {};
+      const next = fn(listOf(d.lines).map(x => withLineId(Object.assign({}, x))), ok, also);
       if (next === undefined) return FB.SKIP;
-      t.set(ref, Object.assign({ lines: FB.clean(listOf(next)) || [] }, FB.st()));
+      const list = listOf(next), live = new Set(list.map(c => c && c.lineId).filter(Boolean));
+      Object.keys(ok).forEach(k => { if (!live.has(k)) delete ok[k]; });
+      t.set(ref, Object.assign({ lines: FB.clean(list) || [], ok: FB.clean(ok) || {} }, FB.st()));
+      (also.orders || []).forEach(o => t.set(FB.orderRef(o.id), Object.assign(FB.clean(o), FB.st())));
       return next;
     });
   },
@@ -304,11 +310,27 @@ const FB = {
     return FB.picCache.get(id);
   },
   dropPic(ref) { const id = String(ref || '').replace(/^pic:/, ''); if (!/^p[A-Za-z0-9_-]+$/.test(id)) return Promise.resolve(); FB.picCache.delete(id); return FB.track(FB.db.doc('invPics/' + id).delete()); },
-  /* the "NLO Inventory Alerts" script emails Dr. A what's left here (while the alerts are on) */
+  /* the "NLO Inventory Alerts" script emails Dr. A what's left here (while the email alerts are on), and pushes the cart adds
+     to his phone (while the push is on; his own adds aren't pushed) */
   alert(events) {
-    if (!FB.alertsOn || !events || !events.length) return;
-    FB.save(b => events.forEach(e => b.set(FB.db.collection('invAlerts').doc(), Object.assign(FB.clean(e), FB.st())))).catch(err => console.warn('[alerts] not saved', err));
+    const list = (events || []).filter(e => e && (e.t === 'cart' && FB.pushOn ? !FB.isOwner() : FB.alertsOn));
+    if (!list.length) return;
+    FB.save(b => list.forEach(e => b.set(FB.db.collection('invAlerts').doc(), Object.assign(FB.clean(e), FB.st())))).catch(err => console.warn('[alerts] not saved', err));
   },
+  /* ---------- Dr. A's phone push (ntfy): the topic is his and the alert script's alone ---------- */
+  async getPush() { const s = await FB.db.doc('invState/push').get(); return s.exists ? { topic: String(s.data().topic || ''), test: Number(s.data().test) || 0 } : { topic: '', test: 0 }; },
+  /* the Time Clock's topic, if its phone push is set up (the same app on his phone, nothing new to subscribe to) */
+  async timeClockTopic() { try { const s = await FB.db.doc('meta/tcAlerts').get(); return s.exists && typeof s.data().topic === 'string' ? s.data().topic : ''; } catch (e) { return ''; } },
+  /* a topic turns the push on ('' turns it off; the topic is kept for next time) */
+  setPush(topic) {
+    if (!FB.isOwner()) return Promise.reject(errCode('permission'));
+    return FB.save(b => {
+      if (topic) FB.setPatch(b, FB.db.doc('invState/push'), { topic });
+      FB.setPatch(b, FB.db.doc('invState/settings'), { pushOn: !!topic });
+    });
+  },
+  /* the alert script sends a test push within a minute */
+  testPush() { return FB.save(b => FB.setPatch(b, FB.db.doc('invState/push'), { test: Date.now() })); },
 
   /* ---------- Dr. A: the alert script's own login (a new one each time; the one before keeps working until the new copy runs) ---------- */
   async makeBot() {

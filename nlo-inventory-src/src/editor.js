@@ -12,8 +12,7 @@
    - Pieces in a box (100 gloves) only show a price per piece.
    Saving changes only these fields (never the count, which has its own
    steps), stamped with who and when. A copy ("Make a copy") is saved
-   only when its own Save is pressed. Archive and Delete are for Dr. A
-   and the people he picks.
+   only when its own Save is pressed. Archive and Delete are Dr. A's.
    Also here: the stock steps (count, add by hand, used some) and the AI
    label reader and photo clean-up.
    ===================================================================== */

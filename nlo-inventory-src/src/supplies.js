@@ -95,7 +95,7 @@ function openAddToCart(it, qty) {
     (per > 1 ? '<div class="boxNote" id="addEq" style="margin-bottom:14px">' + esc(qtyUnit(qty || 1, buyUnit(it))) + ' = ' + esc(qtyUnit((qty || 1) * per, countUnit(it))) + '</div>' : '') +
     (srcs.length > 1 ? '<div class="subH">From</div><div class="pickRow">' + srcs.map((s, k) => '<button class="pick" data-act="addVendor" data-k="' + k + '" aria-pressed="' + (s.vendor === S.ui.add.vendor) + '">' + esc(s.vendor || 'Vendor ' + (k + 1)) + (countPrice(s) != null ? ' · ' + money(countPrice(s) * per) : '') + '</button>').join('') + '</div>' : '') +
     field('Note for whoever orders (optional)', '<input id="addNote" placeholder="e.g. need by Thursday" value="' + esc((c && c.note) || '') + '">') +
-    '<div class="mFt"><span class="muted small" style="margin-right:auto;align-self:center">' + (w ? 'Adding as <b>' + esc(w.short) + '</b>' : '') + '</span><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="addGo" data-act="addGo">' + ic('cart', 16) + 'Add to cart</button></div>', { cls: 'mid', focus: '#addQty' });
+    '<div class="mFt"><span class="muted small" style="margin-right:auto;align-self:center">' + (w ? 'Adding as <b>' + esc(w.short) + '</b>' : '') + (isAdmin() ? '' : ' · Dr. A OKs it before it’s ordered') + '</span><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="addGo" data-act="addGo">' + ic('cart', 16) + 'Add to cart</button></div>', { cls: 'mid', focus: '#addQty' });
 }
 ACT.addStep = t => { const i = $('#addQty'); i.value = Math.max(1, (num(i.value) || 0) + Number(t.dataset.n)); INP.addQty(); };
 INP.addQty = () => { const it = itemById(S.ui.add.id), q = num(val('addQty')); const u = $('#addU'); if (u) u.textContent = unitWord(buyUnit(it), q); const e = $('#addEq'); if (e) e.textContent = qtyUnit(q, buyUnit(it)) + ' = ' + qtyUnit(q * perBuy(it), countUnit(it)); };
@@ -110,7 +110,7 @@ ACT.addGo = t => {
       await cartAdd(it, q, { vendor: S.ui.add.vendor, note });
       if (ex && note && note !== ex.note) await cartPatch(it.id, { note }, 'note');
     });
-    if (ok) { closeModal(true); toast('Added ' + qtyUnit(q, buyUnit(it)) + ' of ' + plainText(it.name, 40) + ' to the cart.', { action: 'Open cart', onAction: () => go('cart') }); } else busyBtn(t, false);
+    if (ok) { closeModal(true); toast('Added ' + qtyUnit(q, buyUnit(it)) + ' of ' + plainText(it.name, 40) + ' to the cart.' + okNote(1), { action: 'Open cart', onAction: () => go('cart') }); } else busyBtn(t, false);
   }, 'Who’s adding this to the cart?');
 };
 
@@ -149,7 +149,7 @@ DRAWERS.item = id => {
   const steps = S.D.log.filter(e => e.itemId === id && (e.type === 'use' || e.type === 'count' || e.type === 'adjust' || e.type === 'receive' && !e.orderId)).slice(0, 10);
   if (steps.length) h += '<div class="sec"><h5>Stock steps</h5>' + steps.map(e => '<div class="hist"><time>' + esc(fmtWhen(e.date)) + '</time><span style="flex:1">' + esc(e.type === 'count' ? 'Counted (' + (e.delta > 0 ? '+' : '') + qtyFmt(e.delta) + ')' : e.type === 'use' ? 'Used ' + qtyFmt(Math.abs(e.delta)) : (e.delta > 0 ? '+' : '') + qtyFmt(e.delta)) + (e.note ? ' · ' + esc(plainText(e.note, 60)) : '') + (e.by ? ' · ' + esc(e.by) : '') + '</span></div>').join('') + '</div>';
   h += '<div class="sec"><h5>More</h5><div class="btnRow" style="margin-top:0"><button class="btn btn-ghost" data-act="qrIt" data-id="' + esc(id) + '">' + ic('scan', 15) + 'QR label</button>' +
-    '<button class="btn btn-ghost" data-act="archiveIt" data-id="' + esc(id) + '">' + ic('archive', 15) + (it.archived ? 'Bring back' : 'Archive') + '</button><button class="btn btn-ghost" data-act="deleteIt" data-id="' + esc(id) + '" style="color:var(--coral-700)">' + ic('trash', 15) + 'Delete</button></div>' +
+    (isAdmin() ? '<button class="btn btn-ghost" data-act="archiveIt" data-id="' + esc(id) + '">' + ic('archive', 15) + (it.archived ? 'Bring back' : 'Archive') + '</button><button class="btn btn-ghost" data-act="deleteIt" data-id="' + esc(id) + '" style="color:var(--coral-700)">' + ic('trash', 15) + 'Delete</button>' : '') + '</div>' +
     (it.createdBy || it.updatedBy ? '<div class="hint">' + (it.createdBy ? 'Added by ' + esc(it.createdBy) + ' ' + esc(fmtWhen(it.createdAt)) : '') + (it.updatedBy ? (it.createdBy ? ' · ' : '') + 'last changed by ' + esc(it.updatedBy) + ' ' + esc(fmtWhen(it.updatedAt)) : '') + '</div>' : '') + '</div>';
   return h + '</div>';
 };

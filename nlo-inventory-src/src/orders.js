@@ -40,12 +40,13 @@ function orderCardHTML(o) {
   if (o.note) h += '<div class="olines"><div class="muted small">' + ic('text', 12) + ' ' + esc(o.note) + '</div></div>';
   h += '<div class="oFt">';
   if (o.status === 'open' || o.status === 'backordered') h += '<button class="btn btn-act btn-sm" data-act="receive" data-id="' + esc(o.id) + '">' + ic('receive', 15) + 'Receive</button><button class="btn btn-sec btn-sm" data-act="slipFor" data-id="' + esc(o.id) + '">' + ic('camera', 15) + 'Scan packing slip</button>';
-  if (o.status === 'received') h += '<button class="btn btn-sec btn-sm" data-act="reorder" data-id="' + esc(o.id) + '">' + ic('refresh', 15) + 'Order again</button>';
+  if (o.status === 'received' && isAdmin()) h += '<button class="btn btn-sec btn-sm" data-act="reorder" data-id="' + esc(o.id) + '">' + ic('refresh', 15) + 'Order again</button>';
   h += '<button class="btn btn-ghost btn-sm" data-act="openOrder" data-id="' + esc(o.id) + '">Details' + ic('next', 14) + '</button></div></div>';
   return h;
 }
 VIEWS.orders = {
-  actions() { return '<button class="btn btn-sec" data-act="slipNew">' + ic('camera', 16) + 'Scan a packing slip</button><button class="btn btn-teal" data-act="orderNew">' + ic('plus', 16) + 'New order</button>'; },
+  /* (an order typed in by hand skips the cart and Dr. A's OK: his alone) */
+  actions() { return '<button class="btn btn-sec" data-act="slipNew">' + ic('camera', 16) + 'Scan a packing slip</button>' + (isAdmin() ? '<button class="btn btn-teal" data-act="orderNew">' + ic('plus', 16) + 'New order</button>' : ''); },
   render() {
     const u = S.ui.orders || (S.ui.orders = { tab: 'open', sort: '' });
     const cnt = k => S.D.orders.filter(o => o.status === k).length;
@@ -71,7 +72,7 @@ DRAWERS.order = id => {
   let h = '<div class="dHd">' + vlogoHTML(vendorObj(o.vendor), 'lg') + '<div style="flex:1;min-width:0"><h3>' + esc(o.vendor || 'Order') + '</h3><div class="sub"><span class="st ' + esc(o.status) + '">' + esc((ORDER_TABS.find(x => x[0] === o.status) || [0, o.status])[1]) + '</span>' + (o.orderNumber ? '<span class="badge">#' + esc(o.orderNumber) + '</span>' : '') + '<span class="badge">' + money(orderTotal(o)) + '</span></div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
   h += '<div class="card" style="box-shadow:none">' + trailHTML(o) + '</div>';
   h += '<div class="sec"><h5>Lines</h5><table class="tbl"><thead><tr><th>Qty</th><th>Supply</th><th class="right">Cost</th></tr></thead><tbody>' + o.items.map(l => '<tr><td class="nowrap"><b>' + esc(lineQtyLabel(l)) + '</b>' + (linePer(l) > 1 ? '<div class="muted small">' + esc(qtyUnit(l.qty * linePer(l), l.countUnit || '')) + '</div>' : '') + '</td><td>' + (l.itemId && itemById(l.itemId) ? '<a href="#" data-act="openItem" data-id="' + esc(l.itemId) + '">' + esc(l.name) + '</a>' : esc(l.name || '')) + (l.sku ? ' <span class="muted small">#' + esc(l.sku) + '</span>' : '') +
-    '<div class="muted small">' + (l.addedBy ? 'added to the cart by ' + esc(l.addedBy) + (l.addedAt ? ', ' + esc(fmtWhen(l.addedAt)) : '') : '') + listOf(l.trail).map(t => ' · ' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) : t.t === 'qty' ? qtyFmt(t.from) + '→' + qtyFmt(t.to) : 'changed') + ' by ' + esc(t.by) + ', ' + esc(fmtWhen(t.at))).join('') + (l.note ? ' · “' + esc(l.note) + '”' : '') + '</div></td>' +
+    '<div class="muted small">' + (l.addedBy ? 'added to the cart by ' + esc(l.addedBy) + (l.addedAt ? ', ' + esc(fmtWhen(l.addedAt)) : '') : '') + listOf(l.trail).map(t => ' · ' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) : t.t === 'qty' ? qtyFmt(t.from) + '→' + qtyFmt(t.to) : t.t === 'ok' ? 'OK’d' : 'changed') + ' by ' + esc(t.by) + ', ' + esc(fmtWhen(t.at))).join('') + (l.ok && !listOf(l.trail).some(t => t.t === 'ok') ? ' · OK’d by ' + esc(l.ok.by || 'Dr. A') : '') + (l.note ? ' · “' + esc(l.note) + '”' : '') + '</div></td>' +
     '<td class="right nowrap">' + (orderItemCost(l) ? money(orderItemCost(l)) : '—') + (l.price ? '<div class="muted small">' + money(l.price) + '/' + esc(l.unit || 'ea') + '</div>' : '') + '</td></tr>').join('') + '</tbody></table>' +
     '<div class="kvRow" style="margin-top:8px"><span>Lines</span><b>' + money(orderSubtotal(o)) + '</b></div>' + (num(o.discount) ? '<div class="kvRow"><span>Discount</span><b>−' + money(o.discount) + '</b></div>' : '') + (num(o.invoiceTaxes) ? '<div class="kvRow"><span>Tax</span><b>' + money(o.invoiceTaxes) + '</b></div>' : '') + (num(o.invoiceShipping != null ? o.invoiceShipping : o.shipping) ? '<div class="kvRow"><span>Shipping</span><b>' + money(o.invoiceShipping != null ? o.invoiceShipping : o.shipping) + '</b></div>' : '') + '<div class="kvRow"><span>Total</span><b>' + money(orderTotal(o)) + '</b></div></div>';
   h += '<div class="sec"><h5>Details</h5><div class="kv">' +
@@ -82,10 +83,12 @@ DRAWERS.order = id => {
   if (tr.length) h += '<div class="sec"><h5>Every step</h5>' + tr.slice().reverse().map(t => '<div class="hist"><time>' + esc(fmtWhen(t.at)) + '</time><span>' + esc(t.by || '') + ' ' + esc(ORDER_WORDS[t.t] || t.t) + (t.how && HOW_WORDS[t.how] ? ' ' + esc(HOW_WORDS[t.how]) : '') + (t.note ? ' — ' + esc(t.note) : '') + '</span></div>').join('') + '</div>';
   if (o.slipPhoto) h += '<div class="sec"><h5>Packing slip</h5><img data-src="' + esc(o.slipPhoto) + '" alt="Packing slip" style="max-width:100%;border-radius:12px;border:1px solid var(--grey-200)"></div>';
   h += '</div><div class="dFt">';
-  if (o.status === 'open' || o.status === 'backordered') h += '<button class="btn btn-act" data-act="receive" data-id="' + esc(o.id) + '">' + ic('receive', 16) + 'Receive</button><button class="btn btn-sec" data-act="slipFor" data-id="' + esc(o.id) + '">' + ic('camera', 15) + 'Scan slip</button><button class="btn btn-ghost" data-act="orderEdit" data-id="' + esc(o.id) + '">' + ic('edit', 15) + 'Edit</button>' +
-    (o.status === 'open' ? '<button class="btn btn-ghost" data-act="orderBack" data-id="' + esc(o.id) + '">' + ic('pause', 15) + 'Backordered</button>' : '<button class="btn btn-ghost" data-act="orderUnback" data-id="' + esc(o.id) + '">Back to On the way</button>') + '<button class="btn btn-ghost" data-act="orderVoid" data-id="' + esc(o.id) + '" style="color:var(--coral-700)">' + ic('x', 15) + 'Void</button>';
-  if (o.status === 'received') h += '<button class="btn btn-sec" data-act="reorder" data-id="' + esc(o.id) + '">' + ic('refresh', 15) + 'Order again</button><button class="btn btn-ghost" data-act="orderReopen" data-id="' + esc(o.id) + '">' + ic('undo', 15) + 'Reopen (undo the receive)</button>';
-  if (o.status === 'voided') h += '<button class="btn btn-ghost" data-act="orderUnvoid" data-id="' + esc(o.id) + '">Bring it back</button>';
+  /* (editing, voiding, reopening and ordering again are Dr. A's; everyone receives) */
+  const boss = isAdmin();
+  if (o.status === 'open' || o.status === 'backordered') h += '<button class="btn btn-act" data-act="receive" data-id="' + esc(o.id) + '">' + ic('receive', 16) + 'Receive</button><button class="btn btn-sec" data-act="slipFor" data-id="' + esc(o.id) + '">' + ic('camera', 15) + 'Scan slip</button>' + (boss ? '<button class="btn btn-ghost" data-act="orderEdit" data-id="' + esc(o.id) + '">' + ic('edit', 15) + 'Edit</button>' : '') +
+    (o.status === 'open' ? '<button class="btn btn-ghost" data-act="orderBack" data-id="' + esc(o.id) + '">' + ic('pause', 15) + 'Backordered</button>' : '<button class="btn btn-ghost" data-act="orderUnback" data-id="' + esc(o.id) + '">Back to On the way</button>') + (boss ? '<button class="btn btn-ghost" data-act="orderVoid" data-id="' + esc(o.id) + '" style="color:var(--coral-700)">' + ic('x', 15) + 'Void</button>' : '');
+  if (o.status === 'received' && boss) h += '<button class="btn btn-sec" data-act="reorder" data-id="' + esc(o.id) + '">' + ic('refresh', 15) + 'Order again</button><button class="btn btn-ghost" data-act="orderReopen" data-id="' + esc(o.id) + '">' + ic('undo', 15) + 'Reopen (undo the receive)</button>';
+  if (o.status === 'voided' && boss) h += '<button class="btn btn-ghost" data-act="orderUnvoid" data-id="' + esc(o.id) + '">Bring it back</button>';
   return h + '</div>';
 };
 ACT.orderBack = t => withWho(() => act(() => backorderOrder(t.dataset.id), 'Marked backordered.'), 'Who’s marking it backordered?');
@@ -108,9 +111,9 @@ ACT.orderReopen = t => {
     return act(() => reopenOrder(o.id), 'Reopened — it’s back under On the way.');
   }, 'Who’s reopening it?', 'reopen received orders');
 };
-ACT.reorder = t => { const o = orderById(t.dataset.id); if (!o) return; openOrderEditor(null, { vendor: o.vendor, items: o.items.map(l => ({ itemId: l.itemId || '', name: l.name, sku: l.sku || '', qty: Number(l.orderedQty != null ? l.orderedQty : l.qty) || 1, price: Number(l.price) || 0, unit: l.unit || 'ea', per: l.per || null, countUnit: l.countUnit || null })), note: '' }); };
-ACT.orderNew = () => openOrderEditor(null, { vendor: '', items: [], note: '' });
-ACT.orderEdit = t => { const o = orderById(t.dataset.id); if (o) openOrderEditor(o.id, o); };
+ACT.reorder = t => { const o = orderById(t.dataset.id); if (!o || !isAdmin()) return; openOrderEditor(null, { vendor: o.vendor, items: o.items.map(l => ({ itemId: l.itemId || '', name: l.name, sku: l.sku || '', qty: Number(l.orderedQty != null ? l.orderedQty : l.qty) || 1, price: Number(l.price) || 0, unit: l.unit || 'ea', per: l.per || null, countUnit: l.countUnit || null })), note: '' }); };
+ACT.orderNew = () => withAdmin(() => openOrderEditor(null, { vendor: '', items: [], note: '' }), '', 'type in an order (everyone else orders from the cart)');
+ACT.orderEdit = t => { const o = orderById(t.dataset.id); if (o) withAdmin(() => openOrderEditor(o.id, o), '', 'edit an order'); };
 
 /* ---------- typing an order in by hand / editing one ---------- */
 function openOrderEditor(id, o) {

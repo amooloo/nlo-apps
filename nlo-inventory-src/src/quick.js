@@ -91,7 +91,7 @@ ACT.qAdd = t => {
         await cartAdd(pseudo, u.qty[name], { pseudo: true });
       }
     });
-    if (ok) { u.qty = {}; toast(picks.length + ' line' + (picks.length === 1 ? '' : 's') + ' added to the cart.', { action: 'Open cart', onAction: () => go('cart') }); renderView(true); } else busyBtn(t, false);
+    if (ok) { u.qty = {}; toast(picks.length + ' line' + (picks.length === 1 ? '' : 's') + ' added to the cart.' + okNote(picks.length), { action: 'Open cart', onAction: () => go('cart') }); renderView(true); } else busyBtn(t, false);
   }, 'Who’s adding these to the cart?');
 };
 CHG.qSystem = t => { const u = S.ui.quick; u.system = t.value; u.sets = {}; u.teeth = {}; renderView(true); };
@@ -102,11 +102,11 @@ ACT.qAddSets = t => {
   const u = S.ui.quick, total = BRACKET_SET_TYPES.reduce((a, s) => a + (u.sets[s.key] || 0), 0); if (!total) return;
   const note = BRACKET_SET_TYPES.filter(s => u.sets[s.key]).map(s => u.sets[s.key] + '× ' + s.label.replace(/ sets$/, ' set' + (u.sets[s.key] > 1 ? 's' : ''))).join(', ');
   const pseudo = quickPseudo('bracket-set-' + u.system.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() + '-' + uid(), u.system, 'AO-BRACKET-SET', 'set', getElastoPrice(S.D.elastoPrices, 'AO-BRACKET-SET|' + u.system), note);
-  withWho(async () => { busyBtn(t, true, 'Adding…'); if (await act(() => cartAdd(pseudo, total, { pseudo: true, note }))) { u.sets = {}; toast('Added ' + qtyUnit(total, 'set') + ' to the cart.', { action: 'Open cart', onAction: () => go('cart') }); renderView(true); } else busyBtn(t, false); }, 'Who’s adding these to the cart?');
+  withWho(async () => { busyBtn(t, true, 'Adding…'); if (await act(() => cartAdd(pseudo, total, { pseudo: true, note }))) { u.sets = {}; toast('Added ' + qtyUnit(total, 'set') + ' to the cart.' + okNote(1), { action: 'Open cart', onAction: () => go('cart') }); renderView(true); } else busyBtn(t, false); }, 'Who’s adding these to the cart?');
 };
 ACT.qAddTeeth = t => {
   const u = S.ui.quick, total = Object.values(u.teeth).reduce((a, b) => a + b, 0); if (!total) return;
   const note = 'Teeth: ' + Object.keys(u.teeth).map(k => k + ':' + u.teeth[k]).join(', ');
   const pseudo = quickPseudo('bracket-ind-' + u.system.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() + '-' + uid(), u.system + ' (single teeth)', 'AO-BRACKET-IND', 'bracket', getElastoPrice(S.D.elastoPrices, 'AO-BRACKET-IND|' + u.system), note);
-  withWho(async () => { busyBtn(t, true, 'Adding…'); if (await act(() => cartAdd(pseudo, total, { pseudo: true, note }))) { u.teeth = {}; toast('Added ' + qtyUnit(total, 'bracket') + ' to the cart.', { action: 'Open cart', onAction: () => go('cart') }); renderView(true); } else busyBtn(t, false); }, 'Who’s adding these to the cart?');
+  withWho(async () => { busyBtn(t, true, 'Adding…'); if (await act(() => cartAdd(pseudo, total, { pseudo: true, note }))) { u.teeth = {}; toast('Added ' + qtyUnit(total, 'bracket') + ' to the cart.' + okNote(1), { action: 'Open cart', onAction: () => go('cart') }); renderView(true); } else busyBtn(t, false); }, 'Who’s adding these to the cart?');
 };

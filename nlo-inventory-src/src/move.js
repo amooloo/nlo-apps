@@ -91,7 +91,7 @@ const OLD = {
 /* what's read: [path under nlo/, needed] — a part that can't be read stops the move only when it's needed. settings/invFrozen
    is the mark left when the old Inventory was made read-only (the go-live steps) */
 const OLD_PARTS = [['items', 1], ['orders', 1], ['vendors', 1], ['log', 1], ['cart', 1], ['budget', 1], ['bracketOrder', 0], ['elastoPrices', 0],
-  ['settings/locations', 0], ['settings/invAdmins', 0], ['settings/alertsOn', 0], ['settings/geminiProxyUrl', 0], ['settings/invPrefs', 0], ['settings/geminiKey', 0], ['settings/openaiKey', 0],
+  ['settings/locations', 0], ['settings/alertsOn', 0], ['settings/geminiProxyUrl', 0], ['settings/invPrefs', 0], ['settings/geminiKey', 0], ['settings/openaiKey', 0],
   ['settings/invFrozen', 0]];
 async function readOld() {
   const old = {}, missing = [];
@@ -121,12 +121,12 @@ function moveCardHTML() {
       row('Activity log', plural(c.log, 'entry', 'entries') + (P.months.length ? ' <span class="muted">(' + esc(monthLabel(P.months[0], true)) + ' – ' + esc(monthLabel(P.months[P.months.length - 1], true)) + ')</span>' : '')) +
       row('Money in the log', money(c.money)) +
       row('Spent this month', money(P.spendNow)) +
-      row('In the cart', plural(c.cart, 'line')) +
+      row('In the cart', plural(c.cart, 'line') + (c.cart ? ' <span class="muted">(they wait for your OK)</span>' : '')) +
       row('Budget', money(P.monthly, { whole: true }) + ' a month · ' + plural(c.expenses, 'expense')) +
       row('Quick-order prices', c.prices) +
       row('Photos kept inside records', c.pics ? c.pics + ' <span class="muted">(become records of their own)</span>' : 'none') +
       row('Storage locations', c.locations) +
-      row('Who changes settings', esc(P.adminNames.join(', ') || 'Dr. A')) +
+      row('Who changes settings', 'Dr. A <span class="muted">(everyone else: supplies, the cart, orders)</span>') +
       row('AI keys', P.hasAi ? 'yes, moved too' : 'none saved') +
       row('The old Inventory', P.frozen ? '<span class="stat ok">read-only</span>' : '<span class="stat off">still takes changes</span>') +
       (P.notes.length ? '<div class="hint" style="margin-top:10px"><b>Worth knowing:</b><ul class="mvNotes">' + P.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul></div>' : '') +
@@ -167,7 +167,7 @@ ACT.mvRead = async () => {
   MV.err = ''; MV.step = 'reading'; renderView();
   try {
     const { old, missing } = await readOld();
-    MV.plan = await planMove(old, await B.rosterOnce(), missing);
+    MV.plan = await planMove(old, missing);
     MV.step = 'ready';
   } catch (e) { console.error(e); MV.step = MV.plan ? 'error' : 'start'; MV.err = errText(e); MV.plan = null; }
   renderView();
@@ -180,7 +180,7 @@ ACT.mvGo = async () => {
   MV.err = ''; MV.step = 'rereading'; S.busy = true; renderView();
   try {
     /* read it all again: anything different from what the card showed, and the card shows the new numbers instead */
-    const { old, missing } = await readOld(), P = await planMove(old, await B.rosterOnce(), missing);
+    const { old, missing } = await readOld(), P = await planMove(old, missing);
     if (planSum(P) !== planSum(MV.plan)) {
       MV.plan = P; MV.step = 'ready'; S.busy = false;
       MV.err = 'The old Inventory changed since you read it. The numbers above are new: look them over and press Move it now again.';
@@ -247,11 +247,11 @@ async function doMove(P) {
 ACT.mvOpen = () => { OLD.disconnect().catch(() => { }); S.moved = { at: Date.now() }; startLive(); toast('Inventory is open. Everyone signs in here with their NLO Cases login from now on.', { ms: 7000 }); };
 
 /* ---------- working out the move (no saving here): the old records → the records saved here ----------
-   old: { 'items': …, 'orders': …, … } as the old database gave them (lists may come as objects); roster: NLO Cases' people
-   → { writes: [[path, data]], pics: [[path, data]], counts, months, notes, adminNames, monthly, spendNow, hasAi, frozen, alertsWere } */
+   old: { 'items': …, 'orders': …, … } as the old database gave them (lists may come as objects); missing: parts it couldn't read
+   → { writes: [[path, data]], pics: [[path, data]], counts, months, notes, monthly, spendNow, hasAi, frozen, alertsWere } */
 const MOVE_REC_MAX = 1000000;   // a record's size (bytes); the database takes 1 MiB, names and all
 const MOVE_LOG_PER = 1000;      // log entries per moved record (old, old2… for a month with more)
-async function planMove(old, roster, missing) {
+async function planMove(old, missing) {
   const writes = [], pics = [], notes = [], counts = { items: 0, itemsHidden: 0, orders: 0, ordersOpen: 0, vendors: 0, log: 0, money: 0, cart: 0, expenses: 0, prices: 0, pics: 0, locations: 0 };
   const okId = id => typeof id === 'string' && id.length > 0 && id.length <= 700 && !/\//.test(id) && id !== '.' && id !== '..' && !/^__.*__$/.test(id);
   const skipped = { noId: 0, badId: 0 }, enc = new TextEncoder();
@@ -325,22 +325,13 @@ async function planMove(old, roster, missing) {
   const prices = old.elastoPrices && typeof old.elastoPrices === 'object' ? old.elastoPrices : {}; counts.prices = Object.keys(prices).length;
   writes.push(['invState/prices', { p: FB.clean(prices) || {} }]);
   if (old.bracketOrder != null) writes.push(['invState/bracket', { v: FB.clean(old.bracketOrder) }]);
-  /* who changes settings: the old app's names (Staff Hub ids) → NLO Cases logins, through Staff Hub's link on each person */
-  const people = rosterPeople(roster), owner = people.find(p => p.role === 'owner');
-  const oldAdmins = Array.isArray(old['settings/invAdmins']) && old['settings/invAdmins'].length ? old['settings/invAdmins'] : listOf(old['settings/invAdmins']).length ? listOf(old['settings/invAdmins']) : ['s_amir', 's_sarah'];
-  const admins = owner ? [owner.id] : [], adminNames = owner ? ['Dr. A'] : [];
-  oldAdmins.forEach(rid => {
-    if (typeof rid !== 'string') return;
-    const p = people.find(x => x.active && (x.rid === rid || x.id === rid));
-    if (!p) { if (!/^s_amir$/.test(rid)) notes.push('Someone who changed settings in the old app (' + rid + ') has no NLO Cases login linked to Staff Hub — tick them in Settings → Who can change settings.'); return; }
-    if (!admins.includes(p.id)) { admins.push(p.id); adminNames.push(p.short); }
-  });
+  /* who changes settings: Dr. A only, from now on (the old app's list of people who could isn't moved) */
   const locs = listOf(old['settings/locations']).filter(x => typeof x === 'string'); counts.locations = locs.length;
   /* the email alerts start off here: they go on with the new alert script (Settings → Email alerts), so they don't pile up
      before it runs */
   const alertsWere = old['settings/alertsOn'] === true;
   if (alertsWere) notes.push('Email alerts were on. They start again when you get the new alert script (Settings → Email alerts → Get the alert script).');
-  const set = { locations: locs, invAdmins: admins, alertsOn: false };
+  const set = { locations: locs, alertsOn: false };
   if (typeof old['settings/geminiProxyUrl'] === 'string' && old['settings/geminiProxyUrl']) set.geminiProxyUrl = old['settings/geminiProxyUrl'];
   if (old['settings/invPrefs'] != null) set.invPrefs = FB.clean(old['settings/invPrefs']);
   writes.push(['invState/settings', set]);
@@ -355,7 +346,7 @@ async function planMove(old, roster, missing) {
   const D = { items: recs(old.items).map(([, r]) => r), orders: recs(old.orders).map(([, r]) => normOrder(Object.assign({}, r))), log: recs(old.log).map(([, r]) => r), expenses };
   const spendNow = Math.round(monthSpend(monthKey(Date.now()), D).total * 100) / 100;
   const frozen = !!(old['settings/invFrozen'] && typeof old['settings/invFrozen'] === 'object');
-  return { writes, pics, counts, months: monthIds, notes, adminNames, monthly: Number(budOut.monthly) || 0, spendNow, hasAi: !!Object.keys(ai).length, frozen, alertsWere };
+  return { writes, pics, counts, months: monthIds, notes, monthly: Number(budOut.monthly) || 0, spendNow, hasAi: !!Object.keys(ai).length, frozen, alertsWere };
 }
 /* a short id for a moved photo or expense (the same every time the move runs, so running it again replaces, never doubles) */
 function hashId(s) { let h1 = 0x811c9dc5, h2 = 0x01000193; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619) >>> 0; h2 = Math.imul(h2 ^ c, 2246822519) >>> 0; } return h1.toString(36) + h2.toString(36); }

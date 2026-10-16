@@ -1,11 +1,15 @@
 /**
- * NLO Inventory Alerts — version 2 (Google Apps Script)
+ * NLO Inventory Alerts — version 3 (Google Apps Script)
  * ---------------------------------------------------------------------------
  * Emails Dr. Akhavan within about a minute whenever someone in NLO Inventory:
  *   - adds something to the cart (or more of something already in it)
  *   - places an order (from the cart, a new order, a backorder, a reopen)
  *   - receives an order
  * Everything from the same minute comes as one email, with who did it.
+ * With the phone push on (Inventory → Settings → Phone push), what someone
+ * else adds to the cart (it needs his OK) comes as a push in the free ntfy
+ * app instead of an email: straight to ntfy, or — when Google's servers
+ * can't reach it — through ntfy's email address for the topic.
  *
  * Since October 2026 Inventory signs in with NLO Cases logins and keeps its
  * records in the NLO Cases database. This script also keeps a copy of the
@@ -22,8 +26,8 @@
  *                     every-minute check, and copies everything once
  *   sendTestAlert()   sends a sample alert
  *   stopAlerts()      stops the every-minute check (Inventory → Settings →
- *                     Email alerts turns the emails themselves off and on)
- *   enablePhonePush() optional: also push to the free "ntfy" phone app
+ *                     Email alerts turns the emails themselves off and on,
+ *                     Phone push the pushes)
  *
  * It signs in to NLO Inventory with a login of its own (made by Dr. A in
  * Inventory → Settings → Email alerts → Get the alert script) that can read
@@ -33,9 +37,8 @@
  *
  * Optional Script Properties (Project Settings > Script Properties):
  *   ALERT_EMAIL  who gets the email (default: this account; commas for more)
- *   NTFY_TOPIC   set by enablePhonePush()
  */
-var VERSION = '2';
+var VERSION = '3';
 var CONFIG = /*INV_CONFIG*/null; // filled in by NLO Inventory when you copy the script
 
 var DB_URL = 'https://nlo-inventory-default-rtdb.firebaseio.com';
@@ -50,6 +53,7 @@ var EMAIL_BYTES = 150000;        // and about this much of it (Gmail takes 200 K
 var OVERLAP_MS = 5 * 60000;      // each copy looks this far back again (a save's time is when it was sent: one sent a moment
                                  // before another can land after it)
 var BUDGET_KEYS = ['monthly', 'categories', 'history', 'changedBy', 'changedAt'];
+var NTFY_REST = 3 * 3600000;     // the direct way to ntfy rests this long after Google's servers couldn't reach it
 
 var TYPE_INFO = {
   cart:     { label: 'Added to cart',       color: '#7c3aed', tag: 'shopping_cart' },
@@ -65,7 +69,7 @@ function setup() {
   }
   var props = PropertiesService.getScriptProperties();
   props.setProperty('INV_CFG', JSON.stringify(CONFIG));
-  ['FAILS', 'FAIL_NOTICE_DAY', 'INV_REV', 'INV_UP', 'INV_FULL_DAY', 'INV_BEAT', 'INV_LAST', 'INV_BUD', 'INV_AI'].forEach(function (k) { props.deleteProperty(k); });
+  ['FAILS', 'FAIL_NOTICE_DAY', 'INV_REV', 'INV_UP', 'INV_FULL_DAY', 'INV_BEAT', 'INV_LAST', 'INV_BUD', 'INV_AI', 'INV_NTFY_REST', 'NTFY_TOPIC'].forEach(function (k) { props.deleteProperty(k); });
   try { CacheService.getScriptCache().remove('inv_login'); } catch (e) { }
   var cfg = cfg_(props), s = session_(cfg, true);
   getDoc_(cfg, s, 'meta/rules_inv_1', 'the rules');      // proves the login works (and the rules know Inventory)
@@ -89,26 +93,6 @@ function stopAlerts() {
   Logger.log('The every-minute check is off: no emails, and Staff Meeting and AISA stop getting new supply numbers. Run setup() to turn it back on.');
 }
 
-// Optional phone push through ntfy (free app for iPhone and Android).
-function enablePhonePush() {
-  var props = PropertiesService.getScriptProperties();
-  var topic = props.getProperty('NTFY_TOPIC');
-  if (!topic) {
-    topic = 'nlo-inv-' + Utilities.getUuid().replace(/-/g, '').slice(0, 24);
-    props.setProperty('NTFY_TOPIC', topic);
-  }
-  push_(topic, { title: 'NLO inventory push alerts are on', text: 'You’ll get a push here for cart adds, open orders and received orders.', tag: 'bell' });
-  var steps = 'On your phone: install the free "ntfy" app, tap +, and subscribe to this topic:\n\n' + topic +
-    '\n\nKeep the topic private; anyone who has it can read these alerts. Run disablePhonePush() to stop.';
-  MailApp.sendEmail({ to: alertEmail_(), name: 'NLO Inventory', subject: 'Phone push for NLO inventory alerts', body: steps });
-  Logger.log(steps);
-}
-
-function disablePhonePush() {
-  PropertiesService.getScriptProperties().deleteProperty('NTFY_TOPIC');
-  Logger.log('Phone push is off. Email alerts continue.');
-}
-
 // ─── Every minute (the trigger runs this) ──────────────────────────────────
 function checkInventoryAlerts() { return run_(false); }
 
@@ -130,7 +114,7 @@ function run_(force) {
     if (rev !== props.getProperty('INV_REV') || full) {
       var done = true;
       // the emails and the copy each on their own: one failing never holds up the other (both are tried again next minute)
-      try { var a = alerts_(cfg, s, props); out.sent = a.sent; out.waiting = a.waiting; if (a.note) notes.push(a.note); if (a.waiting) done = false; }
+      try { var a = alerts_(cfg, s, props, now); out.sent = a.sent; out.waiting = a.waiting; if (a.note) notes.push(a.note); if (a.waiting) done = false; }
       catch (e) { done = false; errs.push(msg_(e)); }
       try {
         var c = copy_(cfg, s, props, full);
@@ -158,24 +142,50 @@ function summary_(r) {
     (r.sent ? ' Sent ' + r.sent + ' alert(s).' : '') + (r.waiting ? ' ' + r.waiting + ' alert(s) wait for the next check.' : '');
 }
 
-// ─── Alerts: the ones Inventory left, emailed once, then cleared ───────────
-/* → { sent, waiting, note }: emails of at most PER_EMAIL alerts and about EMAIL_BYTES each; what was sent is remembered one
-   email at a time (so a failure part way never sends anything twice) and cleared; the rest waits for the next check */
-function alerts_(cfg, s, props) {
+// ─── Alerts: the ones Inventory left, emailed (or pushed) once, then cleared ───
+/* → { sent, waiting, note }. With the phone push on, someone else's cart adds go to Dr. A's phone (his own aren't sent at all);
+   the rest are emailed while the email alerts are on (and cleared unsent while they're off): emails of at most PER_EMAIL alerts
+   and about EMAIL_BYTES each. What went is remembered as it goes (so a failure part way never sends anything twice) and
+   cleared; the rest waits for the next check. A test push Dr. A asked for goes first. */
+function alerts_(cfg, s, props, now) {
+  var pushDoc = getDoc_(cfg, s, 'invState/push', 'the phone push'), pf = pushDoc ? pushDoc.fields || {} : {};
+  var push = { topic: String(val_(pf.topic) || ''), owner: String(val_(pf.upBy) || ''), test: Number(val_(pf.test) || 0) };
+  var note = '', testWaits = 0;
+  if (push.topic && push.test > Number(props.getProperty('PUSH_TEST') || 0)) {
+    var t = pushes_(cfg, props, push.topic, [{ title: 'NLO Inventory: test push', text: 'Cart adds that need your OK come here.' }], now);
+    if (t.got[0]) props.setProperty('PUSH_TEST', String(push.test)); else { note = 'The test push didn’t go: ' + t.err; testWaits = 1; }
+  }
   var docs = query_(cfg, s, 'invAlerts', [], 'at', MAX_PER_RUN).docs;
-  if (!docs.length) return { sent: 0, waiting: 0 };
+  if (!docs.length) return { sent: 0, waiting: testWaits, note: note };
+  var setDoc = getDoc_(cfg, s, 'invState/settings', 'the settings'), set = setDoc ? plain_(setDoc.fields) : {};
+  var pushOn = set.pushOn === true && !!push.topic, mailOn = set.alertsOn === true;
   var sent = readJson_(props, 'SENT_KEYS', []), already = {};
   sent.forEach(function (k) { already[k] = true; });
   var fresh = docs.filter(function (d) { return !already[idOf_(d)]; }).map(function (d) { return { id: idOf_(d), e: plain_(d.fields) }; });
-  var groups = emailGroups_(fresh), n = 0, note = '', each = recipients_();
+  var toPush = [], toMail = [], gone = [];
+  fresh.forEach(function (x) {
+    if (x.e.t === 'cart' && pushOn) (push.owner && x.e.upBy === push.owner ? gone : toPush).push(x);
+    else (mailOn ? toMail : gone).push(x);
+  });
+  var keep = function (list) { sent = sent.concat(list.map(function (g) { return g.id; })).slice(-400); props.setProperty('SENT_KEYS', JSON.stringify(sent)); };
+  var n = 0, left = 0;
+  if (gone.length) keep(gone);
+  if (toPush.length) {
+    var r = pushes_(cfg, props, push.topic, toPush.map(function (x) { return pushOf_(x.e); }), now);
+    var went = toPush.filter(function (x, i) { return r.got[i]; });
+    if (went.length) keep(went);
+    n += went.length; left += toPush.length - went.length;
+    if (r.err && toPush.length > went.length) note = (note ? note + ' · ' : '') + 'Phone push: ' + r.err;
+  }
+  var groups = emailGroups_(toMail), each = recipients_(), mailed = 0;
   for (var i = 0; i < groups.length; i++) {
     // (each email counts once per address it goes to)
-    if (quota_() < each) { note = 'Gmail’s daily email limit is used up: ' + (fresh.length - n) + ' alert(s) wait until tomorrow.'; break; }
+    if (quota_() < each) { note = (note ? note + ' · ' : '') + 'Gmail’s daily email limit is used up: ' + (toMail.length - mailed) + ' alert(s) wait until tomorrow.'; break; }
     deliver_(groups[i].map(function (g) { return g.e; }));
-    sent = sent.concat(groups[i].map(function (g) { return g.id; })).slice(-400);
-    props.setProperty('SENT_KEYS', JSON.stringify(sent));
-    n += groups[i].length;
+    keep(groups[i]);
+    mailed += groups[i].length;
   }
+  n += mailed; left += toMail.length - mailed;
   var gone = {}; sent.forEach(function (k) { gone[k] = true; });
   var clear = docs.filter(function (d) { return gone[idOf_(d)]; });
   if (clear.length) {
@@ -183,7 +193,14 @@ function alerts_(cfg, s, props) {
     if (r.code !== 200) throw new Error('Couldn’t clear the alerts it sent (' + why_(r) + ').');
   }
   // a full page of alerts: there may be more behind it — the next check goes on with them (the change counter isn't moved on)
-  return { sent: n, waiting: fresh.length - n + (docs.length >= MAX_PER_RUN ? 1 : 0), note: note };
+  return { sent: n, waiting: left + testWaits + (docs.length >= MAX_PER_RUN ? 1 : 0), note: note };
+}
+/* a cart add as a phone push: who, what, and that it needs Dr. A's OK */
+function pushOf_(e) {
+  var lines = (Array.isArray(e.lines) ? e.lines : []).filter(function (l) { return l && typeof l === 'object'; });
+  var what = lines.slice(0, 6).map(function (l) { return '• ' + cut_(l.n, 80) + ' — ' + num_(l.q) + (l.u ? ' ' + cut_(l.u, 20) : '') + (l.v ? ' (' + cut_(l.v, 40) + ')' : ''); });
+  if (lines.length > 6) what.push('and ' + (lines.length - 6) + ' more');
+  return { title: cut_(e.by || 'Someone', 60) + ' added to the cart', text: what.join('\n') + (what.length ? '\n' : '') + 'Needs your OK: Inventory → Cart.' };
 }
 /* alerts → emails: in order, a new email at PER_EMAIL alerts or about EMAIL_BYTES */
 function emailGroups_(list) {
@@ -299,44 +316,94 @@ function oldPage_(cfg, props, now) {
 function deliver_(events) {
   var msg = buildMessage_(events);
   MailApp.sendEmail({ to: alertEmail_(), name: 'NLO Inventory', subject: msg.subject, body: msg.text, htmlBody: msg.html });
-  var topic = PropertiesService.getScriptProperties().getProperty('NTFY_TOPIC');
-  if (topic) {
-    try { push_(topic, { title: msg.subject, text: msg.pushText, tag: msg.tag }); }
-    catch (e) { console.warn('Phone push failed: ' + e); }
-  }
 }
 
-function push_(topic, m) {
-  var res = UrlFetchApp.fetch('https://ntfy.sh/', {
-    method: 'post',
-    contentType: 'application/json',
-    muteHttpExceptions: true,
-    payload: JSON.stringify({ topic: topic, title: m.title, message: m.text, click: APP_URL, tags: m.tag ? [m.tag] : [] })
+/* The phone pushes of one check (the free ntfy app: Dr. A subscribes to the topic in Inventory → Settings → Phone push):
+   { got: [went?, for each], err, via: 'ntfy' | 'mail' | '' }. Straight to ntfy: one push per alert, or one for all of them
+   when there are more than 4. When Google's servers can't reach ntfy (no answer, or "too many": ntfy.sh shuts out, for hours
+   at a time, addresses many people share, and Google's are shared by everyone's scripts), the ones still to go go in one
+   email to ntfy's own address for the topic, which ntfy turns into the same notification, and the direct way rests for 3
+   hours (each try would hang about a minute, and those minutes count against this account's daily script time).
+   (The Time Clock's alert script does the same since 13 Oct 2026.) */
+function pushes_(cfg, props, topic, list, now) {
+  var got = list.map(function () { return false; }), err = '', via = '';
+  var rest = !!cfg.ntfyMail && Number(props.getProperty('INV_NTFY_REST') || 0) > now;
+  if (!rest) {
+    var groups = list.length > 4 ? [list.map(function (a, i) { return i; })] : list.map(function (a, i) { return [i]; });
+    for (var k = 0; k < groups.length; k++) {
+      var g = groups[k], one = g.length === 1 ? list[g[0]] : null;
+      try {
+        if (one) push_(cfg, topic, one.title, one.text);
+        else push_(cfg, topic, g.length + ' cart adds need your OK', g.map(function (i) { return list[i].title; }).join('\n'));
+        g.forEach(function (i) { got[i] = true; });
+        via = 'ntfy';
+      } catch (e) {
+        err = msg_(e);
+        if (e.away && cfg.ntfyMail) { rest = true; props.setProperty('INV_NTFY_REST', String(now + NTFY_REST)); break; }
+      }
+    }
+  }
+  var left = list.filter(function (a, i) { return !got[i]; });
+  if (rest && left.length) {
+    try { pushMail_(cfg, topic, left); list.forEach(function (a, i) { got[i] = true; }); err = ''; via = 'mail'; }
+    catch (e) { err = msg_(e); }
+  }
+  return { got: got, err: err, via: via };
+}
+/* one phone push, straight to ntfy (tapping it opens the cart) */
+function push_(cfg, topic, title, message) {
+  var body = { topic: topic, title: cut_(title, 200), message: utf8Cap_(message, 3500), tags: ['shopping_cart'], click: APP_URL + '#cart' };
+  var r;
+  try { r = UrlFetchApp.fetch(cfg.ntfyBase + '/', { method: 'post', contentType: 'application/json', payload: ascii_(JSON.stringify(body)), muteHttpExceptions: true }); }
+  catch (e) { throw away_('couldn’t reach ntfy (' + cut_(msg_(e), 80) + ')'); }
+  var code = r.getResponseCode();
+  if (code === 429) throw away_('ntfy answered 429 (too many messages from Google’s servers just now)');
+  if (code !== 200) throw new Error('ntfy answered ' + code);
+}
+/* a problem reaching ntfy from Google's servers (the email way still works) */
+function away_(text) { var e = new Error(text); e.away = true; return e; }
+/* the pushes through ntfy's email address for the topic: one email from this Gmail account for all of them (it counts toward
+   the account's emails for the day). ntfy turns it into the notification: the subject is its title, the email its words (no
+   tap-to-open link that way). */
+function pushMail_(cfg, topic, list) {
+  if (quota_() < 1) throw new Error('this Gmail account’s daily email limit is used up (it resets within a day)');
+  var one = list.length === 1 ? list[0] : null;
+  MailApp.sendEmail({
+    to: cfg.ntfyMail.replace('{topic}', topic),
+    subject: cut_(one ? one.title : list.length + ' cart adds need your OK', 200),
+    body: utf8Cap_(one ? one.text : list.map(function (a) { return a.title; }).join('\n'), 3500),   // (ntfy keeps 4,096 bytes)
+    name: 'NLO Inventory'
   });
-  if (res.getResponseCode() >= 300) throw new Error('ntfy HTTP ' + res.getResponseCode());
+}
+/* at most n bytes once in UTF-8, never cutting a character in half */
+function utf8Cap_(s, n) {
+  s = String(s == null ? '' : s);
+  var b = 0, i = 0;
+  for (; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    var w = c < 0x80 ? 1 : c < 0x800 ? 2 : c >= 0xD800 && c <= 0xDBFF ? 4 : c >= 0xDC00 && c <= 0xDFFF ? 0 : 3; // (a pair: 4 for both halves)
+    if (b + w > n) break;
+    b += w;
+  }
+  return s.slice(0, i);
 }
 
 function buildMessage_(events) {
   events = events.slice().sort(function (a, b) { return (Number(a.at) || 0) - (Number(b.at) || 0); });
   var parts = events.map(describe_);
-  var subject, tag;
-  if (parts.length === 1) {
-    subject = parts[0].subject;
-    tag = parts[0].tag;
-  } else {
+  var subject;
+  if (parts.length === 1) subject = parts[0].subject;
+  else {
     var counts = {}, order = [];
     events.forEach(function (e) { var t = TYPE_INFO[e.t] ? e.t : 'other'; if (!counts[t]) { counts[t] = 0; order.push(t); } counts[t]++; });
     var words = { cart: ['added to cart', 'added to cart'], ordered: ['open order', 'open orders'],
       reopened: ['reopened', 'reopened'], received: ['received', 'received'], other: ['update', 'updates'] };
     subject = 'Inventory: ' + order.map(function (t) { return counts[t] + ' ' + words[t][counts[t] === 1 ? 0 : 1]; }).join(', ');
-    tag = 'bell';
   }
   if (events.some(function (e) { return e.test; })) subject = 'TEST — ' + subject;
   var html = wrapHtml_(parts.map(function (p) { return p.html; }).join(''));
   var text = parts.map(function (p) { return p.text; }).join('\n\n') + '\n\nOpen NLO Inventory: ' + APP_URL;
-  var pushText = parts.map(function (p) { return p.headline; }).join('\n');
-  if (pushText.length > 900) pushText = pushText.slice(0, 897) + '...';
-  return { subject: subject, html: html, text: text, pushText: pushText, tag: tag };
+  return { subject: subject, html: html, text: text };
 }
 
 function describe_(e) {
@@ -412,6 +479,9 @@ function cfg_(props) {
   c.authBase = c.authBase || 'https://identitytoolkit.googleapis.com/v1';
   c.fsBase = c.fsBase || 'https://firestore.googleapis.com/v1';
   c.dbUrl = c.dbUrl || DB_URL;
+  c.ntfyBase = String(c.ntfyBase || 'https://ntfy.sh').replace(/\/+$/, '');
+  // ntfy's email address for a topic (ntfy.sh's: ntfy-<topic>@ntfy.sh); '' for a server without one
+  c.ntfyMail = c.ntfyMail != null ? String(c.ntfyMail) : c.ntfyBase === 'https://ntfy.sh' ? 'ntfy-{topic}@ntfy.sh' : '';
   return c;
 }
 function http_(cfg, method, url, body, tok) {

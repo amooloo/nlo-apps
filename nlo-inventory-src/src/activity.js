@@ -59,6 +59,7 @@ function cartTrailEvent(l, t) {
   if (t.t === 'more') return { at: msOf(t.at), who: t.by, whoId: t.byId, kind: 'cart', icon: 'plus', html: 'added <b>' + esc(qtyUnit(t.qty, l.unit)) + '</b> more of ' + name + ' to the cart', ref: { item: l.itemId } };
   if (t.t === 'qty') return { at: msOf(t.at), who: t.by, whoId: t.byId, kind: 'cart', icon: 'edit', html: 'changed ' + name + ' in the cart from ' + esc(qtyFmt(t.from)) + ' to <b>' + esc(qtyUnit(t.to, l.unit)) + '</b>', ref: { item: l.itemId } };
   if (t.t === 'unit') return { at: msOf(t.at), who: t.by, whoId: t.byId, kind: 'cart', icon: 'edit', html: 'changed ' + name + ' in the cart to <b>' + esc(unitWord(l.unit, 2)) + '</b>', ref: { item: l.itemId } };
+  if (t.t === 'ok') return { at: msOf(t.at), who: t.by, whoId: t.byId, kind: 'cart', icon: 'check', html: 'OK’d ' + name + ' for ordering', ref: { item: l.itemId } };
   return { at: msOf(t.at), who: t.by, whoId: t.byId, kind: 'cart', icon: 'edit', html: 'changed ' + name + ' in the cart', ref: { item: l.itemId } };
 }
 function feedItemHTML(e, compact) {

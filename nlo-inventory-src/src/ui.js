@@ -5,6 +5,7 @@
    ===================================================================== */
 /* ---------- icons ---------- */
 const IC = {
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   home: '<path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>',
   box: '<path d="M4 8l8-4 8 4v8.5l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8.5"/>',
   cart: '<circle cx="9" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/><path d="M3 4h2.4l2.2 10.6a1.5 1.5 0 001.5 1.2h7.7a1.5 1.5 0 001.4-1.1L20 8H6.2"/>',
@@ -122,7 +123,7 @@ function lockScreen(mode, info) {
     '<form id="loginForm" style="margin-top:16px"><div class="field"><span class="flabel">Sign in as</span><div class="seg" role="group" style="display:flex">' +
     DEMO.AS.map(([k, l]) => '<button type="button" data-act="demoAs" data-as="' + k + '" aria-pressed="' + (DEMO.as === k) + '" style="flex:1;justify-content:center">' + esc(l) + '</button>').join('') + '</div></div>' +
     '<button class="btn btn-pri btn-block" id="lgBtn" type="submit">Open the demo</button></form>' +
-    '<div class="lockFoot">Dr. A and the office coordinator change settings; an assistant adds to the cart, orders and receives. Lock to switch — what you did stays until the page is reloaded.</div>';
+    '<div class="lockFoot">Dr. A sees everything and OKs the cart; an assistant finds supplies, adds to the cart, orders what Dr. A OK’d and receives. Lock to switch — what you did stays until the page is reloaded.</div>';
   else h = '<h1>Sign in</h1><div class="lsub">Next Level Orthodontics · supplies and orders</div>' + err + ok +
     '<form id="loginForm" autocomplete="on" style="margin-top:16px">' +
     '<div class="field"><label for="lgUser">Username</label><input id="lgUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(S.lastLogin) + '" required></div>' +
@@ -159,7 +160,7 @@ ACT.demoAs = t => { DEMO.as = t.dataset.as; $$('[data-act=demoAs]').forEach(b =>
 /* ---------- in and out ---------- */
 async function enterApp() {
   S.inApp = true; S.gate = 'opening'; S.loadErr = ''; S.lastAct = Date.now(); S.loaded = {};
-  S.view = (location.hash || '').replace('#', '') || 'home'; if (!VIEWS[S.view]) S.view = 'home';
+  S.view = (location.hash || '').replace('#', '') || 'home'; if (!viewAllowed(S.view)) S.view = 'home';
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   clearInterval(S.idleTimer);
@@ -217,6 +218,7 @@ function setData(key, val) {
   else if (key === 'vendors') S.D.vendors = mergeVendors(listOf(val));
   else if (key === 'log') S.D.log = sortLogNewestFirst(listOf(val).filter(e => e && e.id != null));
   else if (key === 'cart') S.D.cart = listOf(val).filter(c => c && (c.itemId || c.name)).map(normCartLine);
+  else if (key === 'cartOk') S.D.cartOk = val && typeof val === 'object' ? val : {};
   else if (key === 'bracketOrder') S.D.bracketOrder = val || {};
   else if (key === 'budget') S.D.budget = Object.assign({ monthly: 8000, categories: {}, history: [] }, val || {});
   else if (key === 'expenses') S.D.expenses = listOf(val).filter(x => x && x.id != null);
@@ -227,7 +229,7 @@ function setData(key, val) {
 }
 function normItem(i) { if (i.cat && CAT_MIGRATION[i.cat]) i.cat = CAT_MIGRATION[i.cat]; if (!CAT_BY_ID[i.cat]) i.cat = 'misc'; return i; }
 function normOrder(o) { o.items = listOf(o.items).filter(Boolean); o.trail = listOf(o.trail).filter(Boolean); return o; }
-function normCartLine(c) { if (!c.lineId) c.lineId = 'c-' + (c.itemId || '') + '-' + (c.addedAt || ''); c.trail = listOf(c.trail).filter(Boolean); return c; }
+function normCartLine(c) { withLineId(c); c.trail = listOf(c.trail).filter(Boolean); return c; }
 function mergeVendors(saved) {
   const out = VENDORS.map(dv => { const sv = saved.find(s => s && s.id === dv.id); return sv ? Object.assign({}, dv, sv) : Object.assign({}, dv); });
   saved.forEach(sv => { if (sv && sv.id && !VENDORS.find(dv => dv.id === sv.id)) out.push(sv); });
@@ -245,9 +247,13 @@ const NAV = [
   ['home', 'Home', 'home'], ['supplies', 'Supplies', 'box'], ['cart', 'Cart', 'cart'], ['orders', 'Orders', 'truck'],
   ['quick', 'Quick order', 'bolt'], ['budget', 'Budget', 'chart'], ['activity', 'Activity', 'clock'], ['vendors', 'Vendors', 'build']
 ];
+/* everyone but Dr. A: the simple view — find a supply, add it to the cart, order what he OK'd, receive what comes (Amir, 16 Oct
+   2026: "for assistants, the budget vendor and setting are not needed. keep at simple as possible") */
+const SIMPLE_VIEWS = ['home', 'supplies', 'cart', 'orders', 'quick'];
+function viewAllowed(v) { return !!VIEWS[v] && (isAdmin() || SIMPLE_VIEWS.includes(v)); }
 function renderShell() {
   const btn = (mob, [k, l, i]) => '<button class="navBtn" data-act="nav" data-v="' + k + '" id="' + (mob ? 'm' : '') + 'nav-' + k + '">' + ic(i) + '<span>' + l + '</span><span class="cnt hidden"></span></button>';
-  const navBtns = mob => NAV.map(n => btn(mob, n)).join('') + (mob ? '' : '<div class="navLbl">Office</div>') + btn(mob, ['settings', 'Settings', 'gear']);
+  const navBtns = mob => NAV.filter(n => viewAllowed(n[0])).map(n => btn(mob, n)).join('') + (isAdmin() ? (mob ? '' : '<div class="navLbl">Office</div>') + btn(mob, ['settings', 'Settings', 'gear']) : '');
   $('#side').innerHTML = '<div class="sideTop"><img data-src="' + LOGO + '" alt="Next Level Orthodontics"><div class="appTag">Inventory</div></div>' +
     '<nav class="nav" aria-label="Main">' + navBtns(false) + '</nav>' +
     '<div class="sideFoot"><div id="whoSlot"></div>' +
@@ -257,17 +263,20 @@ function renderShell() {
 
     '<button class="iconBtn" data-act="who" aria-label="Who’s using this" id="mobWho"></button>';
   $('#mobNav').innerHTML = navBtns(true);
-  if (!$('#askFab')) document.body.insertAdjacentHTML('beforeend', '<button id="askFab" class="askFab" data-act="askOpen" title="Ask about spending, orders and who did what" aria-label="Ask">' + ic('spark', 16) + '<span class="t">Ask</span></button>');
+  /* Ask (spending, orders, who did what): Dr. A's */
+  if (!isAdmin()) { const f = $('#askFab'); if (f) f.remove(); }
+  else if (!$('#askFab')) document.body.insertAdjacentHTML('beforeend', '<button id="askFab" class="askFab" data-act="askOpen" title="Ask about spending, orders and who did what" aria-label="Ask">' + ic('spark', 16) + '<span class="t">Ask</span></button>');
   renderWho(); renderSync(); renderNav();
 }
 function counts() {
   const open = S.D.orders.filter(o => o.status === 'open'), late = open.filter(orderLate);
-  return { cart: S.D.cart.length, open: open.length, late: late.length, back: S.D.orders.filter(o => o.status === 'backordered').length };
+  return { cart: S.D.cart.length, needOk: S.D.cart.filter(c => !okOf(c)).length, open: open.length, late: late.length, back: S.D.orders.filter(o => o.status === 'backordered').length };
 }
 function renderNav() {
   const c = counts();
   const set = (k, n, red) => ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + k + ' .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); el.classList.toggle('red', !!red); });
-  set('cart', c.cart); set('orders', c.open + c.back, c.late > 0);
+  /* (red on Dr. A's cart: lines wait for his OK) */
+  set('cart', c.cart, isAdmin() && c.needOk > 0); set('orders', c.open + c.back, c.late > 0);
   $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
   document.title = (c.cart ? '(' + c.cart + ') ' : '') + 'NLO Inventory';
 }
@@ -311,7 +320,7 @@ function renderView(keep) {
   renderNav();
 }
 function go(view, opts) {
-  if (!VIEWS[view]) view = 'home';
+  if (!viewAllowed(view)) view = 'home';
   if (S.view !== view) { S.q = (opts && opts.q) || ''; }
   S.view = view; history.replaceState(null, '', '#' + view);
   closeDrawer(); renderView(); window.scrollTo(0, 0);

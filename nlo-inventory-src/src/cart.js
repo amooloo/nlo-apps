@@ -5,18 +5,30 @@
    it with the order written out — then confirm it went through, and the
    lines become an open order stamped with who ordered it, how and when.
    Nothing leaves the cart until that confirmation.
+   Dr. A OKs what goes out (Amir, 16 Oct 2026: "if I approve them, they
+   can place order"): a line someone else adds waits for his OK; the
+   others place the OK'd lines, he places any.
    ===================================================================== */
 const OFFICE = { name: 'Next Level Orthodontics', address: '320 NW 76th Drive, Gainesville, FL 32607', phone: '(352) 332-7466' };
 const HOW = [
   ['online', 'Their website', 'web'], ['call', 'Phone call', 'call'], ['email', 'Email', 'email'], ['text', 'Text', 'text'], ['rep', 'Through the rep', 'user'], ['other', 'Some other way', 'doc']
 ];
 function cartLinesFor(vendor) { return S.D.cart.filter(c => (c.vendor || '') === (vendor || '')); }
+/* where a line stands with Dr. A: his OK, or waiting for it (with what he OK'd before it was raised) */
+function okRowHTML(c) {
+  const o = okOf(c), was = !o && c.lineId && (S.D.cartOk || {})[c.lineId], before = was && was.it === (c.itemId || '') && Number(was.n) > 0 ? Number(was.n) : 0;
+  const unit = linePer(c) > 1 ? (c.countUnit || '') : (c.unit || ''), had = before ? ' (he OK’d ' + qtyUnit(before, unit) + ')' : '';
+  if (o) return '<div class="okRow"><span class="stat ok">' + ic('check', 12) + (isAdmin() ? 'OK’d' : 'OK’d by Dr. A') + '</span><span class="muted small">' + esc(fmtWhen(o.at)) + '</span></div>';
+  if (isAdmin()) return '<div class="okRow"><span class="stat wait">Needs your OK' + esc(had) + '</span><button class="btn btn-act btn-sm" data-act="cartOk" data-line="' + esc(c.lineId) + '">' + ic('check', 14) + 'OK</button></div>';
+  return '<div class="okRow"><span class="stat wait">Waiting for Dr. A’s OK' + esc(had) + '</span></div>';
+}
 function cartLineHTML(c) {
   const it = itemById(c.itemId), tr = listOf(c.trail);
   return '<div class="cline">' + (it ? thumbHTML(it, 'sm') : '<span class="thumb sm">' + ic('bolt', 16) + '</span>') +
     '<div style="min-width:0"><div class="nm">' + (it ? '<a href="#" data-act="openItem" data-id="' + esc(it.id) + '" style="color:inherit;text-decoration:none">' + esc(c.name) + '</a>' : esc(c.name)) + (c.sku ? ' <small>#' + esc(c.sku) + '</small>' : '') + '</div>' +
     '<div class="stamps"><span class="stamp">' + avatarHTML(c.addedBy, 'xs', c.addedById) + '<span>Added by <b>' + esc(c.addedBy || 'someone') + '</b>' + (c.addedAt ? ' · ' + esc(fmtWhen(c.addedAt)) : '') + '</span></span>' +
-    tr.slice(-2).map(t => '<span class="stamp">' + avatarHTML(t.by, 'xs', t.byId) + '<span>' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) + ' by ' : t.t === 'qty' ? qtyFmt(t.from) + ' → ' + qtyFmt(t.to) + ' by ' : t.t === 'note' ? 'note by ' : 'changed by ') + '<b>' + esc(t.by || '') + '</b> · ' + esc(fmtWhen(t.at)) + '</span></span>').join('') + '</div>' +
+    tr.slice(-2).map(t => '<span class="stamp">' + avatarHTML(t.by, 'xs', t.byId) + '<span>' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) + ' by ' : t.t === 'qty' ? qtyFmt(t.from) + ' → ' + qtyFmt(t.to) + ' by ' : t.t === 'note' ? 'note by ' : t.t === 'ok' ? 'OK’d by ' : 'changed by ') + '<b>' + esc(t.by || '') + '</b> · ' + esc(fmtWhen(t.at)) + '</span></span>').join('') + '</div>' +
+    okRowHTML(c) +
     (c.note ? '<div class="note">' + ic('text', 12) + ' ' + esc(c.note) + '</div>' : '') +
     (linePer(c) > 1 ? '<div class="note">' + esc(qtyUnit(c.qty, c.unit)) + ' = ' + esc(qtyUnit(c.qty * linePer(c), c.countUnit || '')) + '</div>' : '') +
     (lineInOldUnit(c, it) ? '<div class="oldUnit">' + ic('warn', 13) + '<span>Added as ' + esc(qtyUnit(c.qty, c.unit)) + ', but it’s bought by the ' + esc(buyUnit(it)) + ' now (' + esc(qtyUnit(perBuy(it), countUnit(it))) + ').</span><button class="linkBtn" data-act="cartToCases" data-id="' + esc(c.itemId) + '">Change to ' + esc(unitWord(buyUnit(it), 2)) + '</button></div>' : '') + '</div>' +
@@ -29,14 +41,20 @@ VIEWS.cart = {
   render() {
     const cart = S.D.cart;
     if (!cart.length) return '<div class="card"><div class="empty"><div class="big">🛒</div>The cart is empty.<br>Find what’s running low under <b>Supplies</b> (or <b>Quick order</b> for brackets and elastics) and tap <b>Add</b>.<br><br><button class="btn btn-teal" data-act="nav" data-v="supplies">' + ic('box', 16) + 'Find supplies</button></div></div>';
+    const boss = isAdmin(), wait = cart.filter(c => !okOf(c));
     let h = '<div class="hello">' + cart.length + ' line' + (cart.length === 1 ? '' : 's') + ' from ' + vendorsIn(cart).length + ' vendor' + (vendorsIn(cart).length === 1 ? '' : 's') + ' · about <b>' + money(cartValue()) + '</b>. Order one vendor at a time.</div>';
+    if (wait.length) h += boss ? '<div class="okBar">' + ic('check', 16) + '<span class="grow"><b>' + plural(wait.length, 'line') + '</b> ' + (wait.length === 1 ? 'needs' : 'need') + ' your OK before anyone else can order ' + (wait.length === 1 ? 'it' : 'them') + '.</span><button class="btn btn-act btn-sm" data-act="cartOkAll">OK ' + (wait.length === 1 ? 'it' : 'all ' + wait.length) + '</button></div>'
+      : '<div class="okBar wait">' + ic('clock', 16) + '<span class="grow"><b>' + plural(wait.length, 'line') + '</b> ' + (wait.length === 1 ? 'waits' : 'wait') + ' for Dr. A’s OK. The OK’d lines can be ordered now.</span></div>';
     vendorsIn(cart).forEach(vn => {
-      const ls = cartLinesFor(vn), v = vendorByName(vn);
+      const ls = cartLinesFor(vn), v = vendorByName(vn), lsOk = ls.filter(c => okOf(c)), lsWait = ls.length - lsOk.length;
       h += '<div class="card vcard"><div class="cardHd">' + (vn ? vlogoHTML(v || { name: vn }, 'lg') : '<span class="vlogo lg none">' + ic('warn', 16) + '</span>') + '<div class="grow"><h3>' + esc(vn || 'No vendor yet') + '</h3>' +
         (v ? '<div class="vmeta">' + (v.acct ? '<span>Account ' + esc(v.acct) + '</span>' : '') + (webUrl(v.portal) ? '<a href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 12) + ' Website</a>' : '') + (v.phone || v.tollFree ? '<a href="tel:' + esc(String(v.tollFree || v.phone).replace(/[^\d+]/g, '')) + '">' + ic('call', 12) + ' ' + esc(v.tollFree || v.phone) + '</a>' : '') + (v.rep ? '<span>Rep: ' + esc(v.rep) + '</span>' : '') + '</div>' : !vn ? '<div class="vmeta">Pick a vendor for these lines before ordering (the pencil on each line).</div>' : '') + '</div></div>' +
         ls.map(cartLineHTML).join('') +
         '<div class="vfoot"><span class="sum">' + ls.length + ' line' + (ls.length === 1 ? '' : 's') + ' · subtotal<b>' + money(cartValue(ls)) + '</b></span><span style="flex:1"></span>' +
-        (vn ? '<button class="btn btn-pri" data-act="placeOrder" data-v="' + esc(vn) + '">' + ic('truck', 16) + 'Place this order</button>' : '') + '</div></div>';
+        (boss && lsWait ? '<button class="btn btn-sec" data-act="cartOkAll" data-v="' + esc(vn) + '">' + ic('check', 16) + 'OK ' + (lsWait === 1 ? 'it' : 'these ' + lsWait) + '</button>' : '') +
+        (!vn ? '' : boss || !lsWait ? '<button class="btn btn-pri" data-act="placeOrder" data-v="' + esc(vn) + '">' + ic('truck', 16) + 'Place this order</button>'
+          : lsOk.length ? '<span class="muted small">' + lsWait + ' wait' + (lsWait === 1 ? 's' : '') + ' for Dr. A’s OK</span><button class="btn btn-pri" data-act="placeOrder" data-v="' + esc(vn) + '">' + ic('truck', 16) + 'Order the ' + (lsOk.length === 1 ? 'OK’d line' : lsOk.length + ' OK’d lines') + '</button>'
+          : '<button class="btn btn-pri" disabled title="Dr. A OKs these first">' + ic('clock', 16) + 'Waiting for Dr. A’s OK</button>') + '</div></div>';
     });
     return h;
   }
@@ -68,6 +86,13 @@ ACT.cartToCases = async t => {
   if (v === false) return; const q = num(v); if (!(q > 0)) return toast('How many?', { bad: true });
   withWho(() => act(() => cartToBuyUnit(it.id, q), 'Now ' + qtyUnit(q, buyUnit(it)) + '.'), 'Who’s changing the cart?');
 };
+/* Dr. A's OK: one line, a vendor's lines, or all of them */
+ACT.cartOk = t => withAdmin(() => act(() => cartApprove([t.dataset.line]), 'OK’d.'), '', 'OK the cart');
+ACT.cartOkAll = t => withAdmin(() => {
+  const vn = t.dataset.v, ids = S.D.cart.filter(c => !okOf(c) && (vn == null || (c.vendor || '') === vn)).map(c => c.lineId);
+  if (!ids.length) return;
+  return act(async () => { const n = await cartApprove(ids); return n; }, ids.length === 1 ? 'OK’d.' : 'OK’d ' + ids.length + ' lines.');
+}, '', 'OK the cart');
 ACT.cartRemove = async t => { const c = inCartLine(t.dataset.id); if (!c) return; if (!await confirmOut(c)) return; withWho(async () => { if (await act(() => cartRemove(c.itemId), 'Taken out of the cart.')) closeModal(true); }, 'Who’s taking it out?'); };
 
 /* ---------- placing an order ---------- */
@@ -78,15 +103,16 @@ function orderText(vn, lines, who) {
     '\n\nShip to: ' + OFFICE.address + '\nPhone: ' + OFFICE.phone + '\n\nPlease confirm the order and expected delivery. Thank you!\n' + (who ? firstName(who.name) + ', ' : '') + OFFICE.name;
 }
 ACT.placeOrder = t => withWho(w => {
-  const vn = t.dataset.v, ls = cartLinesFor(vn), v = vendorByName(vn) || {};
+  const vn = t.dataset.v, ls = cartLinesFor(vn).filter(c => isAdmin() || okOf(c)), v = vendorByName(vn) || {};
+  if (!ls.length) return toast('These wait for Dr. A’s OK.', { bad: true });
   S.ui.place = { vendor: vn, ids: ls.map(c => c.itemId), how: webUrl(v.portal) ? 'online' : (v.email || v.repEmail) ? 'email' : (v.phone || v.tollFree) ? 'call' : 'other' };
   renderPlace();
 }, 'Who’s placing this order?');
 function renderPlace() {
-  const P = S.ui.place, v = vendorByName(P.vendor) || { name: P.vendor }, w = whoNow(), ls = S.D.cart.filter(c => P.ids.includes(c.itemId));
+  const P = S.ui.place, v = vendorByName(P.vendor) || { name: P.vendor }, w = whoNow(), ls = S.D.cart.filter(c => P.ids.includes(c.itemId) && (isAdmin() || okOf(c)));
   const text = orderText(P.vendor, ls, w), email = v.repEmail || v.email || '', phone = v.tollFree || v.phone || '', cell = v.repPhone || '';
   let detail = '';
-  if (P.how === 'online') detail = webUrl(v.portal) ? '<a class="btn btn-act" href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 16) + 'Open ' + esc(v.name) + '’s website</a><div class="hint">Add the lines below on their site and check out, then come back here.' + (v.acct ? ' Account: <b>' + esc(v.acct) + '</b>.' : '') + '</div>' : '<div class="notice">There’s no website saved for ' + esc(v.name) + '. Add it under Vendors.</div>';
+  if (P.how === 'online') detail = webUrl(v.portal) ? '<a class="btn btn-act" href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 16) + 'Open ' + esc(v.name) + '’s website</a><div class="hint">Add the lines below on their site and check out, then come back here.' + (v.acct ? ' Account: <b>' + esc(v.acct) + '</b>.' : '') + '</div>' : '<div class="notice">There’s no website saved for ' + esc(v.name) + '. ' + (isAdmin() ? 'Add it under Vendors.' : 'Dr. A can add it under Vendors.') + '</div>';
   else if (P.how === 'call') detail = phone ? '<a class="btn btn-act" href="tel:' + esc(phone.replace(/[^\d+]/g, '')) + '">' + ic('call', 16) + 'Call ' + esc(phone) + '</a>' + (v.acct ? '<div class="hint">Account: <b>' + esc(v.acct) + '</b></div>' : '') : '<div class="notice">No phone number saved for ' + esc(v.name) + '.</div>';
   else if (P.how === 'email') detail = email ? '<a class="btn btn-act" href="mailto:' + esc(email) + '?subject=' + encodeURIComponent('Order — ' + OFFICE.name + (v.acct ? ' (acct ' + v.acct + ')' : '')) + '&body=' + encodeURIComponent(text) + '">' + ic('email', 16) + 'Write the email to ' + esc(email) + '</a><div class="hint">It opens in your email program with the order filled in.</div>' : '<div class="notice">No email saved for ' + esc(v.name) + '. Copy the order below into an email.</div>';
   else if (P.how === 'text') detail = cell ? '<a class="btn btn-act" href="sms:' + esc(cell.replace(/[^\d+]/g, '')) + '?&body=' + encodeURIComponent(text) + '">' + ic('text', 16) + 'Text ' + esc(v.rep || cell) + '</a>' : '<div class="notice">No mobile number saved for ' + esc(v.name) + '’s rep.</div>';
@@ -102,8 +128,10 @@ ACT.placeHow = t => { S.ui.place.how = t.dataset.k; const n = val('poNum'), d = 
 ACT.copyOrder = () => copyText($('#orderTxt').textContent);
 ACT.placeGo = t => withWho(async () => {
   const P = S.ui.place; busyBtn(t, true, 'Saving…');
+  /* (the vendor's lines that wait for Dr. A's OK stay in the cart: the toast says how many) */
+  const left = isAdmin() ? 0 : cartLinesFor(P.vendor).filter(c => !okOf(c) && !P.ids.includes(c.itemId)).length;
   try {
-    const o = await placeOrder(P.vendor, P.ids, { method: P.how, orderNumber: val('poNum'), expected: val('poDate'), note: val('poNote') });
-    closeModal(true); toast('Ordered from ' + P.vendor + ' — it’s under Orders → On the way.', { action: 'Show', onAction: () => { go('orders'); openDrawer('order', o.id); } });
+    const o = await placeOrder(P.vendor, P.ids, { method: P.how, orderNumber: val('poNum'), expected: val('poDate'), note: val('poNote') }), n = left + (o.waiting || 0);
+    closeModal(true); toast('Ordered from ' + P.vendor + ' — it’s under Orders → On the way.' + (n ? ' ' + plural(n, 'line') + ' still wait' + (n === 1 ? 's' : '') + ' for Dr. A’s OK.' : ''), { action: 'Show', onAction: () => { go('orders'); openDrawer('order', o.id); } });
   } catch (e) { busyBtn(t, false); toast(errText(e), { bad: true }); }
 }, 'Who placed this order?');

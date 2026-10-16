@@ -405,6 +405,10 @@ a.btn{text-decoration:none}
 .cline .tot{font-weight:700;color:var(--navy);text-align:right;white-space:nowrap;min-width:80px}
 .cline .tot small{display:block;font-weight:600;color:var(--grey-500);font-size:11px}
 .cline .note{font-size:12px;color:var(--grey-600);margin-top:2px}
+.cline .okRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px}
+.okBar{display:flex;align-items:center;gap:10px;background:var(--mint-100);color:var(--mint-700);border-radius:12px;padding:10px 14px;font-size:13px;margin:-6px 0 16px}
+.okBar b{color:var(--navy)}
+.okBar.wait{background:var(--amber-100);color:var(--amber-700)}
 .vfoot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 20px 16px;border-top:1px solid var(--grey-100);background:var(--grey-50);border-radius:0 0 var(--r) var(--r)}
 .vfoot .sum{font-size:13px;color:var(--grey-600)}
 .vfoot .sum b{font-family:var(--fd);font-weight:600;font-size:20px;color:var(--navy);letter-spacing:.02em;margin-left:6px}

@@ -3,7 +3,9 @@
    put it there), what's on the way (who ordered it, when, whether it's
    late), this month's supply spending against the budget, and the last
    few steps anyone took. Stock counts aren't the lead: they aren't kept
-   up closely enough to steer by (Amir, Oct 2026).
+   up closely enough to steer by (Amir, Oct 2026). Everyone but Dr. A
+   sees the cart, what's on the way, and what's low or expiring — not the
+   spending or the activity.
    ===================================================================== */
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }
 function cartValue(lines) { return (lines || S.D.cart).reduce((a, c) => a + (Number(c.price) || 0) * (Number(c.qty) || 0), 0); }
@@ -17,20 +19,21 @@ VIEWS.home = {
   render() {
     const D = S.D, w = whoNow(), cart = D.cart, open = D.orders.filter(o => o.status === 'open').sort((a, b) => msOf(a.orderedAt || a.dateOrdered) - msOf(b.orderedAt || b.dateOrdered));
     const back = D.orders.filter(o => o.status === 'backordered'), late = open.filter(orderLate);
-    const mk = monthKey(Date.now()), sp = monthSpend(mk, D), budget = budgetMonthly();
+    const mk = monthKey(Date.now()), boss = isAdmin(), sp = boss ? monthSpend(mk, D) : null, budget = boss ? budgetMonthly() : 0, wait = cart.filter(c => !okOf(c)).length;
     let h = '<div class="hello">' + greeting() + (w ? ', <b>' + esc(firstName(w.name)) + '</b>' : '') + ' · ' + esc(fmtDay(Date.now())) + '</div>';
+    if (boss && wait) h += '<div class="okBar">' + ic('check', 16) + '<span class="grow"><b>' + plural(wait, 'cart line') + '</b> ' + (wait === 1 ? 'needs' : 'need') + ' your OK.</span><button class="btn btn-act btn-sm" data-act="nav" data-v="cart">Look at the cart</button></div>';
     h += '<div class="tiles">' +
-      '<button class="tile mint" data-act="nav" data-v="cart"><span class="n">' + cart.length + '</span><span class="l">In the cart</span><span class="s">' + (cart.length ? 'about ' + money(cartValue(), { whole: true }) + ' · ' + vendorsIn(cart).length + ' vendor' + (vendorsIn(cart).length === 1 ? '' : 's') : 'nothing waiting') + '</span></button>' +
+      '<button class="tile mint" data-act="nav" data-v="cart"><span class="n">' + cart.length + '</span><span class="l">In the cart</span><span class="s">' + (cart.length ? (wait ? '<span style="color:var(--amber-700)">' + wait + (boss ? ' need your OK' : ' wait for Dr. A') + '</span>' : 'about ' + money(cartValue(), { whole: true }) + ' · ' + vendorsIn(cart).length + ' vendor' + (vendorsIn(cart).length === 1 ? '' : 's')) : 'nothing waiting') + '</span></button>' +
       '<button class="tile blue" data-act="nav" data-v="orders"><span class="n">' + open.length + '</span><span class="l">On the way</span><span class="s">' + (late.length ? '<span style="color:var(--coral-700)">' + late.length + ' late</span>' : open.length ? 'none late' : 'no open orders') + '</span></button>' +
       '<button class="tile ' + (back.length ? 'amber' : '') + '" data-act="ordersTab" data-tab="backordered"><span class="n">' + back.length + '</span><span class="l">Backordered</span><span class="s">' + (back.length ? 'waiting on vendors' : 'none') + '</span></button>' +
-      '<button class="tile ' + (budget && sp.total > budget ? 'red' : '') + '" data-act="nav" data-v="budget"><span class="n">' + moneyK(sp.total) + '</span><span class="l">' + esc(monthLabel(mk, true)) + ' supplies</span><span class="s">' + (budget ? 'of ' + money(budget, { whole: true }) + ' budget' : 'no budget set') + '</span></button></div>';
+      (boss ? '<button class="tile ' + (budget && sp.total > budget ? 'red' : '') + '" data-act="nav" data-v="budget"><span class="n">' + moneyK(sp.total) + '</span><span class="l">' + esc(monthLabel(mk, true)) + ' supplies</span><span class="s">' + (budget ? 'of ' + money(budget, { whole: true }) + ' budget' : 'no budget set') + '</span></button>' : '') + '</div>';
     /* the cart, by vendor */
     let left = '<div class="card" style="margin-bottom:18px"><div class="cardHd"><h3>Waiting to be ordered</h3><span class="sub">' + (cart.length ? cart.length + ' line' + (cart.length === 1 ? '' : 's') : '') + '</span><span style="flex:1"></span>' + (cart.length ? '<button class="btn btn-sec btn-sm" data-act="nav" data-v="cart">Open the cart</button>' : '') + '</div><div class="cardBd">';
     if (!cart.length) left += '<div class="empty">The cart is empty. Find a supply and tap <b>Add</b>.</div>';
     else vendorsIn(cart).forEach(v => {
       const ls = cart.filter(c => (c.vendor || '') === v);
       left += '<div class="grpHead" style="padding:8px 0 2px;display:flex;align-items:center;gap:8px">' + vlogoHTML({ name: v }) + esc(v || 'No vendor yet') + '<span class="muted" style="margin-left:auto;font-weight:600">' + money(cartValue(ls)) + '</span></div>';
-      ls.slice(0, 6).forEach(c => { left += '<div class="row" data-act="nav" data-v="cart" style="cursor:pointer"><div class="grow"><span class="pt">' + esc(c.name) + '</span><span class="meta">' + esc(lineQtyLabel(c)) + ' · added by ' + esc(c.addedBy || '—') + (c.addedAt ? ', ' + esc(fmtWhen(c.addedAt)) : '') + '</span></div>' + avatarHTML(c.addedBy, 'sm', c.addedById) + '</div>'; });
+      ls.slice(0, 6).forEach(c => { left += '<div class="row" data-act="nav" data-v="cart" style="cursor:pointer"><div class="grow"><span class="pt">' + esc(c.name) + '</span><span class="meta">' + esc(lineQtyLabel(c)) + ' · added by ' + esc(c.addedBy || '—') + (c.addedAt ? ', ' + esc(fmtWhen(c.addedAt)) : '') + (okOf(c) ? '' : ' · <span style="color:var(--amber-700)">' + (boss ? 'needs your OK' : 'waiting for Dr. A’s OK') + '</span>') + '</span></div>' + avatarHTML(c.addedBy, 'sm', c.addedById) + '</div>'; });
       if (ls.length > 6) left += '<div class="muted small" style="padding:6px 8px">and ' + (ls.length - 6) + ' more</div>';
     });
     left += '</div></div>';
@@ -46,10 +49,12 @@ VIEWS.home = {
     if (back.length) left += '<div class="notice" style="margin-top:12px;cursor:pointer" data-act="ordersTab" data-tab="backordered">' + back.length + ' order' + (back.length === 1 ? ' is' : 's are') + ' backordered: ' + esc(back.map(o => o.vendor).filter(Boolean).slice(0, 3).join(', ')) + '</div>';
     left += '</div></div>';
     /* spending, what's low (by the counts), what's expiring, and activity */
-    let right = budgetSummaryCard(mk, sp, budget, true) + lowCardHTML() + expiringCardHTML();
-    const ev = feedEvents().slice(0, 12);
-    right += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Latest steps</h3><span style="flex:1"></span><button class="btn btn-ghost" data-act="nav" data-v="activity">See all</button></div><div class="cardBd" style="padding-top:0"><div class="feed">' + (ev.length ? ev.map(e => feedItemHTML(e, true)).join('') : '<div class="empty">Nothing yet.</div>') + '</div></div></div>';
-    return h + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+    let right = (boss ? budgetSummaryCard(mk, sp, budget, true) : '') + lowCardHTML() + expiringCardHTML();
+    if (boss) {
+      const ev = feedEvents().slice(0, 12);
+      right += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Latest steps</h3><span style="flex:1"></span><button class="btn btn-ghost" data-act="nav" data-v="activity">See all</button></div><div class="cardBd" style="padding-top:0"><div class="feed">' + (ev.length ? ev.map(e => feedItemHTML(e, true)).join('') : '<div class="empty">Nothing yet.</div>') + '</div></div></div>';
+    }
+    return h + (right ? '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>' : left);
   }
 };
 /* below the minimum — a hint, since counts aren't always kept up — with a one-tap add */

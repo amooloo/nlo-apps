@@ -13,16 +13,26 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
 - **Signing in**: each person's own NLO Cases username and password (no Google account, no tapping a name). Every cart line,
   order, receipt, stock step and expense is stamped with the person signed in. The page locks after the office's idle minutes
   and on Lock; a reload means signing in again (as NLO Cases). Someone whose login is turned off is locked out at once.
-- **Who changes settings** (budget amounts, vendors, storage locations, archiving/deleting supplies, voiding/reopening orders,
-  bringing back a voided order): Dr. A and the people he ticks in Settings — and now the **database itself** holds everyone
-  else to that, not just the page.
+- **Only Dr. A sees everything; everyone else gets the simple view.** Amir, 16 Oct 2026: "for assistants, the budget vendor
+  and setting are not needed. keep at simple as possible. they will just need to look up inventory, add items to the cart
+  and if I approve them, they can place order" (and, asked: only he approves; they also receive, use Quick order, update
+  counts and add or edit supplies). Everyone else's menu: Home (no spending, no activity), Supplies, Cart, Orders, Quick order
+  — no Budget, Activity, Vendors, Settings or Ask; no typed-in orders, editing, voiding, reopening or ordering again; no
+  archiving or deleting supplies. Settings (budget amounts, vendors, storage locations, archiving/deleting supplies,
+  voiding/reopening orders, the alerts, the AI keys) are his alone, and the **database itself** holds everyone else to that.
+- **Dr. A OKs the cart**: a line anyone else adds waits for his OK (Cart: **OK** on a line, **OK all**; his Home and the red
+  Cart in the menu say how many wait). The others place only the OK'd lines (the rest stay in the cart); he places any. More
+  of a line than he OK'd waits again (back down to it is OK'd again); his own adds are OK'd from the start. His OKs are kept
+  in the cart record (`ok`), which only he can add to or change — anyone else's save may only take one off with its line —
+  and each placed line carries the OK. The cart and its order are saved in one step.
+- **A push on his phone** (the free ntfy app) when someone adds to the cart: Settings → Phone push (the Time Clock's topic —
+  nothing new on the phone — or one of its own; a test; off). The alert script sends them.
 - **The names on the steps are checked by the database**: each person adds only to their own activity-log record, an
   order's trail only grows by the saver's own step (and who received it is whoever saved the receipt), and an expense is in
-  the name of whoever added it (only they, or the people Dr. A picked, take it off). The screens show the person behind the
-  id, as NLO Cases knows them today. Once an order is received, everyone else only adds its paperwork (invoice numbers and
-  amounts, prices from the packing slip, the slip photo). Anyone may add a vendor by name, or fill in a missing account
-  number or address; websites, phones, order emails and reps are for the people Dr. A picked (and a website opens only if
-  it's an http(s) address).
+  the name of whoever added it (only they, or Dr. A, take it off). The screens show the person behind the id, as NLO Cases
+  knows them today. Once an order is received, everyone else only adds its paperwork (invoice numbers and amounts, prices from
+  the packing slip, the slip photo). Anyone may add a vendor by name, or fill in a missing account number or address;
+  websites, phones, order emails and reps are Dr. A's (and a website opens only if it's an http(s) address).
 - **Quick-order prices** save for everyone (the old database's rules refused them).
 - **Photos** kept inside records (old supplies, packing slips) are records of their own (`invPics`), read when shown.
 - **Vendor account numbers, reps and card notes** are no longer built into the page (it's published from the public repo):
@@ -44,9 +54,11 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
   (`~old2`… past a thousand in a month), with the old app's stamps.
 - `invExpenses/{id}` — the expenses bought outside an order, in the name of whoever added them (`byId`); added and taken off,
   never changed.
-- `invState/cart {lines}`, `invState/budget {monthly, categories, history, changedBy, changedAt}`, `invState/prices {p}`,
-  `invState/bracket {v}`, `invState/settings {locations, invAdmins (staff ids), alertsOn, geminiProxyUrl, invPrefs}`,
-  `invState/ai {gemini, openai}` (Dr. A sets; members and the alert script read).
+- `invState/cart {lines, ok}` (`ok`: Dr. A's OK by line id, `{by, byId, at, n: counted units OK'd, it: the supply}`),
+  `invState/budget {monthly, categories, history, changedBy, changedAt}`, `invState/prices {p}`, `invState/bracket {v}`,
+  `invState/settings {locations, alertsOn, pushOn, geminiProxyUrl, invPrefs}` (`invAdmins`, the old app's list, is allowed
+  but means nothing), `invState/ai {gemini, openai}` (Dr. A sets; members and the alert script read), `invState/push {topic,
+  test}` (Dr. A's ntfy topic; only he and the alert script read it).
 - Every record carries `up` (the database's time) and `upBy` (the staff id), and every save moves `invState/rev.n` by one in
   the same save (the rules check both).
 - `invAlerts/{auto}` — the cart/order/receiving emails waiting for the alert script; `invPics/{id}` `{m, b, kind}`;
@@ -64,7 +76,7 @@ The page shows Dr. A "Move Inventory over" until `invMeta/moved` exists (staff s
   parts those write rules back on the rules as they are then (other apps' later changes stay).
 - He connects to the old database with Google (its own sign-in, `invMove`, kept only while the page is open and closed after
   the move); the page reads `nlo/{items,orders,vendors,log,cart,budget,bracketOrder,elastoPrices,settings/…}` over REST and shows
-  what it found (counts, money in the log, this month's spending, who changes settings mapped to NLO Cases logins, notes).
+  what it found (counts, money in the log, this month's spending, notes). The cart's lines come over waiting for his OK.
 - **"Move it now" reads it all again** and stops if anything differs from what the card showed (the new numbers are shown
   instead), **saves a copy of what it read to the computer's Downloads** (`nlo-inventory-before-the-move-<date>.json`, without the
   AI keys), then saves photos (photos kept anywhere inside a record become records of their own) and everything else in saves
@@ -78,14 +90,18 @@ The page shows Dr. A "Move Inventory over" until `invMeta/moved` exists (staff s
 Before it, the vendor details go into the old database's saved vendors (`vendor_details.py`, only what's missing), so the move
 carries them.
 
-## The alert script ("NLO Inventory Alerts", version 2, in akhavan.ak@gmail.com's Apps Script)
+## The alert script ("NLO Inventory Alerts", version 3, in akhavan.ak@gmail.com's Apps Script)
 `robot/script.js` → `dist/nlo-inventory-alerts.gs` (published as `../nlo-inventory-alerts.gs`). Settings → Email alerts → Get
 the alert script makes it a login of its own (`invBots`; the newest two kept) and copies the script with that login filled in;
 Dr. A pastes it over the old code (same project, same every-minute trigger, no new permissions) and runs `setup`.
 Every minute (every 10 at night) it reads `invState/rev`; when it moved:
 - **emails the alerts** in emails of at most 25 alerts and ~150 KB (each alert cut to 60 lines), remembers each email's
   alerts as it goes (nothing is sent twice) and clears them; if Gmail's daily limit is used up they wait (the check-in in
-  Settings says so);
+  Settings says so). With the phone push on, cart adds by anyone but Dr. A go to his phone instead (one push each, one for all
+  of them past four; his own aren't sent): straight to ntfy, or — when Google's servers can't reach it or it says "too many"
+  (ntfy.sh shuts out shared addresses for hours) — in one email to ntfy's address for the topic (`ntfy-<topic>@ntfy.sh`), and
+  the direct way rests 3 hours (`INV_NTFY_REST`), as the Time Clock's script does. Alerts left while the email alerts are off
+  are cleared unsent. A test push Dr. A asks for (`invState/push.test`) goes first;
 - **copies** what changed (`up` after the last copy, looking 5 minutes further back each time, since a save's time is when it
   was sent) from `invItems`, `invOrders` and `invLog` into the old database (`nlo/items`, `nlo/orders`, `nlo/log`; an entry's
   `byId` is whose record it's in), the budget with its expenses as one list (`nlo/budget`: only the keys the app keeps, so
@@ -105,10 +121,11 @@ script checked in last (the copy running now); any others stop.
 - Tests (inside the emulators; `node_modules` → `../nlo-cases-src/node_modules`; `test/vendor/firebasejs-10.12.2/` = the three
   compat files from `npm pack firebase@10.12.2`; `NO_PROXY=127.0.0.1,localhost`):
   `npx firebase emulators:exec --only firestore,auth,database --project demo-nlo-cases "python3 test/e2e.py && node test/robot.test.js && node test/rules.test.mjs"`
-  — 316 end-to-end checks (the real page; the move from v3-shaped data, its read-only check, second reading, saved copy,
-  re-run, large photos; sign-in, lock, idle lock; the names on the steps; every flow of 4.0's suite; two computers at once;
-  a slow receive, a retried one; rules gate; the copied alert script run), 57 alert-script checks, 267 rules checks, and 25
-  for the read-only helper (16 Oct). The other apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97,
+  — the end-to-end checks (the real page; the move from v3-shaped data, its read-only check, second reading, saved copy,
+  re-run, large photos; sign-in, lock, idle lock; the names on the steps; the simple view; Dr. A's OK on the cart; the phone
+  push settings; every flow of 4.0's suite; two computers at once; a slow receive, a retried one; rules gate; the copied alert
+  script run), the alert-script checks (with a stand-in ntfy), the rules checks, and 25 for the read-only helper — counts in
+  `claude/inventory-on-cases.md`. The other apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97,
   Time Off 159, Time Clock 433 on 16 Oct).
 - Publish: copy `dist/nlo-inventory.html` and `dist/nlo-inventory-alerts.gs` to the repo root; when the rules change, rebuild
   and copy NLO Cases, A/R, Time Off and the Time Clock too (they carry the file for their own rules cards).

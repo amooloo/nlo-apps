@@ -9,9 +9,12 @@
    Names and photos come from NLO Cases' roster. Records from before the
    move carry Staff Hub's ids (s_sarah…): a roster entry linked to Staff
    Hub (rid) answers to both.
+   Only Dr. A sees everything and OKs the cart (Amir, 16 Oct 2026: "for
+   assistants, the budget vendor and setting are not needed. keep at
+   simple as possible. they will just need to look up inventory, add
+   items to the cart and if I approve them, they can place order").
+   Everyone else gets the simple view (isAdmin() is Dr. A).
    ===================================================================== */
-/* who can change settings when nobody has been picked yet: Dr. A (and, after the move, the people the old app had) */
-const DEFAULT_ADMINS = [];
 /* "Pat L.", "Dr. A" — how a name shows on a stamp (the old app's short names looked the same) */
 function shortName(name) {
   const n = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim(); if (!n) return '';
@@ -60,22 +63,18 @@ function isMine(id) { const w = whoNow(), p = id && personById(id); return !!(w 
 function stamp() { const w = whoNow(); return { by: w ? w.short : 'Office', byId: w ? w.id : '', at: nowISO() }; }
 /* a step that needs a name: the signed-in person's (the old app asked people to tap their name; signing in says it now) */
 function withWho(fn) { const w = whoNow(); if (!w) return toast('Sign in first.', { bad: true }); return fn(w); }
-function adminList() { const l = S.settings && Array.isArray(S.settings.invAdmins) ? S.settings.invAdmins.filter(x => typeof x === 'string') : []; return l.length ? l : DEFAULT_ADMINS; }
 function isOwnerAccount() { return !!(B && B.isOwner && B.isOwner()); }
-function isAdmin() { if (isOwnerAccount()) return true; const w = whoNow(); return !!(w && adminList().includes(w.id)); }
-/* who can change settings, by name ("Dr. A or Pat L.") */
-function adminNames() {
-  const names = ['Dr. A'].concat(adminList().map(id => personById(id)).filter(p => p && p.role !== 'owner' && p.active).map(p => p.short));
-  return names.length > 1 ? names.slice(0, -1).join(', ') + ' or ' + names[names.length - 1] : names[0];
-}
-/* a step only Dr. A and the people he picks can take */
-function withAdmin(fn, why, what) { if (!isAdmin()) return toast('Only ' + adminNames() + ' can ' + (what || 'do that') + '.', { bad: true }); return fn(); }
+/* Dr. A: the whole app, and his OK on the cart; everyone else: Home, Supplies, Cart, Orders and Quick order */
+function isAdmin() { return isOwnerAccount(); }
+function adminNames() { return 'Dr. A'; }
+/* a step only Dr. A takes */
+function withAdmin(fn, why, what) { if (!isAdmin()) return toast('Only Dr. A can ' + (what || 'do that') + '.', { bad: true }); return fn(); }
 
 /* the side-menu chip: who's signed in, and Lock */
 function renderWho() {
   const el = $('#whoSlot'); if (!el) return;
   const w = whoNow();
-  el.innerHTML = w ? '<div class="whoChip">' + avatarHTML(w.short, '', w.id) + '<span class="grow"><b>' + esc(w.name) + '</b><span class="sm">' + (isOwnerAccount() ? 'Dr. A' : isAdmin() ? 'Changes settings' : 'Signed in') + '</span></span><button class="iconBtn lockBtn" data-act="lock" title="Lock (sign out)" aria-label="Lock">' + ic('lock', 17) + '</button></div>' : '';
+  el.innerHTML = w ? '<div class="whoChip">' + avatarHTML(w.short, '', w.id) + '<span class="grow"><b>' + esc(w.name) + '</b><span class="sm">' + (isOwnerAccount() ? 'Dr. A' : 'Signed in') + '</span></span><button class="iconBtn lockBtn" data-act="lock" title="Lock (sign out)" aria-label="Lock">' + ic('lock', 17) + '</button></div>' : '';
   const mob = $('#mobWho'); if (mob) mob.innerHTML = w ? avatarHTML(w.short, 'sm', w.id) : '<span class="av sm ghost">?</span>';
 }
 /* the phone's avatar button: who's signed in, Lock */

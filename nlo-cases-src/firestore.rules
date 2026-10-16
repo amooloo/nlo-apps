@@ -1214,20 +1214,21 @@ service cloud.firestore {
     // - The steps people take carry the name of whoever saved them: the activity log is one record per person per month
     //   (invLog/m<YYYY-MM>~<staff id>), each person adding only to their own, entries only ever added; an order's trail only
     //   grows by the step being saved, in the saver's name; expenses bought outside an order are records of their own
-    //   (invExpenses) in the name of whoever added them, taken off only by them or the people Dr. A picked. (Dr. A's own
+    //   (invExpenses) in the name of whoever added them, taken off only by them or Dr. A. (Dr. A's own
     //   saves aren't held to this: the one-time move brings the old records over as the old app stamped them.)
     // - Supplies and vendors are hidden with a flag, never deleted; orders are never deleted. Once an order is received,
     //   everyone else only adds its paperwork (invoice numbers and amounts, prices from the packing slip, the slip photo).
-    // - Who changes settings (budget amounts, vendors, storage locations, archiving and deleting supplies, voiding and
-    //   reopening orders): Dr. A and the people ticked in Settings (invState/settings.invAdmins, by staff id). Only Dr. A
-    //   changes that list, the alert switch and the AI keys.
+    // - Only Dr. A changes settings (budget amounts, vendors, storage locations, archiving and deleting supplies, voiding and
+    //   reopening orders, the alert switches and the AI keys). Amir, 16 Oct 2026: "for assistants, the budget vendor and
+    //   setting are not needed … they will just need to look up inventory, add items to the cart and if I approve them, they
+    //   can place order" — and only he approves.
+    // - His OKs on cart lines (invState/cart.ok) are his alone: anyone else may only take one off (with its line).
     // - The alert script (Dr. A's Apps Script) has its own login (invBots): it reads Inventory (and the AI keys, which Staff
     //   Meeting and Month-End read from the old database), sends and clears the alerts, and copies the supply numbers to the
     //   old database, where Staff Meeting and AISA read them.
     // =====================================================================
     function invRevDoc() { return /databases/$(db)/documents/invState/rev; }
-    function invSetDoc() { return /databases/$(db)/documents/invState/settings; }
-    function isInvAdmin() { return isOwner() || (isMember() && exists(invSetDoc()) && mySid() in get(invSetDoc()).data.get('invAdmins', [])); }
+    function isInvAdmin() { return isOwner(); }
     function isInvBot() { return authed() && exists(/databases/$(db)/documents/invBots/$(request.auth.uid)); }
     function invReader() { return isMember() || isInvBot(); }
     // the change counter went up by one in this same save
@@ -1277,7 +1278,7 @@ service cloud.firestore {
     match /invVendors/{id} {
       // anyone may add a vendor (one typed on a supply joins the list: a new v-… record with just its name) and fill in an
       // account number or address a packing slip shows when there wasn't one; everything else (website, phone, order email,
-      // rep…) is for the people Dr. A picked
+      // rep…) is Dr. A's
       function blank(k) { return !(k in resource.data) || resource.data[k] == null || resource.data[k] == ''; }
       allow read: if invReader();
       allow create: if invOk(request.resource.data) && request.resource.data.id == id && request.resource.data.size() <= 60
@@ -1319,9 +1320,16 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /invState/cart {
+      // ok: Dr. A's OK on each line he approved ({line id: {by, byId, at, n, it}}): only he adds or changes one; anyone else's
+      // save keeps them as they are, or takes some off (a line ordered or taken out)
+      function okOks() {
+        let n = request.resource.data.get('ok', {});
+        let o = resource == null ? {} : resource.data.get('ok', {});
+        return n is map && n.size() <= 400 && (isOwner() || (n.diff(o).addedKeys().size() == 0 && n.diff(o).changedKeys().size() == 0));
+      }
       allow get: if invReader();
-      allow create, update: if invOk(request.resource.data) && request.resource.data.keys().hasOnly(['lines', 'up', 'upBy'])
-        && request.resource.data.lines is list && request.resource.data.lines.size() <= 400;
+      allow create, update: if invOk(request.resource.data) && request.resource.data.keys().hasOnly(['lines', 'ok', 'up', 'upBy'])
+        && request.resource.data.lines is list && request.resource.data.lines.size() <= 400 && okOks();
       allow delete: if false;
     }
     match /invState/bracket {
@@ -1335,19 +1343,28 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /invState/budget {
-      // the budget amounts, for the people Dr. A picked (the expenses are records of their own: invExpenses)
+      // the budget amounts, Dr. A's (the expenses are records of their own: invExpenses)
       function okBud(d) { return d.keys().hasOnly(['monthly', 'categories', 'history', 'changedBy', 'changedAt', 'up', 'upBy']); }
       allow get: if invReader();
       allow create, update: if invOk(request.resource.data) && okBud(request.resource.data) && isInvAdmin();
       allow delete: if false;
     }
     match /invState/settings {
-      function okSet(d) { return d.keys().hasOnly(['locations', 'invAdmins', 'alertsOn', 'geminiProxyUrl', 'invPrefs', 'up', 'upBy'])
-        && (!('invAdmins' in d) || (d.invAdmins is list && d.invAdmins.size() <= 30)); }
+      // (invAdmins: the list of people who changed settings before 16 Oct; nothing reads it now)
+      function okSet(d) { return d.keys().hasOnly(['locations', 'invAdmins', 'alertsOn', 'pushOn', 'geminiProxyUrl', 'invPrefs', 'up', 'upBy'])
+        && (!('invAdmins' in d) || (d.invAdmins is list && d.invAdmins.size() <= 30))
+        && (!('pushOn' in d) || d.pushOn is bool); }
       allow get: if invReader();
-      allow create: if invOk(request.resource.data) && okSet(request.resource.data) && isOwner();
-      allow update: if invOk(request.resource.data) && okSet(request.resource.data) && isInvAdmin()
-        && (isOwner() || !invChanged(['invAdmins', 'alertsOn', 'geminiProxyUrl']));
+      allow create, update: if invOk(request.resource.data) && okSet(request.resource.data) && isOwner();
+      allow delete: if false;
+    }
+    // Dr. A's phone push (the free ntfy app) when someone adds to the cart: the topic stays between him and the alert script,
+    // which sends the pushes (settings.pushOn tells the pages to leave the cart adds for it); test: when he asked for a test
+    match /invState/push {
+      function okPush(d) { return d.keys().hasOnly(['topic', 'test', 'up', 'upBy']) && d.topic is string && d.topic.matches('^[A-Za-z0-9_-]{0,64}$')
+        && (!('test' in d) || d.test is int); }
+      allow get: if isOwner() || isInvBot();
+      allow create, update: if invOk(request.resource.data) && isOwner() && okPush(request.resource.data);
       allow delete: if false;
     }
     // the AI keys for reading packing slips (and product photos): everyone signed in uses them, only Dr. A sets them; the

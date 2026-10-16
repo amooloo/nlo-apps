@@ -19,6 +19,17 @@ function trailAdd(list, t, s, extra) { const out = listOf(list).slice(); out.pus
 function logEntry(fields, s) { return Object.assign({ id: uid(), date: s.at, by: s.by, byId: s.byId || null }, fields); }
 
 /* ---------- the cart ---------- */
+/* every line has an id (a line from before 5.0 gets one made from what it carries: the same on every computer) */
+function withLineId(c) { if (c && !c.lineId) c.lineId = 'c-' + (c.itemId || '') + '-' + (c.addedAt || ''); return c; }
+/* Dr. A's OK (Amir, 16 Oct 2026: "they will just need to look up inventory, add items to the cart and if I approve them, they
+   can place order"). It's kept by line id — { by, byId, at, n: how many counted units he OK'd, it: the supply } — and a line
+   is OK'd while it's that supply and no more of it than he OK'd: more needs his OK again. His own adds and changes carry it
+   from the start. Only he gives it (the rules see to that); the others place the OK'd lines. */
+function lineCount(c) { return Math.round((Number(c && c.qty) || 0) * linePer(c) * 1000) / 1000; }
+function okOf(c, ok) { const o = c && c.lineId ? (ok || S.D.cartOk || {})[c.lineId] : null; return o && o.it === (c.itemId || '') && lineCount(c) <= (Number(o.n) || 0) ? o : null; }
+function okStamp(c, s) { return { by: s.by, byId: s.byId || '', at: s.at, n: lineCount(c), it: c.itemId || '' }; }
+/* what an add tells everyone but Dr. A: it waits for his OK */
+function okNote(n) { return isAdmin() ? '' : ' ' + (n === 1 ? 'It waits' : 'They wait') + ' for Dr. A’s OK.'; }
 /* one cart line per supply; quick-order brackets and elastics come in as their own lines */
 function cartLineFor(item, qty, s, opt) {
   opt = opt || {};
@@ -33,28 +44,40 @@ function cartLineFor(item, qty, s, opt) {
   return line;
 }
 async function cartAdd(item, qty, opt) {
-  qty = Number(qty) || 1; const s = stamp(); let added = null;
-  await B.cart(list => {
+  qty = Number(qty) || 1; const s = stamp(), boss = isOwnerAccount(); let added = null;
+  await B.cart((list, ok) => {
     const ex = list.find(c => c && c.itemId === item.id);
     if (ex && !(opt && opt.pseudo)) {
       /* the line may be from before the supply was bought bigger (2 boxes, now bought by the case): add in the line's own unit */
       const conv = linePer(ex) !== perBuy(item) ? perBuy(item) / linePer(ex) : 1, more = round2(qty * conv);
       ex.qty = round2((Number(ex.qty) || 0) + more); ex.trail = trailAdd(ex.trail, 'more', s, conv !== 1 ? { qty: more, as: qtyUnit(qty, buyUnit(item)) } : { qty }); added = ex;
     } else { added = cartLineFor(item, qty, s, opt); list.push(added); }
+    if (boss) ok[added.lineId] = okStamp(added, s);
     return list;
   });
   B.alert([{ t: 'cart', at: Date.now(), by: s.by, lines: alertLines([Object.assign({}, cartLineFor(item, qty, s, opt), { vendor: added.vendor })]), inCart: S.D.cart.length }]);
   return added;
 }
 async function cartSetQty(itemId, qty) {
-  qty = Math.max(0, Number(qty) || 0); const s = stamp(); let was = 0, line = null;
+  qty = Math.max(0, Number(qty) || 0); const s = stamp(), boss = isOwnerAccount(); let was = 0, line = null;
   if (!qty) return cartRemove(itemId);
-  await B.cart(list => { const c = list.find(x => x && x.itemId === itemId); if (!c) return list; was = Number(c.qty) || 0; if (was === qty) return list; c.qty = qty; c.trail = trailAdd(c.trail, 'qty', s, { from: was, to: qty }); line = c; return list; });
+  await B.cart((list, ok) => { const c = list.find(x => x && x.itemId === itemId); if (!c) return list; was = Number(c.qty) || 0; if (was === qty) return list; c.qty = qty; c.trail = trailAdd(c.trail, 'qty', s, { from: was, to: qty }); line = c; if (boss) ok[c.lineId] = okStamp(c, s); return list; });
   if (line && qty > was) B.alert([{ t: 'cart', at: Date.now(), by: s.by, lines: alertLines([Object.assign({}, line, { qty: qty - was })]), inCart: S.D.cart.length }]);
 }
 async function cartPatch(itemId, patch, what) {
-  const s = stamp();
-  await B.cart(list => { const c = list.find(x => x && x.itemId === itemId); if (c) { Object.assign(c, patch); c.trail = trailAdd(c.trail, what || 'edit', s); } return list; });
+  const s = stamp(), boss = isOwnerAccount();
+  await B.cart((list, ok) => { const c = list.find(x => x && x.itemId === itemId); if (c) { Object.assign(c, patch); c.trail = trailAdd(c.trail, what || 'edit', s); if (boss && (patch.qty != null || patch.per != null)) ok[c.lineId] = okStamp(c, s); } return list; });
+}
+/* Dr. A OKs lines (by line id, or 'all'): → how many */
+async function cartApprove(lineIds) {
+  if (!isOwnerAccount()) throw errCode('permission', 'Only Dr. A OKs the cart.');
+  const s = stamp(); let n = 0;
+  await B.cart((list, ok) => {
+    n = 0;
+    list.forEach(c => { if (c && (lineIds === 'all' || lineIds.includes(c.lineId)) && !okOf(c, ok)) { ok[c.lineId] = okStamp(c, s); c.trail = trailAdd(c.trail, 'ok', s); n++; } });
+    return n ? list : undefined;
+  });
+  return n;
 }
 /* a line added before its supply was bought bigger (in boxes; now bought by the case): make it cases */
 function lineInOldUnit(c, it) { return !!(it && buysBigger(it) && linePer(c) === 1 && String(c.unit || 'ea').toLowerCase() === countUnit(it).toLowerCase()); }
@@ -72,31 +95,36 @@ async function cartRemove(itemId) {
 }
 
 /* ---------- orders ---------- */
-function orderLineFromCart(c) {
+function orderLineFromCart(c, ok) {
   const l = { itemId: c.itemId || '', name: c.name || '', sku: c.sku || '', qty: Number(c.qty) || 0, price: Number(c.price) || 0, unit: c.unit || 'ea' };
   if (linePer(c) > 1) { l.per = linePer(c); l.countUnit = c.countUnit || 'ea'; }
   l.lineTotal = round2(l.qty * l.price);
   ['addedBy', 'addedById', 'addedAt', 'note', 'cat'].forEach(k => { if (c[k] != null && c[k] !== '') l[k] = c[k]; });
   const tr = listOf(c.trail); if (tr.length) l.trail = tr;
+  if (ok) l.ok = { by: ok.by || '', byId: ok.byId || '', at: ok.at || '' };
   return l;
 }
-/* the cart lines for one vendor become an open order, stamped with who ordered it, how, and when. The lines are taken out of the
-   shared cart first (in one step), so two people placing the same order at once can't make it twice; if the order can't be saved
-   they go back in. */
+/* the cart lines for one vendor become an open order, stamped with who ordered it, how, and when — Dr. A's OK'd ones (he places
+   any). The lines leave the shared cart and the order is saved in one step, so two people placing the same order at once can't
+   make it twice. → the order, with .waiting: lines left in the cart for his OK */
 async function placeOrder(vendor, itemIds, info) {
-  info = info || {}; const s = stamp(); let claimed = [];
-  await B.cart(list => { claimed = list.filter(c => c && itemIds.includes(c.itemId)); return list.filter(c => !(c && itemIds.includes(c.itemId))); });
-  if (!claimed.length) throw new Error('Those cart lines are gone — someone may have just ordered them.');
-  const order = { id: 'order-' + uid(), vendor: vendor || '', items: claimed.map(orderLineFromCart), status: 'open', dateOrdered: todayISO(), orderedAt: s.at, orderedBy: s.by, orderedById: s.byId || null,
-    method: info.method || 'other', trail: trailAdd([], 'ordered', s, { how: info.method || 'other' }) };
-  if (info.orderNumber) order.orderNumber = String(info.orderNumber).trim();
-  if (info.expected) order.expectedDelivery = info.expected;
-  if (info.note) order.note = String(info.note).trim();
-  try { await B.putOrder(order); }
-  catch (e) { await B.cart(list => list.concat(claimed.filter(c => !list.some(x => x && x.itemId === c.itemId)))).catch(() => { }); throw e; }
+  info = info || {}; const s = stamp(), boss = isOwnerAccount(); let order = null, waiting = 0;
+  await B.cart((list, ok, also) => {
+    const want = list.filter(c => c && itemIds.includes(c.itemId)), claimed = want.filter(c => boss || okOf(c, ok));
+    waiting = want.length - claimed.length; order = null;
+    if (!claimed.length) return undefined;
+    order = { id: 'order-' + uid(), vendor: vendor || '', items: claimed.map(c => orderLineFromCart(c, okOf(c, ok) || okStamp(c, s))), status: 'open', dateOrdered: todayISO(), orderedAt: s.at, orderedBy: s.by, orderedById: s.byId || null,
+      method: info.method || 'other', trail: trailAdd([], 'ordered', s, { how: info.method || 'other' }) };
+    if (info.orderNumber) order.orderNumber = String(info.orderNumber).trim();
+    if (info.expected) order.expectedDelivery = info.expected;
+    if (info.note) order.note = String(info.note).trim();
+    also.orders = [order];
+    return list.filter(c => !claimed.includes(c));
+  });
+  if (!order) throw new Error(waiting ? (waiting === 1 ? 'That line waits' : 'Those lines wait') + ' for Dr. A’s OK.' : 'Those cart lines are gone — someone may have just ordered them.');
   stampLastOrdered(order);
   B.alert([alertOrderEvent('ordered', order)]);
-  return order;
+  return Object.assign(order, { waiting });
 }
 /* an order typed in by hand (or a reorder) */
 async function createOrder(o) {

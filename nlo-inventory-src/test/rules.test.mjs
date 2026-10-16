@@ -16,8 +16,9 @@ const is = (name, c, extra) => { c ? pass++ : fail++; console.log((c ? '  ok  ' 
 const env = await initializeTestEnvironment({ projectId: 'demo-nlo-cases', firestore: { rules: readFileSync('dist/firestore.rules', 'utf8'), host: '127.0.0.1', port: 8080 } });
 const as = uid => env.authenticatedContext(uid, { email: uid + '@example.com', email_verified: true }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
-// people: Dr. A (owner), Sarah (ticked in Settings: changes settings), Gwen and Kim (assistants), Lee (left), a stranger
-// with a login of their own, and the alert script's login
+// people: Dr. A (owner: the only one who changes settings and OKs the cart), Sarah (the office coordinator — on the old app's
+// list of people who changed settings, which means nothing now), Gwen and Kim (assistants), Lee (left), a stranger with a
+// login of their own, and the alert script's login
 const SID = { owner: 'amir', fc: 'sarah', ca: 'gwen', ca2: 'kim', gone: 'lee' };
 
 async function seed() {
@@ -39,6 +40,7 @@ async function seed() {
     await setDoc(doc(db, 'invExpenses/x-old'), { id: 'x-old', date: '2026-09-01', amount: 40, category: 'misc', by: 'Kim', byId: 's_kim', up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invState/ai'), { gemini: 'AIzaTEST', openai: '', up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invState/cart'), { lines: [], up: T, upBy: 'amir' });
+    await setDoc(doc(db, 'invState/push'), { topic: 'nlo-inv-test1', up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invItems/ppe-1'), { id: 'ppe-1', name: 'Gloves SM', qty: 4, min: 2, cat: 'infection-control', up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invOrders/order-1'), { id: 'order-1', vendor: 'SunSurgical', status: 'open', items: [], orderedById: 'sarah', trail: [{ t: 'ordered', by: 'Sarah', byId: 'sarah', at: '2026-10-01T10:00:00Z' }], up: T, upBy: 'amir' });
     await setDoc(doc(db, 'invOrders/order-2'), { id: 'order-2', vendor: 'SunSurgical', status: 'received', items: [{ itemId: 'ppe-1', qty: 2, price: 9 }], discount: 1, shipping: 5, receivedById: 'sarah', up: T, upBy: 'amir' });
@@ -83,6 +85,9 @@ for (const [who, db] of [['Gwen', as('ca')], ['Sarah', as('fc')], ['Dr. A', as('
   await ok(who + ' reads whether Inventory moved', getDoc(doc(db, 'invMeta/moved')));
 }
 await no('Gwen can’t read the alerts waiting to go', getDocs(collection(as('ca'), 'invAlerts')));
+await no('Gwen can’t read Dr. A’s phone-push topic', getDoc(doc(as('ca'), 'invState/push')));
+await no('…nor Sarah', getDoc(doc(as('fc'), 'invState/push')));
+await ok('Dr. A reads it', getDoc(doc(as('owner'), 'invState/push')));
 await no('Sarah can’t read the alerts waiting to go', getDoc(doc(as('fc'), 'invAlerts/al1')));
 await ok('Dr. A reads the alerts waiting to go', getDocs(collection(as('owner'), 'invAlerts')));
 await no('Gwen can’t list the alert script’s logins', getDocs(collection(as('ca'), 'invBots')));
@@ -113,6 +118,8 @@ for (const [who, db] of [['someone who left', as('gone')], ['a stranger with a l
   await ok('script reads the rules marker', getDoc(doc(bot, 'meta/rules_inv_1')));
   await ok('script reads its own login record', getDoc(doc(bot, 'invBots/bot1')));
   await ok('script reads the AI keys (to copy them where Staff Meeting and Month-End read them)', getDoc(doc(bot, 'invState/ai')));
+  await ok('script reads the phone-push topic', getDoc(doc(bot, 'invState/push')));
+  await no('script can’t change it', setDoc(doc(bot, 'invState/push'), { topic: 'evil', up: serverTimestamp(), upBy: 'bot1' }));
   await no('script can’t change the AI keys', setDoc(doc(bot, 'invState/ai'), { gemini: 'x', up: serverTimestamp(), upBy: 'bot1' }));
   await no('script can’t read photos', getDoc(doc(bot, 'invPics/p1')));
   await no('script can’t read the people', getDocs(collection(bot, 'members')));
@@ -160,15 +167,14 @@ await seed();
   await ok('Gwen edits a supply (name, prices, bought by the case)', save(g, 'ca', [['update', 'invItems/ppe-1', { name: 'Gloves — SM', buyUnit: 'case', perBuy: 10, sources: [{ vendor: 'SunSurgical', price: 9.1 }] }]]));
   await no('Gwen can’t archive a supply', save(g, 'ca', [['update', 'invItems/ppe-1', { archived: true, archivedBy: 'Gwen' }]]));
   await no('Gwen can’t delete (hide) a supply', save(g, 'ca', [['update', 'invItems/ppe-1', { deleted: true }]]));
-  await ok('Sarah (ticked) archives it', save(s, 'fc', [['update', 'invItems/ppe-1', { archived: true, archivedBy: 'Sarah' }]]));
+  await no('Sarah can’t archive it either (on the old list or not: only Dr. A)', save(s, 'fc', [['update', 'invItems/ppe-1', { archived: true, archivedBy: 'Sarah' }]]));
+  await ok('Dr. A archives it', save(a, 'owner', [['update', 'invItems/ppe-1', { archived: true, archivedBy: 'Dr. A' }]]));
   await ok('Dr. A deletes (hides) one', save(a, 'owner', [['update', 'invItems/custom-1', { deleted: true, deletedBy: 'Dr. A' }]]));
   await ok('Dr. A can add one already hidden (the move from the old database)', save(a, 'owner', [['set', 'invItems/old-9', { id: 'old-9', name: 'Old', deleted: true }]]));
   await no('nobody removes a supply for good', save(a, 'owner', [['delete', 'invItems/custom-1']]));
   await no('a supply with too many fields', save(g, 'ca', [['set', 'invItems/big', Object.assign({ id: 'big' }, Object.fromEntries(Array.from({ length: 130 }, (_, i) => ['f' + i, i])))]]));
-  await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'invState/settings'), { invAdmins: ['amir'], up: Timestamp.now(), upBy: 'amir' }); });
-  await no('Sarah, no longer ticked, can’t archive', save(s, 'fc', [['update', 'invItems/ppe-1', { archived: false }]]));
   await env.withSecurityRulesDisabled(async c => { await deleteDoc(doc(c.firestore(), 'invState/settings')); });
-  await no('with no settings yet, only Dr. A archives', save(s, 'fc', [['update', 'invItems/ppe-1', { archived: false }]]));
+  await no('with no settings at all, Sarah still can’t bring it back', save(s, 'fc', [['update', 'invItems/ppe-1', { archived: false }]]));
   await ok('…Dr. A does', save(a, 'owner', [['update', 'invItems/ppe-1', { archived: false }]]));
 }
 
@@ -210,10 +216,12 @@ await seed();
   await no('Gwen can’t void an order', save(g, 'ca', [['update', 'invOrders/order-9', { status: 'voided' }]]));
   await no('…or make up a status', save(g, 'ca', [['update', 'invOrders/order-9', { status: 'lost' }]]));
   const t4 = (await raw('invOrders/order-1')).trail;
-  await ok('Sarah (ticked) reopens it, her step on the trail', save(s, 'fc', [['update', 'invOrders/order-1', { status: 'open', dateReceived: null, trail: t4.concat([step('reopened', 'sarah')]) }]]));
-  await ok('Sarah changes a received order’s numbers (the people Dr. A picked)', save(s, 'fc', [['update', 'invOrders/order-2', { discount: 2, shipping: 6 }]]));
-  await no('…but not with a step in Gwen’s name', save(s, 'fc', [['update', 'invOrders/order-2', { trail: [step('edited', 'gwen')] }]]));
-  await ok('Sarah voids one', save(s, 'fc', [['update', 'invOrders/order-9', { status: 'voided', voidedById: 'sarah', trail: (await raw('invOrders/order-9')).trail.concat([step('voided', 'sarah')]) }]]));
+  await no('Sarah can’t reopen it (only Dr. A)', save(s, 'fc', [['update', 'invOrders/order-1', { status: 'open', dateReceived: null, trail: t4.concat([step('reopened', 'sarah')]) }]]));
+  await ok('Dr. A reopens it, his step on the trail', save(a, 'owner', [['update', 'invOrders/order-1', { status: 'open', dateReceived: null, trail: t4.concat([step('reopened', 'amir')]) }]]));
+  await no('Sarah can’t change a received order’s numbers', save(s, 'fc', [['update', 'invOrders/order-2', { discount: 2, shipping: 6 }]]));
+  await ok('…Dr. A does', save(a, 'owner', [['update', 'invOrders/order-2', { discount: 2, shipping: 6 }]]));
+  await no('Sarah can’t void one', save(s, 'fc', [['update', 'invOrders/order-9', { status: 'voided', voidedById: 'sarah', trail: (await raw('invOrders/order-9')).trail.concat([step('voided', 'sarah')]) }]]));
+  await ok('…Dr. A voids it', save(a, 'owner', [['update', 'invOrders/order-9', { status: 'voided', voidedById: 'amir', trail: (await raw('invOrders/order-9')).trail.concat([step('voided', 'amir')]) }]]));
   // a long trail: the oldest step drops off at 40
   const long = Array.from({ length: 40 }, (_, i) => step('edited', i % 2 ? 'sarah' : 'gwen'));
   await put('invOrders/order-long', { id: 'order-long', status: 'open', items: [], trail: long, up: Timestamp.now(), upBy: 'amir' });
@@ -225,7 +233,7 @@ await seed();
 /* ---------- vendors ---------- */
 await seed();
 {
-  const g = as('ca'), s = as('fc');
+  const g = as('ca'), s = as('fc'), a = as('owner');
   await ok('Gwen adds a vendor (typed on a supply: a new v-… record, its name)', save(g, 'ca', [['set', 'invVendors/v-9', { id: 'v-9', name: 'Amazon' }]]));
   await no('…not with a website', save(g, 'ca', [['set', 'invVendors/v-9b', { id: 'v-9b', name: 'Amazon', portal: 'https://example.com' }]]));
   await no('…or an order email or phone', save(g, 'ca', [['set', 'invVendors/v-9c', { id: 'v-9c', name: 'Amazon', email: 'orders@example.com', phone: '555' }]]));
@@ -238,9 +246,11 @@ await seed();
   await no('Gwen can’t change a vendor’s phone', save(g, 'ca', [['set', 'invVendors/v-1', { id: 'v-1', phone: '666' }, { merge: true }]]));
   await no('Gwen can’t remove a vendor', save(g, 'ca', [['set', 'invVendors/v-1', { id: 'v-1', deleted: true }, { merge: true }]]));
   await ok('a built-in vendor gets its first saved account number (a new record)', save(g, 'ca', [['set', 'invVendors/henry-schein', { id: 'henry-schein', acct: '555' }, { merge: true }]]));
-  await ok('Sarah (ticked) changes a vendor', save(s, 'fc', [['set', 'invVendors/v-1', { id: 'v-1', phone: '777', rep: 'Pat' }, { merge: true }]]));
-  await ok('Sarah removes one (a flag)', save(s, 'fc', [['set', 'invVendors/v-9', { id: 'v-9', deleted: true }, { merge: true }]]));
-  await no('nobody deletes a vendor record', save(s, 'fc', [['delete', 'invVendors/v-1']]));
+  await no('Sarah can’t change a vendor’s phone either', save(s, 'fc', [['set', 'invVendors/v-1', { id: 'v-1', phone: '777', rep: 'Pat' }, { merge: true }]]));
+  await ok('Dr. A changes a vendor', save(a, 'owner', [['set', 'invVendors/v-1', { id: 'v-1', phone: '777', rep: 'Pat' }, { merge: true }]]));
+  await no('Sarah can’t remove one', save(s, 'fc', [['set', 'invVendors/v-9', { id: 'v-9', deleted: true }, { merge: true }]]));
+  await ok('Dr. A removes one (a flag)', save(a, 'owner', [['set', 'invVendors/v-9', { id: 'v-9', deleted: true }, { merge: true }]]));
+  await no('nobody deletes a vendor record', save(a, 'owner', [['delete', 'invVendors/v-1']]));
 }
 
 /* ---------- the activity log: one record per person per month, only grows ---------- */
@@ -299,13 +309,15 @@ await seed();
   await no('…not without the change counter', save(g, 'ca', [['delete', 'invExpenses/x2']], { noBump: true }));
   await ok('…she takes off her own', save(g, 'ca', [['delete', 'invExpenses/x2']]));
   await ok('Kim takes off one the old app stamped with her Staff Hub id', save(k, 'ca2', [['delete', 'invExpenses/x-old']]));
-  await ok('Sarah (ticked) takes off anyone’s', save(s, 'fc', [['delete', 'invExpenses/x1']]));
+  await no('Sarah can’t take off Kim’s', save(s, 'fc', [['delete', 'invExpenses/x1']]));
+  await ok('Dr. A takes off anyone’s', save(a, 'owner', [['delete', 'invExpenses/x1']]));
   await ok('Dr. A adds the moved ones (the old app’s stamps, any shape)', save(a, 'owner', [['set', 'invExpenses/x9', { id: 'x9', amount: '12.40', by: 'Kim', category: 'misc' }]]));
   await no('Gwen can’t change the monthly budget', save(g, 'ca', [['set', 'invState/budget', { monthly: 20000 }, { merge: true }]]));
   await no('…or the categories', save(g, 'ca', [['set', 'invState/budget', { categories: { misc: 1 } }, { merge: true }]]));
   await no('…and expenses don’t go in the budget any more', save(s, 'fc', [['set', 'invState/budget', { expenses: [] }, { merge: true }]]));
-  await ok('Sarah (ticked) changes the budget', save(s, 'fc', [['set', 'invState/budget', { monthly: 9000, categories: { misc: 500 }, changedBy: 'Sarah' }, { merge: true }]]));
-  await no('…nothing else goes in it', save(s, 'fc', [['set', 'invState/budget', { note: 'x' }, { merge: true }]]));
+  await no('Sarah can’t change the budget', save(s, 'fc', [['set', 'invState/budget', { monthly: 9000, categories: { misc: 500 }, changedBy: 'Sarah' }, { merge: true }]]));
+  await ok('Dr. A changes the budget', save(a, 'owner', [['set', 'invState/budget', { monthly: 9000, categories: { misc: 500 }, changedBy: 'Dr. A' }, { merge: true }]]));
+  await no('…nothing else goes in it', save(a, 'owner', [['set', 'invState/budget', { note: 'x' }, { merge: true }]]));
   await env.withSecurityRulesDisabled(async c => { await deleteDoc(doc(c.firestore(), 'invState/budget')); });
   await no('Gwen can’t start the budget', save(g, 'ca', [['set', 'invState/budget', { monthly: 1 }]]));
   await ok('Dr. A starts it (the move)', save(a, 'owner', [['set', 'invState/budget', { monthly: 8000, categories: {}, history: [] }]]));
@@ -315,15 +327,21 @@ await seed();
 await seed();
 {
   const g = as('ca'), s = as('fc'), a = as('owner');
-  await ok('Sarah (ticked) adds a storage location', save(s, 'fc', [['set', 'invState/settings', { locations: ['Lab', 'Sterilization'] }, { merge: true }]]));
+  await no('Sarah (on the old list) can’t add a storage location', save(s, 'fc', [['set', 'invState/settings', { locations: ['Lab', 'Sterilization'] }, { merge: true }]]));
   await no('Gwen can’t', save(g, 'ca', [['set', 'invState/settings', { locations: ['X'] }, { merge: true }]]));
-  await no('Sarah can’t change who changes settings', save(s, 'fc', [['set', 'invState/settings', { invAdmins: ['amir', 'sarah', 'gwen'] }, { merge: true }]]));
-  await no('…or the alert switch', save(s, 'fc', [['set', 'invState/settings', { alertsOn: false }, { merge: true }]]));
-  await no('…or where packing slips are read', save(s, 'fc', [['set', 'invState/settings', { geminiProxyUrl: 'https://evil.example' }, { merge: true }]]));
-  await ok('Dr. A changes who changes settings', save(a, 'owner', [['set', 'invState/settings', { invAdmins: ['amir', 'gwen'] }, { merge: true }]]));
-  await ok('…now Gwen adds a location', save(g, 'ca', [['set', 'invState/settings', { locations: ['Lab', 'Front'] }, { merge: true }]]));
-  await no('…and Sarah can’t', save(s, 'fc', [['set', 'invState/settings', { locations: ['Lab'] }, { merge: true }]]));
+  await ok('Dr. A does', save(a, 'owner', [['set', 'invState/settings', { locations: ['Lab', 'Sterilization'] }, { merge: true }]]));
+  await no('Sarah can’t put herself on the old list', save(s, 'fc', [['set', 'invState/settings', { invAdmins: ['amir', 'sarah', 'gwen'] }, { merge: true }]]));
+  await no('…or turn the alerts off', save(s, 'fc', [['set', 'invState/settings', { alertsOn: false }, { merge: true }]]));
+  await no('…or the phone push', save(s, 'fc', [['set', 'invState/settings', { pushOn: false }, { merge: true }]]));
+  await no('…or change where packing slips are read', save(s, 'fc', [['set', 'invState/settings', { geminiProxyUrl: 'https://evil.example' }, { merge: true }]]));
   await ok('Dr. A turns the alerts off', save(a, 'owner', [['set', 'invState/settings', { alertsOn: false }, { merge: true }]]));
+  await ok('…and the phone push on', save(a, 'owner', [['set', 'invState/settings', { pushOn: true }, { merge: true }]]));
+  await no('…the push switch is a yes or no', save(a, 'owner', [['set', 'invState/settings', { pushOn: 'yes' }, { merge: true }]]));
+  await no('Gwen can’t change the phone-push topic', save(g, 'ca', [['set', 'invState/push', { topic: 'gwens-topic' }, { merge: true }]]));
+  await ok('Dr. A sets a topic (the Time Clock’s, or one of its own)', save(a, 'owner', [['set', 'invState/push', { topic: 'nlo-clock-abc123' }, { merge: true }]]));
+  await ok('…asks for a test push', save(a, 'owner', [['set', 'invState/push', { test: Date.now() }, { merge: true }]]));
+  await no('…a topic ntfy takes (letters, digits, - and _)', save(a, 'owner', [['set', 'invState/push', { topic: 'has spaces/and slashes' }, { merge: true }]]));
+  await no('…nothing else in it', save(a, 'owner', [['set', 'invState/push', { topic: 'ok-topic', email: 'x@example.com' }, { merge: true }]]));
   await no('nothing else goes in the settings', save(a, 'owner', [['set', 'invState/settings', { other: 1 }, { merge: true }]]));
   await no('Gwen can’t set the AI keys', save(g, 'ca', [['set', 'invState/ai', { gemini: 'AIzaEVIL' }, { merge: true }]]));
   await no('Sarah can’t either', save(s, 'fc', [['set', 'invState/ai', { gemini: 'AIzaEVIL' }, { merge: true }]]));
@@ -331,7 +349,7 @@ await seed();
   await no('…nothing else in them', save(a, 'owner', [['set', 'invState/ai', { other: 'x' }, { merge: true }]]));
   await env.withSecurityRulesDisabled(async c => { await deleteDoc(doc(c.firestore(), 'invState/settings')); });
   await no('only Dr. A starts the settings', save(s, 'fc', [['set', 'invState/settings', { locations: [] }]]));
-  await ok('…Dr. A does', save(a, 'owner', [['set', 'invState/settings', { locations: [], invAdmins: ['amir'], alertsOn: true }]]));
+  await ok('…Dr. A does', save(a, 'owner', [['set', 'invState/settings', { locations: [], alertsOn: true, pushOn: false }]]));
 }
 
 /* ---------- alerts, photos ---------- */
@@ -353,7 +371,35 @@ await seed();
   await no('…not over the size', save(g, 'ca', [['set', 'invPics/p4', { m: 'image/jpeg', b: 'A'.repeat(1000001), kind: 'full' }]]));
   await no('…photos aren’t changed', save(g, 'ca', [['set', 'invPics/p2', { m: 'image/webp', b: 'AAAA', kind: 'thumb' }]]));
   await no('Gwen can’t delete a photo', deleteDoc(doc(g, 'invPics/p1')));
-  await ok('Sarah (ticked) removes an old slip photo', deleteDoc(doc(s, 'invPics/p1')));
+  await no('Sarah can’t either', deleteDoc(doc(s, 'invPics/p1')));
+  await ok('Dr. A removes an old slip photo', deleteDoc(doc(a, 'invPics/p1')));
+}
+
+/* ---------- the cart: everyone adds; Dr. A's OKs are his ---------- */
+await seed();
+{
+  const g = as('ca'), s = as('fc'), a = as('owner');
+  const line = (id, itemId, qty, byId) => ({ lineId: id, itemId, name: itemId, qty, unit: 'box', addedBy: byId, addedById: byId, addedAt: '2026-10-16T12:00:00Z' });
+  const okd = (n, it) => ({ by: 'Dr. A', byId: 'amir', at: '2026-10-16T12:05:00Z', n, it });
+  const L1 = line('c-1', 'ppe-1', 2, 'gwen'), L2 = line('c-2', 'adh-1', 1, 'kim');
+  await ok('Gwen adds to the cart', save(g, 'ca', [['set', 'invState/cart', { lines: [L1], ok: {} }]]));
+  await no('…but can’t OK her own line', save(g, 'ca', [['set', 'invState/cart', { lines: [L1], ok: { 'c-1': okd(2, 'ppe-1') } }]]));
+  await no('…not even in Dr. A’s name with his id', save(g, 'ca', [['set', 'invState/cart', { lines: [L1], ok: { 'c-1': okd(20, 'ppe-1') } }]]));
+  await no('Sarah can’t OK it either', save(s, 'fc', [['set', 'invState/cart', { lines: [L1], ok: { 'c-1': okd(2, 'ppe-1') } }]]));
+  await ok('Dr. A OKs it', save(a, 'owner', [['set', 'invState/cart', { lines: [L1], ok: { 'c-1': okd(2, 'ppe-1') } }]]));
+  await ok('Kim adds a line (Dr. A’s OK stays as it was)', save(as('ca2'), 'ca2', [['set', 'invState/cart', { lines: [L1, L2], ok: { 'c-1': okd(2, 'ppe-1') } }]]));
+  await no('…she can’t raise what Dr. A OK’d', save(as('ca2'), 'ca2', [['set', 'invState/cart', { lines: [L1, L2], ok: { 'c-1': okd(9, 'ppe-1') } }]]));
+  await no('…or move his OK to her line', save(as('ca2'), 'ca2', [['set', 'invState/cart', { lines: [L1, L2], ok: { 'c-1': okd(2, 'ppe-1'), 'c-2': okd(2, 'ppe-1') } }]]));
+  await no('…or drop the OKs from the cart while keeping them (not a map)', save(as('ca2'), 'ca2', [['set', 'invState/cart', { lines: [L1, L2], ok: [] }]]));
+  await no('…or put something else in the cart', save(as('ca2'), 'ca2', [['set', 'invState/cart', { lines: [L1, L2], ok: {}, note: 'x' }]]));
+  await ok('Gwen orders the OK’d line: it leaves the cart and its OK comes off with it', save(g, 'ca', [['set', 'invState/cart', { lines: [L2], ok: {} }]]));
+  await ok('Dr. A’s save may change his OKs any way', save(a, 'owner', [['set', 'invState/cart', { lines: [L2], ok: { 'c-2': okd(1, 'adh-1') } }]]));
+  is('…the cart holds his OK', (await raw('invState/cart')).ok['c-2'].n === 1, await raw('invState/cart'));
+  await ok('a cart saved before 5.0 (no OKs on it): Gwen’s save keeps it that way', (async () => { await put('invState/cart', { lines: [L1], up: Timestamp.now(), upBy: 'amir' }); return save(g, 'ca', [['set', 'invState/cart', { lines: [L1, L2] }]]); })());
+  await no('…and can’t start them', save(g, 'ca', [['set', 'invState/cart', { lines: [L1, L2], ok: { 'c-1': okd(2, 'ppe-1') } }]]));
+  await env.withSecurityRulesDisabled(async c => { await deleteDoc(doc(c.firestore(), 'invState/cart')); });
+  await no('a new cart can’t start with an OK from Gwen', save(g, 'ca', [['set', 'invState/cart', { lines: [L1], ok: { 'c-1': okd(2, 'ppe-1') } }]]));
+  await ok('…or with none', save(g, 'ca', [['set', 'invState/cart', { lines: [L1], ok: {} }]]));
 }
 
 /* ---------- the move, the script's login ---------- */
