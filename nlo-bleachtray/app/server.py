@@ -229,7 +229,7 @@ def _run(job):
             _write_order(job, log)
         else:
             job["review"] = "review"
-            job["order_folder"] = None; job["order_error"] = None
+            job["order_folder"] = None; job["order_error"] = None; job["learned"] = None
         job["status"] = "queued" if job.get("in_queue") else "done"
     except Exception as ex:  # noqa
         job["status"] = "error"
@@ -502,7 +502,9 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     if not job:
         raise HTTPException(404)
     try:
-        job["mask_edit"] = json.loads(edits or "{}")
+        me = json.loads(edits or "{}")
+        # a re-run without any painted vertex is just a re-run: it must not count as a brush correction
+        job["mask_edit"] = me if (me.get("add") or me.get("remove")) else None
     except Exception:
         job["mask_edit"] = None
     try:
@@ -604,7 +606,7 @@ def list_jobs():
 
 
 def _review_view(job):
-    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]]}
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]]}
 
 
 def _save_training(job, log=print):
@@ -658,7 +660,28 @@ def approve(jid: str):
         raise HTTPException(404)
     job.setdefault("log", [])
     _write_order(job, log=lambda m: job["log"].append(m))
-    _save_training(job, log=lambda m: job["log"].append(m))
+    if _save_training(job, log=lambda m: job["log"].append(m)):
+        job["learned"] = _learned_note(job)
+    return _review_view(job)
+
+
+def _learned_note(job):
+    fixed = job.get("fixed_labels") or {}
+    arches = [sc.get("arch") or "scan" for sc in job["scans"] if sc["path"] in fixed]
+    return dict(at=time.time(), corrected=sorted(set(arches)))
+
+
+@app.post("/api/jobs/{jid}/learn")
+def learn_from(jid: str):
+    """'Looks good' without an order: file the case (scan + labels as they stand) for the night-time
+    retraining. Same thing Send does on the side, minus OrthoFactory."""
+    job = JOBS.get(jid)
+    if not job or job.get("status") != "done":
+        raise HTTPException(404)
+    job.setdefault("log", [])
+    if not _save_training(job, log=lambda m: job["log"].append(m)):
+        raise HTTPException(400, "nothing to save - the case has no patient name")
+    job["learned"] = _learned_note(job)
     return _review_view(job)
 
 
@@ -676,7 +699,7 @@ def job_status(jid: str):
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
-    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress")}
+    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned")}
     out["started"] = job.get("started")
     out["ahead"] = _ahead(job)
     out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset")) for sc in job["scans"]]
