@@ -356,7 +356,7 @@
         <div class="stepper"><button data-step="-0.25" data-for="tt_off">−</button><input type="number" id="tt_off" step="0.25" min="0" max="3" value="1.25"><button data-step="0.25" data-for="tt_off">+</button></div>
       </div>
       <div class="scard"><div class="sLab">Between the teeth <span class="info" title="How the line crosses the gum between two teeth: straight across the papilla (easier to trim, seals well) or following the gum down into every gap.">i</span></div>
-        <div class="sPic" data-img="between_teeth"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="between_teeth_straight" data-img-by="bridge" data-img-map='{"0":"between_teeth_scallop","3":"between_teeth_straight","4":"between_teeth_straight"}'><svg viewBox="0 0 120 72">
           <path d="M26 46 Q60 36 98 46 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <path d="M30 10 C40 6 50 10 52 18 L54 40 C52 46 32 46 30 40 Z M66 10 C76 6 86 10 88 18 L90 40 C88 46 68 46 66 40 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
           <path d="M54 40 L60 30 L66 40 Z" fill="#FFC8BF"/>
@@ -717,13 +717,20 @@ function archSvg(n){
 function drawRegion(){ const n = +$('#res_n').value; $('#pic_region').innerHTML = `<img src="/static/img/region_${[0,3,4,5,6].includes(n) ? n : 5}.png" alt="reservoirs on ${n ? n + '-' + n : 'no'} teeth">`; }
 // hand-drawn pictures (static/img/<name>.png) replace the inline sketches wherever a file exists
 let picsLoaded = false;
-function loadPics(){ if (picsLoaded) return; picsLoaded = true; document.querySelectorAll('.sPic[data-img]').forEach(el => { const im = new Image(); im.onload = () => { el.innerHTML = ''; el.appendChild(im); }; im.alt = ''; im.src = `/static/img/${el.dataset.img}.png`; }); }
+function loadPics(){ if (picsLoaded) return; picsLoaded = true; document.querySelectorAll('.sPic[data-img]').forEach(el => showPic(el)); }
+function showPic(el){
+  // a card whose picture follows a dropdown (data-img-by + data-img-map) picks the file for the current value
+  let name = el.dataset.img;
+  if (el.dataset.imgBy) { try { const map = JSON.parse(el.dataset.imgMap || '{}'); name = map[$('#' + el.dataset.imgBy).value] || name; } catch (e) {} }
+  if (el.dataset.shown === name) return;
+  const im = new Image(); im.onload = () => { el.innerHTML = ''; el.appendChild(im); el.dataset.shown = name; }; im.alt = ''; im.src = `/static/img/${name}.png`;
+}
 $('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); };
 $('#setClose').onclick = () => { $('#settings').classList.remove('on'); saveSettings(); requestRender(); };
 $('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
 document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => { const inp = $('#' + b.dataset.for); const step = +b.dataset.step; const dec = (String(step).split('.')[1] || '').length;
   let v = +inp.value + step; v = Math.min(+inp.max, Math.max(+inp.min, v)); inp.value = v.toFixed(dec); inp.dispatchEvent(new Event('change')); });
-SETTING_IDS.forEach(id => $('#' + id).addEventListener('change', () => { if (id === 'res_n') drawRegion(); saveSettings(); }));
+SETTING_IDS.forEach(id => $('#' + id).addEventListener('change', () => { if (id === 'res_n') drawRegion(); document.querySelectorAll(`.sPic[data-img-by="${id}"]`).forEach(el => showPic(el)); saveSettings(); }));
 loadSettings(); summarizeSettings();
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
