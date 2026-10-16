@@ -39,8 +39,9 @@ drop below F1 0.95 on the base set, otherwise it is thrown away. An accepted mod
 (the previous three are kept as `models_prev_*`) and is used from the next case on. The sidebar shows the model's
 state; *Retrain now* under Advanced settings runs it on the spot (10-30 minutes, the app keeps working).
 
-**One-time:** extract `bleachtray_base_training_set.zip` (from Dr. Akhavan) so that the `_base` folder sits inside
-`training\`. Without it the app would retrain on the corrections alone.
+The starting set ships with the app as `assets\base_training.npz` - per arch the per-vertex features and targets
+the model learns from (numbers only: no scans, no names), so nothing has to be downloaded for retraining to work.
+Full base cases under `training\_base\` (scan + labels) take precedence when present.
 
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 
