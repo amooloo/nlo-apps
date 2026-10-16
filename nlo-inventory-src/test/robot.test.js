@@ -156,6 +156,23 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   r = sv.run('checkInventoryAlerts()');
   ok('many: 60 alerts come as 3 emails (25, 25, 10)', r.sent === 60 && sv.mail.length === 3 && /^Inventory: 25 added to cart/.test(sv.mail[0].subject) && /^Inventory: 10 added to cart/.test(sv.mail[2].subject), { r, subjects: sv.mail.map(m => m.subject) });
   ok('many: all cleared', (await list('invAlerts')).length === 0);
+  // more than a check takes at once (200): the rest go the next minute, with no new change needed
+  sv.mail.length = 0;
+  for (let i = 0; i < 210; i++) await put('invAlerts/p' + String(i).padStart(3, '0'), { t: 'cart', at: Date.now() - 300000 + i, by: 'Gwen R.', lines: [{ n: 'Item ' + i, q: 1 }], up: new Date(), upBy: 'gwen' });
+  await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('over 200: the first 200 go (in emails of 25)', r.sent === 200 && sv.mail.length === 8 && (await list('invAlerts')).length === 10, { r, n: sv.mail.length });
+  r = sv.run('checkInventoryAlerts()');
+  ok('over 200: the rest go the next minute, with no new change', r.sent === 10 && sv.mail.length === 9 && (await list('invAlerts')).length === 0, r);
+  // two addresses get the alerts: each email counts twice against Gmail's daily limit
+  sv.mail.length = 0; sv.props.ALERT_EMAIL = 'dr.test@example.com, office@example.com'; sv.mailCtl.quota = 1;
+  await put('invAlerts/r1', { t: 'cart', at: Date.now(), by: 'Gwen R.', lines: [{ n: 'Masks', q: 1 }], up: new Date(), upBy: 'gwen' }); await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('two addresses, room for one more email: it waits (no failure)', r.sent === 0 && r.waiting === 1 && !sv.props.FAILS && sv.mail.length === 0, { r, fails: sv.props.FAILS });
+  sv.mailCtl.quota = 100;
+  r = sv.run('checkInventoryAlerts()');
+  ok('two addresses: sent once there’s room', r.sent === 1 && sv.mail.length === 1, r);
+  delete sv.props.ALERT_EMAIL;
   sv.mail.length = 0;
   const huge = Array.from({ length: 300 }, (_, i) => ({ n: 'A very long supply name '.repeat(20) + i, q: 1, u: 'box', p: 1, v: 'Vendor '.repeat(30) }));
   for (let i = 0; i < 3; i++) await put('invAlerts/h' + i, { t: 'received', at: Date.now() + i, by: 'Gwen R. '.repeat(40), vendor: 'V'.repeat(5000), note: 'N'.repeat(100000), lines: huge, up: new Date(), upBy: 'gwen' });

@@ -393,9 +393,9 @@ async function slipApply(U) {
   if (rcv) {
     /* 3c. paperwork for an order already received: prices and the invoice's numbers, never stock */
     const items = rcv.items.map(oi => { const r = rows.find(x => x.itemId && x.itemId === oi.itemId); const tp = r ? slipTrackedPrice(r) : null; return r && tp && tp > 0 ? Object.assign({}, oi, { price: round2(tp * linePer(oi)), lineTotal: round2(tp * linePer(oi) * (Number(oi.qty) || 0)) }) : oi; });
-    const p = { items, invoiceNumber: patch.invoiceNumber || rcv.invoiceNumber || null, invoiceDate: patch.invoiceDate || rcv.invoiceDate || null, invoiceSubtotal: sub || rcv.invoiceSubtotal || null, invoiceTaxes: tax || rcv.invoiceTaxes || null, invoiceShipping: ship || rcv.invoiceShipping || null, trail: trailAdd(rcv.trail, 'invoice', s) };
+    const p = { items, invoiceNumber: patch.invoiceNumber || rcv.invoiceNumber || null, invoiceDate: patch.invoiceDate || rcv.invoiceDate || null, invoiceSubtotal: sub || rcv.invoiceSubtotal || null, invoiceTaxes: tax || rcv.invoiceTaxes || null, invoiceShipping: ship || rcv.invoiceShipping || null };
     if (slipUrl) p.slipPhoto = slipUrl;
-    await B.patchOrder(rcv.id, p);
+    await B.orderStep(rcv.id, cur => Object.assign({}, p, { trail: trailAdd(cur.trail, 'invoice', s) }));
     await addCostEntries(rcv.id, rcv.vendor || supplier, ship, tax);
     await B.patchItems(rows.map(r => { const it = itemById(r.itemId), tp = slipTrackedPrice(r); return it && tp > 0 && slipPriceOk(it, rcv.vendor || supplier, tp) ? [it.id, { sources: rememberPrice(it, rcv.vendor || supplier, tp, r.sku, day) }] : null; }));
     msg = 'Updated the ' + (rcv.vendor || '') + ' order from the invoice. Stock didn’t change.';

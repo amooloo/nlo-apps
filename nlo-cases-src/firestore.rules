@@ -1256,16 +1256,22 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['items', 'invoiceNumber', 'invoiceDate', 'invoiceSubtotal', 'invoiceTaxes',
           'invoiceShipping', 'slipPhoto', 'trail', 'up', 'upBy']);
       }
+      // a receipt is the saver's: their id on it, and their "received" step on the trail
+      function receiptOk(d) { return d.get('receivedById', '') == mySid() && d.get('trail', []).size() > 0 && d.trail[d.trail.size() - 1].get('t', '') == 'received'; }
       allow read: if invReader();
+      // a new order carries one step, the saver's (placed, scanned, or the backorder of an earlier one)
       allow create: if invOk(request.resource.data) && request.resource.data.id == id && request.resource.data.size() <= 120
         && (isInvAdmin() || okSt(request.resource.data.get('status', '')))
-        && (isOwner() || (trailOk(request.resource.data.get('trail', []), [])
-          && (request.resource.data.get('orderedById', mySid()) == mySid() || 'backorderOf' in request.resource.data)));
+        && (isOwner() || (request.resource.data.get('trail', []).size() == 1 && trailOk(request.resource.data.trail, [])
+          && (request.resource.data.get('orderedById', mySid()) == mySid() || 'backorderOf' in request.resource.data)
+          && (request.resource.data.get('status', '') != 'received' || request.resource.data.get('receivedById', mySid()) == mySid())));
       allow update: if invOk(request.resource.data) && request.resource.data.id == id && request.resource.data.size() <= 120
         && (isInvAdmin() || (okMove(invWas('status'), request.resource.data.get('status', ''))
           && (invWas('status') != 'received' || paperworkOnly())))
         && (isOwner() || (trailOk(request.resource.data.get('trail', []), resource.data.get('trail', []))
-          && (!invChanged(['receivedById']) || request.resource.data.get('receivedById', mySid()) == mySid())));
+          && (!invChanged(['receivedById']) || request.resource.data.get('receivedById', mySid()) == mySid())
+          && (invWas('status') == 'received' || request.resource.data.get('status', '') != 'received' || receiptOk(request.resource.data))
+          && (invWas('status') != 'received' || !invChanged(['items']) || request.resource.data.get('trail', []) != resource.data.get('trail', []))));
       allow delete: if false;
     }
     match /invVendors/{id} {

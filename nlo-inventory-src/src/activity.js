@@ -8,7 +8,7 @@
    ordered and received, and on which day.
    ===================================================================== */
 /* {v} is the vendor */
-const ORDER_WORDS = { ordered: 'placed the {v} order', received: 'received the {v} order', reopened: 'reopened the {v} order', backordered: 'marked the {v} order backordered', unbackordered: 'took the {v} order off backorder', voided: 'voided the {v} order', edited: 'changed the {v} order', invoice: 'matched the invoice to the {v} order', backorder: 'started a backorder for what didn’t come from {v}', note: 'added a note to the {v} order' };
+const ORDER_WORDS = { ordered: 'placed the {v} order', received: 'received the {v} order', reopened: 'reopened the {v} order', backordered: 'marked the {v} order backordered', unbackordered: 'took the {v} order off backorder', voided: 'voided the {v} order', unvoided: 'brought back the voided {v} order', edited: 'changed the {v} order', invoice: 'matched the invoice to the {v} order', backorder: 'started a backorder for what didn’t come from {v}', note: 'added a note to the {v} order' };
 function orderWords(k, vendor) { return esc(ORDER_WORDS[k] || k + ' the {v} order').replace('{v}', '<b>' + esc(vendor || 'vendor') + '</b>'); }
 const HOW_WORDS = { online: 'online', call: 'by phone', phone: 'by phone', email: 'by email', text: 'by text', rep: 'through the rep', portal: 'online', other: '' };
 function feedEvents(opt) {

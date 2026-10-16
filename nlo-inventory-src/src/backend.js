@@ -113,7 +113,7 @@ const FB = {
     const all = [];
     (recs || []).forEach(r => {
       const who = String((r && r.who) || ''), e = (r && r.e) || {};
-      Object.keys(e).forEach(k => { const x = e[k]; if (!x || typeof x !== 'object') return; const o = Object.assign({}, x, { id: x.id || k }); if (who && who !== 'old') o.byId = who; all.push(o); });
+      Object.keys(e).forEach(k => { const x = e[k]; if (!x || typeof x !== 'object') return; const o = Object.assign({}, x, { id: x.id || k }); if (who && !/^old\d*$/.test(who)) o.byId = who; all.push(o); });
     });
     return all;
   },
@@ -125,13 +125,13 @@ const FB = {
   /* the change counter, in the same save (a batch or a transaction) */
   bump(w) { w.set(FB.db.doc('invState/rev'), Object.assign({ n: FB.inc(1) }, FB.st()), { merge: true }); },
   save(build) { const b = FB.db.batch(); build(b); FB.bump(b); return FB.track(b.commit()); },
-  /* fn(t) reads, then writes and returns what it wants back; returning FB.SKIP writes nothing */
+  /* fn(t) reads, then writes and returns what it wants back; returning FB.SKIP (or anything with skip: true) writes nothing */
   SKIP: { skip: true },
   /* (a transaction needs the database itself: with no internet it says so at once, and a very slow one is reported, not waited
      out — the error's .late is the transaction itself, for a step that has to finish its work if it goes through after all) */
   txn(fn) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(errCode('unavailable', 'Can’t reach the database. Check the internet connection.'));
-    const run = FB.db.runTransaction(async t => { const r = await fn(t); if (r !== FB.SKIP) FB.bump(t); return r; });
+    const run = FB.db.runTransaction(async t => { const r = await fn(t); if (!(r && r.skip === true)) FB.bump(t); return r; });
     run.catch(() => { });
     let timer;
     const slow = new Promise((res, rej) => { timer = setTimeout(() => { const e = errCode('timeout'); e.late = run; rej(e); }, FB.TXN_MS); });
@@ -205,6 +205,46 @@ const FB = {
       if (next === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.');
       t.update(ref, Object.assign(patchFn ? FB.patchOf(patchFn(Object.assign({}, cur))) : {}, { status: next }, FB.st()));
       return next;
+    });
+  },
+  /* an order changed in one step from what the database has now: fn(the order now) → the patch (a step on its trail made
+     from the trail as it is), or undefined when it no longer applies (then this fails 'aborted') */
+  orderStep(id, fn) {
+    return FB.txn(async t => {
+      const ref = FB.orderRef(id), s = await t.get(ref);
+      if (!s.exists) throw errCode('not-found', 'That order is gone.');
+      const p = fn(Object.assign({}, s.data()));
+      if (p === undefined) throw errCode('aborted', 'That order just changed on another computer. Look at it again.');
+      t.update(ref, Object.assign(FB.patchOf(p), FB.st()));
+      return p;
+    });
+  },
+  /* a receipt or a reopen, all in one step — it all happens, or none of it:
+     claim(the order now) → the order's patch, status included, or undefined when it can't (fails 'aborted'); claimId marks
+     the order as this step's, so if its reply is lost and the step is tried again, it finds itself done ({ skip, mine });
+     o.stock { itemId: delta } (a supply that's gone is skipped), o.items(itemId, the supply now) → more for that supply,
+     o.log entries for the signed-in person's log record, o.orders new orders (a backorder) */
+  book(id, claimId, claim, o) {
+    o = o || {};
+    return FB.txn(async t => {
+      const ref = FB.orderRef(id), s = await t.get(ref), cur = s.exists ? s.data() : null;
+      if (cur && claimId && cur.claim === claimId) return { skip: true, mine: true };
+      const p = cur ? claim(Object.assign({}, cur)) : undefined;
+      if (p === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.');
+      const ids = Object.keys(o.stock || {}).filter(k => k && Number(o.stock[k]));
+      const snaps = await Promise.all(ids.map(k => t.get(FB.itemRef(k))));
+      t.update(ref, Object.assign(FB.patchOf(p), claimId ? { claim: claimId } : {}, FB.st()));
+      snaps.forEach((sn, k) => {
+        if (!sn.exists) { console.warn('stock: supply gone', ids[k]); return; }
+        const it = sn.data(), qty = Math.max(0, Math.round(((Number(it.qty) || 0) + Number(o.stock[ids[k]])) * 1000) / 1000);
+        const more = o.items ? o.items(ids[k], Object.assign({}, it)) : null;
+        t.update(FB.itemRef(ids[k]), Object.assign(FB.patchOf(more || {}), { qty }, FB.st()));
+      });
+      const who = FB.me.staffId, months = {};
+      (o.log || []).filter(Boolean).forEach(e => { const m = FB.logMonth(e); (months[m] = months[m] || {})[e.id] = FB.clean(Object.assign({}, e, { byId: who })); });
+      Object.keys(months).forEach(m => t.set(FB.logRef(m, who), Object.assign({ e: months[m], mon: m, who }, FB.st()), { merge: true }));
+      (o.orders || []).forEach(n => t.set(FB.orderRef(n.id), Object.assign(FB.clean(n), FB.st())));
+      return { done: true };
     });
   },
   putVendor(v) { return FB.save(b => b.set(FB.vendorRef(v.id), Object.assign(FB.clean(v), FB.st()))); },

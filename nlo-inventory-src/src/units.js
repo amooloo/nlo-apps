@@ -96,7 +96,7 @@ function vendorNamesSimilar(a, b) {
 function vendorSearchUrl(src, item) {
   if (!src || !src.src) return null;
   const url = String(src.src), sku = src.sku || (item && item.sku) || '', q = encodeURIComponent(sku || (item && item.name) || '');
-  if (url.includes('amazon.com/dp/')) return url;
+  if (url.includes('amazon.com/dp/')) return webUrl(url) || null;
   if (url.includes('amazon.com')) return 'https://www.amazon.com/s?k=' + q;
   if (url.includes('americanortho.com')) return 'https://shop.americanortho.com/search?q=' + q;
   if (url.includes('pattersondental.com')) return 'https://www.pattersondental.com/Search?q=' + q;
@@ -107,7 +107,7 @@ function vendorSearchUrl(src, item) {
   if (url.includes('ormco.com')) return 'https://ormco.com/en-us/search?q=' + q;
   if (url.includes('sunsurgical.com')) return 'https://www.google.com/search?q=site%3Asunsurgical.com+' + q;
   if (url.includes('zenduradental.com')) return 'https://zenduradental.com/search?q=' + q;
-  try { return 'https://www.google.com/search?q=site%3A' + new URL(url).hostname + '+' + q; } catch (e) { return url; }
+  try { const h = new URL(url).hostname; return h ? 'https://www.google.com/search?q=site%3A' + encodeURIComponent(h) + '+' + q : null; } catch (e) { return webUrl(url) || null; }
 }
 /* a vendor's logo: the embedded one, else its site's icon from Google's favicon service */
 function vendorLogoUrl(v) {

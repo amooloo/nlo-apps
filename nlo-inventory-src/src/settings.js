@@ -70,8 +70,9 @@ ACT.alertScript = async t => {
     S.ui.lastScript = code;
     /* the first time (the script has never checked in): the alerts go on with it — the move leaves them off until then, so a
        pile of them doesn't wait for a script that isn't there yet */
-    let on = '', b = S.ui.beat;
-    if (!b) { try { b = S.ui.beat = (await B.beat()) || { none: true }; } catch (e) { b = null; } }
+    /* (whether the script has ever checked in is read again now: a copy that ran since this page opened counts) */
+    let on = '', b = null;
+    try { b = S.ui.beat = (await B.beat()) || { none: true }; } catch (e) { b = null; }
     if (S.settings.alertsOn !== true && b && b.none) { await B.setSetting('alertsOn', true); on = ', and the alerts are on'; }
     try { await navigator.clipboard.writeText(code); toast('The alert script is copied' + on + '. Paste it over the old one in NLO Inventory Alerts, Save, then Run setup.', { ms: 9000 }); }
     catch (e) { openModal('<h3>The alert script</h3><div class="lsub">Copy all of it, paste it over the old one in NLO Inventory Alerts, Save, then Run setup.</div><textarea readonly class="codeBox" rows="10">' + esc(code) + '</textarea><div class="mFt"><button class="btn btn-pri" data-act="closeModal">Done</button></div>', { cls: 'mid' }); }

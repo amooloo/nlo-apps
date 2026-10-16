@@ -167,9 +167,10 @@ function alerts_(cfg, s, props) {
   var sent = readJson_(props, 'SENT_KEYS', []), already = {};
   sent.forEach(function (k) { already[k] = true; });
   var fresh = docs.filter(function (d) { return !already[idOf_(d)]; }).map(function (d) { return { id: idOf_(d), e: plain_(d.fields) }; });
-  var groups = emailGroups_(fresh), n = 0, note = '';
+  var groups = emailGroups_(fresh), n = 0, note = '', each = recipients_();
   for (var i = 0; i < groups.length; i++) {
-    if (quota_() < 1) { note = 'Gmail’s daily email limit is used up: ' + (fresh.length - n) + ' alert(s) wait until tomorrow.'; break; }
+    // (each email counts once per address it goes to)
+    if (quota_() < each) { note = 'Gmail’s daily email limit is used up: ' + (fresh.length - n) + ' alert(s) wait until tomorrow.'; break; }
     deliver_(groups[i].map(function (g) { return g.e; }));
     sent = sent.concat(groups[i].map(function (g) { return g.id; })).slice(-400);
     props.setProperty('SENT_KEYS', JSON.stringify(sent));
@@ -181,7 +182,8 @@ function alerts_(cfg, s, props) {
     var r = commit_(cfg, s, clear.map(function (d) { return { delete: d.name }; }));
     if (r.code !== 200) throw new Error('Couldn’t clear the alerts it sent (' + why_(r) + ').');
   }
-  return { sent: n, waiting: fresh.length - n, note: note };
+  // a full page of alerts: there may be more behind it — the next check goes on with them (the change counter isn't moved on)
+  return { sent: n, waiting: fresh.length - n + (docs.length >= MAX_PER_RUN ? 1 : 0), note: note };
 }
 /* alerts → emails: in order, a new email at PER_EMAIL alerts or about EMAIL_BYTES */
 function emailGroups_(list) {
@@ -195,6 +197,7 @@ function emailGroups_(list) {
   return out;
 }
 function quota_() { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return 100; } }
+function recipients_() { return Math.max(1, alertEmail_().split(',').filter(function (x) { return x.trim(); }).length); }
 
 // ─── The copy in the old database (Staff Meeting's spending card, AISA's stock answers) ───
 /* changed records only, each minute something changed; everything once a night. Records are only ever added or changed in

@@ -998,6 +998,8 @@ def t_stamps(b):
     check('stamps: her own step on it goes in', o.get('note') == 'Leave at the back door' and (o.get('trail') or [{}])[-1].get('byId') == 'gwen', o.get('trail'))
     r = J(pg, "B.patchOrder('order-old1', { trail: [] }).then(()=>'went through', e=>e.code || e.message)")
     check('stamps: wiping an order’s trail is refused', 'permission' in r, r)
+    r = J(pg, "B.patchOrder('abc123', { status: 'received', receivedBy: 'Sarah B.' }).then(()=>'went through', e=>e.code || e.message)")
+    check('received: staff can’t mark an order received without their own id and step', 'permission' in r and (store('nlo/orders/abc123') or {}).get('status') == 'open', r)
     # a received order: everyone else only adds its paperwork
     J(pg, "receiveOrder('order-old1', {})"); settle(pg, 600)
     r = J(pg, "B.patchOrder('order-old1', { discount: 5 }).then(()=>'went through', e=>e.code || e.message)")
@@ -1045,6 +1047,29 @@ def t_claim_slow(b):
     lg = [e for e in store('nlo/log').values() if e.get('orderId') == 'order-old1' and e.get('type') == 'receive']
     check('slow: it went through after all — received, with its stock and dollars', o.get('status') == 'received' and q1 - q0 == 2 and len(lg) == 1 and abs((lg[0].get('amount') or 0) - 18.26) < 0.001, (o.get('status'), q0, q1, lg))
     check('slow: no page errors', not errs, errs)
+    ctx.close()
+
+@test
+def t_claim_twice(b):
+    """a receipt whose reply got lost on the way and that is tried again (as the database does by itself) finds itself already
+    done: its stock and dollars aren't booked twice, and it isn't told someone else received it"""
+    ctx, pg, errs = open_as(b, 'gwen')
+    q0 = store('nlo/items/ppe-1')['qty']
+    r = J(pg, """(async () => {
+      const s = stamp(), books = () => ({ stock: { 'ppe-1': 2 }, log: [logEntry({ itemId: 'ppe-1', itemName: 'Gloves', delta: 2, type: 'receive', amount: 18.26, orderId: 'order-old1', note: 'test' }, s)] });
+      const claim = cur => cur.status === 'received' ? undefined : { status: 'received', dateReceived: s.at, receivedBy: s.by, receivedById: s.byId, trail: trailAdd(cur.trail, 'received', s) };
+      const a = await B.book('order-old1', 'kSAME', claim, books());
+      const again = await B.book('order-old1', 'kSAME', claim, books());
+      const other = await B.book('order-old1', 'kOTHER', claim, books()).then(() => 'went through', e => e.code);
+      return [a, again, other];
+    })()""")
+    settle(pg, 500)
+    lg = [e for e in store('nlo/log').values() if e.get('orderId') == 'order-old1' and e.get('type') == 'receive']
+    check('twice: the first goes through, the same step tried again finds itself done, another one is turned back', r[0].get('done') is True and r[1].get('mine') is True and r[2] == 'aborted', r)
+    check('twice: stock and dollars booked once', store('nlo/items/ppe-1')['qty'] - q0 == 2 and len(lg) == 1, (q0, store('nlo/items/ppe-1')['qty'], lg))
+    o = store('nlo/orders/order-old1') or {}
+    check('twice: received once, by Gwen, one step on its trail', o.get('status') == 'received' and o.get('receivedById') == 'gwen' and [t.get('t') for t in o.get('trail') or []].count('received') == 1, o.get('trail'))
+    check('twice: no page errors', not errs, errs)
     ctx.close()
 
 @test

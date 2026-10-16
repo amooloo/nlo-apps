@@ -91,7 +91,7 @@ DRAWERS.order = id => {
 ACT.orderBack = t => withWho(() => act(() => backorderOrder(t.dataset.id), 'Marked backordered.'), 'Who’s marking it backordered?');
 ACT.orderUnback = t => withWho(() => act(() => unbackorderOrder(t.dataset.id), 'Back under On the way.'));
 /* a voided order back under On the way: for the people who void them */
-ACT.orderUnvoid = t => withAdmin(() => act(() => unbackorderOrder(t.dataset.id), 'Back under On the way.'), 'Who’s bringing it back?', 'bring back a voided order');
+ACT.orderUnvoid = t => withAdmin(() => act(() => unvoidOrder(t.dataset.id), 'Back under On the way.'), 'Who’s bringing it back?', 'bring back a voided order');
 ACT.orderVoid = t => {
   const o = orderById(t.dataset.id); if (!o) return;
   withAdmin(async () => {

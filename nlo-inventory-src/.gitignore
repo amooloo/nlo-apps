@@ -6,3 +6,4 @@ __pycache__/
 src/vendors.private.js
 node_modules
 *-debug.log
+rollback/

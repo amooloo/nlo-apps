@@ -116,18 +116,17 @@ async function editOrder(id, patch, what) {
   const o = orderById(id); if (!o) return; const s = stamp();
   /* a received order's lines are what stock and the budget were counted from — reopen it first */
   if (o.status === 'received' && patch.items) throw new Error('This order was already received. Reopen it first to change its lines.');
-  const p = Object.assign({}, patch, { trail: trailAdd(o.trail, what || 'edited', s) });
+  const p = Object.assign({}, patch);
   if (p.items) p.items = listOf(p.items).map(l => { const n = Object.assign({}, l); if (n.lineTotal == null || what === 'edited') n.lineTotal = round2(Math.max(0, (Number(n.qty) || 0) * (Number(n.price) || 0) - (Number(n.discount) || 0))); return n; });
-  await B.patchOrder(id, p);
+  /* in one step, from the order as the database has it (its trail with it): two computers at once don't trip each other */
+  await B.orderStep(id, cur => cur.status === 'received' && p.items ? undefined : Object.assign({}, p, { trail: trailAdd(cur.trail, what || 'edited', s) }));
 }
-async function backorderOrder(id) { const s = stamp(); const o = orderById(id); await B.patchOrder(id, { status: 'backordered', dateBackordered: s.at, trail: trailAdd(o && o.trail, 'backordered', s) }); }
-async function unbackorderOrder(id) { const s = stamp(); const o = orderById(id); await B.patchOrder(id, { status: 'open', trail: trailAdd(o && o.trail, 'unbackordered', s) }); }
-async function voidOrder(id, why) { const s = stamp(); const o = orderById(id); await B.patchOrder(id, { status: 'voided', dateVoided: s.at, voidedBy: s.by, voidedById: s.byId || null, trail: trailAdd(o && o.trail, 'voided', s, why ? { note: why } : null) }); }
-/* a claim that didn't answer in time may still go through: then the rest of the step is done when it does (finish()), and the
-   person is told; the error itself says it wasn't confirmed */
-function finishLate(e, finish, okMsg) {
-  if (e && e.code === 'timeout' && e.late) e.late.then(() => finish()).then(() => toast(okMsg, { ms: 8000 }), err => { if (err && err.code !== 'aborted') console.warn('late step', err); });
-}
+async function backorderOrder(id) { const s = stamp(); await B.orderStep(id, cur => cur.status === 'open' ? { status: 'backordered', dateBackordered: s.at, trail: trailAdd(cur.trail, 'backordered', s) } : undefined); }
+async function unbackorderOrder(id) { const s = stamp(); await B.orderStep(id, cur => cur.status === 'backordered' ? { status: 'open', trail: trailAdd(cur.trail, 'unbackordered', s) } : undefined); }
+async function unvoidOrder(id) { const s = stamp(); await B.orderStep(id, cur => cur.status === 'voided' ? { status: 'open', trail: trailAdd(cur.trail, 'unvoided', s) } : undefined); }
+async function voidOrder(id, why) { const s = stamp(); await B.orderStep(id, cur => cur.status === 'voided' ? undefined : { status: 'voided', dateVoided: s.at, voidedBy: s.by, voidedById: s.byId || null, trail: trailAdd(cur.trail, 'voided', s, why ? { note: why } : null) }); }
+/* "by Pat L." without a second full stop */
+function byWho(name, otherwise) { return name ? ' by ' + String(name).replace(/\.$/, '') : (otherwise || ''); }
 
 /* ---------- receiving ---------- */
 /* what an order has already put into stock, per supply (a reopen nets it back to 0) */
@@ -141,7 +140,7 @@ function moneyBooked(orderId, type) { return S.D.log.reduce((a, l) => a + (l && 
 async function receiveOrder(orderId, opts) {
   opts = opts || {}; const s = stamp();
   const order = opts.order || orderById(orderId); if (!order) throw new Error('That order is gone.');
-  if (order.status === 'received') throw new Error('That order was already received' + (order.receivedBy ? ' by ' + order.receivedBy : '') + '.');
+  if (order.status === 'received') throw new Error('That order was already received' + byWho(order.receivedBy) + '.');
   const count = opts.count !== false;
   const reason = opts.reason || null, zeroCost = reason === 'free' || reason === 'points' || reason === 'sample';
   const extra = count && Array.isArray(opts.extraLines) ? opts.extraLines : [];
@@ -175,25 +174,28 @@ async function receiveOrder(orderId, opts) {
   }
   if (opts.invoiceNumber) patch.invoiceNumber = opts.invoiceNumber;
   if (opts.patch) Object.keys(opts.patch).forEach(k => { if (opts.patch[k] != null && opts.patch[k] !== '') patch[k] = opts.patch[k]; });
-  /* claim it, receipt and all, in one step: if another computer is receiving the same order right now, only one of them goes on
-     (the trail step is added to the trail as the database has it) */
-  const rest = () => receiveRest(order, orderId, patch, opts, s, count, confirmed, items, backorder, reason, zeroCost, ship);
-  try { await B.claimOrder(orderId, cur => cur === 'received' ? undefined : 'received', cur => Object.assign({}, patch, { status: undefined, trail: trailAdd(cur.trail, 'received', s, count ? null : { note: 'stock not counted' }) })); }
+  const books = receiveBooks(order, orderId, opts, s, count, confirmed, items, backorder, reason, zeroCost, ship);
+  /* all in one step — the order received, its backorder, its stock and dollars: it all happens or none of it, and if another
+     computer is receiving the same order right now, only one of them goes on */
+  const done = () => { B.alert([alertOrderEvent('received', Object.assign({}, order, patch))]); };
+  try { await B.book(orderId, 'k' + uid(), cur => cur.status === 'received' ? undefined : Object.assign({}, patch, { trail: trailAdd(cur.trail, 'received', s, count ? null : { note: 'stock not counted' }) }), books); }
   catch (e) {
-    if (e && e.code === 'aborted') { const o2 = orderById(orderId); throw new Error('That order was just received' + (o2 && o2.receivedBy ? ' by ' + o2.receivedBy : ' on another computer') + '.'); }
-    finishLate(e, rest, 'The ' + (order.vendor || '') + ' order went through after all: it’s received, with its stock and dollars.');
+    if (e && e.code === 'aborted') { const o2 = orderById(orderId); throw new Error('That order was just received' + byWho(o2 && o2.receivedBy, ' on another computer') + '.'); }
+    if (e && e.code === 'timeout' && e.late) e.late.then(x => { if (x) { done(); toast('The ' + (order.vendor || '') + ' order went through after all: it’s received, with its stock and dollars.', { ms: 8000 }); } }, () => { });
     throw e;
   }
-  await rest();
+  done();
 }
-/* after the claim: the backorder for what didn't come, the stock and the dollars */
-async function receiveRest(order, orderId, patch, opts, s, count, confirmed, items, backorder, reason, zeroCost, ship) {
+/* what a receipt books, worked out before the step (from what this computer knows of the log): the backorder for what didn't
+   come, the stock, the log entries (dollars), and for each supply what was paid this time */
+function receiveBooks(order, orderId, opts, s, count, confirmed, items, backorder, reason, zeroCost, ship) {
+  const out = { stock: {}, log: [], orders: [], items: null };
   if (backorder.length) {
-    await B.putOrder({ id: 'order-' + uid(), vendor: order.vendor || '', items: backorder.map(b => Object.assign(b, { lineTotal: round2(b.qty * b.price) })), dateOrdered: order.dateOrdered || '', orderedAt: order.orderedAt || null,
+    out.orders.push({ id: 'order-' + uid(), vendor: order.vendor || '', items: backorder.map(b => Object.assign(b, { lineTotal: round2(b.qty * b.price) })), dateOrdered: order.dateOrdered || '', orderedAt: order.orderedAt || null,
       orderedBy: order.orderedBy || null, orderedById: order.orderedById || null, method: order.method || null, expectedDelivery: '', status: 'open',
       note: 'BACKORDERED — from order ' + (order.dateOrdered || ''), backorderOf: orderId, trail: trailAdd([], 'backorder', s, { from: orderId }) });
   }
-  if (!count) { B.alert([alertOrderEvent('received', Object.assign({}, order, patch))]); return; }
+  if (!count) return out;
   /* stock and dollars — skipping anything this order already put on the books */
   const already = receivedSoFar(orderId), onBooks = oi => (already[oi.itemId] || 0) > 0;
   const orderDisc = (confirmed && !zeroCost) ? Math.max(0, Number(opts.discount) || 0) : 0, share = {};
@@ -201,7 +203,7 @@ async function receiveRest(order, orderId, patch, opts, s, count, confirmed, ite
     const ls = items.map((oi, k) => [oi, k]).filter(([oi]) => oi.itemId && !onBooks(oi) && orderItemCost(oi) > 0), sum = ls.reduce((a, [oi]) => a + orderItemCost(oi), 0); let given = 0;
     ls.forEach(([oi, k], i) => { const sh = i === ls.length - 1 ? round2(Math.min(orderDisc, sum) - given) : round2(orderItemCost(oi) / sum * Math.min(orderDisc, sum)); given += sh; share[k] = sh; });
   }
-  const entries = [], stock = [];
+  const paid = {};   // itemId → [[vendor, price per counted unit, sku]] (remembered in the same step, on the supply as it is then)
   items.forEach((oi, k) => {
     if (!oi.itemId || onBooks(oi)) return;
     const amt = zeroCost ? 0 : round2(Math.max(0, orderItemCost(oi) - (share[k] || 0)));
@@ -209,25 +211,24 @@ async function receiveRest(order, orderId, patch, opts, s, count, confirmed, ite
     const e = logEntry({ itemId: oi.itemId, itemName: (it && it.name) || oi.name || oi.itemId, delta, note: 'Order received: ' + (order.vendor || ''), type: 'receive', amount: zeroCost ? 0 : (amt > 0 ? amt : null), orderId }, s);
     if (linePer(oi) > 1) { e.unit = oi.countUnit || ''; e.bought = qtyUnit(oi.qty, oi.unit); }
     if (reason) e.amountReason = reason;
-    entries.push(e);
+    out.log.push(e);
     /* quick-order lines (elasto-…, bracket-…) aren't supplies: only real ones, or ones this scan just added (opts.newIds), get stock */
-    if (delta && (it || listOf(opts.newIds).includes(oi.itemId))) stock.push([it || { id: oi.itemId, name: oi.name }, delta, oi, !!it]);
+    if (delta && (it || listOf(opts.newIds).includes(oi.itemId))) {
+      out.stock[oi.itemId] = round2((out.stock[oi.itemId] || 0) + delta);
+      const pr = Number(oi.price) || 0, list = paid[oi.itemId] || (paid[oi.itemId] = []);
+      if (it && confirmed && !zeroCost && order.vendor && pr > 0) list.push([order.vendor, pr / linePer(oi), oi.sku]);
+    }
   });
   const priorShip = moneyBooked(orderId, 'shipping'), priorTax = moneyBooked(orderId, 'tax'), tax = parseFloat(opts.tax);
-  if (ship > 0 && priorShip <= 0) entries.push(logEntry({ type: 'shipping', amount: round2(ship), note: 'Shipping: ' + (order.vendor || ''), orderId }, s));
-  if (confirmed && isFinite(tax) && tax > 0 && priorTax <= 0) entries.push(logEntry({ type: 'tax', amount: round2(tax), note: 'Sales tax: ' + (order.vendor || ''), orderId }, s));
-  /* money first: if the stock step then fails, the budget is still right (and receiving it again can't count it twice) */
-  await B.addLog(entries);
-  await B.addStockMany(stock.map(([it, delta]) => [it.id, delta]));
-  /* remember what was paid, per counted unit, for this vendor (all in one save) */
-  const day = todayISO(), known = {};
-  stock.forEach(([it, , oi, isKnown]) => {
-    const pr = Number(oi.price) || 0, upd = known[it.id] || { chk: s.at, chkBy: s.by };
-    if (isKnown && confirmed && !zeroCost && order.vendor && pr > 0) upd.sources = rememberPrice(Object.assign({}, it, upd.sources ? { sources: upd.sources } : {}), order.vendor, pr / linePer(oi), oi.sku, day);
-    known[it.id] = upd;
-  });
-  await B.patchItems(Object.keys(known).map(id => [id, known[id]]));
-  B.alert([alertOrderEvent('received', Object.assign({}, order, patch))]);
+  if (ship > 0 && priorShip <= 0) out.log.push(logEntry({ type: 'shipping', amount: round2(ship), note: 'Shipping: ' + (order.vendor || ''), orderId }, s));
+  if (confirmed && isFinite(tax) && tax > 0 && priorTax <= 0) out.log.push(logEntry({ type: 'tax', amount: round2(tax), note: 'Sales tax: ' + (order.vendor || ''), orderId }, s));
+  const day = todayISO();
+  out.items = (id, it) => {
+    const upd = { chk: s.at, chkBy: s.by };
+    (paid[id] || []).forEach(([v, p, sku]) => { upd.sources = rememberPrice(Object.assign({}, it, upd.sources ? { sources: upd.sources } : {}), v, p, sku, day); });
+    return upd;
+  };
+  return out;
 }
 function rememberPrice(item, vendor, countPriceVal, sku, day) {
   const srcs = allSources(item).map(x => Object.assign({}, x));
@@ -252,31 +253,26 @@ function planReopen(order) {
 async function reopenOrder(orderId) {
   const order = orderById(orderId); if (!order) return; const s = stamp();
   if (order.status !== 'received') throw new Error('That order isn’t received, so there’s nothing to undo.');
-  /* claim it first, in one step with its new status: two computers reopening at once must not take the stock out twice */
-  const rest = () => reopenRest(order, orderId, s);
-  try { await B.claimOrder(orderId, cur => cur === 'received' ? 'open' : undefined, cur => ({ dateReceived: null, countUpdated: false, trail: trailAdd(cur.trail, 'reopened', s) })); }
-  catch (e) {
-    if (e && e.code === 'aborted') throw new Error('That order was just reopened on another computer.');
-    finishLate(e, rest, 'The ' + (order.vendor || '') + ' order was reopened after all: its stock and dollars are taken back.');
-    throw e;
-  }
-  await rest();
-}
-async function reopenRest(order, orderId, s) {
-  const P = planReopen(order), entries = [], stock = [];
+  const P = planReopen(order), log = [], stock = {};
   Object.keys(P.rec).forEach(itemId => {
     const r = P.rec[itemId], delta = r.delta > 0 ? r.delta : 0, amt = round2(r.amt);
     if (!delta && !(r.has && amt)) return;
     const it = itemById(itemId);
-    entries.push(logEntry({ itemId, itemName: (it && it.name) || P.names[itemId] || itemId, delta: -delta, note: 'Order reopened (receive undone): ' + (order.vendor || ''), type: 'receive', amount: r.has && amt ? -amt : null, orderId }, s));
-    if (it && delta) stock.push([it.id, -delta]);
+    log.push(logEntry({ itemId, itemName: (it && it.name) || P.names[itemId] || itemId, delta: -delta, note: 'Order reopened (receive undone): ' + (order.vendor || ''), type: 'receive', amount: r.has && amt ? -amt : null, orderId }, s));
+    if (it && delta) stock[itemId] = -delta;
   });
-  if (P.ship > 0) entries.push(logEntry({ type: 'shipping', amount: -P.ship, note: 'Order reopened (shipping undone): ' + (order.vendor || ''), orderId }, s));
-  if (P.tax > 0) entries.push(logEntry({ type: 'tax', amount: -P.tax, note: 'Order reopened (tax undone): ' + (order.vendor || ''), orderId }, s));
-  /* the log entries go first: if the stock step then fails, the money is still right and the stock can be counted */
-  await B.addLog(entries);
-  await B.addStockMany(stock);
-  B.alert([alertOrderEvent('reopened', Object.assign({}, order, { status: 'open' }))]);
+  if (P.ship > 0) log.push(logEntry({ type: 'shipping', amount: -P.ship, note: 'Order reopened (shipping undone): ' + (order.vendor || ''), orderId }, s));
+  if (P.tax > 0) log.push(logEntry({ type: 'tax', amount: -P.tax, note: 'Order reopened (tax undone): ' + (order.vendor || ''), orderId }, s));
+  /* all in one step — open again, its stock back out, its dollars reversed: two computers reopening at once can't take it
+     out twice, and it never ends up half done */
+  const done = () => { B.alert([alertOrderEvent('reopened', Object.assign({}, order, { status: 'open' }))]); };
+  try { await B.book(orderId, 'k' + uid(), cur => cur.status === 'received' ? { status: 'open', dateReceived: null, countUpdated: false, trail: trailAdd(cur.trail, 'reopened', s) } : undefined, { stock, log }); }
+  catch (e) {
+    if (e && e.code === 'aborted') throw new Error('That order was just reopened on another computer.');
+    if (e && e.code === 'timeout' && e.late) e.late.then(x => { if (x) { done(); toast('The ' + (order.vendor || '') + ' order was reopened after all: its stock and dollars are taken back.', { ms: 8000 }); } }, () => { });
+    throw e;
+  }
+  done();
 }
 /* shipping and tax for an order that already came in (the paper invoice arrives later), once per order */
 async function addCostEntries(orderId, vendor, ship, tax) {

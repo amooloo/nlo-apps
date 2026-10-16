@@ -31,8 +31,11 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
 - **Offline**: steps that need the database itself (stock, cart, receiving, reopening) say at once that there's no internet,
   instead of queueing; other saves go when it's back. A save still waiting holds off the idle lock two minutes at most (the
   lock then says it may not have been saved).
-- **A slow receive or reopen** ("not confirmed: the internet is very slow") finishes its stock and dollars by itself if it
-  goes through after all, and says so — an order is never left received with nothing booked.
+- **Receiving and reopening are one step each**: the order's new status, its backorder, the stock and the dollars go in
+  together or not at all, so an order is never left received with nothing booked (a slow one that goes through after all
+  says so; one whose reply got lost and is tried again finds itself done). Order steps (backordered, voided, brought back,
+  edited, an invoice matched) are made from the order as the database has it, so two computers at once don't trip each
+  other; like stock and the cart, they need the internet.
 
 ## The data (Firestore `nlo-cases`; rules: `../nlo-cases-src/firestore.rules`, block "NLO Inventory")
 - `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before.
@@ -52,11 +55,13 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
 
 ## The move (once, Dr. A)
 The page shows Dr. A "Move Inventory over" until `invMeta/moved` exists (staff see "Inventory is moving").
-- **First the old Inventory is made read-only** (`freeze_old.py --freeze`, go-live step 3): the old database's write rules for
-  Inventory's eight parts become Dr. A's Google account alone, so an office computer still showing the old page can change
-  nothing (it's refused there, so nobody thinks they did something that's lost); the alert script, which runs as Dr. A, still
-  copies there. It leaves `nlo/settings/invFrozen`, and the move card won't move without it. `--unfreeze` puts the saved rules
-  back (`deploy/rtdb-rules-before-*.json`).
+- **First the old Inventory is made read-only** (`freeze_old.py --freeze`, go-live step 3): no page may write Inventory's eight
+  parts of the old database any more (Dr. A's own included), so a computer still showing the old page can change nothing
+  (it's refused there, so nobody thinks they did something that's lost). The alert script copies there with Dr. A's Google
+  token, which goes past the rules; the helper checks that with its own (the Firebase CLI's), and if it were refused it keeps
+  Dr. A's account as the writer and says so. It leaves `nlo/settings/invFrozen`, and the move card won't move without it.
+  The rules from before are kept in `rollback/` (git-ignored; a second run never replaces them); `--unfreeze` gives the eight
+  parts those write rules back on the rules as they are then (other apps' later changes stay).
 - He connects to the old database with Google (its own sign-in, `invMove`, kept only while the page is open and closed after
   the move); the page reads `nlo/{items,orders,vendors,log,cart,budget,bracketOrder,elastoPrices,settings/…}` over REST and shows
   what it found (counts, money in the log, this month's spending, who changes settings mapped to NLO Cases logins, notes).
@@ -100,10 +105,11 @@ script checked in last (the copy running now); any others stop.
 - Tests (inside the emulators; `node_modules` → `../nlo-cases-src/node_modules`; `test/vendor/firebasejs-10.12.2/` = the three
   compat files from `npm pack firebase@10.12.2`; `NO_PROXY=127.0.0.1,localhost`):
   `npx firebase emulators:exec --only firestore,auth,database --project demo-nlo-cases "python3 test/e2e.py && node test/robot.test.js && node test/rules.test.mjs"`
-  — 311 end-to-end checks (the real page; the move from v3-shaped data, its read-only check, second reading, saved copy,
+  — 316 end-to-end checks (the real page; the move from v3-shaped data, its read-only check, second reading, saved copy,
   re-run, large photos; sign-in, lock, idle lock; the names on the steps; every flow of 4.0's suite; two computers at once;
-  a slow receive; rules gate; the copied alert script run), 53 alert-script checks, 261 rules checks (16 Oct). The other
-  apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97, Time Off 159, Time Clock 433 on 16 Oct).
+  a slow receive, a retried one; rules gate; the copied alert script run), 57 alert-script checks, 267 rules checks, and 25
+  for the read-only helper (16 Oct). The other apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97,
+  Time Off 159, Time Clock 433 on 16 Oct).
 - Publish: copy `dist/nlo-inventory.html` and `dist/nlo-inventory-alerts.gs` to the repo root; when the rules change, rebuild
   and copy NLO Cases, A/R, Time Off and the Time Clock too (they carry the file for their own rules cards).
 - The old address: `python3 deploy.py` (refuses unless the live page is the expected one) → `deploy/` → `npx firebase deploy

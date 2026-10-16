@@ -43,6 +43,17 @@ const DEMO = {
       async patchOrder(id, patch) { if (!store.orders[id]) throw errCode('not-found', 'That order is gone.'); M.patchOf(store.orders[id], patch); M.emit('orders'); },
       async putOrder(o) { store.orders[o.id] = clone(o); M.emit('orders'); },
       async claimOrder(id, fn, patchFn) { const o = store.orders[id]; const next = o ? fn(o.status) : undefined; if (next === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.'); if (patchFn) M.patchOf(o, patchFn(clone(o))); o.status = next; M.emit('orders'); return next; },
+      async orderStep(id, fn) { const o = store.orders[id]; if (!o) throw errCode('not-found', 'That order is gone.'); const p = fn(clone(o)); if (p === undefined) throw errCode('aborted', 'That order just changed on another computer. Look at it again.'); M.patchOf(o, p); M.emit('orders'); return p; },
+      async book(id, claimId, claim, o) {
+        o = o || {}; const cur = store.orders[id];
+        if (cur && claimId && cur.claim === claimId) return { skip: true, mine: true };
+        const p = cur ? claim(clone(cur)) : undefined; if (p === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.');
+        M.patchOf(cur, p); if (claimId) cur.claim = claimId;
+        Object.keys(o.stock || {}).forEach(k => { const it = store.items[k]; if (!it || !Number(o.stock[k])) return; it.qty = Math.max(0, Math.round(((Number(it.qty) || 0) + Number(o.stock[k])) * 1000) / 1000); if (o.items) M.patchOf(it, o.items(k, clone(it)) || {}); });
+        (o.log || []).filter(Boolean).forEach(e => { store.log[e.id] = clone(Object.assign({}, e, { byId: M.me.staffId })); });
+        (o.orders || []).forEach(n => { store.orders[n.id] = clone(n); });
+        ['orders', 'items', 'log'].forEach(M.emit); return { done: true };
+      },
       async putVendor(v) { store.vendors[v.id] = clone(v); M.emit('vendors'); },
       async patchVendor(id, patch) { store.vendors[id] = M.patchOf(store.vendors[id] || { id }, patch); M.emit('vendors'); },
       async cart(fn) { const next = fn(clone(listOf(store.cart)) || []); if (next !== undefined) { store.cart = clone(listOf(next)); M.emit('cart'); } return next; },
