@@ -3,6 +3,7 @@
 #   powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/update.ps1' -UseBasicParsing).Content"
 $ErrorActionPreference = 'Continue'
 [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
+$ProgressPreference = 'SilentlyContinue'   # Windows PowerShell's byte-by-byte progress bar makes a download 10x slower
 Write-Host ''
 Write-Host ' ==============================================='
 Write-Host '  NLO Bleach Tray - update'
