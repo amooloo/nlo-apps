@@ -339,9 +339,10 @@
 <div class="settings" id="settings">
   <div class="setHd">
     <h3>Settings</h3>
-    <div class="hint" style="margin:0 auto 0 14px">Each number has a picture of what it means. Changes apply to the next case (or <b>Run again</b>).</div>
+    <div class="hint" style="margin:0 auto 0 14px">Each number has a picture of what it means. Changes apply to the next case — or to the case that is open, with <b>Apply to this case</b>.</div>
     <button class="small" id="setDefaults">Back to defaults</button>
-    <button class="small primary" id="setClose">Done</button>
+    <button class="small primary" id="setApply" style="display:none" title="Re-make every model of the open case with these settings (brush fixes and painted areas are kept)">Apply to this case &amp; re-run</button>
+    <button class="small" id="setClose">Done</button>
   </div>
   <div class="setBd">
 
@@ -801,7 +802,13 @@ function showPic(el){
   if (el.dataset.shown === name) return;
   const im = new Image(); im.onload = () => { el.innerHTML = ''; el.appendChild(im); el.dataset.shown = name; }; im.alt = ''; im.src = `/static/img/${name}.png`;
 }
-$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); };
+$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); $('#setApply').style.display = (currentJob && ($('#sendbtn') || $('#resendbtn'))) ? '' : 'none'; };
+$('#setApply').onclick = async () => {
+  if (!currentJob) return;
+  saveSettings(); $('#settings').classList.remove('on'); requestRender();
+  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout] })); fd.append('params', JSON.stringify(params()));
+  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
+};
 $('#setClose').onclick = () => { $('#settings').classList.remove('on'); saveSettings(); requestRender(); };
 $('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
 document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => { const inp = $('#' + b.dataset.for); const step = +b.dataset.step; const dec = (String(step).split('.')[1] || '').length;
