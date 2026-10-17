@@ -399,6 +399,8 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   await put('invItems/el-1', { id: 'el-1', name: 'O-ties clear', qty: 3, sources: [{ vendor: 'Ortho Shop', sku: 'OT-1', src: 'https://shop.orthoshop.example/o-ties' }], up: new Date(), upBy: 'gwen' });
   await put('invItems/gone-9', { id: 'gone-9', name: 'Archived thing', archived: true, up: new Date(), upBy: 'gwen' });
   await put('invVendors/v-os', { id: 'v-os', name: 'Ortho Shop', email: 'sales@orthoshop.example', up: new Date(), upBy: 'amir' });
+  // a lab saved as a vendor in Inventory (it sells retainer cases too): its emails carry patients, so they're never read
+  await put('invVendors/v-sa', { id: 'v-sa', name: 'Specialty Appliances', email: 'orders@specialtyappliances.com', portal: 'https://specialtyappliances.com', up: new Date(), upBy: 'amir' });
   delete sv.cache['deal_catalog'];
   clock.off = wallAt(thu, 10);
   const t0 = sTime() - 2 * 3600000, mailTo = (id, from, subject, body, mins) => sv.gmail.push({ id, from, subject, body, date: t0 + (mins || 0) * 60000 });
@@ -406,6 +408,11 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   mailTo('g2', 'SunSurgical <orders@sunsurgical.com>', 'Order #4815 confirmed', 'Thank you for your order. 20% off your next one!', 2);
   mailTo('g3', 'uLab <noreply@ulabsystems.com>', 'Your uAssist Case is ready', 'Patient Name: Jane Doe. Your plan is ready.', 3);
   mailTo('g3b', 'uLab <dave@ulabsystems.com>', 'Big savings this month', 'Free retainer trial for every new start. Patient Name: Jane Doe', 4);
+  mailTo('g3c', 'uLab Promotions <promo@ulabsystems.com>', 'Holiday special: 20% off', 'Save 20% this month. Jane Roe’s setup is included. Unsubscribe', 4);
+  mailTo('g3d', 'Specialty Appliances <orders@specialtyappliances.com>', 'Buy 2 retainer cases, get 1 free', 'This week only. Jane Roe’s retainers ship Friday.', 4);
+  mailTo('g3e', 'Sarah Bell <sarah@thenextlevelorthodontics.com>', 'Mari’s List specials for Jane Roe', '20% off the Mari’s List brackets for Jane Roe’s case', 4);
+  mailTo('g3f', 'Peter <peter@cpa.example>', 'Mari’s List statements for 2025', 'Attached are the Mari’s List statements; 20% off our fee if paid this week.', 4);
+  mailTo('g3g', 'Flint W <flint.w@henryschein.com>', 'October specials from your Henry Schein rep', 'Save 15% on Transbond this month. Just reply to order.', 4);
   mailTo('g4', 'Mari’s List <mari@marislist.com>', 'October member specials', 'MARIS NEWSLETTER: members save 15% on scanners.', 5);
   mailTo('g4b', 'Mari’s List <portal@marislist.com>', 'X3363e is your Mari’s List login code', 'Copy and paste your temporary login code.', 6);
   mailTo('g5', 'Shoe Store <sale@shoes.example>', '50% off shoes', 'Huge sale, 50% off.', 7);
@@ -420,6 +427,9 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   const asked1 = aiCalls().map(c => c.subj);
   ok('deals: the offers from vendors and Mari’s List went to the AI', ['20% off Pulse Nitrile gloves this week', 'October member specials', 'Buy 10 get 2 free o-ties', 'Flash sale on o-ties'].every(x => asked1.includes(x)), asked1);
   ok('deals: never to the AI — an order, a case, anything naming a patient, a login code, another store, a reply, a catalog with no offer', !['Order #4815 confirmed', 'Your uAssist Case is ready', 'Big savings this month', 'X3363e is your Mari’s List login code', '50% off shoes', 'Re: your quote', 'Our new catalog is here'].some(x => asked1.includes(x)) && !aiCalls().some(c => /Jane Doe/.test(c.text)), asked1);
+  ok('deals: never to the AI — a lab or aligner maker (even one saved as a vendor), the office’s own mail, or mail that only mentions Mari’s List', !['Holiday special: 20% off', 'Buy 2 retainer cases, get 1 free', 'Mari’s List specials for Jane Roe', 'Mari’s List statements for 2025'].some(x => asked1.includes(x)) && !aiCalls().some(c => /Jane Roe/.test(c.text)), asked1);
+  ok('deals: a vendor rep’s own specials email does reach it', asked1.includes('October specials from your Henry Schein rep'), asked1);
+  ok('deals: the Gmail search leaves out the labs saved as vendors and the lab emails’ label', !/specialtyappliances/.test(sv.gmailQ.slice(-1)[0]) && !/ulabsystems/.test(sv.gmailQ.slice(-1)[0]) && /-label:lab-update/.test(sv.gmailQ.slice(-1)[0]), sv.gmailQ.slice(-1)[0]);
   const p1 = aiCalls()[0] || {};
   ok('deals: the AI gets the office’s supplies (not the archived ones) and the email', /ppe-1 \| Gloves SM \| SunSurgical \| #177102/.test(p1.text) && /el-1 \| O-ties clear \| Ortho Shop \| #OT-1/.test(p1.text) && !/gone-9/.test(p1.text) && /PULSE20/.test(p1.text) && /^\/v1beta\/models\/gemini-2\.5-flash:generateContent\?key=AIzaNEW$/.test(p1.url) && p1.gen && p1.gen.responseMimeType === 'application/json', { url: p1.url, gen: p1.gen });
   ok('deals: the Gmail search asks for the vendors (Inventory’s too) and Mari’s List, and nothing sent', /after:\d+/.test(sv.gmailQ.slice(-1)[0]) && /from:orthoshop\.example/.test(sv.gmailQ.slice(-1)[0]) && /from:sunsurgical\.com/.test(sv.gmailQ.slice(-1)[0]) && /"Mari's List"/.test(sv.gmailQ.slice(-1)[0]) && /-in:sent/.test(sv.gmailQ.slice(-1)[0]), sv.gmailQ.slice(-1)[0]);

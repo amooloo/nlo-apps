@@ -336,10 +336,10 @@ function oldPage_(cfg, props, now) {
 // ─── Deals: the promo emails in this Gmail, matched to the supplies the office buys ───
 /* Amir, 16 Oct 2026: "can you find a way for us to get live updates on things from Marislist that we actually use? they send
    emails and also they have a website. I usually don't see the promotions or I miss them". By day, once an hour, it looks at
-   this Gmail's new emails from Mari's List, from the vendors the office buys from (Inventory's vendors and the websites its
-   supplies come from, and the usual orthodontic ones), or that mention Mari's List. Order, shipping, invoice, case, return
-   and login emails, replies and forwards, and anything naming a patient are left alone: never read further, never sent
-   anywhere. What's left, when it looks like an offer, goes to the AI (the office's Gemini key, Inventory → Settings → AI)
+   this Gmail's new emails from Mari's List and from the vendors the office buys from (Inventory's vendors and the websites its
+   supplies come from, and the usual orthodontic ones) — never from a lab, an aligner maker or a scan service (their emails
+   carry patients), or the office's own mail. Order, shipping, invoice, case, treatment, return and login emails, replies and
+   forwards, and anything naming a patient are left alone: never read further, never sent anywhere. What's left, when it looks like an offer, goes to the AI (the office's Gemini key, Inventory → Settings → AI)
    with the office's supply list: what's on offer, until when, how to get it, and which supplies it's for. An offer on
    supplies the office buys: a push to Dr. A's phone (the cart pushes' topic; tapping it opens the email) and a record in
    Inventory (invDeals, under the email's id): it shows on Inventory's Home with those supplies, which carry a "Deal" tag, until
@@ -355,9 +355,17 @@ var ROUNDUP_WEEKDAY = 5, ROUNDUP_HOUR = 7;   // Friday, 7 AM office time (Friday
 var FREE_MAIL = ['gmail.com', 'googlemail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'me.com', 'live.com', 'msn.com', 'comcast.net', 'att.net'];
 var DEAL_VENDORS = ['marislist.com', 'americanortho.com', 'henryschein.com', 'pattersondental.com', 'benco.com', 'ormco.com', 'dentsplysirona.com',
   'solventum.com', '3m.com', 'orthotechnology.com', 'ultradent.com', 'orthoarch.com', 'net32.com', 'safcodental.com', 'darbydental.com',
-  'sunsurgical.com', 'kometusa.com', 'baymaterials.com', 'zenduradental.com', 'ulabsystems.com', 'allureortho.com', 'brandhousedental.com'];
-var NOT_OFFER = /\b(order\s*#?\s*\d|order (confirmed|confirmation|received|has shipped|is on the way)|invoice|receipt|statement|shipped|shipment|tracking|delivered|out for delivery|verification|login code|your code|password|sign[- ]in|case\s*#|uassist|treatment plan|rma\b|return label|payment|past due|refund)/i;
-var PATIENT = /\bpatients?\b|\bDOB\b|date of birth|\bMRN\b/i;
+  'sunsurgical.com', 'kometusa.com', 'baymaterials.com', 'zenduradental.com', 'allureortho.com', 'brandhousedental.com', 'relianceorthodontics.com',
+  'rmortho.com', 'beckinstruments.com', 'scheu-dental.com', 'gacintl.com', 'dentaurum.com'];
+/* never read, whatever they say: the labs, aligner makers and scan services whose emails carry patients (the ones NLO Cases reads
+   among them), and the office's own mail — even when they're also on a vendor list or in Inventory: such an email is dropped by
+   its sender before it's opened. Anything with the "lab-update" label (NLO Cases' label for lab emails) isn't even searched. */
+var NEVER_READ = ['ulabsystems.com', 'udesign.cloud', 'partnersdentalstudio.com', 'olivortho.com', 'angelalign.com', 'angelaligner.com',
+  'specialtyappliances.com', 'dynaflex.com', 'smlglobal.com', 'odlortho.com', 'titandentaldesign.com', 'qcortho.com', 'greatlakesdentaltech.com',
+  'brynmawrortholab.com', 'accutechortho.com', 'uniortholab.com', 'tportho.com', 'invisalign.com', 'aligntech.com', 'myitero.com',
+  'sparkaligners.com', 'clearcorrect.com', 'suresmile.com', '3shape.com', 'thenextlevelorthodontics.com', 'ptorthodontics.com'];
+var NOT_OFFER = /\b(order\s*#?\s*\d|order (confirmed|confirmation|received|has shipped|is on the way)|invoice|receipt|statement|shipped|shipment|tracking|delivered|out for delivery|verification|login code|your code|password|sign[- ]in|case\s*(#|no\b|number|id\b|status|update|submitted|received|approved|ready|shipped)|your case|new case|uassist|treatment|prescription|\brx\b|impressions?\b|scans? (received|submitted|ready)|appointment|rma\b|return label|payment|past due|refund)/i;
+var PATIENT = /\bpatients?\b|\bpt\.? name\b|\bDOB\b|date of birth|birth ?date|\bMRN\b|chart (#|number)|medical record|\bHIPAA\b|\bPHI\b/i;
 var OFFER = /(\d+\s?%\s?off|%\s?off|\bsave\b|\bsale\b|special|promo|\bdeals?\b|exclusive|discount|\bfree\b|limited[- ]time|\boffer\b|clearance|\bbogo\b|buy \d+|rebate|bundle|price (drop|reduction)|coupon)/i;
 var MARIS = /mari'?\u2019?s\s*list|marislist/i;
 /* → { n: deals saved, note } */
@@ -385,7 +393,7 @@ function dealScan_(cfg, s, props, now) {
   var saved = 0, read = 0, note = '', rulesOld = false, waitFrom = 0, pushList = [];
   for (var i = 0; i < msgs.length; i++) {
     var m = msgs[i], id = String(m.getId()), at = m.getDate().getTime(), subject = String(m.getSubject() || ''), from = String(m.getFrom() || '');
-    if (!dealSender_(from, subject, cat.domains) || /^\s*(re|fwd?|aw)\s*:/i.test(subject) || NOT_OFFER.test(subject)) { mark(id); continue; }
+    if (!dealSender_(from, cat.domains) || /^\s*(re|fwd?|aw)\s*:/i.test(subject) || NOT_OFFER.test(subject)) { mark(id); continue; }
     var text = cleanMail_(m.getPlainBody());
     if (PATIENT.test(subject + '\n' + text)) { mark(id); continue; }
     if (!MARIS.test(from + ' ' + subject + ' ' + text) && !OFFER.test(subject + '\n' + text)) { mark(id); continue; }
@@ -440,6 +448,7 @@ function dealCatalog_(cfg, s) {
     items.push({ id: String(i.id), n: cut_(i.name, 90), v: cut_(src.vendor || '', 40), k: cut_(src.sku || i.sku || '', 24), m: cut_(i.manufacturer || '', 30) });
   });
   query_(cfg, s, 'invVendors', [], null).docs.forEach(function (d) { var v = plain_(d.fields); if (!v.deleted) { add(v.email); add(v.repEmail); add(v.portal); } });
+  NEVER_READ.forEach(function (d) { delete dom[d]; });
   c = { items: items.slice(0, 600), domains: Object.keys(dom).sort() };
   try { cache.put('deal_catalog', JSON.stringify(c), 6 * 3600); } catch (e) { }   // (too big for the cache: read again next time)
   return c;
@@ -454,14 +463,18 @@ function domainOf_(x) {
   var d = parts.slice(-2).join('.');
   return FREE_MAIL.indexOf(d) >= 0 ? '' : d;
 }
-/* from Mari's List, from one of the vendors, or mentioning Mari's List */
-function dealSender_(from, subject, domains) {
+/* from one of the vendors, or from Mari's List (by name in the From line: its mail can come through a mailing service) — never
+   a free-mail address, never one of the never-read senders, never because the subject or the email mentions Mari's List (an
+   accountant's email about its statements isn't an offer, and isn't read) */
+function dealSender_(from, domains) {
   var d = domainOf_(from);
-  return (d && domains.indexOf(d) >= 0) || MARIS.test(from + ' ' + subject);
+  if (!d || NEVER_READ.indexOf(d) >= 0) return false;
+  return domains.indexOf(d) >= 0 || MARIS.test(String(from || ''));
 }
 /* this Gmail's emails since then that could be offers (the checks above decide); oldest first */
 function dealMail_(domains, since) {
-  var q = 'after:' + Math.floor(since / 1000) + ' -in:sent -in:drafts -in:chats -in:spam -in:trash (' +
+  // (the never-read senders aren't in the vendors' list; one that matches the words is dropped by its sender before it's opened)
+  var q = 'after:' + Math.floor(since / 1000) + ' -in:sent -in:drafts -in:chats -in:spam -in:trash -label:lab-update (' +
     ['"Mari\'s List"', 'marislist'].concat(domains.map(function (d) { return 'from:' + d; })).join(' OR ') + ')';
   var out = [];
   GmailApp.search(q, 0, 50).forEach(function (t) {

@@ -451,8 +451,8 @@ a.btn{text-decoration:none}
   .dbRow{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;gap:10px;margin:0 -20px;padding:0 20px 4px;scroll-padding:0 20px;scrollbar-width:none}
   .dbRow::-webkit-scrollbar{display:none}
   .dbRow .dcard{flex:0 0 min(64%,240px);scroll-snap-align:start}
-  .dbHd .grow{min-width:0;flex-basis:calc(100% - 64px)}
 }
+@media (max-width:600px){ .dbHd .grow{min-width:0;flex-basis:calc(100% - 64px)} }
 /* the drawer opens on the photo */
 .dHero{position:relative;height:min(300px,40vh);background:#fff;border:1px solid var(--grey-100);border-radius:16px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;cursor:zoom-in;overflow:hidden}
 .dHero img{max-width:100%;max-height:100%;object-fit:contain;padding:18px;box-sizing:border-box;display:block}

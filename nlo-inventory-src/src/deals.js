@@ -32,7 +32,7 @@ function dealIndex() {
   listOf(S.D.deals).forEach(d => {
     if (!d || typeof d !== 'object') return;
     const end = /^\d{4}-\d{2}-\d{2}$/.test(String(d.ends || '')) ? String(d.ends) : (Number(d.at) > 0 ? isoOf(new Date(Number(d.at) + DEAL_DAYS * 864e5)) : '');
-    if (!end || end < t) return;
+    if (!end || end < t || (Number(d.at) > 0 && Date.now() - Number(d.at) > 90 * 864e5)) return;   // (90 days at most, whatever end date it gave)
     const seen = new Set(), lines = [];
     listOf(d.items).forEach(x => { const it = x && typeof x === 'object' ? byId.get(String(x.id)) : null; if (!it || seen.has(it.id)) return; seen.add(it.id); lines.push({ id: it.id, what: dealStr(x.what, 120), price: dealStr(x.price, 40) }); });
     if (lines.length) list.push(Object.assign({}, d, { vendor: dealStr(d.vendor, 120), title: dealStr(d.title, 200), how: dealStr(d.how, 400), ends: /^\d{4}-\d{2}-\d{2}$/.test(String(d.ends || '')) ? String(d.ends) : '', end, lines }));
