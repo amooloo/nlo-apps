@@ -80,7 +80,7 @@ INP.scanFind = t => {
 ACT.scanPick = t => { const it = itemById(t.dataset.id); if (it) { $('#scanHits').innerHTML = ''; showScanResult(it); } };
 function showScanResult(it) {
   const c = inCartLine(it.id), box = $('#scanRes'); if (!box) return;
-  box.innerHTML = '<div class="card" style="margin-top:12px;padding:14px 16px"><div class="gap8">' + thumbHTML(it) + '<div style="flex:1;min-width:0"><b style="color:var(--navy)">' + esc(it.name) + '</b><div class="muted small">' + esc(qtyUnit(it.qty || 0, countUnit(it))) + ' on hand' + (it.location ? ' · ' + esc(it.location) : '') + (c ? ' · in the cart (' + esc(lineQtyLabel(c)) + ')' : '') + '</div></div></div>' +
+  box.innerHTML = '<div class="card" style="margin-top:12px;padding:14px 16px"><div class="gap8">' + thumbHTML(it, 'lg') + '<div style="flex:1;min-width:0"><b style="color:var(--navy)">' + esc(it.name) + '</b><div class="muted small">' + esc(qtyUnit(it.qty || 0, countUnit(it))) + ' on hand' + (it.location ? ' · ' + esc(it.location) : '') + (c ? ' · in the cart (' + esc(lineQtyLabel(c)) + ')' : '') + '</div></div></div>' +
     '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="useOne" data-id="' + esc(it.id) + '">' + ic('minus', 15) + 'Used 1 ' + esc(countUnit(it)) + '</button><button class="btn btn-sec btn-sm" data-act="countIt" data-id="' + esc(it.id) + '">' + ic('count', 15) + 'Count</button><button class="btn btn-teal btn-sm" data-act="drawerAdd" data-id="' + esc(it.id) + '">' + ic('cart', 15) + 'Add to cart</button><button class="btn btn-ghost btn-sm" data-act="scanOpen" data-id="' + esc(it.id) + '">Open</button><button class="btn btn-ghost btn-sm" data-act="scanAgain">Scan another</button></div></div>';
   hydrateImages(box);
 }

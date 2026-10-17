@@ -47,6 +47,17 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
   shows the QR code too, under the Messages button). The text is short and in plain characters; it goes to the rep's mobile,
   else the vendor's main number. Nothing is marked ordered until "It's ordered". (`src/cart.js`: placeLinks, launchUrl,
   devKind, orderSms, drawTextQr; e2e `t_order_links`.)
+- **Photos first** (5.0.2; Amir, 16 Oct 2026: "one thing I don't like is the size of photos....its very small now" / "I love
+  high quality pro phtoos of the product" / "I'm very visual"): Supplies opens as a **photo grid** (square cards, the photo whole
+  on white, what's going on with it on the photo — in cart, on order, low, expiring —, then name, vendor, price, stock and Add);
+  **List** is one tap away and remembered on each computer (`localStorage nloInv.supLook`). The drawer opens on the **full-size
+  photo**; a tap on it (or the ⤢ on a card) fills the screen (`#viewer`; Esc, × or a tap outside closes it; locking closes it).
+  A supply with no photo offers "Add a photo" (the editor, where "Clean it up with AI" makes a studio shot on white when the
+  OpenAI key is set). Thumbnails are bigger everywhere and never cropped (list 64 px, cart 72 px, add-to-cart 120 px, order and
+  receiving lines 44 px). New photos keep an 800 px thumbnail (was 400; the 3.x app's were 800) besides the 1600 px full one.
+  Photos kept as records of their own (`invPics`) are read only when their card comes near the screen (IntersectionObserver);
+  web photos load lazily. On a phone the grid is two across and the category chips scroll sideways in one row.
+  (`src/supplies.js` itemCardHTML/supLook, `src/ui.js` photoImgHTML/lazyPic/openViewer, `src/style.css`; e2e `t_photos`.)
 - **Quick-order prices** save for everyone (the old database's rules refused them).
 - **Photos** kept inside records (old supplies, packing slips) are records of their own (`invPics`), read when shown.
 - **Vendor account numbers, reps and card notes** are no longer built into the page (it's published from the public repo):

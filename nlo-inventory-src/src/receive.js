@@ -27,7 +27,7 @@ function openReceive(o) {
   const w = whoNow();
   const rows = o.items.map((l, k) => {
     const pp = receivePlaceholderPrice(l, o), old = lineInOldUnit(l, itemById(l.itemId)), it = itemById(l.itemId);
-    return '<tr><td class="n"><b>' + esc(l.name || '') + '</b><small>' + (l.sku ? '#' + esc(l.sku) + ' · ' : '') + 'ordered ' + esc(lineQtyLabel(l)) + (l.addedBy ? ' · added by ' + esc(firstName(l.addedBy)) : '') + '</small></td>' +
+    return '<tr><td class="n">' + (it ? '<div class="withPic">' + thumbHTML(it, 'sm') + '<div>' : '') + '<b>' + esc(l.name || '') + '</b><small>' + (l.sku ? '#' + esc(l.sku) + ' · ' : '') + 'ordered ' + esc(lineQtyLabel(l)) + (l.addedBy ? ' · added by ' + esc(firstName(l.addedBy)) : '') + '</small>' + (it ? '</div></div>' : '') + '</td>' +
       '<td><input type="number" inputmode="decimal" min="0" step="any" placeholder="' + esc(qtyFmt(l.qty)) + '" data-rc="qty" data-k="' + k + '" data-inp="rcCalc" aria-label="Received"><span class="eq" id="rcEq' + k + '">' + (linePer(l) > 1 ? '= ' + esc(qtyUnit(l.qty * linePer(l), l.countUnit || '')) : esc(unitWord(l.unit, l.qty))) + '</span>' +
         (old ? '<label class="chk tiny"><input type="checkbox" data-rc="cases" data-k="' + k + '" data-chg="rcCases"> came as ' + esc(unitWord(buyUnit(it), 2)) + '</label>' : '') + '</td>' +
       '<td><input type="number" inputmode="decimal" min="0" step="0.01" placeholder="' + esc(pp != null ? pp.toFixed(2) : '0.00') + '" data-rc="price" data-k="' + k + '" data-inp="rcCalc" aria-label="Price each"><span class="eq" id="rcPu' + k + '">per ' + esc(l.unit || 'ea') + '</span></td>' +

@@ -29,7 +29,7 @@ function _canonical(value, list) {
   return '';
 }
 /* photos: a small one for lists (and the drawer) and a big one, both WebP */
-const IMG_THUMB_MAX = 400, IMG_FULL_MAX = 1600, IMG_QUALITY = 0.85;
+const IMG_THUMB_MAX = 800, IMG_FULL_MAX = 1600, IMG_QUALITY = 0.85;   // the grid's photos are big: thumbs as sharp as the old app's (800)
 function resizeToWebp(srcDataUrl, maxDim, quality) {
   return new Promise(resolve => {
     if (!srcDataUrl) return resolve(null);

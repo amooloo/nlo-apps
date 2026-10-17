@@ -52,7 +52,10 @@ const IC = {
   pause: '<rect x="6.5" y="5" width="3.5" height="14" rx="1"/><rect x="14" y="5" width="3.5" height="14" rx="1"/>',
   print: '<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="7.5" rx="1.5"/><path d="M7 14h10v6H7z"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.3"/>',
-  google: '<path d="M20.5 12.2c0-.6-.1-1.2-.2-1.8H12v3.4h4.8a4.1 4.1 0 01-1.8 2.7v2.2h2.9c1.7-1.6 2.6-3.9 2.6-6.5z"/><path d="M12 21c2.4 0 4.5-.8 6-2.2l-2.9-2.2c-.8.5-1.8.9-3.1.9-2.3 0-4.3-1.6-5-3.7H4v2.3A9 9 0 0012 21z"/><path d="M7 13.8a5.4 5.4 0 010-3.5V8H4a9 9 0 000 8.1z"/><path d="M12 6.6c1.3 0 2.5.5 3.4 1.3l2.6-2.6A9 9 0 004 8l3 2.3c.7-2.1 2.7-3.7 5-3.7z"/>'
+  google: '<path d="M20.5 12.2c0-.6-.1-1.2-.2-1.8H12v3.4h4.8a4.1 4.1 0 01-1.8 2.7v2.2h2.9c1.7-1.6 2.6-3.9 2.6-6.5z"/><path d="M12 21c2.4 0 4.5-.8 6-2.2l-2.9-2.2c-.8.5-1.8.9-3.1.9-2.3 0-4.3-1.6-5-3.7H4v2.3A9 9 0 0012 21z"/><path d="M7 13.8a5.4 5.4 0 010-3.5V8H4a9 9 0 000 8.1z"/><path d="M12 6.6c1.3 0 2.5.5 3.4 1.3l2.6-2.6A9 9 0 004 8l3 2.3c.7-2.1 2.7-3.7 5-3.7z"/>',
+  zoom: '<path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="M20 4l-7 7"/><path d="M4 20l7-7"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -195,7 +198,7 @@ function startLive() {
 async function lockOut(msg) {
   if (!S.inApp) return;
   S.inApp = false; clearInterval(S.idleTimer);
-  closeModal(true); closeDrawer(); $('#toasts').innerHTML = '';
+  closeModal(true); closeDrawer(); closeViewer(); $('#toasts').innerHTML = '';
   ['#view', '#topSlot', '#side', '#mobTop', '#mobNav', '#bannerSlot'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; });
   document.title = APP_NAME;
   for (let i = 0; i < 30 && B.pending; i++) await new Promise(r => setTimeout(r, 100));
@@ -339,9 +342,14 @@ function imgSrc(src) {
   if (S.imgCache.has(k)) return S.imgCache.get(k);
   try { const url = URL.createObjectURL(dataUrlToBlob(src)); S.imgCache.set(k, url); return url; } catch (e) { return src; }
 }
-function thumbHTML(item, cls) {
+function thumbHTML(item, cls, lazy) {
   const has = !!photoOf(item);
-  return '<span class="thumb ' + (cls || '') + '">' + (has ? '<img data-img="' + esc(item.id) + '" alt="">' : ic('box', cls === 'lg' ? 34 : 20)) + '</span>';
+  return '<span class="thumb ' + (cls || '') + (has ? ' has' : '') + '">' + (has ? '<img data-img="' + esc(item.id) + '"' + (lazy ? ' loading="lazy"' : '') + ' alt="' + esc(item.name || '') + '">' : ic('box', cls === 'lg' ? 34 : cls === 'md' ? 24 : 20)) + '</span>';
+}
+/* a supply's photo, big (Amir, 16 Oct 2026: "I love high quality pro phtoos of the product … I'm very visual"); full = the full-size
+   one (the drawer, the viewer); lazy = only when it scrolls near (the photo grid) */
+function photoImgHTML(item, full, lazy) {
+  return '<img data-img="' + esc(item.id) + '"' + (full ? ' data-full="1"' : '') + (lazy ? ' loading="lazy"' : '') + ' alt="' + esc(item.name || '') + '">';
 }
 /* a photo saved as a record of its own ("pic:<id>") is read when it's first shown, then kept for the visit */
 function setImg(im, u) {
@@ -358,9 +366,39 @@ function hydrateSrc(root) {
 new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(hydrateSrc))).observe(document.documentElement, { childList: true, subtree: true });
 function hydrateImages(root) {
   hydrateSrc(root || document.body);
-  $$('img[data-img]', root || document).forEach(im => { const it = itemById(im.dataset.img); const s = it && photoOf(it, im.dataset.full === '1'); if (s) setImg(im, s); im.removeAttribute('data-img'); });
+  $$('img[data-img]', root || document).forEach(im => {
+    const it = itemById(im.dataset.img), s = it && photoOf(it, im.dataset.full === '1'); im.removeAttribute('data-img');
+    if (!s) return;
+    if (/^pic:/.test(s) && im.loading === 'lazy' && typeof IntersectionObserver !== 'undefined') lazyPic(im, s); else setImg(im, s);
+  });
   $$('img[data-vlogo]', root || document).forEach(im => { im.onerror = () => { im.replaceWith(Object.assign(document.createElement('span'), { className: 'vlogo none', innerHTML: ic('build', 14) })); }; im.removeAttribute('data-vlogo'); });
 }
+/* photos kept as records of their own: each is a database read, so a long grid reads only the ones that come near the screen */
+const LAZY = { io: null, refs: new Map() };
+function lazyPic(im, ref) {
+  if (!LAZY.io) LAZY.io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    LAZY.io.unobserve(e.target); const r = LAZY.refs.get(e.target); LAZY.refs.delete(e.target); if (r) setImg(e.target, r);
+  }), { rootMargin: '600px 0px' });
+  LAZY.refs.forEach((r, el) => { if (!el.isConnected) { LAZY.io.unobserve(el); LAZY.refs.delete(el); } });
+  LAZY.refs.set(im, ref); LAZY.io.observe(im);
+}
+
+/* ---------- the photo viewer: a supply's full-size photo over everything (tap outside it, Esc or × to close) ---------- */
+ACT.viewPhoto = (t, e) => { if (e) e.stopPropagation(); const it = itemById(t.dataset.id); if (it && photoOf(it)) openViewer(it); };
+function openViewer(it) {
+  closeViewer();
+  const src = primarySource(it) || {}, w = document.createElement('div');
+  w.id = 'viewer'; w.className = 'viewer'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-label', 'Photo of ' + (it.name || 'the supply'));
+  w.innerHTML = '<button class="vClose" data-act="closeViewer" aria-label="Close">' + ic('x', 22) + '</button>' +
+    '<figure><div class="vPic">' + photoImgHTML(it, true) + '</div><figcaption><b>' + esc(it.name || '') + '</b>' +
+    (src.vendor || src.sku ? '<span>' + esc([src.vendor, src.sku ? '#' + src.sku : ''].filter(Boolean).join(' · ')) + '</span>' : '') + '</figcaption></figure>';
+  w.addEventListener('click', e => { if (e.target === w || e.target.tagName === 'FIGURE') closeViewer(); });
+  document.body.appendChild(w); hydrateImages(w);
+  const b = w.querySelector('.vClose'); if (b) b.focus();
+}
+function closeViewer() { const v = document.getElementById('viewer'); if (v) v.remove(); }
+ACT.closeViewer = () => closeViewer();
 function vlogoHTML(v, cls) {
   const u = vendorLogoUrl(v && v.id ? v : vendorObj(v && v.name));
   return u ? '<img class="vlogo ' + (cls || '') + '" data-src="' + esc(u) + '" alt="" loading="lazy" data-vlogo="1" referrerpolicy="no-referrer">' : '<span class="vlogo none ' + (cls || '') + '">' + ic('build', 14) + '</span>';
@@ -449,7 +487,7 @@ function onInput(e) {
 }
 const searchSoon = debounce(() => renderView(true), 120);
 function onKey(e) {
-  if (e.key === 'Escape') { const ask = $('#modalWrap .askClose'); if (ask) ask.remove(); else if ($('#modalWrap')) closeModal(); else if (S.drawer) closeDrawer(); return; }
+  if (e.key === 'Escape') { const ask = $('#modalWrap .askClose'); if ($('#viewer')) closeViewer(); else if (ask) ask.remove(); else if ($('#modalWrap')) closeModal(); else if (S.drawer) closeDrawer(); return; }
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-act][role=button]')) { e.preventDefault(); e.target.click(); }
   if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-enter]')) { e.preventDefault(); const b = $(e.target.dataset.enter); if (b) b.click(); }
 }

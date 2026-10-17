@@ -3,6 +3,10 @@
    already in the cart or on order (and who put it there), and add it.
    Tapping a supply opens its drawer: buying (vendors and prices, what
    it's bought in), stock, and its history with names and dates.
+   Photos first (Amir, 16 Oct 2026: "I love high quality pro phtoos of
+   the product … I'm very visual"): the catalog opens as a grid of big
+   photo cards (List is one tap away, remembered on each computer), the
+   drawer opens on the full-size photo, and a tap on it fills the screen.
    ===================================================================== */
 function inCartLine(id) { return S.D.cart.find(c => c.itemId === id) || null; }
 function openOrdersWith(id) { return S.D.orders.filter(o => (o.status === 'open' || o.status === 'backordered') && o.items.some(l => l.itemId === id)); }
@@ -28,13 +32,35 @@ function itemFlags(i) {
 }
 function itemRowHTML(i) {
   const src = primarySource(i), c = inCartLine(i.id);
-  return '<div class="irow" data-act="openItem" data-id="' + esc(i.id) + '" role="button" tabindex="0">' + thumbHTML(i) +
+  return '<div class="irow" data-act="openItem" data-id="' + esc(i.id) + '" role="button" tabindex="0">' + thumbHTML(i, '', true) +
     '<div style="min-width:0"><div class="nm">' + esc(i.name || 'Unnamed') + '</div><div class="sub">' +
     (src && src.vendor ? '<span class="v">' + vlogoHTML(vendorObj(src.vendor)) + esc(src.vendor) + '</span>' : '') + (src && src.sku ? '<span>#' + esc(src.sku) + '</span>' : '') + (i.location ? '<span>' + ic('pin', 12) + ' ' + esc(i.location) + '</span>' : '') +
     (buysBigger(i) ? '<span>' + esc(buyLabel(i)) + '</span>' : '') + '</div>' + itemFlags(i) + '</div>' +
     '<div class="act">' + priceLine(i) + '<span class="stock' + (isOut(i) ? ' out' : isLow(i) ? ' low' : '') + '"' + (isLow(i) ? ' title="Below its minimum of ' + esc(qtyFmt(i.min)) + '"' : '') + '>' + esc(qtyFmt(i.qty || 0)) + '<small>' + esc(unitWord(countUnit(i), i.qty)) + ' on hand</small></span>' +
     (i.archived ? '' : '<button class="addBtn' + (c ? ' in' : '') + '" data-act="quickAdd" data-id="' + esc(i.id) + '" title="Add to the cart">' + ic(c ? 'check' : 'plus', 15) + (c ? 'In cart' : 'Add') + '</button>') + '</div></div>';
 }
+/* a supply as a photo card: the photo big, what's going on with it on the photo, then name, vendor, price, stock and Add */
+function itemCardHTML(i) {
+  const src = primarySource(i), c = inCartLine(i.id), os = openOrdersWith(i.id), ed = expDays(i), has = !!photoOf(i);
+  const tags = (c ? '<span class="ptag cart">' + ic('cart', 11) + 'In cart · ' + esc(lineQtyLabel(c)) + '</span>' : '') +
+    (os.length ? '<span class="ptag ' + (os.some(o => o.status === 'backordered') ? 'back' : 'order') + '">' + ic('truck', 11) + (os.some(o => o.status === 'backordered') ? 'Backordered' : 'On order') + '</span>' : '') +
+    (isOut(i) ? '<span class="ptag low">Out</span>' : isLow(i) ? '<span class="ptag low">Low</span>' : '') +
+    (ed != null && ed < 90 ? '<span class="ptag due">' + (ed < 0 ? 'Expired' : 'Expires ' + esc(fmtDate(i.exp))) + '</span>' : '') +
+    (i.archived ? '<span class="ptag arch">Archived</span>' : '') + (i.tag ? '<span class="ptag due">' + esc(i.tag) + '</span>' : '');
+  const cp = countPrice(src);
+  return '<div class="pcard" data-act="openItem" data-id="' + esc(i.id) + '" role="button" tabindex="0" aria-label="' + esc(i.name || 'Supply') + '">' +
+    '<div class="ph' + (has ? '' : ' none') + '">' + (has ? photoImgHTML(i, false, true) : ic('box', 40) + '<span>No photo yet</span>') +
+    (tags ? '<div class="ptags">' + tags + '</div>' : '') +
+    (has ? '<button class="pzoom" data-act="viewPhoto" data-id="' + esc(i.id) + '" aria-label="See the photo full size" title="See it full size">' + ic('zoom', 16) + '</button>' : '') + '</div>' +
+    '<div class="pbd"><div class="nm">' + esc(i.name || 'Unnamed') + '</div>' +
+    '<div class="vd">' + (src && src.vendor ? vlogoHTML(vendorObj(src.vendor)) + '<span>' + esc(src.vendor) + '</span>' : '<span class="muted">no vendor yet</span>') + (src && src.sku ? '<span class="sku">#' + esc(src.sku) + '</span>' : '') + '</div>' +
+    '<div class="pft"><div><div class="pp">' + (cp == null ? '<span class="muted">no price</span>' : buysBigger(i) ? money(cp * perBuy(i)) + '<small>/' + esc(buyUnit(i)) + '</small>' : money(cp) + '<small>/' + esc(countUnit(i)) + '</small>') + '</div>' +
+    '<div class="ps' + (isOut(i) ? ' out' : isLow(i) ? ' low' : '') + '">' + esc(qtyFmt(i.qty || 0)) + ' ' + esc(unitWord(countUnit(i), i.qty)) + ' on hand</div></div>' +
+    (i.archived ? '' : '<button class="addBtn' + (c ? ' in' : '') + '" data-act="quickAdd" data-id="' + esc(i.id) + '" title="Add to the cart">' + ic(c ? 'check' : 'plus', 15) + (c ? 'In cart' : 'Add') + '</button>') + '</div></div></div>';
+}
+/* Photos or List, remembered on this computer */
+function supLook() { const u = S.ui.sup; if (!u.look) { let l = ''; try { l = localStorage.getItem('nloInv.supLook') || ''; } catch (e) { } u.look = l === 'list' ? 'list' : 'grid'; } return u.look; }
+ACT.supLook = t => { S.ui.sup.look = t.dataset.l === 'list' ? 'list' : 'grid'; try { localStorage.setItem('nloInv.supLook', S.ui.sup.look); } catch (e) { } renderView(true); };
 /* what the Supplies screen shows now (its filters and search), in its order */
 function supVisible() {
   const u = S.ui.sup || (S.ui.sup = { cat: '', show: '', sort: 'cat' });
@@ -62,16 +88,17 @@ VIEWS.supplies = {
     const opt = (v, l) => '<option value="' + v + '"' + (u.show === v ? ' selected' : '') + '>' + l + '</option>';
     h += '<div class="filters"><select data-chg="supShow" aria-label="Show">' + opt('', 'Every supply') + opt('cart', 'In the cart') + opt('order', 'On order') + opt('low', 'Below its minimum') + opt('exp', 'Expiring soon') + opt('archived', 'Archived') + '</select>' +
       '<select data-chg="supSort" aria-label="Sort">' + ['cat:By category', 'name:A–Z', 'vendor:By vendor', 'recent:Recently ordered'].map(x => { const [v, l] = x.split(':'); return '<option value="' + v + '"' + (u.sort === v ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select>' +
+      '<div class="seg" role="group" aria-label="Show as"><button data-act="supLook" data-l="grid" aria-pressed="' + (supLook() === 'grid') + '">' + ic('grid', 14) + 'Photos</button><button data-act="supLook" data-l="list" aria-pressed="' + (supLook() === 'list') + '">' + ic('list', 14) + 'List</button></div>' +
       '<span class="muted small">' + list.length + ' suppl' + (list.length === 1 ? 'y' : 'ies') + '</span></div>';
     if (u.show === 'low') h += '<div class="notice info">Stock counts aren’t always up to date, so treat this as a hint and check the shelf.</div>';
     if (!list.length) return h + '<div class="card"><div class="empty">' + (S.q ? 'Nothing matches “' + esc(S.q) + '”. <button class="linkBtn" data-act="itemNew">Add it as a new supply</button>' : 'Nothing here.') + '</div></div>';
-    let body = '', cat = null, grp = null;
+    let body = '', cat = null, grp = null; const grid = supLook() === 'grid';
     list.slice(0, 600).forEach(i => {
       if (u.sort === 'cat' && i.cat !== cat) { cat = i.cat; grp = null; body += '<div class="catHead"><i style="background:' + catColor(cat) + '"></i>' + esc(catLabel(cat)) + '<span class="c">' + list.filter(x => x.cat === cat).length + '</span></div>'; }
       if (u.sort === 'cat' && i.group && i.group !== grp) { grp = i.group; body += '<div class="grpHead">' + esc(grp) + '</div>'; }
-      body += itemRowHTML(i);
+      body += grid ? itemCardHTML(i) : itemRowHTML(i);
     });
-    return h + '<div class="card">' + body + '</div>';
+    return h + (grid ? '<div class="pgrid">' + body + '</div>' : '<div class="card">' + body + '</div>');
   }
 };
 ACT.supCat = t => { S.ui.sup.cat = t.dataset.c; renderView(true); };
@@ -91,7 +118,7 @@ function openAddToCart(it, qty) {
     (recent ? '<div class="notice">Received ' + esc(fmtAgo(recent.dateReceived)) + ' from ' + esc(recent.vendor || '—') + ': ' + esc(lineQtyLabel(recent.items.find(l => l.itemId === it.id))) + (recent.receivedBy ? ', checked in by ' + esc(recent.receivedBy) : '') + '.</div>' : '') +
     (c ? '<div class="notice info">Already in the cart: ' + esc(lineQtyLabel(c)) + ', added by ' + esc(c.addedBy || '—') + (c.addedAt ? ' ' + esc(fmtWhen(c.addedAt)) : '') + '. This adds more.</div>' : '') +
     openOrdersWith(it.id).map(o => '<div class="notice">Already on order from ' + esc(o.vendor || '—') + ': ' + esc(lineQtyLabel(o.items.find(l => l.itemId === it.id))) + ', ordered by ' + esc(o.orderedBy || '—') + ' ' + esc(fmtWhen(o.orderedAt || o.dateOrdered)) + (o.status === 'backordered' ? ' (backordered)' : '') + '.</div>').join('') +
-    '<div class="gap8" style="margin:6px 0 14px">' + thumbHTML(it) + '<div class="qty lg"><button data-act="addStep" data-n="-1" aria-label="Less">−</button><input id="addQty" type="number" inputmode="decimal" min="0" step="1" value="' + esc(qty || 1) + '" data-enter="#addGo" data-inp="addQty"><span class="u" id="addU">' + esc(unitWord(buyUnit(it), qty || 1)) + '</span><button data-act="addStep" data-n="1" aria-label="More">+</button></div></div>' +
+    '<div class="gap8" style="margin:6px 0 14px">' + thumbHTML(it, 'lg') + '<div class="qty lg"><button data-act="addStep" data-n="-1" aria-label="Less">−</button><input id="addQty" type="number" inputmode="decimal" min="0" step="1" value="' + esc(qty || 1) + '" data-enter="#addGo" data-inp="addQty"><span class="u" id="addU">' + esc(unitWord(buyUnit(it), qty || 1)) + '</span><button data-act="addStep" data-n="1" aria-label="More">+</button></div></div>' +
     (per > 1 ? '<div class="boxNote" id="addEq" style="margin-bottom:14px">' + esc(qtyUnit(qty || 1, buyUnit(it))) + ' = ' + esc(qtyUnit((qty || 1) * per, countUnit(it))) + '</div>' : '') +
     (srcs.length > 1 ? '<div class="subH">From</div><div class="pickRow">' + srcs.map((s, k) => '<button class="pick" data-act="addVendor" data-k="' + k + '" aria-pressed="' + (s.vendor === S.ui.add.vendor) + '">' + esc(s.vendor || 'Vendor ' + (k + 1)) + (countPrice(s) != null ? ' · ' + money(countPrice(s) * per) : '') + '</button>').join('') + '</div>' : '') +
     field('Note for whoever orders (optional)', '<input id="addNote" placeholder="e.g. need by Thursday" value="' + esc((c && c.note) || '') + '">') +
@@ -118,7 +145,9 @@ ACT.addGo = t => {
 DRAWERS.item = id => {
   const it = itemById(id); if (!it) return '';
   const srcs = allSources(it), c = inCartLine(id), os = openOrdersWith(id), per = perBuy(it);
-  let h = '<div class="dHd">' + thumbHTML(it, 'lg').replace('data-img=', 'data-full="1" data-img=') + '<div style="flex:1;min-width:0"><h3>' + esc(it.name) + '</h3><div class="sub"><span class="badge" style="background:' + catColor(it.cat) + '22;color:' + catColor(it.cat) + '">' + esc(catLabel(it.cat)) + '</span>' + (it.group ? '<span class="badge">' + esc(it.group) + '</span>' : '') + (it.location ? '<span class="badge">' + ic('pin', 12) + esc(it.location) + '</span>' : '') + (it.archived ? '<span class="badge">Archived</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
+  const hasPic = !!photoOf(it);
+  let h = '<div class="dHd">' + (hasPic ? '' : '<button class="thumb lg addPic" data-act="itemEdit" data-id="' + esc(id) + '" title="Add a photo">' + ic('camera', 26) + '<span>Add a photo</span></button>') + '<div style="flex:1;min-width:0"><h3>' + esc(it.name) + '</h3><div class="sub"><span class="badge" style="background:' + catColor(it.cat) + '22;color:' + catColor(it.cat) + '">' + esc(catLabel(it.cat)) + '</span>' + (it.group ? '<span class="badge">' + esc(it.group) + '</span>' : '') + (it.location ? '<span class="badge">' + ic('pin', 12) + esc(it.location) + '</span>' : '') + (it.archived ? '<span class="badge">Archived</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">' +
+    (hasPic ? '<div class="dHero" data-act="viewPhoto" data-id="' + esc(id) + '" role="button" tabindex="0" title="See it full size">' + photoImgHTML(it, true) + '<span class="pzoom">' + ic('zoom', 16) + '</span></div>' : '');
   h += '<div class="btnRow" style="margin-top:0">' + (it.archived ? '' : '<button class="btn btn-teal" data-act="drawerAdd" data-id="' + esc(id) + '">' + ic('cart', 16) + (c ? 'Add more' : 'Add to cart') + '</button>') +
     '<button class="btn btn-sec" data-act="useOne" data-id="' + esc(id) + '">' + ic('minus', 16) + 'Used 1 ' + esc(countUnit(it)) + '</button><button class="btn btn-sec" data-act="countIt" data-id="' + esc(id) + '">' + ic('count', 16) + 'Count</button><button class="btn btn-ghost" data-act="itemEdit" data-id="' + esc(id) + '">' + ic('edit', 15) + 'Edit</button></div>';
   if (c) h += '<div class="notice info" style="margin-top:14px">In the cart: <b>' + esc(lineQtyLabel(c, true)) + '</b> — added by ' + esc(c.addedBy || '—') + (c.addedAt ? ', ' + esc(fmtWhen(c.addedAt)) : '') + listOf(c.trail).map(t => '; ' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) + ' by ' + t.by : t.t === 'qty' ? 'changed to ' + qtyFmt(t.to) + ' by ' + t.by : 'changed by ' + t.by) + ', ' + esc(fmtWhen(t.at))).join('') + (c.note ? '<br>Note: ' + esc(c.note) : '') + '</div>';

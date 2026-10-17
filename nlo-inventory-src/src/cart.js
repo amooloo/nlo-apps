@@ -23,7 +23,7 @@ function okRowHTML(c) {
 }
 function cartLineHTML(c) {
   const it = itemById(c.itemId), tr = listOf(c.trail);
-  return '<div class="cline">' + (it ? thumbHTML(it, 'sm') : '<span class="thumb sm">' + ic('bolt', 16) + '</span>') +
+  return '<div class="cline">' + (it ? thumbHTML(it, 'md', true) : '<span class="thumb md">' + ic('bolt', 20) + '</span>') +
     '<div style="min-width:0"><div class="nm">' + (it ? '<a href="#" data-act="openItem" data-id="' + esc(it.id) + '" style="color:inherit;text-decoration:none">' + esc(c.name) + '</a>' : esc(c.name)) + (c.sku ? ' <small>#' + esc(c.sku) + '</small>' : '') + '</div>' +
     '<div class="stamps"><span class="stamp">' + avatarHTML(c.addedBy, 'xs', c.addedById) + '<span>Added by <b>' + esc(c.addedBy || 'someone') + '</b>' + (c.addedAt ? ' · ' + esc(fmtWhen(c.addedAt)) : '') + '</span></span>' +
     tr.slice(-2).map(t => '<span class="stamp">' + avatarHTML(t.by, 'xs', t.byId) + '<span>' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) + ' by ' : t.t === 'qty' ? qtyFmt(t.from) + ' → ' + qtyFmt(t.to) + ' by ' : t.t === 'note' ? 'note by ' : t.t === 'ok' ? 'OK’d by ' : 'changed by ') + '<b>' + esc(t.by || '') + '</b> · ' + esc(fmtWhen(t.at)) + '</span></span>').join('') + '</div>' +
