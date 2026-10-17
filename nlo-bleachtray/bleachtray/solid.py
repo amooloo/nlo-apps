@@ -364,7 +364,7 @@ def outline_prism(outline, z0, z1):
     return m3.Manifold.extrude(cs, z1 - z0).translate([0, 0, z0])
 
 
-def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=False, scan_region=None):
+def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=False, scan_region=None, extra_solids=None):
     """Printable solid horseshoe: clip the surface (to `scan_region` if given, else loosely to the
     outline), close it below the floor, union a smooth synthetic skirt out to the outline, then cut
     with the outline prism so walls and floor are exact. Returns (trimesh body, method)."""
@@ -390,6 +390,21 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
                 log("shelf not manifold; continuing without shelf")
         except Exception as ex:  # noqa
             log(f"shelf skipped: {ex}")
+    # block-out fills and the like: unioned in before the outline cut
+    for i, ex in enumerate(extra_solids or []):
+        if man is None or ex is None:
+            continue
+        try:
+            mex = to_manifold(ex)
+            if mex is None:
+                log(f"extra solid {i + 1} not manifold; skipped"); continue
+            u = man + mex
+            if u.status() == m3.Error.NoError:
+                man = u
+            else:
+                log(f"extra solid {i + 1} union failed; skipped")
+        except Exception as ex2:  # noqa
+            log(f"extra solid {i + 1} skipped: {ex2}")
     if man is None:
         # try a light repair before giving up on booleans
         try:

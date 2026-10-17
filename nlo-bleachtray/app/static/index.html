@@ -93,7 +93,7 @@
   .dl{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .dl a{text-decoration:none}
   .dl button{font-family:var(--fb);text-transform:none;letter-spacing:0;font-size:12px;min-height:30px;padding:4px 12px}
-  .seg{display:inline-flex;border:1.5px solid var(--grey-200);border-radius:999px;overflow:hidden;background:#fff}
+  .seg{display:inline-flex;flex-wrap:wrap;border:1.5px solid var(--grey-200);border-radius:16px;overflow:hidden;background:#fff}
   .seg button{border:0;border-radius:0;min-height:30px;padding:4px 12px;font-family:var(--fb);font-weight:600;font-size:12px;letter-spacing:0;text-transform:none;color:var(--grey-600)}
   .seg button.on{background:var(--navy);color:#fff}
 
@@ -310,10 +310,10 @@
         </div>
         <div class="brush" id="brush">
           <h4>Brush — fix tooth / gum labels</h4>
-          <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button></div>
+          <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button><button data-mode="noreservoir" title="No bleaching reservoir here (recession, an exposed root, a crown margin) - the reservoir stays a millimetre away">No reservoir</button><button data-mode="blockout" title="Fill the undercut under this spot for thermoforming (under a pontic, round an implant crown, a black triangle)">Block out</button></div>
           <label class="f">Brush size: <span id="rv">1.5</span> mm radius</label>
           <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
-          <div class="hint">The ball on the model is the brush. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built.</div>
+          <div class="hint">The ball on the model is the brush. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built. <b>No reservoir</b> keeps the gel reservoir off a recession or a crown margin; <b>Block out</b> fills the undercut under a pontic or an implant crown so the retainer seats. Both are kept for every model made from this scan.</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
           <div class="hint" id="fixcount">No edits.</div>
         </div>
@@ -364,7 +364,17 @@
           <path d="M38 36 L82 36" stroke="#FA624D" stroke-width="1.4"/><path d="M34 45 Q60 39 88 45" fill="none" stroke="#1B2F4C" stroke-width="1.2"/>
           <path d="M104 36 L104 44" stroke="#1D3EA9" stroke-width="1.4"/><path d="M101 39 L104 36 L107 39 M101 41 L104 44 L107 41" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
         </svg></div>
-        <div class="stepper"><button data-step="-0.1" data-for="res_sb">−</button><input type="number" id="res_sb" step="0.1" min="0" max="2" value="0.5"><button data-step="0.1" data-for="res_sb">+</button></div>
+        <div class="stepper"><button data-step="-0.1" data-for="res_sb">−</button><input type="number" id="res_sb" step="0.1" min="0" max="3" value="1.0"><button data-step="0.1" data-for="res_sb">+</button></div>
+      </div>
+      <div class="scard"><div class="sLab">Exposed root: extra leeway (mm) <span class="info" title="Where a tooth shows root (recession, a crown's margin) the app finds the root on its own and the reservoir stops above it - plus this much more. Gel on root means sensitivity. Paint 'No reservoir' on anything it misses.">i</span></div>
+        <div class="sPic" data-img="recession"><svg viewBox="0 0 120 72">
+          <path d="M60 8 C72 6 82 12 84 22 L88 46 C90 60 76 68 60 66 C44 64 38 54 36 44 L34 22 C34 12 48 10 60 8 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M26 56 Q44 44 60 52 Q76 60 98 50 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M36 40 Q60 34 86 40" fill="none" stroke="#1B2F4C" stroke-width="1" stroke-dasharray="2 2"/>
+          <path d="M42 14 C52 16 70 16 80 14 L82 28 C80 32 42 32 40 28 Z" fill="#FFC8BF" opacity=".75"/>
+          <path d="M104 30 L104 48" stroke="#1D3EA9" stroke-width="1.4"/><path d="M101 33 L104 30 L107 33 M101 45 L104 48 L107 45" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+        </svg></div>
+        <div class="stepper"><button data-step="-0.25" data-for="rec_lee">−</button><input type="number" id="rec_lee" step="0.25" min="0" max="3" value="1.0"><button data-step="0.25" data-for="rec_lee">+</button></div>
       </div>
     </div>
 
@@ -387,6 +397,16 @@
           <path d="M108 42 L108 54" stroke="#1D3EA9" stroke-width="1.4"/><path d="M105 45 L108 42 L111 45 M105 51 L108 54 L111 51" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
         </svg></div>
         <div class="stepper"><button data-step="-0.25" data-for="tt_off">−</button><input type="number" id="tt_off" step="0.25" min="0" max="3" value="1.25"><button data-step="0.25" data-for="tt_off">+</button></div>
+      </div>
+      <div class="scard"><div class="sLab">Block out undercuts (retainer) <span class="info" title="The space under a pontic, round an implant crown or in an open embrasure is filled, like block-out resin, so the thermoformed sheet seats and comes off. Only undercuts deeper than this (measured in from the contour seen from above) are filled; the small natural ones stay for retention. Paint 'Block out' to fill a spot whatever its depth.">i</span></div>
+        <div class="sPic" data-img="blockout"><svg viewBox="0 0 120 72">
+          <path d="M18 50 Q60 42 102 50 L106 72 L14 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M28 12 C36 8 44 12 46 20 L48 42 C46 48 30 48 28 42 Z M74 12 C82 8 90 12 92 20 L94 42 C92 48 76 48 74 42 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M50 14 C58 10 66 12 68 20 L70 36 C68 40 52 40 50 36 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M50 36 L50 47 Q60 45 70 47 L70 36 Q60 40 50 36 Z" fill="#5EEAD4" stroke="#0D9488" stroke-width="1.2"/>
+          <path d="M108 28 L108 46" stroke="#1D3EA9" stroke-width="1.4"/><path d="M105 31 L108 28 L111 31 M105 43 L108 46 L111 43" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
+        </svg></div>
+        <select id="blockout"><option value="0">Off</option><option value="0.5">Deeper than 0.5 mm</option><option value="0.75" selected>Deeper than 0.75 mm</option><option value="1">Deeper than 1 mm</option><option value="1.5">Deeper than 1.5 mm</option></select>
       </div>
       <div class="scard"><div class="sLab">Tray edge between the teeth <span class="info" title="The shape of the tray edge where it passes between two teeth: a smooth wave (easier to trim, seals well) or a deep point up into every gap.">i</span></div>
         <div class="sPic" data-img="between_teeth_straight" data-img-by="bridge" data-img-map='{"0":"between_teeth_scallop","3":"between_teeth_straight","4":"between_teeth_smoother"}'><svg viewBox="0 0 120 72">
@@ -599,7 +619,8 @@ let currentJob = null, tab = 'result';
 const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new THREE.Group() };
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null;
-const edits = { add: new Set(), remove: new Set(), cut: new Set() };
+const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set() };
+let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out)
 let brushMode = 'tooth';
 // The brush is a sphere of the chosen radius around the point under the mouse - the cursor shows exactly
 // that: a translucent ball (blue = paint tooth, amber = paint gum) with an outline that stays visible
@@ -728,8 +749,8 @@ $('#startcase').onclick = () => {
 function params(){ return {
   tracker_case: (TRACKER && TRACKER.case) || '',
   // per model type: the whitening tray gets reservoirs and its own line, the retainer its line onto the gum
-  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value },
-  tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0) },
+  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, recession_leeway: +$('#rec_lee').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, blockout: false },
+  tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0), blockout: $('#blockout').value !== '0', blockout_depth: +$('#blockout').value || 0.75 },
   // the base
   facial_offset: +$('#rim').value, lingual_offset: +$('#rim').value, floor_below: +$('#floor_below').value, distal_keep: +$('#distal_keep').value,
   level: $('#level').value === '1', add_base: $('#base').value === '1', tooth_mark: $('#tooth_mark').value === '1',
@@ -737,15 +758,20 @@ function params(){ return {
   patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null,
   order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust: { ...adjust } }; }
 // ---------- settings panel ----------
-const SETTING_IDS = ['res_n','res_h','res_sb','tl_off','tt_off','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
+const SETTING_IDS = ['res_n','res_h','res_sb','rec_lee','tl_off','tt_off','blockout','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
 const SETTING_DEFAULTS = {};
 SETTING_IDS.forEach(id => { SETTING_DEFAULTS[id] = $('#' + id).value; });
 function saveSettings(){ try { const o = {}; SETTING_IDS.forEach(id => o[id] = $('#' + id).value); localStorage.setItem('nlo.bleachtray.settings', JSON.stringify(o)); } catch (e) {} summarizeSettings(); }
-function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bleachtray.settings') || '{}'); SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
+function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bleachtray.settings') || '{}');
+  // the reservoir's distance to the gum went from 0.5 to 1 mm (the usual lab rule); a saved 0.5 from before that is the old default, not a choice
+  if (o.res_sb === '0.5' && !localStorage.getItem('nlo.bleachtray.settings.v2')) { o.res_sb = '1'; localStorage.setItem('nlo.bleachtray.settings.v2', '1'); }
+  SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
 function summarizeSettings(){
   const bits = [];
   if ($('#res_n').value !== SETTING_DEFAULTS.res_n || $('#res_h').value !== SETTING_DEFAULTS.res_h) bits.push(`reservoirs ${$('#res_n').value}-${$('#res_n').value} · ${$('#res_h').value} mm`);
   if ($('#tt_off').value !== SETTING_DEFAULTS.tt_off) bits.push(`retainer line ${$('#tt_off').value} mm`);
+  if ($('#res_sb').value !== SETTING_DEFAULTS.res_sb || $('#rec_lee').value !== SETTING_DEFAULTS.rec_lee) bits.push(`gum distance ${$('#res_sb').value} mm, root leeway ${$('#rec_lee').value} mm`);
+  if ($('#blockout').value !== SETTING_DEFAULTS.blockout) bits.push($('#blockout').value === '0' ? 'no block-out' : `block-out > ${$('#blockout').value} mm`);
   if ($('#rim').value !== SETTING_DEFAULTS.rim || $('#floor_below').value !== SETTING_DEFAULTS.floor_below) bits.push(`base ${$('#rim').value} / ${$('#floor_below').value} mm`);
   if ($('#level').value !== '1') bits.push('not levelled');
   $('#setsum').textContent = bits.length ? 'Changed: ' + bits.join(', ') : 'Defaults';
@@ -934,7 +960,7 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine;
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
-    const unapplied = () => { if (edits.add.size || edits.remove.size || edits.cut.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Save as lesson.'); showTab('seg'); return true; } return false; };
+    const unapplied = () => { if (edits.add.size || edits.remove.size || edits.cut.size || edits.noreservoir.size || edits.blockout.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Save as lesson.'); showTab('seg'); return true; } return false; };
     $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
     $('#learnbtn').onclick = async () => { if ($('#learnbtn').disabled) return; if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: new FormData() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
     $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); };
@@ -973,7 +999,11 @@ async function loadResult(id, j){
   const r = (j.reports || [j.report])[scanIdx] || {};
   const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${(s.arch||'scan '+(i+1)) + (s.tag ? ' ' + s.tag : '')}</button>`).join('')}</div>` : '';
   renderReview(id, j);
-  $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s`;
+  // what was done about exposed roots and undercuts on this model, in the words of the result line
+  const recTeeth = Object.values(r.recession || {}); const bo = r.blockout || {};
+  const extras = [recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
+                  bo.spots ? `${bo.spots} undercut${bo.spots > 1 ? 's' : ''} blocked out (${bo.volume_ml} mL${bo.painted_cells ? ', incl. painted' : ''})` : ''].filter(Boolean);
+  $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '');
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
   document.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => { scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
@@ -984,10 +1014,13 @@ async function loadResult(id, j){
   const tl = await (await fetchOk(`/api/jobs/${id}/trimline.json${q}`)).json();
   let baseBuf = null;
   if (r.base && r.base !== 'none') { const bres = await fetch('/api/base.stl'); if (bres.ok) baseBuf = await bres.arrayBuffer(); }
+  let boBuf = null;   // the block-out fills, shown in teal so they can be checked
+  if (bo.spots) { const bres = await fetch(`/api/jobs/${id}/file/blockout${q}`); if (bres.ok) boBuf = await bres.arrayBuffer(); }
   if (seq !== loadSeq) return;            // a newer selection took over while this one was loading
   clear(groups.result); archGroup = null;
   const g = new THREE.Group(); g.matrixAutoUpdate = false;
   g.add(new THREE.Mesh(parseSTL(bodyBuf), mat));
+  if (boBuf) g.add(new THREE.Mesh(parseSTL(boBuf), new THREE.MeshStandardMaterial({ color: 0x14b8a6, roughness: .5, metalness: 0, envMapIntensity: .4, polygonOffset: true, polygonOffsetFactor: -1 })));
   addTrimline(g, tl);
   groups.result.add(g); archGroup = g;
   if (baseBuf) groups.result.add(new THREE.Mesh(parseSTL(baseBuf), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .6, metalness: .05, envMapIntensity: .4 })));
@@ -996,7 +1029,7 @@ async function loadResult(id, j){
   adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0];
   updatePlacement();
   // segmentation mesh
-  edits.add.clear(); edits.remove.clear(); edits.cut.clear(); updateFixCount();   // before the mesh loads: old strokes index the old mesh
+  Object.values(edits).forEach(e => e.clear()); updateFixCount();   // before the mesh loads: old strokes index the old mesh
   await loadSeg(id, scanIdx);
   showTab(tab);
 }
@@ -1036,7 +1069,8 @@ async function loadSeg(id, k=0){
   const dv = new DataView(buf); const nV = dv.getUint32(0,true), nF = dv.getUint32(4,true);
   if (buf.byteLength < 8 + nV*12 + nF*12 + nV*2 + nV*4) throw new Error('segmentation file incomplete (the case is probably being rebuilt)');
   let o = 8; const V = new Float32Array(buf, o, nV*3); o += nV*12; const F = new Uint32Array(buf, o, nF*3); o += nF*12;
-  segLabels = new Uint16Array(buf.slice(o, o+nV*2)); o += nV*2; segDisp = new Float32Array(buf.slice(o, o+nV*4));
+  segLabels = new Uint16Array(buf.slice(o, o+nV*2)); o += nV*2; segDisp = new Float32Array(buf.slice(o, o+nV*4)); o += nV*4;
+  segPaint = buf.byteLength >= o + nV ? new Uint8Array(buf.slice(o, o+nV)) : null;
   segPos = V;
   clear(groups.seg); clear(groups.scan);
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(V.slice(), 3)); g.setIndex(new THREE.BufferAttribute(F.slice(), 1)); g.computeVertexNormals();
@@ -1056,6 +1090,9 @@ function paintColors(){
   for (let i=0;i<segLabels.length;i++){
     let lab = segLabels[i]; if (edits.add.has(i)) lab = 99; if (edits.remove.has(i)) lab = 0; if (edits.cut.has(i)) lab = 98;
     c.setHex(lab === 0 ? 0xe9e4d8 : lab === 99 ? 0x1d4ed8 : lab === 98 ? 0x7f1d1d : palette[lab % palette.length]);
+    const pf = segPaint ? segPaint[i] : 0;
+    if (edits.noreservoir.has(i)) c.setHex(0x7c3aed); else if (edits.blockout.has(i)) c.setHex(0x0d9488);
+    else if (pf & 1) c.lerp(new THREE.Color(0x7c3aed), 0.55); else if (pf & 2) c.lerp(new THREE.Color(0x0d9488), 0.55);
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
   }
   if (segMesh) segMesh.geometry.getAttribute('color').needsUpdate = true;
@@ -1067,7 +1104,7 @@ $('#radius').oninput = () => { $('#rv').textContent = $('#radius').value; brushC
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
 const brushOn = () => !!segMesh && tab === 'seg';
 function syncBrush(){
-  brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : brushMode === 'cut' ? 0x991b1b : 0x1d4ed8);
+  brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : brushMode === 'cut' ? 0x991b1b : brushMode === 'noreservoir' ? 0x7c3aed : brushMode === 'blockout' ? 0x0d9488 : 0x1d4ed8);
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
   if (!brushOn() && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
 }
@@ -1090,6 +1127,8 @@ function paintAt(ev){
   const rad = +$('#radius').value, r2 = rad*rad, p = hit.point;
   for (let i=0;i<segLabels.length;i++){ const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z; if (dx*dx+dy*dy+dz*dz < r2){
     if (brushMode === 'cut'){ edits.add.delete(i); edits.remove.delete(i); edits.cut.add(i); }
+    else if (brushMode === 'noreservoir'){ edits.noreservoir.add(i); }
+    else if (brushMode === 'blockout'){ edits.blockout.add(i); }
     else if (brushMode === 'tooth'){ edits.remove.delete(i); edits.cut.delete(i); if (segLabels[i]===0) edits.add.add(i); }
     else { edits.add.delete(i); edits.cut.delete(i); if (segLabels[i]!==0) edits.remove.add(i); } } }
   paintColors(); updateFixCount();
@@ -1105,11 +1144,11 @@ canvas.addEventListener('pointermove', ev => {
 });
 canvas.addEventListener('pointerleave', () => placeCursor(null));
 window.addEventListener('pointerup', () => { painting = false; controls.enabled = true; });
-function updateFixCount(){ const n = edits.add.size + edits.remove.size + edits.cut.size; $('#fixcount').textContent = n ? [edits.add.size ? `${edits.add.size} → tooth` : '', edits.remove.size ? `${edits.remove.size} → gum` : '', edits.cut.size ? `${edits.cut.size} cut away` : ''].filter(Boolean).join(', ') + ' (vertices)' : 'No edits.'; }
-$('#clearfix').onclick = () => { edits.add.clear(); edits.remove.clear(); edits.cut.clear(); paintColors(); updateFixCount(); };
+function updateFixCount(){ const n = Object.values(edits).reduce((a, e) => a + e.size, 0); $('#fixcount').textContent = n ? [edits.add.size ? `${edits.add.size} → tooth` : '', edits.remove.size ? `${edits.remove.size} → gum` : '', edits.cut.size ? `${edits.cut.size} cut away` : '', edits.noreservoir.size ? `${edits.noreservoir.size} no reservoir` : '', edits.blockout.size ? `${edits.blockout.size} block out` : ''].filter(Boolean).join(', ') + ' (vertices)' : 'No edits.'; }
+$('#clearfix').onclick = () => { Object.values(edits).forEach(e => e.clear()); paintColors(); updateFixCount(); };
 $('#rerun').onclick = async () => {
   if (!currentJob) return;
-  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut] })); fd.append('params', JSON.stringify(params()));
+  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout] })); fd.append('params', JSON.stringify(params()));
   await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 async function refreshLearn(){
@@ -1130,7 +1169,7 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
-window.__view = { camera, controls, requestRender, project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh };   // for automated checks
+window.__view = { camera, controls, requestRender, project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }) };   // for automated checks
 window.__appReady = true;
 </script>
 </body>
