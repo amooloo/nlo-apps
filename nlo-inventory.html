@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-d1wdaByN/9Bb7/aUs5mQVSxZlCMtM2MEJ3Vfmzl9Eis=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-3OS0vDxFKOpgch4NPX3UbKRiEt8QOfZSgyWR20jYI84=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Inventory</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B2F4C'/%3E%3Cpath d='M18 24l14-7 14 7v17l-14 7-14-7z' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 24l14 7 14-7M32 31v17' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -915,6 +915,24 @@ body.gated .askFab{display:none}
 .mlPair span{font-size:12px;color:var(--grey-500)}
 .mlFileBtn{cursor:pointer}
 .mlCheap .row .meta{white-space:normal}
+/* asking a vendor for a quote (17 Oct 2026) */
+.mlQuoteBtn{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin-top:4px;padding:3px 10px 3px 8px;border-radius:99px;background:var(--blue-100);color:var(--blue-700);font-size:11.5px;font-weight:700}
+.mlQuoteBtn:hover{background:var(--blue-200)}
+.mlqList{display:flex;flex-direction:column;gap:8px;margin:0 0 4px}
+.mlq{display:flex;align-items:center;gap:12px;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:12px;padding:10px 12px}
+.mlq .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.mlq .grow b{color:var(--navy);font-size:13.5px;line-height:1.3}
+.mlq .grow span{font-size:12px;color:var(--grey-500)}
+.mlq .grow .for{color:var(--grey-600);font-weight:600}
+.mlqQty{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:11px;font-weight:700;color:var(--grey-500);white-space:nowrap}
+.mlqQty input{width:86px;text-align:right}
+.mlqSubj{display:flex;gap:10px;align-items:baseline;font-size:12.5px;margin:0 0 6px}
+.mlqSubj span{color:var(--grey-500);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.mlqSubj b{color:var(--navy);overflow-wrap:anywhere}
+@media (max-width:600px){
+  .mlq{flex-wrap:wrap}
+  .mlqQty{flex-direction:row;align-items:center;justify-content:space-between;width:100%}
+}
 @media (max-width:860px){
   .mlGrid{grid-template-columns:minmax(0,1fr)}
   .mlr{grid-template-columns:22px minmax(0,1fr) auto;padding:10px 12px}
@@ -922,6 +940,21 @@ body.gated .askFab{display:none}
   .mlPair{grid-template-columns:1fr}
   .mlFor{flex-wrap:wrap}
 }
+
+/* ---------- AO Partner Dollars (17 Oct 2026) ---------- */
+.ptsAfter{display:block;font-size:11px;font-weight:700;color:var(--mint-700);white-space:nowrap;margin-top:1px}
+.pbd>.ptsAfter{margin-top:4px;padding:5px 9px;border-radius:8px;background:var(--mint-100);font-size:11.5px;white-space:normal}
+.irow .act .ptsAfter{text-align:right}
+.ptsAfter.inl{display:inline;font-size:inherit}
+.ptsNote{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--mint-100);color:var(--mint-700);font-size:12.5px;font-weight:600;line-height:1.4}
+.ptsNote.pay{background:var(--navy-100);color:var(--navy-700)}
+.ptsNote svg{flex:none;margin-top:1px}
+.ptsCard .cardHd .vlogo{margin-right:2px}
+.ptsSince{margin-top:6px}
+.ptsSince .earn{color:var(--mint-700)} .ptsSince .use{color:var(--navy-700)}
+.ptsHow{display:flex;gap:6px;align-items:flex-start;margin-top:10px;font-size:12px;color:var(--grey-500);font-weight:600;line-height:1.4}
+.ptsHow svg{flex:none;margin-top:2px}
+@media (max-width:860px){ .irow .act .ptsAfter{text-align:left} }
 
 </style>
 </head>
@@ -964,7 +997,7 @@ body.gated .askFab{display:none}
      Staff Meeting's spending card and AISA's stock answers.
    ===================================================================== */
 
-const APP_VERSION = '5.1.0';
+const APP_VERSION = '5.2.0';
 const APP_NAME = 'NLO Inventory';
 const DEMO_ONLY = false;          // the demo page sets this (build.py)
 const LOGO = 'logo-white.png';     // the demo page carries the logo inside it
@@ -1585,7 +1618,7 @@ const ELASTO_COLORS = [
   { name: "Yellow", hex: "#FFDE00", light: true },
   { name: "White", hex: "#FFFFFF", light: true }
 ];
-const ELASTO_CODES = {"uniStick": {"Gold Rush": "854-375","Pearl": "854-374","Dark Orange": "854-373","Shamrock": "854-372","Bubble Gum": "854-371","Fire Red": "854-370","Coral": "854-367","Light Blue": "854-365","Lilac": "854-364","Aqua": "854-363","Rose": "854-362","Navy": "854-360","Clear": "854-279","Grey": "854-278","White": "854-276","Yellow": "854-275","Green": "854-274","Black": "854-273","Red": "854-272","Orange": "854-271","Royal Blue": "854-270","Pink": "854-269","Purple": "854-268","Lime": "854-267","Teal": "854-264","Burgundy": "854-263","Silver": "854-262","Lavender": "854-029754"},"sixStick": {"Gold Rush": "854-691","Pearl": "854-690","Dark Orange": "854-689","Shamrock": "854-688","Bubble Gum": "854-687","Fire Red": "854-686","Coral": "854-682","Light Blue": "854-681","Lilac": "854-680","Aqua": "854-679","Rose": "854-678","Navy": "854-676","Clear": "854-675","Grey": "854-674","White": "854-672","Yellow": "854-671","Green": "854-670","Black": "854-669","Red": "854-668","Orange": "854-667","Royal Blue": "854-666","Pink": "854-665","Purple": "854-664","Lime": "854-663","Teal": "854-662","Burgundy": "854-661","Silver": "854-660","Lavender": "854-029751"},"stick20": {"Pearl": "854-5374","Bubble Gum": "854-5371","Light Blue": "854-5365","Navy": "854-5360","Lavender": "854-029752","Black": "854-022782","Lilac": "854-022778","Clear": "854-022776","White": "854-022775","Yellow": "854-022774","Green": "854-022773","Red": "854-022772","Orange": "854-022771","Royal Blue": "854-022770","Pink": "854-022769","Purple": "854-022768","Lime": "854-022767","Teal": "854-022766","Silver": "854-022765","Dark Orange": "854-022764","Coral": "854-022763","Rose": "854-022762","Fire Red": "854-022761","Burgundy": "854-022760","Aqua": "854-022759","Shamrock": "854-022758","Grey": "854-022757","Gold Rush": "854-022755"},"ring10": {"Gold Rush": "854-478","Pearl": "854-477","Dark Orange": "854-476","Shamrock": "854-475","Bubble Gum": "854-474","Fire Red": "854-473","Coral": "854-472","Light Blue": "854-471","Lilac": "854-470","Aqua": "854-469","Rose": "854-468","Navy": "854-466","Clear": "854-465","Grey": "854-464","White": "854-462","Yellow": "854-461","Green": "854-460","Black": "854-459","Red": "854-458","Orange": "854-457","Royal Blue": "854-456","Pink": "854-455","Purple": "854-454","Lime": "854-453","Teal": "854-452","Burgundy": "854-451","Silver": "854-450","Lavender": "854-029753"},"memClosed": {"Clear": "854-255","Grey": "854-252"},"memShort": {"Clear": "854-256","Grey": "854-253"},"memLong": {"Clear": "854-259","Grey": "854-254"},"pcClosed": {"Dark Orange": "854-409","Shamrock": "854-406","Bubble Gum": "854-403","Fire Red": "854-400","Gold Rush": "854-352","Pearl": "854-349","Pink": "854-346","Coral": "854-343","Yellow": "854-340","Light Blue": "854-336","Lilac": "854-333","Aqua": "854-330","White": "854-304","Burgundy": "854-301","Silver": "854-298","Teal": "854-296","Rose": "854-294","Purple": "854-292","Lime": "854-290","Black": "854-288","Green": "854-286","Orange": "854-284","Navy": "854-282","Red": "854-280","Clear": "854-235","Grey": "854-231","Royal Blue": "854-308"},"pcShort": {"Rose": "854-295","Lime": "854-291","Green": "854-287","Navy": "854-283","Red": "854-281","Clear": "854-213","Grey": "854-211","Dark Orange": "854-410","Shamrock": "854-407","Bubble Gum": "854-404","Fire Red": "854-401","Gold Rush": "854-353","Pearl": "854-350","Pink": "854-347","Coral": "854-344","Yellow": "854-341","Light Blue": "854-337","Lilac": "854-334","Aqua": "854-331","White": "854-305","Burgundy": "854-302","Silver": "854-299","Teal": "854-297","Purple": "854-293","Black": "854-289","Orange": "854-285","Royal Blue": "854-309"},"pcLong": {"Dark Orange": "854-411","Shamrock": "854-408","Bubble Gum": "854-405","Fire Red": "854-402","Silver": "854-399","Teal": "854-398","Rose": "854-396","Purple": "854-394","Lime": "854-392","Black": "854-390","Green": "854-388","Orange": "854-386","Navy": "854-384","Red": "854-382","Gold Rush": "854-354","Pearl": "854-351","Pink": "854-348","Coral": "854-345","Yellow": "854-342","Light Blue": "854-338","Lilac": "854-335","Aqua": "854-332","White": "854-306","Burgundy": "854-303","Clear": "854-212","Grey": "854-210","Royal Blue": "854-310"}};
+const ELASTO_CODES = {"uniStick": {"Gold Rush": "854-375","Pearl": "854-374","Dark Orange": "854-373","Shamrock": "854-372","Bubble Gum": "854-371","Fire Red": "854-370","Coral": "854-367","Light Blue": "854-365","Lilac": "854-364","Aqua": "854-363","Rose": "854-362","Navy": "854-360","Clear": "854-279","Grey": "854-278","White": "854-276","Yellow": "854-275","Green": "854-274","Black": "854-273","Red": "854-272","Orange": "854-271","Royal Blue": "854-270","Pink": "854-269","Purple": "854-268","Lime": "854-267","Teal": "854-264","Burgundy": "854-263","Silver": "854-262","Lavender": "854-029754"},"sixStick": {"Gold Rush": "854-691","Pearl": "854-690","Dark Orange": "854-689","Shamrock": "854-688","Bubble Gum": "854-687","Fire Red": "854-686","Coral": "854-682","Light Blue": "854-681","Lilac": "854-680","Aqua": "854-679","Rose": "854-678","Navy": "854-676","Clear": "854-675","Grey": "854-674","White": "854-672","Yellow": "854-671","Green": "854-670","Black": "854-669","Red": "854-668","Orange": "854-667","Royal Blue": "854-666","Pink": "854-665","Purple": "854-664","Lime": "854-663","Teal": "854-662","Burgundy": "854-661","Silver": "854-660","Lavender": "854-029751"},"stick20": {"Pearl": "854-022781","Bubble Gum": "854-022780","Light Blue": "854-022779","Navy": "854-022777","Lavender": "854-029752","Black": "854-022782","Lilac": "854-022778","Clear": "854-022776","White": "854-022775","Yellow": "854-022774","Green": "854-022773","Red": "854-022772","Orange": "854-022771","Royal Blue": "854-022770","Pink": "854-022769","Purple": "854-022768","Lime": "854-022767","Teal": "854-022766","Silver": "854-022765","Dark Orange": "854-022764","Coral": "854-022763","Rose": "854-022762","Fire Red": "854-022761","Burgundy": "854-022760","Aqua": "854-022759","Shamrock": "854-022758","Grey": "854-022757","Gold Rush": "854-022755"},"ring10": {"Gold Rush": "854-478","Pearl": "854-477","Dark Orange": "854-476","Shamrock": "854-475","Bubble Gum": "854-474","Fire Red": "854-473","Coral": "854-472","Light Blue": "854-471","Lilac": "854-470","Aqua": "854-469","Rose": "854-468","Navy": "854-466","Clear": "854-465","Grey": "854-464","White": "854-462","Yellow": "854-461","Green": "854-460","Black": "854-459","Red": "854-458","Orange": "854-457","Royal Blue": "854-456","Pink": "854-455","Purple": "854-454","Lime": "854-453","Teal": "854-452","Burgundy": "854-451","Silver": "854-450","Lavender": "854-029753"},"memClosed": {"Clear": "854-255","Grey": "854-252"},"memShort": {"Clear": "854-256","Grey": "854-253"},"memLong": {"Clear": "854-259","Grey": "854-254"},"pcClosed": {"Dark Orange": "854-409","Shamrock": "854-406","Bubble Gum": "854-403","Fire Red": "854-400","Gold Rush": "854-352","Pearl": "854-349","Pink": "854-346","Coral": "854-343","Yellow": "854-340","Light Blue": "854-336","Lilac": "854-333","Aqua": "854-330","White": "854-304","Burgundy": "854-301","Silver": "854-298","Teal": "854-296","Rose": "854-294","Purple": "854-292","Lime": "854-290","Black": "854-288","Green": "854-286","Orange": "854-284","Navy": "854-282","Red": "854-280","Clear": "854-235","Grey": "854-231","Royal Blue": "854-308"},"pcShort": {"Rose": "854-295","Lime": "854-291","Green": "854-287","Navy": "854-283","Red": "854-281","Clear": "854-213","Grey": "854-211","Dark Orange": "854-410","Shamrock": "854-407","Bubble Gum": "854-404","Fire Red": "854-401","Gold Rush": "854-353","Pearl": "854-350","Pink": "854-347","Coral": "854-344","Yellow": "854-341","Light Blue": "854-337","Lilac": "854-334","Aqua": "854-331","White": "854-305","Burgundy": "854-302","Silver": "854-299","Teal": "854-297","Purple": "854-293","Black": "854-289","Orange": "854-285","Royal Blue": "854-309"},"pcLong": {"Dark Orange": "854-411","Shamrock": "854-408","Bubble Gum": "854-405","Fire Red": "854-402","Silver": "854-399","Teal": "854-398","Rose": "854-396","Purple": "854-394","Lime": "854-392","Black": "854-390","Green": "854-388","Orange": "854-386","Navy": "854-384","Red": "854-382","Gold Rush": "854-354","Pearl": "854-351","Pink": "854-348","Coral": "854-345","Yellow": "854-342","Light Blue": "854-338","Lilac": "854-335","Aqua": "854-332","White": "854-306","Burgundy": "854-303","Clear": "854-212","Grey": "854-210","Royal Blue": "854-310"}};
 const ELASTO_PRODUCTS = [
   { id: "oties", label: "O-Ties (Ligatures)", formats: [
     { key: "uniStick", label: "Uni-Stick", note: "40 sticks \u00b7 960 ligs/pkg" },
@@ -4096,6 +4129,14 @@ function demoMarisList() {
   const day = 864e5;
   return { info: { ver: 'demo1', at: isoOf(new Date(Date.now() - 6 * day)), src: 'Made-up for the demo', vendors, parts: 1, rows: rows.length, loadedAt: new Date(Date.now() - 2 * day).toISOString(), loadedBy: 'Dr. A' }, rows, match };
 }
+/* made-up Quick order prices (and what a bracket earns in AO's points), so the Quick order shows prices in the demo */
+function demoQuickPrices(day) {
+  const p = {}, put = (k, price, earn) => { p[fbKey(k)] = Object.assign({ price, date: day }, earn ? { earn } : {}); };
+  BRACKET_SYSTEMS.forEach((s, i) => { const one = [10.4, 19.5, 7.4, 3.1, 19.5][i] || 4; /* Empower 2, Empower Clear, Iconix, Mini Master, Radiance (made-up) */ put('AO-BRACKET-IND|' + s, one, round2(one * 0.45)); put('AO-BRACKET-SET|' + s, round2(one * 24), round2(one * 24 * 0.45)); });
+  Object.values(ELASTO_CODES).forEach(m => Object.values(m).forEach(code => put(code, /^854-25/.test(code) ? 36 : 24)));
+  WILDLIFE_ANIMALS.wlAll.forEach(a => put(a.code, a.pks === 100 ? 52 : 29));
+  return p;
+}
 /* ---------- the made-up office ---------- */
 const DEMO_PEOPLE = {
   s_amir: { id: 's_amir', sid: 'amir', name: 'Dr. Avery Lane', short: 'Dr. A', title: 'Orthodontist / Owner', active: true },
@@ -4125,6 +4166,12 @@ function demoStore() {
   });
   const I = id => items[id] || Object.values(items)[0];
   const ids = Object.keys(items), pick = n => I(ids[n % ids.length]);
+  /* AO Partner Dollars (made-up): what each AO supply does with AO's points — its wires, ties and elastics are paid with them;
+     three made-up brackets and tubes earn them (added after the picks above, so the rest of the demo stays as it was) */
+  const ptsDay = ymd(at(20, 10));
+  Object.values(items).forEach(i => { if ((i.sources[0] || {}).vendor === 'American Orthodontics') i.aoPts = { pay: true, at: ptsDay }; });
+  [['d-bk1', 'Metal bracket .018 MBT, upper central (demo)', 2.84, 1.28, 260], ['d-bk2', 'Metal bracket .018 MBT, lower incisor (demo)', 2.84, 1.28, 180], ['d-tb1', 'Buccal tube .018, 1st molar, bondable (demo)', 5.04, 1.84, 64]]
+    .forEach(([id, name, price, earn, qty]) => { items[id] = { id, name, cat: 'brackets-tubes', unit: 'each', qty, min: 40, group: 'Brackets & tubes (demo)', note: '', sources: [{ vendor: 'American Orthodontics', sku: '', price, src: 'https://shop.americanortho.com' }], aoPts: { earn, at: ptsDay } }; });
   const line = (it, q, who, d, h) => { const s = (it.sources || [])[0] || {}, per = perBuy(it); return { itemId: it.id, name: it.name, sku: s.sku || '', vendor: s.vendor || '', price: round2((s.price || 0) * per), unit: buyUnit(it), per: per > 1 ? per : null, countUnit: per > 1 ? it.unit : null, qty: q, addedBy: DEMO_PEOPLE[who].short, addedById: who, addedAt: iso(at(d, h, 12)), lineId: 'c' + it.id + d }; };
   const glove = Object.values(items).find(i => /Gloves Pulse Nitrile — SM/.test(i.name)) || pick(3);
   const cart = [line(glove, 2, 's_gwen', 0, 9), line(pick(5), 3, 's_kaylee', 1, 14), line(pick(11), 1, 's_angelika', 2, 10), line(pick(17), 2, 's_gwen', 0, 11)];
@@ -4156,6 +4203,8 @@ function demoStore() {
     mkOrder('d-r' + m + 'b', 'SunSurgical', [line(glove, 2 + (m % 2), 's_gwen', d + 12, 9), line(pick(m * 5 + 7), 4, 's_angelika', d + 12, 14)], { ordered: d + 10, by: 's_sarah', received: d + 7, rby: 's_gwen' });
   }
   /* the newest glove order costs more than the ones before, and one supply is cheaper at another vendor, so Budget → Prices has something to show */
+  /* an AO order placed after the made-up balance was read: its brackets and tubes earn, its wires are paid with points */
+  mkOrder('d-pts', 'American Orthodontics', [line(items['d-bk1'], 40, 's_kaylee', 8, 9), line(items['d-tb1'], 8, 's_kaylee', 8, 9), line(I('w-3'), 2, 's_gwen', 8, 10)], { ordered: 7, by: 's_sarah', method: 'phone', received: 4, rby: 's_kaylee' });
   const g0 = orders['d-o1'].items[0]; g0.price = round2(g0.price * 1.09); g0.lineTotal = round2(g0.price * g0.qty);
   const alt = Object.values(items).find(i => !/Gloves/i.test(i.name) && (i.sources[0].price || 0) > 5 && i.sources[0].vendor !== 'American Orthodontics');
   if (alt) alt.sources.push({ vendor: 'Benco Dental', sku: 'BD-' + String(alt.sources[0].sku || '1001').replace(/\D/g, '').slice(0, 6), price: round2(alt.sources[0].price * 0.86), src: '' });
@@ -4163,10 +4212,10 @@ function demoStore() {
   [[pick(5), -1, 's_kaylee', 0, 8], [pick(8), -2, 's_gwen', 1, 16], [glove, -1, 's_angelika', 1, 7]].forEach(([it, dlt, who, d, h], k) => {
     const e = { id: 'u' + k, itemId: it.id, itemName: it.name, delta: dlt, type: 'use', note: 'Used', date: iso(at(d, h, 30)), by: DEMO_PEOPLE[who].short, byId: who }; log[e.id] = e;
   });
-  const vendors = {};
+  const vendors = { ao: { id: 'ao', pts: { bal: 1250, exp: ymd(now + 800 * day), at: iso(at(20, 10, 15)), by: 'Dr. A' } } };
   const budget = { monthly: 8000, categories: { 'brackets-tubes': 2500, archwires: 900, elastics: 800, 'infection-control': 1200, 'clinical-supplies': 900, adhesives: 600, misc: 500 }, history: [] };
   const expenses = { x1: { id: 'x1', date: ymd(at(9, 12)), amount: 145.0, category: 'patient-care', vendor: 'Amazon Business', note: 'Retainer cases', by: 'Mara Q.', byId: 's_sarah' } };
-  return { nlo: { items, orders, vendors, log, cart, cartOk, budget, expenses, bracketOrder: null, elastoPrices: {}, settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
+  return { nlo: { items, orders, vendors, log, cart, cartOk, budget, expenses, bracketOrder: null, elastoPrices: demoQuickPrices(ymd(now)), settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
 }
 
 /* =====================================================================
@@ -5596,7 +5645,7 @@ VIEWS.home = {
     if (back.length) left += '<div class="notice" style="margin-top:12px;cursor:pointer" data-act="ordersTab" data-tab="backordered">' + back.length + ' order' + (back.length === 1 ? ' is' : 's are') + ' backordered: ' + esc(back.map(o => o.vendor).filter(Boolean).slice(0, 3).join(', ')) + '</div>';
     left += '</div></div>';
     /* spending, what's low (by the counts), what's expiring, and activity */
-    let right = (boss ? budgetSummaryCard(mk, sp, budget, true) + mlHomeCardHTML() : '') + lowCardHTML() + expiringCardHTML();
+    let right = (boss ? budgetSummaryCard(mk, sp, budget, true) + ptsHomeCardHTML() + mlHomeCardHTML() : '') + lowCardHTML() + expiringCardHTML();
     if (boss) {
       const ev = feedEvents().slice(0, 12);
       right += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Latest steps</h3><span style="flex:1"></span><button class="btn btn-ghost" data-act="nav" data-v="activity">See all</button></div><div class="cardBd" style="padding-top:0"><div class="feed">' + (ev.length ? ev.map(e => feedItemHTML(e, true)).join('') : '<div class="empty">Nothing yet.</div>') + '</div></div></div>';
@@ -5681,7 +5730,7 @@ function itemRowHTML(i) {
     '<div style="min-width:0"><div class="nm">' + esc(i.name || 'Unnamed') + '</div><div class="sub">' +
     (src && src.vendor ? '<span class="v">' + vlogoHTML(vendorObj(src.vendor)) + esc(src.vendor) + '</span>' : '') + (src && src.sku ? '<span>#' + esc(src.sku) + '</span>' : '') + (i.location ? '<span>' + ic('pin', 12) + ' ' + esc(i.location) + '</span>' : '') +
     (buysBigger(i) ? '<span>' + esc(buyLabel(i)) + '</span>' : '') + '</div>' + itemFlags(i) + '</div>' +
-    '<div class="act">' + priceLine(i) + '<span class="stock' + (isOut(i) ? ' out' : isLow(i) ? ' low' : '') + '"' + (isLow(i) ? ' title="Below its minimum of ' + esc(qtyFmt(i.min)) + '"' : '') + '>' + esc(qtyFmt(i.qty || 0)) + '<small>' + esc(unitWord(countUnit(i), i.qty)) + ' on hand</small></span>' +
+    '<div class="act">' + priceLine(i) + ptsAfterHTML(i) + '<span class="stock' + (isOut(i) ? ' out' : isLow(i) ? ' low' : '') + '"' + (isLow(i) ? ' title="Below its minimum of ' + esc(qtyFmt(i.min)) + '"' : '') + '>' + esc(qtyFmt(i.qty || 0)) + '<small>' + esc(unitWord(countUnit(i), i.qty)) + ' on hand</small></span>' +
     (i.archived ? '' : '<button class="addBtn' + (c ? ' in' : '') + '" data-act="quickAdd" data-id="' + esc(i.id) + '" title="Add to the cart">' + ic(c ? 'check' : 'plus', 15) + (c ? 'In cart' : 'Add') + '</button>') + '</div></div>';
 }
 /* a supply as a photo card: the photo big, what's going on with it on the photo, then name, vendor, price, stock and Add */
@@ -5701,7 +5750,7 @@ function itemCardHTML(i) {
     '<div class="vd">' + (src && src.vendor ? vlogoHTML(vendorObj(src.vendor)) + '<span>' + esc(src.vendor) + '</span>' : '<span class="muted">no vendor yet</span>') + (src && src.sku ? '<span class="sku">#' + esc(src.sku) + '</span>' : '') + '</div>' +
     '<div class="pft"><div><div class="pp">' + (cp == null ? '<span class="muted">no price</span>' : buysBigger(i) ? money(cp * perBuy(i)) + '<small>/' + esc(buyUnit(i)) + '</small>' : money(cp) + '<small>/' + esc(countUnit(i)) + '</small>') + '</div>' +
     '<div class="ps' + (isOut(i) ? ' out' : isLow(i) ? ' low' : '') + '">' + esc(qtyFmt(i.qty || 0)) + ' ' + esc(unitWord(countUnit(i), i.qty)) + ' on hand</div></div>' +
-    (i.archived ? '' : '<button class="addBtn' + (c ? ' in' : '') + '" data-act="quickAdd" data-id="' + esc(i.id) + '" title="Add to the cart">' + ic(c ? 'check' : 'plus', 15) + (c ? 'In cart' : 'Add') + '</button>') + '</div></div></div>';
+    (i.archived ? '' : '<button class="addBtn' + (c ? ' in' : '') + '" data-act="quickAdd" data-id="' + esc(i.id) + '" title="Add to the cart">' + ic(c ? 'check' : 'plus', 15) + (c ? 'In cart' : 'Add') + '</button>') + '</div>' + ptsAfterHTML(i) + '</div></div>';
 }
 /* Photos or List, remembered on this computer */
 function supLook() { const u = S.ui.sup; if (!u.look) { let l = ''; try { l = localStorage.getItem('nloInv.supLook') || ''; } catch (e) { } u.look = l === 'list' ? 'list' : 'grid'; } return u.look; }
@@ -5811,7 +5860,7 @@ DRAWERS.item = id => {
     h += '<div class="srcRow">' + vlogoHTML(vendorObj(s.vendor)) + '<div style="min-width:0"><div class="v">' + esc(s.vendor || 'Vendor') + (cheap && s === cheap && srcs.length > 1 ? ' <span class="pill" style="background:var(--mint-100);color:var(--mint-700)">lowest</span>' : '') + '</div><div class="k">' + (s.sku ? '#' + esc(s.sku) : 'no SKU') + (s.lastDate ? ' · last paid ' + esc(fmtDate(s.lastDate)) : '') + (url ? ' · <a href="' + esc(url) + '" target="_blank" rel="noopener">find it ' + ic('link', 11) + '</a>' : '') + '</div></div>' +
       '<div class="p">' + (cp == null ? '<span class="muted">—</span>' : per > 1 ? money(cp * per) + '<small>per ' + esc(buyUnit(it)) + ' · ' + money(cp) + '/' + esc(countUnit(it)) + '</small>' : money(cp) + '<small>per ' + esc(countUnit(it)) + (perPieceLabel(it, cp) ? ' · ' + esc(perPieceLabel(it, cp)) : '') + '</small>') + '</div></div>';
   });
-  h += '</div>';
+  h += ptsDrawerHTML(it) + '</div>';
   h += mlItemSecHTML(it);
   if (it.note) h += '<div class="sec"><h5>Notes</h5><div class="txt">' + esc(it.note) + '</div></div>';
   /* history: orders and stock steps, with names */
@@ -6804,12 +6853,12 @@ function bracketsHTML(u) {
   if (u.mode === 'sets') {
     const key = 'AO-BRACKET-SET|' + u.system, pv = getElastoPrice(S.D.elastoPrices, key), total = BRACKET_SET_TYPES.reduce((a, t) => a + (u.sets[t.key] || 0), 0);
     h += BRACKET_SET_TYPES.map(t => '<div class="animal" style="grid-template-columns:minmax(0,1fr) auto"><div><b>' + esc(t.label) + '</b><small>' + esc(t.desc) + '</small></div><div class="qty"><button data-act="qSet" data-k="' + t.key + '" data-n="-1">−</button><input value="' + (u.sets[t.key] || 0) + '" readonly><button data-act="qSet" data-k="' + t.key + '" data-n="1">+</button></div></div>').join('') +
-      '<div class="hint"><button class="linkBtn" data-act="qPrice" data-code="' + esc(key) + '" data-label="a set of ' + esc(u.system) + '" data-unit="set">' + (pv != null ? 'Price ' + money(pv) + ' a set · change' : 'Set the price per set (so these count in the budget)') + '</button></div></div>' +
+      '<div class="hint"><button class="linkBtn" data-act="qPrice" data-code="' + esc(key) + '" data-label="a set of ' + esc(u.system) + '" data-unit="set">' + (pv != null ? 'Price ' + money(pv) + ' a set · change' : 'Set the price per set (so these count in the budget)') + '</button>' + ptsQuickAfterHTML(key) + '</div></div>' +
       '<div class="vfoot"><span class="sum">' + (total ? qtyUnit(total, 'set') + (pv ? ' · about ' + money(pv * total) : '') : 'Nothing picked yet') + '</span><span style="flex:1"></span><button class="btn btn-pri" data-act="qAddSets"' + (total ? '' : ' disabled') + '>' + ic('cart', 16) + 'Add to cart</button></div></div>';
   } else {
     const key = 'AO-BRACKET-IND|' + u.system, pv = getElastoPrice(S.D.elastoPrices, key), total = Object.values(u.teeth).reduce((a, b) => a + b, 0);
     h += '<div class="teeth">' + BRACKET_QUADS.map(q => '<div class="quad"><h5>' + esc(q.label) + '</h5><div class="tg">' + [1, 2, 3, 4, 5, 6, 7].map(n => '<label>' + n + '<input type="number" min="0" inputmode="numeric" value="' + (u.teeth[q.prefix + n] || '') + '" placeholder="0" data-chg="qTooth" data-k="' + q.prefix + n + '" aria-label="' + esc(q.label + ' ' + n) + '"></label>').join('') + '</div></div>').join('') + '</div>' +
-      '<div class="hint"><button class="linkBtn" data-act="qPrice" data-code="' + esc(key) + '" data-label="one ' + esc(u.system) + ' bracket" data-unit="bracket">' + (pv != null ? 'Price ' + money(pv) + ' a bracket · change' : 'Set the price per bracket (so these count in the budget)') + '</button></div></div>' +
+      '<div class="hint"><button class="linkBtn" data-act="qPrice" data-code="' + esc(key) + '" data-label="one ' + esc(u.system) + ' bracket" data-unit="bracket">' + (pv != null ? 'Price ' + money(pv) + ' a bracket · change' : 'Set the price per bracket (so these count in the budget)') + '</button>' + ptsQuickAfterHTML(key) + '</div></div>' +
       '<div class="vfoot"><span class="sum">' + (total ? qtyUnit(total, 'bracket') + (pv ? ' · about ' + money(pv * total) : '') : 'Nothing picked yet') + '</span><span style="flex:1"></span><button class="btn btn-pri" data-act="qAddTeeth"' + (total ? '' : ' disabled') + '>' + ic('cart', 16) + 'Add to cart</button></div></div>';
   }
   return h;
@@ -7429,7 +7478,8 @@ function mlRowHTML(r, forIt) {
 }
 function mlCheaperCardHTML(list, max, home) {
   return '<div class="card mlCheap"' + (home ? ' style="margin-top:18px"' : ' style="margin-bottom:18px"') + '><div class="cardHd"><h3>Cheaper on Mari’s List</h3><span class="sub">' + plural(list.length, 'supply', 'supplies') + ' you buy</span><span style="flex:1"></span>' + (home ? '<button class="btn btn-ghost btn-sm" data-act="nav" data-v="ml">' + ic('tag', 14) + 'Mari’s List</button>' : '') + '</div><div class="cardBd" style="padding-top:0">' +
-    list.slice(0, max).map(({ it, c }) => '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">You pay ' + money(c.cp) + ' · ' + esc(mlVendorName(c.row.v)) + ' ' + money(c.per) + ' per ' + esc(countUnit(it)) + (c.sim ? ' (similar item)' : '') + (c.year ? ' · saves about ' + money(c.year, { whole: true }) + ' a year' : '') + '</span></div>' + mlSaveTag(c) + '</div>').join('') +
+    list.slice(0, max).map(({ it, c }) => '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">You pay ' + money(c.cp) + ' · ' + esc(mlVendorName(c.row.v)) + ' ' + money(c.per) + ' per ' + esc(countUnit(it)) + (c.sim ? ' (similar item)' : '') + (c.year ? ' · saves about ' + money(c.year, { whole: true }) + ' a year' : '') + '</span>' +
+      '<button class="mlQuoteBtn" data-act="mlQuote" data-k="' + esc(c.row.k) + '" data-id="' + esc(it.id) + '" title="Writes the email to ' + esc(mlVendorName(c.row.v)) + '">' + ic('email', 13) + 'Ask for a quote</button></div>' + mlSaveTag(c) + '</div>').join('') +
     (list.length > max ? '<div class="muted small" style="padding:6px 8px">and ' + (list.length - max) + ' more — each supply’s drawer shows its Mari’s List prices</div>' : '') + '</div></div>';
 }
 function mlVendorName(id) { const v = mlVendorById(id); return v ? v.name : id; }
@@ -7447,7 +7497,7 @@ function mlContactsHTML(mv) {
   const dk = typeof devKind === 'function' ? devKind() : 'pc';
   return listOf(mv.contacts).map(c => {
     const who = c.who ? ' · ' + esc(c.who) : '';
-    if (c.k === 'email' && ML_EMAIL.test(c.v || '')) return '<a class="btn btn-sec btn-sm" href="mailto:' + esc(c.v) + '">' + ic('email', 15) + esc(c.v) + who + '</a>';
+    if (c.k === 'email' && ML_EMAIL.test(c.v || '')) return '<a class="btn btn-sec btn-sm" href="' + esc(mlHelloMail(mv, c.v, c.who)) + '">' + ic('email', 15) + esc(c.v) + who + '</a>';
     if (c.k === 'phone') { const d = dialable(c.v); return d.num ? '<a class="btn btn-sec btn-sm" href="tel:' + esc(d.num + (d.ext ? ',' + d.ext : '')) + '">' + ic('call', 15) + esc(c.v) + who + '</a>' : ''; }
     if (c.k === 'text') { const d = dialable(c.v); return !d.num ? '' : dk === 'pc' ? '<button class="btn btn-sec btn-sm" data-act="mlCopy" data-t="' + esc(c.v) + '" title="This computer can’t send a text: copy the number for your phone">' + ic('text', 15) + 'Text ' + esc(c.v) + who + '</button>' : '<a class="btn btn-sec btn-sm" href="sms:' + esc(d.num) + '">' + ic('text', 15) + 'Text ' + esc(c.v) + who + '</a>'; }
     if (c.k === 'web') { const u = webUrl(c.v); return u ? '<a class="btn btn-sec btn-sm" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + ic('web', 15) + esc(hostOf(u)) + who + '</a>' : ''; }
@@ -7467,7 +7517,8 @@ DRAWERS.mlv = id => {
   h += '<div class="sec"><h5>How to get it</h5>' + mlHowHTML(mv) + '</div>';
   if (mv.n) h += '<div class="sec"><h5>Member prices</h5><div class="kvRow"><span>' + Number(mv.n).toLocaleString('en-US') + ' prices from ' + plural(files.length || 1, 'price list') + '</span><button class="btn btn-act btn-sm" data-act="mlVendorPrices" data-id="' + esc(id) + '">' + ic('search', 14) + 'See them</button></div></div>';
   if (files.length) h += '<div class="sec"><h5>Price files</h5>' + files.map(f => '<div class="kvRow"><span>' + ic('doc', 13) + ' ' + esc(f.t || 'Price list') + (f.d ? ' <span class="muted">(' + esc(f.d) + ')</span>' : '') + '</span><a class="btn btn-ghost btn-sm" href="' + esc(webUrl(f.u)) + '" target="_blank" rel="noopener noreferrer">Open ' + ic('link', 12) + '</a></div>').join('') + '</div>';
-  if (linked.length) h += '<div class="sec"><h5>Your supplies with its prices</h5>' + linked.map(({ it, ls }) => { const c = mlCompare(it, ls[0]); return '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">' + (c.per != null ? money(c.per) + ' per ' + esc(countUnit(it)) + (c.cp != null ? ' · you pay ' + money(c.cp) : '') : esc(c.row.d)) + '</span></div>' + mlSaveTag(c) + '</div>'; }).join('') + '</div>';
+  if (linked.length) h += '<div class="sec"><h5>Your supplies with its prices</h5>' + linked.map(({ it, ls }) => { const c = mlCompare(it, ls[0]); return '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">' + (c.per != null ? money(c.per) + ' per ' + esc(countUnit(it)) + (c.cp != null ? ' · you pay ' + money(c.cp) : '') : esc(c.row.d)) + '</span></div>' + mlSaveTag(c) + '</div>'; }).join('') +
+    '<div class="btnRow"><button class="btn btn-act btn-sm" data-act="mlQuote" data-v="' + esc(id) + '">' + ic('email', 14) + 'Ask for a quote on ' + (linked.length === 1 ? 'it' : 'these ' + linked.length) + '</button></div></div>';
   if (mv.note) h += '<div class="sec"><h5>Notes</h5><div class="txt">' + esc(mv.note) + '</div></div>';
   h += '<div class="hint" style="margin-top:18px">From the Mari’s List member portal' + (S.ml.info && S.ml.info.at ? ', ' + esc(fmtDate(S.ml.info.at)) : '') + '. For the office only — Mari’s List’s prices aren’t to be shared. <a href="' + ML_PORTAL + '" target="_blank" rel="noopener noreferrer">Open the portal</a></div>';
   return h + '</div>';
@@ -7480,7 +7531,8 @@ DRAWERS.mlr = k => {
   const linkedTo = activeItems().filter(it => mlLinks(it.id).some(m => m.k === k));
   const forIt = S.ui.ml && S.ui.ml.for ? itemById(S.ui.ml.for) : null;
   let h = '<div class="dHd">' + mlLogoHTML(mv, 'lg') + '<div style="flex:1;min-width:0"><h3 style="font-size:18px">' + esc(r.d) + '</h3><div class="sub"><span class="badge">' + esc(mv.name) + '</span>' + (r.n ? '<span class="badge">#' + esc(r.n) + '</span>' : '') + (r.s ? '<span class="badge">' + esc(r.s) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
-  h += '<div class="sec" style="margin-top:0"><h5>Mari’s List price</h5><div class="mlBigPrice">' + mlPriceHTML(r, true) + '</div>' + (r.note ? '<div class="hint">' + esc(r.note) + '</div>' : '') + '</div>';
+  h += '<div class="sec" style="margin-top:0"><h5>Mari’s List price</h5><div class="mlBigPrice">' + mlPriceHTML(r, true) + '</div>' + (r.note ? '<div class="hint">' + esc(r.note) + '</div>' : '') +
+    '<div class="btnRow"><button class="btn btn-act" data-act="mlQuote" data-k="' + esc(k) + '">' + ic('email', 15) + 'Ask ' + esc(mv.name) + ' for a quote</button></div></div>';
   if (linkedTo.length) h += '<div class="sec"><h5>Your supplies it’s linked to</h5>' + linkedTo.map(it => { const c = mlCompare(it, mlLinks(it.id).find(m => m.k === k)); return '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">' + (c.sim ? 'similar item · ' : 'same item · ') + (c.per != null ? '1 ' + esc(r.u || 'unit') + ' = ' + esc(qtyUnit(c.x, countUnit(it))) + ' · ' + money(c.per) + ' per ' + esc(countUnit(it)) + (c.cp != null ? ' · you pay ' + money(c.cp) : '') : '') + '</span></div>' + mlSaveTag(c) + (isAdmin() ? '<button class="iconBtn" data-act="mlUnlink" data-id="' + esc(it.id) + '" data-k="' + esc(k) + '" aria-label="Not the same" title="Not the same — take the link off">' + ic('x', 15) + '</button>' : '') + '</div>'; }).join('') + '</div>';
   if (isAdmin()) h += '<div class="btnRow">' + (forIt && !linkedTo.includes(forIt) ? '<button class="btn btn-act" data-act="mlLinkAsk" data-k="' + esc(k) + '">' + ic('link', 15) + 'Same as ' + esc(mlCut(forIt.name, 28)) + '</button>' : '') + '<button class="btn btn-ghost" data-act="mlLinkPick" data-k="' + esc(k) + '">' + ic('link', 15) + 'Same as one of our supplies…</button></div>';
   h += '<div class="sec"><h5>How to get it from ' + esc(mv.name) + '</h5>' + (mv.deal ? '<div class="txt" style="margin-bottom:8px">' + esc(mv.deal) + '</div>' : '') + mlHowHTML(mv) + '<div class="btnRow"><button class="btn btn-ghost btn-sm" data-act="mlVendor" data-id="' + esc(mv.id) + '">' + ic('build', 14) + 'All about ' + esc(mv.name) + '</button></div></div>';
@@ -7505,7 +7557,10 @@ function mlItemSecHTML(it) {
   });
   if (mvOurs) h += '<div class="mlNote" data-act="mlVendor" data-id="' + esc(mvOurs.id) + '" role="button" tabindex="0">' + esc(src.vendor) + ' is on Mari’s List: ' + esc(mlCut(mvOurs.deal || '', 110)) + (mvOurs.code ? ' Code <b>' + esc(mvOurs.code) + '</b>.' : '') + '</div>';
   if (!links.length && !mvOurs) h += '<div class="muted small">Not linked to a Mari’s List price yet.</div>';
-  h += '<div class="btnRow"><button class="btn btn-ghost" data-act="mlFind" data-id="' + esc(it.id) + '">' + ic('search', 15) + (links.length ? 'Look for more on Mari’s List' : 'Find it on Mari’s List') + '</button></div>';
+  /* a quote from the vendor with the best linked price (or the only one, when none says a price) — unless it costs more */
+  const q = mlBest(it) || (links.length ? mlCompare(it, links[0]) : null), qmv = q && mlVendorById(q.row.v);
+  h += '<div class="btnRow">' + (q && q.row.k && (q.pct == null || q.pct > -0.03) ? '<button class="btn btn-sec" data-act="mlQuote" data-k="' + esc(q.row.k) + '" data-id="' + esc(it.id) + '">' + ic('email', 15) + 'Ask ' + esc(qmv ? qmv.name : q.row.v) + ' for a quote</button>' : '') +
+    '<button class="btn btn-ghost" data-act="mlFind" data-id="' + esc(it.id) + '">' + ic('search', 15) + (links.length ? 'Look for more on Mari’s List' : 'Find it on Mari’s List') + '</button></div>';
   return h + '</div>';
 }
 /* the words to look for: the supply's name, without what's only on our label */
@@ -7596,6 +7651,115 @@ function mlPlaceHTML(vn) {
 }
 /* the line the order email and text carry for a vendor that asks to be told */
 function mlOrderSay(vn) { const mv = mlVendorFor(vn); return mv && mv.say ? 'We’re Mari’s List members — please apply our Mari’s List pricing.' : ''; }
+
+/* ---------- asking a vendor for a quote ----------
+   Amir, 17 Oct 2026, of gloves Mari's List has cheaper at Allure: "there is option to email but then it's blank. There should be
+   the option to ask for a quote so it would write out an email asking for a quote for the specific item just to verify that it
+   is in fact the price we think it is".
+   - "Ask for a quote" is on a price, on a supply's Mari's List part, on each "Cheaper on Mari's List" line and on a vendor (for
+     all the office's supplies linked to its prices). It opens the email, written out: each item as the price list names it
+     (item #, unit), the member price we have and the list it's from, what it would replace when it's another maker's, how many
+     (the supply's last order, in their units — changeable in the dialog), and a request to confirm the price, the shipping and
+     any minimum. Nothing is saved.
+   - It goes to the address Mari's List gives for the vendor, else the office's rep or email for them. A vendor's own email
+     button opens with a hello and the office's sign-off, never blank. */
+function mlMailto(to, subject, body) { return 'mailto:' + (to || '') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body); }
+function mlGmail(to, subject, body) { return 'https://mail.google.com/mail/?view=cm&fs=1' + (to ? '&to=' + encodeURIComponent(to) : '') + '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body); }
+/* who a quote goes to */
+function mlQuoteTo(mv) {
+  const c = listOf(mv && mv.contacts).find(c => c && c.k === 'email' && ML_EMAIL.test(c.v || ''));
+  if (c) return { email: c.v, who: c.who || '' };
+  const ov = (mv && vendorByName(mlOurName(mv))) || {};
+  if (ML_EMAIL.test(ov.repEmail || '')) return { email: ov.repEmail, who: ov.rep || '' };
+  if (ML_EMAIL.test(ov.email || '')) return { email: ov.email, who: '' };
+  return { email: '', who: '' };
+}
+/* the sign-off: who's writing, and the office (where it ships to, for the shipping cost) */
+function mlSignOff() { const w = whoNow(); return 'Thank you!\n' + (w && w.name ? firstName(w.name) + '\n' : '') + OFFICE.name + '\n' + OFFICE.address + '\n' + OFFICE.phone; }
+/* a vendor's email button: a hello, never a blank email */
+function mlHelloMail(mv, to, who) {
+  return mlMailto(to, 'Mari’s List member — ' + OFFICE.name, 'Hello' + (who ? ' ' + firstName(who) : '') + ',\n\nWe’re Mari’s List members' + (mv && mv.code ? ' (code ' + mv.code + ')' : '') + '.\n\n\n\n' + mlSignOff());
+}
+/* how many we'd order, in their units: what the supply's last order put on the shelf ('' when it's never been ordered) */
+function mlQuoteQty(it, x) {
+  if (!it) return '';
+  let last = null;
+  S.D.orders.forEach(o => {
+    if (!o || o.status === 'voided') return;
+    const l = listOf(o.items).find(l => l && l.itemId === it.id), t = msOf(o.orderedAt || o.dateOrdered || o.dateReceived);
+    if (l && lineStockDelta(l) > 0 && (!last || t > last.t)) last = { t, n: lineStockDelta(l) };
+  });
+  return last ? String(Math.max(1, Math.round(last.n / (x > 0 ? x : 1)))) : '';
+}
+/* the lines a tap asks about: one price (for the supply it was tapped on, else every supply linked to it), or everything the
+   office has linked at one vendor */
+function mlQuoteLines(t) {
+  const out = [], seen = new Set();
+  const add = (k, it) => {
+    if (seen.has(k + '|' + (it ? it.id : ''))) return; seen.add(k + '|' + (it ? it.id : ''));
+    const m = it && mlLinks(it.id).find(m => m.k === k);
+    out.push({ k, id: it ? it.id : '', qty: it ? mlQuoteQty(it, m && Number(m.x) > 0 ? Number(m.x) : 1) : '' });
+  };
+  if (t.dataset.k) {
+    const k = t.dataset.k, it = t.dataset.id ? itemById(t.dataset.id) : null, ls = it ? [it] : activeItems().filter(i => mlLinks(i.id).some(m => m.k === k));
+    if (ls.length) ls.forEach(i => add(k, i)); else add(k, null);
+  } else if (t.dataset.v) activeItems().forEach(it => mlLinks(it.id).forEach(m => { if (mlLinkRow(m).v === t.dataset.v) add(m.k, it); }));
+  return out.filter(l => mlRowByKey(l.k) || mlSnapRow(l.k));
+}
+function mlQuoteItemText(r, l, mv) {
+  const it = l.id ? itemById(l.id) : null, m = it && mlLinks(it.id).find(m => m.k === r.k), f = Number.isInteger(r.f) && r.f >= 0 ? listOf(mv.files)[r.f] : null, q = num(l.qty);
+  return '• ' + r.d +
+    (r.n || r.u ? '\n  ' + [r.n ? 'Item # ' + r.n : '', r.u ? 'Unit: ' + r.u : ''].filter(Boolean).join(' · ') : '') +
+    '\n  Mari’s List price we have: ' + (r.p != null ? money(r.p) + (r.note ? ' (' + r.note + ')' : '') : (r.note || 'none listed')) +
+    (f && f.t ? '\n  Price list: ' + f.t + (f.d && f.t.indexOf(f.d) < 0 ? ', ' + f.d : '') : '') +
+    (it && m && m.s === 'similar' ? '\n  To replace what we use now: ' + it.name : '') +
+    (q > 0 ? '\n  Quantity: ' + qtyFmt(q) : '');
+}
+/* the email: { to, who, subject, body } */
+function mlQuoteText(Q) {
+  const mv = mlVendorById(Q.v) || { id: Q.v, name: Q.v }, to = mlQuoteTo(mv), ov = vendorByName(mlOurName(mv)) || {};
+  const ls = Q.lines.map(l => ({ l, r: mlRowByKey(l.k) || mlSnapRow(l.k) })).filter(x => x.r), one = ls.length === 1;
+  const subject = 'Quote request: ' + (one ? mlCut(ls[0].r.d, 60) + (ls[0].r.n ? ' (#' + ls[0].r.n + ')' : '') : ls.length + ' items') + ' — ' + OFFICE.name;
+  const body = 'Hello' + (to.who ? ' ' + firstName(to.who) : '') + ',\n\n' +
+    'We’re Mari’s List members' + (mv.code ? ' (code ' + mv.code + ')' : '') + (ov.acct ? '; our account with you is ' + ov.acct : '') + '. Could you send us a quote for ' + (one ? 'this item' : 'these items') + '? We’d like to check the member price before we order.\n\n' +
+    ls.map(x => mlQuoteItemText(x.r, x.l, mv)).join('\n\n') +
+    '\n\nPlease confirm ' + (one ? 'that’s our member price' : 'those are our member prices') + ', and let us know the shipping cost and any minimum order.\n\n' + mlSignOff();
+  return { to: to.email, who: to.who, subject, body };
+}
+ACT.mlQuote = (t, e) => {
+  if (e) e.stopPropagation();
+  const lines = mlQuoteLines(t), r0 = lines[0] && (mlRowByKey(lines[0].k) || mlSnapRow(lines[0].k));
+  if (!r0) return toast('There’s no Mari’s List price here to ask about.', { bad: true });
+  S.ui.quote = { v: r0.v, lines };
+  renderQuote();
+};
+function renderQuote() {
+  const Q = S.ui.quote, mv = mlVendorById(Q.v) || { id: Q.v, name: Q.v }, T = mlQuoteText(Q), dk = typeof devKind === 'function' ? devKind() : 'pc';
+  const items = Q.lines.map((l, i) => {
+    const r = mlRowByKey(l.k) || mlSnapRow(l.k), it = l.id ? itemById(l.id) : null; if (!r) return '';
+    return '<div class="mlq">' + (it ? thumbHTML(it, 'sm') : mlLogoHTML(mv)) + '<div class="grow"><b>' + esc(r.d) + '</b><span>' + esc([r.n ? '#' + r.n : '', r.u, r.p != null ? money(r.p) : r.note].filter(Boolean).join(' · ')) + '</span>' + (it ? '<span class="for">for ' + esc(it.name) + '</span>' : '') + '</div>' +
+      '<label class="mlqQty"><span>How many' + (r.u ? ' (' + esc(mlCut(r.u, 22)) + ')' : '') + '</span><input type="number" inputmode="numeric" min="0" step="1" value="' + esc(l.qty || '') + '" placeholder="—" data-inp="mlQuoteQty" data-i="' + i + '" id="mlqQty' + i + '"></label></div>';
+  }).join('');
+  openModal('<h3>Ask ' + esc(mv.name) + ' for a quote</h3>' +
+    '<div class="lsub">' + (T.to ? 'To <b>' + esc(T.to) + '</b>' + (T.who ? ' (' + esc(T.who) + ')' : '') : 'No email saved for ' + esc(mv.name) + ' — add the address in your email, or copy the email into their website’s form') + '. It asks them to confirm the member price, the shipping and any minimum.</div>' +
+    '<div class="mlqList">' + items + '</div>' +
+    '<div class="btnRow"><a class="btn btn-act" id="mlQuoteMail" href="' + esc(mlMailto(T.to, T.subject, T.body)) + '">' + ic('email', 16) + 'Write the email</a>' +
+    (dk === 'pc' || dk === 'mac' ? '<span class="hint" style="margin:0">Didn’t open? <a id="mlQuoteGmail" href="' + esc(mlGmail(T.to, T.subject, T.body)) + '" target="_blank" rel="noopener">Write it in Gmail</a></span>' : '') + '</div>' +
+    (!T.to && listOf(mv.contacts).length ? '<div class="btnRow">' + mlContactsHTML(mv) + '</div>' : '') +
+    '<div class="subH">The email</div><div class="mlqSubj"><span>Subject</span><b id="mlQuoteSubj">' + esc(T.subject) + '</b></div><div class="copyBox" id="mlQuoteTxt">' + esc(T.body) + '</div>' +
+    '<div class="btnRow"><button class="btn btn-ghost" data-act="mlQuoteCopy">' + ic('copy', 15) + 'Copy the email</button></div>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Close</button></div>', { cls: 'wide', noFocus: true });
+}
+/* a new quantity: the email (and its links) say it at once */
+INP.mlQuoteQty = t => {
+  const Q = S.ui.quote, l = Q && Q.lines[Number(t.dataset.i)]; if (!l) return;
+  l.qty = t.value;
+  const T = mlQuoteText(Q), a = $('#mlQuoteMail'), g = $('#mlQuoteGmail'), x = $('#mlQuoteTxt');
+  if (a) a.href = mlMailto(T.to, T.subject, T.body);
+  if (g) g.href = mlGmail(T.to, T.subject, T.body);
+  if (x) x.textContent = T.body;
+};
+ACT.mlQuoteCopy = () => { const Q = S.ui.quote; if (Q) copyText(mlQuoteText(Q).body); };
 
 /* ---------- Settings → Mari's List (Dr. A): the new rules, loading a set ---------- */
 function mlRulesStepsHTML() {
@@ -7708,6 +7872,146 @@ ACT.mlLoadGo = t => withAdmin(async () => {
   } catch (e) { console.error(e); busyBtn(t, false); toast(errText(e), { bad: true }); }
   S.busy = false;
 }, '', 'load Mari’s List prices');
+
+/* =====================================================================
+   AO Partner Dollars — American Orthodontics' points (Amir, 17 Oct 2026: "can you see if you can somehow incoporate their
+   point system in our invenvory?" … "this whole point sysstem is confusing as hell" … "you should APPROXIMATE our points going
+   forward … if you have the price of each items which you do").
+   How AO's points work (read from AO Direct, Oct 2026): brackets and tubes earn Partner Dollars (about 36% of AO's list
+   price, which is about 45% of the office's own price — $1.28 on a $2.84 Mini Master bracket); everything else AO sells
+   (wires, elastics, ties, buttons, supplies) can be paid with them dollar for dollar and earns nothing, and the office's
+   account pays with them by default. They expire.
+   - The balance AO Direct last showed is kept on the AO vendor's record: pts = { bal, exp, at, by }. Dr. A updates it from
+     AO Direct → Partner detail (or Claude does, from his Chrome).
+   - Each AO supply can say what it does, as AO Direct gave it: aoPts = { earn: dollars per counted unit } or { pay: true }
+     (or { none: true }), with the day it was read. Without it: brackets and tubes earn about 45% of what's paid (AO Direct's
+     figures for the office's price, Oct 2026), anything else is paid with points. Quick order brackets keep what one earns
+     beside their price in the shared price memory (earn).
+   - From that balance on, the page counts: every AO order received in Inventory and placed after the balance was read adds
+     what its brackets and tubes earn, and takes off what its other lines cost (no more than there is). Orders that never
+     pass through Inventory (the rep's, unless they're received here) and AO's kit-assembly charges aren't seen — so it's
+     "about", and it says when the balance was last checked.
+   - A supply's real cost after points: what's paid minus what it earns.
+   Only Dr. A sees any of it.
+   ===================================================================== */
+const PTS_VENDOR = 'ao';
+const PTS_EARN_GUESS = 0.45;
+const PTS_STALE_DAYS = 45;
+function isAoName(n) { return !!n && vendorNamesSimilar(n, 'American Orthodontics'); }
+function aoSource(it) { return allSources(it).find(s => s && isAoName(s.vendor)) || null; }
+function looksHardware(name, cat) { return cat === 'brackets-tubes' || /\b(BKTS?|BRACKETS?|TUBES?)\b/i.test(String(name || '')); }
+/* the balance AO Direct last showed (null until there is one) */
+function ptsAnchor() {
+  const v = S.D.vendors.find(x => x && x.id === PTS_VENDOR), p = v && v.pts;
+  return p && typeof p === 'object' && isFinite(Number(p.bal)) && Number(p.bal) >= 0 && msOf(p.at) ? p : null;
+}
+/* what an AO supply does with points: { earn: dollars per counted unit, guess } | { pay: true, guess } | null */
+function ptsRule(it) {
+  const src = it && aoSource(it); if (!src) return null;
+  const r = it.aoPts && typeof it.aoPts === 'object' ? it.aoPts : null;
+  if (r && Number(r.earn) > 0) return { earn: Number(r.earn) };
+  if (r && r.pay) return { pay: true };
+  if (r && r.none) return null;
+  if (looksHardware(it.name, it.cat)) { const cp = countPrice(src); return cp ? { earn: round2(cp * PTS_EARN_GUESS), guess: true } : null; }
+  return { pay: true, guess: true };
+}
+/* Quick order brackets (a set, or single teeth, of one system): the shared price memory keeps what one earns (earn), as
+   AO Direct gives it, beside its price */
+function ptsQuickEntry(l) {
+  if (!l || !/^AO-BRACKET-(SET|IND)$/.test(l.sku || '')) return null;
+  const v = (S.D.elastoPrices || {})[fbKey(l.sku + '|' + String(l.name || '').replace(/\s*\(single teeth\)$/, ''))];
+  return v && typeof v === 'object' ? v : null;
+}
+/* one line of an AO order: what it earned and what points could pay for */
+function ptsLine(l) {
+  const it = l && l.itemId ? itemById(l.itemId) : null, r = it && it.aoPts && typeof it.aoPts === 'object' ? it.aoPts : null;
+  const cost = Math.max(0, orderItemCost(l) || 0), q = it ? null : ptsQuickEntry(l);
+  if (q && Number(q.earn) > 0) return { earn: (Number(l.slipQty) || Number(l.qty) || 0) * Number(q.earn), pay: 0 };
+  if (r && Number(r.earn) > 0) return { earn: lineStockDelta(l) * Number(r.earn), pay: 0 };
+  if (r && r.pay) return { earn: 0, pay: cost };
+  if (r && r.none) return { earn: 0, pay: 0 };
+  if (looksHardware(it ? it.name : l.name, it ? it.cat : lineCat(l))) return { earn: cost * PTS_EARN_GUESS, pay: 0 };
+  return { earn: 0, pay: cost };
+}
+function ptsWhen(o) { return msOf(o.orderedAt || o.dateOrdered || o.dateReceived); }
+/* the AO orders counted since the balance was read: received here, placed after it */
+function ptsOrders(a) {
+  const t0 = msOf(a.at);
+  return S.D.orders.filter(o => o && o.status === 'received' && isAoName(o.vendor) && ptsWhen(o) > t0).sort((x, y) => ptsWhen(x) - ptsWhen(y));
+}
+/* the estimate now: { bal, was, at, exp, by, earned, used, orders } (null until a balance is in) */
+function ptsNow() {
+  const a = ptsAnchor(); if (!a) return null;
+  const ords = ptsOrders(a); let bal = Number(a.bal), earned = 0, used = 0;
+  ords.forEach(o => {
+    let e = 0, p = 0; listOf(o.items).forEach(l => { if (!l) return; const x = ptsLine(l); e += x.earn; p += x.pay; });
+    const u = Math.min(bal, p); bal = bal - u + e; used += u; earned += e;
+  });
+  return { bal: round2(bal), was: round2(Number(a.bal)), at: a.at, exp: a.exp || '', by: a.by || '', earned: round2(earned), used: round2(used), orders: ords.length };
+}
+/* a supply bought from AO that earns: what it really costs after the points it brings back (per counted unit) */
+function ptsAfter(it) {
+  const r = ptsRule(it); if (!r || !r.earn) return null;
+  const cp = countPrice(aoSource(it)); if (cp == null) return null;
+  return { earn: r.earn, after: Math.max(0, round2(cp - r.earn)), cp, guess: !!r.guess };
+}
+/* on a supply's card and row (Dr. A): "≈ $1.56 after AO points", when AO is where it's usually bought */
+function ptsAfterHTML(it) {
+  if (!isAdmin()) return '';
+  const s = primarySource(it); if (!s || !isAoName(s.vendor)) return '';
+  const x = ptsAfter(it); if (!x) return '';
+  const per = buysBigger(it) ? perBuy(it) : 1;
+  return '<span class="ptsAfter" title="Earns ' + (x.guess ? 'about ' : '') + esc(money(x.earn)) + ' in AO Partner Dollars per ' + esc(countUnit(it)) + '">≈ ' + money(x.after * per) + ' after AO points</span>';
+}
+/* Quick order (Dr. A): a bracket set's or a bracket's cost after the points it earns, beside its price */
+function ptsQuickAfterHTML(key) {
+  if (!isAdmin()) return '';
+  const v = (S.D.elastoPrices || {})[fbKey(key)];
+  if (!v || typeof v !== 'object' || !(Number(v.earn) > 0) || !(Number(v.price) > 0)) return '';
+  return '<span class="ptsAfter inl"> · ≈ ' + money(Math.max(0, Number(v.price) - Number(v.earn))) + ' after AO points</span>';
+}
+/* in a supply's drawer (Dr. A): what it does with AO's points */
+function ptsDrawerHTML(it) {
+  if (!isAdmin()) return '';
+  const r = ptsRule(it); if (!r) return '';
+  const u = countUnit(it), per = /^(each|ea|ea\.)$/i.test(u) ? ' each' : ' per ' + esc(u);
+  if (r.earn) {
+    const x = ptsAfter(it);
+    return '<div class="ptsNote">' + ic('dollar', 15) + '<span>AO Partner Dollars: earns ' + (r.guess ? 'about ' : '') + money(r.earn) + per + (x ? ' — <b>≈ ' + money(x.after) + per + ' after points</b>' : '') + '.</span></div>';
+  }
+  const p = ptsNow();
+  return '<div class="ptsNote pay">' + ic('dollar', 15) + '<span>AO Partner Dollars: AO pays for this with your points first' + (p ? ' (about ' + money(p.bal, { whole: true }) + ' left)' : '') + '.</span></div>';
+}
+/* Dr. A's Home: the balance, as AO Direct last showed it plus what's come and gone since */
+function ptsHomeCardHTML() {
+  if (!isAdmin()) return '';
+  const p = ptsNow();
+  let h = '<div class="card ptsCard" style="margin-top:18px"><div class="cardHd">' + vlogoHTML(vendorObj('American Orthodontics')) + '<h3>AO Partner Dollars</h3><span style="flex:1"></span><button class="btn btn-ghost btn-sm" data-act="ptsEdit">' + ic('edit', 14) + (p ? 'Update' : 'Add') + '</button></div><div class="cardBd">';
+  if (!p) return h + '<div class="muted small">AO’s points: brackets and tubes earn them, and AO pays for wires, elastics, ties and supplies with them first. Add the balance AO Direct shows, and Inventory keeps count from there.</div></div></div>';
+  const old = daysAgo(p.at);
+  h += '<div class="budTop"><span class="big">' + (p.orders ? '≈ ' : '') + money(p.bal, { whole: p.bal >= 1000 }) + '</span><span class="of">' + (p.exp ? 'expire ' + esc(fmtDate(p.exp)) : '') + '</span></div>';
+  h += '<div class="muted small ptsSince">' + (p.orders
+    ? 'AO Direct showed ' + money(p.was) + ' on ' + esc(fmtDate(p.at)) + ' · since then, ' + plural(p.orders, 'AO order') + ' received here: <b class="earn">+' + money(p.earned) + '</b> earned, <b class="use">−' + money(p.used) + '</b> spent'
+    : 'As AO Direct showed it ' + esc(fmtWhen(p.at)) + (p.by ? ' (' + esc(p.by) + ')' : '')) + '</div>';
+  h += '<div class="ptsHow">' + ic('info', 13) + '<span>Brackets and tubes earn them; AO takes wires, elastics, ties and supplies out of them first. AO orders count once they’re received here.</span></div>';
+  if (old != null && old > PTS_STALE_DAYS) h += '<div class="hint">Last checked ' + old + ' days ago — worth updating it from AO Direct.</div>';
+  return h + '</div></div>';
+}
+/* Dr. A types in what AO Direct shows */
+ACT.ptsEdit = () => withAdmin(() => {
+  const a = ptsAnchor(), p = ptsNow();
+  openModal('<h3>AO Partner Dollars</h3><div class="lsub">Type what AO Direct shows: sign in at shop.americanortho.com → Home → <b>Partner detail</b>. Inventory counts from there.</div>' +
+    field('Partner dollar balance', '<input id="ptsBal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="' + esc(p ? p.bal.toFixed(2) : '0.00') + '" data-enter="#ptsGo">', p && p.orders ? 'Inventory’s estimate now: ' + money(p.bal) + '.' : '') +
+    field('Partner dollar expiration', '<input id="ptsExp" type="date" value="' + esc(a && /^\d{4}-\d{2}-\d{2}$/.test(a.exp || '') ? a.exp : '') + '">') +
+    '<div class="mFt"><a class="btn btn-ghost" href="https://shop.americanortho.com" target="_blank" rel="noopener" style="margin-right:auto">' + ic('link', 14) + 'Open AO Direct</a><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="ptsGo" data-act="ptsSave">Save</button></div>', { cls: 'mid', focus: '#ptsBal' });
+}, '', 'update the AO points');
+ACT.ptsSave = t => withAdmin(async () => {
+  const raw = val('ptsBal').trim(), bal = round2(raw), exp = val('ptsExp');
+  if (raw === '' || bal == null || bal < 0 || bal > 1000000) { toast('What does AO Direct show as the balance?', { bad: true }); return; }
+  const s = stamp(); busyBtn(t, true, 'Saving…');
+  const ok = await act(() => B.patchVendor(PTS_VENDOR, { pts: { bal, exp: /^\d{4}-\d{2}-\d{2}$/.test(exp) ? exp : '', at: s.at, by: s.by } }), 'Saved. Inventory counts from ' + money(bal) + '.');
+  if (ok) closeModal(true); else busyBtn(t, false);
+}, '', 'update the AO points');
 
 /* =====================================================================
    Settings (Dr. A's: nobody else sees it) — who's signed in, storage
