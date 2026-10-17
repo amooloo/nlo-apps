@@ -145,6 +145,29 @@ points go back onto the surface. The distal relief and the model's end plane use
 leaked onto the pad no longer carries the pad along. On the 23 stored arches the line was pulled 0.3-1.5 mm onto the
 tooth where it was already fine and 2-7 mm where it had run onto the pad.
 
+**Braces on (a scan at the eval appointment).** On a coloured scan the app looks for brackets, archwire,
+ties and tubes before anything else (`appliance.py`). Two things give them away and both are needed: the
+colour is not a mouth colour (metal comes out grey on iTero and with a cyan-blue sheen on AlliedStar, in
+shadow dark grey-brown; ties green / purple / blue; enamel and gum sit in a narrow pink-ivory-yellow band)
+and they stand proud of the tooth. The height is measured properly: the appliance-coloured region (closed
+so a whole bracket is taken in) is treated as a hole, the surrounding surface is continued smoothly across
+it (harmonic fill) and the vertex's height above that continuation is its bump - 1-2 mm for a bracket, ~0.5
+for a wire, nothing for pale incisal enamel or a shadow. Confident bumps with appliance colour or sharp
+edges seed a small per-scan classifier that decides the rest; incisal edges and cusps on the teeth, the
+vestibule and the scan edge are never candidates; pieces under 1.5 mm2 or without a real bump are dropped.
+Everything found is then taken off (`remove_appliances`): the vertices, widened by two rings, are moved
+onto a biharmonic continuation of the enamel around them (curvature-continuous, so the crown keeps its
+convexity); vertex order is kept, so brush strokes and paint still index the same vertices. Where the wire
+crossed an embrasure in mid-air a thin web is left at wire height between the two teeth - the retainer
+simply does not dip into that embrasure, like a black-triangle block-out. The segmentation then runs on the
+clean enamel, the brush view shows the rebuilt surface with the removed area tinted grey, and the result
+line says how much came off. Scans with braces are kept out of the training set. `remove_appliances`
+(default "auto") removes whatever is found; `False` leaves the scan alone (the mouthguard will use that).
+Checked on 10 arches with braces (AlliedStar and iTero, metal brackets, coloured ties, an expander) and two
+without: brackets and wire come off cleanly, nothing is touched on the plain scans. Known limits: clear /
+ceramic brackets (tooth-coloured) are not found; molar bands are not bumps and stay; a missed wire bit
+or a remnant is for the brush (a "take off" brush is on the list).
+
 **Missing teeth.** A missing premolar or molar used to end the tray at the gap: the gum-line contour closed round
 the teeth in front of it and everything behind was dropped from the line and the model. `edentulous_gaps` finds
 neighbouring teeth on a side whose footprints are more than 3 mm apart, marks the ridge between them (inside the hull

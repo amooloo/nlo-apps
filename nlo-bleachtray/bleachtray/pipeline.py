@@ -269,10 +269,40 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
 
     models = models or load_models()
     arch_hint = P.get("arch") or detect_arch(mesh, os.path.basename(scan_path))
+    from .features import compute_features
+    # braces on (a scan at the eval appointment): find brackets, wire and ties by colour + shape and take
+    # them off - the enamel underneath is rebuilt as a smooth continuation of the surrounding surface.
+    # "auto" removes whatever is found on a coloured scan; False leaves the scan as it is
+    appliance = np.zeros(len(mesh.vertices), bool)
+    want = P.get("remove_appliances", "auto")
+    if want and mesh.metadata.get("rgb") is not None:
+        ckey = (scan_path, "clean")
+        cached = feat_cache.get(ckey) if feat_cache is not None else None
+        if cached is None:
+            from .appliance import detect_appliances, remove_appliances
+            from .mesh_utils import adjacency
+            feats0 = compute_features(mesh, return_aux=True)
+            try:
+                appliance, ainfo = detect_appliances(mesh, feats0[2]["A"], mesh.metadata["rgb"], feats=feats0, log=lambda m: log(f"[{name}] {m}"))
+                if appliance.any():
+                    mesh, rinfo = remove_appliances(mesh, feats0[2]["A"], appliance, log=lambda m: log(f"[{name}] {m}"))
+                    ainfo.update(rinfo)
+                ainfo.pop("bump", None)
+                cached = (mesh, appliance, ainfo, feats0 if not appliance.any() else None)
+            except Exception as ex:  # noqa
+                log(f"[{name}] appliance step skipped: {ex}")
+                cached = (mesh, appliance, dict(used=False, error=str(ex)[:200]), feats0)
+            if feat_cache is not None:
+                feat_cache[ckey] = cached
+        mesh, appliance, ainfo, feats_pre = cached
+        if ainfo.get("used"):
+            rep["appliances"] = {k: v for k, v in ainfo.items() if k != "pieces"}
+            rep["appliances"]["pieces"] = len(ainfo.get("pieces") or [])
+        if feats_pre is not None and feat_cache is not None and scan_path not in feat_cache:
+            feat_cache[scan_path] = feats_pre      # nothing was removed: the features already computed are the scan's
     # features are the same for the same scan, so re-runs (brush fixes, base nudges) reuse them
     feats = feat_cache.get(scan_path) if feat_cache is not None else None
     if feats is None:
-        from .features import compute_features
         feats = compute_features(mesh, return_aux=True)
         if feat_cache is not None:
             feat_cache[scan_path] = feats
@@ -552,9 +582,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     with open(os.path.join(out_dir, f"{name}_report.json"), "w") as f:
         json.dump(rep, f, indent=2)
     # debug state for the UI / verification
-    np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
+    np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f, appliance=appliance,
              T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, p_tooth=p_tooth,
-             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}))
+             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}),
+             **({"clean_vertices": np.asarray(mesh.vertices, dtype=np.float32)} if appliance.any() else {}))
     prog(1.0, "done")
     log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
     return rep

@@ -628,7 +628,7 @@ const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new TH
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null;
 const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set() };
-let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out)
+let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out, bit 4 = brackets removed)
 let segRGB = null;     // the scanner's own colour per vertex (PLY scans), shown under the labels
 let brushMode = 'tooth';
 // The brush is a sphere of the chosen radius around the point under the mouse - the cursor shows exactly
@@ -1044,8 +1044,9 @@ async function loadResult(id, j){
   const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${(s.arch||'scan '+(i+1)) + (s.tag ? ' ' + s.tag : '')}</button>`).join('')}</div>` : '';
   renderReview(id, j);
   // what was done about exposed roots and undercuts on this model, in the words of the result line
-  const recTeeth = Object.values(r.recession || {}); const bo = r.blockout || {};
-  const extras = [recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
+  const recTeeth = Object.values(r.recession || {}); const bo = r.blockout || {}; const ap = r.appliances || {};
+  const extras = [ap.used && ap.area_mm2 ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — shown grey in Segmentation / fix` : '',
+                  recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
                   bo.spots ? `${bo.spots} undercut${bo.spots > 1 ? 's' : ''} blocked out (${bo.volume_ml} mL${bo.painted_cells ? ', incl. painted' : ''})` : ''].filter(Boolean);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '');
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
@@ -1212,6 +1213,7 @@ function paintColors(){
     const pf = segPaint ? segPaint[i] : 0;
     if (edits.noreservoir.has(i)) c.setHex(0x7c3aed); else if (edits.blockout.has(i)) c.setHex(0x0d9488);
     else if (pf & 1) c.lerp(new THREE.Color(0x7c3aed), 0.55); else if (pf & 2) c.lerp(new THREE.Color(0x0d9488), 0.55);
+    else if (pf & 4) c.lerp(new THREE.Color(0x64748b), 0.45);   // brackets / wire taken off: enamel rebuilt here
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
   }
   if (segMesh) segMesh.geometry.getAttribute('color').needsUpdate = true;
