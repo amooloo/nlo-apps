@@ -424,6 +424,281 @@ def cap_distal(loop, mesh, keep_mm=2.5, snap_tol=2.0):
     return out
 
 
+def _largest(geom):
+    if geom.geom_type == "MultiPolygon":
+        return max(geom.geoms, key=lambda g: g.area)
+    return geom
+
+
+def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.0, inset=0.5,
+                 z_sigma=2.0, max_dip=1.0, short_by=2.0, snap_tol=3.0, log=None):
+    """Smooth, rounded distal ends: the trim line wraps the last tooth on each side as a gentle U and
+    never goes past it.
+
+    What the patient feels at the back of a tray is a sharp turn here - the gum line following the
+    tooth label down the distal root or out onto the tuberosity / retromolar pad (a flap of tray behind
+    the molar), or hard corners at the disto-buccal and disto-lingual line angles. Per side:
+      * plan view: the line is clipped at the crown's distal extent (minus `inset`) and the corners in
+        the last `window` mm are rounded with `radius` - a morphological opening restricted to that
+        window, so the line only ever moves inwards onto the tooth, never out onto the gum;
+      * height: within the window the height is smoothed along the line (`z_sigma` mm) and never dips
+        more than `max_dip` below the straight between the window's ends;
+      * a terminal tooth the scan did not capture whole (its crown runs into the scan edge) gets the
+        tray cut shorter instead: the line crosses over the tooth `short_by` mm in front of the scan
+        edge, with the same rounded corners, riding on the tooth surface;
+      * every point that moved is put back on the surface.
+    `labels` must be aligned with mesh.vertices; `edge_zone` (bool per vertex: within ~1 mm of the
+    open edge of the scan) enables the short-cut rule. Returns (loop, per-side info)."""
+    from shapely.geometry import Polygon, LineString
+    from scipy.spatial import cKDTree
+    from scipy.ndimage import gaussian_filter1d
+    from trimesh.proximity import ProximityQuery
+    V = np.asarray(mesh.vertices)
+    P = Polygon(loop[:, :2])
+    if not P.is_valid:
+        P = P.buffer(0)
+    P = _largest(P)
+    sides = []
+    for side in (-1, 1):
+        teeth = {t: pos for t, (sd, pos) in info.items() if sd == side}
+        if len(teeth) < 2:
+            continue
+        term = max(teeth, key=teeth.get)
+        prev = max((t for t in teeth if t != term), key=teeth.get)
+        mt, mp = labels == term, labels == prev
+        if mt.sum() < 50 or mp.sum() < 50:
+            continue
+        c = V[mt][:, :2].mean(0)
+        d = c - V[mp][:, :2].mean(0)
+        if np.linalg.norm(d) < 1e-6:
+            continue
+        d /= np.linalg.norm(d)
+        n = np.array([-d[1], d[0]])
+        tv = (V[mt][:, :2] - c) @ d
+        wv = (V[mt][:, :2] - c) @ n
+        zv = V[mt][:, 2]
+        t_min, t_max = float(tv.min()), float(tv.max())
+        # where does the crown end? Its footprint is a wide round blob; a label that leaked onto the
+        # tuberosity / retromolar pad trails off behind it as a narrower tail, so walk distally from
+        # the widest point until the footprint has narrowed to 60 % (a round end is ~1 mm further)
+        step = 0.25
+        bins = np.arange(t_min, t_max + step, step)
+        bi = np.clip(np.digitize(tv, bins) - 1, 0, len(bins) - 1)
+        width = np.zeros(len(bins))
+        z_low = np.full(len(bins), np.nan)
+        edge_frac = np.zeros(len(bins))
+        counts = np.bincount(bi, minlength=len(bins))
+        for b in range(len(bins)):
+            sel = bi == b
+            if sel.sum() >= 3:
+                width[b] = np.percentile(wv[sel], 95) - np.percentile(wv[sel], 5)
+                z_low[b] = np.percentile(zv[sel], 5)
+                if edge_zone is not None:
+                    edge_frac[b] = float(edge_zone[mt][sel].mean())
+        if len(width) >= 5:
+            width = np.array([np.median(width[max(0, i - 1):i + 2]) for i in range(len(width))])
+            z_low = np.array([np.nanmedian(zz) if np.isfinite(zz).any() else np.nan for zz in (z_low[max(0, i - 1):i + 2] for i in range(len(z_low)))])
+        half = bins >= -2.0
+        if not half.any():
+            continue
+        b_max = int(np.where(half)[0][np.argmax(width[half])])
+        w_max = float(width[b_max])
+        narrow = np.where(width[b_max:] < 0.6 * w_max)[0]
+        rules = {}
+        if len(narrow):
+            t60 = float(bins[b_max + narrow[0]])
+            t_tooth = min(t60 + 0.1 * w_max, t_max)
+            incomplete = False
+            rules["width"] = round(t_tooth - t_max, 2)
+        else:
+            t_tooth = t_max                            # still wide at the end: the footprint was cut off
+            incomplete = True
+        # a crown reaches down to the gum line on both sides; where the label's lowest points climb
+        # well above that level there is no cervical wall any more - it has run onto the pad
+        mid = np.abs(bins) <= 2.0
+        if mid.any() and np.isfinite(z_low[mid]).any():
+            z_gum = float(np.nanmedian(z_low[mid]))
+            climbed = np.where(z_low[b_max:] > z_gum + 2.5)[0]
+            if len(climbed):
+                rules["gum"] = round(float(bins[b_max + climbed[0]]) - t_max, 2)
+                t_tooth = min(t_tooth, float(bins[b_max + climbed[0]]))
+        # and no tooth is longer than the molar in front of it (or ~13 mm along this axis, which is
+        # what a complete first molar measures here, papilla and projection included)
+        tp = (V[mp][:, :2] - V[mp][:, :2].mean(0)) @ d
+        prev_len = float(tp.max() - tp.min())
+        max_len = min(13.0, prev_len + 1.0) if prev_len >= 10.5 else 13.0   # a molar in front of it
+        rules["length"] = round(t_min + max_len - t_max, 2)
+        t_tooth = min(t_tooth, t_min + max_len)
+        # the scan edge running through a still-wide crown = a partly captured tooth (stragglers in
+        # the last fraction of a millimetre are ignored)
+        populated = counts >= max(10, 0.2 * np.median(counts[counts > 0]))
+        t_end_eff = float(bins[populated].max()) + step if populated.any() else t_max
+        last = populated & (bins >= t_end_eff - 1.0 - step)
+        cut = int((edge_zone[mt] & (tv >= t_end_eff - 1.0 - step)).sum()) if edge_zone is not None else 0
+        if edge_zone is not None and last.any():
+            incomplete = incomplete or (width[last].mean() > 0.5 * w_max and edge_frac[last].mean() > 0.3)
+        rel = loop[:, :2] - c
+        t, w = rel @ d, rel @ n
+        near = np.abs(w) < 9.0
+        if near.sum() < 5:
+            continue
+        t_line = float(t[near].max())
+        if incomplete:
+            t_cap = max(t_max - short_by, t_min + 2.0)
+        else:
+            t_cap = t_tooth - inset
+        sides.append(dict(side=int(side), c=c, d=d, n=n, t_cap=t_cap, t_line=t_line, t_tooth=t_tooth, label_mm=round(t_max - t_min, 1), rules=rules,
+                          incomplete=bool(incomplete), edge_vertices=cut, t_thr=min(t_cap, t_line) - window))
+    if not sides:
+        return loop, []
+
+    # ---- plan view: never past the tooth, then rounded corners (only within the distal windows)
+    far = 40.0
+    for S in sides:
+        c, d, n = S["c"], S["d"], S["n"]
+        if S["t_line"] > S["t_cap"]:
+            beyond = Polygon([c + d * S["t_cap"] + n * 12, c + d * (S["t_cap"] + far) + n * 12,
+                              c + d * (S["t_cap"] + far) - n * 12, c + d * S["t_cap"] - n * 12])
+            P = _largest(P.difference(beyond))
+    # (the erosion splits the horseshoe where it is thin - keep every piece, the molar ends are what matter)
+    P_open = P.buffer(-radius, join_style=1, resolution=24).buffer(radius, join_style=1, resolution=24)
+    for S in sides:
+        if P_open.is_empty:
+            break
+        c, d, n = S["c"], S["d"], S["n"]
+        t1 = S["t_cap"] + 5.0
+        t0 = S["t_cap"] - (radius + 1.5)          # corners live in the last few mm; the straights stay as scanned
+        rect = Polygon([c + d * t0 + n * 12, c + d * t1 + n * 12, c + d * t1 - n * 12, c + d * t0 - n * 12])
+        sliver = P.difference(P_open).intersection(rect)
+        if not sliver.is_empty:
+            P = _largest(P.difference(sliver.buffer(0.02)))
+    P = _largest(P.buffer(0.01).buffer(-0.01))
+    ring = LineString(P.exterior.coords)
+    m = max(int(ring.length / 0.25), 64)
+    new_xy = np.array([ring.interpolate(k / m, normalized=True).coords[0] for k in range(m)])
+    dense = resample_polyline(loop, 0.05)          # match against the original line, not just its vertices
+    tree = cKDTree(dense[:, :2])
+    dist, j = tree.query(new_xy)
+    anchor = dist < 0.08
+    if anchor.sum() < 10:
+        return loop, []
+    xy = new_xy.copy()
+    xy[anchor] = dense[j[anchor], :2]
+    z = np.full(m, np.nan)
+    z[anchor] = dense[j[anchor], 2]
+    # heights of the new points: interpolated along the loop between the anchors (circular)
+    s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(np.vstack([xy, xy[:1]]), axis=0), axis=1))]
+    s_pts, s_total = s[:-1], s[-1]
+    an = np.where(anchor)[0]
+    s_an = np.r_[s_pts[an], s_pts[an[0]] + s_total]
+    z_an = np.r_[z[an], z[an[0]]]
+    z_all = np.interp(np.where(s_pts < s_pts[an[0]], s_pts + s_total, s_pts), s_an, z_an)
+    z[~anchor] = z_all[~anchor]
+    moved = ~anchor
+    on_top = np.zeros(m, bool)
+
+    # top surface (for the line riding over a partly captured tooth): highest vertex within 0.35 mm
+    vt = cKDTree(V[:, :2])
+
+    def top_surface(q):
+        out = np.empty(len(q))
+        near = vt.query_ball_point(q, 0.35)
+        _, jn = vt.query(q)
+        for i, nb in enumerate(near):
+            out[i] = V[nb, 2].max() if len(nb) else V[jn[i], 2]
+        return out
+
+    def run_around(mask, t):
+        """Contiguous (circular) run of masked points containing the one furthest distal."""
+        i0 = int(np.where(mask)[0][np.argmax(t[mask])])
+        fwd = [i0]
+        k = i0
+        while mask[(k + 1) % m] and (k + 1) % m != i0 and len(fwd) < m:
+            k = (k + 1) % m
+            fwd.append(k)
+        back = []
+        k = i0
+        while mask[(k - 1) % m] and (k - 1) % m not in fwd and len(back) < m:
+            k = (k - 1) % m
+            back.append(k)
+        return np.array(back[::-1] + fwd)
+
+    # ---- heights within the distal windows
+    for S in sides:
+        c, d, n = S["c"], S["d"], S["n"]
+        rel = xy - c
+        t, w = rel @ d, rel @ n
+        inwin = (t > S["t_thr"]) & (np.abs(w) < 10.0)
+        if inwin.sum() < 4:
+            continue
+        run = run_around(inwin, t)
+        if len(run) < 4:
+            continue
+        if S["incomplete"]:
+            mv = run[moved[run]]
+            if len(mv):
+                z[mv] = top_surface(xy[mv])
+                on_top[mv] = True
+            S["crossing_points"] = int(len(mv))
+            continue
+        zr = z[run].copy()
+        steps = np.linalg.norm(np.diff(xy[run], axis=0), axis=1)
+        spacing = float(np.median(steps)) if len(steps) else 0.25
+        zs = gaussian_filter1d(zr, sigma=max(z_sigma / max(spacing, 1e-3), 0.5), mode="nearest")
+        k_end = min(4, len(run) // 3)
+        za, zb = float(zr[:k_end].mean()), float(zr[-k_end:].mean())
+        sr = np.r_[0, np.cumsum(steps)]
+        chord = za + (zb - za) * (sr / max(sr[-1], 1e-6))
+        S["dip_before_mm"] = round(float(np.max(chord - zr)), 2)
+        S["peak_before_mm"] = round(float(np.max(zr - chord)), 2)
+        zs = np.maximum(zs, chord - max_dip)
+        ramp = np.clip(np.minimum(sr, sr[-1] - sr) / 2.0, 0.0, 1.0)
+        ramp = ramp * ramp * (3 - 2 * ramp)
+        znew = zr + ramp * (zs - zr)
+        changed = np.abs(znew - zr) > 0.05
+        z[run] = znew
+        moved[run[changed]] = True
+        S["dip_after_mm"] = round(float(np.max(chord - znew)), 2)
+        S["lifted_points"] = int(changed.sum())
+        S["max_lift_mm"] = round(float(np.max(znew - zr)), 2)
+    out = np.column_stack([xy, z])
+    # ---- back onto the surface
+    snap = moved & ~on_top
+    if snap.any():
+        pq = ProximityQuery(mesh)
+        closest, dist, _ = pq.on_surface(out[snap])
+        ok = dist < snap_tol
+        tmp = out[snap]
+        tmp[ok] = closest[ok]
+        out[snap] = tmp
+    res = []
+    far_tree = cKDTree(loop)
+    for S in sides:
+        clipped = max(S["t_line"] - S["t_cap"], 0.0)
+        rel = out[:, :2] - S["c"]
+        inwin = ((rel @ S["d"]) > S["t_thr"]) & (np.abs(rel @ S["n"]) < 10.0)
+        moved_mm = float(far_tree.query(out[inwin])[0].max()) if inwin.any() else 0.0
+        r = dict(side=S["side"], incomplete=S["incomplete"], edge_vertices=S["edge_vertices"], moved_mm=round(moved_mm, 2), label_mm=S["label_mm"], rules=S["rules"],
+                 t_tooth=round(float(S["t_tooth"]), 3),
+                 clipped_mm=round(float(clipped), 2), past_tooth_mm=round(float(S["t_line"] - S["t_tooth"]), 2))
+        for k in ("dip_before_mm", "dip_after_mm", "peak_before_mm", "lifted_points", "max_lift_mm", "crossing_points"):
+            if k in S:
+                r[k] = S[k]
+        res.append(r)
+        if log:
+            name = "right" if S["side"] > 0 else "left"
+            if S["incomplete"]:
+                log(f"distal {name}: last tooth not fully in the scan ({S['edge_vertices']} crown vertices on the scan edge) - tray cut {short_by:.0f} mm short of the edge, over the tooth")
+            else:
+                bits = []
+                if clipped > 0.2:
+                    bits.append(f"pulled {clipped:.1f} mm forward onto the tooth")
+                if S.get("dip_before_mm", 0) > max_dip + 0.2:
+                    bits.append(f"{S['dip_before_mm']:.1f} mm dip behind the molar lifted to {S['dip_after_mm']:.1f}")
+                log(f"distal {name}: corners rounded (r {radius:.0f} mm)" + (" - " + ", ".join(bits) if bits else ""))
+    return out, res
+
+
 def resample_polyline(P, spacing=0.5, closed=True):
     if closed and np.linalg.norm(P[0] - P[-1]) > 1e-6:
         P = np.vstack([P, P[:1]])
