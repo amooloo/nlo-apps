@@ -17,7 +17,7 @@
   var m = /[?&]pc=([^&]+)/.exec(location.search);
   if (m) {
     name = decodeURIComponent(m[1]).trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
-    try { if (name) localStorage.setItem(NLO_BT.key, name); } catch (e) {}
+    try { if (name) { localStorage.setItem(NLO_BT.key, name); localStorage.setItem("nlo.bleachtray.labpc", name); } } catch (e) {}   // the old key too: a cached copy of the old page reads that one
   }
   if (!name) { try { name = localStorage.getItem(NLO_BT.key) || ""; } catch (e) {} }
   name = name || NLO_BT.DEFAULT_LAB_PC;
