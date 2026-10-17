@@ -78,9 +78,33 @@ On a PC that allows .bat files, double-clicking `update.bat` in the app folder d
 
 ## Moving the app to another PC
 
-On the old PC double-click `uninstall_autostart.bat` and close the app's window. On the new PC extract the zip,
-run `install.bat`. Only one PC should run the app at a time (two watchers would create duplicate orders).
-Any PC that can see the S: drive can host it; it just has to be on and signed in.
+Two lines, each pasted into the Run box (**Win + R**) - no files to download or double-click. Only one PC should run
+the app at a time (two watchers would create duplicate orders), so the old PC goes first. Any PC that can see the
+S: drive can host it; it just has to be on and signed in.
+
+1. **On the PC that runs the app today** - stops the app, removes its autostart, and packs the cases, lessons,
+   settings and the Trimlign base into `S:\clinical\3D printing\BleachTray_move-from-<PC name>`:
+
+   ```
+   powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "$NLO_MOVE='pack'; [Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/move.ps1' -UseBasicParsing).Content"
+   ```
+
+2. **On the new PC** - installs the app (and Python, if the PC has none; no administrator needed), takes the pack
+   over, sets the app to start at sign-in, opens it, and ends with the PC's name:
+
+   ```
+   powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "$NLO_MOVE='install'; [Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/move.ps1' -UseBasicParsing).Content"
+   ```
+
+   It refuses to take the pack while the old PC is still serving the app. With no pack on the S: drive it is a
+   fresh setup (the base is learned from a Titan export, the drop folder created). A fresh PC without Python gets
+   Python 3.13 installed for the signed-in user first.
+
+3. The NLO apps home page sends **Bleach Tray** clicks to the PC named in `nlo-bleachtray.html` (`DEFAULT_LAB_PC`) -
+   change that name to the new PC's, or, in any one browser, open the page with `?help` and use "Use a different PC".
+
+The old PC keeps its app folder (nothing is deleted); it just no longer starts the app. On a PC that allows .bat
+files, `uninstall_autostart.bat` / `install.bat` do the same by hand.
 
 ## If a case needs a look
 

@@ -72,7 +72,10 @@ foreach ($p in $owners) {
 }
 $tries = 0
 while ($tries -lt 20 -and (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { Start-Sleep 1; $tries++ }
-Start-Process -FilePath (Join-Path $dst 'start_app.bat') -ArgumentList 'autostart' -WorkingDirectory $dst
+$bat = Join-Path $dst 'start_app.bat'
+if (Test-Path $bat) { Start-Process -FilePath $bat -ArgumentList 'autostart' -WorkingDirectory $dst }
+elseif ($py) { Start-Process -FilePath 'powershell' -ArgumentList '-NoExit', '-NoProfile', '-WindowStyle', 'Minimized', '-Command', "& '$py' '$(Join-Path $dst 'run_app.py')' --lan --no-browser" -WorkingDirectory $dst }
+else { Write-Host '       Could not start the app (no start_app.bat and no Python found) - restart the PC.' }
 Remove-Item $t -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''
 Write-Host ' UPDATE DONE. The app is running again (minimised window "NLO Bleach Tray"). You can close this window.'
