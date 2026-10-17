@@ -773,11 +773,12 @@ function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bl
   SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
 function summarizeSettings(){
   const bits = [];
-  if ($('#res_n').value !== SETTING_DEFAULTS.res_n || $('#res_h').value !== SETTING_DEFAULTS.res_h) bits.push(`reservoirs ${$('#res_n').value}-${$('#res_n').value} · ${$('#res_h').value} mm`);
-  if ($('#tt_off').value !== SETTING_DEFAULTS.tt_off) bits.push(`retainer line ${$('#tt_off').value} mm`);
-  if ($('#res_sb').value !== SETTING_DEFAULTS.res_sb || $('#rec_lee').value !== SETTING_DEFAULTS.rec_lee) bits.push(`gum distance ${$('#res_sb').value} mm, root leeway ${$('#rec_lee').value} mm`);
-  if ($('#blockout').value !== SETTING_DEFAULTS.blockout) bits.push($('#blockout').value === '0' ? 'no block-out' : `block-out > ${$('#blockout').value} mm`);
-  if ($('#rim').value !== SETTING_DEFAULTS.rim || $('#floor_below').value !== SETTING_DEFAULTS.floor_below) bits.push(`base ${$('#rim').value} / ${$('#floor_below').value} mm`);
+  const diff = (id) => { const a = $('#' + id).value, b = SETTING_DEFAULTS[id]; return (a !== '' && b !== '' && !isNaN(+a) && !isNaN(+b)) ? +a !== +b : a !== b; };
+  if (diff('res_n') || diff('res_h')) bits.push(`reservoirs ${$('#res_n').value}-${$('#res_n').value} · ${$('#res_h').value} mm`);
+  if (diff('tt_off')) bits.push(`retainer line ${$('#tt_off').value} mm`);
+  if (diff('res_sb') || diff('rec_lee')) bits.push(`gum distance ${$('#res_sb').value} mm, root leeway ${$('#rec_lee').value} mm`);
+  if (diff('blockout')) bits.push($('#blockout').value === '0' ? 'no block-out' : `block-out > ${$('#blockout').value} mm`);
+  if (diff('rim') || diff('floor_below')) bits.push(`base ${$('#rim').value} / ${$('#floor_below').value} mm`);
   if ($('#level').value !== '1') bits.push('not levelled');
   $('#setsum').textContent = bits.length ? 'Changed: ' + bits.join(', ') : 'Defaults';
 }
@@ -971,6 +972,9 @@ function renderReview(id, j){
   for (const f of ['machine', 'head', 'bin', 'lid', 'arch', 'tooth', 'spark1', 'spark2', 'spark3']) { const im = new Image(); im.src = `/static/img/anim/${f}.png`; }  // warm the cache so the first play is not missing parts
 const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHTML = ANIM.trash; const c = box.querySelector('#animCut'); if (c) c.innerHTML = ANIM.cut; const l = box.querySelector('#animLearn'); if (l) l.innerHTML = ANIM.learn; };
   setTimeout(play, 0);
+  // a finished case can leave the Cases list; it stays in Past cases
+  const closeLine = `<div class="hint" style="margin-top:8px"><a href="#" id="closecase">Remove from the list</a> (stays in Past cases)</div>`;
+  const wireClose = () => { const a = box.querySelector('#closecase'); if (a) a.onclick = async ev => { ev.preventDefault(); await fetch(`/api/jobs/${id}/close`, { method: 'POST' }); currentJob = null; $('#review').innerHTML = ''; $('#stats').innerHTML = ''; $('#dl').innerHTML = ''; clear(groups.result); clear(groups.seg); clear(groups.scan); requestRender(); refreshJobs(); searchHistory(); }; };
   if (j.review === 'sent') {
     const when = j.sent_at ? ` ${new Date(j.sent_at * 1000).toLocaleDateString()} ${new Date(j.sent_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
     box.innerHTML = `<div class="anim" id="animCut"></div><b>Sent to the Trimlign${when}.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${learnedLine}` +
@@ -978,8 +982,9 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
       (addLine ? addLine.replace('Also make', 'Need more? Also make') + `<div class="hint">(the case comes back for a check; Send then replaces the order with every model)</div>` : '');
     wireAdd();
     $('#resendbtn').onclick = async () => { $('#resendbtn').disabled = true; $('#resendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/resend`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); };
+    box.insertAdjacentHTML('beforeend', closeLine); wireClose();
   } else if (j.review === 'discarded') {
-    box.innerHTML = `<div class="anim" id="animTrash"></div><b>Discarded</b> — nothing went to the Trimlign.`;
+    box.innerHTML = `<div class="anim" id="animTrash"></div><b>Discarded</b> — nothing went to the Trimlign.` + closeLine; wireClose();
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
     box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
