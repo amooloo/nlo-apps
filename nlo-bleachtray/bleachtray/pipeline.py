@@ -275,20 +275,20 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # "auto" removes whatever is found on a coloured scan; False leaves the scan as it is
     appliance = np.zeros(len(mesh.vertices), bool)
     want = P.get("remove_appliances", "auto")
-    if want and mesh.metadata.get("rgb") is not None:
+    # (the app does this itself before the run and hands over a cleaned scan; this is for a scan that
+    # comes in by another route, e.g. the watch folder)
+    if want and mesh.metadata.get("rgb") is not None and "_clean" not in os.path.basename(scan_path):
         ckey = (scan_path, "clean")
         cached = feat_cache.get(ckey) if feat_cache is not None else None
         if cached is None:
-            from .appliance import detect_appliances, remove_appliances
-            from .mesh_utils import adjacency
             feats0 = compute_features(mesh, return_aux=True)
             try:
-                appliance, ainfo = detect_appliances(mesh, feats0[2]["A"], mesh.metadata["rgb"], feats=feats0, log=lambda m: log(f"[{name}] {m}"))
-                if appliance.any():
-                    mesh, rinfo = remove_appliances(mesh, feats0[2]["A"], appliance, log=lambda m: log(f"[{name}] {m}"))
-                    ainfo.update(rinfo)
-                ainfo.pop("bump", None)
-                cached = (mesh, appliance, ainfo, feats0 if not appliance.any() else None)
+                from .appliance import take_off_appliances
+                mesh2, ainfo, A2, feats2 = take_off_appliances(mesh, feats0[2]["A"], mesh.metadata["rgb"], feats0, log=lambda m: log(f"[{name}] {m}"))
+                if ainfo.get("used"):
+                    mesh = mesh2
+                    appliance = np.zeros(len(mesh.vertices), bool)
+                cached = (mesh, appliance, ainfo, feats0 if not ainfo.get("used") else feats2)
             except Exception as ex:  # noqa
                 log(f"[{name}] appliance step skipped: {ex}")
                 cached = (mesh, appliance, dict(used=False, error=str(ex)[:200]), feats0)
@@ -296,10 +296,9 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 feat_cache[ckey] = cached
         mesh, appliance, ainfo, feats_pre = cached
         if ainfo.get("used"):
-            rep["appliances"] = {k: v for k, v in ainfo.items() if k != "pieces"}
-            rep["appliances"]["pieces"] = len(ainfo.get("pieces") or [])
+            rep["appliances"] = {k: v for k, v in ainfo.items() if k != "passes"}
         if feats_pre is not None and feat_cache is not None and scan_path not in feat_cache:
-            feat_cache[scan_path] = feats_pre      # nothing was removed: the features already computed are the scan's
+            feat_cache[scan_path] = feats_pre      # the features of the mesh the pipeline goes on with
     # features are the same for the same scan, so re-runs (brush fixes, base nudges) reuse them
     feats = feat_cache.get(scan_path) if feat_cache is not None else None
     if feats is None:
@@ -582,10 +581,9 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     with open(os.path.join(out_dir, f"{name}_report.json"), "w") as f:
         json.dump(rep, f, indent=2)
     # debug state for the UI / verification
-    np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f, appliance=appliance,
+    np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
              T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, p_tooth=p_tooth,
-             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}),
-             **({"clean_vertices": np.asarray(mesh.vertices, dtype=np.float32)} if appliance.any() else {}))
+             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}))
     prog(1.0, "done")
     log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
     return rep

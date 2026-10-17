@@ -1044,8 +1044,8 @@ async function loadResult(id, j){
   const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${(s.arch||'scan '+(i+1)) + (s.tag ? ' ' + s.tag : '')}</button>`).join('')}</div>` : '';
   renderReview(id, j);
   // what was done about exposed roots and undercuts on this model, in the words of the result line
-  const recTeeth = Object.values(r.recession || {}); const bo = r.blockout || {}; const ap = r.appliances || {};
-  const extras = [ap.used && ap.area_mm2 ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — shown grey in Segmentation / fix` : '',
+  const recTeeth = Object.values(r.recession || {}); const bo = r.blockout || {}; const ap = ((j.scans || [])[scanIdx] || {}).braces || r.appliances || {};
+  const extras = [ap.used && ap.area_mm2 ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — rebuilt enamel shown grey in Segmentation / fix` : '',
                   recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
                   bo.spots ? `${bo.spots} undercut${bo.spots > 1 ? 's' : ''} blocked out (${bo.volume_ml} mL${bo.painted_cells ? ', incl. painted' : ''})` : ''].filter(Boolean);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '');

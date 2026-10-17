@@ -163,7 +163,8 @@ def _save_case(job):
             r = sc.get("report") or {}
             scans.append(dict(path=os.path.relpath(sc["path"], jdir), name=sc["name"], filename=sc.get("filename"), arch=sc.get("arch"),
                               preset=sc.get("preset"), tag=sc.get("tag"), kind=sc.get("kind"), stage=sc.get("stage"),
-                              titan_basename=r.get("titan_basename"), has_report=bool(r)))
+                              titan_basename=r.get("titan_basename"), has_report=bool(r),
+                              braces=({k: v for k, v in sc["braces"].items() if k != "passes"} if sc.get("braces") else None)))
         fixed = job.get("fixed_labels") or {}
         for path, lab in fixed.items():
             np.savez(os.path.join(jdir, "fixedlabels_" + os.path.basename(path) + ".npz"), labels=np.asarray(lab, dtype=np.int16))
@@ -399,6 +400,16 @@ def _run(job):
         job.setdefault("feat_cache", {})
         fixed = job.setdefault("fixed_labels", {})   # brush fixes, kept for every later re-run of this case
         overrides = {}                                # ... and applied to every model made from the same scan file
+        # braces on? brackets, wire and ties come off the scan file first (once per scan)
+        if job["params"].get("remove_appliances", "auto"):
+            for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
+                if path in job.get("braces", {}) or "_clean" in os.path.basename(path):
+                    continue
+                job["progress"] = dict(frac=0.01, label="looking for braces on the scan", scan=0, of=len(job["scans"]))
+                try:
+                    _take_off_braces(job, path, log=log)
+                except Exception as ex:  # noqa
+                    log(f"braces step skipped: {ex}")
         # "cut away" strokes: those parts leave the scan file itself (every model from it, every later re-run)
         remap = None
         if me is not None and me.get("cut"):
@@ -574,6 +585,64 @@ def _apply_cut(job, k, cut, log=print):
     log(f"cut away: {int(gone.sum())} painted vertices, {int((~used).sum() - gone.sum())} more came loose with them; "
         f"the scan is now {len(out.vertices)} vertices ({os.path.basename(new_path)})")
     return remap
+
+
+def _take_off_braces(job, path, log=print):
+    """A coloured scan with braces on: find brackets, wire and ties and take them off BEFORE anything
+    else sees the scan. The cleaned scan is written as a new PLY next to the case (like a cut), every
+    model made from the scan points at it from now on, and the patches are recorded (paint bit 4) so the
+    brush view can show where enamel was rebuilt. Done once per scan file; returns the new path or None."""
+    from bleachtray.mesh_utils import load_scan, adjacency
+    from bleachtray.orient import rough_orient
+    from bleachtray.features import compute_features
+    from bleachtray.appliance import take_off_appliances
+    from scipy.spatial import cKDTree
+    done = job.setdefault("braces", {})
+    if path in done or "_clean" in os.path.basename(path) or not path.lower().endswith(".ply"):
+        return None
+    raw = load_scan(path)
+    rgb = raw.metadata.get("rgb")
+    if rgb is None:
+        done[path] = dict(used=False); return None
+    mesh, T_rough = rough_orient(raw)
+    A = adjacency(mesh)
+    feats = compute_features(mesh, return_aux=True)
+    clean, info, A2, feats2 = take_off_appliances(mesh, A, mesh.metadata["rgb"], feats, log=log)
+    info = {k: v for k, v in info.items() if k != "passes"} | {"passes": [{kk: vv for kk, vv in p.items()} for p in info.get("passes", [])]}
+    if not info.get("used"):
+        done[path] = info
+        job["feat_cache"][path] = feats       # not wasted: the pipeline uses the same features
+        return None
+    # back to the scanner's own coordinates, and out as a coloured PLY
+    clean = clean.copy(); clean.apply_transform(np.linalg.inv(T_rough))
+    base = os.path.splitext(os.path.basename(path))[0]
+    new_path = os.path.join(job["dir"], f"{base}_clean.ply")
+    crgb = np.asarray(clean.metadata.get("rgb"), dtype=np.uint8)
+    clean.visual = trimesh.visual.ColorVisuals(clean, vertex_colors=np.column_stack([crgb, np.full(len(crgb), 255, np.uint8)]))
+    clean.export(new_path, encoding="binary")
+    # which vertices of the file as the pipeline will read it are rebuilt enamel: the ones that were not in the raw scan
+    re = load_scan(new_path)
+    d = cKDTree(np.asarray(raw.vertices)).query(np.asarray(re.vertices))[0]
+    patched = np.where(d > 1e-3)[0]
+    paint = job.setdefault("paint", {})
+    entry = paint.setdefault(new_path, {"noreservoir": [], "blockout": []})
+    old_entry = paint.pop(path, None)
+    if old_entry:   # strokes painted on the raw scan: carried over by position
+        d2, j2 = cKDTree(np.asarray(re.vertices)).query(np.asarray(raw.vertices))
+        for key in ("noreservoir", "blockout"):
+            idx = np.asarray(old_entry.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(d2))]
+            entry[key] = sorted(set(entry.get(key, [])) | set(int(j2[i]) for i in idx if d2[i] < 1e-3))
+    entry["removed"] = [int(i) for i in patched]
+    for sc in job["scans"]:
+        if sc["path"] == path:
+            sc["path"] = new_path; sc["raw_path"] = path; sc["braces"] = info
+    job.get("fixed_labels", {}).pop(path, None)
+    for key in [key for key in job.get("feat_cache", {}) if (key if isinstance(key, str) else key[0]) == path]:
+        job["feat_cache"].pop(key, None)
+    done[path] = info; done[new_path] = info
+    log(f"braces taken off: {info['pieces']} piece{'s' if info['pieces'] != 1 else ''}, {info['area_mm2']:.0f} mm2 - the scan is now {len(re.vertices)} vertices ({os.path.basename(new_path)}), "
+        f"{len(patched)} of them new enamel")
+    return new_path
 
 
 def _apply_mask_edit(job, k=0, edit=None, remap=None):
@@ -1000,7 +1069,7 @@ def _save_training(job, log=print):
         arch = sc.get("arch") or "scan"
         # a scan with braces on is not a lesson: its labels belong to the enamel as rebuilt, not to the
         # brackets the raw file still carries
-        if ((sc.get("report") or {}).get("appliances") or {}).get("area_mm2"):
+        if sc.get("braces") or ((sc.get("report") or {}).get("appliances") or {}).get("area_mm2"):
             log(f"training: {sc['filename']} skipped (brackets were taken off this scan)")
             continue
         try:
@@ -1153,6 +1222,7 @@ def job_status(jid: str):
     out["fixed"] = _fixed_arches(job)
     paint = job.get("paint") or {}
     out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset"),
+                         braces=({k: v for k, v in sc["braces"].items() if k != "passes"} if sc.get("braces") else None),
                          painted={k: len(v) for k, v in (paint.get(sc["path"]) or {}).items()}) for sc in job["scans"]]
     if job.get("reports"):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]
@@ -1201,9 +1271,6 @@ def seg_mesh(jid: str, scan: int = 0):
     raw = load_scan(sc["path"])
     mesh, _ = rough_orient(raw)
     V = np.asarray(mesh.vertices, dtype=np.float32)
-    # braces taken off: show the enamel as rebuilt, not the brackets
-    if "clean_vertices" in st.files and len(st["clean_vertices"]) == len(V):
-        V = np.asarray(st["clean_vertices"], dtype=np.float32)
     F = np.asarray(mesh.faces, dtype=np.uint32)
     lab = np.asarray(st["labels"], dtype=np.uint16)
     disp = np.asarray(st["d"], dtype=np.float32)
@@ -1213,11 +1280,9 @@ def seg_mesh(jid: str, scan: int = 0):
     # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out; bit 4 = brackets / wire removed
     pe = (job.get("paint") or {}).get(sc["path"]) or {}
     flags = np.zeros(len(V), dtype=np.uint8)
-    for bit, key in ((1, "noreservoir"), (2, "blockout")):
+    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed")):
         idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
         flags[idx] |= bit
-    if "appliance" in st.files and len(st["appliance"]) == len(V):
-        flags[np.asarray(st["appliance"], bool)] |= 4
     buf.write(flags.tobytes())
     # the scanner's colour per vertex, when the scan has one (a PLY): uint8 rgb[nV*3]
     rgb = st["rgb"] if "rgb" in st.files else None
