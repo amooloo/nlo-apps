@@ -998,6 +998,11 @@ def _save_training(job, log=print):
     for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
         sc = next(sc for sc in job["scans"] if sc["path"] == path)
         arch = sc.get("arch") or "scan"
+        # a scan with braces on is not a lesson: its labels belong to the enamel as rebuilt, not to the
+        # brackets the raw file still carries
+        if ((sc.get("report") or {}).get("appliances") or {}).get("area_mm2"):
+            log(f"training: {sc['filename']} skipped (brackets were taken off this scan)")
+            continue
         try:
             ext = ".ply" if path.lower().endswith(".ply") else ".stl"   # a PLY keeps its colour for the retraining
             for other in (".stl", ".ply"):
@@ -1196,18 +1201,23 @@ def seg_mesh(jid: str, scan: int = 0):
     raw = load_scan(sc["path"])
     mesh, _ = rough_orient(raw)
     V = np.asarray(mesh.vertices, dtype=np.float32)
+    # braces taken off: show the enamel as rebuilt, not the brackets
+    if "clean_vertices" in st.files and len(st["clean_vertices"]) == len(V):
+        V = np.asarray(st["clean_vertices"], dtype=np.float32)
     F = np.asarray(mesh.faces, dtype=np.uint32)
     lab = np.asarray(st["labels"], dtype=np.uint16)
     disp = np.asarray(st["d"], dtype=np.float32)
     buf = io.BytesIO()
     buf.write(struct.pack("<II", len(V), len(F)))
     buf.write(V.tobytes()); buf.write(F.tobytes()); buf.write(lab.tobytes()); buf.write(disp.tobytes())
-    # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out
+    # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out; bit 4 = brackets / wire removed
     pe = (job.get("paint") or {}).get(sc["path"]) or {}
     flags = np.zeros(len(V), dtype=np.uint8)
     for bit, key in ((1, "noreservoir"), (2, "blockout")):
         idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
         flags[idx] |= bit
+    if "appliance" in st.files and len(st["appliance"]) == len(V):
+        flags[np.asarray(st["appliance"], bool)] |= 4
     buf.write(flags.tobytes())
     # the scanner's colour per vertex, when the scan has one (a PLY): uint8 rgb[nV*3]
     rgb = st["rgb"] if "rgb" in st.files else None
