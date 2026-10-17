@@ -58,6 +58,22 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
   Photos kept as records of their own (`invPics`) are read only when their card comes near the screen (IntersectionObserver);
   web photos load lazily. On a phone the grid is two across and the category chips scroll sideways in one row.
   (`src/supplies.js` itemCardHTML/supLook, `src/ui.js` photoImgHTML/lazyPic/openViewer, `src/style.css`; e2e `t_photos`.)
+- **Vendor deals** (5.0.3; Amir, 16 Oct 2026: "can you find a way for us to get live updates on things from Marislist that we
+  actually use? they send emails and also they have a website. I usually don't see the promotions or I miss them" → his Gmail,
+  a push plus Inventory; then "souldn't they appear in the dashboard instead? … the items … or maybe both" → both). The alert
+  script (version 4) reads the promo emails in akhavan.ak@gmail.com every hour, 6 AM–9 PM (below), and saves each offer on
+  supplies the office buys to `invDeals`. **Home** leads with them, under the tiles, for everyone: one band per offer (vendor,
+  the offer, when it ends — red within 2 days — how to get it), then big photo cards of its supplies with the offer across the
+  photo, the deal price if the email gave one, what the office usually pays (from that vendor if it buys it there) and **Add to
+  cart** (up to 4 offers, 8 supplies each; See all → Supplies → "On a deal"). Those supplies carry a **Deal** tag on their photo
+  card, a flag in the list, the offer (with its code) in their drawer, and on their cart line. Adding one from an offer (or a
+  supply on one) picks the deal's vendor when the office buys it there and puts the offer in the line's note ("Deal from
+  SunSurgical: 15% off — code … · ends Oct 31"), for whoever orders. Dr. A's **Done** takes an offer off for everyone; his "See
+  the email" opens it in his Gmail. An offer shows until it ends, or 21 days when the email doesn't say (the script takes them
+  off then too). Settings → **Vendor deals** says whether the rules and the alert script are ready (with the steps) and what's
+  on. Under the rules from before the deals nobody is locked out: the deals just don't show. "Used 1 pack" is gone from the
+  drawer and Scan (Amir: "in reality we never use the 'used 1 pack' because our office is so small"); Count and receiving keep
+  the numbers. (`src/deals.js`; e2e `t_deals`.)
 - **Quick-order prices** save for everyone (the old database's rules refused them).
 - **Photos** kept inside records (old supplies, packing slips) are records of their own (`invPics`), read when shown.
 - **Vendor account numbers, reps and card notes** are no longer built into the page (it's published from the public repo):
@@ -87,7 +103,10 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
 - Every record carries `up` (the database's time) and `upBy` (the staff id), and every save moves `invState/rev.n` by one in
   the same save (the rules check both).
 - `invAlerts/{auto}` — the cart/order/receiving emails waiting for the alert script; `invPics/{id}` `{m, b, kind}`;
-  `invMeta/moved`; `invBots/{uid}` (the alert script's login), `invBeat/{uid}` (when it last checked); marker `meta/rules_inv_1`.
+  `invMeta/moved`; `invBots/{uid}` (the alert script's login), `invBeat/{uid}` (when it last checked, its version);
+  `invDeals/{Gmail message id}` `{at, vendor, title, ends, how, items: [{id, what, price}], subject, from, mail, src: 'email'}` —
+  only the alert script adds them (never changed), members read them, Dr. A or the script take them off; markers
+  `meta/rules_inv_1`, `meta/rules_inv_2` (the rules with the deals).
 - Old records keep Staff Hub's ids in their stamps (`s_sarah`…): a roster entry linked to Staff Hub (`rid`) answers to both.
 
 ## The move (once, Dr. A)
@@ -115,10 +134,11 @@ The page shows Dr. A "Move Inventory over" until `invMeta/moved` exists (staff s
 Before it, the vendor details go into the old database's saved vendors (`vendor_details.py`, only what's missing), so the move
 carries them.
 
-## The alert script ("NLO Inventory Alerts", version 3, in akhavan.ak@gmail.com's Apps Script)
+## The alert script ("NLO Inventory Alerts", version 4, in akhavan.ak@gmail.com's Apps Script)
 `robot/script.js` → `dist/nlo-inventory-alerts.gs` (published as `../nlo-inventory-alerts.gs`). Settings → Email alerts → Get
 the alert script makes it a login of its own (`invBots`; the newest two kept) and copies the script with that login filled in;
-Dr. A pastes it over the old code (same project, same every-minute trigger, no new permissions) and runs `setup`.
+Dr. A pastes it over the old code (same project, same every-minute trigger) and runs `setup`. Version 4 reads his Gmail, so
+`setup` asks once for Gmail access (Google's screen lists everything that access allows; the script only searches and reads).
 Every minute (every 10 at night) it reads `invState/rev`; when it moved:
 - **emails the alerts** in emails of at most 25 alerts and ~150 KB (each alert cut to 60 lines), remembers each email's
   alerts as it goes (nothing is sent twice) and clears them; if Gmail's daily limit is used up they wait (the check-in in
@@ -138,6 +158,20 @@ Every minute (every 10 at night) it reads `invState/rev`; when it moved:
 If an old Inventory page is still open somewhere and used (it leaves alerts in `nlo/settings/alertQueue`), it emails Dr. A to
 reload that computer (once an hour) and clears that queue. "Get the alert script" makes a new login and keeps the one whose
 script checked in last (the copy running now); any others stop.
+- **The deals** (version 4): every hour from 6 AM to 9 PM it searches this Gmail for new mail (since the last look, 3 days the
+  first time; never sent, drafts, chats, spam or trash) from Mari's List and the office's vendors (a list of supply sites, plus
+  the domains of the vendors' emails and websites and the supplies' links in Inventory). Replies and forwards, order /
+  invoice / shipping / tracking / login / case / treatment-plan / payment subjects, and anything naming a patient (or a date of
+  birth, an MRN) are skipped and never reach the AI; so is anything that doesn't read like an offer. At most 8 emails a run go
+  to the AI (Gemini, the office's key from Settings → AI; 2.5 Flash, then Flash-Lite, then 2.0 Flash), with the office's supply
+  list (id, name, vendor, SKU, maker; cached 6 hours): it answers whether it's an offer, the vendor, the offer in plain words,
+  the last day, how to get it, and which of our supplies it clearly covers (ids it didn't get from the list are dropped). An
+  offer on our supplies is saved to `invDeals` (once: the email's id) and, with the phone push on, pushed ("Deal: <vendor>", a
+  tap opens the email; past four at once, one push that opens Inventory's Home). An email the AI couldn't read is tried 3
+  times, then left. Each email is looked at once (`DEALS_SEEN`, the last 300). Once a day, offers that ended (or are 21 days
+  old with no end date, or 90 days old) come off. **Friday from 7 AM** it emails Dr. A the week's roundup: offers on things he
+  buys, then other offers seen that week. Under the rules from before the deals, the push and the roundup still work and the
+  check-in says to publish the new rules.
 
 ## Build, test, publish
 - `python3 build.py` → `dist/nlo-inventory.html`, `dist/nlo-inventory-alerts.gs`, `dist/firestore.rules` (OWNER_EMAIL),
@@ -150,8 +184,8 @@ script checked in last (the copy running now); any others stop.
   — the end-to-end checks (the real page; the move from v3-shaped data, its read-only check, second reading, saved copy,
   re-run, large photos; sign-in, lock, idle lock; the names on the steps; the simple view; Dr. A's OK on the cart; the phone
   push settings; every flow of 4.0's suite; two computers at once; a slow receive, a retried one; rules gate; the copied alert
-  script run), the alert-script checks (with a stand-in ntfy), the rules checks, and 25 for the read-only helper (16 Oct
-  evening: 378, 79, 302, 25). The other apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97,
+  script run; the deals), the alert-script checks (with a stand-in ntfy, Gmail and Gemini), the rules checks, and 25 for the
+  read-only helper (16 Oct evening: 378, 79, 302, 25; with the deals: __E2E__, 101, 323, 25). The other apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97,
   Time Off 159, Time Clock 433 on 16 Oct).
 - Publish: copy `dist/nlo-inventory.html` and `dist/nlo-inventory-alerts.gs` to the repo root; when the rules change, rebuild
   and copy NLO Cases, A/R, Time Off and the Time Clock too (they carry the file for their own rules cards).

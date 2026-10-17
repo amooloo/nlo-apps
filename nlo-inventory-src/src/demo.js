@@ -11,7 +11,7 @@ const DEMO = {
   init() {
     const st = demoStore().nlo, store = {
       items: st.items, orders: st.orders, vendors: st.vendors, log: st.log, cart: st.cart, cartOk: st.cartOk, bracketOrder: st.bracketOrder, budget: st.budget, expenses: st.expenses,
-      elastoPrices: st.elastoPrices, settings: Object.assign({}, st.settings), ai: {}, pics: {}, push: { topic: '' }
+      elastoPrices: st.elastoPrices, settings: Object.assign({}, st.settings), ai: {}, pics: {}, push: { topic: '' }, deals: st.deals
     };
     return DEMO.backend(store);
   },
@@ -27,10 +27,10 @@ const DEMO = {
       async open() { return { st: 'ready', moved: { at: Date.now() } }; },
       /* each change shows up a moment later, as a real one comes back from the database */
       emit(key) {
-        const v = key === 'items' || key === 'orders' || key === 'vendors' || key === 'log' || key === 'expenses' ? Object.values(store[key]) : key === 'roster' ? roster : key === 'cases' ? { idleMin: 10 } : store[key];
+        const v = key === 'items' || key === 'orders' || key === 'vendors' || key === 'log' || key === 'expenses' || key === 'deals' ? Object.values(store[key]) : key === 'roster' ? roster : key === 'cases' ? { idleMin: 10 } : store[key];
         setTimeout(() => { if (M.h) M.h.data(key, clone(v)); }, 0);
       },
-      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cartOk', 'cart', 'bracketOrder', 'budget', 'expenses', 'elastoPrices'].forEach(M.emit); },
+      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cartOk', 'cart', 'bracketOrder', 'budget', 'expenses', 'elastoPrices', 'deals'].forEach(M.emit); },
       stop() { M.h = null; },
       patchOf(rec, patch) { Object.keys(patch || {}).forEach(k => { const v = patch[k] === undefined ? null : clone(patch[k]); if (v == null) delete rec[k]; else rec[k] = v; }); return rec; },
       async addStock(id, delta) { const it = store.items[id]; if (!it) throw errCode('not-found', 'That supply is gone.'); it.qty = Math.max(0, Math.round(((Number(it.qty) || 0) + delta) * 1000) / 1000); M.emit('items'); return it.qty; },
@@ -83,6 +83,8 @@ const DEMO = {
       async testPush() { throw errCode('demo', 'The alert script (which sends the pushes) isn’t part of the demo.'); },
       async makeBot() { throw errCode('demo', 'The alert script isn’t part of the demo.'); },
       async beat() { return null; },
+      async watchDeals() { M.emit('deals'); return true; },
+      async dealDone(id) { if (!M.isOwner()) throw errCode('permission'); delete store.deals[id]; M.emit('deals'); },
       async havePics() { return new Set(); }
     };
     return M;
@@ -157,6 +159,14 @@ function demoStore() {
   });
   const vendors = {};
   const budget = { monthly: 8000, categories: { 'brackets-tubes': 2500, archwires: 900, elastics: 800, 'infection-control': 1200, 'clinical-supplies': 900, adhesives: 600, misc: 500 }, history: [] };
+  /* offers from the vendors' emails (the alert script finds them in Dr. A's Gmail; deals.js) */
+  const deal = (id, vendor, title, endsIn, how, its, d) => ({ id, vendor, title, ends: endsIn == null ? '' : ymd(now + endsIn * day), how, at: now - (d || 0) * day - 2 * 3600000, subject: title, from: vendor, mail: '', src: 'email',
+    items: its.filter(x => items[x[0]]).map(([id, what, price]) => ({ id, what, price: price || '' })) });
+  const deals = {
+    'demo-d1': deal('demo-d1', 'Komet USA (Mari’s List)', '15% off Komet finishing and debonding burs', 2, 'Order on marislist.com with code KOMET15', [['bur-1', '15% off', '$8.45 each'], ['bur-3', '15% off', ''], ['bur-6', '15% off', '']], 1),
+    'demo-d2': deal('demo-d2', 'SunSurgical', 'Pulse nitrile gloves: buy a case, get a box free', 12, 'Mention the October glove special when you order', [['ppe-1', 'Buy a case, get a box free'], ['ppe-2', 'Buy a case, get a box free']], 0),
+    'demo-d3': deal('demo-d3', 'American Orthodontics', '20% off Wildlife and Sea Life elastics', null, 'Code ELASTIC20 on shop.americanortho.com', [['el-1', '20% off', '$6.40/bag'], ['el-3', '20% off']], 3)
+  };
   const expenses = { x1: { id: 'x1', date: ymd(at(9, 12)), amount: 145.0, category: 'patient-care', vendor: 'Amazon Business', note: 'Retainer cases', by: 'Mara Q.', byId: 's_sarah' } };
-  return { nlo: { items, orders, vendors, log, cart, cartOk, budget, expenses, bracketOrder: null, elastoPrices: {}, settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
+  return { nlo: { items, orders, vendors, log, cart, cartOk, budget, expenses, deals, bracketOrder: null, elastoPrices: {}, settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
 }

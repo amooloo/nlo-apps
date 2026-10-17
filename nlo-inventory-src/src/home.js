@@ -5,7 +5,8 @@
    few steps anyone took. Stock counts aren't the lead: they aren't kept
    up closely enough to steer by (Amir, Oct 2026). Everyone but Dr. A
    sees the cart, what's on the way, and what's low or expiring — not the
-   spending or the activity.
+   spending or the activity. The vendors' offers on things the office
+   buys come first, under the tiles, as big photos (deals.js).
    ===================================================================== */
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }
 function cartValue(lines) { return (lines || S.D.cart).reduce((a, c) => a + (Number(c.price) || 0) * (Number(c.qty) || 0), 0); }
@@ -27,6 +28,7 @@ VIEWS.home = {
       '<button class="tile blue" data-act="nav" data-v="orders"><span class="n">' + open.length + '</span><span class="l">On the way</span><span class="s">' + (late.length ? '<span style="color:var(--coral-700)">' + late.length + ' late</span>' : open.length ? 'none late' : 'no open orders') + '</span></button>' +
       '<button class="tile ' + (back.length ? 'amber' : '') + '" data-act="ordersTab" data-tab="backordered"><span class="n">' + back.length + '</span><span class="l">Backordered</span><span class="s">' + (back.length ? 'waiting on vendors' : 'none') + '</span></button>' +
       (boss ? '<button class="tile ' + (budget && sp.total > budget ? 'red' : '') + '" data-act="nav" data-v="budget"><span class="n">' + moneyK(sp.total) + '</span><span class="l">' + esc(monthLabel(mk, true)) + ' supplies</span><span class="s">' + (budget ? 'of ' + money(budget, { whole: true }) + ' budget' : 'no budget set') + '</span></button>' : '') + '</div>';
+    h += dealsHomeHTML();
     /* the cart, by vendor */
     let left = '<div class="card" style="margin-bottom:18px"><div class="cardHd"><h3>Waiting to be ordered</h3><span class="sub">' + (cart.length ? cart.length + ' line' + (cart.length === 1 ? '' : 's') : '') + '</span><span style="flex:1"></span>' + (cart.length ? '<button class="btn btn-sec btn-sm" data-act="nav" data-v="cart">Open the cart</button>' : '') + '</div><div class="cardBd">';
     if (!cart.length) left += '<div class="empty">The cart is empty. Find a supply and tap <b>Add</b>.</div>';

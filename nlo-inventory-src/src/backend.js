@@ -104,11 +104,28 @@ const FB = {
     one('invState/budget', 'budget', d => d);
     one('invState/prices', 'elastoPrices', d => d.p || {});
     one('invState/settings', 'settings', d => { FB.alertsOn = d.alertsOn === true; FB.pushOn = d.pushOn === true; return d; });
+    FB.watchDeals();
     // NLO Cases' people (names and photos), its idle lock, and this login (turned off → locked out)
     FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.data('roster', s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => { console.warn('roster', e); h.data('roster', null); }));
     FB.unsubs.push(FB.db.doc('meta/settings').onSnapshot(s => h.data('cases', s.exists ? s.data() : {}), () => { }));
     FB.unsubs.push(FB.db.doc('members/' + FB.me.uid).onSnapshot(s => { if (!s.exists || s.data().active !== true) h.revoked(); }, e => { if (FB.isPerm(e)) h.revoked(); }));
   },
+  /* the vendors' offers the alert script found in Dr. A's promo emails (invDeals; deals.js). Under the rules from before the
+     deals nobody may read them: then they just aren't shown (Settings → Vendor deals has the step) — nobody is locked out.
+     Called again by "Check again" once the new rules are published. */
+  watchDeals() {
+    const h = FB.h; if (!h || !FB.db) return Promise.resolve(false);
+    if (FB.dealsUnsub) { try { FB.dealsUnsub(); } catch (e) { } }
+    return new Promise(res => {
+      FB.dealsUnsub = FB.db.collection('invDeals').onSnapshot(
+        s => { h.data('deals', s.docs.map(d => Object.assign(FB.plain(d), { id: d.id, at: FB.tsMs((d.data() || {}).at) }))); res(true); },
+        e => { if (FB.isPerm(e)) h.data('dealsOff', true); else console.warn('deals', e); res(false); });
+      FB.unsubs.push(FB.dealsUnsub);
+    });
+  },
+  dealsUnsub: null,
+  /* Dr. A takes an offer off (for everyone) */
+  dealDone(id) { if (!FB.isOwner()) return Promise.reject(errCode('permission')); return FB.track(FB.db.doc('invDeals/' + id).delete()); },
   /* the log records → their entries */
   logEntries(recs) {
     const all = [];

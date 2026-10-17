@@ -12,7 +12,7 @@ The page carries only the public vendor list: the account numbers, reps and card
 import base64, hashlib, json, os, pathlib, re, shutil, subprocess, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
-FILES = ['core.js', 'money.js', 'units.js', 'data.js', 'backend.js', 'demo.js', 'who.js', 'ui.js', 'move.js', 'ops.js', 'home.js', 'supplies.js',
+FILES = ['core.js', 'money.js', 'units.js', 'data.js', 'backend.js', 'demo.js', 'who.js', 'ui.js', 'move.js', 'ops.js', 'home.js', 'deals.js', 'supplies.js',
          'cart.js', 'orders.js', 'receive.js', 'slip.js', 'quick.js', 'budget.js', 'activity.js', 'vendors.js', 'settings.js', 'scan.js', 'ai.js', 'editor.js']
 missing = [f for f in FILES if not (src / f).exists()]
 assert not missing, 'missing source files: %s' % missing

@@ -418,11 +418,11 @@ function dealScan_(cfg, s, props, now) {
   props.setProperty('DEALS_TRIES', JSON.stringify(tries));
   props.setProperty('DEALS_SINCE', String(waitFrom ? Math.min(waitFrom, now) : now));
   if (pushList.length) {
-    var r = pushes_(cfg, props, topic, pushList, now, { title: function (n) { return n + ' new deals on things you buy'; }, click: APP_URL + '#supplies', tags: ['moneybag'] });
+    var r = pushes_(cfg, props, topic, pushList, now, { title: function (n) { return n + ' new deals on things you buy'; }, click: APP_URL + '#home', tags: ['moneybag'] });   // (Home leads with them)
     if (r.err) note = (note ? note + ' · ' : '') + 'Deals push: ' + r.err;
   }
   try { dealsTidy_(cfg, s, props, now); } catch (e) { if (/\b403\b/.test(msg_(e))) rulesOld = true; else note = (note ? note + ' · ' : '') + 'Deals: ' + msg_(e); }
-  if (rulesOld) note = (note ? note + ' · ' : '') + 'Deals: to show them in Inventory, Dr. A publishes the new rules (Inventory → Settings → Deals). The pushes and the Friday roundup work meanwhile.';
+  if (rulesOld) note = (note ? note + ' · ' : '') + 'Deals: to show them in Inventory, Dr. A publishes the new rules (Inventory → Settings → Vendor deals). The pushes and the Friday roundup work meanwhile.';
   return { n: saved, note: note };
 }
 /* the office's supplies (id | name | vendor | #sku | maker) and the email domains of the vendors it buys from; kept 6 hours */

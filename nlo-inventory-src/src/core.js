@@ -12,7 +12,7 @@
      Staff Meeting's spending card and AISA's stock answers.
    ===================================================================== */
 
-const APP_VERSION = '5.0.2';
+const APP_VERSION = '5.0.3';
 const APP_NAME = 'NLO Inventory';
 const DEMO_ONLY = false;          // the demo page sets this (build.py)
 const LOGO = 'logo-white.png';     // the demo page carries the logo inside it
@@ -45,8 +45,9 @@ const IDLE_MIN = 10;               // the lock after this many minutes without a
 /* ---------- app state ---------- */
 const S = {
   demo: false, emu: false, inApp: false, gate: 'opening', view: 'home', q: '', people: [], online: true, loadErr: '', cases: {}, lastAct: Date.now(), idleTimer: null, lastLogin: '',
-  D: { items: [], orders: [], vendors: [], log: [], cart: [], cartOk: {}, bracketOrder: {}, budget: { monthly: 8000, categories: {}, history: [] }, expenses: [], elastoPrices: {}, roster: null },
-  loaded: {}, denied: {}, settings: {}, ui: {}, drawer: null, renderQ: false, imgCache: new Map(), moved: null
+  D: { items: [], orders: [], vendors: [], log: [], cart: [], cartOk: {}, bracketOrder: {}, budget: { monthly: 8000, categories: {}, history: [] }, expenses: [], elastoPrices: {}, roster: null, deals: [] },
+  loaded: {}, denied: {}, settings: {}, ui: {}, drawer: null, renderQ: false, imgCache: new Map(), moved: null,
+  dealsOff: false   // the database's rules are from before the deals (Settings → Vendor deals has the step)
 };
 /* the backend in use (FB, on the real or the demo database) and the screens' registries: clicks (data-act), changes (data-chg),
    typing (data-inp), screens and drawers. Declared first, since every file adds to them. */

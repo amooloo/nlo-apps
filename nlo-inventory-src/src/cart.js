@@ -29,11 +29,17 @@ function cartLineHTML(c) {
     tr.slice(-2).map(t => '<span class="stamp">' + avatarHTML(t.by, 'xs', t.byId) + '<span>' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) + ' by ' : t.t === 'qty' ? qtyFmt(t.from) + ' → ' + qtyFmt(t.to) + ' by ' : t.t === 'note' ? 'note by ' : t.t === 'ok' ? 'OK’d by ' : 'changed by ') + '<b>' + esc(t.by || '') + '</b> · ' + esc(fmtWhen(t.at)) + '</span></span>').join('') + '</div>' +
     okRowHTML(c) +
     (c.note ? '<div class="note">' + ic('text', 12) + ' ' + esc(c.note) + '</div>' : '') +
+    cartDealHTML(c, it) +
     (linePer(c) > 1 ? '<div class="note">' + esc(qtyUnit(c.qty, c.unit)) + ' = ' + esc(qtyUnit(c.qty * linePer(c), c.countUnit || '')) + '</div>' : '') +
     (lineInOldUnit(c, it) ? '<div class="oldUnit">' + ic('warn', 13) + '<span>Added as ' + esc(qtyUnit(c.qty, c.unit)) + ', but it’s bought by the ' + esc(buyUnit(it)) + ' now (' + esc(qtyUnit(perBuy(it), countUnit(it))) + ').</span><button class="linkBtn" data-act="cartToCases" data-id="' + esc(c.itemId) + '">Change to ' + esc(unitWord(buyUnit(it), 2)) + '</button></div>' : '') + '</div>' +
     '<div class="qty"><button data-act="cartStep" data-id="' + esc(c.itemId) + '" data-n="-1" aria-label="Less">−</button><input type="number" inputmode="decimal" min="0" value="' + esc(qtyFmt(c.qty)) + '" data-chg="cartQty" data-id="' + esc(c.itemId) + '" aria-label="Quantity"><span class="u">' + esc(unitWord(c.unit, c.qty)) + '</span><button data-act="cartStep" data-id="' + esc(c.itemId) + '" data-n="1" aria-label="More">+</button></div>' +
     '<div class="tot">' + (c.price ? money(c.price * c.qty) + '<small>' + money(c.price) + ' / ' + esc(c.unit || 'ea') + '</small>' : '<span class="muted">no price</span>') + '</div>' +
     '<button class="iconBtn rm" data-act="cartMenu" data-id="' + esc(c.itemId) + '" aria-label="More for this line">' + ic('edit', 16) + '</button></div>';
+}
+/* an offer on the supply (from a vendor's email) that the line's note doesn't already carry: whoever orders sees it */
+function cartDealHTML(c, it) {
+  const dl = it && dealOn(it.id); if (!dl || /\bdeal\b/i.test(c.note || '')) return '';
+  return '<div class="note dealNote">' + ic('tag', 12) + ' ' + esc(dealNote(dl)) + '</div>';
 }
 VIEWS.cart = {
   actions() { return '<button class="btn btn-teal" data-act="nav" data-v="supplies">' + ic('plus', 16) + 'Add supplies</button>'; },

@@ -731,6 +731,110 @@ def t_photos(b):
     check('photos (phone): no errors', not errs, errs); ctx.close()
 
 @test
+def t_deals(b):
+    """vendor deals (the alert script saves them from Dr. A's promo emails; deals.js): Home leads with them as photo cards, the
+    supplies on them carry a Deal tag, adding from one picks the deal's vendor and puts the offer in the cart line's note, Dr. A
+    takes one off; everyone else sees them but can't take them off; ended, stale and unknown ones aren't shown; under the rules
+    from before the deals nobody is locked out and Settings has the step. (And "Used 1" is gone.)"""
+    day = lambda n: time.strftime('%Y-%m-%d', time.localtime(time.time() + n * 86400))
+    ts = lambda n: {'__ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() + n * 86400))}
+    def deal(id, vendor, title, ends, how, items, at=None):
+        # as the alert script saves one (dealSave_); here as the database's owner (the rules let only its login add them)
+        put('invDeals/' + id, {'at': at or NOW(), 'vendor': vendor, 'title': title, 'ends': ends, 'how': how, 'subject': title, 'from': vendor + ' <deals@example.com>',
+            'mail': 'https://mail.google.com/mail/?authuser=dr.test@example.com#all/' + id, 'src': 'email', 'items': [{'id': i, 'what': w, 'price': pr} for i, w, pr in items]})
+    deal('m1', 'SunSurgical', '15% off Pulse nitrile gloves', day(5), 'Code PULSE15 at checkout', [('ppe-1', '15% off', '$7.76/box'), ('ppe-2', '15% off', ''), ('nope-404', 'not ours', ''), ('cs-9', 'archived', ''), ('gone-1', 'deleted', '')])
+    deal('m3', 'Henry Schein', 'Transbond XT: buy 2, get 1 free', '', 'Call your Henry Schein rep', [('adh-1', 'Buy 2, get 1 free', '')])
+    deal('m2', 'SunSurgical', 'Ended yesterday', day(-1), '', [('ppe-3', '10% off', '')])
+    deal('m4', 'SunSurgical', 'No end date, emailed weeks ago', '', '', [('ppe-3', '5% off', '')], at=ts(-25))
+    deal('m5', 'Benco', 'Only on supplies that are gone', day(9), '', [('gone-1', 'x', ''), ('cs-9', 'y', '')])
+    ctx, pg, errs = open_as(b, 'amir')
+    pg.wait_for_function("() => S.D.deals.length === 5", timeout=10000)
+    J(pg, "go('home')"); pg.wait_for_timeout(300)
+    bands = J(pg, "[...document.querySelectorAll('.dealsCard .dealBand .dt')].map(x => x.textContent)")
+    check('deals: Home leads with the offers still on, the soonest to end first', bands == ['15% off Pulse nitrile gloves', 'Transbond XT: buy 2, get 1 free'], bands)
+    check('deals: under the tiles, before the cart', J(pg, "(() => { const v = document.querySelector('#view'), t = v.querySelector('.tiles'), d = v.querySelector('.dealsCard'), c = v.querySelector('.twoCol'); return !!(t && d && c && (t.compareDocumentPosition(d) & 4) && (d.compareDocumentPosition(c) & 4)); })()"))
+    cards = J(pg, "[...document.querySelectorAll('.dealsCard .dcard')].map(x => x.dataset.id)")
+    check('deals: one photo card per supply on an offer (not ones gone, archived or unknown)', cards == ['ppe-1', 'ppe-2', 'adh-1'], cards)
+    t1 = J(pg, "document.querySelector('.dcard[data-id=\"ppe-1\"]').textContent")
+    check('deals: a card says the offer, the deal price and what the office usually pays', '15% off' in t1 and '$7.76/box' in t1 and 'usually $9.13/box' in t1, t1)
+    check('deals: the band says the vendor, when it ends and how to get it', all(x in J(pg, "document.querySelector('.dealBand').textContent") for x in ['SunSurgical', 'ends ', 'Code PULSE15 at checkout']))
+    check('deals: Dr. A has Done and See the email (his Gmail) on each', J(pg, "document.querySelectorAll('.dealsCard [data-act=\"dealDone\"]').length") == 2 and J(pg, "[...document.querySelectorAll('.dealsCard a[href^=\"https://mail.google.com/\"]')].length") == 2)
+    # Supplies: the tag, the filter, the list's flag, the drawer
+    J(pg, "go('supplies')"); pg.wait_for_timeout(300)
+    tagged = J(pg, "[...document.querySelectorAll('.pcard')].filter(c => c.querySelector('.ptag.deal')).map(c => c.dataset.id).sort()")
+    check('deals: a Deal tag on those supplies in Supplies, and only those', tagged == ['adh-1', 'ppe-1', 'ppe-2'], tagged)
+    J(pg, "ACT.supDeals()"); pg.wait_for_timeout(300)
+    check('deals: See all → Supplies, just the ones on an offer', J(pg, "S.view === 'supplies' && S.ui.sup.show === 'deal' && supVisible().map(i => i.id).sort().join()") == 'adh-1,ppe-1,ppe-2')
+    click(pg, '[data-act="supLook"][data-l="list"]', 300)
+    check('deals: the list says it too', 'Deal · 15% off' in J(pg, "document.querySelector('.irow[data-id=\"ppe-1\"] .fl.deal').textContent"))
+    click(pg, '[data-act="supLook"][data-l="grid"]', 200)
+    J(pg, "openDrawer('item', 'ppe-1')"); pg.wait_for_timeout(300)
+    dt = J(pg, "(document.querySelector('#drawer .notice.deal') || {}).textContent || ''")
+    check('deals: the drawer has the offer, the code and the email', all(x in dt for x in ['SunSurgical', '15% off', '$7.76/box', 'PULSE15', 'See the email']), dt)
+    check('Used 1 is gone (drawer and scan; past use steps still show in the history)', not J(pg, "[...document.querySelectorAll('#drawer button')].some(x => /Used 1/.test(x.textContent))") and J(pg, "typeof ACT.useOne") == 'undefined' and 'useOne' not in J(pg, "showScanResult.toString()"))
+    J(pg, "closeDrawer(); go('cart')"); pg.wait_for_timeout(300)
+    cn = J(pg, "(document.querySelector('.cline .dealNote') || {}).textContent || ''")
+    check('deals: a supply already in the cart shows its offer on the line (for whoever orders)', 'Deal from Henry Schein: Buy 2, get 1 free' in cn, cn)
+    # adding from an offer: the deal's vendor (the office buys it there too), the offer in the note
+    J(pg, "cartRemove('adh-1')"); settle(pg, 400)
+    J(pg, "go('home')"); pg.wait_for_timeout(300)
+    click(pg, '.dcard[data-id="adh-1"] [data-act="dealAdd"]', 400)
+    check('deals: Add on a card opens Add to the cart with the offer on top', J(pg, "!!document.querySelector('#modalWrap .notice.deal') && !S.drawer"))
+    check('deals: the deal’s vendor is picked (not the first one)', J(pg, "S.ui.add.vendor") == 'Henry Schein' and 'Henry Schein' in J(pg, "document.querySelector('.pick[aria-pressed=\"true\"]').textContent"), J(pg, "S.ui.add.vendor"))
+    note = J(pg, "document.querySelector('#addNote').value")
+    check('deals: the note carries the offer', note.startswith('Deal from Henry Schein: Buy 2, get 1 free') and 'Call your Henry Schein rep' in note, note)
+    click(pg, '#addGo', 700)
+    line = next((c for c in lines(store('nlo/cart')) if c.get('itemId') == 'adh-1'), None) or {}
+    check('deals: the line is saved from that vendor, at its price, with the note', line.get('vendor') == 'Henry Schein' and abs((line.get('price') or 0) - 39.99) < 0.001 and 'Deal from Henry Schein' in (line.get('note') or ''), line)
+    J(pg, "go('cart')"); pg.wait_for_timeout(300)
+    check('deals: the cart shows the note once (no second line for the offer)', J(pg, "document.querySelectorAll('.cline .dealNote').length") == 0 and 'Deal from Henry Schein' in J(pg, "document.querySelector('#view').textContent"))
+    # Dr. A: Done takes an offer off for everyone
+    J(pg, "go('home')"); pg.wait_for_timeout(300)
+    J(pg, "document.querySelector('.dealBand [data-act=\"dealDone\"][data-id=\"m1\"]').click()"); pg.wait_for_selector('#cbYes'); click(pg, '#cbYes', 700)
+    check('deals: Done takes it off (the record is gone, the band too)', get('invDeals/m1') is None and J(pg, "[...document.querySelectorAll('.dealBand .dt')].map(x => x.textContent)") == ['Transbond XT: buy 2, get 1 free'])
+    J(pg, "go('settings')"); pg.wait_for_timeout(500)
+    st = J(pg, "[...document.querySelectorAll('#view .card')].find(c => /Vendor deals/.test(c.textContent)).textContent")
+    check('deals: Settings says they’re on, and that the alert script needs its update', 'On now' in st and '1 offer' in st and 'Update it' in st and 'Get the alert script' in st, st[:400])
+    check('deals: no page errors (Dr. A)', not errs, errs)
+    # everyone else: the offers, no Done, no email (his Gmail), and the database says no
+    switch_to(pg, 'sarah'); J(pg, "go('home')"); pg.wait_for_timeout(300)
+    check('deals (staff): the offers on Home too', J(pg, "[...document.querySelectorAll('.dealBand .dt')].map(x => x.textContent)") == ['Transbond XT: buy 2, get 1 free'])
+    check('deals (staff): no Done, no email', J(pg, "document.querySelectorAll('[data-act=\"dealDone\"]').length") == 0 and J(pg, "document.querySelectorAll('a[href^=\"https://mail.google.com/\"]').length") == 0)
+    r = J(pg, "FB.db.doc('invDeals/m3').delete().then(() => 'went through', e => e.code)")
+    r2 = J(pg, "FB.db.doc('invDeals/x9').set({ at: firebase.firestore.FieldValue.serverTimestamp(), vendor: 'x', title: 'x', items: [{ id: 'ppe-1' }], src: 'email' }).then(() => 'went through', e => e.code)")
+    check('deals (staff): the database won’t let them take one off or add one', r == 'permission-denied' and r2 == 'permission-denied', (r, r2))
+    check('deals: no page errors (staff)', not errs, errs)
+    ctx.close()
+    # a phone: the cards scroll sideways in their row, the page doesn't
+    ctx, pg, errs = open_as(b, 'gwen', w=390, h=844); J(pg, "go('home')"); pg.wait_for_timeout(300)
+    check('deals (phone): the photo cards scroll sideways in their row', J(pg, "getComputedStyle(document.querySelector('.dbRow')).overflowX") == 'auto' and J(pg, "document.querySelector('.dcard').getBoundingClientRect().width") >= 200)
+    check('deals (phone): the page itself doesn’t scroll sideways', J(pg, "document.documentElement.scrollWidth <= window.innerWidth + 1"), J(pg, "[document.documentElement.scrollWidth, window.innerWidth]"))
+    check('deals (phone): no page errors', not errs, errs)
+    ctx.close()
+    # the rules from before the deals (live until Dr. A publishes the new ones): nobody is locked out; Settings has the step
+    git = lambda *a: subprocess.run(['git'] + list(a), cwd=SRC.parent, capture_output=True, text=True, check=True).stdout
+    old = git('show', 'origin/main:nlo-cases-src/firestore.rules')
+    assert 'invItems' in old and 'invDeals' not in old, 'main’s rules already have the deals'
+    set_rules(old.replace('__OWNER_EMAIL__', 'dr.test@example.com'))
+    try:
+        ctx, pg, errs = new_page(b, quiet=True); sign_in(pg, 'amir')
+        pg.wait_for_function("() => S.dealsOff === true", timeout=10000); J(pg, "go('home')"); pg.wait_for_timeout(300)
+        check('deals (old rules): Inventory opens, no deals, nobody locked out', J(pg, "S.inApp && S.gate === 'ready' && !document.querySelector('.dealsCard')"))
+        J(pg, "go('settings')"); pg.wait_for_timeout(400)
+        st = J(pg, "[...document.querySelectorAll('#view .card')].find(c => /Vendor deals/.test(c.textContent)).textContent")
+        check('deals (old rules): Settings says it needs the new rules, with the steps', 'Needs the new rules' in st and 'Copy the new rules' in st and 'Check again' in st, st[:300])
+        set_rules((DIST / 'firestore.rules').read_text())
+        J(pg, "[...document.querySelectorAll('[data-act=\"dealsCheck\"]')][0].click()")
+        pg.wait_for_function("() => S.dealsOff === false", timeout=15000); pg.wait_for_timeout(300)
+        check('deals: Check again (once they’re published) turns them on', 'The deals are on' in toasts(pg) and 'Needs the new rules' not in J(pg, "document.querySelector('#view').textContent"))
+        J(pg, "go('home')"); pg.wait_for_timeout(300)
+        check('deals: and Home shows them', J(pg, "document.querySelectorAll('.dealBand').length") == 1)
+        check('deals (old rules): no page errors', not errs, errs)
+        ctx.close()
+    finally:
+        set_rules((DIST / 'firestore.rules').read_text())
+
+@test
 def t_legacy_orders(b):
     # (the activity list is Dr. A's: the old records' steps as the old app stamped them)
     c2, p2, e2 = open_as(b, 'amir')
@@ -1376,6 +1480,9 @@ def t_demo(b):
             J(pg, "go('%s')" % v); pg.wait_for_timeout(120)
             check('demo (%s): %s renders' % (who, v), not J(pg, "document.querySelector('#view').textContent.includes('hit a problem')"), J(pg, "document.querySelector('#view').textContent.slice(0,200)"))
             if who == 'gwen' and v in ('budget', 'activity', 'vendors', 'settings'): check('demo (gwen): %s isn’t hers (Home instead)' % v, J(pg, "S.view") == 'home')
+        J(pg, "go('home')"); pg.wait_for_timeout(150)
+        check('demo (%s): Home leads with the made-up vendor deals, as photo cards' % who, J(pg, "document.querySelectorAll('.dealsCard .dealBand').length") == 3 and J(pg, "document.querySelectorAll('.dealsCard .dcard').length") >= 6)
+        check('demo (%s): Done on them: %s' % (who, who == 'amir'), (J(pg, "document.querySelectorAll('[data-act=dealDone]').length") == 3) == (who == 'amir'))
         J(pg, "go('cart')"); pg.wait_for_timeout(150)
         txt = J(pg, "document.querySelector('#view').textContent")
         check('demo (%s): the cart shows Dr. A’s OKs and what waits' % who, ('Needs your OK' in txt and 'you OK’d 3' in txt) if who == 'amir' else ('OK’d by Dr. A' in txt and 'Waiting for Dr. A’s OK' in txt and 'he OK’d 3' in txt), txt[:600])

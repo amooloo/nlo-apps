@@ -419,6 +419,40 @@ a.btn{text-decoration:none}
 .pft .ps{font-size:11.5px;font-weight:600;color:var(--grey-500);white-space:nowrap}
 .pft .ps.low{color:var(--amber-700)} .pft .ps.out{color:var(--coral-700)}
 .pft .addBtn{padding:6px 12px;min-height:34px}
+/* vendor deals (deals.js): the offers on Home as big photos, a Deal tag on the supply everywhere it shows */
+.ptag.deal{background:var(--coral-600);color:#fff}
+.fl.deal{background:var(--coral-600);color:#fff;white-space:normal}
+.notice.deal{display:flex;gap:9px;align-items:flex-start;background:#fff;border:1.5px solid var(--coral-200);color:var(--grey-700);font-weight:500;line-height:1.45}
+.notice.deal svg{color:var(--coral-600);margin-top:1px}
+.notice.deal b{color:var(--navy)}
+.notice.deal a{font-weight:700}
+.notice.deal.dTop{margin:14px 0 0}
+.soon{color:var(--coral-700);font-weight:700}
+.dealsCard{margin-bottom:18px;border-color:var(--coral-200)}
+.dealsCard .cardHd h3{display:flex;align-items:center;gap:8px}
+.dealsCard .cardHd h3 svg{color:var(--coral-600)}
+.dealBand{padding:12px 0 16px;border-top:1px solid var(--grey-100)}
+.dealBand:first-child{border-top:none;padding-top:2px}
+.dbHd{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.dbHd .grow{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px}
+.dbHd .dt{font-size:15px;color:var(--navy);line-height:1.3}
+.dbHd .dm{font-size:12.5px;color:var(--grey-500);line-height:1.45}
+.dbAct{display:flex;gap:6px;flex-wrap:wrap}
+.dbRow{display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:14px}
+.dcard .dwhat{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(0deg,rgba(216,65,46,.96),rgba(238,79,58,.92));color:#fff;font-weight:700;font-size:12.5px;line-height:1.3;padding:7px 10px;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.dcard .pbd .nm{min-height:0}
+.dpx{display:flex;flex-direction:column;min-width:0}
+.dpx b{color:var(--coral-700);font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpx span{font-size:11.5px;color:var(--grey-500);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dft{margin-top:auto;padding-top:8px}
+.dft .addBtn{width:100%;justify-content:center;min-height:38px}
+.cline .note.dealNote{color:var(--coral-700);font-weight:600}
+@media (max-width:860px){
+  .dbRow{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;gap:10px;margin:0 -20px;padding:0 20px 4px;scroll-padding:0 20px;scrollbar-width:none}
+  .dbRow::-webkit-scrollbar{display:none}
+  .dbRow .dcard{flex:0 0 min(64%,240px);scroll-snap-align:start}
+  .dbHd .grow{min-width:0;flex-basis:calc(100% - 64px)}
+}
 /* the drawer opens on the photo */
 .dHero{position:relative;height:min(300px,40vh);background:#fff;border:1px solid var(--grey-100);border-radius:16px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;cursor:zoom-in;overflow:hidden}
 .dHero img{max-width:100%;max-height:100%;object-fit:contain;padding:18px;box-sizing:border-box;display:block}

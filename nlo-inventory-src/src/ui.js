@@ -229,6 +229,8 @@ function setData(key, val) {
   else if (key === 'settings') S.settings = val || {};
   else if (key === 'roster') { if (val) { S.people = rosterPeople(val); renderWho(); } }
   else if (key === 'cases') S.cases = val || {};
+  else if (key === 'deals') { S.D.deals = listOf(val).filter(d => d && typeof d === 'object' && d.id != null); S.dealsOff = false; }
+  else if (key === 'dealsOff') { S.D.deals = []; S.dealsOff = true; }
 }
 function normItem(i) { if (i.cat && CAT_MIGRATION[i.cat]) i.cat = CAT_MIGRATION[i.cat]; if (!CAT_BY_ID[i.cat]) i.cat = 'misc'; return i; }
 function normOrder(o) { o.items = listOf(o.items).filter(Boolean); o.trail = listOf(o.trail).filter(Boolean); return o; }

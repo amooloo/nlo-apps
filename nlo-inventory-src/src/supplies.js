@@ -22,7 +22,8 @@ function priceLine(i) {
   return '<span class="price">' + money(cp) + '<small>per ' + esc(countUnit(i)) + '</small></span>';
 }
 function itemFlags(i) {
-  const c = inCartLine(i.id), os = openOrdersWith(i.id); let h = '';
+  const c = inCartLine(i.id), os = openOrdersWith(i.id), dl = dealOn(i.id); let h = '';
+  if (dl) h += '<span class="fl deal" title="' + esc(dealNote(dl)) + '">' + ic('tag', 12) + 'Deal · ' + esc(dealStr(dl.line.what || dl.deal.title, 48)) + ' · ' + esc(dealEnds(dl.deal)) + '</span>';
   if (c) h += '<span class="fl cart">' + ic('cart', 12) + 'In cart · ' + esc(lineQtyLabel(c)) + ' · ' + esc(firstName(c.addedBy) || '?') + (c.addedAt ? ', ' + esc(fmtAgo(c.addedAt)) : '') + '</span>';
   os.forEach(o => { const l = o.items.find(x => x.itemId === i.id); h += '<span class="fl ' + (o.status === 'backordered' ? 'back' : 'order') + '">' + ic('truck', 12) + (o.status === 'backordered' ? 'Backordered · ' : 'On order · ') + esc(lineQtyLabel(l)) + (o.orderedBy ? ' · ' + esc(firstName(o.orderedBy)) : '') + (o.orderedAt || o.dateOrdered ? ', ' + esc(fmtAgo(o.orderedAt || o.dateOrdered)) : '') + '</span>'; });
   if (i.archived) h += '<span class="fl arch">' + ic('archive', 12) + 'Archived</span>';
@@ -41,8 +42,8 @@ function itemRowHTML(i) {
 }
 /* a supply as a photo card: the photo big, what's going on with it on the photo, then name, vendor, price, stock and Add */
 function itemCardHTML(i) {
-  const src = primarySource(i), c = inCartLine(i.id), os = openOrdersWith(i.id), ed = expDays(i), has = !!photoOf(i);
-  const tags = (c ? '<span class="ptag cart">' + ic('cart', 11) + 'In cart · ' + esc(lineQtyLabel(c)) + '</span>' : '') +
+  const src = primarySource(i), c = inCartLine(i.id), os = openOrdersWith(i.id), ed = expDays(i), has = !!photoOf(i), dl = dealOn(i.id);
+  const tags = (dl ? '<span class="ptag deal" title="' + esc(dealNote(dl)) + '">' + ic('tag', 11) + 'Deal</span>' : '') + (c ? '<span class="ptag cart">' + ic('cart', 11) + 'In cart · ' + esc(lineQtyLabel(c)) + '</span>' : '') +
     (os.length ? '<span class="ptag ' + (os.some(o => o.status === 'backordered') ? 'back' : 'order') + '">' + ic('truck', 11) + (os.some(o => o.status === 'backordered') ? 'Backordered' : 'On order') + '</span>' : '') +
     (isOut(i) ? '<span class="ptag low">Out</span>' : isLow(i) ? '<span class="ptag low">Low</span>' : '') +
     (ed != null && ed < 90 ? '<span class="ptag due">' + (ed < 0 ? 'Expired' : 'Expires ' + esc(fmtDate(i.exp))) + '</span>' : '') +
@@ -70,6 +71,7 @@ function supVisible() {
   else if (u.show === 'order') list = list.filter(i => openOrdersWith(i.id).length);
   else if (u.show === 'low') list = list.filter(isLow);
   else if (u.show === 'exp') list = list.filter(i => { const d = expDays(i); return d != null && d < 90; });
+  else if (u.show === 'deal') list = list.filter(i => dealsFor(i.id).length);
   if (S.view === 'supplies' && S.q) list = list.filter(i => matchesAll(itemSearchText(i), S.q));
   const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
   if (u.sort === 'recent') list.sort((a, b) => (b.lastOrderedTimestamp || 0) - (a.lastOrderedTimestamp || 0) || byName(a, b));
@@ -86,11 +88,12 @@ VIEWS.supplies = {
     let h = '<div class="chips">' + '<button class="chip' + (!u.cat ? ' on' : '') + '" data-act="supCat" data-c="">All<span class="c">' + activeItems().length + '</span></button>' +
       CATEGORIES.filter(c => counts[c.id]).map(c => '<button class="chip' + (u.cat === c.id ? ' on' : '') + '" data-act="supCat" data-c="' + c.id + '">' + esc(c.label) + '<span class="c">' + counts[c.id] + '</span></button>').join('') + '</div>';
     const opt = (v, l) => '<option value="' + v + '"' + (u.show === v ? ' selected' : '') + '>' + l + '</option>';
-    h += '<div class="filters"><select data-chg="supShow" aria-label="Show">' + opt('', 'Every supply') + opt('cart', 'In the cart') + opt('order', 'On order') + opt('low', 'Below its minimum') + opt('exp', 'Expiring soon') + opt('archived', 'Archived') + '</select>' +
+    h += '<div class="filters"><select data-chg="supShow" aria-label="Show">' + opt('', 'Every supply') + opt('cart', 'In the cart') + opt('order', 'On order') + opt('low', 'Below its minimum') + opt('exp', 'Expiring soon') + (liveDeals().length || u.show === 'deal' ? opt('deal', 'On a deal') : '') + opt('archived', 'Archived') + '</select>' +
       '<select data-chg="supSort" aria-label="Sort">' + ['cat:By category', 'name:A–Z', 'vendor:By vendor', 'recent:Recently ordered'].map(x => { const [v, l] = x.split(':'); return '<option value="' + v + '"' + (u.sort === v ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select>' +
       '<div class="seg" role="group" aria-label="Show as"><button data-act="supLook" data-l="grid" aria-pressed="' + (supLook() === 'grid') + '">' + ic('grid', 14) + 'Photos</button><button data-act="supLook" data-l="list" aria-pressed="' + (supLook() === 'list') + '">' + ic('list', 14) + 'List</button></div>' +
       '<span class="muted small">' + list.length + ' suppl' + (list.length === 1 ? 'y' : 'ies') + '</span></div>';
     if (u.show === 'low') h += '<div class="notice info">Stock counts aren’t always up to date, so treat this as a hint and check the shelf.</div>';
+    if (u.show === 'deal') h += '<div class="notice info">On an offer from a vendor’s email' + (liveDeals().length ? ': ' + esc(liveDeals().map(d => d.vendor + ' — ' + d.title).slice(0, 4).join(' · ')) + (liveDeals().length > 4 ? ' and more' : '') : '') + '. Each supply’s drawer has the details.</div>';
     if (!list.length) return h + '<div class="card"><div class="empty">' + (S.q ? 'Nothing matches “' + esc(S.q) + '”. <button class="linkBtn" data-act="itemNew">Add it as a new supply</button>' : 'Nothing here.') + '</div></div>';
     let body = '', cat = null, grp = null; const grid = supLook() === 'grid';
     list.slice(0, 600).forEach(i => {
@@ -108,20 +111,24 @@ ACT.openItem = (t, e) => { if (e && e.target.closest('[data-act]') !== t) return
 
 /* ---------- adding to the cart ---------- */
 ACT.quickAdd = (t, e) => { if (e) e.stopPropagation(); const it = itemById(t.dataset.id); if (it) openAddToCart(it); };
-function openAddToCart(it, qty) {
+function openAddToCart(it, qty, dl) {
   const srcs = allSources(it), c = inCartLine(it.id), w = whoNow();
-  S.ui.add = { id: it.id, vendor: (c && c.vendor) || (srcs[0] && srcs[0].vendor) || '' };
+  dl = dl || dealOn(it.id);
+  const dsrc = dl && dl.deal.vendor ? srcs.find(s => vendorNamesSimilar(s.vendor, dl.deal.vendor)) : null;
+  S.ui.add = { id: it.id, vendor: (c && c.vendor) || (dsrc && dsrc.vendor) || (srcs[0] && srcs[0].vendor) || '' };
+  const n0 = (c && c.note) || '', dn = dl ? dealNote(dl) : '', note = dn && !n0.includes(dn) ? (n0 ? n0 + ' · ' : '') + dn : n0;
   const per = perBuy(it);
   /* got recently? (received in the last 10 days) — so nobody orders the same thing twice */
   const recent = S.D.orders.filter(o => o.status === 'received' && daysAgo(o.dateReceived) <= 10 && o.items.some(l => l.itemId === it.id)).sort((a, b) => msOf(b.dateReceived) - msOf(a.dateReceived))[0];
   openModal('<h3>Add to the cart</h3><div class="lsub">' + esc(it.name) + ' · <b>' + esc(qtyUnit(it.qty || 0, countUnit(it))) + '</b> on hand' + (num(it.min) ? ' · reorder below ' + esc(qtyFmt(it.min)) : '') + '</div>' +
     (recent ? '<div class="notice">Received ' + esc(fmtAgo(recent.dateReceived)) + ' from ' + esc(recent.vendor || '—') + ': ' + esc(lineQtyLabel(recent.items.find(l => l.itemId === it.id))) + (recent.receivedBy ? ', checked in by ' + esc(recent.receivedBy) : '') + '.</div>' : '') +
+    (dl ? dealLineHTML(dl) : '') +
     (c ? '<div class="notice info">Already in the cart: ' + esc(lineQtyLabel(c)) + ', added by ' + esc(c.addedBy || '—') + (c.addedAt ? ' ' + esc(fmtWhen(c.addedAt)) : '') + '. This adds more.</div>' : '') +
     openOrdersWith(it.id).map(o => '<div class="notice">Already on order from ' + esc(o.vendor || '—') + ': ' + esc(lineQtyLabel(o.items.find(l => l.itemId === it.id))) + ', ordered by ' + esc(o.orderedBy || '—') + ' ' + esc(fmtWhen(o.orderedAt || o.dateOrdered)) + (o.status === 'backordered' ? ' (backordered)' : '') + '.</div>').join('') +
     '<div class="gap8" style="margin:6px 0 14px">' + thumbHTML(it, 'lg') + '<div class="qty lg"><button data-act="addStep" data-n="-1" aria-label="Less">−</button><input id="addQty" type="number" inputmode="decimal" min="0" step="1" value="' + esc(qty || 1) + '" data-enter="#addGo" data-inp="addQty"><span class="u" id="addU">' + esc(unitWord(buyUnit(it), qty || 1)) + '</span><button data-act="addStep" data-n="1" aria-label="More">+</button></div></div>' +
     (per > 1 ? '<div class="boxNote" id="addEq" style="margin-bottom:14px">' + esc(qtyUnit(qty || 1, buyUnit(it))) + ' = ' + esc(qtyUnit((qty || 1) * per, countUnit(it))) + '</div>' : '') +
     (srcs.length > 1 ? '<div class="subH">From</div><div class="pickRow">' + srcs.map((s, k) => '<button class="pick" data-act="addVendor" data-k="' + k + '" aria-pressed="' + (s.vendor === S.ui.add.vendor) + '">' + esc(s.vendor || 'Vendor ' + (k + 1)) + (countPrice(s) != null ? ' · ' + money(countPrice(s) * per) : '') + '</button>').join('') + '</div>' : '') +
-    field('Note for whoever orders (optional)', '<input id="addNote" placeholder="e.g. need by Thursday" value="' + esc((c && c.note) || '') + '">') +
+    field('Note for whoever orders (optional)', '<input id="addNote" placeholder="e.g. need by Thursday" value="' + esc(note) + '">') +
     '<div class="mFt"><span class="muted small" style="margin-right:auto;align-self:center">' + (w ? 'Adding as <b>' + esc(w.short) + '</b>' : '') + (isAdmin() ? '' : ' · Dr. A OKs it before it’s ordered') + '</span><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="addGo" data-act="addGo">' + ic('cart', 16) + 'Add to cart</button></div>', { cls: 'mid', focus: '#addQty' });
 }
 ACT.addStep = t => { const i = $('#addQty'); i.value = Math.max(1, (num(i.value) || 0) + Number(t.dataset.n)); INP.addQty(); };
@@ -150,6 +157,7 @@ DRAWERS.item = id => {
     (hasPic ? '<div class="dHero" data-act="viewPhoto" data-id="' + esc(id) + '" role="button" tabindex="0" title="See it full size">' + photoImgHTML(it, true) + '<span class="pzoom">' + ic('zoom', 16) + '</span></div>' : '');
   h += '<div class="btnRow" style="margin-top:0">' + (it.archived ? '' : '<button class="btn btn-teal" data-act="drawerAdd" data-id="' + esc(id) + '">' + ic('cart', 16) + (c ? 'Add more' : 'Add to cart') + '</button>') +
     '<button class="btn btn-sec" data-act="countIt" data-id="' + esc(id) + '">' + ic('count', 16) + 'Count</button><button class="btn btn-ghost" data-act="itemEdit" data-id="' + esc(id) + '">' + ic('edit', 15) + 'Edit</button></div>';
+  dealsFor(id).forEach(dl => { h += dealLineHTML(dl, 'dTop'); });
   if (c) h += '<div class="notice info" style="margin-top:14px">In the cart: <b>' + esc(lineQtyLabel(c, true)) + '</b> — added by ' + esc(c.addedBy || '—') + (c.addedAt ? ', ' + esc(fmtWhen(c.addedAt)) : '') + listOf(c.trail).map(t => '; ' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) + ' by ' + t.by : t.t === 'qty' ? 'changed to ' + qtyFmt(t.to) + ' by ' + t.by : 'changed by ' + t.by) + ', ' + esc(fmtWhen(t.at))).join('') + (c.note ? '<br>Note: ' + esc(c.note) : '') + '</div>';
   os.forEach(o => { const l = o.items.find(x => x.itemId === id); h += '<div class="notice" style="margin-top:10px;cursor:pointer" data-act="openOrder" data-id="' + esc(o.id) + '">' + (o.status === 'backordered' ? 'Backordered' : 'On order') + ' from ' + esc(o.vendor || '—') + ': <b>' + esc(lineQtyLabel(l, true)) + '</b> — ordered by ' + esc(o.orderedBy || '—') + ', ' + esc(fmtWhen(o.orderedAt || o.dateOrdered)) + (o.expectedDelivery ? ' · due ' + esc(fmtDate(o.expectedDelivery)) : '') + '</div>'; });
   /* stock */
