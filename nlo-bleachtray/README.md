@@ -130,6 +130,21 @@ of running up the pad. The model is then lowered behind the last tooth on each s
 (`distal_relief`), so the Trimlign bur reaches the distal surface instead of hitting a wall of gum, and ends 3 mm
 behind the tooth (`distal_keep`).
 
+**Smooth distal ends.** What a patient feels at the back of a tray is a sharp turn where the line wraps the last
+tooth: the gum line following a tooth label down the distal root or out onto the tuberosity / retromolar pad (a
+flap of tray behind the molar), or hard corners at the disto-buccal and disto-lingual line angles. So the line is
+finished round each terminal tooth (`round_distal`, `distal_round` = corner radius, 3 mm): it never goes past the
+crown - the crown's distal end is where the tooth footprint has narrowed to 60 % of its width, or where the label's
+lowest points climb 2.5 mm above the gum level (no cervical wall any more = pad), and never more than ~13 mm (or the
+molar in front + 1 mm) from the mesial contact; the corners in the last few mm are rounded with a 3 mm radius (a
+morphological opening restricted to that window, so the line only moves inwards onto the tooth, never out onto the
+gum); the height along the end is smoothed and never dips more than 1 mm below the straight between the buccal and
+lingual sides; and a terminal tooth whose footprint is still wide where the scan edge cuts through it is treated as
+not captured whole - the tray is cut 2 mm short of the edge, over the tooth, with the same rounded corners. Moved
+points go back onto the surface. The distal relief and the model's end plane use the same crown end, so a label that
+leaked onto the pad no longer carries the pad along. On the 23 stored arches the line was pulled 0.3-1.5 mm onto the
+tooth where it was already fine and 2-7 mm where it had run onto the pad.
+
 **Exposed root.** A bleaching reservoir must not sit on root (sensitivity). The reservoir stops 1 mm short of the
 gum line everywhere (Settings → Reservoirs), and on each reservoir tooth the app looks for root showing on the
 facial side two ways: the mid-facial profile (an exposed root runs near-vertical or inward for ≥ 0.75 mm above the

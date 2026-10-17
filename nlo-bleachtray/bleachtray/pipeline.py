@@ -6,7 +6,7 @@ from .mesh_utils import load_scan, smooth_field
 from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
 from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
-                      bridge_embrasures, geodesic_dilate, cap_distal)
+                      bridge_embrasures, geodesic_dilate, cap_distal, round_distal)
 from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure
 from .solid import horseshoe_outline, build_body, add_base
 
@@ -26,6 +26,7 @@ DEFAULTS = dict(
     trimline_smooth=4,
     scan_band=0.0,         # >0: keep real scan only this far beyond the gum line and fill the rest with a synthetic skirt (off: validated look)
     periphery_smooth=True, # smooth the scan surface beyond 2 mm from the gum line (ragged cheek/lip tissue)
+    distal_round=3.0,      # mm: corner radius of the trim line round the last tooth; it never goes past that tooth, dips behind it are lifted, and a tooth the scan cut through gets the line 2 mm short of the edge, over the tooth; 0 = off
     distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
     distal_relief=2.0,     # mm: the model behind the last molar (retromolar pad / tuberosity) is lowered to this far below the trim line so the trimmer reaches the distal surface; 0 = off
     distal_keep=3.0,       # mm: the model ends this far behind the last tooth on each side (Titan ~3); 0 = carry the scan to the outline
@@ -97,14 +98,15 @@ def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print):
     return labels
 
 
-def distal_relief(mesh_f, labels, info, margin_f, drop=2.0, clearance=0.3, ramp=2.0, z_min=0.6, keep=0.0, log=print):
+def distal_relief(mesh_f, labels, info, margin_f, drop=2.0, clearance=0.3, ramp=2.0, z_min=0.6, keep=0.0, tooth_end=None, log=print):
     """Lower everything behind the terminal tooth on each side to `drop` mm below the trim line there.
     The cut is a plane across the arch `clearance` mm behind the tooth's (and the trim line's) distal
     extent, so the line itself and the distal surface stay exactly as scanned; beyond it the surface
     ramps down over `ramp` mm to a flat ledge. With `keep` > 0 the model ends `keep` mm behind the
     tooth (everything further back is pushed under the floor and cut away) - Titan ends its models
     ~3 mm behind the last molar instead of carrying the tuberosity / retromolar pad along.
-    Vertex order is kept (labels stay aligned)."""
+    `tooth_end` ({side: t}) caps the tooth's distal extent where the label ran onto the pad (from
+    round_distal). Vertex order is kept (labels stay aligned)."""
     V = mesh_f.vertices.copy()
     out = []
     for side in (-1, 1):
@@ -123,6 +125,8 @@ def distal_relief(mesh_f, labels, info, margin_f, drop=2.0, clearance=0.3, ramp=
         d /= np.linalg.norm(d)
         n = np.array([-d[1], d[0]])
         t_tooth = ((V[mt][:, :2] - c) @ d).max()
+        if tooth_end and side in tooth_end:
+            t_tooth = min(t_tooth, float(tooth_end[side]))
         tl = margin_f[:, :2] - c
         near = (np.abs(tl @ n) < 9.0) & ((tl @ d) > -2.0)
         if near.sum() < 3:
@@ -156,16 +160,19 @@ def distal_relief(mesh_f, labels, info, margin_f, drop=2.0, clearance=0.3, ramp=
     return m, out
 
 
-def cut_outline_distal(outline, planes, reach=200.0):
-    """Clip the body outline so it ends at each side's distal plane (t <= t_end along d from c)."""
+def cut_outline_distal(outline, planes, reach=60.0, half_width=16.0):
+    """Clip the body outline so it ends at each side's distal plane (t <= t_end along d from c).
+    The cut is a strip `half_width` either side of that tooth's axis (the same zone distal_relief
+    lowers), not a whole half-plane: a tilted plane extended across the arch would clip the other
+    side's molar."""
     from shapely.geometry import Polygon, MultiPolygon
     for pl in planes or []:
         if not pl:
             continue
         c, d = np.array(pl["c"]), np.array(pl["d"]); n = np.array([-d[1], d[0]])
         p0 = c + d * pl["t_end"]
-        keep = Polygon([p0 + n * reach, p0 - n * reach, p0 - n * reach - d * reach, p0 + n * reach - d * reach])
-        cut = outline.intersection(keep)
+        drop = Polygon([p0 + n * half_width, p0 - n * half_width, p0 - n * half_width + d * reach, p0 + n * half_width + d * reach])
+        cut = outline.difference(drop)
         if isinstance(cut, MultiPolygon):
             cut = max(cut.geoms, key=lambda g: g.area)
         if isinstance(cut, Polygon) and cut.area > 0.5 * outline.area:
@@ -311,7 +318,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         line_mask = geodesic_dilate(mesh, A, mask, P["trimline_offset"])
     # where the scan stops right at the teeth (common on the lingual of lowers) the gum line would
     # run off the edge of the mesh and the contour could not close: keep it ~1 mm inside the scan edge
-    line_mask = line_mask & ~scan_edge_zone(mesh, A, 1.0)
+    edge_zone = scan_edge_zone(mesh, A, 1.0)
+    line_mask = line_mask & ~edge_zone
     field = smooth_field(A, line_mask.astype(float), 3)
     loops = margin_contour(mesh, field, 0.5)
     if len(loops) > 1 and len(loops[1]) > 0.5 * len(loops[0]):
@@ -380,6 +388,18 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         mesh_f, margin_f, T_tilt, lev = level_to_trimline(mesh_f, margin_f, cents_f, arch, extra_pitch_deg=TRIMLINE_TILT_DEG.get(arch, 0.0) + float(P.get("tilt_deg") or 0.0),
                                                            log=lambda m: log(f"[{name}] {m}"))
         rep["level"] = lev
+    # the back of the tray: round the line where it wraps the last tooth on each side (never past
+    # the tooth, no flap dipping behind it; a tooth the scan cut through gets a short, curved end)
+    tooth_end = None
+    if P.get("distal_round", 0.0) > 0 and len(info) >= 4:
+        try:
+            margin_f, dround = round_distal(margin_f, mesh_f, labels, info, edge_zone=edge_zone, radius=float(P["distal_round"]),
+                                            log=lambda m: log(f"[{name}] {m}"))
+            margin_f = smooth_polyline(resample_polyline(margin_f, P["trimline_spacing"]), iters=2)
+            rep["distal_round"] = dround
+            tooth_end = {r["side"]: r["t_tooth"] for r in dround}
+        except Exception as ex:  # noqa
+            log(f"[{name}] distal rounding skipped: {ex}")
     # y so the facial gum line at the midline is FACIAL_MARGIN_Y_AT_MIDLINE; z so floor = 0
     near_mid = np.abs(margin_f[:, 0]) < 2.0
     facial_y = margin_f[near_mid][:, 1].max() if near_mid.any() else margin_f[:, 1].max()
@@ -417,7 +437,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # the tissue behind the last molar (retromolar pad, tuberosity) is lowered below the trim line so
     # the trimmer can get round the distal surface instead of hitting a wall of gum
     if P.get("distal_relief", 0.0) > 0:
-        mesh_f, relief = distal_relief(mesh_f, labels, info, margin_f, drop=P["distal_relief"], keep=float(P.get("distal_keep") or 0.0), log=lambda m: log(f"[{name}] {m}"))
+        mesh_f, relief = distal_relief(mesh_f, labels, info, margin_f, drop=P["distal_relief"], keep=float(P.get("distal_keep") or 0.0),
+                                       tooth_end=tooth_end, log=lambda m: log(f"[{name}] {m}"))
         rep["distal_relief"] = relief
     # Trimlign reach: cross over the last molars instead of wrapping behind them
     if P.get("distal_cap_mm", 0.0) > 0:
