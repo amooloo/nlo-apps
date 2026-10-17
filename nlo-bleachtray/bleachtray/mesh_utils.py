@@ -7,10 +7,98 @@ import trimesh
 MAX_FACES = 200_000   # scans above this are decimated first (same detail as a ~10 MB scanner export)
 
 
+_PLY_TYPES = {"char": "i1", "uchar": "u1", "uint8": "u1", "int8": "i1", "short": "<i2", "ushort": "<u2", "int16": "<i2", "uint16": "<u2",
+              "int": "<i4", "uint": "<u4", "int32": "<i4", "uint32": "<u4", "float": "<f4", "float32": "<f4", "double": "<f8", "float64": "<f8"}
+
+
+def read_ply(path):
+    """Binary little-endian PLY -> (vertices (n,3) float64, faces (m,3) int64, rgb (n,3) uint8 or None).
+
+    Reads just what the app needs, in one pass with numpy: positions, the colour per vertex when the
+    scanner wrote one (AlliedStar, iTero, Medit, 3Shape all do) and the triangles. A texture image the
+    header points at is ignored - iTero writes both, and the general loader would try to unwrap the
+    texture per face, which triples the vertices and ran this PC out of memory on a 350k-face scan.
+    Returns None for an ASCII or unusual file (the general loader takes those)."""
+    with open(path, "rb") as f:
+        header = b""
+        while not header.endswith(b"end_header\n"):
+            line = f.readline()
+            if not line or len(header) > 20000:
+                return None
+            header += line
+        lines = header.decode("ascii", "replace").split("\n")
+        if not any(l.strip() == "format binary_little_endian 1.0" for l in lines):
+            return None
+        elements, cur = [], None
+        for l in lines:
+            w = l.split()
+            if not w:
+                continue
+            if w[0] == "element":
+                cur = dict(name=w[1], count=int(w[2]), props=[]); elements.append(cur)
+            elif w[0] == "property" and cur is not None:
+                cur["props"].append(w[1:])
+        ve = next((e for e in elements if e["name"] == "vertex"), None)
+        fe = next((e for e in elements if e["name"] == "face"), None)
+        if ve is None or fe is None or elements[0] is not ve or elements[1] is not fe:
+            return None
+        if any(p[0] == "list" for p in ve["props"]):
+            return None
+        vdt = np.dtype([(p[1], _PLY_TYPES[p[0]]) for p in ve["props"]])
+        vbuf = f.read(ve["count"] * vdt.itemsize)
+        if len(vbuf) < ve["count"] * vdt.itemsize:
+            return None
+        v = np.frombuffer(vbuf, dtype=vdt)
+        xyz = np.column_stack([v["x"], v["y"], v["z"]]).astype(np.float64)
+        rgb = np.column_stack([v["red"], v["green"], v["blue"]]).astype(np.uint8) if all(k in vdt.names for k in ("red", "green", "blue")) else None
+        # faces: scalar properties plus list properties; assume triangles (count 3) and texcoords of 6,
+        # then check the byte count - any other layout goes to the general loader
+        fields, idx_field = [], None
+        for i, p in enumerate(fe["props"]):
+            if p[0] == "list":
+                cnt_t, item_t, name = _PLY_TYPES[p[1]], _PLY_TYPES[p[2]], p[3]
+                n_items = 3 if name in ("vertex_indices", "vertex_index") else 6 if "texcoord" in name else None
+                if n_items is None:
+                    return None
+                fields.append((f"n{i}", cnt_t)); fields.append((name, item_t, (n_items,)))
+                if name in ("vertex_indices", "vertex_index"):
+                    idx_field = name
+            else:
+                fields.append((p[1], _PLY_TYPES[p[0]]))
+        if idx_field is None:
+            return None
+        fdt = np.dtype(fields)
+        fbuf = f.read(fe["count"] * fdt.itemsize)
+        if len(fbuf) != fe["count"] * fdt.itemsize:
+            return None
+        fa = np.frombuffer(fbuf, dtype=fdt)
+        counts = fa[[n for n, _ in [(x[0], None) for x in fields] if n.startswith("n")][0]]
+        if not np.all(counts == 3):
+            return None
+        faces = np.asarray(fa[idx_field], dtype=np.int64)
+        if faces.min() < 0 or faces.max() >= len(xyz):
+            return None
+    return xyz, faces, rgb
+
+
 def load_scan(path, max_faces=MAX_FACES):
     """Load a raw intraoral scan STL/PLY, keep the largest connected component, clean it.
-    Very dense scans are decimated to `max_faces` so processing time stays ~constant."""
-    m = trimesh.load(path, force="mesh")
+    Very dense scans are decimated to `max_faces` so processing time stays ~constant.
+    A PLY with a colour per vertex keeps it: `mesh.metadata["rgb"]` (uint8 n x 3, aligned with the
+    cleaned mesh's vertices) - shape processing is unchanged, the colour rides along."""
+    raw_xyz = raw_rgb = None
+    m = None
+    if str(path).lower().endswith(".ply"):
+        try:
+            got = read_ply(path)
+        except Exception:
+            got = None
+        if got is not None:
+            raw_xyz, faces, raw_rgb = got
+            m = trimesh.Trimesh(raw_xyz, faces, process=False)
+            m.merge_vertices()
+    if m is None:
+        m = trimesh.load(path, force="mesh")
     m.update_faces(m.nondegenerate_faces())
     m.update_faces(m.unique_faces())
     m.remove_unreferenced_vertices()
@@ -22,6 +110,10 @@ def load_scan(path, max_faces=MAX_FACES):
     if max_faces and len(m.faces) > max_faces:
         m = decimate(m, max_faces)
     trimesh.repair.fix_normals(m)  # consistent winding; outward sign fixed in orient
+    if raw_rgb is not None:
+        from scipy.spatial import cKDTree
+        _, j = cKDTree(raw_xyz).query(np.asarray(m.vertices))
+        m.metadata["rgb"] = raw_rgb[j]
     return m
 
 

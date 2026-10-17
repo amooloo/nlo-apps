@@ -83,7 +83,7 @@ def scanner_recent(days: int = 14):
                 if root[len(folder):].count(os.sep) >= 2:
                     dirs[:] = []
                 for fn in names:
-                    if fn.lower().endswith(".stl"):
+                    if fn.lower().endswith((".stl", ".ply")):
                         p = os.path.join(root, fn)
                         try:
                             mt = os.path.getmtime(p)
@@ -537,8 +537,14 @@ def _apply_cut(job, k, cut, log=print):
     job["cuts"] = n_cut
     base = os.path.basename(old_path)
     base = base.rsplit("_cut", 1)[0] if "_cut" in base else os.path.splitext(base)[0]
-    new_path = os.path.join(job["dir"], f"{base}_cut{n_cut}.stl")
-    out.export(new_path)
+    rgb = raw.metadata.get("rgb")
+    if rgb is not None:   # a coloured scan stays coloured: the cut file is a PLY with the colours carried over
+        new_path = os.path.join(job["dir"], f"{base}_cut{n_cut}.ply")
+        out.visual = trimesh.visual.ColorVisuals(out, vertex_colors=np.column_stack([np.asarray(rgb)[used], np.full(int(used.sum()), 255, np.uint8)]))
+        out.export(new_path, encoding="binary")
+    else:
+        new_path = os.path.join(job["dir"], f"{base}_cut{n_cut}.stl")
+        out.export(new_path)
     # the pipeline will read the new file through load_scan, which may order the vertices its own way:
     # map old -> new by position (exact: float32 in, float32 out)
     from scipy.spatial import cKDTree
@@ -970,7 +976,11 @@ def _save_training(job, log=print):
         sc = next(sc for sc in job["scans"] if sc["path"] == path)
         arch = sc.get("arch") or "scan"
         try:
-            shutil.copyfile(path, os.path.join(d, f"scan_{arch}.stl"))
+            ext = ".ply" if path.lower().endswith(".ply") else ".stl"   # a PLY keeps its colour for the retraining
+            for other in (".stl", ".ply"):
+                if other != ext and os.path.exists(os.path.join(d, f"scan_{arch}{other}")):
+                    os.remove(os.path.join(d, f"scan_{arch}{other}"))
+            shutil.copyfile(path, os.path.join(d, f"scan_{arch}{ext}"))
             labels = fixed.get(path)
             if labels is None:
                 st = os.path.join(job["dir"], f"{sc['name']}_state.npz")
@@ -1152,7 +1162,7 @@ def job_file(jid: str, kind: str, scan: int = 0):
 @app.get("/api/jobs/{jid}/segmesh")
 def seg_mesh(jid: str, scan: int = 0):
     """Binary blob of the rough-oriented scan with labels + displacement, for the brush view.
-    Layout: uint32 nV, uint32 nF, float32 V[nV*3], uint32 F[nF*3], uint16 labels[nV], float32 disp[nV], uint8 paint[nV]"""
+    Layout: uint32 nV, uint32 nF, float32 V[nV*3], uint32 F[nF*3], uint16 labels[nV], float32 disp[nV], uint8 paint[nV][, uint8 rgb[nV*3]]"""
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
@@ -1176,6 +1186,10 @@ def seg_mesh(jid: str, scan: int = 0):
         idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
         flags[idx] |= bit
     buf.write(flags.tobytes())
+    # the scanner's colour per vertex, when the scan has one (a PLY): uint8 rgb[nV*3]
+    rgb = st["rgb"] if "rgb" in st.files else None
+    if rgb is not None and len(rgb) == len(V):
+        buf.write(np.asarray(rgb, dtype=np.uint8).tobytes())
     return Response(content=buf.getvalue(), media_type="application/octet-stream")
 
 

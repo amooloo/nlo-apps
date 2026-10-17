@@ -1,6 +1,6 @@
 """Automatic retraining from the app's training/ folder.
 
-    training/<Last, First - date>/scan_upper.stl + labels_upper.npz   (corrected=True: someone used the brush)
+    training/<Last, First - date>/scan_upper.stl|.ply + labels_upper.npz   (corrected=True: someone used the brush)
     training/<...>/titan_stage0_upper.stl                             (Titan export with one shell per tooth)
     training/_base/<case>/scan_<arch>.stl + labels_<arch>.npz        (the starting set, shipped once)
 
@@ -85,8 +85,8 @@ def collect(root=TRAIN_DIR, log=print):
             if not os.path.isdir(sd):
                 continue
             for arch in ("upper", "lower"):
-                scan = os.path.join(sd, f"scan_{arch}.stl")
-                if not os.path.isfile(scan):
+                scan = next((c for c in (os.path.join(sd, f"scan_{arch}.ply"), os.path.join(sd, f"scan_{arch}.stl")) if os.path.isfile(c)), None)
+                if scan is None:
                     continue
                 lab = os.path.join(sd, f"labels_{arch}.npz")
                 titan = sorted(glob.glob(os.path.join(sd, f"titan_stage*_{arch}.stl")))

@@ -126,7 +126,7 @@ class Watcher:
     def scan_inbox(self):
         for fn in sorted(os.listdir(self.inbox)):
             p = os.path.join(self.inbox, fn)
-            if not (fn.lower().endswith(".stl") or (fn.lower().endswith(".pts") and titan_export(fn))) or not os.path.isfile(p) or p in self.seen:
+            if not (fn.lower().endswith((".stl", ".ply")) or (fn.lower().endswith(".pts") and titan_export(fn))) or not os.path.isfile(p) or p in self.seen:
                 continue
             if not stable(p):
                 continue
