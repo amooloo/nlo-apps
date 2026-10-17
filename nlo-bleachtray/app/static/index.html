@@ -228,6 +228,11 @@
       <div class="navLbl">Cases</div>
       <div id="jobs"></div>
     </div>
+    <div class="nav" id="historybox">
+      <div class="navLbl">Past cases</div>
+      <div class="sidebox"><input type="search" id="histq" placeholder="name, date (10/16), upper…" autocomplete="off" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:7px 10px;font:600 12.5px/1.2 var(--fb)">
+        <div id="hist" class="hint" style="color:#7E92B5;margin:6px 0 0">Every case stays here · type to search</div></div>
+    </div>
     <div class="nav" id="scannerbox" style="display:none">
       <div class="navLbl">Recent scans <a href="#" id="scanrefresh">refresh</a></div>
       <div class="sidebox" id="scanner"></div>
@@ -860,6 +865,25 @@ $('#go').onclick = async () => {
 };
 
 // ---------- jobs ----------
+// ---------- past cases: every case stays on disk; the big model files for 30 days, the recipe for good ----------
+let histTimer = null;
+async function searchHistory(){
+  const q = $('#histq').value.trim();
+  let r; try { r = await (await fetch(`/api/history?q=${encodeURIComponent(q)}&limit=${q ? 60 : 12}`)).json(); } catch (e) { return; }
+  const when = h => { const d = new Date((h.created || 0) * 1000); return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };
+  const st = h => h.review === 'sent' ? ['sent', 'sent'] : h.review === 'discarded' ? ['discarded', 'discarded'] : ['queued', 'not sent'];
+  const rows = (r.cases || []).map(h => `<div class="job" data-hid="${h.id}" title="${(h.models || []).join(', ')}${h.thinned ? ' · models cleared to save space: opening re-makes them (about a minute)' : ''}"><span class="nm">${h.name || '?'} <span class="hint">${when(h)}</span></span><span class="pill ${st(h)[0]}">${st(h)[1]}${h.thinned ? ' ·' : ''}</span></div>`).join('');
+  $('#hist').innerHTML = (rows || `<div class="hint" style="color:#7E92B5">${q ? 'Nothing matches.' : 'None yet.'}</div>`) + (!q && r.total > 12 ? `<div class="hint" style="color:#7E92B5;margin-top:4px">${r.total} cases on file · type to search</div>` : '');
+  document.querySelectorAll('[data-hid]').forEach(e => e.onclick = async () => {
+    e.querySelector('.pill').textContent = 'opening…';
+    const rs = await fetch(`/api/history/${e.dataset.hid}/open`, { method: 'POST' }); const o = await rs.json();
+    if (!rs.ok) { showErr(o.detail || 'Could not open that case.'); return; }
+    await refreshJobs(); selectJob(o.id);
+  });
+}
+$('#histq').addEventListener('input', () => { clearTimeout(histTimer); histTimer = setTimeout(searchHistory, 250); });
+searchHistory(); setInterval(() => { if (!$('#histq').value) searchHistory(); }, 60000);
+
 async function refreshJobs(){
   const jobs = await (await fetch('/api/jobs')).json();
   const st = j => j.status === 'done' ? (j.review || 'review') : j.status;
@@ -948,9 +972,12 @@ function renderReview(id, j){
 const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHTML = ANIM.trash; const c = box.querySelector('#animCut'); if (c) c.innerHTML = ANIM.cut; const l = box.querySelector('#animLearn'); if (l) l.innerHTML = ANIM.learn; };
   setTimeout(play, 0);
   if (j.review === 'sent') {
-    box.innerHTML = `<div class="anim" id="animCut"></div><b>Sent to the Trimlign.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${learnedLine}` +
+    const when = j.sent_at ? ` ${new Date(j.sent_at * 1000).toLocaleDateString()} ${new Date(j.sent_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
+    box.innerHTML = `<div class="anim" id="animCut"></div><b>Sent to the Trimlign${when}.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${learnedLine}` +
+      `<div class="btns"><button class="small" id="resendbtn" title="Write the order again from these models - a lost print, a second set. The earlier order folder is replaced.">Send to Trimlign again</button></div>` +
       (addLine ? addLine.replace('Also make', 'Need more? Also make') + `<div class="hint">(the case comes back for a check; Send then replaces the order with every model)</div>` : '');
     wireAdd();
+    $('#resendbtn').onclick = async () => { $('#resendbtn').disabled = true; $('#resendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/resend`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); };
   } else if (j.review === 'discarded') {
     box.innerHTML = `<div class="anim" id="animTrash"></div><b>Discarded</b> — nothing went to the Trimlign.`;
   } else {

@@ -490,7 +490,14 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         tb = titan_basename(P["patient_first"], P["patient_last"], P.get("stage", 0), rep["arch"])
         tstl, tpts = os.path.join(out_dir, tb + ".stl"), os.path.join(out_dir, tb + ".pts")
         import shutil
-        shutil.copyfile(stl_path, tstl); shutil.copyfile(pts_path, tpts)
+        # the Titan-named pair is the same bytes as the model: a hard link where the disk allows it (NTFS does)
+        for src, dst in ((stl_path, tstl), (pts_path, tpts)):
+            if os.path.exists(dst):
+                os.remove(dst)
+            try:
+                os.link(src, dst)
+            except OSError:
+                shutil.copyfile(src, dst)
         rep["outputs"]["titan_stl"], rep["outputs"]["titan_pts"] = tstl, tpts
         rep["titan_basename"] = tb
         exp = P.get("export_folder")
