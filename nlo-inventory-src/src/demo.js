@@ -9,9 +9,9 @@ const DEMO = {
   as: 'amir',
   AS: [['amir', 'Dr. A'], ['gwen', 'Assistant']],
   init() {
-    const st = demoStore().nlo, store = {
+    const st = demoStore().nlo, ml = demoMarisList(), store = {
       items: st.items, orders: st.orders, vendors: st.vendors, log: st.log, cart: st.cart, cartOk: st.cartOk, bracketOrder: st.bracketOrder, budget: st.budget, expenses: st.expenses,
-      elastoPrices: st.elastoPrices, settings: Object.assign({}, st.settings), ai: {}, pics: {}, push: { topic: '' }
+      elastoPrices: st.elastoPrices, settings: Object.assign({}, st.settings), ai: {}, pics: {}, push: { topic: '' }, mlInfo: ml.info, mlRows: ml.rows, mlMatch: ml.match
     };
     return DEMO.backend(store);
   },
@@ -30,7 +30,12 @@ const DEMO = {
         const v = key === 'items' || key === 'orders' || key === 'vendors' || key === 'log' || key === 'expenses' ? Object.values(store[key]) : key === 'roster' ? roster : key === 'cases' ? { idleMin: 10 } : store[key];
         setTimeout(() => { if (M.h) M.h.data(key, clone(v)); }, 0);
       },
-      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cartOk', 'cart', 'bracketOrder', 'budget', 'expenses', 'elastoPrices'].forEach(M.emit); },
+      start(h) { M.h = h; M.alertsOn = false; ['roster', 'cases', 'settings', 'items', 'orders', 'vendors', 'log', 'cartOk', 'cart', 'bracketOrder', 'budget', 'expenses', 'elastoPrices', 'mlInfo', 'mlMatch'].forEach(M.emit); },
+      /* Mari's List: made-up vendors and prices (the real ones stay in the office database) */
+      watchMl() { M.emit('mlInfo'); M.emit('mlMatch'); },
+      async mlRows() { return clone(store.mlRows) || []; },
+      async mlSave(set, onStep) { if (!M.isOwner()) throw errCode('permission'); set.parts.forEach((p, i) => onStep && onStep(i + 1, set.parts.length)); store.mlInfo = clone(set.info); store.mlRows = [].concat(...set.parts.map(p => JSON.parse(p))); store.mlMatch = clone(set.match) || {}; M.emit('mlInfo'); M.emit('mlMatch'); },
+      async mlMatchSet(itemId, list) { if (!M.isOwner()) throw errCode('permission'); const m = Object.assign({}, store.mlMatch); if (list && list.length) m[itemId] = clone(list); else delete m[itemId]; store.mlMatch = m; M.emit('mlMatch'); },
       stop() { M.h = null; },
       patchOf(rec, patch) { Object.keys(patch || {}).forEach(k => { const v = patch[k] === undefined ? null : clone(patch[k]); if (v == null) delete rec[k]; else rec[k] = v; }); return rec; },
       async addStock(id, delta) { const it = store.items[id]; if (!it) throw errCode('not-found', 'That supply is gone.'); it.qty = Math.max(0, Math.round(((Number(it.qty) || 0) + delta) * 1000) / 1000); M.emit('items'); return it.qty; },
@@ -88,6 +93,43 @@ const DEMO = {
     return M;
   }
 };
+/* ---------- made-up Mari's List vendors, deals and prices (made-up names: no real vendor's deal or price is in the demo) ---------- */
+function demoMarisList() {
+  const vendors = [
+    { id: 'cedar', name: 'Cedar Dental Supply', cat: 'supplies', deal: 'Member prices on gloves, cotton and disposables; free shipping over $150.', how: 'Call or email and say you’re a Mari’s List member.', say: true, contacts: [{ k: 'phone', v: '555-0188', who: 'Dana' }, { k: 'email', v: 'orders@cedar.example' }] },
+    { id: 'brightline', name: 'Brightline Ortho', cat: 'supplies', deal: '18% off brackets, wires, o-ties and chain online; free shipping over $250.', code: 'BRIGHT18', how: 'Order on their website with the code.', contacts: [{ k: 'phone', v: '555-0142' }] },
+    { id: 'harbor', name: 'Harbor Instruments', cat: 'supplies', deal: '20% off pliers and cutters; repairs at half price.', code: 'HARBOR20', how: 'Call and give the code.', contacts: [{ k: 'phone', v: '555-0170', who: 'Sam' }] },
+    { id: 'northwind', name: 'Northwind Lab', cat: 'lab', deal: '10% off retainers and appliances.', how: 'Email the Rx and say you’re a Mari’s List member.', say: true, contacts: [{ k: 'email', v: 'rx@northwind.example' }, { k: 'text', v: '555-0123' }] },
+    { id: 'pebble', name: 'Pebble Kids Giveaways', cat: 'patients', deal: '15% off toothbrush kits and prizes.', how: 'Order on their website; prices show once you sign in.' },
+    { id: 'summit', name: 'Summit Office Supply', cat: 'office', deal: 'Free next-day shipping; 12% off paper and toner.', how: 'Ask for the Mari’s List account.' },
+    { id: 'tidewater', name: 'Tidewater HR', cat: 'services', deal: '15% off the HR package.', how: 'Mention Mari’s List when you sign up.', uses: true }
+  ];
+  const R = (v, n, d, u, p, r, s, note) => [v, n, d, u, p, r == null ? null : r, s || '', note || '', -1];
+  const rows = [
+    R('cedar', 'CD-1102', 'Nitrile exam gloves, powder-free, blue, Small', 'Box of 200', 13.2, 18.5, 'Gloves'), R('cedar', 'CD-1103', 'Nitrile exam gloves, powder-free, blue, Medium', 'Box of 200', 13.2, 18.5, 'Gloves'),
+    R('cedar', 'CD-1104', 'Nitrile exam gloves, powder-free, blue, Large', 'Box of 200', 13.2, 18.5, 'Gloves'), R('cedar', 'CD-1110', 'Nitrile exam gloves, black, Large', 'Box of 100', 8.4, 11, 'Gloves'),
+    R('cedar', 'CD-2201', 'Cotton rolls #2, medium, non-sterile', 'Box of 2000', 17.95, 24, 'Cotton'), R('cedar', 'CD-3310', 'Self-seal sterilization pouches 5.25" x 6.5"', 'Box of 200', 12.4, 16.99, 'Sterilization'),
+    R('cedar', 'CD-3311', 'Self-seal sterilization pouches 3.5" x 9"', 'Box of 500', 24.9, 31, 'Sterilization'), R('cedar', 'CD-4100', 'Saliva ejectors, white with blue tip', 'Bag of 100', 2.95, 3.9, 'Disposables'),
+    R('cedar', 'CD-4200', 'HVE evacuator tips, vented', 'Bag of 100', 5.4, 7.2, 'Disposables'), R('cedar', 'CD-5100', 'Earloop masks, level 1, blue', 'Box of 50', 6.25, 8.5, 'Masks'),
+    R('brightline', 'BL-0140', 'Elastomeric ligatures (o-ties), 20-tie sticks, any color', 'Bag of 1000', 15.5, 21, 'Elastomerics'), R('brightline', 'BL-0150', 'Power chain, closed, 15 ft spool, any color', 'Spool', 14.9, 19.9, 'Elastomerics'),
+    R('brightline', 'BL-0201-U', 'NiTi archwire, round .014, upper, ovoid', 'Pack of 10', 12.8, 17.5, 'Archwires'), R('brightline', 'BL-0201-L', 'NiTi archwire, round .014, lower, ovoid', 'Pack of 10', 12.8, 17.5, 'Archwires'),
+    R('brightline', 'BL-0216-U', 'NiTi archwire, round .016, upper, ovoid', 'Pack of 10', 12.8, 17.5, 'Archwires'), R('brightline', 'BL-0216-L', 'NiTi archwire, round .016, lower, ovoid', 'Pack of 10', 12.8, 17.5, 'Archwires'),
+    R('brightline', 'BL-0322-U', 'NiTi archwire, rectangular .016 x .022, upper', 'Pack of 10', 13.4, 18.2, 'Archwires'), R('brightline', 'BL-0510-U', 'Stainless steel archwire .016 x .022, upper', 'Pack of 10', 7.95, 10.5, 'Archwires'),
+    R('brightline', 'BL-0900', 'Blue etch gel 37%, 5 g syringe with tips', 'Syringe', 11.6, 14.5, 'Bonding'),
+    R('harbor', 'HI-210', 'Distal end cutter, tungsten carbide, long handle', 'Each', 112, 140, 'Cutters'), R('harbor', 'HI-220', 'Ligature cutter, tungsten carbide', 'Each', 98, 122.5, 'Cutters'),
+    R('harbor', 'HI-310', 'Weingart utility plier', 'Each', 64, 80, 'Pliers'), R('harbor', 'HI-410', 'Bird beak plier', 'Each', 58, 72.5, 'Pliers'),
+    R('northwind', 'NW-R1', 'Hawley retainer, standard', 'Each', 54, 60, 'Lab services'), R('northwind', 'NW-R2', 'Clear retainers, upper and lower', 'Set', 63, 70, 'Lab services'),
+    R('northwind', 'NW-E1', 'Rapid palatal expander, banded', 'Each', 128.7, 143, 'Lab services'),
+    R('pebble', 'PK-10', 'Kids toothbrush kit with timer', 'Case of 72', 86.4, 101.65, 'Giveaways'), R('pebble', 'PK-22', 'Glow-in-the-dark prize balls', 'Bag of 100', 17, 20, 'Giveaways'),
+    R('summit', 'SO-100', 'Copy paper, 8.5 x 11, 10 reams', 'Case', 44, 50, 'Paper'), R('summit', 'SO-210', 'Toner cartridge, black, high yield', 'Each', 59, 89, 'Toner')
+  ];
+  vendors.forEach(v => { v.n = rows.filter(r => r[0] === v.id).length; });
+  const keys = mlKeys(rows), at = k => keys[rows.findIndex(r => r[1] === k)];
+  const link = (n, x) => { const r = rows.find(z => z[1] === n); return { k: at(n), x, s: 'similar', v: r[0], n: r[1], d: r[2], u: r[3], p: r[4], r: r[5], by: 'Dr. A' }; };
+  const match = { 'ppe-1': [link('CD-1102', 2)], 'ppe-2': [link('CD-1104', 2)], 'ot-1': [link('BL-0140', 1)], 'w-1': [link('BL-0201-U', 1)], 'w-2': [link('BL-0201-L', 1)], 'st-2': [link('CD-3310', 1)], 'd-1': [link('CD-2201', 1)], 'bn-2': [link('BL-0900', 1)] };
+  const day = 864e5;
+  return { info: { ver: 'demo1', at: isoOf(new Date(Date.now() - 6 * day)), src: 'Made-up for the demo', vendors, parts: 1, rows: rows.length, loadedAt: new Date(Date.now() - 2 * day).toISOString(), loadedBy: 'Dr. A' }, rows, match };
+}
 /* ---------- the made-up office ---------- */
 const DEMO_PEOPLE = {
   s_amir: { id: 's_amir', sid: 'amir', name: 'Dr. Avery Lane', short: 'Dr. A', title: 'Orthodontist / Owner', active: true },

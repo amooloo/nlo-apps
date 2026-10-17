@@ -229,6 +229,7 @@ function setData(key, val) {
   else if (key === 'settings') S.settings = val || {};
   else if (key === 'roster') { if (val) { S.people = rosterPeople(val); renderWho(); } }
   else if (key === 'cases') S.cases = val || {};
+  else if (key === 'mlOff' || key === 'mlInfo' || key === 'mlMatch') mlData(key, val);
 }
 function normItem(i) { if (i.cat && CAT_MIGRATION[i.cat]) i.cat = CAT_MIGRATION[i.cat]; if (!CAT_BY_ID[i.cat]) i.cat = 'misc'; return i; }
 function normOrder(o) { o.items = listOf(o.items).filter(Boolean); o.trail = listOf(o.trail).filter(Boolean); return o; }
@@ -248,12 +249,13 @@ function vendorObj(n) { return vendorByName(n) || { name: n || '' }; }
 /* ---------- shell ---------- */
 const NAV = [
   ['home', 'Home', 'home'], ['supplies', 'Supplies', 'box'], ['cart', 'Cart', 'cart'], ['orders', 'Orders', 'truck'],
-  ['quick', 'Quick order', 'bolt'], ['budget', 'Budget', 'chart'], ['activity', 'Activity', 'clock'], ['vendors', 'Vendors', 'build']
+  ['quick', 'Quick order', 'bolt'], ['ml', 'Mari’s List', 'tag'], ['budget', 'Budget', 'chart'], ['activity', 'Activity', 'clock'], ['vendors', 'Vendors', 'build']
 ];
 /* everyone but Dr. A: the simple view — find a supply, add it to the cart, order what he OK'd, receive what comes (Amir, 16 Oct
-   2026: "for assistants, the budget vendor and setting are not needed. keep at simple as possible") */
-const SIMPLE_VIEWS = ['home', 'supplies', 'cart', 'orders', 'quick'];
-function viewAllowed(v) { return !!VIEWS[v] && (isAdmin() || SIMPLE_VIEWS.includes(v)); }
+   2026: "for assistants, the budget vendor and setting are not needed. keep at simple as possible"); Mari's List too once
+   he's loaded it (how to get the member price is part of ordering) */
+const SIMPLE_VIEWS = ['home', 'supplies', 'cart', 'orders', 'quick', 'ml'];
+function viewAllowed(v) { return !!VIEWS[v] && (isAdmin() || (SIMPLE_VIEWS.includes(v) && (v !== 'ml' || mlOn()))); }
 function renderShell() {
   const btn = (mob, [k, l, i]) => '<button class="navBtn" data-act="nav" data-v="' + k + '" id="' + (mob ? 'm' : '') + 'nav-' + k + '">' + ic(i) + '<span>' + l + '</span><span class="cnt hidden"></span></button>';
   const navBtns = mob => NAV.filter(n => viewAllowed(n[0])).map(n => btn(mob, n)).join('') + (isAdmin() ? (mob ? '' : '<div class="navLbl">Office</div>') + btn(mob, ['settings', 'Settings', 'gear']) : '');
@@ -297,8 +299,8 @@ function renderBanner() {
   else if (S.loadErr) h = '<div class="banner off">' + ic('warn', 16) + esc(S.loadErr) + '</div>';
   el.innerHTML = h;
 }
-const TITLES = { home: 'Home', supplies: 'Supplies', cart: 'Cart', orders: 'Orders', quick: 'Quick order', budget: 'Budget', activity: 'Activity', vendors: 'Vendors', settings: 'Settings' };
-const SEARCH_VIEWS = { supplies: 'Search supplies, SKUs, vendors…', orders: 'Search vendor, item, order #, who…', activity: 'Search activity…', vendors: 'Search vendors…' };
+const TITLES = { home: 'Home', supplies: 'Supplies', cart: 'Cart', orders: 'Orders', quick: 'Quick order', ml: 'Mari’s List', budget: 'Budget', activity: 'Activity', vendors: 'Vendors', settings: 'Settings' };
+const SEARCH_VIEWS = { supplies: 'Search supplies, SKUs, vendors…', orders: 'Search vendor, item, order #, who…', ml: 'Search member prices: o-ties, nitrile gloves, distal end cutter…', activity: 'Search activity…', vendors: 'Search vendors…' };
 function topBar() {
   const v = S.view, acts = (VIEWS[v] && VIEWS[v].actions) ? VIEWS[v].actions() : '';
   return '<div class="topBar"><h2>' + esc(TITLES[v] || '') + '</h2>' +
@@ -371,7 +373,12 @@ function hydrateImages(root) {
     if (!s) return;
     if (/^pic:/.test(s) && im.loading === 'lazy' && typeof IntersectionObserver !== 'undefined') lazyPic(im, s); else setImg(im, s);
   });
-  $$('img[data-vlogo]', root || document).forEach(im => { im.onerror = () => { im.replaceWith(Object.assign(document.createElement('span'), { className: 'vlogo none', innerHTML: ic('build', 14) })); }; im.removeAttribute('data-vlogo'); });
+  $$('img[data-vlogo]', root || document).forEach(im => {
+    /* (a Mari's List vendor's logo: its initials when the site has no icon of its own — the icon service's stand-in is tiny) */
+    const ini = im.dataset.ini, swap = () => im.replaceWith(Object.assign(document.createElement('span'), ini ? { className: im.className + ' mlIni', textContent: ini } : { className: 'vlogo none', innerHTML: ic('build', 14) }));
+    im.onerror = swap; if (ini) im.onload = () => { if (im.naturalWidth && im.naturalWidth <= 16) swap(); };
+    im.removeAttribute('data-vlogo');
+  });
 }
 /* photos kept as records of their own: each is a database read, so a long grid reads only the ones that come near the screen */
 const LAZY = { io: null, refs: new Map() };

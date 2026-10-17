@@ -73,7 +73,7 @@ const FB = {
     FB.db.doc('members/' + user.uid).update({ lastLogin: FB.ts() }).catch(() => { });
     return FB.me;
   },
-  async signOut() { FB.stop(); FB.me = null; FB.alertsOn = false; FB.pushOn = false; FB.picCache = new Map(); try { await FB.auth.signOut(); } catch (e) { } },
+  async signOut() { FB.stop(); FB.me = null; FB.alertsOn = false; FB.pushOn = false; FB.picCache = new Map(); FB.mlCache = null; FB.mlUnsubs = null; try { await FB.auth.signOut(); } catch (e) { } },
   sendReset(email) { return FB.auth.sendPasswordResetEmail(String(email || '').trim()); },
 
   /* ---------- opening: 'rules' (the database's rules don't know Inventory yet) | 'move' (Dr. A: nothing moved over yet) |
@@ -104,10 +104,62 @@ const FB = {
     one('invState/budget', 'budget', d => d);
     one('invState/prices', 'elastoPrices', d => d.p || {});
     one('invState/settings', 'settings', d => { FB.alertsOn = d.alertsOn === true; FB.pushOn = d.pushOn === true; return d; });
+    FB.watchMl();
     // NLO Cases' people (names and photos), its idle lock, and this login (turned off → locked out)
     FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.data('roster', s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => { console.warn('roster', e); h.data('roster', null); }));
     FB.unsubs.push(FB.db.doc('meta/settings').onSnapshot(s => h.data('cases', s.exists ? s.data() : {}), () => { }));
     FB.unsubs.push(FB.db.doc('members/' + FB.me.uid).onSnapshot(s => { if (!s.exists || s.data().active !== true) h.revoked(); }, e => { if (FB.isPerm(e)) h.revoked(); }));
+  },
+  /* ---------- Mari's List (marislist.js): the office's member prices — everyone signed in reads them, Dr. A loads them ----------
+     invMl/info (the vendors, their deals and codes, which set of prices is current), invMl/p<set>_<n> (the prices, in parts),
+     invMl/match (which prices are the same as the office's supplies). Under the rules from before Mari's List nobody may read
+     them: then they just aren't shown (Settings → Mari's List has the step) — nobody is locked out. Called again by "Check
+     again" once the new rules are published. */
+  watchMl() {
+    const h = FB.h; if (!h || !FB.db) return;
+    (FB.mlUnsubs || []).forEach(u => { try { u(); } catch (e) { } });
+    const off = e => { if (FB.isPerm(e)) h.data('mlOff', true); else console.warn('marislist', e); };
+    const u1 = FB.db.doc('invMl/info').onSnapshot(s => { h.data('mlOff', false); h.data('mlInfo', s.exists ? FB.plain(s) : null); }, off);
+    const u2 = FB.db.doc('invMl/match').onSnapshot(s => h.data('mlMatch', s.exists ? (FB.plain(s).m || {}) : {}), off);
+    FB.mlUnsubs = [u1, u2]; FB.unsubs.push(u1, u2);
+  },
+  mlUnsubs: null, mlCache: null,
+  /* the prices of the set that's current (read once a visit, when a screen needs them) */
+  mlRows(info) {
+    const ver = info && info.ver, n = Number(info && info.parts) || 0;
+    if (!ver || !n) return Promise.resolve([]);
+    if (FB.mlCache && FB.mlCache.ver === ver) return FB.mlCache.p;
+    const p = Promise.all(Array.from({ length: n }, (x, i) => FB.db.doc('invMl/p' + ver + '_' + (i + 1)).get())).then(snaps => snaps.reduce((all, s) => {
+      if (!s.exists) throw errCode('not-found', 'Part of the Mari’s List prices is missing. Dr. A can load them again.');
+      return all.concat(JSON.parse(s.data().t || '[]'));
+    }, []));
+    FB.mlCache = { ver, p }; p.catch(() => { if (FB.mlCache && FB.mlCache.p === p) FB.mlCache = null; });
+    return p;
+  },
+  /* Dr. A loads a new set: its parts first (under a name of their own), then info and the links in one save — which is when
+     everyone switches to it — then the old set's parts go */
+  async mlSave(set, onStep) {
+    if (!FB.isOwner()) throw errCode('permission');
+    const old = await FB.db.doc('invMl/info').get().then(s => s.exists ? s.data() : null);
+    for (let i = 0; i < set.parts.length; i++) {
+      await FB.track(FB.db.doc('invMl/p' + set.info.ver + '_' + (i + 1)).set(Object.assign({ t: set.parts[i] }, FB.st())));
+      if (onStep) onStep(i + 1, set.parts.length);
+    }
+    const b = FB.db.batch();
+    b.set(FB.db.doc('invMl/info'), Object.assign(FB.clean(set.info), FB.st()));
+    b.set(FB.db.doc('invMl/match'), Object.assign({ m: FB.clean(set.match) || {} }, FB.st()));
+    await FB.track(b.commit());
+    if (old && old.ver && old.ver !== set.info.ver) for (let i = 1; i <= (Number(old.parts) || 0); i++) await FB.db.doc('invMl/p' + old.ver + '_' + i).delete().catch(e => console.warn('old Mari’s List part', e));
+  },
+  /* Dr. A links Mari's List prices to a supply (an empty list takes them off), on the links as they are now */
+  mlMatchSet(itemId, list) {
+    if (!FB.isOwner()) return Promise.reject(errCode('permission'));
+    const ref = FB.db.doc('invMl/match');
+    return FB.track(FB.db.runTransaction(async t => {
+      const s = await t.get(ref), m = Object.assign({}, s.exists ? (s.data().m || {}) : {});
+      if (list && list.length) m[itemId] = FB.clean(list); else delete m[itemId];
+      t.set(ref, Object.assign({ m }, FB.st()));
+    }));
   },
   /* the log records → their entries */
   logEntries(recs) {

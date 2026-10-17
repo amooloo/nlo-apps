@@ -1,7 +1,8 @@
 /* =====================================================================
    Settings (Dr. A's: nobody else sees it) — who's signed in, storage
-   locations, the AI keys, the alert emails and the phone push, old slip
-   photos, and a download of everything.
+   locations, the AI keys, the Mari's List prices (marislist.js), the
+   alert emails and the phone push, old slip photos, and a download of
+   everything.
    ===================================================================== */
 VIEWS.settings = {
   render() {
@@ -18,7 +19,7 @@ VIEWS.settings = {
     h += caseHelperHTML();
     h += '</div><div>';
     h += '<div class="card"><div class="cardHd"><h3>AI</h3><span class="sub">packing-slip reading and Ask</span></div><div class="cardBd">' + (owner || S.demo ? aiSettingsHTML() : '<div class="muted small">The AI keys are set by Dr. A. ' + (S.settings.geminiProxyUrl ? 'Reading packing slips goes through the office’s AI service.' : '') + '</div>') + '</div></div>';
-    h += pushCardHTML(owner) + alertsCardHTML(owner);
+    h += mlSettingsCardHTML(owner) + pushCardHTML(owner) + alertsCardHTML(owner);
     if (isAdmin()) h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Keeping it fast</h3></div><div class="cardBd">' +
       '<div class="kvRow"><span>Packing-slip photos on orders received over a year ago</span><b>' + oldSlipOrders().length + '</b></div>' +
       '<div class="btnRow"><button class="btn btn-ghost btn-sm" data-act="slipClean">Remove old slip photos</button></div></div></div>';

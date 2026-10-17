@@ -836,3 +836,74 @@ details.help summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(-
 /* the app's own Ask button sits to the left of Ask AISA (nlo-aisa.js), and only once Inventory is open */
 html.nlo-aisa-on .askFab{right:var(--nlo-aisa-space)}
 body.gated .askFab{display:none}
+
+/* ---------- Mari's List (marislist.js) ---------- */
+.mlGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;align-items:stretch}
+.mlGrid .catHead{grid-column:1/-1;padding:8px 2px 0}
+.mlv{display:flex;flex-direction:column;gap:10px;background:#fff;border:1px solid var(--grey-200);border-radius:16px;padding:14px 16px;cursor:pointer;box-shadow:var(--sh-xs);transition:box-shadow .16s var(--ease),transform .16s var(--ease),border-color .16s var(--ease)}
+.mlv:hover{box-shadow:var(--sh-md);transform:translateY(-2px);border-color:var(--grey-300)}
+.mlv:focus-visible{outline:3px solid var(--blue-200);outline-offset:2px}
+.mlv.ours{border-color:var(--mint-600);box-shadow:inset 4px 0 0 var(--mint-600),var(--sh-xs)}
+.mlvHd{display:flex;align-items:center;gap:10px}
+.mlvHd .grow{flex:1;min-width:0;display:flex;flex-direction:column}
+.mlvHd b{font-weight:700;color:var(--navy);font-size:14.5px;line-height:1.25}
+.mlvHd .grow span{font-size:11.5px;color:var(--grey-500)}
+.mlvDeal{font-size:13px;color:var(--grey-700);line-height:1.45;flex:1}
+.mlvFt{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mlCode{display:inline-flex;align-items:center;gap:5px;border:1.5px dashed var(--mint-600);background:var(--mint-100);color:var(--mint-700);border-radius:8px;padding:3px 9px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;font-weight:700;letter-spacing:.04em}
+.mlCode:hover{background:var(--mint-200)}
+.vlogo.mlIni{display:inline-flex;align-items:center;justify-content:center;background:var(--navy-100);color:var(--navy-700);font-family:var(--fd);font-weight:600;font-size:10px;letter-spacing:.04em}
+.vlogo.lg.mlIni{font-size:13px}
+.mlList{padding:2px 0}
+.mlr{display:grid;grid-template-columns:22px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--grey-100);cursor:pointer}
+.mlr:last-child{border-bottom:none}
+.mlr:hover{background:var(--grey-50)}
+.mlr .nm{font-weight:700;color:var(--navy);font-size:13.5px;line-height:1.3;overflow-wrap:anywhere}
+.mlr .sub{font-size:11.5px;color:var(--grey-500);display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:2px}
+.mlr .sub .v{font-weight:700;color:var(--grey-600)}
+.mlr .pr,.mlBigPrice{text-align:right;white-space:nowrap}
+.mlr .pr b{display:block;font-size:15px;color:var(--navy)}
+.mlr .pr small,.mlBigPrice small{display:block;font-size:11px;font-weight:600;color:var(--grey-500)}
+.mlBigPrice{text-align:left}
+.mlBigPrice b{display:block;font-family:var(--fd);font-size:30px;font-weight:600;color:var(--navy);line-height:1.1}
+.mlBigPrice small{font-size:12.5px}
+.mlSave{display:inline-flex;align-items:center;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap;background:var(--mint-100);color:var(--mint-700)}
+.mlSave.same{background:var(--grey-100);color:var(--grey-500)}
+.mlSave.more{background:var(--amber-100);color:var(--amber-700)}
+.mlSim{display:inline-flex;align-items:center;border-radius:99px;padding:1px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;background:var(--grey-100);color:var(--grey-500)}
+.mlFor{display:flex;align-items:center;gap:12px;background:var(--blue-100);border-radius:14px;padding:10px 14px;margin-bottom:14px}
+.mlFor .grow{flex:1;min-width:0;display:flex;flex-direction:column;font-size:12.5px;color:var(--blue-700)}
+.mlFor .grow b{color:var(--navy);font-size:13.5px}
+.mlSec h5{display:flex;align-items:center;gap:5px;color:var(--mint-700)}
+.mlLinkRow{cursor:pointer;border-radius:8px}
+.mlLinkRow:hover{background:var(--grey-50)}
+.mlLinkRow .v{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mlNote{margin-top:8px;background:var(--mint-100);color:var(--mint-700);border-radius:10px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
+.mlNote b{font-family:ui-monospace,Menlo,Consolas,monospace}
+.cline .note.mlLineNote{color:var(--mint-700);font-weight:700;cursor:pointer}
+.mlChip{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 10px;background:var(--mint-100);color:var(--mint-700);font-size:11.5px;font-weight:700}
+.mlChip:hover{background:var(--mint-200)}
+.mlPlace{display:flex;align-items:center;gap:12px;background:var(--mint-100);color:var(--mint-700);border-radius:12px;padding:10px 14px;margin:2px 0 12px}
+.mlPlace .grow{flex:1;min-width:0;display:flex;flex-direction:column;font-size:12.5px}
+.mlPlace .grow b{color:var(--navy);font-size:13px}
+.mlHow .txt{font-size:13.5px;color:var(--grey-700)}
+.mlHow .btnRow{flex-wrap:wrap}
+.mlCodeBig{display:flex;align-items:center;gap:10px;background:var(--mint-100);border:1.5px dashed var(--mint-600);border-radius:12px;padding:8px 12px;margin-bottom:10px}
+.mlCodeBig span{font-family:var(--fd);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mint-700)}
+.mlCodeBig b{flex:1;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:20px;letter-spacing:.06em;color:var(--navy)}
+.mlDealBig{font-size:15px;font-weight:600;color:var(--navy);line-height:1.45}
+.mlPick{max-height:46vh;overflow:auto;margin-top:-4px}
+.mlPick .row .pt{white-space:normal}
+.mlPair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 14px}
+.mlPair>div{display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:12px;padding:12px}
+.mlPair b{color:var(--navy);font-size:13px;line-height:1.3}
+.mlPair span{font-size:12px;color:var(--grey-500)}
+.mlFileBtn{cursor:pointer}
+.mlCheap .row .meta{white-space:normal}
+@media (max-width:860px){
+  .mlGrid{grid-template-columns:minmax(0,1fr)}
+  .mlr{grid-template-columns:22px minmax(0,1fr) auto;padding:10px 12px}
+  .mlr>.btn,.mlr>.fl{grid-column:2 / -1;justify-self:start}
+  .mlPair{grid-template-columns:1fr}
+  .mlFor{flex-wrap:wrap}
+}

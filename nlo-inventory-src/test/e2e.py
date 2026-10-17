@@ -389,7 +389,7 @@ def t_boot(b):
     check('boot: an old stamp (Staff Hub id) finds the NLO Cases person', J(pg, "personById('s_kaylee') && personById('s_kaylee').id") == 'kaylee')
     check('boot: a saved vendor’s account number shows over the built-in list', J(pg, "(S.D.vendors.find(v => v.id === 'sun') || {}).acct") == '12345')
     check('boot: the page carries no vendor account numbers of its own', J(pg, "VENDORS.every(v => !v.acct && !v.rep && !v.repEmail)"))
-    for v in ['home', 'supplies', 'cart', 'orders', 'quick', 'budget', 'activity', 'vendors', 'settings']:
+    for v in ['home', 'supplies', 'cart', 'orders', 'quick', 'ml', 'budget', 'activity', 'vendors', 'settings']:
         J(pg, "go('%s')" % v); pg.wait_for_timeout(200)
         bad = J(pg, "document.querySelector('#view').textContent.includes('hit a problem')")
         check('render: ' + v, not bad, J(pg, "document.querySelector('#view').textContent.slice(0,300)"))
@@ -809,7 +809,7 @@ def t_simple_view(b):
     check('simple: …and the database refuses her the budget', 'permission' in r, r)
     switch_to(pg, 'amir')
     nav = J(pg, "[...document.querySelectorAll('#side .navBtn')].map(b => b.dataset.v)")
-    check('simple: Dr. A has everything', nav == ['home', 'supplies', 'cart', 'orders', 'quick', 'budget', 'activity', 'vendors', 'settings'] and J(pg, "!!document.querySelector('#askFab')"), nav)
+    check('simple: Dr. A has everything (Mari’s List too, to set it up)', nav == ['home', 'supplies', 'cart', 'orders', 'quick', 'ml', 'budget', 'activity', 'vendors', 'settings'] and J(pg, "!!document.querySelector('#askFab')"), nav)
     J(pg, "go('budget')"); pg.wait_for_timeout(150)
     click(pg, '[data-act="budgetEdit"]', 300)
     J(pg, "document.querySelector('#bMonthly').value = '8500'")
@@ -969,7 +969,7 @@ def t_offline(b):
 @test
 def t_phone(b):
     ctx, pg, errs = open_as(b, 'amir', w=390, h=844)
-    for v in ['home', 'supplies', 'cart', 'orders', 'quick', 'budget', 'activity', 'vendors', 'settings']:
+    for v in ['home', 'supplies', 'cart', 'orders', 'quick', 'ml', 'budget', 'activity', 'vendors', 'settings']:
         J(pg, "go('%s')" % v); pg.wait_for_timeout(150)
         ow = J(pg, "document.documentElement.scrollWidth > window.innerWidth + 1")
         check('phone: no sideways scroll on ' + v, not ow, J(pg, "[document.documentElement.scrollWidth, window.innerWidth]"))
@@ -1361,6 +1361,177 @@ def t_claim_twice(b):
     check('twice: no page errors', not errs, errs)
     ctx.close()
 
+def ml_file(path, n_rows=5200, extra=None):
+    """a made-up Mari's List file, shaped as Claude makes them (big enough to be saved in two parts)"""
+    vendors = [
+        {'id': 'acme', 'name': 'Acme Ortho Test', 'cat': 'supplies', 'deal': '15% off online; free shipping over $250.', 'code': 'ACMETEST15', 'how': 'Order on their website with the code.',
+         'contacts': [{'k': 'phone', 'v': '555-010-1234 x12', 'who': 'Pat'}, {'k': 'email', 'v': 'orders@acme.example'}, {'k': 'web', 'v': 'https://acme.example/shop'}],
+         'files': [{'t': 'Member price list (2026)', 'u': 'https://files.example/acme-2026.pdf', 'd': '2026'}]},
+        {'id': 'sunny', 'name': 'Sunny Surgical Test', 'cat': 'supplies', 'deal': 'Member prices on gloves.', 'how': 'Email and say you’re a Mari’s List member.', 'say': True,
+         'aka': ['SunSurgical'], 'contacts': [{'k': 'email', 'v': 'gloves@sunny.example'}, {'k': 'text', 'v': '555-010-9876'}]},
+        {'id': 'lablab', 'name': 'Lab Lab Test', 'cat': 'lab', 'deal': '10% off lab work.', 'how': 'See the portal.'},
+        {'id': 'bad id', 'name': 'Refused'}]
+    rows = [['acme', 'GL-200S', 'Nitrile gloves, powder-free, blue, Small', 'Box of 200', 13.2, 18.5, 'Gloves', '', 0],
+            ['sunny', 'S-100L', 'Nitrile gloves, Large', 'Box of 100', 7.1, None, 'Gloves', '', -1],
+            ['acme', 'ZZ-UNIQUE', 'Zebra-striped unique test plier', 'EA', 77.77, 99, 'Pliers', '', 0],
+            ['lablab', '', 'Hawley retainer', 'Each', 54, None, 'Lab services', '', -1],
+            ['acme', 'TP-1', 'Percent-off product', '', None, None, '', '20% off list', -1],
+            ['nobody', 'X', 'From a vendor not in the file', 'EA', 1, None, '', '', -1],
+            ['acme', 'X2', '', 'EA', 1, None, '', '', -1]]
+    for i in range(n_rows):
+        rows.append(['acme', 'FILL-%05d' % i, 'Filler archwire %05d, NiTi, round .016, upper, a description long enough to make the file need more than one part' % i, 'Pack of 10', 10 + (i % 50) / 10, 15, 'Archwires', '', 0])
+    d = {'kind': 'nlo-marislist', 'ver': 1, 'at': '2026-10-16', 'src': 'Made-up for the tests', 'vendors': vendors, 'rows': rows,
+         'match': {'ppe-1': [{'i': 0, 'x': 2}], 'nope': [{'i': 2, 'x': 1}], 'ppe-3': [{'i': 5, 'x': 1}]}}
+    if extra: extra(d)
+    pathlib.Path(path).write_text(json.dumps(d))
+    return d
+
+@test
+def t_marislist(b):
+    """Mari's List (17 Oct 2026): nobody locked out under the rules from before it; Dr. A loads the office's member prices from
+    Claude's file; everyone sees each vendor's deal, code and how to order, searches the prices and sees them on a supply, the
+    cart and the place-order dialog; only Dr. A links a price to a supply; a newer file replaces the set and keeps his links"""
+    tmp = HERE / 'www' / '_ml'; tmp.mkdir(exist_ok=True)
+    new = (DIST / 'firestore.rules').read_text()
+    a0 = new.index('    // Mari\'s List (17 Oct 2026'); a1 = new.index('    // which set of these rules is live', a0)
+    set_rules(new[:a0] + new[a1:])   # the rules from before Mari's List
+    try:
+        ctx, pg, errs = open_as(b, 'amir', quiet=True)
+        pg.wait_for_function("() => S.ml.off === true", timeout=10000)
+        check('old rules: Inventory opens for Dr. A (nobody locked out)', J(pg, "S.inApp && S.gate === 'ready' && allLoaded()") is True)
+        J(pg, "go('settings')"); pg.wait_for_timeout(200)
+        check('old rules: Settings → Mari’s List says it needs the new rules, with the steps', 'Needs the new rules' in J(pg, "document.querySelector('#view').textContent") and J(pg, "!!document.querySelector('[data-act=copyRules]')"))
+        J(pg, "go('ml')"); pg.wait_for_timeout(150)
+        check('old rules: the Mari’s List screen says so too', 'Mari’s List needs the new rules' in J(pg, "document.querySelector('#view').textContent"))
+        set_rules(new)
+        pg.click('[data-act="mlCheck"]'); pg.wait_for_function("() => S.ml.off === false", timeout=10000); pg.wait_for_timeout(300)
+        check('new rules published: Check again finds them', J(pg, "S.ml.off") is False and 'Load a Mari’s List file' in J(pg, "document.querySelector('#view').textContent"), J(pg, "document.querySelector('#view').textContent.slice(0,300)"))
+        ctx.close()
+        set_rules(new[:a0] + new[a1:])
+        ctx, pg, errs = open_as(b, 'gwen', quiet=True)
+        pg.wait_for_function("() => S.ml.off === true", timeout=10000)
+        check('old rules: Gwen gets in, and no Mari’s List in her menu', J(pg, "S.gate") == 'ready' and not J(pg, "!!document.querySelector('#nav-ml')"))
+        ctx.close()
+    finally:
+        set_rules(new)
+
+    # ---- Dr. A loads a file
+    f1 = tmp / 'nlo-marislist-test.json'; d1 = ml_file(f1)
+    ctx, pg, errs = open_as(b, 'amir')
+    pg.wait_for_function("() => S.ml.off === false", timeout=10000)
+    J(pg, "go('settings')"); pg.wait_for_timeout(200)
+    check('load: Settings → Mari’s List has nothing loaded yet', 'Not yet' in J(pg, "document.querySelector('#view').textContent"))
+    pg.set_input_files('#mlFile', str(f1)); pg.wait_for_selector('[data-act="mlLoadGo"]', timeout=10000)
+    txt = J(pg, "document.querySelector('#modalWrap').textContent")
+    check('load: the dialog says what’s in the file (3 vendors, the good prices, 1 supply linked)', 'Vendors3' in txt.replace(' ', '') and ('%s' % '{:,}'.format(5205)) in txt and 'Yoursupplieslinkedtoone1' in txt.replace(' ', ''), txt)
+    check('load: lines without a vendor, description or price are left out', '2 lines without a vendor' in txt, txt)
+    pg.click('[data-act="mlLoadGo"]'); pg.wait_for_function("() => !document.querySelector('#modalWrap') && S.ml.info && S.ml.info.rows === 5205", timeout=30000); settle(pg)
+    info = get('invMl/info') or {}
+    parts = sorted(k for k in query('invMl') if k.startswith('p'))
+    check('load: info saved by Dr. A (3 vendors, 5,205 prices, 2 parts)', info.get('upBy') == 'amir' and len(info.get('vendors') or []) == 3 and info.get('rows') == 5205 and info.get('parts') == 2 and info.get('loadedBy') == 'Dr. A', {k: info.get(k) for k in ('upBy', 'rows', 'parts', 'loadedBy', 'ver')})
+    check('load: the prices in 2 parts named after the set', parts == ['p%s_1' % info.get('ver'), 'p%s_2' % info.get('ver')], parts)
+    sizes = [len(((get('invMl/' + p) or {}).get('t') or '').encode()) for p in parts]
+    check('load: each part under 900 KB', all(0 < s <= 900000 for s in sizes), sizes)
+    m = (get('invMl/match') or {}).get('m') or {}
+    check('load: the file’s link for ppe-1 (1 box of 200 = 2 of ours), not for a supply that isn’t there… (kept: it may come)', (m.get('ppe-1') or [{}])[0].get('x') == 2 and (m.get('ppe-1') or [{}])[0].get('k') == 'acme|GL-200S|box of 200', m.get('ppe-1'))
+    check('load: a link to a left-out line is dropped', 'ppe-3' not in m, list(m))
+    vs = {v['id']: v for v in info.get('vendors') or []}
+    check('load: the vendor with a bad id is left out; the others keep deal, code, contacts and files', set(vs) == {'acme', 'sunny', 'lablab'} and vs['acme'].get('code') == 'ACMETEST15' and len(vs['acme'].get('contacts') or []) == 3 and (vs['acme'].get('files') or [{}])[0].get('u') == 'https://files.example/acme-2026.pdf', vs.get('acme'))
+    # ---- the screen
+    J(pg, "go('ml')"); pg.wait_for_timeout(300)
+    txt = J(pg, "document.querySelector('#view').textContent")
+    check('screen: the vendors, with deals and codes', J(pg, "document.querySelectorAll('.mlv').length") == 3 and 'ACMETEST15' in txt and '15% off online' in txt, txt[:400])
+    check('screen: Sunny is one the office buys from (SunSurgical)', J(pg, "!!document.querySelector('.mlv.ours[data-id=sunny]')"))
+    check('screen: what’s cheaper for the linked supplies (gloves: $6.60 a box vs $9.13)', 'Cheaper on Mari’s List' in txt and '$6.60' in txt and 'Save 28%' in txt, txt[:500])
+    J(pg, "S.q = 'zebra plier'; renderView(true)"); pg.wait_for_function("() => document.querySelectorAll('.mlr').length === 1", timeout=15000)
+    check('search: reads the prices (both parts) and finds the one', J(pg, "S.ml.rows.length") == 5205 and 'Zebra-striped unique test plier' in J(pg, "document.querySelector('.mlList').textContent"))
+    J(pg, "S.q = 'nitrile gloves sm'; renderView(true)"); pg.wait_for_timeout(250)
+    check('search: “sm” finds “Small”, “gloves” finds “gloves”', J(pg, "[...document.querySelectorAll('.mlr')].map(r => r.dataset.k)") == ['acme|GL-200S|box of 200'], J(pg, "[...document.querySelectorAll('.mlr')].map(r => r.dataset.k)"))
+    J(pg, "S.q = '.016 upper filler'; renderView(true)"); pg.wait_for_timeout(250)
+    check('search: many matches show the first 150 and say how many', J(pg, "document.querySelectorAll('.mlr').length") == 150 and 'of 5,200' in J(pg, "document.querySelector('#view').textContent"))
+    J(pg, "openDrawer('mlv', 'acme')"); pg.wait_for_timeout(200)
+    dt = J(pg, "document.querySelector('#drawer').textContent")
+    check('vendor drawer: deal, code with Copy, how, contacts (call with the extension), price file', 'ACMETEST15' in dt and 'Order on their website' in dt and J(pg, "document.querySelector('#drawer a[href^=\"tel:\"]').getAttribute('href')") == 'tel:+15550101234,12' and J(pg, "!!document.querySelector('#drawer a[href=\"mailto:orders@acme.example\"]')") and J(pg, "!!document.querySelector('#drawer a[href=\"https://files.example/acme-2026.pdf\"]')"), dt[:500])
+    J(pg, "openDrawer('mlr', 'acme|ZZ-UNIQUE|ea')"); pg.wait_for_timeout(200)
+    dt = J(pg, "document.querySelector('#drawer').textContent")
+    check('price drawer: the price, retail and % off, how to get it, the file it’s from', '$77.77' in dt and 'retail $99.00' in dt and '21% off' in dt and 'Member price list (2026)' in dt, dt[:400])
+    J(pg, "closeDrawer()")
+    # ---- a supply's drawer
+    J(pg, "S.q = ''; go('supplies'); openDrawer('item', 'ppe-1')"); pg.wait_for_timeout(300)
+    dt = J(pg, "document.querySelector('#drawer .mlSec').textContent")
+    check('supply drawer: its Mari’s List price, per box of ours, and the saving', 'Acme Ortho Test' in dt and '$13.20' in dt and '$6.60/box' in dt and 'Save 28%' in dt, dt)
+    check('supply drawer: SunSurgical is on Mari’s List (its deal)', 'SunSurgical is on Mari’s List' in dt, dt)
+    # ---- Dr. A links one himself
+    J(pg, "closeDrawer(); openDrawer('item', 'ppe-2')"); pg.wait_for_timeout(200)
+    pg.click('#drawer [data-act="mlFind"]'); pg.wait_for_function("() => S.view === 'ml' && document.querySelectorAll('.mlr').length > 0", timeout=10000)
+    check('find: from the supply, the closest matches first (its name’s words)', J(pg, "document.querySelector('.mlr').dataset.k") == 'sunny|S-100L|box of 100' and 'Mari’s List prices for Gloves Pulse Nitrile — LG' in J(pg, "document.querySelector('.mlFor').textContent"), J(pg, "[S.q, document.querySelector('.mlr').dataset.k]"))
+    pg.click('.mlr[data-k="sunny|S-100L|box of 100"] [data-act="mlLinkAsk"]'); pg.wait_for_selector('#mlX')
+    check('link: one of theirs = 1 of ours (no count to compare: the supply doesn’t say)', J(pg, "document.querySelector('#mlX').value") == '1')
+    check('link: says what that comes to ($7.10 a box vs $9.13: 22% less)', '$7.10' in J(pg, "document.querySelector('#mlXSay').textContent") and '22% less' in J(pg, "document.querySelector('#mlXSay').textContent"), J(pg, "document.querySelector('#mlXSay').textContent"))
+    click(pg, '#mlLinkGo', 600)
+    m = (get('invMl/match') or {}).get('m') or {}
+    check('link: saved for ppe-2 by Dr. A, ppe-1’s link kept', (m.get('ppe-2') or [{}])[0].get('k') == 'sunny|S-100L|box of 100' and (m.get('ppe-2') or [{}])[0].get('by') == 'Dr. A' and 'ppe-1' in m, m)
+    check('link: the result says Linked', J(pg, "!!document.querySelector('.mlr[data-k=\"sunny|S-100L|box of 100\"] .fl.cart')"))
+    J(pg, "ACT.mlForDone()"); pg.wait_for_timeout(100)
+    # ---- the cart and the place-order dialog
+    J(pg, "go('supplies'); openAddToCart(itemById('ppe-1'), 2)"); pg.wait_for_timeout(200); click(pg, '#addGo', 600)
+    J(pg, "go('cart')"); pg.wait_for_timeout(300)
+    txt = J(pg, "document.querySelector('#view').textContent")
+    check('cart: SunSurgical’s card says it’s on Mari’s List (say you’re a member)', 'Mari’s List · say you’re a member' in txt, txt[:600])
+    check('cart: the gloves line says Mari’s List has them for less elsewhere', 'Mari’s List: $6.60 per box at Acme Ortho Test — 28% less' in txt, txt[:900])
+    J(pg, "document.querySelector('[data-act=placeOrder][data-v=\"SunSurgical\"]').click()"); pg.wait_for_selector('.mlPlace')
+    J(pg, "document.querySelector('[data-act=placeHow][data-k=email]') && 0")
+    mt = J(pg, "document.querySelector('#modalWrap').textContent")
+    check('place order: how to get the member price, and that the email and text say so', 'Mari’s List member pricing' in mt and 'Email and say you’re a Mari’s List member.' in mt, mt[:500])
+    check('place order: the order email and the text carry “We’re Mari’s List members”', 'We’re Mari’s List members — please apply our Mari’s List pricing.' in J(pg, "orderText('SunSurgical', S.ui.place.snap, whoNow())") and "We're Mari's List members - please apply our Mari's List pricing." in J(pg, "orderSms('SunSurgical', S.ui.place.snap, whoNow())"))
+    check('place order: a vendor that isn’t on Mari’s List gets neither', J(pg, "mlPlaceHTML('American Orthodontics') === '' && mlOrderSay('American Orthodontics') === ''") is True)
+    J(pg, "closeModal(true)")
+    check('Dr. A: no page errors', not errs, errs)
+    ctx.close()
+    # ---- Gwen: sees it all, links nothing
+    ctx, pg, errs = open_as(b, 'gwen')
+    pg.wait_for_function("() => !!S.ml.info", timeout=10000); pg.wait_for_timeout(200)
+    check('Gwen: Mari’s List is in her menu now', J(pg, "!!document.querySelector('#nav-ml')"))
+    J(pg, "go('ml')"); pg.wait_for_timeout(200)
+    check('Gwen: sees the vendors and what’s cheaper', J(pg, "document.querySelectorAll('.mlv').length") == 3 and 'Cheaper on Mari’s List' in J(pg, "document.querySelector('#view').textContent"))
+    J(pg, "openDrawer('item', 'ppe-2')"); pg.wait_for_timeout(200)
+    pg.click('#drawer [data-act="mlFind"]'); pg.wait_for_function("() => document.querySelectorAll('.mlr').length > 0", timeout=10000)
+    check('Gwen: no “Same as ours” for her (Dr. A links them)', not J(pg, "!!document.querySelector('[data-act=mlLinkAsk]')") and 'Dr. A links the one' in J(pg, "document.querySelector('.mlFor').textContent"))
+    r = J(pg, "B.mlMatchSet('ppe-2', []).then(() => 'saved', e => String(e.code || e.message))")
+    check('Gwen: the page won’t link or unlink for her', r == 'permission', r)
+    J(pg, "B.mlMatchSet = () => Promise.resolve(); B.isOwner = () => true");
+    r = J(pg, "firebase.app('inv').firestore().doc('invMl/match').set({ m: {}, up: firebase.firestore.FieldValue.serverTimestamp(), upBy: 'gwen' }).then(() => 'saved', e => String(e.code))")
+    check('Gwen: …nor will the database', r == 'permission-denied', r)
+    check('Gwen: no page errors', not [e for e in errs if 'permission' not in e.lower()], errs)
+    ctx.close()
+    # ---- a newer file replaces the set; Dr. A's own link stays (with its new price), the old parts go
+    f2 = tmp / 'nlo-marislist-test2.json'
+    def newer(d):
+        d['at'] = '2026-11-02'; d['rows'][1][4] = 6.5; d['rows'] = d['rows'][:300]
+    ml_file(f2, extra=newer)
+    ctx, pg, errs = open_as(b, 'amir')
+    pg.wait_for_function("() => !!S.ml.info", timeout=10000)
+    old_ver = J(pg, "S.ml.info.ver")
+    J(pg, "go('settings')"); pg.wait_for_timeout(200)
+    pg.set_input_files('#mlFile', str(f2)); pg.wait_for_selector('[data-act="mlLoadGo"]', timeout=10000)
+    txt = J(pg, "document.querySelector('#modalWrap').textContent")
+    check('reload: says Dr. A’s own link stays and what it replaces', '1 link you made stay' in txt and 'It replaces the set loaded' in txt, txt)
+    pg.click('[data-act="mlLoadGo"]'); pg.wait_for_function("() => !document.querySelector('#modalWrap') && S.ml.info && S.ml.info.ver !== %s" % json.dumps(old_ver), timeout=30000); settle(pg, 800)
+    info = get('invMl/info') or {}; parts = sorted(k for k in query('invMl') if k.startswith('p'))
+    check('reload: the new set (one part), the old parts gone', parts == ['p%s_1' % info.get('ver')] and info.get('at') == '2026-11-02', parts)
+    m = (get('invMl/match') or {}).get('m') or {}
+    check('reload: Dr. A’s link for ppe-2 kept, with the new price', (m.get('ppe-2') or [{}])[0].get('p') == 6.5 and (m.get('ppe-2') or [{}])[0].get('by') == 'Dr. A', m.get('ppe-2'))
+    J(pg, "go('ml'); S.q = 'zebra'; renderView(true)"); pg.wait_for_function("() => S.ml.rows && S.ml.rows.length === 298", timeout=15000)
+    check('reload: the page reads the new set', J(pg, "S.ml.rowsVer") == info.get('ver'))
+    # ---- unlinking
+    J(pg, "S.q = ''; go('supplies'); openDrawer('item', 'ppe-2')"); pg.wait_for_timeout(250)
+    J(pg, "document.querySelector('#drawer .mlLinkRow').click()"); pg.wait_for_timeout(250)
+    pg.click('#drawer [data-act="mlUnlink"]'); pg.wait_for_selector('#cbYes'); click(pg, '#cbYes', 600)
+    m = (get('invMl/match') or {}).get('m') or {}
+    check('unlink: ppe-2’s link is off, ppe-1’s stays', 'ppe-2' not in m and 'ppe-1' in m, list(m))
+    check('Dr. A (reload): no page errors', not errs, errs)
+    ctx.close()
+
 @test
 def t_demo(b):
     """the demo page: made-up office, nothing saved, every screen for each kind of person"""
@@ -1373,11 +1544,17 @@ def t_demo(b):
     for k, who in enumerate(['amir', 'gwen']):
         J(pg, "document.querySelector('[data-act=demoAs][data-as=%s]').click()" % who); pg.click('#lgBtn')
         pg.wait_for_function("() => S.inApp && allLoaded()", timeout=10000)
-        for v in ['home', 'supplies', 'cart', 'orders', 'quick', 'budget', 'activity', 'vendors', 'settings']:
+        for v in ['home', 'supplies', 'cart', 'orders', 'quick', 'ml', 'budget', 'activity', 'vendors', 'settings']:
             J(pg, "go('%s')" % v); pg.wait_for_timeout(120)
             check('demo (%s): %s renders' % (who, v), not J(pg, "document.querySelector('#view').textContent.includes('hit a problem')"), J(pg, "document.querySelector('#view').textContent.slice(0,200)"))
             if who == 'gwen' and v in ('budget', 'activity', 'vendors', 'settings'): check('demo (gwen): %s isn’t hers (Home instead)' % v, J(pg, "S.view") == 'home')
-        J(pg, "go('cart')"); pg.wait_for_timeout(150)
+        J(pg, "go('ml')"); pg.wait_for_timeout(150)
+        txt = J(pg, "document.querySelector('#view').textContent")
+        check('demo (%s): Mari’s List shows made-up vendors and what’s cheaper' % who, J(pg, "S.view") == 'ml' and 'Cedar Dental Supply' in txt and 'Cheaper on Mari’s List' in txt and 'BRIGHT18' in txt, txt[:300])
+        check('demo (%s): only the made-up Mari’s List vendors in the demo' % who, J(pg, "S.ml.info.vendors.map(v => v.id).join(',')") == 'cedar,brightline,harbor,northwind,pebble,summit,tidewater', J(pg, "S.ml.info.vendors.map(v => v.id)"))
+        J(pg, "S.q = 'nitrile small'; renderView(true)"); pg.wait_for_timeout(250)
+        check('demo (%s): searching the member prices' % who, J(pg, "document.querySelectorAll('.mlr').length") == 1, J(pg, "document.querySelector('#view').textContent.slice(0,300)"))
+        J(pg, "S.q = ''"); J(pg, "go('cart')"); pg.wait_for_timeout(150)
         txt = J(pg, "document.querySelector('#view').textContent")
         check('demo (%s): the cart shows Dr. A’s OKs and what waits' % who, ('Needs your OK' in txt and 'you OK’d 3' in txt) if who == 'amir' else ('OK’d by Dr. A' in txt and 'Waiting for Dr. A’s OK' in txt and 'he OK’d 3' in txt), txt[:600])
         J(pg, "cartAdd(activeItems().filter(i => !inCartLine(i.id))[%d], 1, {})" % k); pg.wait_for_timeout(200)

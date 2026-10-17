@@ -75,6 +75,40 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
   edited, an invoice matched) are made from the order as the database has it, so two computers at once don't trip each
   other; like stock and the cart, they need the internet.
 
+## Mari's List (5.1)
+Amir, 17 Oct 2026, once the Mari's List member price lists were saved from the member portal: "okay all of that needs to be in
+the inventory app some how".
+- **The Mari's List screen** (everyone; for the others once Dr. A has loaded the prices): every Mari's List vendor as a card —
+  its deal, its code (tap to copy), how to get the member price — grouped Clinical supplies / Lab & aligners / Patient items /
+  Office & equipment / Services, with "We buy from" (the vendors the office already orders from). A vendor's drawer has the
+  deal, the code, how to order with one-tap email / call / text / website buttons (a PC copies a text number instead), its
+  price files (the originals on Mari's List's site) and the office's supplies linked to its prices. The search box searches
+  every member price (~18,000 from ~40 price files): every word must match, however it's written ("sm" = small, "ss" =
+  stainless, ".016x.022" = "016 x 022", o-ties = elastomeric ligatures…); sorted by best match, lowest price or vendor; each
+  price shows the unit, the retail price and % off when the file has them, and the price a piece when the unit says how many.
+- **What's cheaper**: a price linked to a supply ("same item", or "similar item" — another maker's product with the same specs)
+  is compared with what the office pays, per the supply's counted unit (a link says how many of those one Mari's List unit
+  is), with the yearly saving by what was received in the last 12 months. The Mari's List screen and Dr. A's Home show the
+  supplies it beats by 3% or more; the supply's drawer shows its links (and, when its own vendor is on Mari's List, that
+  vendor's deal); a cart line says when Mari's List has it for less elsewhere.
+- **Ordering**: a cart vendor on Mari's List says so on its card (its code, or "say you're a member"); the place-order dialog
+  says how to get the member price (with the code to copy); for a vendor that asks to be told, the order
+  email and text carry "We're Mari's List members — please apply our Mari's List pricing."
+- **Linking (Dr. A)**: a supply's drawer → Find it on Mari's List (its name's words, closest first) → Same as ours on the one
+  that's the same product → how many of ours one of theirs is (guessed from the counts both sides state) → Link them. A price's
+  drawer has "Same as one of our supplies…" and, for a linked one, × to take it off. Only Dr. A links; the database holds
+  everyone else to that.
+- **Where the prices come from**: Claude reads the price files on the member portal (Mari's List's own site; the portal
+  signs in with a code emailed to Dr. A) and makes one file (vendors, prices, links), kept out of git and off
+  every published page; Dr. A loads it in Settings → Mari's List → Load a Mari's List file (a preview first; links he made
+  stay when their price is still in the new set, with its new price). Ask Claude for a new file when the price lists change.
+- **Privacy**: Mari's List asks that member prices stay with members, so they're only in the office database (`invMl`, read
+  by anyone signed in, written only by Dr. A) — never in this page, which is published from a public repo. With the file at
+  hand, `ML_PRIVATE=<file> python3 build.py` refuses a page or demo that carries any of its codes, contacts, file links or a
+  sample of its descriptions. The demo has made-up Mari's List vendors and prices.
+- **Under the rules from before Mari's List** nobody is locked out: the prices just aren't there, and Settings → Mari's List
+  (and the Mari's List screen, for Dr. A) has the publish-the-rules steps and Check again.
+
 ## The data (Firestore `nlo-cases`; rules: `../nlo-cases-src/firestore.rules`, block "NLO Inventory")
 - `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before.
 - `invLog/m<YYYY-MM>~<staff id>` — `{ e: { <entryId>: entry }, mon, who }`: one record per person per month, entries only
@@ -91,6 +125,12 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
   the same save (the rules check both).
 - `invAlerts/{auto}` — the cart/order/receiving emails waiting for the alert script; `invPics/{id}` `{m, b, kind}`;
   `invMeta/moved`; `invBots/{uid}` (the alert script's login), `invBeat/{uid}` (when it last checked); marker `meta/rules_inv_1`.
+- `invMl/info` — the Mari's List set that's current: `ver` (its name), `at` (when the prices were read from the portal),
+  `vendors` (id, name, cat, deal, code, how, say, contacts, files, aka, note, n), `parts`, `rows`, `loadedAt`, `loadedBy`;
+  `invMl/p<ver>_<n>` — its prices, `t` = a JSON list of `[vendor, item #, description, unit, member price, retail, section,
+  note, file]`, under 900 KB each; `invMl/match` `{m: {<supply id>: [{k (vendor|item #|unit), x, s (same/similar), v, n, d,
+  u, p, r, by, at}]}}`. Dr. A's alone to write (parts first, then info + links in one save, then the old parts go); everyone
+  signed in reads them; they don't move the change counter.
 - Old records keep Staff Hub's ids in their stamps (`s_sarah`…): a roster entry linked to Staff Hub (`rid`) answers to both.
 
 ## The move (once, Dr. A)

@@ -13,7 +13,7 @@ import base64, hashlib, json, os, pathlib, re, shutil, subprocess, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
 FILES = ['core.js', 'money.js', 'units.js', 'data.js', 'backend.js', 'demo.js', 'who.js', 'ui.js', 'move.js', 'ops.js', 'home.js', 'supplies.js',
-         'cart.js', 'orders.js', 'receive.js', 'slip.js', 'quick.js', 'budget.js', 'activity.js', 'vendors.js', 'settings.js', 'scan.js', 'ai.js', 'editor.js']
+         'cart.js', 'orders.js', 'receive.js', 'slip.js', 'quick.js', 'budget.js', 'activity.js', 'vendors.js', 'marislist.js', 'settings.js', 'scan.js', 'ai.js', 'editor.js']
 missing = [f for f in FILES if not (src / f).exists()]
 assert not missing, 'missing source files: %s' % missing
 
@@ -58,7 +58,7 @@ else: print('NOTE: no src/vendors.private.js — the vendor details for the data
 
 # the shared rules (Dr. A's "publish the rules" card)
 rules = (root.parent / 'nlo-cases-src' / 'firestore.rules').read_text()
-assert rules.count('__OWNER_EMAIL__') == 1 and 'match /invItems/{id}' in rules and 'match /meta/rules_inv_1' in rules and 'match /tcPunch/{id}' in rules and 'match /toReq/{id}' in rules
+assert rules.count('__OWNER_EMAIL__') == 1 and 'match /invItems/{id}' in rules and 'match /meta/rules_inv_1' in rules and 'match /invMl/{id}' in rules and 'match /tcPunch/{id}' in rules and 'match /toReq/{id}' in rules
 assert js.count('const INV_RULES = "";') == 1
 js = js.replace('const INV_RULES = "";', 'const INV_RULES = ' + json.dumps(rules) + ';', 1)
 # the NLO Cases project's web config
@@ -81,6 +81,25 @@ def page(template, body_js):
 out = page(t, js)
 left = [x for x in secrets if x in js]
 assert not left, 'vendor details in the page (%d)' % len(left)
+# Mari's List's member prices stay in the office database (Dr. A loads them from a file Claude makes; it's never in git): with
+# that file at hand (ML_PRIVATE=path), the build refuses a page that carries any of its codes, contacts or prices
+ML_PRIVATE = os.environ.get('ML_PRIVATE', '')
+ml_secrets = []
+if ML_PRIVATE and pathlib.Path(ML_PRIVATE).exists():
+    mlf = json.loads(pathlib.Path(ML_PRIVATE).read_text())
+    for v in mlf.get('vendors', []):
+        if v.get('code'): ml_secrets.append(v['code'])
+        for c in v.get('contacts', []):
+            if c.get('k') in ('email', 'phone', 'text') and len(str(c.get('v') or '')) >= 7: ml_secrets.append(str(c['v']))
+        for f in v.get('files', []):
+            if f.get('u'): ml_secrets.append(f['u'])
+    for r in mlf.get('rows', [])[::37]:
+        if r[2] and len(r[2]) > 24: ml_secrets.append(r[2])
+    public = (src / 'data.js').read_text()   # (a vendor's public phone number in the built-in vendor list isn't Mari's List's)
+    ml_secrets = [x for x in ml_secrets if x not in public]
+    left = sorted(set(x for x in ml_secrets if x in js))
+    assert not left, "Mari's List details in the page: %s" % left[:5]
+    print("Mari's List: none of %d of its details are in the page" % len(set(ml_secrets)))
 dist = root / 'dist'; dist.mkdir(exist_ok=True)
 for old in ['index.html', 'app.js']:
     if (dist / old).exists(): (dist / old).unlink()
@@ -139,6 +158,8 @@ djs = js.replace('const DEMO_ONLY = false;', 'const DEMO_ONLY = true;', 1).repla
 djs = djs.replace('const INV_RULES = ' + json.dumps(rules) + ';', 'const INV_RULES = "";', 1)
 left = [x for x in secrets if x in djs]
 assert not left, 'vendor details left in the demo (%d)' % len(left)
+left = sorted(set(x for x in ml_secrets if x in djs))
+assert not left, "Mari's List details in the demo: %s" % left[:5]
 # ...and without the office's sign-in details or its Apps Script (the demo never signs in)
 a = djs.index('const FB_CONFIG = {'); b = djs.index('};', a) + 2
 djs = djs[:a] + 'const FB_CONFIG = { apiKey: "__API_KEY__", authDomain: "", projectId: "", appId: "" };' + djs[b:]

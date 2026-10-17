@@ -436,6 +436,47 @@ await seed();
   await ok('…and 450 supplies in one go', save(a, 'owner', big));
 }
 
+/* ---------- Mari's List (17 Oct 2026): the office's member prices — everyone signed in reads them, only Dr. A loads them and
+   links them to supplies ---------- */
+await seed();
+{
+  const a = as('owner'), g = as('ca'), f = as('fc');
+  const mst = uid => ({ up: serverTimestamp(), upBy: SID[uid] || uid });
+  const info = o => Object.assign({ ver: 'kx1abc2d', at: '2026-10-16', src: 'Mari’s List member portal', vendors: [{ id: 'acme', name: 'Acme Test', code: 'TESTCODE10', deal: '10% off' }], parts: 2, rows: 3, loadedAt: '2026-10-17T12:00:00Z', loadedBy: 'Dr. A' }, mst('owner'), o || {});
+  const part = (t, o) => Object.assign({ t }, mst('owner'), o || {});
+  await ok('Dr. A saves a set’s first part', setDoc(doc(a, 'invMl/pkx1abc2d_1'), part('[["acme","T-100","TEST PLIER","EA",10.5,12,"","",0]]')));
+  await ok('…and its second', setDoc(doc(a, 'invMl/pkx1abc2d_2'), part('[]')));
+  await ok('…then info, which points at them', setDoc(doc(a, 'invMl/info'), info()));
+  await ok('…and the links to supplies', setDoc(doc(a, 'invMl/match'), Object.assign({ m: { 'ppe-1': [{ k: 'acme|T-100|ea', x: 1, p: 10.5 }] } }, mst('owner'))));
+  await ok('Gwen reads info', getDoc(doc(g, 'invMl/info')));
+  await ok('…the prices', getDoc(doc(g, 'invMl/pkx1abc2d_1')));
+  await ok('…and the links', getDoc(doc(g, 'invMl/match')));
+  await ok('Sarah reads them too', getDoc(doc(f, 'invMl/info')));
+  await no('someone who left doesn’t', getDoc(doc(as('gone'), 'invMl/info')));
+  await no('nor a stranger', getDoc(doc(as('stranger'), 'invMl/pkx1abc2d_1')));
+  await no('nor anyone signed out', getDoc(doc(anon(), 'invMl/info')));
+  await no('nor the alert script (it doesn’t need them)', getDoc(doc(as('bot1'), 'invMl/info')));
+  await no('Gwen can’t load prices', setDoc(doc(g, 'invMl/pzz9_1'), part('[]', mst('ca'))));
+  await no('…nor change info', setDoc(doc(g, 'invMl/info'), info(mst('ca'))));
+  await no('…nor link a price to a supply', setDoc(doc(g, 'invMl/match'), Object.assign({ m: {} }, mst('ca'))));
+  await no('…nor take a part away', deleteDoc(doc(g, 'invMl/pkx1abc2d_1')));
+  await no('Dr. A’s save carries his name and the time', setDoc(doc(a, 'invMl/info'), info({ upBy: 'gwen' })));
+  await no('…not a made-up time', setDoc(doc(a, 'invMl/info'), info({ up: Timestamp.fromMillis(Date.now() - 864e5) })));
+  await no('info with something extra is refused', setDoc(doc(a, 'invMl/info'), info({ evil: true })));
+  await no('…or an odd set name', setDoc(doc(a, 'invMl/info'), info({ ver: 'A B' })));
+  await no('…or parts that aren’t a number', setDoc(doc(a, 'invMl/info'), info({ parts: '2' })));
+  await no('a part with something extra is refused', setDoc(doc(a, 'invMl/pkx1abc2d_3'), part('[]', { x: 1 })));
+  await no('…or one too big', setDoc(doc(a, 'invMl/pkx1abc2d_4'), part('x'.repeat(1000001))));
+  await no('…or under an odd name', setDoc(doc(a, 'invMl/other'), part('[]')));
+  await no('links that aren’t a map are refused', setDoc(doc(a, 'invMl/match'), Object.assign({ m: [] }, mst('owner'))));
+  await ok('Dr. A takes an old set’s part away', deleteDoc(doc(a, 'invMl/pkx1abc2d_2')));
+  await no('…but never info or the links', deleteDoc(doc(a, 'invMl/info')));
+  await no('…(the links)', deleteDoc(doc(a, 'invMl/match')));
+  const before = (await raw('invState/rev')).n;
+  await ok('Mari’s List saves don’t need the change counter', setDoc(doc(a, 'invMl/match'), Object.assign({ m: {} }, mst('owner'))));
+  is('…and don’t move it', (await raw('invState/rev')).n === before, await raw('invState/rev'));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 await env.cleanup();
 process.exit(fail ? 1 : 0);

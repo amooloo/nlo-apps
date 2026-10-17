@@ -167,6 +167,7 @@ DRAWERS.item = id => {
       '<div class="p">' + (cp == null ? '<span class="muted">—</span>' : per > 1 ? money(cp * per) + '<small>per ' + esc(buyUnit(it)) + ' · ' + money(cp) + '/' + esc(countUnit(it)) + '</small>' : money(cp) + '<small>per ' + esc(countUnit(it)) + (perPieceLabel(it, cp) ? ' · ' + esc(perPieceLabel(it, cp)) : '') + '</small>') + '</div></div>';
   });
   h += '</div>';
+  h += mlItemSecHTML(it);
   if (it.note) h += '<div class="sec"><h5>Notes</h5><div class="txt">' + esc(it.note) + '</div></div>';
   /* history: orders and stock steps, with names */
   const ords = S.D.orders.filter(o => o.items.some(l => l.itemId === id)).sort((a, b) => msOf(b.orderedAt || b.dateOrdered) - msOf(a.orderedAt || a.dateOrdered)).slice(0, 8);

@@ -1418,6 +1418,25 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['at', 'ver', 'err', 'sent', 'copied']) && request.resource.data.at == request.time;
       allow delete: if isOwner();
     }
+    // Mari's List (17 Oct 2026; Amir, once the Mari's List member prices were saved: "okay all of that needs to be in the
+    // inventory app some how"): the office's member prices (from the price files on the Mari's List member portal), each
+    // vendor's deal, code and how to order, and which prices are the same as the office's supplies. Mari's List's prices stay
+    // in the office: everyone signed in reads them; only Dr. A loads a set (its parts p<set>_<n> first, then info, which
+    // points the pages at them, and the links) and links a price to a supply (match). The pages read info to know whether
+    // these rules are live (older rules refuse it). Nothing here moves the change counter: the alert script doesn't use them.
+    match /invMl/{id} {
+      function okMl(d) {
+        return d.up == request.time && d.upBy == mySid() && (
+          (id == 'info' && d.keys().hasOnly(['ver', 'at', 'src', 'vendors', 'parts', 'rows', 'loadedAt', 'loadedBy', 'up', 'upBy'])
+            && d.ver is string && d.ver.matches('^[0-9a-z]{4,16}$') && d.vendors is list && d.vendors.size() <= 400
+            && d.parts is int && d.parts >= 0 && d.parts <= 60 && d.rows is int && d.rows >= 0)
+          || (id == 'match' && d.keys().hasOnly(['m', 'up', 'upBy']) && d.m is map && d.m.size() <= 3000)
+          || (id.matches('^p[0-9a-z]{4,16}_[0-9]{1,2}$') && d.keys().hasOnly(['t', 'up', 'upBy']) && d.t is string && d.t.size() <= 1000000));
+      }
+      allow read: if isMember();
+      allow create, update: if isOwner() && okMl(request.resource.data);
+      allow delete: if isOwner() && id.matches('^p[0-9a-z]{4,16}_[0-9]{1,2}$');
+    }
     // which set of these rules is live (the page reads this; older rules refuse it)
     match /meta/rules_inv_1 {
       allow get: if invReader();

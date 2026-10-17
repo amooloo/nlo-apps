@@ -28,7 +28,7 @@ function cartLineHTML(c) {
     '<div class="stamps"><span class="stamp">' + avatarHTML(c.addedBy, 'xs', c.addedById) + '<span>Added by <b>' + esc(c.addedBy || 'someone') + '</b>' + (c.addedAt ? ' · ' + esc(fmtWhen(c.addedAt)) : '') + '</span></span>' +
     tr.slice(-2).map(t => '<span class="stamp">' + avatarHTML(t.by, 'xs', t.byId) + '<span>' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) + ' by ' : t.t === 'qty' ? qtyFmt(t.from) + ' → ' + qtyFmt(t.to) + ' by ' : t.t === 'note' ? 'note by ' : t.t === 'ok' ? 'OK’d by ' : 'changed by ') + '<b>' + esc(t.by || '') + '</b> · ' + esc(fmtWhen(t.at)) + '</span></span>').join('') + '</div>' +
     okRowHTML(c) +
-    (c.note ? '<div class="note">' + ic('text', 12) + ' ' + esc(c.note) + '</div>' : '') +
+    (c.note ? '<div class="note">' + ic('text', 12) + ' ' + esc(c.note) + '</div>' : '') + mlCartLineHTML(c) +
     (linePer(c) > 1 ? '<div class="note">' + esc(qtyUnit(c.qty, c.unit)) + ' = ' + esc(qtyUnit(c.qty * linePer(c), c.countUnit || '')) + '</div>' : '') +
     (lineInOldUnit(c, it) ? '<div class="oldUnit">' + ic('warn', 13) + '<span>Added as ' + esc(qtyUnit(c.qty, c.unit)) + ', but it’s bought by the ' + esc(buyUnit(it)) + ' now (' + esc(qtyUnit(perBuy(it), countUnit(it))) + ').</span><button class="linkBtn" data-act="cartToCases" data-id="' + esc(c.itemId) + '">Change to ' + esc(unitWord(buyUnit(it), 2)) + '</button></div>' : '') + '</div>' +
     '<div class="qty"><button data-act="cartStep" data-id="' + esc(c.itemId) + '" data-n="-1" aria-label="Less">−</button><input type="number" inputmode="decimal" min="0" value="' + esc(qtyFmt(c.qty)) + '" data-chg="cartQty" data-id="' + esc(c.itemId) + '" aria-label="Quantity"><span class="u">' + esc(unitWord(c.unit, c.qty)) + '</span><button data-act="cartStep" data-id="' + esc(c.itemId) + '" data-n="1" aria-label="More">+</button></div>' +
@@ -47,7 +47,7 @@ VIEWS.cart = {
     vendorsIn(cart).forEach(vn => {
       const ls = cartLinesFor(vn), v = vendorByName(vn), lsOk = ls.filter(c => okOf(c)), lsWait = ls.length - lsOk.length;
       h += '<div class="card vcard"><div class="cardHd">' + (vn ? vlogoHTML(v || { name: vn }, 'lg') : '<span class="vlogo lg none">' + ic('warn', 16) + '</span>') + '<div class="grow"><h3>' + esc(vn || 'No vendor yet') + '</h3>' +
-        (v ? '<div class="vmeta">' + (v.acct ? '<span>Account ' + esc(v.acct) + '</span>' : '') + (webUrl(v.portal) ? '<a href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 12) + ' Website</a>' : '') + (v.phone || v.tollFree ? '<a href="tel:' + esc(String(v.tollFree || v.phone).replace(/[^\d+]/g, '')) + '">' + ic('call', 12) + ' ' + esc(v.tollFree || v.phone) + '</a>' : '') + (v.rep ? '<span>Rep: ' + esc(v.rep) + '</span>' : '') + '</div>' : !vn ? '<div class="vmeta">Pick a vendor for these lines before ordering (the pencil on each line).</div>' : '') + '</div></div>' +
+        (v ? '<div class="vmeta">' + (v.acct ? '<span>Account ' + esc(v.acct) + '</span>' : '') + (webUrl(v.portal) ? '<a href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 12) + ' Website</a>' : '') + (v.phone || v.tollFree ? '<a href="tel:' + esc(String(v.tollFree || v.phone).replace(/[^\d+]/g, '')) + '">' + ic('call', 12) + ' ' + esc(v.tollFree || v.phone) + '</a>' : '') + (v.rep ? '<span>Rep: ' + esc(v.rep) + '</span>' : '') + mlCartVendorHTML(vn) + '</div>' : !vn ? '<div class="vmeta">Pick a vendor for these lines before ordering (the pencil on each line).</div>' : mlCartVendorHTML(vn) ? '<div class="vmeta">' + mlCartVendorHTML(vn) + '</div>' : '') + '</div></div>' +
         ls.map(cartLineHTML).join('') +
         '<div class="vfoot"><span class="sum">' + ls.length + ' line' + (ls.length === 1 ? '' : 's') + ' · subtotal<b>' + money(cartValue(ls)) + '</b></span><span style="flex:1"></span>' +
         (boss && lsWait ? '<button class="btn btn-sec" data-act="cartOkAll" data-v="' + esc(vn) + '">' + ic('check', 16) + 'OK ' + (lsWait === 1 ? 'it' : 'these ' + lsWait) + '</button>' : '') +
@@ -106,17 +106,18 @@ ACT.cartRemove = async t => { const c = inCartLine(t.dataset.id); if (!c) return
    send a text ("it would not be able to send a text via pc") shows the text as a QR code instead: the phone's camera opens it
    in Messages, ready to send. Nothing is marked ordered until "It's ordered". */
 function orderText(vn, lines, who) {
-  const v = vendorByName(vn) || {};
+  const v = vendorByName(vn) || {}, ml = mlOrderSay(vn);
   return 'Hello' + (v.rep ? ' ' + firstName(v.rep) : '') + ',\n\nPlease send the following to ' + OFFICE.name + (v.acct ? ' (account ' + v.acct + ')' : '') + ':\n\n' +
     lines.map(c => '• ' + qtyUnit(c.qty, c.unit) + ' — ' + c.name + (c.sku ? ' (#' + c.sku + ')' : '') + (c.price ? ' @ ' + money(c.price) : '')).join('\n') +
+    (ml ? '\n\n' + ml : '') +
     '\n\nShip to: ' + OFFICE.address + '\nPhone: ' + OFFICE.phone + '\n\nPlease confirm the order and expected delivery. Thank you!\n' + (who ? firstName(who.name) + ', ' : '') + OFFICE.name;
 }
 /* the text message: short, in plain characters (so every phone, and the QR code, reads it the same) */
 function orderSms(vn, lines, who) {
-  const v = vendorByName(vn) || {};
+  const v = vendorByName(vn) || {}, ml = mlOrderSay(vn);
   return plainText('Hi' + (v.rep ? ' ' + firstName(v.rep) : '') + ', please send ' + OFFICE.name + (v.acct ? ' (acct ' + v.acct + ')' : '') + ':\n' +
     lines.map(c => qtyUnit(c.qty, c.unit) + ' - ' + c.name + (c.sku ? ' #' + c.sku : '')).join('\n') +
-    '\nShip to ' + OFFICE.address + '. Please confirm. Thanks!' + (who ? ' - ' + firstName(who.name) : ''));
+    (ml ? '\n' + ml : '') + '\nShip to ' + OFFICE.address + '. Please confirm. Thanks!' + (who ? ' - ' + firstName(who.name) : ''));
 }
 function plainText(s) {
   return String(s).normalize('NFKD').replace(/[‘’‚′]/g, "'").replace(/[“”„″]/g, '"')
@@ -184,6 +185,7 @@ function renderPlace() {
       (dk === 'pc' ? '<b>Scan this with your phone’s camera.</b> It opens a text to ' + esc(L.toWho) + ' with the order written out.' + then : 'Or text it from your phone: scan this with its camera.') + '</div></div>');
   const shown = P.how === 'text' ? L.smsText : L.text;
   openModal('<h3>Order from ' + esc(P.vendor) + '</h3><div class="lsub">' + ls.length + ' line' + (ls.length === 1 ? '' : 's') + ' · ' + money(cartValue(ls)) + ' · ordering as <b>' + esc(w ? w.short : '—') + '</b></div>' +
+    mlPlaceHTML(P.vendor) +
     '<div class="subH" style="margin-top:4px">How are you ordering?</div><div class="howGrid">' + HOW.map(([k, l, i]) => '<button class="how" data-act="placeHow" data-k="' + k + '" aria-pressed="' + (P.how === k) + '">' + ic(i, 20) + '<b>' + esc(l) + '</b><span>' + esc(k === 'online' ? (v.portal ? v.portal.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'no website saved') : k === 'call' ? (L.phone || 'no number saved') : k === 'email' ? (L.email || 'no email saved') : k === 'text' ? (L.textTo || 'no mobile saved') : k === 'rep' ? (v.rep || 'no rep saved') : 'mark it ordered') + '</span></button>').join('') + '</div>' +
     detail +
     '<div class="subH">' + (P.how === 'text' ? 'The text' : 'The order') + '</div><div class="copyBox" id="orderTxt">' + esc(shown) + '</div><div class="btnRow"><button class="btn btn-ghost" data-act="copyOrder">' + ic('copy', 15) + 'Copy</button></div>' +
