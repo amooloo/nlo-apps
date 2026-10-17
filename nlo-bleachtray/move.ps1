@@ -9,6 +9,7 @@
 # Nothing is saved to disk except the app itself (and the pack on the S: drive). Only one PC should run the app at a time.
 $ErrorActionPreference = 'Continue'
 [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
+$ProgressPreference = 'SilentlyContinue'   # Windows PowerShell's byte-by-byte progress bar makes a download 10x slower
 $PORT = 8765
 $ZIP_URL = 'https://github.com/amooloo/nlo-apps/archive/refs/heads/main.zip'
 $PY_URL = 'https://www.python.org/ftp/python/3.13.16/python-3.13.16-amd64.exe'

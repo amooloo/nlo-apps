@@ -108,7 +108,7 @@ files, `uninstall_autostart.bat` / `install.bat` do the same by hand.
 
 ## If a case needs a look
 
-From any office computer open `http://<lab PC name>:8765` — or click **Bleach Tray** on the NLO apps home page,
+From any office computer open `http://lab:8765` — or click **Bleach Tray** on the NLO apps home page,
 which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
 it processes on its own and writes the OrthoFactory order (the green line under the result confirms it). See the
 result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation / fix* tab),

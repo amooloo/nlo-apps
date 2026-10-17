@@ -6,10 +6,10 @@
 <meta name="robots" content="noindex">
 <title>NLO Bleach Tray</title>
 <script>
-// Clicking "Bleach Tray" on the home page goes straight to the app running on Dr. A's PC.
+// Clicking "Bleach Tray" on the home page goes straight to the app running on the lab PC.
 // This page itself (the instructions) is shown only when opened with ?help.
 (function () {
-  window.NLO_BT = { DEFAULT_LAB_PC: "DrA", key: "nlo.bleachtray.labpc" };
+  window.NLO_BT = { DEFAULT_LAB_PC: "lab", key: "nlo.bleachtray.labpc" };
   var name = "";
   try { name = localStorage.getItem(NLO_BT.key) || ""; } catch (e) {}
   name = name || NLO_BT.DEFAULT_LAB_PC;
