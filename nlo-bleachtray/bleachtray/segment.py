@@ -424,6 +424,65 @@ def cap_distal(loop, mesh, keep_mm=2.5, snap_tol=2.0):
     return out
 
 
+def edentulous_gaps(mesh, labels, info, min_gap=3.0, renumber_gap=5.0, tooth_width=7.0, log=None):
+    """Missing posterior teeth. Where two neighbouring teeth on a side have a gap between them (a
+    missing premolar or molar), the gum-line contour would close round the teeth in front of the gap
+    and drop everything behind it. Returns
+      * a bool per vertex marking the ridge between the two teeth (inside the hull of the two crowns
+        in plan view, from the neighbours' cervical level up - or the top 2 mm of the ridge when it
+        has resorbed below that), to be treated as tooth when the trim line is drawn, so the line
+        runs across the ridge to the teeth behind;
+      * the list of gaps;
+      * `info` renumbered so a missing tooth keeps its position (one position per ~`tooth_width` mm
+        of gap): the molar behind a missing premolar stays a molar for reservoirs, marks, crown
+        sizes."""
+    import shapely
+    from scipy.spatial import cKDTree
+    from shapely.geometry import MultiPoint
+    V = np.asarray(mesh.vertices)
+    ridge = np.zeros(len(V), bool)
+    gaps = []
+    new_info = dict(info)
+    for side in (-1, 1):
+        teeth = sorted((pos, t) for t, (sd, pos) in info.items() if sd == side)
+        shift = 0
+        for (pa, a), (pb, b) in zip(teeth, teeth[1:]):
+            if shift:
+                new_info[b] = (side, pb + shift)
+            ma, mb = labels == a, labels == b
+            if ma.sum() < 50 or mb.sum() < 50:
+                continue
+            gap = float(cKDTree(V[ma][:, :2]).query(V[mb][:, :2])[0].min())
+            if gap < min_gap:
+                continue
+            missing = max(1, int(round(gap / tooth_width))) if gap >= renumber_gap else 0   # a small gap: an erupting tooth, a diastema
+            hull = MultiPoint(np.vstack([V[ma][:, :2], V[mb][:, :2]])).convex_hull
+            x0, y0, x1, y1 = hull.bounds
+            cand = np.where((labels == 0) & (V[:, 0] >= x0) & (V[:, 0] <= x1) & (V[:, 1] >= y0) & (V[:, 1] <= y1))[0]
+            if len(cand):
+                cand = cand[shapely.contains_xy(hull, V[cand, 0], V[cand, 1])]
+            n_ridge = 0
+            if len(cand):
+                ca, cb = V[ma][:, :2].mean(0), V[mb][:, :2].mean(0)
+                d = cb - ca
+                L = max(float(np.linalg.norm(d)), 1e-6)
+                d /= L
+                za, zb = float(np.percentile(V[ma][:, 2], 5)), float(np.percentile(V[mb][:, 2], 5))
+                u = np.clip(((V[cand, :2] - ca) @ d) / L, 0.0, 1.0)
+                level = za + (zb - za) * u
+                crest = float(np.percentile(V[cand, 2], 95))
+                keep = V[cand, 2] >= np.minimum(level, crest - 2.0)
+                ridge[cand[keep]] = True
+                n_ridge = int(keep.sum())
+            gaps.append(dict(side=int(side), after_position=int(pa + shift), gap_mm=round(gap, 1), missing=missing, ridge_vertices=n_ridge))
+            shift += missing
+            new_info[b] = (side, pb + shift)
+            if log:
+                what = "gap" if missing == 0 else ("missing tooth" if missing == 1 else f"{missing} missing teeth")
+                log(f"{what} on the {'right' if side > 0 else 'left'} behind position {pa}: {gap:.0f} mm - trim line carried across the ridge ({n_ridge} vertices)")
+    return ridge, gaps, new_info
+
+
 def _largest(geom):
     if geom.geom_type == "MultiPolygon":
         return max(geom.geoms, key=lambda g: g.area)
