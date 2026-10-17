@@ -436,6 +436,36 @@ await seed();
   await ok('…and 450 supplies in one go', save(a, 'owner', big));
 }
 
+/* ---------- deals from the promo emails (16 Oct 2026): the script writes them, everyone signed in reads them ---------- */
+await seed();
+{
+  const bot = as('bot1'), a = as('owner'), g = as('ca');
+  const deal = (o) => Object.assign({ at: serverTimestamp(), vendor: 'American Orthodontics', title: '20% off o-ties through Oct 31', ends: '2026-10-31',
+    how: 'Use code MARIS20 at shop.americanortho.com', items: [{ id: 'ppe-1', what: '20% off', price: '' }], subject: 'Mari’s List exclusive',
+    from: 'deals@americanortho.com', mail: 'https://mail.google.com/mail/u/0/#all/18c0ffee', src: 'email' }, o || {});
+  await ok('script saves a deal it found (under the email’s id)', setDoc(doc(bot, 'invDeals/18c0ffee'), deal()));
+  await no('…not a second time (no changing one)', setDoc(doc(bot, 'invDeals/18c0ffee'), deal({ title: 'changed' })));
+  await no('…nor with a made-up time', setDoc(doc(bot, 'invDeals/d2'), deal({ at: Timestamp.fromMillis(Date.now() - 864e5) })));
+  await no('…nor with something extra', setDoc(doc(bot, 'invDeals/d3'), deal({ evil: true })));
+  await no('…nor with no supply it fits', setDoc(doc(bot, 'invDeals/d4'), deal({ items: [] })));
+  await no('…nor a huge one', setDoc(doc(bot, 'invDeals/d5'), deal({ how: 'x'.repeat(401) })));
+  await no('…nor from anywhere but an email', setDoc(doc(bot, 'invDeals/d6'), deal({ src: 'portal' })));
+  await no('…nor under an odd id', setDoc(doc(bot, 'invDeals/a.b'), deal()));
+  await no('Gwen can’t make up a deal', setDoc(doc(g, 'invDeals/d7'), deal()));
+  await no('…nor can Dr. A (the script finds them)', setDoc(doc(a, 'invDeals/d8'), deal()));
+  await ok('Gwen sees the deals', getDocs(collection(g, 'invDeals')));
+  await ok('so does the script', getDocs(collection(bot, 'invDeals')));
+  await no('someone who left doesn’t', getDocs(collection(as('gone'), 'invDeals')));
+  await no('nor a stranger', getDocs(collection(as('stranger'), 'invDeals')));
+  await no('Gwen can’t take one off', deleteDoc(doc(g, 'invDeals/18c0ffee')));
+  await ok('Dr. A takes one off when he’s done with it', deleteDoc(doc(a, 'invDeals/18c0ffee')));
+  await ok('script saves another', setDoc(doc(bot, 'invDeals/18c0ffef'), deal()));
+  await ok('…and takes it off when it has ended', deleteDoc(doc(bot, 'invDeals/18c0ffef')));
+  await ok('Gwen reads the deals rules marker', getDoc(doc(g, 'meta/rules_inv_2')));
+  await ok('so does the script', getDoc(doc(bot, 'meta/rules_inv_2')));
+  await no('a stranger doesn’t', getDoc(doc(as('stranger'), 'meta/rules_inv_2')));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 await env.cleanup();
 process.exit(fail ? 1 : 0);

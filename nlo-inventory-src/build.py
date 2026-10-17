@@ -58,7 +58,7 @@ else: print('NOTE: no src/vendors.private.js — the vendor details for the data
 
 # the shared rules (Dr. A's "publish the rules" card)
 rules = (root.parent / 'nlo-cases-src' / 'firestore.rules').read_text()
-assert rules.count('__OWNER_EMAIL__') == 1 and 'match /invItems/{id}' in rules and 'match /meta/rules_inv_1' in rules and 'match /tcPunch/{id}' in rules and 'match /toReq/{id}' in rules
+assert rules.count('__OWNER_EMAIL__') == 1 and 'match /invItems/{id}' in rules and 'match /meta/rules_inv_1' in rules and 'match /meta/rules_inv_2' in rules and 'match /invDeals/{id}' in rules and 'match /tcPunch/{id}' in rules and 'match /toReq/{id}' in rules
 assert js.count('const INV_RULES = "";') == 1
 js = js.replace('const INV_RULES = "";', 'const INV_RULES = ' + json.dumps(rules) + ';', 1)
 # the NLO Cases project's web config

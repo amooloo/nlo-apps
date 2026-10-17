@@ -35,10 +35,21 @@
  * reached as this Google account, as before.
  * At night (9 PM to 5 AM) it checks every 10 minutes instead of every minute.
  *
+ * Version 4 (Oct 2026) also watches for deals: by day, once an hour, it looks at
+ * this Gmail's new emails from Mari's List, from the vendors the office buys
+ * from, or that mention Mari's List. Order, shipping, invoice, case and login
+ * emails, replies, and anything naming a patient are left alone. The offers go
+ * to the AI (the office's Gemini key) with the office's supply list; an offer
+ * on supplies the office buys comes to Dr. A's phone (the same push as the cart
+ * adds) and shows on Inventory's Home, with a "Deal" tag on those supplies,
+ * until it ends.
+ * Every offer goes into Friday morning's roundup email. (Reading the promo
+ * emails is why it asks for Gmail access.)
+ *
  * Optional Script Properties (Project Settings > Script Properties):
  *   ALERT_EMAIL  who gets the email (default: this account; commas for more)
  */
-var VERSION = '3';
+var VERSION = '4';
 var CONFIG = /*INV_CONFIG*/null; // filled in by NLO Inventory when you copy the script
 
 var DB_URL = 'https://nlo-inventory-default-rtdb.firebaseio.com';
@@ -76,11 +87,13 @@ function setup() {
   var cfg = cfg_(props), s = session_(cfg, true);
   getDoc_(cfg, s, 'meta/rules_inv_1', 'the rules');      // proves the login works (and the rules know Inventory)
   db_(cfg, 'get', '/nlo/items', 'shallow=true');         // proves the old database is reachable as this Google account
+  GmailApp.getInboxUnreadCount();                        // and that it may read this Gmail's promo emails (the deals)
   removeTriggers_();
   ScriptApp.newTrigger(HANDLER).timeBased().everyMinutes(1).create();
   var r = run_(true);
   Logger.log('NLO Inventory alerts (version ' + VERSION + ') are running for ' + mailbox_() + '. ' + summary_(r) +
-    ' It checks every minute (every 10 minutes at night); emails go to ' + alertEmail_() + '.');
+    ' It checks every minute (every 10 minutes at night); emails go to ' + alertEmail_() + '. Deals: it looks at the promo emails every hour by day' +
+    (r.deals ? ' (' + r.deals + ' deal(s) on the office’s supplies so far)' : '') + '; the roundup comes Friday mornings.');
   return r;
 }
 
@@ -102,7 +115,7 @@ function checkInventoryAlerts() { return run_(false); }
 function run_(force) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(2000)) return { busy: true };          // a previous run is still going
-  var props = PropertiesService.getScriptProperties(), now = Date.now(), out = { sent: 0, waiting: 0, copied: 0, old: 0, moved: false };
+  var props = PropertiesService.getScriptProperties(), now = Date.now(), out = { sent: 0, waiting: 0, copied: 0, old: 0, moved: false, deals: 0 };
   var cfg = null, s = null, errs = [], notes = [];
   try {
     cfg = cfg_(props);
@@ -126,6 +139,8 @@ function run_(force) {
       if (done) props.setProperty('INV_REV', rev);    // (read before the work: a change made meanwhile is seen next minute)
     }
     try { out.old = oldPage_(cfg, props, now); } catch (e) { errs.push(msg_(e)); }
+    // the deals: on their own too (a problem with them is noted, never held against the alerts or the copy)
+    try { var dl = deals_(cfg, s, props, now, force); out.deals = dl.n; if (dl.note) notes.push(dl.note); } catch (e) { notes.push('Deals: ' + msg_(e)); }
     if (errs.length) throw new Error(errs.join(' · '));
     beat_(cfg, s, props, out, notes.join(' · '), now);
     if (props.getProperty('FAILS')) props.deleteProperty('FAILS');
@@ -318,6 +333,258 @@ function oldPage_(cfg, props, now) {
   return events.length;
 }
 
+// ─── Deals: the promo emails in this Gmail, matched to the supplies the office buys ───
+/* Amir, 16 Oct 2026: "can you find a way for us to get live updates on things from Marislist that we actually use? they send
+   emails and also they have a website. I usually don't see the promotions or I miss them". By day, once an hour, it looks at
+   this Gmail's new emails from Mari's List, from the vendors the office buys from (Inventory's vendors and the websites its
+   supplies come from, and the usual orthodontic ones), or that mention Mari's List. Order, shipping, invoice, case, return
+   and login emails, replies and forwards, and anything naming a patient are left alone: never read further, never sent
+   anywhere. What's left, when it looks like an offer, goes to the AI (the office's Gemini key, Inventory → Settings → AI)
+   with the office's supply list: what's on offer, until when, how to get it, and which supplies it's for. An offer on
+   supplies the office buys: a push to Dr. A's phone (the cart pushes' topic; tapping it opens the email) and a record in
+   Inventory (invDeals, under the email's id): it shows on Inventory's Home with those supplies, which carry a "Deal" tag, until
+   it ends (Amir: "shouldn't they appear in the dashboard instead? the items … or maybe both"). Every offer goes into
+   Friday morning's roundup email. Each email is looked at once. (The Mari's List member portal signs in with a code by email,
+   so its specials aren't read from here: their emails are the source.) */
+var DEALS_EVERY = 60 * 60000;          // how often it looks (6 AM to 9 PM)
+var DEALS_PER_RUN = 8;                 // offers read by the AI in one check at most (the rest wait for the next)
+var DEALS_LOOKBACK = 3 * 864e5;        // how far back the very first look goes
+var DEAL_DAYS = 21;                    // a deal with no end date shows this long
+var DEAL_TRIES = 3;                    // an email the AI couldn't read this many times is left
+var ROUNDUP_WEEKDAY = 5, ROUNDUP_HOUR = 7;   // Friday, 7 AM office time (Fridays are for vendor calls)
+var FREE_MAIL = ['gmail.com', 'googlemail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'me.com', 'live.com', 'msn.com', 'comcast.net', 'att.net'];
+var DEAL_VENDORS = ['marislist.com', 'americanortho.com', 'henryschein.com', 'pattersondental.com', 'benco.com', 'ormco.com', 'dentsplysirona.com',
+  'solventum.com', '3m.com', 'orthotechnology.com', 'ultradent.com', 'orthoarch.com', 'net32.com', 'safcodental.com', 'darbydental.com',
+  'sunsurgical.com', 'kometusa.com', 'baymaterials.com', 'zenduradental.com', 'ulabsystems.com', 'allureortho.com', 'brandhousedental.com'];
+var NOT_OFFER = /\b(order\s*#?\s*\d|order (confirmed|confirmation|received|has shipped|is on the way)|invoice|receipt|statement|shipped|shipment|tracking|delivered|out for delivery|verification|login code|your code|password|sign[- ]in|case\s*#|uassist|treatment plan|rma\b|return label|payment|past due|refund)/i;
+var PATIENT = /\bpatients?\b|\bDOB\b|date of birth|\bMRN\b/i;
+var OFFER = /(\d+\s?%\s?off|%\s?off|\bsave\b|\bsale\b|special|promo|\bdeals?\b|exclusive|discount|\bfree\b|limited[- ]time|\boffer\b|clearance|\bbogo\b|buy \d+|rebate|bundle|price (drop|reduction)|coupon)/i;
+var MARIS = /mari'?\u2019?s\s*list|marislist/i;
+/* → { n: deals saved, note } */
+function deals_(cfg, s, props, now, force) {
+  var out = { n: 0, note: '' }, hr = hour_(now);
+  if (force || (now - Number(props.getProperty('DEALS_AT') || 0) >= DEALS_EVERY && hr >= 6 && hr < 21)) {
+    props.setProperty('DEALS_AT', String(now));
+    out = dealScan_(cfg, s, props, now);
+  }
+  try { roundup_(props, now); } catch (e) { out.note = (out.note ? out.note + ' · ' : '') + 'Deals roundup: ' + msg_(e); }
+  return out;
+}
+function dealScan_(cfg, s, props, now) {
+  var ai = getDoc_(cfg, s, 'invState/ai', 'the AI keys'), key = ai ? String(val_((ai.fields || {}).gemini) || '') : '';
+  if (!key) return { n: 0, note: 'Deals: there’s no Gemini key yet (Inventory → Settings → AI), so the promo emails aren’t read.' };
+  var cat = dealCatalog_(cfg, s), byId = {};
+  cat.items.forEach(function (i) { byId[i.id] = i; });
+  var since = Number(props.getProperty('DEALS_SINCE') || 0) || now - DEALS_LOOKBACK;
+  var seen = readJson_(props, 'DEALS_SEEN', []), tries = readJson_(props, 'DEALS_TRIES', {}), had = {};
+  seen.forEach(function (k) { had[k] = true; });
+  var msgs = dealMail_(cat.domains, since - 3600000).filter(function (m) { return !had[m.getId()]; });
+  var pushDoc = getDoc_(cfg, s, 'invState/push', 'the phone push'), topic = String(val_(((pushDoc || {}).fields || {}).topic) || '');
+  var setDoc = getDoc_(cfg, s, 'invState/settings', 'the settings'), pushOn = !!topic && (setDoc ? plain_(setDoc.fields) : {}).pushOn === true;
+  var mark = function (id) { seen.push(id); had[id] = true; delete tries[id]; };
+  var saved = 0, read = 0, note = '', rulesOld = false, waitFrom = 0, pushList = [];
+  for (var i = 0; i < msgs.length; i++) {
+    var m = msgs[i], id = String(m.getId()), at = m.getDate().getTime(), subject = String(m.getSubject() || ''), from = String(m.getFrom() || '');
+    if (!dealSender_(from, subject, cat.domains) || /^\s*(re|fwd?|aw)\s*:/i.test(subject) || NOT_OFFER.test(subject)) { mark(id); continue; }
+    var text = cleanMail_(m.getPlainBody());
+    if (PATIENT.test(subject + '\n' + text)) { mark(id); continue; }
+    if (!MARIS.test(from + ' ' + subject + ' ' + text) && !OFFER.test(subject + '\n' + text)) { mark(id); continue; }
+    if (read >= DEALS_PER_RUN) { waitFrom = at; break; }       // (not marked: the next check reads it)
+    read++;
+    var o;
+    try { o = dealAi_(cfg, key, { from: from, subject: subject, day: day_(at), text: text }, cat, day_(now)); }
+    catch (e) {
+      tries[id] = (tries[id] || 0) + 1; note = 'Deals: the AI couldn’t read an offer (' + msg_(e) + ')';
+      if (tries[id] >= DEAL_TRIES) { mark(id); continue; }
+      waitFrom = at; break;                                    // (AI trouble: the rest wait for the next check)
+    }
+    var d = dealOf_(o, byId);
+    if (d) {
+      if (!d.title) d.title = cut_(subject, 200);
+      if (!d.vendor) d.vendor = cut_(fromName_(from), 120) || 'A vendor';
+      var names = d.items.map(function (x) { return byId[x.id].n; }), link = mailLink_(id);
+      if (d.items.length) {
+        var st = dealSave_(cfg, s, id, d, subject, from, link);
+        if (st === 'rules') rulesOld = true; else if (st === 'saved') saved++;
+        if (pushOn && st !== 'had') pushList.push({ title: 'Deal: ' + cut_(d.vendor, 60), click: link, tags: ['moneybag'],
+          text: d.title + (d.ends ? ' (ends ' + shortDate_(d.ends) + ')' : '') + '\nFor: ' + names.slice(0, 3).join(', ') + (names.length > 3 ? ' and ' + (names.length - 3) + ' more' : '') + (d.how ? '\n' + d.how : ''),
+          short: cut_(d.vendor, 40) + ': ' + cut_(d.title, 90) });
+      }
+      roundupAdd_(props, { id: id, v: cut_(d.vendor, 40), t: cut_(d.title, 90), e: d.ends, f: names.slice(0, 3).map(function (n) { return cut_(n, 40); }), n: names.length });
+    }
+    mark(id);
+  }
+  props.setProperty('DEALS_SEEN', JSON.stringify(seen.slice(-300)));
+  props.setProperty('DEALS_TRIES', JSON.stringify(tries));
+  props.setProperty('DEALS_SINCE', String(waitFrom ? Math.min(waitFrom, now) : now));
+  if (pushList.length) {
+    var r = pushes_(cfg, props, topic, pushList, now, { title: function (n) { return n + ' new deals on things you buy'; }, click: APP_URL + '#supplies', tags: ['moneybag'] });
+    if (r.err) note = (note ? note + ' · ' : '') + 'Deals push: ' + r.err;
+  }
+  try { dealsTidy_(cfg, s, props, now); } catch (e) { if (/\b403\b/.test(msg_(e))) rulesOld = true; else note = (note ? note + ' · ' : '') + 'Deals: ' + msg_(e); }
+  if (rulesOld) note = (note ? note + ' · ' : '') + 'Deals: to show them in Inventory, Dr. A publishes the new rules (Inventory → Settings → Deals). The pushes and the Friday roundup work meanwhile.';
+  return { n: saved, note: note };
+}
+/* the office's supplies (id | name | vendor | #sku | maker) and the email domains of the vendors it buys from; kept 6 hours */
+function dealCatalog_(cfg, s) {
+  var cache = CacheService.getScriptCache(), c = null;
+  try { c = JSON.parse(cache.get('deal_catalog') || 'null'); } catch (e) { }
+  if (c && c.items && c.domains) return c;
+  var dom = {}, add = function (x) { var k = domainOf_(x); if (k) dom[k] = true; };
+  DEAL_VENDORS.forEach(function (d) { dom[d] = true; });
+  var items = [];
+  query_(cfg, s, 'invItems', [], null).docs.forEach(function (d) {
+    var i = plain_(d.fields); if (!i || i.id == null || i.deleted || i.archived) return;
+    var srcs = Array.isArray(i.sources) ? i.sources.filter(function (x) { return x && typeof x === 'object'; }) : [], src = srcs[0] || {};
+    srcs.forEach(function (x) { add(x.src); add(x.url); });
+    items.push({ id: String(i.id), n: cut_(i.name, 90), v: cut_(src.vendor || '', 40), k: cut_(src.sku || i.sku || '', 24), m: cut_(i.manufacturer || '', 30) });
+  });
+  query_(cfg, s, 'invVendors', [], null).docs.forEach(function (d) { var v = plain_(d.fields); if (!v.deleted) { add(v.email); add(v.repEmail); add(v.portal); } });
+  c = { items: items.slice(0, 600), domains: Object.keys(dom).sort() };
+  try { cache.put('deal_catalog', JSON.stringify(c), 6 * 3600); } catch (e) { }   // (too big for the cache: read again next time)
+  return c;
+}
+/* "rep@shop.americanortho.com", "https://www.sunsurgical.com/x" → "americanortho.com", "sunsurgical.com" ('' for free mail) */
+function domainOf_(x) {
+  x = String(x || '').toLowerCase().trim();
+  var m = /@([a-z0-9.-]+)/.exec(x) || /^(?:https?:\/\/)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)/.exec(x);
+  if (!m) return '';
+  var parts = m[1].replace(/\.+$/, '').split('.').filter(Boolean);
+  if (parts.length < 2) return '';
+  var d = parts.slice(-2).join('.');
+  return FREE_MAIL.indexOf(d) >= 0 ? '' : d;
+}
+/* from Mari's List, from one of the vendors, or mentioning Mari's List */
+function dealSender_(from, subject, domains) {
+  var d = domainOf_(from);
+  return (d && domains.indexOf(d) >= 0) || MARIS.test(from + ' ' + subject);
+}
+/* this Gmail's emails since then that could be offers (the checks above decide); oldest first */
+function dealMail_(domains, since) {
+  var q = 'after:' + Math.floor(since / 1000) + ' -in:sent -in:drafts -in:chats -in:spam -in:trash (' +
+    ['"Mari\'s List"', 'marislist'].concat(domains.map(function (d) { return 'from:' + d; })).join(' OR ') + ')';
+  var out = [];
+  GmailApp.search(q, 0, 50).forEach(function (t) {
+    t.getMessages().forEach(function (m) { if (m.getDate().getTime() > since) out.push(m); });
+  });
+  out.sort(function (a, b) { return a.getDate().getTime() - b.getDate().getTime(); });
+  return out;
+}
+/* an email's words for the AI: no endless tracking links, no blank stretches, at most 12,000 characters */
+function cleanMail_(t) {
+  t = String(t || '').replace(/\r/g, '').replace(/https?:\/\/\S{80,}/g, function (u) { return u.slice(0, 60) + '…'; })
+    .replace(/[ \t\u00a0]+/g, ' ').replace(/\n\s*\n\s*\n+/g, '\n\n').trim();
+  return t.length > 12000 ? t.slice(0, 12000) + '\n…' : t;
+}
+function fromName_(from) { var m = /^\s*"?([^"<]+?)"?\s*</.exec(String(from || '')); return m ? m[1] : String(from || '').replace(/@.*/, ''); }
+function mailLink_(id) { return 'https://mail.google.com/mail/?authuser=' + encodeURIComponent(mailbox_()) + '#all/' + id; }
+function hour_(ms) { return Number(Utilities.formatDate(new Date(ms), TZ, 'H')); }
+/* the AI's reading of one email: { promo, vendor, title, ends, how, items: [{ id, what, price }] } */
+function dealAi_(cfg, key, mail, cat, today) {
+  var list = cat.items.map(function (i) { return i.id + ' | ' + i.n + (i.v ? ' | ' + i.v : '') + (i.k ? ' | #' + i.k : '') + (i.m ? ' | ' + i.m : ''); }).join('\n');
+  var prompt = 'You help an orthodontic office (Next Level Orthodontics) catch offers on the supplies it buys. Today is ' + today + '.\n' +
+    'Read the email below and answer with JSON only:\n' +
+    '{"promo": true only if the email offers the office a sale, a discount, a special price, free goods, a bundle or a rebate (false for a newsletter without an offer, an order or shipping notice, an invoice, a webinar or an event),\n' +
+    ' "vendor": "the company making the offer",\n' +
+    ' "title": "the offer in plain words, under 90 characters, e.g. \\"20% off all o-ties\\" or \\"Buy 10, get 2 free: Transbond XT\\"",\n' +
+    ' "ends": "the last day of the offer as YYYY-MM-DD, or \\"\\" if the email doesn\'t say",\n' +
+    ' "how": "how to get it (a code, a link, call the rep), under 200 characters, or \\"\\"",\n' +
+    ' "items": [{"id": "an id from OUR SUPPLIES", "what": "what the offer means for that supply, under 80 characters", "price": "the deal price if the email gives one, else \\"\\""}]}\n' +
+    'Put a supply in items only when the offer clearly covers that product: the same product, or its whole product line from the same brand. Leave items empty when nothing on our list fits.\n\n' +
+    'OUR SUPPLIES (id | name | vendor | #sku | maker):\n' + list + '\n\n' +
+    'THE EMAIL\nFrom: ' + cut_(mail.from, 160) + '\nSubject: ' + cut_(mail.subject, 200) + '\nDate: ' + mail.day + '\n\n' + mail.text;
+  var models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'], err = '';
+  for (var i = 0; i < models.length; i++) {
+    var gen = { responseMimeType: 'application/json', temperature: 0 };
+    if (/2\.5/.test(models[i])) gen.thinkingConfig = { thinkingBudget: 0 };
+    var r = UrlFetchApp.fetch(cfg.aiBase + '/v1beta/models/' + models[i] + ':generateContent?key=' + encodeURIComponent(key),
+      { method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: ascii_(JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gen })) });
+    var code = r.getResponseCode();
+    if (code === 200) {
+      var j = null; try { j = JSON.parse(r.getContentText()); } catch (e) { }
+      var parts = j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts;
+      var text = parts ? parts.map(function (p) { return p.text || ''; }).join('') : '';
+      try { return JSON.parse(String(text).replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { err = 'its answer wasn’t JSON'; continue; }
+    }
+    err = 'the AI answered ' + code;
+    if (code === 400 || code === 401 || code === 403) break;   // (the key: the other models won't do better)
+  }
+  throw new Error(err || 'no answer');
+}
+/* the AI's answer, checked: an offer, its supplies only from the office's list (each once) → { vendor, title, ends, how, items } */
+function dealOf_(o, byId) {
+  if (!o || typeof o !== 'object' || o.promo !== true) return null;
+  var seen = {}, items = [];
+  (Array.isArray(o.items) ? o.items : []).forEach(function (x) {
+    var id = x && x.id != null ? String(x.id) : '';
+    if (!id || !byId[id] || seen[id] || items.length >= 30) return;
+    seen[id] = true; items.push({ id: id, what: cut_(x.what, 120), price: cut_(x.price, 40) });
+  });
+  return { vendor: cut_(o.vendor, 120), title: cut_(o.title, 200), ends: /^\d{4}-\d{2}-\d{2}$/.test(String(o.ends || '')) ? String(o.ends) : '', how: cut_(o.how, 400), items: items };
+}
+/* a deal into Inventory: 'saved', 'had' (saved before), or 'rules' (the rules from before the deals refuse it) */
+function dealSave_(cfg, s, id, d, subject, from, link) {
+  var fields = { vendor: sv_(d.vendor), title: sv_(d.title), ends: sv_(d.ends), how: sv_(d.how), subject: sv_(cut_(subject, 200)), from: sv_(cut_(from, 160)),
+    mail: sv_(link.slice(0, 300)), src: sv_('email'),
+    items: { arrayValue: { values: d.items.map(function (x) { return { mapValue: { fields: { id: sv_(x.id), what: sv_(x.what), price: sv_(x.price) } } }; }) } } };
+  var r = commit_(cfg, s, [{ update: { name: docName_(cfg, 'invDeals/' + id), fields: fields }, currentDocument: { exists: false },
+    updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }] }]);
+  if (r.code === 200) return 'saved';
+  var st = r.json && r.json.error ? String(r.json.error.status || '') : '';
+  if (r.code === 409 || /ALREADY_EXISTS|FAILED_PRECONDITION/.test(st)) return 'had';
+  if (r.code === 403) return 'rules';
+  throw new Error('a deal couldn’t be saved in Inventory (' + why_(r) + ')');
+}
+/* deals that have ended (or, with no end date, are DEAL_DAYS old) come off Inventory; once a day */
+function dealsTidy_(cfg, s, props, now) {
+  var today = day_(now);
+  if (props.getProperty('DEALS_TIDY') === today) return;
+  var gone = query_(cfg, s, 'invDeals', [], null).docs.filter(function (d) {
+    var o = plain_(d.fields), age = now - (Number(o.at) || 0);
+    return (o.ends && String(o.ends) < today) || (!o.ends && age > DEAL_DAYS * 864e5) || age > 90 * 864e5;
+  }).map(function (d) { return { delete: d.name }; });
+  if (gone.length) { var r = commit_(cfg, s, gone); if (r.code !== 200) throw new Error('ended deals couldn’t be taken off (' + why_(r) + ')'); }
+  props.setProperty('DEALS_TIDY', today);
+}
+/* the week's offers, for Friday's roundup (in the script's properties: kept small) */
+function roundupAdd_(props, e) {
+  var w = readJson_(props, 'DEALS_WEEK', []);
+  w.push(e);
+  while (w.length > 25 || JSON.stringify(w).length > 8000) {
+    var k = -1; for (var i = 0; i < w.length; i++) if (!w[i].n) { k = i; break; }   // (an offer on nothing the office buys goes first)
+    w.splice(k >= 0 ? k : 0, 1);
+  }
+  props.setProperty('DEALS_WEEK', JSON.stringify(w));
+}
+/* Friday from 7 AM: one email with the week's offers (the ones on the office's supplies first); nothing when there were none */
+function roundup_(props, now) {
+  var today = day_(now);
+  if (Number(Utilities.formatDate(new Date(now), TZ, 'u')) !== ROUNDUP_WEEKDAY || hour_(now) < ROUNDUP_HOUR || props.getProperty('ROUNDUP_DAY') === today) return 0;
+  var w = readJson_(props, 'DEALS_WEEK', []);
+  if (w.length) {
+    if (quota_() < recipients_() + MAIL_RESERVE) return 0;     // (the alerts come first: tried again next check)
+    var mine = w.filter(function (e) { return e.n; }), other = w.filter(function (e) { return !e.n; });
+    var row = function (e) {
+      return '<div style="border:1px solid #e5e7eb;border-left:4px solid ' + (e.n ? '#059669' : '#9ca3af') + ';border-radius:8px;padding:10px 12px;margin:0 0 10px">' +
+        '<div style="font-size:12px;color:#6b7280">' + esc_(e.v || 'A vendor') + (e.e ? ' · ends ' + esc_(shortDate_(e.e)) : '') + '</div>' +
+        '<div style="font-size:15px;font-weight:bold;color:#111827;margin:2px 0">' + esc_(e.t) + '</div>' +
+        (e.n ? '<div style="font-size:13px;color:#047857">For: ' + esc_((e.f || []).join(', ') + (e.n > (e.f || []).length ? ' and ' + (e.n - e.f.length) + ' more' : '')) + '</div>' : '') +
+        '<a href="' + esc_(mailLink_(e.id)) + '" style="font-size:13px;color:#1D3EA9">Open the email</a></div>';
+    };
+    var text = function (e) { return '• ' + (e.v || 'A vendor') + ': ' + e.t + (e.e ? ' (ends ' + shortDate_(e.e) + ')' : '') + (e.n ? ' — for ' + (e.f || []).join(', ') : '') + '\n  ' + mailLink_(e.id); };
+    MailApp.sendEmail({ to: alertEmail_(), name: 'NLO Inventory',
+      subject: 'This week’s deals: ' + (mine.length ? mine.length + ' on things you buy' + (other.length ? ', ' + other.length + ' more' : '') : w.length + ' offer' + (w.length === 1 ? '' : 's')),
+      htmlBody: '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#111827">' +
+        (mine.length ? '<h3 style="margin:0 0 10px;font-size:16px">On things you buy</h3>' + mine.map(row).join('') : '') +
+        (other.length ? '<h3 style="margin:14px 0 10px;font-size:16px">Other offers this week</h3>' + other.map(row).join('') : '') +
+        '<div style="font-size:11px;color:#9ca3af;margin-top:12px">From the promo emails in ' + esc_(mailbox_()) + ', read by the “NLO Inventory Alerts” Apps Script. The deals on supplies the office buys show in NLO Inventory (Home, and a Deal tag on the supplies) until they end.</div></div>',
+      body: (mine.length ? 'On things you buy:\n' + mine.map(text).join('\n') + '\n\n' : '') + (other.length ? 'Other offers this week:\n' + other.map(text).join('\n') + '\n' : '') });
+    props.setProperty('DEALS_WEEK', '[]');
+  }
+  props.setProperty('ROUNDUP_DAY', today);
+  return w.length;
+}
+
 // ─── Delivery ──────────────────────────────────────────────────────────────
 function deliver_(events) {
   var msg = buildMessage_(events);
@@ -331,7 +598,7 @@ function deliver_(events) {
    email to ntfy's own address for the topic, which ntfy turns into the same notification, and the direct way rests for 3
    hours (each try would hang about a minute, and those minutes count against this account's daily script time).
    (The Time Clock's alert script does the same since 13 Oct 2026.) */
-function pushes_(cfg, props, topic, list, now) {
+function pushes_(cfg, props, topic, list, now, many) {
   var got = list.map(function () { return false; }), err = '', via = '';
   var rest = !!cfg.ntfyMail && Number(props.getProperty('INV_NTFY_REST') || 0) > now;
   if (!rest) {
@@ -339,8 +606,8 @@ function pushes_(cfg, props, topic, list, now) {
     for (var k = 0; k < groups.length; k++) {
       var g = groups[k], one = g.length === 1 ? list[g[0]] : null;
       try {
-        if (one) push_(cfg, topic, one.title, one.text);
-        else push_(cfg, topic, g.length + ' cart adds need your OK', g.map(function (i) { return list[i].short || list[i].title; }).join('\n'));
+        if (one) push_(cfg, topic, one.title, one.text, one.click, one.tags);
+        else push_(cfg, topic, many ? many.title(g.length) : g.length + ' cart adds need your OK', g.map(function (i) { return list[i].short || list[i].title; }).join('\n'), many && many.click, many && many.tags);
         g.forEach(function (i) { got[i] = true; });
         via = 'ntfy';
       } catch (e) {
@@ -356,15 +623,15 @@ function pushes_(cfg, props, topic, list, now) {
     if (now - lastMail < NTFY_MAIL_EVERY) err = '';
     else if (quota_() < recipients_() + MAIL_RESERVE) err = 'Gmail’s daily email limit is nearly used up: the push waits';
     else {
-      try { pushMail_(cfg, topic, left); props.setProperty('INV_NTFY_MAIL_AT', String(now)); list.forEach(function (a, i) { got[i] = true; }); err = ''; via = 'mail'; }
+      try { pushMail_(cfg, topic, left, many); props.setProperty('INV_NTFY_MAIL_AT', String(now)); list.forEach(function (a, i) { got[i] = true; }); err = ''; via = 'mail'; }
       catch (e) { err = msg_(e); }
     }
   }
   return { got: got, err: err, via: via };
 }
-/* one phone push, straight to ntfy (tapping it opens the cart) */
-function push_(cfg, topic, title, message) {
-  var body = { topic: topic, title: cut_(title, 200), message: utf8Cap_(message, 3500), tags: ['shopping_cart'], click: APP_URL + '#cart' };
+/* one phone push, straight to ntfy (tapping it opens the cart; a deal's, its email) */
+function push_(cfg, topic, title, message, click, tags) {
+  var body = { topic: topic, title: cut_(title, 200), message: utf8Cap_(message, 3500), tags: tags || ['shopping_cart'], click: click || APP_URL + '#cart' };
   var r;
   try { r = UrlFetchApp.fetch(cfg.ntfyBase + '/', { method: 'post', contentType: 'application/json', payload: ascii_(JSON.stringify(body)), muteHttpExceptions: true }); }
   catch (e) { throw away_('couldn’t reach ntfy (' + cut_(msg_(e), 80) + ')'); }
@@ -377,12 +644,12 @@ function away_(text) { var e = new Error(text); e.away = true; return e; }
 /* the pushes through ntfy's email address for the topic: one email from this Gmail account for all of them (it counts toward
    the account's emails for the day). ntfy turns it into the notification: the subject is its title, the email its words (no
    tap-to-open link that way). */
-function pushMail_(cfg, topic, list) {
+function pushMail_(cfg, topic, list, many) {
   if (quota_() < 1) throw new Error('this Gmail account’s daily email limit is used up (it resets within a day)');
   var one = list.length === 1 ? list[0] : null;
   MailApp.sendEmail({
     to: cfg.ntfyMail.replace('{topic}', topic),
-    subject: cut_(one ? one.title : list.length + ' cart adds need your OK', 200),
+    subject: cut_(one ? one.title : many ? many.title(list.length) : list.length + ' cart adds need your OK', 200),
     body: utf8Cap_(one ? one.text : list.map(function (a) { return a.short || a.title; }).join('\n'), 3500),   // (ntfy keeps 4,096 bytes)
     name: 'NLO Inventory'
   });
@@ -494,6 +761,7 @@ function cfg_(props) {
   c.ntfyBase = String(c.ntfyBase || 'https://ntfy.sh').replace(/\/+$/, '');
   // ntfy's email address for a topic (ntfy.sh's: ntfy-<topic>@ntfy.sh); '' for a server without one
   c.ntfyMail = c.ntfyMail != null ? String(c.ntfyMail) : c.ntfyBase === 'https://ntfy.sh' ? 'ntfy-{topic}@ntfy.sh' : '';
+  c.aiBase = String(c.aiBase || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
   return c;
 }
 function http_(cfg, method, url, body, tok) {

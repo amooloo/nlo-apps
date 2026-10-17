@@ -19,6 +19,17 @@ function syncFetch(url, opt) {
 }
 function services(box, clock) {
   const props = {}, cache = {}, triggers = [], mail = [], logs = [];
+  // Gmail (the deals): the inbox as { id, from, subject, date (ms), body }, and the searches made
+  const gmail = [], gmailQ = [];
+  const GmailApp = {
+    getInboxUnreadCount: () => gmail.length,
+    search: (q, start, max) => {
+      gmailQ.push(q);
+      const m = /after:(\d+)/.exec(q), after = m ? Number(m[1]) * 1000 : 0;
+      return gmail.filter(x => x.date > after).slice(start || 0, (start || 0) + (max || 500)).map(x => ({ getMessages: () => [{
+        getId: () => x.id, getDate: () => new Date(x.date), getSubject: () => x.subject, getFrom: () => x.from, getPlainBody: () => x.body }] }));
+    }
+  };
   // Gmail: what's left of the day's emails, and a failure to put on (mailCtl.fail: the next sendEmail throws)
   const mailCtl = { quota: 100, fail: false };
   const PropertiesService = { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); }, deleteProperty: k => { delete props[k]; } }) };
@@ -47,6 +58,7 @@ function services(box, clock) {
     formatDate: (d, tz, pat) => {
       const o = parts(d, tz), h = Number(o.hour);
       if (pat === 'H') return String(h);
+      if (pat === 'u') return String(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(o.weekday) + 1);
       if (pat === 'yyyy-MM-dd') return o.year + '-' + o.month + '-' + o.day;
       const h12 = (h % 12) || 12, ap = h < 12 ? 'AM' : 'PM';
       if (pat === 'h:mm a') return h12 + ':' + o.minute + ' ' + ap;
@@ -56,9 +68,9 @@ function services(box, clock) {
   };
   class FakeDate extends Date { constructor(...a) { if (a.length) super(...a); else super(Date.now() + clock.off); } static now() { return Date.now() + clock.off; } }
   return {
-    props, cache, triggers, mail, logs, mailCtl,
+    props, cache, triggers, mail, logs, mailCtl, gmail, gmailQ,
     g: {
-      PropertiesService, CacheService, MailApp, ScriptApp, Utilities,
+      PropertiesService, CacheService, MailApp, ScriptApp, Utilities, GmailApp,
       UrlFetchApp: { fetch: syncFetch }, LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => { } }) },
       Session: { getEffectiveUser: () => ({ getEmail: () => box }) }, Logger: { log: m => logs.push(String(m)) },
       Date: FakeDate, Math, JSON, Object, Array, String, Number, Boolean, RegExp, Error, Map, Set, Intl, encodeURIComponent, parseInt, isNaN, console

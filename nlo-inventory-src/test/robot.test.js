@@ -9,13 +9,18 @@
    (the error says what to do, the warning email after 15 failed checks); when it last checked. Version 3: with the phone push
    on, someone else's cart adds go to Dr. A's phone (a stand-in for ntfy here) instead of an email, his own aren't sent, the
    rest are emailed while the email alerts are on; when ntfy can't be reached (or says "too many") the pushes go through
-   ntfy's email address and the direct way rests 3 hours; the test push he asks for. */
+   ntfy's email address and the direct way rests 3 hours; the test push he asks for. Version 4: the deals — this Gmail's promo
+   emails (a stand-in Gmail here) read by the AI (a stand-in for Gemini) and matched to the office's supplies; what never
+   reaches the AI (orders, cases, replies, other senders, anything naming a patient); the push and the record in Inventory;
+   each email once; the AI failing (tried again, then left); nights; Friday's roundup; ended deals taken off; no key. */
 const fs = require('fs'), path = require('path'), cp = require('child_process');
 const { load, calls, urls } = require('./gas_fakes');
 const P = 'demo-nlo-cases', FS = 'http://127.0.0.1:8080/v1/projects/' + P + '/databases/(default)/documents';
 const AUTH = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1', RT = 'http://127.0.0.1:9000';
 const NTFY_PORT = 8793, NTFY = 'http://127.0.0.1:' + NTFY_PORT, TMP = fs.mkdtempSync(path.join(require('os').tmpdir(), 'invbot-'));
 const NTFY_LOG = path.join(TMP, 'ntfy.jsonl'), NTFY_FAIL = path.join(TMP, 'ntfy.fail');
+const AI_PORT = 8796, AI = 'http://127.0.0.1:' + AI_PORT, AI_LOG = path.join(TMP, 'ai.jsonl'), AI_FAIL = path.join(TMP, 'ai.fail');
+const aiCalls = () => (fs.existsSync(AI_LOG) ? fs.readFileSync(AI_LOG, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) : []);
 const pushes = () => (fs.existsSync(NTFY_LOG) ? fs.readFileSync(NTFY_LOG, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) : []);
 let pass = 0, fail = 0;
 const ok = (name, c, extra) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : '  FAIL ') + name + (c || extra === undefined ? '' : ' :: ' + JSON.stringify(extra).slice(0, 500))); };
@@ -55,7 +60,23 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
     http.createServer((q, r) => { let b = ''; q.on('data', c => b += c); q.on('end', () => {
       if (fs.existsSync(${JSON.stringify(NTFY_FAIL)})) { r.statusCode = Number(fs.readFileSync(${JSON.stringify(NTFY_FAIL)}, 'utf8')) || 500; return r.end('down'); }
       fs.appendFileSync(${JSON.stringify(NTFY_LOG)}, b.replace(/\\n/g, ' ') + '\\n'); r.end('{}'); }); }).listen(${NTFY_PORT}, '127.0.0.1');`], { stdio: 'inherit' });
-  process.on('exit', () => { try { ntfy.kill(); } catch (e) { } });
+  // the stand-in for Gemini: answers by what the email says (FLAKY fails while AI_FAIL exists); logs each prompt
+  const ai = cp.spawn(process.execPath, ['-e', `
+    const http = require('http'), fs = require('fs');
+    http.createServer((q, r) => { let b = ''; q.on('data', c => b += c); q.on('end', () => {
+      const body = JSON.parse(b || '{}'), text = (((body.contents || [])[0] || {}).parts || [])[0].text || '';
+      const subj = (/\\nSubject: (.*)/.exec(text) || [])[1] || '';
+      fs.appendFileSync(${JSON.stringify(AI_LOG)}, JSON.stringify({ url: q.url, subj, text, gen: body.generationConfig }) + '\\n');
+      if (/FLAKY/.test(text) && fs.existsSync(${JSON.stringify(AI_FAIL)})) { r.statusCode = 503; return r.end('{}'); }
+      let a = { promo: false };
+      if (/PULSE20/.test(text)) a = { promo: true, vendor: 'SunSurgical', title: '20% off Pulse Nitrile gloves', ends: '2099-10-31', how: 'Use code PULSE20 online', items: [{ id: 'ppe-1', what: '20% off every box', price: '$7.30' }] };
+      else if (/MARIS NEWSLETTER/.test(text)) a = { promo: true, vendor: 'Mari\\u2019s List', title: '15% off intraoral scanners', ends: '', how: 'Ask Mari', items: [] };
+      else if (/BADID/.test(text)) a = { promo: true, vendor: '', title: 'Buy 10, get 2 free: o-ties', ends: 'soon', how: '', items: [{ id: 'nope', what: 'x' }, { id: 'el-1', what: 'buy 10 get 2 free' }, { id: 'el-1', what: 'again' }] };
+      else if (/FLAKY/.test(text)) a = { promo: true, vendor: 'Ortho Shop', title: 'Flash sale: o-ties', ends: '', how: '', items: [{ id: 'el-1', what: 'flash sale' }] };
+      r.setHeader('Content-Type', 'application/json');
+      r.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: '\`\`\`json\\n' + JSON.stringify(a) + '\\n\`\`\`' }] } }] }));
+    }); }).listen(${AI_PORT}, '127.0.0.1');`], { stdio: 'inherit' });
+  process.on('exit', () => { try { ntfy.kill(); } catch (e) { } try { ai.kill(); } catch (e) { } });
   await new Promise(r => setTimeout(r, 400));
   await fetch('http://127.0.0.1:8080/emulator/v1/projects/' + P + '/databases/(default)/documents', { method: 'DELETE' });
   await fetch('http://127.0.0.1:9099/emulator/v1/projects/' + P + '/accounts', { method: 'DELETE' });
@@ -71,7 +92,7 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   const botEmail = 'inv-alerts-abc123@staff.thenextlevelorthodontics.com', botPassword = 'robot-pass-123456789';
   const bot = await signup(botEmail, botPassword);
   await put('invBots/' + bot, { email: botEmail, at: new Date() });
-  const CFG = { apiKey: 'any', projectId: P, botEmail, botPassword, authBase: AUTH, fsBase: 'http://127.0.0.1:8080/v1', dbUrl: RT, dbNs: P, ntfyBase: NTFY, ntfyMail: 'ntfy-{topic}@ntfy.test' };
+  const CFG = { apiKey: 'any', projectId: P, botEmail, botPassword, authBase: AUTH, fsBase: 'http://127.0.0.1:8080/v1', dbUrl: RT, dbNs: P, ntfyBase: NTFY, ntfyMail: 'ntfy-{topic}@ntfy.test', aiBase: AI };
   const clock = { off: 0 };
   // 10 AM office time today (the script's day and night follow the office's clock)
   const tenAm = (() => { const d = new Date(); const s = d.toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false }); const h = Number(/, (\d+):/.exec(s)[1]); return -(((h - 10) * 60 + d.getMinutes()) * 60000); })();
@@ -115,7 +136,7 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   ok('copy: a budget key the app doesn’t keep stays as it was', bud.months && bud.months['2026-09'].total === 1, bud);
   ok('copy: the rest of the old database untouched (keys, roster)', (await rt('GET', '/nlo/settings/geminiKey')) === 'AIzaKEEP' && (await rt('GET', '/nlo/settings/aisaAdminKey')) === 'keep-me' && (await rt('GET', '/nlo/cadence/roster/v')) === 1);
   const beat = (await list('invBeat'))[0];
-  ok('setup: noted when it checked (version 3)', beat && beat.fields.ver.stringValue === '3' && beat.name.endsWith('/' + bot), beat);
+  ok('setup: noted when it checked (version 4)', beat && beat.fields.ver.stringValue === '4' && beat.name.endsWith('/' + bot), beat);
 
   /* ---------- alerts ---------- */
   sv.mail.length = 0;
@@ -365,6 +386,104 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   clock.off += 11 * 60000;   // (still night: every 10 minutes)
   r = sv.run('checkInventoryAlerts()');
   ok('nightly: once (the next check copies nothing)', !r.quiet && r.copied === 0, r);
+
+  /* ---------- deals (version 4): the promo emails, matched to the office's supplies ---------- */
+  // the script's clock at a wall time, office time, some days from today (right across a daylight-saving change too)
+  const nyParts = t => { const o = {}; new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t)).forEach(x => { o[x.type] = x.value; }); return o; };
+  const wallAt = (days, hh, mm) => { const off = tenAm + days * 864e5, p = nyParts(Date.now() + off); return off + ((hh * 60 + (mm || 0)) - (Number(p.hour) * 60 + Number(p.minute))) * 60000; };
+  let thu = 1; while (nyParts(Date.now() + wallAt(thu, 10)).weekday !== 'Thu') thu++;   // the first Thursday after today
+  const sTime = () => Date.now() + clock.off;
+  await put('invState/push', { topic: 'nlo-inv-test1', up: new Date(), upBy: 'amir' });
+  await put('invState/settings', { alertsOn: true, pushOn: true, locations: [], up: new Date(), upBy: 'amir' });
+  await put('invItems/ppe-1', { id: 'ppe-1', name: 'Gloves SM', qty: 7, sources: [{ vendor: 'SunSurgical', sku: '177102', price: 9.13 }], up: new Date(), upBy: 'gwen' });
+  await put('invItems/el-1', { id: 'el-1', name: 'O-ties clear', qty: 3, sources: [{ vendor: 'Ortho Shop', sku: 'OT-1', src: 'https://shop.orthoshop.example/o-ties' }], up: new Date(), upBy: 'gwen' });
+  await put('invItems/gone-9', { id: 'gone-9', name: 'Archived thing', archived: true, up: new Date(), upBy: 'gwen' });
+  await put('invVendors/v-os', { id: 'v-os', name: 'Ortho Shop', email: 'sales@orthoshop.example', up: new Date(), upBy: 'amir' });
+  delete sv.cache['deal_catalog'];
+  clock.off = wallAt(thu, 10);
+  const t0 = sTime() - 2 * 3600000, mailTo = (id, from, subject, body, mins) => sv.gmail.push({ id, from, subject, body, date: t0 + (mins || 0) * 60000 });
+  mailTo('g1', 'SunSurgical <deals@sunsurgical.com>', '20% off Pulse Nitrile gloves this week', 'Use PULSE20 at checkout. 20% off every box through Oct 31.', 1);
+  mailTo('g2', 'SunSurgical <orders@sunsurgical.com>', 'Order #4815 confirmed', 'Thank you for your order. 20% off your next one!', 2);
+  mailTo('g3', 'uLab <noreply@ulabsystems.com>', 'Your uAssist Case is ready', 'Patient Name: Jane Doe. Your plan is ready.', 3);
+  mailTo('g3b', 'uLab <dave@ulabsystems.com>', 'Big savings this month', 'Free retainer trial for every new start. Patient Name: Jane Doe', 4);
+  mailTo('g4', 'Mari’s List <mari@marislist.com>', 'October member specials', 'MARIS NEWSLETTER: members save 15% on scanners.', 5);
+  mailTo('g4b', 'Mari’s List <portal@marislist.com>', 'X3363e is your Mari’s List login code', 'Copy and paste your temporary login code.', 6);
+  mailTo('g5', 'Shoe Store <sale@shoes.example>', '50% off shoes', 'Huge sale, 50% off.', 7);
+  mailTo('g6', 'Ortho Shop <sales@orthoshop.example>', 'Re: your quote', 'Here is 10% off as discussed.', 8);
+  mailTo('g7', 'Ortho Shop <news@orthoshop.example>', 'Our new catalog is here', 'Browse the new catalog online.', 9);
+  mailTo('g8', 'Ortho Shop <promo@orthoshop.example>', 'Buy 10 get 2 free o-ties', 'BADID this week only.', 10);
+  mailTo('g9', 'Ortho Shop <promo@orthoshop.example>', 'Flash sale on o-ties', 'FLAKY flash sale today.', 11);
+  fs.writeFileSync(AI_FAIL, '1');
+  sv.props.DEALS_AT = String(sTime() - 61 * 60000);
+  const ps0 = pushes().length;
+  r = sv.run('checkInventoryAlerts()');
+  const asked1 = aiCalls().map(c => c.subj);
+  ok('deals: the offers from vendors and Mari’s List went to the AI', ['20% off Pulse Nitrile gloves this week', 'October member specials', 'Buy 10 get 2 free o-ties', 'Flash sale on o-ties'].every(x => asked1.includes(x)), asked1);
+  ok('deals: never to the AI — an order, a case, anything naming a patient, a login code, another store, a reply, a catalog with no offer', !['Order #4815 confirmed', 'Your uAssist Case is ready', 'Big savings this month', 'X3363e is your Mari’s List login code', '50% off shoes', 'Re: your quote', 'Our new catalog is here'].some(x => asked1.includes(x)) && !aiCalls().some(c => /Jane Doe/.test(c.text)), asked1);
+  const p1 = aiCalls()[0] || {};
+  ok('deals: the AI gets the office’s supplies (not the archived ones) and the email', /ppe-1 \| Gloves SM \| SunSurgical \| #177102/.test(p1.text) && /el-1 \| O-ties clear \| Ortho Shop \| #OT-1/.test(p1.text) && !/gone-9/.test(p1.text) && /PULSE20/.test(p1.text) && /^\/v1beta\/models\/gemini-2\.5-flash:generateContent\?key=AIzaNEW$/.test(p1.url) && p1.gen && p1.gen.responseMimeType === 'application/json', { url: p1.url, gen: p1.gen });
+  ok('deals: the Gmail search asks for the vendors (Inventory’s too) and Mari’s List, and nothing sent', /after:\d+/.test(sv.gmailQ.slice(-1)[0]) && /from:orthoshop\.example/.test(sv.gmailQ.slice(-1)[0]) && /from:sunsurgical\.com/.test(sv.gmailQ.slice(-1)[0]) && /"Mari's List"/.test(sv.gmailQ.slice(-1)[0]) && /-in:sent/.test(sv.gmailQ.slice(-1)[0]), sv.gmailQ.slice(-1)[0]);
+  let dl = await list('invDeals');
+  const d1 = dl.find(d => d.name.endsWith('/g1')), d8 = dl.find(d => d.name.endsWith('/g8'));
+  ok('deals: two saved in Inventory — the gloves and the o-ties — under the email’s id', r.deals === 2 && dl.length === 2 && d1 && d8, { r, n: dl.length });
+  ok('deals: what, until when, how, which supply, and a link to the email', d1 && d1.fields.title.stringValue === '20% off Pulse Nitrile gloves' && d1.fields.ends.stringValue === '2099-10-31' && d1.fields.how.stringValue === 'Use code PULSE20 online' && d1.fields.items.arrayValue.values[0].mapValue.fields.id.stringValue === 'ppe-1' && /authuser=dr\.test%40example\.com#all\/g1$/.test(d1.fields.mail.stringValue) && d1.fields.src.stringValue === 'email' && d1.fields.at.timestampValue, d1 && d1.fields);
+  ok('deals: only supplies from the office’s list, each once; no end date unless it’s a date; the sender for a missing vendor', d8 && d8.fields.items.arrayValue.values.length === 1 && d8.fields.items.arrayValue.values[0].mapValue.fields.id.stringValue === 'el-1' && d8.fields.ends.stringValue === '' && d8.fields.vendor.stringValue === 'Ortho Shop', d8 && d8.fields);
+  ps = pushes().slice(ps0);
+  ok('deals: a push for each (tapping it opens the email)', ps.length === 2 && ps[0].title === 'Deal: SunSurgical' && /20% off Pulse Nitrile gloves \(ends 10\/31\)/.test(ps[0].message) && /For: Gloves SM/.test(ps[0].message) && /#all\/g1$/.test(ps[0].click) && ps[0].tags[0] === 'moneybag', ps);
+  ok('deals: the Mari’s List offer on nothing the office buys: no push, no record (it waits for Friday’s roundup)', !dl.some(d => d.name.endsWith('/g4')) && JSON.parse(sv.props.DEALS_WEEK).map(e => e.id).join() === 'g1,g4,g8', sv.props.DEALS_WEEK);
+  ok('deals: the AI failing on one: noted, that email waits for the next look', /AI couldn’t read an offer/.test(await beatErr()) && JSON.parse(sv.props.DEALS_TRIES).g9 === 1 && !JSON.parse(sv.props.DEALS_SEEN).includes('g9'), { err: await beatErr(), tries: sv.props.DEALS_TRIES });
+  // a minute later: no new look (once an hour)
+  const n1 = aiCalls().length; clock.off += 60000;
+  r = sv.run('checkInventoryAlerts()');
+  ok('deals: a minute later, no new look', aiCalls().length === n1 && r.deals === 0, r);
+  // an hour later, the AI working again: the waiting one is read; the others aren't read twice
+  fs.unlinkSync(AI_FAIL); clock.off += 61 * 60000;
+  r = sv.run('checkInventoryAlerts()');
+  const asked2 = aiCalls().slice(n1).map(c => c.subj);
+  ok('deals: an hour later the one that waited is read (and only it)', asked2.join() === 'Flash sale on o-ties' && r.deals === 1 && (await list('invDeals')).length === 3, { asked2, r });
+  ok('deals: …and pushed', pushes().slice(ps0).length === 3);
+  // an email the AI can't read three times running is left
+  fs.writeFileSync(AI_FAIL, '1');
+  mailTo('g10', 'Ortho Shop <promo@orthoshop.example>', 'Another FLAKY sale', 'FLAKY again', 200);
+  for (let i = 0; i < 3; i++) { clock.off += 61 * 60000; sv.run('checkInventoryAlerts()'); }
+  const triesNow = JSON.parse(sv.props.DEALS_TRIES);
+  ok('deals: an email the AI couldn’t read three times is left', JSON.parse(sv.props.DEALS_SEEN).includes('g10') && !('g10' in triesNow), { seen: sv.props.DEALS_SEEN, tries: sv.props.DEALS_TRIES });
+  fs.unlinkSync(AI_FAIL);
+  const n3 = aiCalls().length; clock.off += 61 * 60000; sv.run('checkInventoryAlerts()');
+  ok('…and not read again', aiCalls().length === n3);
+  // nights: no look
+  mailTo('g11', 'SunSurgical <deals@sunsurgical.com>', 'Night sale', 'PULSE20 overnight', 400);
+  const n4 = aiCalls().length; clock.off = wallAt(thu, 22);
+  r = sv.run('checkInventoryAlerts()');
+  ok('deals: no look at night', aiCalls().length === n4, r);
+  // ended deals come off (once a day); the rest stay
+  await put('invDeals/old1', { at: new Date(sTime() - 3 * 864e5), vendor: 'X', title: 'Ended', ends: '2020-01-01', how: '', items: [{ id: 'ppe-1', what: 'x', price: '' }], subject: '', from: '', mail: '', src: 'email' });
+  await put('invDeals/old2', { at: new Date(sTime() - 30 * 864e5), vendor: 'X', title: 'No end, a month old', ends: '', how: '', items: [{ id: 'ppe-1', what: 'x', price: '' }], subject: '', from: '', mail: '', src: 'email' });
+  sv.props.DEALS_TIDY = '2020-01-01';
+  clock.off = wallAt(thu + 1, 6, 30);   // Friday 6:30 AM: a look (by day), before the roundup's hour
+  sv.props.DEALS_AT = String(sTime() - 61 * 60000);
+  sv.mail.length = 0;
+  r = sv.run('checkInventoryAlerts()');
+  dl = await list('invDeals');
+  ok('deals: ended ones taken off (and one with no end date after 3 weeks); the others stay', !dl.some(d => /\/old[12]$/.test(d.name)) && dl.some(d => d.name.endsWith('/g1')) && dl.some(d => d.name.endsWith('/g11')), dl.map(d => d.name.split('/').pop()));
+  ok('deals: no roundup before 7 AM Friday', !sv.mail.some(m => /This week’s deals/.test(m.subject)), sv.mail.map(m => m.subject));
+  // Friday's roundup: the week's offers, the ones on the office's supplies first; once
+  clock.off = wallAt(thu + 1, 9);
+  r = sv.run('checkInventoryAlerts()');
+  const ru = sv.mail.find(m => /This week’s deals/.test(m.subject));
+  ok('roundup: Friday morning, one email with the week’s offers', ru && ru.subject === 'This week’s deals: 4 on things you buy, 1 more' && /On things you buy/.test(ru.htmlBody) && /Other offers this week/.test(ru.htmlBody) && /15% off intraoral scanners/.test(ru.body) && /For: Gloves SM/.test(ru.htmlBody) && /#all\/g4/.test(ru.htmlBody), ru && [ru.subject, ru.body]);
+  ok('roundup: the list starts over', sv.props.DEALS_WEEK === '[]');
+  clock.off += 3 * 3600000; sv.mail.length = 0;
+  r = sv.run('checkInventoryAlerts()');
+  ok('roundup: once', !sv.mail.some(m => /This week’s deals/.test(m.subject)));
+  // no Gemini key: no look, and Settings says why; the alerts go on
+  await put('invState/ai', { gemini: '', up: new Date(), upBy: 'amir' }); await bump();
+  const n5 = aiCalls().length; clock.off += 61 * 60000;
+  r = sv.run('checkInventoryAlerts()');
+  ok('deals: no Gemini key — nothing read, the check-in says why, the rest of the check fine', aiCalls().length === n5 && /no Gemini key yet/.test(await beatErr()) && !sv.props.FAILS, { err: await beatErr(), r });
+  await put('invState/ai', { gemini: 'AIzaNEW', up: new Date(), upBy: 'amir' }); await bump();
+  await put('invState/settings', { alertsOn: true, pushOn: false, locations: [], up: new Date(), upBy: 'amir' });
+  clock.off = tenAm;
 
   /* ---------- a login that was replaced ---------- */
   clock.off = tenAm;

@@ -1418,8 +1418,27 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['at', 'ver', 'err', 'sent', 'copied']) && request.resource.data.at == request.time;
       allow delete: if isOwner();
     }
-    // which set of these rules is live (the page reads this; older rules refuse it)
+    // deals on the supplies the office buys (16 Oct 2026, Amir: "find a way for us to get live updates on things from Marislist
+    // that we actually use … I usually don't see the promotions or I miss them"): the alert script reads the promo emails in
+    // Dr. A's Gmail, matches them to the supplies and keeps one record per email here (its id: the email's); everyone signed in
+    // sees them; Dr. A takes one off when he's done with it, and the script takes them off when they've ended
+    match /invDeals/{id} {
+      function okDeal(d) { return d.keys().hasOnly(['at', 'vendor', 'title', 'ends', 'how', 'items', 'subject', 'from', 'mail', 'src'])
+        && d.at == request.time && d.vendor is string && d.vendor.size() <= 120 && d.title is string && d.title.size() > 0
+        && d.title.size() <= 200 && d.get('ends', '') is string && d.get('ends', '').size() <= 10
+        && d.get('how', '') is string && d.get('how', '').size() <= 400 && d.items is list && d.items.size() > 0 && d.items.size() <= 30
+        && d.get('subject', '') is string && d.get('subject', '').size() <= 200 && d.get('from', '') is string && d.get('from', '').size() <= 160
+        && d.get('mail', '') is string && d.get('mail', '').size() <= 300 && d.get('src', '') == 'email'; }
+      allow read: if invReader();
+      allow create: if isInvBot() && id.matches('^[A-Za-z0-9_-]{1,64}$') && okDeal(request.resource.data);
+      allow delete: if isOwner() || isInvBot();
+      allow update: if false;
+    }
+    // which set of these rules is live (the page reads this; older rules refuse it); _2: the deals (16 Oct 2026)
     match /meta/rules_inv_1 {
+      allow get: if invReader();
+    }
+    match /meta/rules_inv_2 {
       allow get: if invReader();
     }
   }
