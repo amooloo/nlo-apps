@@ -58,6 +58,9 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
   Photos kept as records of their own (`invPics`) are read only when their card comes near the screen (IntersectionObserver);
   web photos load lazily. On a phone the grid is two across and the category chips scroll sideways in one row.
   (`src/supplies.js` itemCardHTML/supLook, `src/ui.js` photoImgHTML/lazyPic/openViewer, `src/style.css`; e2e `t_photos`.)
+- **No "Used 1 pack"** (5.0.3; Amir, 16 Oct 2026: "in reality we never use the 'used 1 pack' because our office is so small" →
+  "yes delete used one pack"): gone from the supply's drawer and from Scan. Count and receiving keep the numbers; past "Used"
+  steps still show in a supply's history.
 - **Quick-order prices** save for everyone (the old database's rules refused them).
 - **Photos** kept inside records (old supplies, packing slips) are records of their own (`invPics`), read when shown.
 - **Vendor account numbers, reps and card notes** are no longer built into the page (it's published from the public repo):

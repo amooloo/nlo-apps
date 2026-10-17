@@ -715,6 +715,7 @@ def t_photos(b):
     check('photos: a tap on it fills the screen, with the name', 'Gloves Pulse Nitrile' in J(pg, "document.querySelector('#viewer').textContent") and J(pg, "document.querySelector('#viewer .vPic').getBoundingClientRect().width") > 500)
     pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
     check('photos: Esc closes the photo, the drawer stays', J(pg, "!document.getElementById('viewer') && !!S.drawer"))
+    check('Used 1 is gone (the drawer and Scan; past use steps still show in the history)', not J(pg, "[...document.querySelectorAll('#drawer button')].some(x => /Used 1/.test(x.textContent))") and J(pg, "typeof ACT.useOne") == 'undefined' and 'useOne' not in J(pg, "showScanResult.toString()") and J(pg, "!!document.querySelector('#drawer [data-act=\"countIt\"]')"))
     J(pg, "openDrawer('item', 'ppe-2')"); pg.wait_for_timeout(300)
     check('photos: a supply without one offers Add a photo', J(pg, "!!document.querySelector('#drawer .addPic')") and not J(pg, "!!document.querySelector('#drawer .dHero')"))
     pg.click('#drawer .addPic'); pg.wait_for_timeout(400)

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Pzu8hC4jzvVwz0IRQPnGud1kzFRj4Euv9FMLXrfKSyc=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-HP9R5HMmNodEoEbIQ/qlDQn19jzqcFCy42VtTNQCYxo=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Inventory</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B2F4C'/%3E%3Cpath d='M18 24l14-7 14 7v17l-14 7-14-7z' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 24l14 7 14-7M32 31v17' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -893,7 +893,7 @@ body.gated .askFab{display:none}
      Staff Meeting's spending card and AISA's stock answers.
    ===================================================================== */
 
-const APP_VERSION = '5.0.2';
+const APP_VERSION = '5.0.3';
 const APP_NAME = 'NLO Inventory';
 const DEMO_ONLY = false;          // the demo page sets this (build.py)
 const LOGO = 'logo-white.png';     // the demo page carries the logo inside it
@@ -5622,7 +5622,7 @@ DRAWERS.item = id => {
   let h = '<div class="dHd">' + (hasPic ? '' : '<button class="thumb lg addPic" data-act="itemEdit" data-id="' + esc(id) + '" title="Add a photo">' + ic('camera', 26) + '<span>Add a photo</span></button>') + '<div style="flex:1;min-width:0"><h3>' + esc(it.name) + '</h3><div class="sub"><span class="badge" style="background:' + catColor(it.cat) + '22;color:' + catColor(it.cat) + '">' + esc(catLabel(it.cat)) + '</span>' + (it.group ? '<span class="badge">' + esc(it.group) + '</span>' : '') + (it.location ? '<span class="badge">' + ic('pin', 12) + esc(it.location) + '</span>' : '') + (it.archived ? '<span class="badge">Archived</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">' +
     (hasPic ? '<div class="dHero" data-act="viewPhoto" data-id="' + esc(id) + '" role="button" tabindex="0" title="See it full size">' + photoImgHTML(it, true) + '<span class="pzoom">' + ic('zoom', 16) + '</span></div>' : '');
   h += '<div class="btnRow" style="margin-top:0">' + (it.archived ? '' : '<button class="btn btn-teal" data-act="drawerAdd" data-id="' + esc(id) + '">' + ic('cart', 16) + (c ? 'Add more' : 'Add to cart') + '</button>') +
-    '<button class="btn btn-sec" data-act="useOne" data-id="' + esc(id) + '">' + ic('minus', 16) + 'Used 1 ' + esc(countUnit(it)) + '</button><button class="btn btn-sec" data-act="countIt" data-id="' + esc(id) + '">' + ic('count', 16) + 'Count</button><button class="btn btn-ghost" data-act="itemEdit" data-id="' + esc(id) + '">' + ic('edit', 15) + 'Edit</button></div>';
+    '<button class="btn btn-sec" data-act="countIt" data-id="' + esc(id) + '">' + ic('count', 16) + 'Count</button><button class="btn btn-ghost" data-act="itemEdit" data-id="' + esc(id) + '">' + ic('edit', 15) + 'Edit</button></div>';
   if (c) h += '<div class="notice info" style="margin-top:14px">In the cart: <b>' + esc(lineQtyLabel(c, true)) + '</b> — added by ' + esc(c.addedBy || '—') + (c.addedAt ? ', ' + esc(fmtWhen(c.addedAt)) : '') + listOf(c.trail).map(t => '; ' + esc(t.t === 'more' ? '+' + qtyFmt(t.qty) + ' by ' + t.by : t.t === 'qty' ? 'changed to ' + qtyFmt(t.to) + ' by ' + t.by : 'changed by ' + t.by) + ', ' + esc(fmtWhen(t.at))).join('') + (c.note ? '<br>Note: ' + esc(c.note) : '') + '</div>';
   os.forEach(o => { const l = o.items.find(x => x.itemId === id); h += '<div class="notice" style="margin-top:10px;cursor:pointer" data-act="openOrder" data-id="' + esc(o.id) + '">' + (o.status === 'backordered' ? 'Backordered' : 'On order') + ' from ' + esc(o.vendor || '—') + ': <b>' + esc(lineQtyLabel(l, true)) + '</b> — ordered by ' + esc(o.orderedBy || '—') + ', ' + esc(fmtWhen(o.orderedAt || o.dateOrdered)) + (o.expectedDelivery ? ' · due ' + esc(fmtDate(o.expectedDelivery)) : '') + '</div>'; });
   /* stock */
@@ -5656,7 +5656,6 @@ DRAWERS.item = id => {
   return h + '</div>';
 };
 ACT.drawerAdd = t => { const it = itemById(t.dataset.id); if (it) openAddToCart(it); };
-ACT.useOne = t => { const it = itemById(t.dataset.id); if (!it) return; withWho(() => act(() => stockStep(it, -1, 'use', 'Used'), 'Took 1 ' + countUnit(it) + ' off ' + plainText(it.name, 40) + '.'), 'Who used it?'); };
 ACT.archiveIt = t => { const it = itemById(t.dataset.id); if (!it) return; withAdmin(() => act(() => archiveItem(it, !it.archived), it.archived ? 'Back in the list.' : 'Archived. It’s under Supplies → Archived.'), 'Who’s archiving it?', 'archive supplies'); };
 ACT.deleteIt = t => { const it = itemById(t.dataset.id); if (!it) return; withAdmin(async () => { if (!await confirmBox('Delete “' + it.name + '”?', 'It leaves the list on every computer. Past orders and spending keep its name. Archiving instead keeps it findable.', 'Delete', true)) return; return act(async () => { await deleteItem(it); closeDrawer(); }, 'Deleted.'); }, 'Who’s deleting it?', 'delete supplies'); };
 
@@ -7154,7 +7153,9 @@ ACT.caseApply = t => {
 
 /* =====================================================================
    Scan — point the camera at a supply's barcode or its QR label (or type
-   the code) to find it, then: used one, count it, or add it to the cart.
+   the code) to find it, then: count it, or add it to the cart. (No "Used 1":
+   Amir, 16 Oct 2026, "in reality we never use the 'used 1 pack' because
+   our office is so small" — Count and receiving keep the numbers.)
    A code matches a supply's id, its SKU, any vendor SKU, or its exact
    name. QR labels carry the supply's SKU, as before.
    Libraries load only when they're needed, pinned to exact files.
@@ -7235,7 +7236,7 @@ ACT.scanPick = t => { const it = itemById(t.dataset.id); if (it) { $('#scanHits'
 function showScanResult(it) {
   const c = inCartLine(it.id), box = $('#scanRes'); if (!box) return;
   box.innerHTML = '<div class="card" style="margin-top:12px;padding:14px 16px"><div class="gap8">' + thumbHTML(it, 'lg') + '<div style="flex:1;min-width:0"><b style="color:var(--navy)">' + esc(it.name) + '</b><div class="muted small">' + esc(qtyUnit(it.qty || 0, countUnit(it))) + ' on hand' + (it.location ? ' · ' + esc(it.location) : '') + (c ? ' · in the cart (' + esc(lineQtyLabel(c)) + ')' : '') + '</div></div></div>' +
-    '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="useOne" data-id="' + esc(it.id) + '">' + ic('minus', 15) + 'Used 1 ' + esc(countUnit(it)) + '</button><button class="btn btn-sec btn-sm" data-act="countIt" data-id="' + esc(it.id) + '">' + ic('count', 15) + 'Count</button><button class="btn btn-teal btn-sm" data-act="drawerAdd" data-id="' + esc(it.id) + '">' + ic('cart', 15) + 'Add to cart</button><button class="btn btn-ghost btn-sm" data-act="scanOpen" data-id="' + esc(it.id) + '">Open</button><button class="btn btn-ghost btn-sm" data-act="scanAgain">Scan another</button></div></div>';
+    '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="countIt" data-id="' + esc(it.id) + '">' + ic('count', 15) + 'Count</button><button class="btn btn-teal btn-sm" data-act="drawerAdd" data-id="' + esc(it.id) + '">' + ic('cart', 15) + 'Add to cart</button><button class="btn btn-ghost btn-sm" data-act="scanOpen" data-id="' + esc(it.id) + '">Open</button><button class="btn btn-ghost btn-sm" data-act="scanAgain">Scan another</button></div></div>';
   hydrateImages(box);
 }
 ACT.scanOpen = t => { closeModal(true); openDrawer('item', t.dataset.id); };

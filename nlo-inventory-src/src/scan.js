@@ -1,6 +1,8 @@
 /* =====================================================================
    Scan — point the camera at a supply's barcode or its QR label (or type
-   the code) to find it, then: used one, count it, or add it to the cart.
+   the code) to find it, then: count it, or add it to the cart. (No "Used 1":
+   Amir, 16 Oct 2026, "in reality we never use the 'used 1 pack' because
+   our office is so small" — Count and receiving keep the numbers.)
    A code matches a supply's id, its SKU, any vendor SKU, or its exact
    name. QR labels carry the supply's SKU, as before.
    Libraries load only when they're needed, pinned to exact files.
@@ -81,7 +83,7 @@ ACT.scanPick = t => { const it = itemById(t.dataset.id); if (it) { $('#scanHits'
 function showScanResult(it) {
   const c = inCartLine(it.id), box = $('#scanRes'); if (!box) return;
   box.innerHTML = '<div class="card" style="margin-top:12px;padding:14px 16px"><div class="gap8">' + thumbHTML(it, 'lg') + '<div style="flex:1;min-width:0"><b style="color:var(--navy)">' + esc(it.name) + '</b><div class="muted small">' + esc(qtyUnit(it.qty || 0, countUnit(it))) + ' on hand' + (it.location ? ' · ' + esc(it.location) : '') + (c ? ' · in the cart (' + esc(lineQtyLabel(c)) + ')' : '') + '</div></div></div>' +
-    '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="useOne" data-id="' + esc(it.id) + '">' + ic('minus', 15) + 'Used 1 ' + esc(countUnit(it)) + '</button><button class="btn btn-sec btn-sm" data-act="countIt" data-id="' + esc(it.id) + '">' + ic('count', 15) + 'Count</button><button class="btn btn-teal btn-sm" data-act="drawerAdd" data-id="' + esc(it.id) + '">' + ic('cart', 15) + 'Add to cart</button><button class="btn btn-ghost btn-sm" data-act="scanOpen" data-id="' + esc(it.id) + '">Open</button><button class="btn btn-ghost btn-sm" data-act="scanAgain">Scan another</button></div></div>';
+    '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="countIt" data-id="' + esc(it.id) + '">' + ic('count', 15) + 'Count</button><button class="btn btn-teal btn-sm" data-act="drawerAdd" data-id="' + esc(it.id) + '">' + ic('cart', 15) + 'Add to cart</button><button class="btn btn-ghost btn-sm" data-act="scanOpen" data-id="' + esc(it.id) + '">Open</button><button class="btn btn-ghost btn-sm" data-act="scanAgain">Scan another</button></div></div>';
   hydrateImages(box);
 }
 ACT.scanOpen = t => { closeModal(true); openDrawer('item', t.dataset.id); };
