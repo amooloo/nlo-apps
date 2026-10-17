@@ -55,7 +55,16 @@ function whoNow() {
   const me = B && B.me; if (!me) return null;
   const p = personById(me.staffId);
   const name = (p && p.name) || me.name || 'Someone';
-  return { id: me.staffId, short: me.role === 'owner' ? 'Dr. A' : shortName(name), name };
+  return { id: me.staffId, short: me.role === 'owner' ? 'Dr. A' : shortName(name), name, owner: me.role === 'owner' };
+}
+/* the name an email or a text to a vendor is signed with: Dr. A as the doctor — his roster name with "Dr." in front, his full
+   name rather than his first (Amir, 17 Oct 2026: "I see my name is -Amir in the emails", asking for "Dr." and his full name,
+   his last name, or "even Dr. A"); everyone else by first name */
+function signName(w) {
+  if (!w) return '';
+  if (!w.owner) return firstName(w.name);
+  const n = String(w.name || '').trim().replace(/^dr\.?\s+/i, '');
+  return n.split(/\s+/).length > 1 ? 'Dr. ' + n : 'Dr. A';
 }
 /* a record stamped by the person signed in (old records carry Staff Hub's id for them) */
 function isMine(id) { const w = whoNow(), p = id && personById(id); return !!(w && p && p.id === w.id); }

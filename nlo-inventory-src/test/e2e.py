@@ -650,7 +650,7 @@ def t_order_links(b):
     check('order links (PC): Text opens nothing on a PC (it can’t text)…', len(opened(pg)) == 1 and not J(pg, "!!document.querySelector('#modalWrap a[href^=\"sms:\"]')"), opened(pg))
     pg.wait_for_function("() => { const i = document.querySelector('#smsQr img'); return !!(i && i.src && i.src.startsWith('data:image')); }", timeout=10000)
     payload = decode_qr(J(pg, "document.querySelector('#smsQr img').src"))
-    want = 'SMSTO:+18135550142:Hi Mark, please send Next Level Orthodontics (acct 12345):\n2 boxes - Gloves Pulse Nitrile - SM #177102\nShip to 320 NW 76th Drive, Gainesville, FL 32607. Please confirm. Thanks! - Riley'
+    want = 'SMSTO:+18135550142:Hi Mark, please send Next Level Orthodontics (acct 12345):\n2 boxes - Gloves Pulse Nitrile - SM #177102\nShip to 320 NW 76th Drive, Gainesville, FL 32607. Please confirm. Thanks! - Dr. Riley Owner'
     check('order links (PC): …it shows a QR code: a text to the rep with the order, in plain characters', payload == want, repr(payload))
     check('order links (PC): the QR says to scan it with the phone', 'Scan this with your phone’s camera' in modal_text(pg) and 'Mark (813-555-0142)' in modal_text(pg))
     check('order links (PC): the text shown (and copied) is the text in the QR code', J(pg, "document.querySelector('#orderTxt').textContent") == want.split(':', 2)[2], J(pg, "document.querySelector('#orderTxt').textContent"))
@@ -1459,7 +1459,7 @@ def t_marislist(b):
     dt = J(pg, "document.querySelector('#drawer').textContent")
     check('vendor drawer: deal, code with Copy, how, contacts (call with the extension), price file', 'ACMETEST15' in dt and 'Order on their website' in dt and J(pg, "document.querySelector('#drawer a[href^=\"tel:\"]').getAttribute('href')") == 'tel:+15550101234,12' and J(pg, "!!document.querySelector('#drawer a[href^=\"mailto:orders@acme.example?subject=\"]')") and J(pg, "!!document.querySelector('#drawer a[href=\"https://files.example/acme-2026.pdf\"]')"), dt[:500])
     to, subj, body = mail_parts(J(pg, "document.querySelector('#drawer a[href^=\"mailto:\"]').getAttribute('href')"))
-    check('vendor drawer: its email opens with a hello and the office’s sign-off, not blank (Amir: “then it’s blank”)', to == 'orders@acme.example' and subj == 'Mari’s List member — Next Level Orthodontics' and body.startswith('Hello,\n\nWe’re Mari’s List members (code ACMETEST15).') and body.endswith('Thank you!\nRiley\nNext Level Orthodontics\n320 NW 76th Drive, Gainesville, FL 32607\n(352) 332-7466'), (to, subj, body))
+    check('vendor drawer: its email opens with a hello and the office’s sign-off, not blank (Amir: “then it’s blank”)', to == 'orders@acme.example' and subj == 'Mari’s List member — Next Level Orthodontics' and body.startswith('Hello,\n\nWe’re Mari’s List members (code ACMETEST15).') and body.endswith('Thank you!\nDr. Riley Owner\nNext Level Orthodontics\n320 NW 76th Drive, Gainesville, FL 32607\n(352) 332-7466'), (to, subj, body))
     J(pg, "openDrawer('mlr', 'acme|ZZ-UNIQUE|ea')"); pg.wait_for_timeout(200)
     dt = J(pg, "document.querySelector('#drawer').textContent")
     check('price drawer: the price, retail and % off, how to get it, the file it’s from', '$77.77' in dt and 'retail $99.00' in dt and '21% off' in dt and 'Member price list (2026)' in dt, dt[:400])
@@ -1491,7 +1491,7 @@ def t_marislist(b):
     check('quote: the subject names the item and its #', subj == 'Quote request: Nitrile gloves, powder-free, blue, Small (#GL-200S) — Next Level Orthodontics', subj)
     want = ['Hello,\n\nWe’re Mari’s List members (code ACMETEST15). Could you send us a quote for this item? We’d like to check the member price before we order.',
             '• Nitrile gloves, powder-free, blue, Small\n  Item # GL-200S · Unit: Box of 200\n  Mari’s List price we have: $13.20\n  Price list: Member price list (2026)\n  To replace what we use now: Gloves Pulse Nitrile — SM\n  Quantity: 15',
-            'Please confirm that’s our member price, and let us know the shipping cost and any minimum order.', 'Thank you!\nRiley\nNext Level Orthodontics\n320 NW 76th Drive, Gainesville, FL 32607\n(352) 332-7466']
+            'Please confirm that’s our member price, and let us know the shipping cost and any minimum order.', 'Thank you!\nDr. Riley Owner\nNext Level Orthodontics\n320 NW 76th Drive, Gainesville, FL 32607\n(352) 332-7466']
     check('quote: the email — members (code), the item as the list names it, the price and its list, what it replaces, how many (the last order: 3 cases = 30 boxes = 15 boxes of 200), confirm price, shipping, minimum, the office', all(w in body for w in want), [w for w in want if w not in body] + [body])
     check('quote: the dialog shows the item, for which supply, how many', J(pg, "document.querySelector('#mlqQty0').value") == '15' and 'for Gloves Pulse Nitrile — SM' in J(pg, "document.querySelector('.mlq').textContent"))
     pg.fill('#mlqQty0', '24'); pg.wait_for_timeout(100)
@@ -1529,6 +1529,7 @@ def t_marislist(b):
     check('place order: how to get the member price, and that the email and text say so', 'Mari’s List member pricing' in mt and 'Email and say you’re a Mari’s List member.' in mt, mt[:500])
     check('place order: the order email and the text carry “We’re Mari’s List members”', 'We’re Mari’s List members — please apply our Mari’s List pricing.' in J(pg, "orderText('SunSurgical', S.ui.place.snap, whoNow())") and "We're Mari's List members - please apply our Mari's List pricing." in J(pg, "orderSms('SunSurgical', S.ui.place.snap, whoNow())"))
     check('place order: a vendor that isn’t on Mari’s List gets neither', J(pg, "mlPlaceHTML('American Orthodontics') === '' && mlOrderSay('American Orthodontics') === ''") is True)
+    check('place order: Dr. A signs the order email and text as the doctor (his full name with Dr.), not by first name', J(pg, "orderText('SunSurgical', S.ui.place.snap, whoNow())").endswith('Thank you!\nDr. Riley Owner, Next Level Orthodontics') and J(pg, "orderSms('SunSurgical', S.ui.place.snap, whoNow())").endswith('Thanks! - Dr. Riley Owner') and J(pg, "[signName({ name: 'Sarah Bell' }), signName({ name: 'Dr Riley Owner', owner: true }), signName({ name: 'Riley Owner', owner: true }), signName({ name: 'Riley', owner: true })]") == ['Sarah', 'Dr. Riley Owner', 'Dr. Riley Owner', 'Dr. A'])
     J(pg, "closeModal(true)")
     check('Dr. A: no page errors', not errs, errs)
     ctx.close()

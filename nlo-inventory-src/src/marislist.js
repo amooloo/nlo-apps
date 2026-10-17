@@ -468,7 +468,7 @@ function mlQuoteTo(mv) {
   return { email: '', who: '' };
 }
 /* the sign-off: who's writing, and the office (where it ships to, for the shipping cost) */
-function mlSignOff() { const w = whoNow(); return 'Thank you!\n' + (w && w.name ? firstName(w.name) + '\n' : '') + OFFICE.name + '\n' + OFFICE.address + '\n' + OFFICE.phone; }
+function mlSignOff() { const w = whoNow(), n = signName(w); return 'Thank you!\n' + (n ? n + '\n' : '') + OFFICE.name + '\n' + OFFICE.address + '\n' + OFFICE.phone; }
 /* a vendor's email button: a hello, never a blank email */
 function mlHelloMail(mv, to, who) {
   return mlMailto(to, 'Mari’s List member — ' + OFFICE.name, 'Hello' + (who ? ' ' + firstName(who) : '') + ',\n\nWe’re Mari’s List members' + (mv && mv.code ? ' (code ' + mv.code + ')' : '') + '.\n\n\n\n' + mlSignOff());

@@ -116,8 +116,9 @@ the inventory app some how".
   doesn't open; Copy for a website's form): "We're Mari's List members" (with the code, and the office's account # when it
   buys there), each item as the price list names it (item #, unit), the member price we have, the list it's from, what it
   would replace when it's a similar item, how many (the supply's last order, in their units; changeable in the dialog), and a
-  request to confirm the member price, the shipping and any minimum — signed by whoever is signed in, with the office's
-  address. It goes to the address Mari's List gives, else the office's rep or email for that vendor; with none, the email is
+  request to confirm the member price, the shipping and any minimum — signed by whoever is signed in (Dr. A as "Dr. Amir
+  Akhavan", his roster name with "Dr."; 5.2.1, also on order emails and texts — Amir: "can you make it as Dr. Amir Akhavan";
+  everyone else by first name), with the office's address. It goes to the address Mari's List gives, else the office's rep or email for that vendor; with none, the email is
   written without an address. Anyone signed in can ask; nothing is saved. A vendor's own email button now opens with a hello
   and the office's sign-off instead of a blank email.
 

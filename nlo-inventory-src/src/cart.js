@@ -110,14 +110,14 @@ function orderText(vn, lines, who) {
   return 'Hello' + (v.rep ? ' ' + firstName(v.rep) : '') + ',\n\nPlease send the following to ' + OFFICE.name + (v.acct ? ' (account ' + v.acct + ')' : '') + ':\n\n' +
     lines.map(c => '• ' + qtyUnit(c.qty, c.unit) + ' — ' + c.name + (c.sku ? ' (#' + c.sku + ')' : '') + (c.price ? ' @ ' + money(c.price) : '')).join('\n') +
     (ml ? '\n\n' + ml : '') +
-    '\n\nShip to: ' + OFFICE.address + '\nPhone: ' + OFFICE.phone + '\n\nPlease confirm the order and expected delivery. Thank you!\n' + (who ? firstName(who.name) + ', ' : '') + OFFICE.name;
+    '\n\nShip to: ' + OFFICE.address + '\nPhone: ' + OFFICE.phone + '\n\nPlease confirm the order and expected delivery. Thank you!\n' + (who ? signName(who) + ', ' : '') + OFFICE.name;
 }
 /* the text message: short, in plain characters (so every phone, and the QR code, reads it the same) */
 function orderSms(vn, lines, who) {
   const v = vendorByName(vn) || {}, ml = mlOrderSay(vn);
   return plainText('Hi' + (v.rep ? ' ' + firstName(v.rep) : '') + ', please send ' + OFFICE.name + (v.acct ? ' (acct ' + v.acct + ')' : '') + ':\n' +
     lines.map(c => qtyUnit(c.qty, c.unit) + ' - ' + c.name + (c.sku ? ' #' + c.sku : '')).join('\n') +
-    (ml ? '\n' + ml : '') + '\nShip to ' + OFFICE.address + '. Please confirm. Thanks!' + (who ? ' - ' + firstName(who.name) : ''));
+    (ml ? '\n' + ml : '') + '\nShip to ' + OFFICE.address + '. Please confirm. Thanks!' + (who ? ' - ' + signName(who) : ''));
 }
 function plainText(s) {
   return String(s).normalize('NFKD').replace(/[‘’‚′]/g, "'").replace(/[“”„″]/g, '"')
