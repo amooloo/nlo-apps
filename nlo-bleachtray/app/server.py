@@ -389,7 +389,8 @@ def _run(job):
     job["started"] = time.time()
     full = job.pop("rerun_all", False)
     me = job.pop("mask_edit", None)
-    todo = [k for k, sc in enumerate(job["scans"]) if full or me is not None or not sc.get("report")]
+    only = job.pop("rerun_only", None)
+    todo = [k for k, sc in enumerate(job["scans"]) if full or me is not None or not sc.get("report") or (only is not None and k in only)]
     job["progress"] = dict(frac=0.0, label="starting", scan=0, of=len(job["scans"]))
     try:
         def log(msg):
@@ -825,15 +826,37 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         job["mask_edit"] = me if any(me.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout")) else None
     except Exception:
         job["mask_edit"] = None
+    # only the models a change touches are re-made: a retainer-line change leaves the whitening trays
+    # alone (and the other way round); a change to the base, marks or anything shared re-makes them all
     try:
-        job["params"].update(json.loads(params or "{}"))
+        new = json.loads(params or "{}")
     except Exception:
-        pass
+        new = {}
+    old = job["params"]
+    volatile = {"adjust", "tracker_case"}
+    def changed(a, b):
+        return json.dumps(a, sort_keys=True, default=str) != json.dumps(b, sort_keys=True, default=str)
+    shared_changed = any(changed(old.get(k), v) for k, v in new.items() if k not in ("wt", "tt") and k not in volatile)
+    adjust_changed = changed(old.get("adjust"), new.get("adjust")) if "adjust" in new else False
+    per_type = {t: changed(old.get(t), new.get(t)) for t in ("wt", "tt") if t in new}
+    job["params"].update(new)
+    me = job.get("mask_edit")
+    if me is not None or shared_changed or adjust_changed or not job.get("reports"):
+        only = None                                   # everything
+    else:
+        only = {k for k, sc in enumerate(job["scans"]) if per_type.get({"WT": "wt", "TT": "tt"}.get(sc.get("tag"), ""), False) or not sc.get("report")}
+        if not only:
+            only = None if not job.get("reports") else set()   # nothing changed: nothing to do
     job["auto_order"] = False
-    job["rerun_all"] = True
+    job["rerun_all"] = only is None
+    job["rerun_only"] = sorted(only) if only else None
     job["thinned"] = False
+    if only is not None and not only:
+        return {"id": jid, "nothing": True}
+    if only:
+        job.setdefault("log", []).append("re-making only the models the changed settings touch: " + ", ".join(f"{job['scans'][k].get('arch') or ''} {job['scans'][k].get('tag') or ''}".strip() for k in sorted(only)))
     _enqueue(job)
-    return {"id": jid}
+    return {"id": jid, "models": None if only is None else len(only)}
 
 
 # ---------- learning: retrain at night from training/ (brush-corrected cases, Titan exports) ----------

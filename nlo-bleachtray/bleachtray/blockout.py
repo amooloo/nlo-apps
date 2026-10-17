@@ -111,7 +111,7 @@ def _slab_from_grid(region, ztop, zbot, x0, y0, cell):
 
 
 def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=True, paint=None,
-                  paint_min_depth=0.15, log=print):
+                  paint_min_depth=0.15, feather=1.2, upsample=3, log=print):
     """Return (solid or None, info). `paint`: per-vertex bool mask of areas the user asked to block
     out (filled whatever their depth, down to the model floor if no surface shows under them)."""
     V = np.asarray(mesh.vertices); N = np.asarray(mesh.vertex_normals)
@@ -164,19 +164,58 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     if not region.any():
         return None, dict(cells=0, spots=0)
     # heights averaged over each cell's neighbours in the spot (cells added by the tidying get theirs
-    # from the neighbours too), pushed 0.3 mm into the overhang above and the surface below so the
-    # union leaves no sliver
+    # from the neighbours too), the underside pushed 0.3 mm into the overhang and the base 0.3 mm into
+    # the surface so the union leaves no sliver
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        zs = ndi.generic_filter(np.where(region, ztop, np.nan), np.nanmean, size=3, mode="constant", cval=np.nan)
-        zb = ndi.generic_filter(np.where(region, zbot, np.nan), np.nanmean, size=3, mode="constant", cval=np.nan)
-    ztop = np.where(np.isnan(zs), z_floor, zs) + 0.3
-    zbot = np.maximum(np.where(np.isnan(zb), z_floor, zb) - 0.3, z_floor - 0.5)
-    solid = _slab_from_grid(region, ztop, zbot, g["x0"], g["y0"], cell)
-    lab, nlab = ndi.label(region)
+        zs = ndi.generic_filter(np.where(region, ztop, np.nan), np.nanmean, size=5, mode="constant", cval=np.nan)
+        zb = ndi.generic_filter(np.where(region, zbot, np.nan), np.nanmean, size=5, mode="constant", cval=np.nan)
+    zs = np.where(np.isnan(zs), z_floor, zs); zb = np.where(np.isnan(zb), z_floor, zb)
+    # feathered like resin: the fill climbs from the surface at the edge of the spot up to the
+    # overhang over `feather` mm, so there is no vertical wall and no staircase to see; the spot is
+    # widened by the feather so the climb starts outside the undercut
+    region_core = region.copy()
+    grow = max(1, int(round(feather / cell)))
+    wide = ndi.binary_dilation(region, iterations=grow)
+    zb_w = ndi.generic_filter(np.where(wide, np.where(region, zb, np.nan), np.nan), np.nanmean, size=2 * grow + 1, mode="constant", cval=np.nan) if grow > 0 else zb
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        zb_w = ndi.generic_filter(np.where(wide, zb_w, np.nan), np.nanmean, size=3, mode="constant", cval=np.nan)
+    zb_w = np.where(np.isnan(zb_w), zb, zb_w)
+    zs_w = ndi.generic_filter(np.where(wide, np.where(region, zs, np.nan), np.nan), np.nanmean, size=2 * grow + 1, mode="constant", cval=np.nan)
+    zs_w = np.where(np.isnan(zs_w), zs, zs_w)
+    # the fill is built on a finer grid than the one the undercuts were found on (the detection needs a
+    # few scan vertices per cell; the surface wants small steps): fields interpolated, edges rounded
+    fine = cell / upsample
+    if upsample > 1:
+        wide_f = ndi.zoom(wide.astype(float), upsample, order=1) > 0.5
+        zb_f = ndi.zoom(zb_w, upsample, order=1); zs_f = ndi.zoom(zs_w, upsample, order=1)
+        wide_f = ndi.binary_opening(wide_f, iterations=1) | ndi.binary_erosion(wide_f, iterations=1)
+        zb_f = ndi.gaussian_filter(zb_f, sigma=upsample * 0.6); zs_f = ndi.gaussian_filter(zs_f, sigma=upsample * 0.6)
+    else:
+        wide_f, zb_f, zs_f = wide, zb_w, zs_w
+    dist = ndi.distance_transform_edt(wide_f) * fine
+    ramp = np.clip(dist / max(feather, 1e-6), 0.0, 1.0)
+    ramp = ramp * ramp * (3 - 2 * ramp)
+    ztop = zb_f + ramp * np.maximum(zs_f + 0.3 - zb_f, 0.0)
+    zbot = np.maximum(zb_f - 0.3, z_floor - 0.5)
+    ztop = np.maximum(ztop, zbot + 0.35)
+    region = wide_f
+    # corner-touching cells would pinch the solid
+    for _ in range(4):
+        a = region[:-1, :-1] & region[1:, 1:] & ~region[1:, :-1] & ~region[:-1, 1:]
+        b = region[1:, :-1] & region[:-1, 1:] & ~region[:-1, :-1] & ~region[1:, 1:]
+        if not (a.any() or b.any()):
+            break
+        fix = a | b
+        region[:-1, :-1] |= fix; region[1:, 1:] |= fix; region[1:, :-1] |= fix; region[:-1, 1:] |= fix
+    if not region.any():
+        return None, dict(cells=0, spots=0)
+    solid = _slab_from_grid(region, ztop, zbot, g["x0"], g["y0"], fine)
+    lab, nlab = ndi.label(region_core)
     vol = float(abs(solid.volume)) / 1000.0
-    info = dict(cells=int(region.sum()), spots=int(nlab), volume_ml=round(vol, 3),
-                deepest_mm=round(float(np.nanmax(np.where(region, depth, 0))), 2), painted_cells=int((painted & region).sum()))
+    info = dict(cells=int(region_core.sum()), spots=int(nlab), volume_ml=round(vol, 3),
+                deepest_mm=round(float(np.nanmax(np.where(region_core, depth, 0))), 2), painted_cells=int((painted & region_core).sum()))
     if log:
         log(f"block-out: {nlab} undercut{'s' if nlab != 1 else ''} filled ({vol:.2f} mL, deepest {info['deepest_mm']} mm in from the contour)")
     return solid, info

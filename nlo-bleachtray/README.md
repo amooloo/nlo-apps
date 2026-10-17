@@ -144,7 +144,9 @@ through the model that passes an underside and then free air before the next sur
 from that surface up to the underside when the undercut is deeper than 0.75 mm measured in from the contour seen
 from above (a setting, retainers only by default - the small natural undercuts stay for retention), or whatever
 its depth under a painted *Block out* stroke. The fill is one heightfield solid unioned into the body before the
-outline cut; it is shown in teal in the Result view and saved as `<name>_blockout.stl`.
+outline cut; it is shown in teal in the Result view and saved as `<name>_blockout.stl`. The fill is feathered like
+resin: built on a 0.1 mm grid, it climbs from the surface at the edge of the spot up to the overhang over 1.2 mm, so
+there is no wall and no staircase to see.
 
 **History.** `jobs\<case>\case.json` is the recipe of a case (scans by relative path, settings, brush fixes as
 `fixedlabels_*.npz`, painted areas, review state, when it was sent); it is written whenever a run finishes or the
@@ -161,7 +163,9 @@ recess on the inside that touches nothing; (2) the name and WHITENING / RETAINER
 of the base plate inside the arch, when the arch leaves at least 8 mm of room there (skipped otherwise). Switch off
 under Settings.
 
-**Settings.** The gear in the New case card opens a panel where every number has a picture of what it means
+**Settings.** The gear in the New case card opens a panel where every number has a picture of what it means;
+*Apply to this case & re-run* re-makes the open case with the changed settings - only the models the change touches
+(a retainer-line change leaves the whitening trays alone), brush fixes and painted areas kept
 (reservoir region / depth / distance to the gum / leeway at exposed roots, the two trim lines, block-out of
 undercuts, how the line crosses between teeth, rim, floor depth, the cut behind the last molar, levelling, marks,
 bulk defaults, learning, the office folders). Settings are
