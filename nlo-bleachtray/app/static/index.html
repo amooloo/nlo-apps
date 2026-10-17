@@ -807,7 +807,9 @@ $('#setApply').onclick = async () => {
   if (!currentJob) return;
   saveSettings(); $('#settings').classList.remove('on'); requestRender();
   const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout] })); fd.append('params', JSON.stringify(params()));
-  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
+  const r = await (await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd })).json();
+  if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
+  $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 $('#setClose').onclick = () => { $('#settings').classList.remove('on'); saveSettings(); requestRender(); };
 $('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
@@ -1192,7 +1194,9 @@ $('#clearfix').onclick = () => { Object.values(edits).forEach(e => e.clear()); p
 $('#rerun').onclick = async () => {
   if (!currentJob) return;
   const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout] })); fd.append('params', JSON.stringify(params()));
-  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
+  const r = await (await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd })).json();
+  if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
+  $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 async function refreshLearn(){
   let st; try { st = await (await fetch('/api/learn')).json(); } catch (e) { return; }
