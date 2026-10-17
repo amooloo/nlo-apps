@@ -109,8 +109,30 @@ the inventory app some how".
 - **Under the rules from before Mari's List** nobody is locked out: the prices just aren't there, and Settings → Mari's List
   (and the Mari's List screen, for Dr. A) has the publish-the-rules steps and Check again.
 
+## AO Partner Dollars (5.2)
+Amir, 17 Oct 2026: "can you see if you can somehow incoporate their point system in our invenvory?" … "you should APPROXIMATE
+our points going forward … if you have the price of each items which you do". American Orthodontics' points: brackets and
+tubes earn Partner Dollars (about 36% of AO's list price, about 45% of the office's own price); everything else AO sells (wires, elastics, ties, buttons, supplies)
+can be paid with them dollar for dollar, and the office's account pays with them by default. Only Dr. A sees any of this.
+- **Home** (Dr. A): "AO Partner Dollars" — the balance AO Direct last showed, plus what's come and gone since: every AO order
+  received in Inventory and placed after the balance was read adds what its brackets and tubes earn and takes off what its
+  other lines cost (no more than there is). Orders that never pass through Inventory (the rep's, unless they're received
+  here) and AO's kit-assembly charges aren't seen, so it says "≈" and when AO Direct last showed it (a hint after 45 days).
+  **Update** types in what AO Direct → Home → Partner detail shows (balance, expiration).
+- **Supplies** (Dr. A): an AO supply that earns shows "≈ $1.56 after AO points" under its price (what's paid minus what it
+  earns); its drawer says what it earns per counted unit, and an AO supply paid with points says so.
+- **What each supply does**: `aoPts` on the supply, as AO Direct gives it (`{earn: dollars per counted unit}`, `{pay: true}` or
+  `{none: true}`, with `at`, the day it was read) — Claude reads it from AO Direct (signed in, in Dr. A's Chrome). An AO
+  supply without it: brackets and tubes (the Brackets & Tubes category, or BKT/bracket/tube in the name) earn about 45% of
+  what's paid (AO Direct's figures for the office's price), anything else is paid with points. Quick order brackets: what one
+  set or bracket earns is kept beside its price in the shared price memory (`invState/prices.p[key].earn`); other lines not
+  tied to a supply go by their category.
+- **The balance**: `pts` on the AO vendor's record (`invVendors/ao`: `{bal, exp, at, by}`) — vendors already take Dr. A's
+  fields, so no new rules.
+
 ## The data (Firestore `nlo-cases`; rules: `../nlo-cases-src/firestore.rules`, block "NLO Inventory")
-- `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before.
+- `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before;
+  since 5.2 a supply may carry `aoPts` and the AO vendor `pts` (AO Partner Dollars, above).
 - `invLog/m<YYYY-MM>~<staff id>` — `{ e: { <entryId>: entry }, mon, who }`: one record per person per month, entries only
   added, each person only to their own (whose record it is says who made an entry). The moved entries are under `~old`
   (`~old2`… past a thousand in a month), with the old app's stamps.

@@ -49,7 +49,7 @@ VIEWS.home = {
     if (back.length) left += '<div class="notice" style="margin-top:12px;cursor:pointer" data-act="ordersTab" data-tab="backordered">' + back.length + ' order' + (back.length === 1 ? ' is' : 's are') + ' backordered: ' + esc(back.map(o => o.vendor).filter(Boolean).slice(0, 3).join(', ')) + '</div>';
     left += '</div></div>';
     /* spending, what's low (by the counts), what's expiring, and activity */
-    let right = (boss ? budgetSummaryCard(mk, sp, budget, true) + mlHomeCardHTML() : '') + lowCardHTML() + expiringCardHTML();
+    let right = (boss ? budgetSummaryCard(mk, sp, budget, true) + ptsHomeCardHTML() + mlHomeCardHTML() : '') + lowCardHTML() + expiringCardHTML();
     if (boss) {
       const ev = feedEvents().slice(0, 12);
       right += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Latest steps</h3><span style="flex:1"></span><button class="btn btn-ghost" data-act="nav" data-v="activity">See all</button></div><div class="cardBd" style="padding-top:0"><div class="feed">' + (ev.length ? ev.map(e => feedItemHTML(e, true)).join('') : '<div class="empty">Nothing yet.</div>') + '</div></div></div>';

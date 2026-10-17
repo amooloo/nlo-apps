@@ -130,6 +130,14 @@ function demoMarisList() {
   const day = 864e5;
   return { info: { ver: 'demo1', at: isoOf(new Date(Date.now() - 6 * day)), src: 'Made-up for the demo', vendors, parts: 1, rows: rows.length, loadedAt: new Date(Date.now() - 2 * day).toISOString(), loadedBy: 'Dr. A' }, rows, match };
 }
+/* made-up Quick order prices (and what a bracket earns in AO's points), so the Quick order shows prices in the demo */
+function demoQuickPrices(day) {
+  const p = {}, put = (k, price, earn) => { p[fbKey(k)] = Object.assign({ price, date: day }, earn ? { earn } : {}); };
+  BRACKET_SYSTEMS.forEach((s, i) => { const one = [10.4, 19.5, 7.4, 3.1, 19.5][i] || 4; /* Empower 2, Empower Clear, Iconix, Mini Master, Radiance (made-up) */ put('AO-BRACKET-IND|' + s, one, round2(one * 0.45)); put('AO-BRACKET-SET|' + s, round2(one * 24), round2(one * 24 * 0.45)); });
+  Object.values(ELASTO_CODES).forEach(m => Object.values(m).forEach(code => put(code, /^854-25/.test(code) ? 36 : 24)));
+  WILDLIFE_ANIMALS.wlAll.forEach(a => put(a.code, a.pks === 100 ? 52 : 29));
+  return p;
+}
 /* ---------- the made-up office ---------- */
 const DEMO_PEOPLE = {
   s_amir: { id: 's_amir', sid: 'amir', name: 'Dr. Avery Lane', short: 'Dr. A', title: 'Orthodontist / Owner', active: true },
@@ -159,6 +167,12 @@ function demoStore() {
   });
   const I = id => items[id] || Object.values(items)[0];
   const ids = Object.keys(items), pick = n => I(ids[n % ids.length]);
+  /* AO Partner Dollars (made-up): what each AO supply does with AO's points — its wires, ties and elastics are paid with them;
+     three made-up brackets and tubes earn them (added after the picks above, so the rest of the demo stays as it was) */
+  const ptsDay = ymd(at(20, 10));
+  Object.values(items).forEach(i => { if ((i.sources[0] || {}).vendor === 'American Orthodontics') i.aoPts = { pay: true, at: ptsDay }; });
+  [['d-bk1', 'Metal bracket .018 MBT, upper central (demo)', 2.84, 1.28, 260], ['d-bk2', 'Metal bracket .018 MBT, lower incisor (demo)', 2.84, 1.28, 180], ['d-tb1', 'Buccal tube .018, 1st molar, bondable (demo)', 5.04, 1.84, 64]]
+    .forEach(([id, name, price, earn, qty]) => { items[id] = { id, name, cat: 'brackets-tubes', unit: 'each', qty, min: 40, group: 'Brackets & tubes (demo)', note: '', sources: [{ vendor: 'American Orthodontics', sku: '', price, src: 'https://shop.americanortho.com' }], aoPts: { earn, at: ptsDay } }; });
   const line = (it, q, who, d, h) => { const s = (it.sources || [])[0] || {}, per = perBuy(it); return { itemId: it.id, name: it.name, sku: s.sku || '', vendor: s.vendor || '', price: round2((s.price || 0) * per), unit: buyUnit(it), per: per > 1 ? per : null, countUnit: per > 1 ? it.unit : null, qty: q, addedBy: DEMO_PEOPLE[who].short, addedById: who, addedAt: iso(at(d, h, 12)), lineId: 'c' + it.id + d }; };
   const glove = Object.values(items).find(i => /Gloves Pulse Nitrile — SM/.test(i.name)) || pick(3);
   const cart = [line(glove, 2, 's_gwen', 0, 9), line(pick(5), 3, 's_kaylee', 1, 14), line(pick(11), 1, 's_angelika', 2, 10), line(pick(17), 2, 's_gwen', 0, 11)];
@@ -190,6 +204,8 @@ function demoStore() {
     mkOrder('d-r' + m + 'b', 'SunSurgical', [line(glove, 2 + (m % 2), 's_gwen', d + 12, 9), line(pick(m * 5 + 7), 4, 's_angelika', d + 12, 14)], { ordered: d + 10, by: 's_sarah', received: d + 7, rby: 's_gwen' });
   }
   /* the newest glove order costs more than the ones before, and one supply is cheaper at another vendor, so Budget → Prices has something to show */
+  /* an AO order placed after the made-up balance was read: its brackets and tubes earn, its wires are paid with points */
+  mkOrder('d-pts', 'American Orthodontics', [line(items['d-bk1'], 40, 's_kaylee', 8, 9), line(items['d-tb1'], 8, 's_kaylee', 8, 9), line(I('w-3'), 2, 's_gwen', 8, 10)], { ordered: 7, by: 's_sarah', method: 'phone', received: 4, rby: 's_kaylee' });
   const g0 = orders['d-o1'].items[0]; g0.price = round2(g0.price * 1.09); g0.lineTotal = round2(g0.price * g0.qty);
   const alt = Object.values(items).find(i => !/Gloves/i.test(i.name) && (i.sources[0].price || 0) > 5 && i.sources[0].vendor !== 'American Orthodontics');
   if (alt) alt.sources.push({ vendor: 'Benco Dental', sku: 'BD-' + String(alt.sources[0].sku || '1001').replace(/\D/g, '').slice(0, 6), price: round2(alt.sources[0].price * 0.86), src: '' });
@@ -197,8 +213,8 @@ function demoStore() {
   [[pick(5), -1, 's_kaylee', 0, 8], [pick(8), -2, 's_gwen', 1, 16], [glove, -1, 's_angelika', 1, 7]].forEach(([it, dlt, who, d, h], k) => {
     const e = { id: 'u' + k, itemId: it.id, itemName: it.name, delta: dlt, type: 'use', note: 'Used', date: iso(at(d, h, 30)), by: DEMO_PEOPLE[who].short, byId: who }; log[e.id] = e;
   });
-  const vendors = {};
+  const vendors = { ao: { id: 'ao', pts: { bal: 1250, exp: ymd(now + 800 * day), at: iso(at(20, 10, 15)), by: 'Dr. A' } } };
   const budget = { monthly: 8000, categories: { 'brackets-tubes': 2500, archwires: 900, elastics: 800, 'infection-control': 1200, 'clinical-supplies': 900, adhesives: 600, misc: 500 }, history: [] };
   const expenses = { x1: { id: 'x1', date: ymd(at(9, 12)), amount: 145.0, category: 'patient-care', vendor: 'Amazon Business', note: 'Retainer cases', by: 'Mara Q.', byId: 's_sarah' } };
-  return { nlo: { items, orders, vendors, log, cart, cartOk, budget, expenses, bracketOrder: null, elastoPrices: {}, settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
+  return { nlo: { items, orders, vendors, log, cart, cartOk, budget, expenses, bracketOrder: null, elastoPrices: demoQuickPrices(ymd(now)), settings: { alertsOn: false, locations: ['Sterilization closet', 'Lab cabinet', 'Front desk drawer', 'Clinic bay'] }, cadence: { roster: { v: 1, people: DEMO_PEOPLE } } } };
 }

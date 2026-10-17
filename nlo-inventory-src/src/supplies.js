@@ -36,7 +36,7 @@ function itemRowHTML(i) {
     '<div style="min-width:0"><div class="nm">' + esc(i.name || 'Unnamed') + '</div><div class="sub">' +
     (src && src.vendor ? '<span class="v">' + vlogoHTML(vendorObj(src.vendor)) + esc(src.vendor) + '</span>' : '') + (src && src.sku ? '<span>#' + esc(src.sku) + '</span>' : '') + (i.location ? '<span>' + ic('pin', 12) + ' ' + esc(i.location) + '</span>' : '') +
     (buysBigger(i) ? '<span>' + esc(buyLabel(i)) + '</span>' : '') + '</div>' + itemFlags(i) + '</div>' +
-    '<div class="act">' + priceLine(i) + '<span class="stock' + (isOut(i) ? ' out' : isLow(i) ? ' low' : '') + '"' + (isLow(i) ? ' title="Below its minimum of ' + esc(qtyFmt(i.min)) + '"' : '') + '>' + esc(qtyFmt(i.qty || 0)) + '<small>' + esc(unitWord(countUnit(i), i.qty)) + ' on hand</small></span>' +
+    '<div class="act">' + priceLine(i) + ptsAfterHTML(i) + '<span class="stock' + (isOut(i) ? ' out' : isLow(i) ? ' low' : '') + '"' + (isLow(i) ? ' title="Below its minimum of ' + esc(qtyFmt(i.min)) + '"' : '') + '>' + esc(qtyFmt(i.qty || 0)) + '<small>' + esc(unitWord(countUnit(i), i.qty)) + ' on hand</small></span>' +
     (i.archived ? '' : '<button class="addBtn' + (c ? ' in' : '') + '" data-act="quickAdd" data-id="' + esc(i.id) + '" title="Add to the cart">' + ic(c ? 'check' : 'plus', 15) + (c ? 'In cart' : 'Add') + '</button>') + '</div></div>';
 }
 /* a supply as a photo card: the photo big, what's going on with it on the photo, then name, vendor, price, stock and Add */
@@ -56,7 +56,7 @@ function itemCardHTML(i) {
     '<div class="vd">' + (src && src.vendor ? vlogoHTML(vendorObj(src.vendor)) + '<span>' + esc(src.vendor) + '</span>' : '<span class="muted">no vendor yet</span>') + (src && src.sku ? '<span class="sku">#' + esc(src.sku) + '</span>' : '') + '</div>' +
     '<div class="pft"><div><div class="pp">' + (cp == null ? '<span class="muted">no price</span>' : buysBigger(i) ? money(cp * perBuy(i)) + '<small>/' + esc(buyUnit(i)) + '</small>' : money(cp) + '<small>/' + esc(countUnit(i)) + '</small>') + '</div>' +
     '<div class="ps' + (isOut(i) ? ' out' : isLow(i) ? ' low' : '') + '">' + esc(qtyFmt(i.qty || 0)) + ' ' + esc(unitWord(countUnit(i), i.qty)) + ' on hand</div></div>' +
-    (i.archived ? '' : '<button class="addBtn' + (c ? ' in' : '') + '" data-act="quickAdd" data-id="' + esc(i.id) + '" title="Add to the cart">' + ic(c ? 'check' : 'plus', 15) + (c ? 'In cart' : 'Add') + '</button>') + '</div></div></div>';
+    (i.archived ? '' : '<button class="addBtn' + (c ? ' in' : '') + '" data-act="quickAdd" data-id="' + esc(i.id) + '" title="Add to the cart">' + ic(c ? 'check' : 'plus', 15) + (c ? 'In cart' : 'Add') + '</button>') + '</div>' + ptsAfterHTML(i) + '</div></div>';
 }
 /* Photos or List, remembered on this computer */
 function supLook() { const u = S.ui.sup; if (!u.look) { let l = ''; try { l = localStorage.getItem('nloInv.supLook') || ''; } catch (e) { } u.look = l === 'list' ? 'list' : 'grid'; } return u.look; }
@@ -166,7 +166,7 @@ DRAWERS.item = id => {
     h += '<div class="srcRow">' + vlogoHTML(vendorObj(s.vendor)) + '<div style="min-width:0"><div class="v">' + esc(s.vendor || 'Vendor') + (cheap && s === cheap && srcs.length > 1 ? ' <span class="pill" style="background:var(--mint-100);color:var(--mint-700)">lowest</span>' : '') + '</div><div class="k">' + (s.sku ? '#' + esc(s.sku) : 'no SKU') + (s.lastDate ? ' · last paid ' + esc(fmtDate(s.lastDate)) : '') + (url ? ' · <a href="' + esc(url) + '" target="_blank" rel="noopener">find it ' + ic('link', 11) + '</a>' : '') + '</div></div>' +
       '<div class="p">' + (cp == null ? '<span class="muted">—</span>' : per > 1 ? money(cp * per) + '<small>per ' + esc(buyUnit(it)) + ' · ' + money(cp) + '/' + esc(countUnit(it)) + '</small>' : money(cp) + '<small>per ' + esc(countUnit(it)) + (perPieceLabel(it, cp) ? ' · ' + esc(perPieceLabel(it, cp)) : '') + '</small>') + '</div></div>';
   });
-  h += '</div>';
+  h += ptsDrawerHTML(it) + '</div>';
   h += mlItemSecHTML(it);
   if (it.note) h += '<div class="sec"><h5>Notes</h5><div class="txt">' + esc(it.note) + '</div></div>';
   /* history: orders and stock steps, with names */

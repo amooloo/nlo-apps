@@ -1533,6 +1533,74 @@ def t_marislist(b):
     ctx.close()
 
 @test
+def t_points(b):
+    """AO Partner Dollars (17 Oct 2026, Amir: "you should APPROXIMATE our points going forward"): Dr. A's Home counts from the
+    balance AO Direct last showed — AO orders received here and placed after it add what their brackets and tubes earn and take
+    off what their other lines cost (no more than there is); AO supplies that earn show their cost after points; Dr. A updates
+    the balance; nobody else sees any of it or may change it (made-up numbers)"""
+    iso = lambda h: time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime(time.time() - h * 3600))
+    ao = lambda sku, price: [{'vendor': 'American Orthodontics', 'sku': sku, 'price': price, 'src': 'https://shop.americanortho.com'}]
+    remote('invItems/pt-bk', {'id': 'pt-bk', 'name': 'Test bracket UR central', 'cat': 'brackets-tubes', 'unit': 'each', 'qty': 0, 'min': 0, 'sources': ao('TST-1', 2.84), 'aoPts': {'earn': 1.28, 'at': '2026-10-17'}})
+    remote('invItems/pt-w', {'id': 'pt-w', 'name': 'Test NiTi .016 upper', 'cat': 'archwires', 'unit': 'pack', 'qty': 0, 'min': 0, 'sources': ao('TST-2', 16.89), 'aoPts': {'pay': True, 'at': '2026-10-17'}})
+    remote('invItems/pt-g', {'id': 'pt-g', 'name': 'DB TUBE LP UR 1ST MOL TEST', 'cat': 'misc', 'unit': 'each', 'qty': 0, 'min': 0, 'sources': ao('TST-3', 5.04)})
+    remote('invVendors/ao', {'id': 'ao', 'pts': {'bal': 100.0, 'exp': '2028-12-31', 'at': iso(48), 'by': 'Dr. A'}})
+    line = lambda it, name, q, p: {'itemId': it, 'name': name, 'qty': q, 'price': p, 'unit': 'each', 'lineTotal': round(q * p, 2)}
+    rec = lambda oid, vendor, h, lines, status='received': remote('invOrders/' + oid, {'id': oid, 'vendor': vendor, 'status': status, 'orderedAt': iso(h), 'dateOrdered': iso(h)[:10], 'dateReceived': iso(max(h - 2, 0)) if status == 'received' else None, 'items': lines})
+    # Quick order: Mini Master single teeth with what one earns in the shared price memory; an o-tie pick (paid with points)
+    remote('invState/prices', {'p': {'AO-BRACKET-IND|MINI MASTER - _018 - MBT COMPATIBLE': {'price': 2.84, 'date': '2026-10-17', 'earn': 1.28}, '854-450': {'price': 23.27, 'date': '2026-10-17'}}})
+    quick = lambda sku, name, q, p: {'name': name, 'sku': sku, 'qty': q, 'price': p, 'unit': 'bracket' if sku.startswith('AO-') else 'pkg', 'lineTotal': round(q * p, 2), 'vendor': 'American Orthodontics'}
+    rec('pt-o1', 'American Orthodontics', 24, [line('pt-bk', 'Test bracket UR central', 50, 2.84), line('pt-w', 'Test NiTi .016 upper', 3, 16.89), line('pt-g', 'DB TUBE LP UR 1ST MOL TEST', 10, 5.04),
+                                                quick('AO-BRACKET-IND', 'MINI MASTER - .018 - MBT COMPATIBLE (single teeth)', 20, 2.84), quick('854-450', 'O-Ties 10-Ring — Silver', 2, 23.27)])
+    rec('pt-o0', 'American Orthodontics', 120, [line('pt-w', 'Test NiTi .016 upper', 9, 16.89)])          # placed before the balance was read
+    rec('pt-o2', 'American Orthodontics', 10, [line('pt-w', 'Test NiTi .016 upper', 9, 16.89)], 'open')   # not received yet
+    rec('pt-o3', 'Henry Schein', 10, [line('pt-w', 'Test NiTi .016 upper', 9, 16.89)])                    # not AO
+    ctx, pg, errs = open_as(b, 'amir')
+    p = J(pg, "ptsNow()")
+    # 100 − 97.21 (3 packs of wire + 2 o-tie packs, paid with points) + 64.00 (50 brackets × $1.28) + 22.68 (10 tubes, no
+    # figure: 45% of $50.40) + 25.60 (20 Quick order brackets × $1.28 from the price memory)
+    check('estimate: from $100, one AO order counted: +$112.28 earned, −$97.21 spent → $115.07', p and p['bal'] == 115.07 and p['earned'] == 112.28 and p['used'] == 97.21 and p['orders'] == 1, p)
+    txt = J(pg, "(document.querySelector('.ptsCard') || {}).textContent || ''")
+    check('Home (Dr. A): the card says about $115.07, what AO Direct showed and what came and went', '≈ $115.07' in txt and 'AO Direct showed $100.00' in txt and '+$112.28' in txt and '−$97.21' in txt and '1 AO order' in txt and 'expire Dec 31, 2028' in txt, txt)
+    remote('invOrders/pt-o4', {'id': 'pt-o4', 'vendor': 'AMERICAN ORTHODONTICS', 'status': 'received', 'orderedAt': iso(12), 'dateOrdered': iso(12)[:10], 'dateReceived': iso(10), 'items': [line('pt-w', 'Test NiTi .016 upper', 20, 16.89)]})
+    pg.wait_for_function("() => ptsNow() && ptsNow().orders === 2", timeout=10000)
+    p = J(pg, "ptsNow()")
+    check('estimate: a bigger AO order (vendor in capitals) spends no more than there is → $0.00', p['bal'] == 0 and p['used'] == 212.28 and p['earned'] == 112.28, p)
+    J(pg, "S.ui.quick = { tab: 'brackets', product: 'oties', format: 'uniStick', qty: {}, system: 'MINI MASTER - .018 - MBT COMPATIBLE', mode: 'ind', sets: {}, teeth: {} }; go('quick')"); pg.wait_for_timeout(200)
+    check('Quick order (Dr. A): a Mini Master bracket ≈ $1.56 after AO points', '≈ $1.56 after AO points' in J(pg, "document.querySelector('#view').textContent"), J(pg, "document.querySelector('#view .hint') && document.querySelector('#view .hint').textContent"))
+    J(pg, "S.ui.sup = { cat: '', show: '', sort: 'cat', look: 'grid' }; S.q = 'test'; go('supplies'); S.q = 'test'; renderView(true)"); pg.wait_for_timeout(300)
+    after = J(pg, "Object.fromEntries([...document.querySelectorAll('.pcard')].map(c => [c.dataset.id, (c.querySelector('.ptsAfter') || {}).textContent || '']))")
+    check('Supplies (Dr. A): the bracket ≈ $1.56 after AO points, the tube (no figure) ≈ $2.77, the wire nothing', after.get('pt-bk') == '≈ $1.56 after AO points' and after.get('pt-g') == '≈ $2.77 after AO points' and after.get('pt-w') == '', after)
+    J(pg, "openDrawer('item', 'pt-bk')"); pg.wait_for_timeout(200)
+    check('drawer: what the bracket earns and costs after points', J(pg, "document.querySelector('#drawer .ptsNote').textContent") == 'AO Partner Dollars: earns $1.28 each — ≈ $1.56 each after points.', J(pg, "(document.querySelector('#drawer .ptsNote') || {}).textContent"))
+    J(pg, "openDrawer('item', 'pt-g')"); pg.wait_for_timeout(200)
+    check('drawer: a tube without AO Direct’s figure says “about”', 'earns about $2.27 each' in J(pg, "document.querySelector('#drawer .ptsNote').textContent"), J(pg, "(document.querySelector('#drawer .ptsNote') || {}).textContent"))
+    J(pg, "openDrawer('item', 'pt-w')"); pg.wait_for_timeout(200)
+    check('drawer: the wire is paid with points first', 'AO pays for this with your points first' in J(pg, "document.querySelector('#drawer .ptsNote').textContent"), J(pg, "(document.querySelector('#drawer .ptsNote') || {}).textContent"))
+    J(pg, "closeDrawer(); S.q = ''; go('home')"); pg.wait_for_timeout(200)
+    pg.click('.ptsCard [data-act="ptsEdit"]'); pg.wait_for_selector('#ptsBal')
+    pg.fill('#ptsBal', ''); click(pg, '#ptsGo', 200)
+    check('update: no balance → asks for one, saves nothing', 'What does AO Direct show' in toasts(pg) and (get('invVendors/ao') or {}).get('pts', {}).get('bal') == 100.0)
+    pg.fill('#ptsBal', '250.5'); pg.fill('#ptsExp', '2029-06-30'); click(pg, '#ptsGo', 600)
+    v = get('invVendors/ao') or {}
+    check('update: saved on the AO vendor by Dr. A (balance, expiration, when, who)', (v.get('pts') or {}).get('bal') == 250.5 and v['pts'].get('exp') == '2029-06-30' and v['pts'].get('by') == 'Dr. A' and v.get('upBy') == 'amir' and v['pts'].get('at'), v)
+    p = J(pg, "ptsNow()")
+    check('update: counts from the new balance (the orders before it are in it)', p['bal'] == 250.5 and p['orders'] == 0, p)
+    check('Dr. A: no page errors', not errs, errs)
+    ctx.close()
+    ctx, pg, errs = open_as(b, 'gwen', quiet=True)
+    check('Gwen: no AO Partner Dollars on her Home', not J(pg, "!!document.querySelector('.ptsCard')"))
+    J(pg, "S.ui.quick = { tab: 'brackets', product: 'oties', format: 'uniStick', qty: {}, system: 'MINI MASTER - .018 - MBT COMPATIBLE', mode: 'ind', sets: {}, teeth: {} }; go('quick')"); pg.wait_for_timeout(200)
+    check('Gwen: Quick order shows the price, not the points', 'Price $2.84 a bracket' in J(pg, "document.querySelector('#view').textContent") and 'after AO points' not in J(pg, "document.querySelector('#view').textContent"))
+    J(pg, "S.q = 'test'; go('supplies'); S.q = 'test'; renderView(true)"); pg.wait_for_timeout(300)
+    check('Gwen: no cost after points on the supplies', J(pg, "document.querySelectorAll('.ptsAfter').length") == 0)
+    J(pg, "openDrawer('item', 'pt-bk')"); pg.wait_for_timeout(200)
+    check('Gwen: nor in the drawer', not J(pg, "!!document.querySelector('#drawer .ptsNote')"))
+    res = J(pg, "B.patchVendor('ao', { pts: { bal: 99999, at: new Date().toISOString(), by: 'Gwen R.' } }).then(() => 'saved', e => String(e.code || e.message))")
+    check('Gwen: the database refuses her changing the balance', res != 'saved' and 'permission' in res, res)
+    check('Gwen: the balance is still Dr. A’s', ((get('invVendors/ao') or {}).get('pts') or {}).get('bal') == 250.5)
+    ctx.close()
+
+@test
 def t_demo(b):
     """the demo page: made-up office, nothing saved, every screen for each kind of person"""
     ctx = b.new_context(viewport={'width': 1366, 'height': 900}); pg = ctx.new_page(); errs = []
@@ -1561,6 +1629,9 @@ def t_demo(b):
         check('demo (%s): adding to the cart works, stamped' % who, J(pg, "S.D.cart.some(c => c.addedById === %s)" % json.dumps(who)))
         check('demo (%s): his own add is OK’d at once: %s' % (who, who == 'amir'), J(pg, "!!okOf(S.D.cart.find(c => c.addedById === %s))" % json.dumps(who)) == (who == 'amir'))
         check('demo (%s): sees everything: %s' % (who, who == 'amir'), J(pg, "isAdmin()") == (who == 'amir'))
+        J(pg, "go('home')"); pg.wait_for_timeout(120)
+        pt = J(pg, "(document.querySelector('.ptsCard') || {}).textContent || ''")
+        check('demo (%s): AO Partner Dollars on Home: %s (made-up balance)' % (who, who == 'amir'), ('AO Direct showed $1,250.00' in pt and '≈ $' in pt) if who == 'amir' else pt == '', pt[:200])
         J(pg, "ACT.lock()"); pg.wait_for_selector('#lgBtn')
     check('demo: no page errors', not errs, errs)
     ctx.close()

@@ -907,3 +907,18 @@ body.gated .askFab{display:none}
   .mlPair{grid-template-columns:1fr}
   .mlFor{flex-wrap:wrap}
 }
+
+/* ---------- AO Partner Dollars (17 Oct 2026) ---------- */
+.ptsAfter{display:block;font-size:11px;font-weight:700;color:var(--mint-700);white-space:nowrap;margin-top:1px}
+.pbd>.ptsAfter{margin-top:4px;padding:5px 9px;border-radius:8px;background:var(--mint-100);font-size:11.5px;white-space:normal}
+.irow .act .ptsAfter{text-align:right}
+.ptsAfter.inl{display:inline;font-size:inherit}
+.ptsNote{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--mint-100);color:var(--mint-700);font-size:12.5px;font-weight:600;line-height:1.4}
+.ptsNote.pay{background:var(--navy-100);color:var(--navy-700)}
+.ptsNote svg{flex:none;margin-top:1px}
+.ptsCard .cardHd .vlogo{margin-right:2px}
+.ptsSince{margin-top:6px}
+.ptsSince .earn{color:var(--mint-700)} .ptsSince .use{color:var(--navy-700)}
+.ptsHow{display:flex;gap:6px;align-items:flex-start;margin-top:10px;font-size:12px;color:var(--grey-500);font-weight:600;line-height:1.4}
+.ptsHow svg{flex:none;margin-top:2px}
+@media (max-width:860px){ .irow .act .ptsAfter{text-align:left} }
