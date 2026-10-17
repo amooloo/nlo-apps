@@ -39,6 +39,14 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
   knows them today. Once an order is received, everyone else only adds its paperwork (invoice numbers and amounts, prices from
   the packing slip, the slip photo). Anyone may add a vendor by name, or fill in a missing account number or address;
   websites, phones, order emails and reps are Dr. A's (and a website opens only if it's an http(s) address).
+- **One tap opens the order** (Amir, 16 Oct 2026: "I used to be able to select email and it would automatically open up the
+  email with the message in it. same thing with text"): in the place-order dialog, tapping Email opens the email program with
+  the order written out (on a computer, a "Write it in Gmail" link too), Text opens Messages (phone, iPad, Mac), Their website
+  opens in a new tab, and Phone call dials on a phone. An office PC can't send a text, so there Text shows it as a QR code
+  (`SMSTO:<number>:<text>`, drawn with the QR-label library): the phone's camera opens it in Messages, ready to send (a Mac
+  shows the QR code too, under the Messages button). The text is short and in plain characters; it goes to the rep's mobile,
+  else the vendor's main number. Nothing is marked ordered until "It's ordered". (`src/cart.js`: placeLinks, launchUrl,
+  devKind, orderSms, drawTextQr; e2e `t_order_links`.)
 - **Quick-order prices** save for everyone (the old database's rules refused them).
 - **Photos** kept inside records (old supplies, packing slips) are records of their own (`invPics`), read when shown.
 - **Vendor account numbers, reps and card notes** are no longer built into the page (it's published from the public repo):

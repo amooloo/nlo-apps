@@ -149,8 +149,18 @@ def serve():
     h.log_message = lambda *a: None
     s = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), h); threading.Thread(target=s.serve_forever, daemon=True).start(); return s
 FS_CHANNEL = re.compile(r'/google\.firestore\.v1\.Firestore/(Listen|Write)/channel')
-def new_page(b, w=1366, h=900, quiet=False):
-    ctx = b.new_context(viewport={'width': w, 'height': h})
+QR_LIB = HERE / 'vendor' / 'qrcodejs-1.0.0' / 'qrcode.min.js'   # the QR library the page pins (src/scan.js), kept here for the tests
+QR_SRI = 'sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU'
+def qr_lib():
+    if not QR_LIB.exists():
+        import hashlib, base64
+        data = urllib.request.urlopen('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', timeout=60).read()
+        assert 'sha384-' + base64.b64encode(hashlib.sha384(data).digest()).decode() == QR_SRI, 'qrcode.min.js isn’t the pinned file'
+        QR_LIB.parent.mkdir(parents=True, exist_ok=True); QR_LIB.write_bytes(data)
+    return str(QR_LIB)
+def new_page(b, w=1366, h=900, quiet=False, **ctxkw):
+    ctx = b.new_context(viewport={'width': w, 'height': h}, **ctxkw)
+    ctx.route('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', lambda r: r.fulfill(path=qr_lib(), content_type='text/javascript', headers={'Access-Control-Allow-Origin': '*'}))
     ctx.route(re.compile(r'https://www\.gstatic\.com/firebasejs/10\.12\.2/.*'), lambda r: r.fulfill(path=str(VENDOR / r.request.url.rsplit('/', 1)[1]), content_type='text/javascript'))
     ctx.route(re.compile(r'https://fonts\.(googleapis|gstatic)\.com/.*'), lambda r: r.fulfill(status=200, body='', content_type='text/css'))
     ctx.route(re.compile(r'https://www\.google\.com/s2/favicons.*'), lambda r: r.abort())
@@ -598,6 +608,82 @@ def t_place_and_receive(b):
         check('re-receive: +10 again', q3 - q0 == 10, (q0, q3))
     check('place/receive: no page errors (but the refusals tried on purpose)', not [e for e in errs + e2 if 'PERMISSION_DENIED' not in e and not re.search(r'HTTP 403 .*documents:commit', e)], errs + e2)
     ctx.close()
+
+# what one tap opens, per device (Amir, 16 Oct 2026: "I used to be able to select email and it would automatically open up the
+# email with the message in it. same thing with text … it would not be able to send a text via pc")
+OPEN_REC = """() => { window.__opened = []; document.addEventListener('click', e => {
+  const a = e.target && e.target.closest && e.target.closest('a[href]'); if (!a) return;
+  const h = a.getAttribute('href') || '';
+  if (/^(mailto|sms|tel):/i.test(h) || a.target === '_blank') { window.__opened.push((a.target === '_blank' ? 'tab:' : '') + h); e.preventDefault(); }
+}, true); }"""
+IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15'
+def decode_qr(data_url):
+    import base64, numpy as np, cv2
+    img = cv2.imdecode(np.frombuffer(base64.b64decode(data_url.split(',', 1)[1]), np.uint8), cv2.IMREAD_GRAYSCALE)
+    img = cv2.resize(cv2.copyMakeBorder(img, 24, 24, 24, 24, cv2.BORDER_CONSTANT, value=255), None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)
+    return cv2.QRCodeDetector().detectAndDecode(img)[0]
+def place_dialog(pg):
+    J(pg, "closeModal(true); go('cart')"); pg.wait_for_timeout(250)
+    pg.click('[data-act="placeOrder"][data-v="SunSurgical"]'); pg.wait_for_timeout(300)
+def tap_how(pg, k): pg.click('#modalWrap .how[data-k="%s"]' % k); pg.wait_for_timeout(250)
+def opened(pg): return J(pg, "window.__opened.slice()")
+# with a Safari name the sign-in library frames its Auth host — on the emulators that's 127.0.0.1:9099, which the page's
+# frame-src leaves out; live it's nlo-cases.firebaseapp.com, which the page allows
+def real_errs(errs): return [e for e in errs if "Refused to frame 'http://127.0.0.1:9099/'" not in e]
+def modal_text(pg): return J(pg, "document.querySelector('#modalWrap').textContent")
+@test
+def t_order_links(b):
+    for f, v in [('rep', 'Mark Testrep'), ('repPhone', '813-555-0142'), ('repEmail', 'mark@sun.example')]: remote_field('invVendors/sun', f, v)
+    # an office PC
+    ctx, pg, errs = open_as(b, 'amir')
+    pg.wait_for_function("() => (vendorByName('SunSurgical') || {}).repPhone === '813-555-0142'", timeout=10000)
+    J(pg, "cartAdd(itemById('ppe-1'), 2, {})"); settle(pg)
+    J(pg, OPEN_REC); place_dialog(pg)
+    check('order links (PC): the dialog opens on their website, nothing opened yet', J(pg, "S.ui.place.how") == 'online' and opened(pg) == [], opened(pg))
+    tap_how(pg, 'email'); op = opened(pg); mail = op[-1] if op else ''
+    check('order links (PC): one tap on Email opens the email to the rep, the order written out', len(op) == 1 and mail.startswith('mailto:mark@sun.example?subject=') and 'Gloves%20Pulse%20Nitrile' in mail and 'account%2012345' in mail and 'Hello%20Mark' in mail, mail[:200])
+    check('order links (PC): it says the email opened, and offers Gmail if it didn’t', 'Your email opened with the order written out' in modal_text(pg) and J(pg, "!!document.querySelector('#modalWrap a[href^=\"https://mail.google.com/mail/?view=cm\"][target=_blank]')"))
+    tap_how(pg, 'text')
+    check('order links (PC): Text opens nothing on a PC (it can’t text)…', len(opened(pg)) == 1 and not J(pg, "!!document.querySelector('#modalWrap a[href^=\"sms:\"]')"), opened(pg))
+    pg.wait_for_function("() => { const i = document.querySelector('#smsQr img'); return !!(i && i.src && i.src.startsWith('data:image')); }", timeout=10000)
+    payload = decode_qr(J(pg, "document.querySelector('#smsQr img').src"))
+    want = 'SMSTO:+18135550142:Hi Mark, please send Next Level Orthodontics (acct 12345):\n2 boxes - Gloves Pulse Nitrile - SM #177102\nShip to 320 NW 76th Drive, Gainesville, FL 32607. Please confirm. Thanks! - Riley'
+    check('order links (PC): …it shows a QR code: a text to the rep with the order, in plain characters', payload == want, repr(payload))
+    check('order links (PC): the QR says to scan it with the phone', 'Scan this with your phone’s camera' in modal_text(pg) and 'Mark (813-555-0142)' in modal_text(pg))
+    check('order links (PC): the text shown (and copied) is the text in the QR code', J(pg, "document.querySelector('#orderTxt').textContent") == want.split(':', 2)[2], J(pg, "document.querySelector('#orderTxt').textContent"))
+    tap_how(pg, 'call')
+    check('order links (PC): Phone call doesn’t dial from a PC: it shows the number', len(opened(pg)) == 1 and 'Call 800-523-1997' in modal_text(pg), opened(pg))
+    tap_how(pg, 'online'); op = opened(pg)
+    check('order links (PC): Their website opens in a new tab', op[-1:] == ['tab:https://www.sunsurgical.com'], op)
+    tap_how(pg, 'text'); pg.fill('#poNum', 'TX-1'); click(pg, '[data-act="placeGo"]', 700)
+    o = next((x for x in store('nlo/orders').values() if x.get('orderNumber') == 'TX-1'), {})
+    check('order links: ordered by text, as picked', o.get('method') == 'text' and o.get('status') == 'open', {k: o.get(k) for k in ('method', 'status')})
+    check('order links (PC): no errors', not errs, errs); ctx.close()
+    # an iPhone: Text and Call open straight away, no QR code
+    ctx, pg, errs = open_as(b, 'amir', w=390, h=844, user_agent=IPHONE, is_mobile=True, has_touch=True)
+    pg.wait_for_function("() => (vendorByName('SunSurgical') || {}).repPhone === '813-555-0142'", timeout=10000)
+    J(pg, "cartAdd(itemById('ppe-1'), 1, {})"); settle(pg)
+    J(pg, OPEN_REC); place_dialog(pg)
+    tap_how(pg, 'text'); op = opened(pg)
+    check('order links (iPhone): one tap on Text opens Messages to the rep, the order written out', len(op) == 1 and op[0].startswith('sms:+18135550142?&body=Hi%20Mark%2C%20please%20send') and '1%20box%20-%20Gloves' in op[0], op)
+    check('order links (iPhone): no QR code on a phone', not J(pg, "!!document.querySelector('#smsQr')") and 'Messages opened with the order written out' in modal_text(pg))
+    tap_how(pg, 'call'); op = opened(pg)
+    check('order links (iPhone): Phone call dials', op[-1:] == ['tel:+18005231997'], op)
+    tap_how(pg, 'email'); op = opened(pg)
+    check('order links (iPhone): Email opens the email (no Gmail link on a phone)', op[-1].startswith('mailto:mark@sun.example?') and not J(pg, "!!document.querySelector('#modalWrap a[href^=\"https://mail.google.com/\"]')"), op[-1:])
+    check('order links (iPhone): no errors', not real_errs(errs), errs); ctx.close()
+    # a Mac: Messages opens, and the QR code is there too (for a rep Messages on a Mac can't reach)
+    ctx, pg, errs = open_as(b, 'amir', user_agent=MAC)
+    pg.wait_for_function("() => (vendorByName('SunSurgical') || {}).repPhone === '813-555-0142'", timeout=10000)
+    J(pg, OPEN_REC); place_dialog(pg)
+    tap_how(pg, 'text'); op = opened(pg)
+    check('order links (Mac): Text opens Messages…', len(op) == 1 and op[0].startswith('sms:+18135550142?&body='), op)
+    pg.wait_for_function("() => { const i = document.querySelector('#smsQr img'); return !!(i && i.src && i.src.startsWith('data:image')); }", timeout=10000)
+    check('order links (Mac): …and offers the QR code to text from the phone instead', decode_qr(J(pg, "document.querySelector('#smsQr img').src")).startswith('SMSTO:+18135550142:Hi Mark') and 'Or text it from your phone' in modal_text(pg))
+    tap_how(pg, 'call')
+    check('order links (Mac): Phone call doesn’t dial from a computer', len(opened(pg)) == 1, opened(pg))
+    check('order links (Mac): no errors', not real_errs(errs), errs); ctx.close()
 
 @test
 def t_legacy_orders(b):
