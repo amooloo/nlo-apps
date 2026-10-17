@@ -5,8 +5,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
 
 ## Everyday use (2 minutes)
 
-1. Export the patient's scan as an STL from the scanner, with the patient's name in the file name
-   (the scanner does this on its own, e.g. `Jane_Doe_20261015_09-20-31_upper.stl`).
+1. Export the patient's scan from the scanner, with the patient's name in the file name (the scanner does this on
+   its own, e.g. `Jane_Doe_20261015_09-20-31_upper.ply`). **PLY when the scanner offers it** - it carries the colour,
+   which the app uses to find the gum line; STL works too.
 2. Drop the file on the **Bleach Tray** app page (any office computer; home page → Bleach Tray). The app asks what
    to make of it - **whitening tray** and/or **retainer (TT)** - and whether the opposing arch is coming: drop that
    one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once,
@@ -175,6 +176,17 @@ outline instead of leaving a cliff.
 
 **Scanner exports.** Open-shell or closed-shell (iTero "with base", 3Shape solid) STLs both work: a large flat floor is
 detected and removed before orientation, the skirt reads as gum. Scans over 200k faces are decimated first.
+**Export PLY when the scanner offers it** (AlliedStar, iTero, Medit, 3Shape): a PLY carries a colour per vertex and the
+app uses it (`bleachtray/colour.py`). No fixed colour rule - every scanner, light and mouth differs - instead each scan
+teaches its own: the vertices the shape model is sure about (tooth core, gum well away from the teeth) train a small
+colour classifier for that scan, which then votes with the shape model in a 3 mm band along the gum line and can veto a
+patch of gum the shape model took for a tooth (a bit of palate, a flap). Colour whose held-out agreement with the shape
+model is under 93 % is ignored. On 8 AlliedStar / iTero arches: 1-3k vertices re-decided per arch, the gum line hugging
+the teeth where it dipped into the papillae before, two false "teeth" on the palate and the facial gum gone. PLYs are
+read with the app's own one-pass reader (`mesh_utils.read_ply`; a texture the file points at is ignored - iTero writes
+both and the general loader ran out of memory unwrapping it); the colour rides along the cleaning as
+`mesh.metadata["rgb"]`, shows under the labels in the Segmentation view, survives a Cut away (the cut file is a PLY)
+and is kept in the training folder for the retraining.
 
 **Validation.** One upper vs Titan: gum line within 0.17 mm median / 0.25 mm p90 of Titan's tooth boundaries,
 95 % per-tooth agreement, base placement within 0.35 mm / 2°. First order accepted by OrthoFactory's simulator

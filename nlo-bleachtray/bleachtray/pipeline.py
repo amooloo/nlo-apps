@@ -270,8 +270,17 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if feat_cache is not None:
             feat_cache[scan_path] = feats
     p_tooth, p_ip, aux = predict_tooth_prob(mesh, models, feats=feats)
-    prog(0.30, "separating the teeth")
     A = aux["A"]
+    # a PLY with colour: the scan's own colours vote along the gum line and veto gum taken for tooth
+    rgb = mesh.metadata.get("rgb")
+    if rgb is not None and P.get("use_colour", True):
+        from .colour import refine_with_colour
+        try:
+            p_tooth, cinfo = refine_with_colour(mesh, A, p_tooth, rgb, log=lambda m: log(f"[{name}] {m}"))
+            rep["colour"] = cinfo
+        except Exception as ex:  # noqa
+            log(f"[{name}] colour step skipped: {ex}")
+    prog(0.30, "separating the teeth")
     # the tooth split is the same for the same scan + arch, so the retainer made right after the
     # whitening tray (and a base nudge later) reuses it
     lkey = (scan_path, "labels", arch_hint)
@@ -518,7 +527,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         json.dump(rep, f, indent=2)
     # debug state for the UI / verification
     np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
-             T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, p_tooth=p_tooth)
+             T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, p_tooth=p_tooth,
+             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}))
     prog(1.0, "done")
     log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
     return rep
