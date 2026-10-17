@@ -6,7 +6,7 @@ from .mesh_utils import load_scan, smooth_field
 from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
 from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
-                      bridge_embrasures, geodesic_dilate, cap_distal, round_distal)
+                      bridge_embrasures, geodesic_dilate, cap_distal, round_distal, edentulous_gaps)
 from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure
 from .solid import horseshoe_outline, build_body, add_base
 
@@ -305,6 +305,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if feat_cache is not None:
             feat_cache[lkey] = labels
     info, cents, center, contact = order_teeth(mesh, labels, aux)
+    # a missing premolar / molar: carry the trim line across the ridge to the teeth behind, and keep
+    # the missing tooth's position so the molar behind it is still treated as a molar
+    ridge_mask, gaps, info = edentulous_gaps(mesh, labels, info, log=lambda m: log(f"[{name}] {m}"))
+    if gaps:
+        rep["gaps"] = gaps
     n_teeth = len(info)
     rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1])) for k, v in info.items()}
     rep["steps"].append(("segment", round(time.time() - t0, 2)))
@@ -313,9 +318,9 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
 
     # trimline: gum line (tooth/gingiva boundary), optionally pushed `trimline_offset` mm onto the
     # gingiva (aligners/retainers), with straight bridges across the papillae
-    line_mask = mask
+    line_mask = mask | ridge_mask
     if P["trimline_offset"] > 0:
-        line_mask = geodesic_dilate(mesh, A, mask, P["trimline_offset"])
+        line_mask = geodesic_dilate(mesh, A, line_mask, P["trimline_offset"])
     # where the scan stops right at the teeth (common on the lingual of lowers) the gum line would
     # run off the edge of the mesh and the contour could not close: keep it ~1 mm inside the scan edge
     edge_zone = scan_edge_zone(mesh, A, 1.0)

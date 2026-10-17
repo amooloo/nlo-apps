@@ -145,6 +145,16 @@ points go back onto the surface. The distal relief and the model's end plane use
 leaked onto the pad no longer carries the pad along. On the 23 stored arches the line was pulled 0.3-1.5 mm onto the
 tooth where it was already fine and 2-7 mm where it had run onto the pad.
 
+**Missing teeth.** A missing premolar or molar used to end the tray at the gap: the gum-line contour closed round
+the teeth in front of it and everything behind was dropped from the line and the model. `edentulous_gaps` finds
+neighbouring teeth on a side whose footprints are more than 3 mm apart, marks the ridge between them (inside the hull
+of the two crowns in plan view, from the neighbours' cervical level up - or the top 2 mm of a resorbed ridge) as
+tooth for the purpose of drawing the line, so the line runs across the ridge to the teeth behind, and - for gaps of
+5 mm or more - keeps the missing tooth's position (one per ~7 mm of gap), so the molar behind a missing premolar is
+still a molar for reservoirs, the tooth mark and crown sizes. Undercuts facing the gap are filled by the normal
+block-out when it is on. Not done yet: building the edentulous span up to the neighbours' bucco-lingual width
+(a pontic-like filler) so the retainer is not a thin strip there.
+
 **Exposed root.** A bleaching reservoir must not sit on root (sensitivity). The reservoir stops 1 mm short of the
 gum line everywhere (Settings → Reservoirs), and on each reservoir tooth the app looks for root showing on the
 facial side two ways: the mid-facial profile (an exposed root runs near-vertical or inward for ≥ 0.75 mm above the
