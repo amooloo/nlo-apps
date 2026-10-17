@@ -318,7 +318,7 @@
           <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button><button data-mode="noreservoir" title="No bleaching reservoir here (recession, an exposed root, a crown margin) - the reservoir stays a millimetre away">No reservoir</button><button data-mode="blockout" title="Fill the undercut under this spot for thermoforming (under a pontic, round an implant crown, a black triangle)">Block out</button><button data-mode="takeoff" title="A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run">Take off</button></div>
           <label class="f">Brush size: <span id="rv">1.5</span> mm radius</label>
           <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
-          <div class="hint">The ball on the model is the brush. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built. <b>No reservoir</b> keeps the gel reservoir off a recession or a crown margin; <b>Block out</b> fills the undercut under a pontic or an implant crown so the retainer seats. Both are kept for every model made from this scan. <b>Take off</b> is for a bit of bracket or wire the app missed on a braces scan: it comes off and the enamel is rebuilt.</div>
+          <div class="hint">The ball on the model is the brush. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built. <b>No reservoir</b> keeps the gel reservoir off a recession or a crown margin; <b>Block out</b> fills the undercut under a pontic or an implant crown so the retainer seats. Both are kept for every model made from this scan. <b>Take off</b> is for a bit of bracket or wire the app missed on a braces scan: it comes off and the enamel is rebuilt (on a mouthguard the brackets stay — the painted part joins the shield instead).</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
           <div class="hint" id="fixcount">No edits.</div>
         </div>
@@ -520,7 +520,7 @@
           <text x="60" y="22" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-weight="600" font-size="8" fill="#FA624D">WT</text>
           <text x="60" y="66" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-weight="600" font-size="8" fill="#1D3EA9">TT</text>
         </svg></div>
-        <select id="preset"><option value="both">Whitening tray + retainer (both)</option><option value="bleaching">Whitening tray only</option><option value="bleaching_3_3">Whitening tray 3-3 only</option><option value="aligner_high">Retainer only</option><option value="plain_model">Plain model</option></select>
+        <select id="preset"><option value="both">Whitening tray + retainer (both)</option><option value="bleaching">Whitening tray only</option><option value="bleaching_3_3">Whitening tray 3-3 only</option><option value="aligner_high">Retainer only</option><option value="plain_model">Plain model</option><option value="mouthguard">Mouthguard (braces on)</option></select>
       </div>
       <div class="scard"><div class="sLab">Arch <span class="info" title="Auto-detect reads the file name (upper / lower) and falls back to the shape of the scan. Force one only if a file is misnamed.">i</span></div>
         <div class="sPic" data-img="arch"><svg viewBox="0 0 120 72">
@@ -628,7 +628,7 @@ const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new TH
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null;
 const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), takeoff: new Set() };
-let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out, bit 4 = brackets removed)
+let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out, bit 4 = brackets removed, bit 8 = bracket shield)
 let segRGB = null;     // the scanner's own colour per vertex (PLY scans), shown under the labels
 let brushMode = 'tooth';
 // The brush is a sphere of the chosen radius around the point under the mouse - the cursor shows exactly
@@ -674,11 +674,11 @@ const TRACKER = (() => {
   // where the tracker lives (only the NLO apps site, or a local copy while testing) - the only place the message goes
   const o = q.get('origin') || '', origin = /^https:\/\/amooloo\.github\.io$|^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(o) ? o : 'https://amooloo.github.io';
   return { first: q.get('first') || '', last: q.get('last') || '', case: q.get('case') || '', arches: (q.get('arches') || '').split(',').filter(Boolean),
-           wt: makes.includes('WT'), tt: makes.includes('TT'), origin };
+           wt: makes.includes('WT'), tt: makes.includes('TT'), mg: makes.includes('MG'), origin };
 })();
 if (TRACKER) {
   $('#pfirst').value = TRACKER.first; $('#plast').value = TRACKER.last;
-  const what = [TRACKER.wt ? 'whitening' : '', TRACKER.tt ? 'retainer' : ''].filter(Boolean).join(' + ') || 'plain model';
+  const what = [TRACKER.wt ? 'whitening' : '', TRACKER.tt ? 'retainer' : '', TRACKER.mg ? 'mouthguard' : ''].filter(Boolean).join(' + ') || 'plain model';
   $('#filehint').innerHTML = `<b>From the case tracker:</b> ${TRACKER.first} ${TRACKER.last} · ${TRACKER.arches.length ? TRACKER.arches.join(' + ') : 'arch as scanned'} · ${what}. Drop the scan — the case is told when the models are sent.`;
 }
 function notifyTracker(j, event){
@@ -705,10 +705,10 @@ function setFiles(fs, auto){
     return;
   }
   const preset = $('#preset').value;
-  const dflt = TRACKER ? { wt: TRACKER.wt, tt: TRACKER.tt } : { wt: preset !== 'aligner_high' && preset !== 'plain_model', tt: preset === 'both' || preset === 'aligner_high' };
+  const dflt = TRACKER ? { wt: TRACKER.wt, tt: TRACKER.tt, mg: TRACKER.mg } : { wt: !['aligner_high', 'plain_model', 'mouthguard'].includes(preset), tt: preset === 'both' || preset === 'aligner_high', mg: preset === 'mouthguard' };
   for (const f of fs) {
     if (pending.length >= 2) break;
-    pending.push({ file: f, arch: archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : ''), wt: dflt.wt, tt: dflt.tt });
+    pending.push({ file: f, arch: archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : ''), wt: dflt.wt, tt: dflt.tt, mg: dflt.mg });
   }
   const first = pending[0].file;
   $('#name').value = first.name.replace(/\.(stl|ply)$/i,'');
@@ -729,10 +729,12 @@ function renderSetup(){
         <select data-arch="${i}"><option value="" ${!p.arch?'selected':''}>Arch: auto-detect</option><option value="upper" ${p.arch==='upper'?'selected':''}>Upper (maxilla)</option><option value="lower" ${p.arch==='lower'?'selected':''}>Lower (mandible)</option></select>
         <label class="ck"><input type="checkbox" data-wt="${i}" ${p.wt?'checked':''}> Whitening tray</label>
         <label class="ck"><input type="checkbox" data-tt="${i}" ${p.tt?'checked':''}> Retainer (TT)</label>
+        <label class="ck" title="Sports mouthguard with the braces on: brackets stay under smooth shields, the trim line runs deep into the vestibule with notches at the frena and 6 mm onto the palate"><input type="checkbox" data-mg="${i}" ${p.mg?'checked':''}> Mouthguard (MG)</label>
       </div></div>`).join('');
   document.querySelectorAll('[data-arch]').forEach(e => e.onchange = () => { pending[+e.dataset.arch].arch = e.value; });
   document.querySelectorAll('[data-wt]').forEach(e => e.onchange = () => { pending[+e.dataset.wt].wt = e.checked; setupCount(); });
   document.querySelectorAll('[data-tt]').forEach(e => e.onchange = () => { pending[+e.dataset.tt].tt = e.checked; setupCount(); });
+  document.querySelectorAll('[data-mg]').forEach(e => e.onchange = () => { pending[+e.dataset.mg].mg = e.checked; setupCount(); });
   document.querySelectorAll('[data-rm]').forEach(e => e.onclick = () => { pending.splice(+e.dataset.rm, 1); renderSetup(); });
   const n = pending.length;
   $('#addopp').style.display = n < 2 ? '' : 'none';
@@ -741,8 +743,8 @@ function renderSetup(){
   setupCount();
 }
 function setupCount(){
-  const nModels = pending.reduce((a, p) => a + ((p.wt ? 1 : 0) + (p.tt ? 1 : 0) || 1), 0);
-  const what = pending.map(p => (p.wt && p.tt) ? 'whitening + retainer' : p.wt ? 'whitening' : p.tt ? 'retainer' : 'plain model');
+  const nModels = pending.reduce((a, p) => a + ((p.wt ? 1 : 0) + (p.tt ? 1 : 0) + (p.mg ? 1 : 0) || 1), 0);
+  const what = pending.map(p => [p.wt ? 'whitening' : '', p.tt ? 'retainer' : '', p.mg ? 'mouthguard' : ''].filter(Boolean).join(' + ') || 'plain model');
   $('#startcase').textContent = `Start — make ${nModels} model${nModels > 1 ? 's' : ''}` + (new Set(what).size === 1 ? ` (${what[0]})` : '');
 }
 $('#addopp').onclick = () => $('#file').click();
@@ -751,7 +753,7 @@ $('#startcase').onclick = () => {
   if (!pending.length) return;
   if (!($('#pfirst').value.trim() && $('#plast').value.trim())) { $('#filehint').textContent = "Type the patient's first and last name first."; return; }
   files = pending.map(p => p.file);
-  $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null].filter(Boolean) })));
+  $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null, p.mg ? 'MG' : null].filter(Boolean) })));
   $('#go').click();
 };
 
@@ -971,7 +973,7 @@ function renderReview(id, j){
   // one more model from a scan already in the case (chose the retainer, now the whitening tray is wanted too)
   const have = new Set((j.scans || []).map(s => `${s.arch}|${s.tag}`));
   const archesIn = [...new Set((j.scans || []).map(s => s.arch).filter(Boolean))];
-  const addable = archesIn.flatMap(a => [['WT', 'whitening tray'], ['TT', 'retainer']].filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));
+  const addable = archesIn.flatMap(a => [['WT', 'whitening tray'], ['TT', 'retainer'], ['MG', 'mouthguard']].filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));
   const addLine = addable.length ? `<div class="hint" style="margin-top:8px">Also make from the scan${archesIn.length > 1 ? 's' : ''} already here: ` +
     addable.map(o => `<button class="small addmodel" data-arch="${o.a}" data-make="${o.t}" style="margin:3px 4px 0 0">+ ${o.lab} ${o.a}</button>`).join('') + `</div>` : '';
   const wireAdd = () => box.querySelectorAll('.addmodel').forEach(b => b.onclick = async () => {
@@ -1045,7 +1047,12 @@ async function loadResult(id, j){
   renderReview(id, j);
   // what was done about exposed roots and undercuts on this model, in the words of the result line
   const recTeeth = Object.values(r.recession || {}); const bo = r.blockout || {}; const ap = ((j.scans || [])[scanIdx] || {}).braces || r.appliances || {};
-  const extras = [ap.used && ap.area_mm2 ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — rebuilt enamel shown grey in Segmentation / fix` : '',
+  const mg = r.mouthguard || null, sh = r.shields || {};
+  const mgLine = mg && !mg.error ? `mouthguard: trim line ${mg.depth_mm ? `${mg.depth_mm.median} mm into the vestibule (${mg.depth_mm.min}–${mg.depth_mm.max}; the scan holds ${mg.sulcus_captured_mm})` : ''}` +
+    `, notches at ${(mg.frena || []).map(f => `${f.kind} ${f.angle_deg > 0 ? '+' : ''}${Math.round(f.angle_deg)}°${f.found ? '' : ' (assumed)'}`).join(', ') || 'no frenum'}` +
+    (sh.caps ? ` · brackets shielded: ${sh.caps} caps, ${sh.clearance_mm} mm clearance — paint any bracket the shield missed with Take off` : (r.mouthguard ? ' · no brackets found on this scan' : '')) : (mg && mg.error ? `mouthguard line could not be made (${mg.error}) — gum line used` : '');
+  const extras = [mgLine,
+                  ap.used && ap.area_mm2 && !mg ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — rebuilt enamel shown grey in Segmentation / fix` : '',
                   recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
                   bo.spots ? `${bo.spots} undercut${bo.spots > 1 ? 's' : ''} blocked out (${bo.volume_ml} mL${bo.painted_cells ? ', incl. painted' : ''})` : ''].filter(Boolean);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '');
@@ -1214,6 +1221,7 @@ function paintColors(){
     if (edits.noreservoir.has(i)) c.setHex(0x7c3aed); else if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (edits.takeoff.has(i)) c.setHex(0xf97316);
     else if (pf & 1) c.lerp(new THREE.Color(0x7c3aed), 0.55); else if (pf & 2) c.lerp(new THREE.Color(0x0d9488), 0.55);
     else if (pf & 4) c.lerp(new THREE.Color(0x64748b), 0.45);   // brackets / wire taken off: enamel rebuilt here
+    else if (pf & 8) c.lerp(new THREE.Color(0xf97316), 0.5);    // mouthguard: under the bracket shield
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
   }
   if (segMesh) segMesh.geometry.getAttribute('color').needsUpdate = true;

@@ -26,6 +26,8 @@ DEFAULTS = dict(
     trimline_smooth=4,
     scan_band=0.0,         # >0: keep real scan only this far beyond the gum line and fill the rest with a synthetic skirt (off: validated look)
     periphery_smooth=True, # smooth the scan surface beyond 2 mm from the gum line (ragged cheek/lip tissue)
+    mouthguard=False,      # sports mouthguard: brackets stay under a smooth shield, the line runs into the vestibule with frenum notches, a flange onto the palate
+    mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_clearance=1.0,
     distal_round=3.0,      # mm: corner radius of the trim line round the last tooth; it never goes past that tooth, dips behind it are lifted, and a tooth the scan cut through gets the line 2 mm short of the edge, over the tooth; 0 = off
     distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
     distal_relief=2.0,     # mm: the model behind the last molar (retromolar pad / tuberosity) is lowered to this far below the trim line so the trimmer reaches the distal surface; 0 = off
@@ -275,6 +277,40 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # "auto" removes whatever is found on a coloured scan; False leaves the scan as it is
     appliance = np.zeros(len(mesh.vertices), bool)
     want = P.get("remove_appliances", "auto")
+    MG = bool(P.get("mouthguard"))
+    feats_forced = None       # mouthguard: the features that go with the mesh the teeth are found on
+    mesh_orig = None          # mouthguard: the scan as it is (brackets on) - the body is built from this one
+    if MG:
+        # the teeth are found on a cleaned copy (brackets confuse the segmentation); the appliance mask on
+        # the original is what gets the shield
+        mesh_orig = mesh
+        ckey = (scan_path, "mg_clean")
+        cached = feat_cache.get(ckey) if feat_cache is not None else None
+        if cached is None and mesh.metadata.get("rgb") is not None:
+            feats0 = compute_features(mesh, return_aux=True)
+            try:
+                from .appliance import take_off_appliances, detect_appliances
+                appl_mask, _d = detect_appliances(mesh, feats0[2]["A"], mesh.metadata["rgb"], feats=feats0, log=lambda m: log(f"[{name}] {m}"))
+                mesh2, ainfo, A2, feats2 = take_off_appliances(mesh, feats0[2]["A"], mesh.metadata["rgb"], feats0, log=None)
+                cached = (mesh2 if ainfo.get("used") else mesh, appl_mask, ainfo, feats2 if ainfo.get("used") else feats0, feats0)
+            except Exception as ex:  # noqa
+                log(f"[{name}] appliance step skipped: {ex}")
+                cached = (mesh, appliance, dict(used=False, error=str(ex)[:200]), feats0, feats0)
+            if feat_cache is not None:
+                feat_cache[ckey] = cached
+        if cached is not None:
+            mesh_c, appliance, ainfo, feats_clean, feats_orig = cached
+            if ainfo.get("used"):
+                rep["appliances"] = {k: v for k, v in ainfo.items() if k != "passes"}
+            if feat_cache is not None:
+                feat_cache[(scan_path, "orig_feats")] = feats_orig
+            if label_override is not None and len(label_override) == len(mesh_orig.vertices):
+                # the app's corrected labels are on the scan as it is: nothing to segment, stay on it
+                feats_forced = feats_orig
+            else:
+                mesh = mesh_c
+                feats_forced = feats_clean
+        want = False
     # (the app does this itself before the run and hands over a cleaned scan; this is for a scan that
     # comes in by another route, e.g. the watch folder)
     if want and mesh.metadata.get("rgb") is not None and "_clean" not in os.path.basename(scan_path):
@@ -300,10 +336,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if feats_pre is not None and feat_cache is not None and scan_path not in feat_cache:
             feat_cache[scan_path] = feats_pre      # the features of the mesh the pipeline goes on with
     # features are the same for the same scan, so re-runs (brush fixes, base nudges) reuse them
-    feats = feat_cache.get(scan_path) if feat_cache is not None else None
-    if feats is None:
+    feats = feats_forced if feats_forced is not None else (feat_cache.get(scan_path) if feat_cache is not None else None)
+    if feats is None or len(feats[0]) != len(mesh.vertices):
         feats = compute_features(mesh, return_aux=True)
-        if feat_cache is not None:
+        if feat_cache is not None and feats_forced is None:
             feat_cache[scan_path] = feats
     p_tooth, p_ip, aux = predict_tooth_prob(mesh, models, feats=feats)
     A = aux["A"]
@@ -363,6 +399,26 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         margin = bridge_embrasures(margin, mesh, radius=P["bridge_radius"])
     margin = smooth_polyline(resample_polyline(margin, P["trimline_spacing"]), iters=P["trimline_smooth"])
 
+    # mouthguard: from here on the ORIGINAL scan (brackets on) is the surface; the teeth found on the
+    # cleaned copy are carried over by position, the gum line is a point set and needs nothing
+    mg_appliance = None
+    if MG and mesh_orig is not None and mesh_orig is not mesh:
+        from scipy.spatial import cKDTree
+        from .mesh_utils import adjacency as _adj
+        j = cKDTree(np.asarray(mesh.vertices)).query(np.asarray(mesh_orig.vertices))[1]
+        labels = np.asarray(labels)[j]
+        p_tooth = np.asarray(p_tooth)[j]
+        mask = labels > 0
+        mesh = mesh_orig
+        A = _adj(mesh)
+        mg_appliance = appliance if len(appliance) == len(mesh.vertices) else np.zeros(len(mesh.vertices), bool)
+        edge_zone = scan_edge_zone(mesh, A, 1.0)
+        fo = feat_cache.get((scan_path, "orig_feats")) if feat_cache is not None else None
+        if fo is not None:
+            aux = dict(fo[2]); aux["A"] = A
+    elif MG:
+        # already on the original scan (corrected labels from the app, or nothing was found to clean)
+        mg_appliance = appliance if len(appliance) == len(mesh.vertices) else np.zeros(len(mesh.vertices), bool)
     # reservoirs - kept off exposed root (recession, a crown's emergence) and off anything the user painted
     extra_sb, keep_off = None, None
     if P["reservoir_height"] > 0 and P["reservoir_max_position"] > 0:
@@ -376,9 +432,12 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if len(idx):
             keep_off = np.zeros(len(mesh.vertices), bool); keep_off[idx] = True
             log(f"[{name}] no reservoir on the {len(idx)} painted vertices (and {float(P.get('recession_leeway') or 1.0):.1f} mm around them)")
-    d = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
-                               feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
-                               setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=float(P.get("recession_leeway") or 1.0))
+    if MG or P["reservoir_height"] <= 0:
+        d = np.zeros(len(mesh.vertices))
+    else:
+        d = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
+                                   feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
+                                   setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=float(P.get("recession_leeway") or 1.0))
     mesh_r = apply_displacement(mesh, d)
     if P.get("periphery_smooth", True):
         mesh_r = smooth_periphery(mesh_r, labels, A, start=2.0, full=P["facial_offset"], iters=int(P.get("periphery_iters", 30)), mu=float(P.get("periphery_mu", -0.52)))
@@ -425,7 +484,25 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # the back of the tray: round the line where it wraps the last tooth on each side (never past
     # the tooth, no flap dipping behind it; a tooth the scan cut through gets a short, curved end)
     tooth_end = None
-    if P.get("distal_round", 0.0) > 0 and len(info) >= 4:
+    mg_info = None
+    gum_line_f = None
+    if MG:
+        from .mouthguard import vestibular_trimline
+        try:
+            # the arch centre (from the features, rough frame) carried into the levelled frame
+            rc = np.asarray(aux.get("ring_center", margin[:, :2].mean(0)), float)[:2]
+            rc_f = trimesh.transform_points(np.array([[rc[0], rc[1], 0.0]]), T_tilt @ T_ref)[0, :2]
+            mg_line, mg_info = vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, rc_f, arch=arch,
+                                                   inset=float(P.get("mg_inset", 1.5)), min_depth=float(P.get("mg_min_depth", 3.0)), max_depth=float(P.get("mg_max_depth", 14.0)),
+                                                   palate=float(P.get("mg_palate", 6.0)), distal=float(P.get("mg_distal", 2.5)), notch_top=float(P.get("mg_notch_top", 2.5)), notch_width=float(P.get("mg_notch_width", 6.0)),
+                                                   log=lambda m: log(f"[{name}] {m}"))
+            if "error" not in mg_info:
+                gum_line_f = margin_f.copy()     # the model still sits on the base by its gum line, and the body covers the crowns by it
+                margin_f = mg_line
+            rep["mouthguard"] = mg_info
+        except Exception as ex:  # noqa
+            log(f"[{name}] mouthguard line failed ({ex}) - using the gum line")
+    if P.get("distal_round", 0.0) > 0 and len(info) >= 4 and not MG:
         try:
             margin_f, dround = round_distal(margin_f, mesh_f, labels, info, edge_zone=edge_zone, radius=float(P["distal_round"]),
                                             log=lambda m: log(f"[{name}] {m}"))
@@ -435,14 +512,17 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         except Exception as ex:  # noqa
             log(f"[{name}] distal rounding skipped: {ex}")
     # y so the facial gum line at the midline is FACIAL_MARGIN_Y_AT_MIDLINE; z so floor = 0
-    near_mid = np.abs(margin_f[:, 0]) < 2.0
-    facial_y = margin_f[near_mid][:, 1].max() if near_mid.any() else margin_f[:, 1].max()
+    place_line = gum_line_f if (MG and gum_line_f is not None) else margin_f
+    near_mid = np.abs(place_line[:, 0]) < 2.0
+    facial_y = place_line[near_mid][:, 1].max() if near_mid.any() else place_line[:, 1].max()
     # floor 3 mm below the trim line's lowest point - unless that point is a stray dip (a flap, a
     # recession pocket, a bit of pad): then the floor follows the 10th percentile and the dip is
     # lifted to 0.8 mm above the floor instead of dragging the whole model 10 mm taller
     z_low, z_p10 = float(margin_f[:, 2].min()), float(np.percentile(margin_f[:, 2], 10))
     floor_below = float(P.get("floor_below") or FLOOR_BELOW_LOWEST_MARGIN)
     z_floor = max(z_low - floor_below, z_p10 - floor_below - 1.5)
+    if MG:
+        z_floor = z_low - floor_below        # the vestibular line is meant to be deep where the sulcus is
     low_pts = margin_f[:, 2] < z_floor + 0.8
     if low_pts.any():
         margin_f[low_pts, 2] = z_floor + 0.8
@@ -454,6 +534,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     T_place[2, 3] = -z_floor
     mesh_f.apply_transform(T_place)
     margin_f = trimesh.transform_points(margin_f, T_place)
+    if gum_line_f is not None:
+        gum_line_f = trimesh.transform_points(gum_line_f, T_place)
     # manual correction of the placement on the base (from the app): rotate about the trimline
     # centroid, then shift. Zero by default; the app's Reset puts it back to the automatic placement.
     pivot = margin_f[:, :2].mean(0)
@@ -467,6 +549,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         T_adj = R.copy(); T_adj[:3, 3] += [adj["dx"], adj["dy"], adj["dz"]]
         mesh_f.apply_transform(T_adj)
         margin_f = trimesh.transform_points(margin_f, T_adj)
+        if gum_line_f is not None:
+            gum_line_f = trimesh.transform_points(gum_line_f, T_adj)
         log(f"[{name}] manual placement: yaw {adj['yaw_deg']:+.1f} deg, shift x {adj['dx']:+.2f} y {adj['dy']:+.2f} z {adj['dz']:+.2f} mm")
     # the tissue behind the last molar (retromolar pad, tuberosity) is lowered below the trim line so
     # the trimmer can get round the distal surface instead of hitting a wall of gum
@@ -483,6 +567,12 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
 
     # solid horseshoe; it ends `distal_keep` mm behind the last tooth on each side, like Titan's
     outline = horseshoe_outline(margin_f[:, :2], P["facial_offset"], P["lingual_offset"])
+    if gum_line_f is not None:
+        # mouthguard: the vestibular line sits under the crowns of proclined teeth in plan, so the body
+        # also covers the crowns the way a tray body does - a rim round the gum line
+        outline = outline.union(horseshoe_outline(gum_line_f[:, :2], P["facial_offset"], P["lingual_offset"]))
+        if hasattr(outline, "geoms"):
+            outline = max(outline.geoms, key=lambda g: g.area)
     if P.get("distal_keep") and rep.get("distal_relief"):
         outline = cut_outline_distal(outline, [r.get("plane") for r in rep["distal_relief"]])
     # real scan kept only within scan_band of the gum line (cleans off ragged cheek/lip tissue);
@@ -493,13 +583,15 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     extra_solids = []
     bidx = np.asarray(P.get("blockout_idx") or [], dtype=int)
     bidx = bidx[(bidx >= 0) & (bidx < len(mesh_f.vertices))]
-    if P.get("blockout") or len(bidx):
+    if (P.get("blockout") and not MG) or len(bidx):
         from .blockout import undercut_fill
         paint = None
         if len(bidx):
             paint = np.zeros(len(mesh_f.vertices), bool); paint[bidx] = True
         try:
-            fill, binfo = undercut_fill(mesh_f, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=bool(P.get("blockout")),
+            # (a mouthguard keeps the vestibule as it is - the whole sulcus under flared crowns would count as
+            # one big undercut; the brackets get their own shields below; painted areas still apply)
+            fill, binfo = undercut_fill(mesh_f, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=bool(P.get("blockout")) and not MG,
                                         paint=paint, log=lambda m: log(f"[{name}] {m}"))
             rep["blockout"] = binfo
             if fill is not None:
@@ -508,6 +600,28 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         except Exception as ex:  # noqa
             log(f"[{name}] block-out skipped: {ex}")
             rep["blockout"] = dict(error=str(ex))
+    # mouthguard: the brackets stay on the model under smooth convex caps with `mg_clearance` mm of room, so
+    # the sheet forms over a band instead of locking into the bracket undercuts (mesh_f keeps the scan's
+    # vertex order, so the appliance mask applies as it is)
+    if MG and mg_appliance is not None and len(mg_appliance) == len(mesh_f.vertices):
+        sidx = np.asarray(P.get("shield_idx") or [], dtype=int)
+        sidx = sidx[(sidx >= 0) & (sidx < len(mg_appliance))]
+        if len(sidx):
+            mg_appliance = mg_appliance.copy(); mg_appliance[sidx] = True
+            log(f"[{name}] bracket shield: {len(sidx)} painted vertices added")
+    if MG and mg_appliance is not None and mg_appliance.any() and len(mg_appliance) == len(mesh_f.vertices):
+        from .mouthguard import appliance_shields
+        try:
+            rc = np.asarray(aux.get("ring_center", margin[:, :2].mean(0)), float)[:2]
+            rc_f = trimesh.transform_points(np.array([[rc[0], rc[1], 0.0]]), T_adj @ T_place @ T_tilt @ T_ref)[0, :2]
+            caps, sinfo = appliance_shields(mesh_f, mg_appliance, A, rc_f, clearance=float(P.get("mg_clearance", 1.0)), log=lambda m: log(f"[{name}] {m}"))
+            rep["shields"] = sinfo
+            if caps:
+                extra_solids.extend(caps)
+                trimesh.util.concatenate(caps).export(os.path.join(out_dir, f"{name}_shields.stl"))
+        except Exception as ex:  # noqa
+            log(f"[{name}] bracket shields skipped: {ex}")
+            rep["shields"] = dict(error=str(ex))
     body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids)
     rep["body_method"] = body_method
     rep["body_watertight"] = bool(body.is_watertight)
@@ -583,7 +697,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # debug state for the UI / verification
     np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
              T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, p_tooth=p_tooth,
-             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}))
+             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}),
+             **({"shield": np.asarray(mg_appliance, bool)} if MG and mg_appliance is not None and len(mg_appliance) == len(labels) else {}))
     prog(1.0, "done")
     log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
     return rep
