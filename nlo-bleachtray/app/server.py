@@ -183,7 +183,7 @@ def _save_case(job):
 def _summary(case):
     p = case.get("params") or {}
     return dict(id=case["id"], name=case.get("name"), patient=f"{p.get('patient_first', '')} {p.get('patient_last', '')}".strip(),
-                created=case.get("created"), review=case.get("review"), sent_at=case.get("sent_at"), thinned=case.get("thinned"),
+                created=case.get("created"), review=case.get("review"), sent_at=case.get("sent_at"), thinned=case.get("thinned"), backfilled=case.get("backfilled"),
                 models=[f"{sc.get('arch') or '?'} {sc.get('tag') or ''}".strip() for sc in case.get("scans", [])],
                 filename=case.get("filename"), fixed=len(case.get("fixed") or []), source=case.get("source"))
 
@@ -218,9 +218,40 @@ def _backfill_case(d):
     pf, pl = params.get("patient_first") or "", params.get("patient_last") or ""
     nm = f"{pf}_{pl}".strip("_") or (first_name or d)
     created = min(os.path.getmtime(os.path.join(jdir, fn)) for fn in scans_on_disk)
+    # was it sent? the training folder keeps a record of every case that was sent or saved (by case id),
+    # and the OrthoFactory input folder may still hold the order folder with the patient's name
+    review, sent_at, order_folder = None, None, None
+    try:
+        tdir = os.path.join(ROOT, "training")
+        for td in os.listdir(tdir) if os.path.isdir(tdir) else []:
+            cj = os.path.join(tdir, td, "case.json")
+            if not os.path.isfile(cj):
+                continue
+            meta = json.load(open(cj))
+            hits = [h for h in meta.get("history", []) if h.get("case") == d] or ([meta] if meta.get("case") == d else [])
+            if hits:
+                review = "sent"
+                try:
+                    sent_at = time.mktime(time.strptime(hits[-1].get("sent", ""), "%Y-%m-%d %H:%M"))
+                except Exception:
+                    sent_at = created
+                break
+    except Exception:
+        pass
+    try:
+        root = site_config()["order_root"]
+        if root and os.path.isdir(root) and pf and pl:
+            key = f"{pf} {pl}".lower()
+            for od in sorted(os.listdir(root)):
+                full = os.path.join(root, od)
+                if key in od.lower() and os.path.isdir(full) and abs(os.path.getmtime(full) - created) < 3 * 86400:
+                    review, order_folder = "sent", full
+                    sent_at = sent_at or os.path.getmtime(full)
+    except Exception:
+        pass
     case = dict(id=d, name="".join(c for c in nm if c.isalnum() or c in "-_ ").replace(" ", "_"), created=created, source="app", preset=None,
-                filename=", ".join(sc["filename"] for sc in scans), params=params, scans=scans, review=None, order_folder=None, sent_at=None,
-                learned=None, fixed=[], paint={}, thinned=False, saved=time.time(), backfilled=True)
+                filename=", ".join(sc["filename"] for sc in scans), params=params, scans=scans, review=review, order_folder=order_folder, sent_at=sent_at,
+                learned=None, fixed=[], paint={}, thinned=False, saved=time.time(), backfilled=True, sent_checked=True)
     with open(os.path.join(jdir, "case.json"), "w") as f:
         json.dump(case, f, indent=1, default=float)
     return case
@@ -233,7 +264,10 @@ def _load_history():
             continue
         cj = os.path.join(JOBS_DIR, d, "case.json")
         try:
-            case = json.load(open(cj)) if os.path.isfile(cj) else _backfill_case(d)
+            case = json.load(open(cj)) if os.path.isfile(cj) else None
+            # a backfill from the first version of the history did not know whether the case was sent: redo it once
+            if case is None or (case.get("backfilled") and case.get("review") is None and not case.get("sent_checked")):
+                case = _backfill_case(d) or case
             if case:
                 HISTORY[case["id"]] = _summary(case); n += 1
         except Exception:
@@ -866,11 +900,12 @@ def _learn_loop():
 threading.Thread(target=_learn_loop, daemon=True).start()
 
 
-def _restore_recent(days=7):
-    """After a restart the list is not empty: the last week's cases come back as they were."""
+def _restore_recent(days=2):
+    """After a restart the work in hand is still there: cases from the last two days that were not sent or
+    discarded yet. Everything else is in Past cases."""
     cutoff = time.time() - days * 86400
     for jid, h in sorted(HISTORY.items(), key=lambda kv: kv[1].get("created") or 0):
-        if (h.get("created") or 0) < cutoff or jid in JOBS:
+        if (h.get("created") or 0) < cutoff or jid in JOBS or h.get("review") in ("sent", "discarded") or h.get("backfilled"):
             continue
         try:
             job = _job_from_case(jid)
@@ -1020,6 +1055,19 @@ def discard(jid: str):
     job["review"] = "discarded"
     _save_case(job)
     return _review_view(job)
+
+
+@app.post("/api/jobs/{jid}/close")
+def close_job(jid: str):
+    """Take a case off the live list (it stays in Past cases, nothing about it changes)."""
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    if job.get("status") in ("queued", "running"):
+        raise HTTPException(400, "still processing")
+    _save_case(job)
+    JOBS.pop(jid, None)
+    return {"ok": True}
 
 
 @app.get("/api/history")
