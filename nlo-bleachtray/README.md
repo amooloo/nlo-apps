@@ -171,7 +171,14 @@ pad or ligature that sat under the first pass's threshold. The cleaned scan is w
 `<scan>_clean.ply` next to the case and becomes the case's scan file (brush, re-runs, history and the
 Titan export all work on it); its rebuilt vertices are recorded as paint bit 4 (grey in the brush view) and
 the result line says how much came off. Scans with braces are kept out of the training set.
-`remove_appliances` = "auto" (default) / False. Checked on 10 arches with braces (3 AlliedStar patients, 2
+`remove_appliances` = "auto" (default) / False. **Take off brush** (Segmentation / fix): a bit of bracket,
+wire or tie the app missed is painted and goes through the same cut-and-patch on the next run (no detection,
+what was painted is the appliance); the scan advances to `_clean2.ply`, `_clean3.ply`…, with the earlier
+rebuilt areas, the painted no-reservoir / block-out strokes and a cut in the same run carried over by
+position; saved brush fixes of tooth labels are dropped for that scan (the teeth are found again on the
+rebuilt enamel). Wire and ties left on at the eval scan make this harder (the wire floats across the
+embrasures and hides the gingival enamel) - for a retainer scan, take the wire and ties off first and
+leave the brackets; a mouthguard scan keeps everything. Checked on 10 arches with braces (3 AlliedStar patients, 2
 iTero; metal brackets, green/purple ties, molar tubes, a palatal expander) and 2 plain iTero arches: the
 brackets, wire and ties are gone on all ten and the enamel reads as enamel; nothing is touched on the
 plain scans. Known limits: clear / ceramic brackets (tooth-coloured) are not found; molar bands and an
