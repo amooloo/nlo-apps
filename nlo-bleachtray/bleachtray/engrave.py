@@ -150,7 +150,7 @@ def emboss_on_tooth(model, mesh_f, labels, info, params, height=0.35, cap=2.4, d
         first, last = (params.get("patient_first") or "").strip(), (params.get("patient_last") or "").strip()
         initials = ((first[:1] + last[:1]) or "NL").upper()
         ttype = tray_type(params)
-        letter = {"WHITENING": "W", "RETAINER": "R"}.get(ttype, "M")
+        letter = {"WHITENING": "W", "RETAINER": "R", "MOUTHGUARD": "G"}.get(ttype, "M")
         text = initials + " " + letter
         V = mesh_f.vertices
         N = mesh_f.vertex_normals

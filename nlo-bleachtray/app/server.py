@@ -401,10 +401,13 @@ def _run(job):
         job.setdefault("feat_cache", {})
         fixed = job.setdefault("fixed_labels", {})   # brush fixes, kept for every later re-run of this case
         overrides = {}                                # ... and applied to every model made from the same scan file
-        # braces on? brackets, wire and ties come off the scan file first (once per scan)
+        # braces on? brackets, wire and ties come off the scan file first (once per scan) - except for a
+        # scan that only becomes a mouthguard: that model keeps the brackets (under shields)
         if job["params"].get("remove_appliances", "auto"):
             for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
                 if path in job.get("braces", {}) or "_clean" in os.path.basename(path):
+                    continue
+                if all(sc.get("preset") == "mouthguard" for sc in job["scans"] if sc["path"] == path):
                     continue
                 job["progress"] = dict(frac=0.01, label="looking for braces on the scan", scan=0, of=len(job["scans"]))
                 try:
@@ -414,6 +417,14 @@ def _run(job):
         # "take off" strokes: a bit of bracket or wire the app missed - cut out and the enamel rebuilt, as a
         # new scan file (every model from it, every later re-run); everything indexed on the old file follows
         remap = None
+        paint = job.setdefault("paint", {})
+        if me is not None and me.get("takeoff") and job["scans"][me.get("scan", 0)].get("preset") == "mouthguard":
+            # on a mouthguard nothing comes off: the painted part joins the bracket shield instead
+            path = job["scans"][me.get("scan", 0)]["path"]
+            entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
+            entry["shield"] = sorted(set(entry.get("shield", [])) | set(int(i) for i in me["takeoff"]))
+            log(f"painted: {len(entry['shield'])} vertices added to the bracket shield")
+            me = dict(me); me.pop("takeoff")
         if me is not None and me.get("takeoff"):
             k0 = me.get("scan", 0)
             job["progress"] = dict(frac=0.01, label="taking off the painted parts", scan=k0, of=len(job["scans"]))
@@ -438,7 +449,6 @@ def _run(job):
                     r = -np.ones(len(remap), dtype=np.int64); ok = remap >= 0
                     r[ok] = remap2[remap[ok]]; remap = r
         # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
-        paint = job.setdefault("paint", {})
         if me is not None and (me.get("noreservoir") or me.get("blockout")):
             path = job["scans"][me.get("scan", 0)]["path"]
             entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
@@ -465,7 +475,7 @@ def _run(job):
             params.update({k: v for k, v in per_type.items() if v is not None})
             params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
             pe = paint.get(scan["path"]) or {}
-            params["keep_off_idx"] = pe.get("noreservoir") or []; params["blockout_idx"] = pe.get("blockout") or []
+            params["keep_off_idx"] = pe.get("noreservoir") or []; params["blockout_idx"] = pe.get("blockout") or []; params["shield_idx"] = pe.get("shield") or []
             rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
                           label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
             scan["arch"] = rep["arch"]; scan["report"] = rep
@@ -826,7 +836,7 @@ def _group_uploads(items):
 def _variants_from_makes(makes, preset):
     """Per-file choice from the page ("WT", "TT", both or none) -> variant tuples."""
     wt = "bleaching_3_3" if preset == "bleaching_3_3" else "bleaching"
-    table = {"WT": (wt, "WT", "T", 0), "TT": ("aligner_high", "TT", "A", 1)}
+    table = {"WT": (wt, "WT", "T", 0), "TT": ("aligner_high", "TT", "A", 1), "MG": ("mouthguard", "MG", "T", 2)}
     out = [table[t] for t in (makes or []) if t in table]
     return out or [("plain_model", "MODEL", "T", 0)]
 
@@ -927,13 +937,13 @@ async def add_model(jid: str, arch: str = Form(...), make: str = Form(...)):
         raise HTTPException(409, "the case is still being processed - add it when it is done")
     make = (make or "").upper()
     src = next((sc for sc in job["scans"] if sc.get("arch") == arch), None)
-    if src is None or make not in ("WT", "TT"):
+    if src is None or make not in ("WT", "TT", "MG"):
         raise HTTPException(400, "no such scan in this case")
     if any(sc["path"] == src["path"] and sc.get("tag") == make for sc in job["scans"]):
         raise HTTPException(409, f"{make} {arch} is already part of this case")
     variants = _variants_from_makes([make], job.get("preset") or "bleaching")
     _add_scans(job, src["path"], src["filename"], arch, job.get("preset") or "bleaching", variants=variants)
-    job.setdefault("log", []).append(f"{'whitening tray' if make == 'WT' else 'retainer'} added for the {arch} from the scan already in the case")
+    job.setdefault("log", []).append(f"{ {'WT': 'whitening tray', 'TT': 'retainer', 'MG': 'mouthguard'}[make] } added for the {arch} from the scan already in the case")
     job["auto_order"] = False
     _enqueue(job)
     return {"id": jid, "models": len(job["scans"])}
@@ -1332,12 +1342,15 @@ def seg_mesh(jid: str, scan: int = 0):
     buf = io.BytesIO()
     buf.write(struct.pack("<II", len(V), len(F)))
     buf.write(V.tobytes()); buf.write(F.tobytes()); buf.write(lab.tobytes()); buf.write(disp.tobytes())
-    # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out; bit 4 = brackets / wire removed
+    # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out; bit 4 = brackets / wire removed; bit 8 = bracket shield
     pe = (job.get("paint") or {}).get(sc["path"]) or {}
     flags = np.zeros(len(V), dtype=np.uint8)
     for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed")):
         idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
         flags[idx] |= bit
+    # bit 8 = under the mouthguard's bracket shield (found + painted)
+    if "shield" in st.files and len(st["shield"]) == len(V):
+        flags[np.asarray(st["shield"], bool)] |= 8
     buf.write(flags.tobytes())
     # the scanner's colour per vertex, when the scan has one (a PLY): uint8 rgb[nV*3]
     rgb = st["rgb"] if "rgb" in st.files else None

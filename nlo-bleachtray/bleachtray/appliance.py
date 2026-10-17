@@ -821,7 +821,7 @@ def trace_wire(mesh, A, mask, pieces, cs, radial, below, ring_c, forbidden):
 def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2):
     """Detect and remove, then look again: what a bracket leaves behind at its base (a low lip of pad or
     ligature that sat under the first pass's threshold) stands clear of the new smooth enamel and comes
-    off on the second pass. Returns (mesh, info) - the mesh is new when anything was removed."""
+    off on the second pass. Returns (mesh, info, A, feats) - mesh, adjacency and features all for the same (new) mesh when anything was removed."""
     from .features import compute_features
     from .mesh_utils import adjacency
     info = dict(used=False, passes=[])
@@ -840,7 +840,7 @@ def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2):
         info["passes"].append(rec)
         info.update(used=True, area_mm2=round(total_area, 1), pieces=pieces, vertices=int(sum(p.get("vertices", 0) for p in info["passes"])))
         rgb = mesh.metadata.get("rgb")
-        if k + 1 < passes:
-            A = adjacency(mesh)
-            feats = compute_features(mesh, return_aux=True)
+        # the mesh changed: adjacency and features go with it (the caller segments on these)
+        A = adjacency(mesh)
+        feats = compute_features(mesh, return_aux=True)
     return mesh, info, A, feats

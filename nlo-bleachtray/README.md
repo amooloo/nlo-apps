@@ -9,7 +9,7 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    its own, e.g. `Jane_Doe_20261015_09-20-31_upper.ply`). **PLY when the scanner offers it** - it carries the colour,
    which the app uses to find the gum line; STL works too.
 2. Drop the file on the **Bleach Tray** app page (any office computer; home page → Bleach Tray). The app asks what
-   to make of it - **whitening tray** and/or **retainer (TT)** - and whether the opposing arch is coming: drop that
+   to make of it - **whitening tray**, **retainer (TT)** and/or **mouthguard (MG, braces on)** - and whether the opposing arch is coming: drop that
    one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once,
    or files dragged into **`S:\clinical\3D printing\BleachTray`**, run with the default (both) without questions.
    Several people can drop at the same time: cases run one after another and the list shows who is waiting.
@@ -24,7 +24,7 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
    the tooth split is reused, and Send writes the order with every model.
 4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
-   the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`).
+   the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`), a mouthguard as a stage-2 Template piece (`TU2A`).
    Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Save as lesson** files a brush-corrected case for the retraining without ordering anything (Send does that
    too, on the side); it is greyed out until a fix has been applied.
 
@@ -178,12 +178,38 @@ rebuilt areas, the painted no-reservoir / block-out strokes and a cut in the sam
 position; saved brush fixes of tooth labels are dropped for that scan (the teeth are found again on the
 rebuilt enamel). Wire and ties left on at the eval scan make this harder (the wire floats across the
 embrasures and hides the gingival enamel) - for a retainer scan, take the wire and ties off first and
-leave the brackets; a mouthguard scan keeps everything. Checked on 10 arches with braces (3 AlliedStar patients, 2
+leave the brackets; a mouthguard scan keeps everything (and the mouthguard model keeps the brackets, see below). Checked on 10 arches with braces (3 AlliedStar patients, 2
 iTero; metal brackets, green/purple ties, molar tubes, a palatal expander) and 2 plain iTero arches: the
 brackets, wire and ties are gone on all ten and the enamel reads as enamel; nothing is touched on the
 plain scans. Known limits: clear / ceramic brackets (tooth-coloured) are not found; molar bands and an
 expander's arms are not bumps and stay; the enamel under a bracket is a smooth reconstruction, not the
 scanned surface.
+
+**Mouthguard (braces on).** Tick **Mouthguard (MG)** on the scan (or choose the *Mouthguard (braces on)* preset),
+scanned with the brackets, wire and ties on and the cheeks and lip pulled back so the scan goes as far into the
+vestibule as it can - that is how deep the guard will go. The model keeps the brackets: the teeth are found on a
+cleaned copy (brackets confuse the tooth split), but the body is built from the scan as it is, with every bracket,
+tube and stretch of wire under a smooth **shield** (`mouthguard.appliance_shields`: overlapping convex caps over ~6 mm
+stretches of appliance pushed out `mg_clearance` = 1 mm, with a skirt of surface 1.5 mm round them, unioned into one
+band per side) so the sheet forms over a smooth channel instead of locking into the bracket undercuts. The trim
+line (`mouthguard.vestibular_trimline`) is one closed loop: on the facial side it follows the surface down into the
+vestibule to 1.5 mm above the scan's own edge (`mg_inset`; never less than 3 or more than 14 mm below the gum line,
+measured from the running mean of the scalloped gum line, and never the inside of the lip); it rises in a rounded
+notch 6 mm wide to 2.5 mm below the gum line at the frena - the labial one at the midline always (found as the
+shallowest stretch of sulcus near the midline, assumed there if the scan does not show it), one buccal notch per
+side when a clear one shows in the canine / premolar region; lingually it runs 6 mm onto the palate (`mg_palate`);
+behind the last tooth on each side it hugs the tooth 2.5 mm back (`mg_distal`), the facial deepening fading out
+over the last 4 mm. No reservoirs, no automatic block-out (the whole sulcus under flared crowns would count as
+one undercut - the real vestibule is what the guard needs), the model still sits on the base by its gum line and
+the body covers the crowns the way a tray body does. The brush view shows what is under the shield in orange;
+**Take off** on a mouthguard adds the painted part to the shield instead of removing it (a tube the app missed),
+and tooth / gum fixes work on the scan as it is. In OrthoFactory the guard is a Template piece, stage 2 (`MG`);
+the base says MOUTHGUARD and the tooth mark is `G`. Settings: `mouthguard`, `mg_inset`, `mg_min_depth`,
+`mg_max_depth`, `mg_palate`, `mg_distal`, `mg_notch_top`, `mg_notch_width`, `mg_clearance`. Known limits: the
+shield is a faceted band (smooth enough for the sheet, not pretty); a 2x4 in the mixed dentition (molar bands + four
+incisor brackets, erupting teeth under the gum) is still hard for the tooth split - the edentulous ridge comes out as
+"tooth" (harmless for a guard) but the anterior palate may too, which pushes the palatal line back: paint it **Gum**
+and re-run; a scan that stops at the gum line gives a line 3 mm below it and nothing deeper.
 
 **Missing teeth.** A missing premolar or molar used to end the tray at the gap: the gum-line contour closed round
 the teeth in front of it and everything behind was dropped from the line and the model. `edentulous_gaps` finds

@@ -374,6 +374,20 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
     surf = repair_boundary(surf, log=log)
     raw_solid = solidify(surf, z_floor - 3.0, outline=None, snap=False)
     man = to_manifold(raw_solid)
+    if man is None:
+        # try a light repair before giving up on booleans (a scan with overhangs - a deep vestibule, the
+        # inside of the lip - often needs it); the shelf and the extra solids come after, so they are
+        # never lost to this
+        try:
+            import pymeshfix
+            mf = pymeshfix.MeshFix(raw_solid.vertices.copy(), raw_solid.faces.copy())
+            mf.repair()
+            fixed = trimesh.Trimesh(np.asarray(mf.mesh.points), np.asarray(mf.mesh.faces).reshape(-1, 4)[:, 1:], process=False)
+            man = to_manifold(fixed)
+            if man is not None:
+                log("body: solid repaired with meshfix")
+        except Exception as ex:  # noqa
+            log(f"meshfix failed: {ex}")
     # gingiva shelf filling the outline wherever the scan stopped short (distal to the last molars,
     # facial of the incisors): a separate manifold heightfield unioned in
     if man is not None and shelf:
@@ -390,7 +404,7 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
                 log("shelf not manifold; continuing without shelf")
         except Exception as ex:  # noqa
             log(f"shelf skipped: {ex}")
-    # block-out fills and the like: unioned in before the outline cut
+    # block-out fills, bracket shields and the like: unioned in before the outline cut
     for i, ex in enumerate(extra_solids or []):
         if man is None or ex is None:
             continue
@@ -405,16 +419,6 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
                 log(f"extra solid {i + 1} union failed; skipped")
         except Exception as ex2:  # noqa
             log(f"extra solid {i + 1} skipped: {ex2}")
-    if man is None:
-        # try a light repair before giving up on booleans
-        try:
-            import pymeshfix
-            mf = pymeshfix.MeshFix(raw_solid.vertices.copy(), raw_solid.faces.copy())
-            mf.repair()
-            fixed = trimesh.Trimesh(np.asarray(mf.mesh.points), np.asarray(mf.mesh.faces).reshape(-1, 4)[:, 1:], process=False)
-            man = to_manifold(fixed)
-        except Exception as ex:  # noqa
-            log(f"meshfix failed: {ex}")
     if man is None:
         log("body: could not make a manifold solid; falling back to tight clip + skirt (no boolean)")
         surf = clip_surface(mesh_final, outline, z_floor)
