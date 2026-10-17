@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-3OS0vDxFKOpgch4NPX3UbKRiEt8QOfZSgyWR20jYI84=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-D2lozWzsu6vStIYYpCo4Q0U7Ec07NDCKl1SyxuEex6s=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Inventory</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B2F4C'/%3E%3Cpath d='M18 24l14-7 14 7v17l-14 7-14-7z' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 24l14 7 14-7M32 31v17' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -997,7 +997,7 @@ body.gated .askFab{display:none}
      Staff Meeting's spending card and AISA's stock answers.
    ===================================================================== */
 
-const APP_VERSION = '5.2.0';
+const APP_VERSION = '5.2.1';
 const APP_NAME = 'NLO Inventory';
 const DEMO_ONLY = false;          // the demo page sets this (build.py)
 const LOGO = 'logo-white.png';     // the demo page carries the logo inside it
@@ -4275,7 +4275,16 @@ function whoNow() {
   const me = B && B.me; if (!me) return null;
   const p = personById(me.staffId);
   const name = (p && p.name) || me.name || 'Someone';
-  return { id: me.staffId, short: me.role === 'owner' ? 'Dr. A' : shortName(name), name };
+  return { id: me.staffId, short: me.role === 'owner' ? 'Dr. A' : shortName(name), name, owner: me.role === 'owner' };
+}
+/* the name an email or a text to a vendor is signed with: Dr. A as the doctor — his roster name with "Dr." in front, his full
+   name rather than his first (Amir, 17 Oct 2026: "I see my name is -Amir in the emails", asking for "Dr." and his full name,
+   his last name, or "even Dr. A"); everyone else by first name */
+function signName(w) {
+  if (!w) return '';
+  if (!w.owner) return firstName(w.name);
+  const n = String(w.name || '').trim().replace(/^dr\.?\s+/i, '');
+  return n.split(/\s+/).length > 1 ? 'Dr. ' + n : 'Dr. A';
 }
 /* a record stamped by the person signed in (old records carry Staff Hub's id for them) */
 function isMine(id) { const w = whoNow(), p = id && personById(id); return !!(w && p && p.id === w.id); }
@@ -5993,14 +6002,14 @@ function orderText(vn, lines, who) {
   return 'Hello' + (v.rep ? ' ' + firstName(v.rep) : '') + ',\n\nPlease send the following to ' + OFFICE.name + (v.acct ? ' (account ' + v.acct + ')' : '') + ':\n\n' +
     lines.map(c => '• ' + qtyUnit(c.qty, c.unit) + ' — ' + c.name + (c.sku ? ' (#' + c.sku + ')' : '') + (c.price ? ' @ ' + money(c.price) : '')).join('\n') +
     (ml ? '\n\n' + ml : '') +
-    '\n\nShip to: ' + OFFICE.address + '\nPhone: ' + OFFICE.phone + '\n\nPlease confirm the order and expected delivery. Thank you!\n' + (who ? firstName(who.name) + ', ' : '') + OFFICE.name;
+    '\n\nShip to: ' + OFFICE.address + '\nPhone: ' + OFFICE.phone + '\n\nPlease confirm the order and expected delivery. Thank you!\n' + (who ? signName(who) + ', ' : '') + OFFICE.name;
 }
 /* the text message: short, in plain characters (so every phone, and the QR code, reads it the same) */
 function orderSms(vn, lines, who) {
   const v = vendorByName(vn) || {}, ml = mlOrderSay(vn);
   return plainText('Hi' + (v.rep ? ' ' + firstName(v.rep) : '') + ', please send ' + OFFICE.name + (v.acct ? ' (acct ' + v.acct + ')' : '') + ':\n' +
     lines.map(c => qtyUnit(c.qty, c.unit) + ' - ' + c.name + (c.sku ? ' #' + c.sku : '')).join('\n') +
-    (ml ? '\n' + ml : '') + '\nShip to ' + OFFICE.address + '. Please confirm. Thanks!' + (who ? ' - ' + firstName(who.name) : ''));
+    (ml ? '\n' + ml : '') + '\nShip to ' + OFFICE.address + '. Please confirm. Thanks!' + (who ? ' - ' + signName(who) : ''));
 }
 function plainText(s) {
   return String(s).normalize('NFKD').replace(/[‘’‚′]/g, "'").replace(/[“”„″]/g, '"')
@@ -7675,7 +7684,7 @@ function mlQuoteTo(mv) {
   return { email: '', who: '' };
 }
 /* the sign-off: who's writing, and the office (where it ships to, for the shipping cost) */
-function mlSignOff() { const w = whoNow(); return 'Thank you!\n' + (w && w.name ? firstName(w.name) + '\n' : '') + OFFICE.name + '\n' + OFFICE.address + '\n' + OFFICE.phone; }
+function mlSignOff() { const w = whoNow(), n = signName(w); return 'Thank you!\n' + (n ? n + '\n' : '') + OFFICE.name + '\n' + OFFICE.address + '\n' + OFFICE.phone; }
 /* a vendor's email button: a hello, never a blank email */
 function mlHelloMail(mv, to, who) {
   return mlMailto(to, 'Mari’s List member — ' + OFFICE.name, 'Hello' + (who ? ' ' + firstName(who) : '') + ',\n\nWe’re Mari’s List members' + (mv && mv.code ? ' (code ' + mv.code + ')' : '') + '.\n\n\n\n' + mlSignOff());
