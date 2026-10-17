@@ -17,7 +17,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    Fix a tooth with the brush (the ball on the model is the brush, its size is the slider; hold **Shift** and drag,
    then **Apply fixes & re-run**) or nudge the base if needed - a fix is kept for every later re-run of that case.
    **Cut away** (third brush mode) deletes that part of the scan for good - tongue, cheek, a flap, the pad behind the
-   last molar - and the model is built from the clean scan. **Also make …** in the Check & send box adds the other
+   last molar - and the model is built from the clean scan. **No reservoir** keeps the gel reservoir off a recession
+   or a crown margin you paint; **Block out** fills the undercut under what you paint (under a pontic, round an
+   implant crown) so the retainer seats. Both stay with the scan for every model and every later re-run. **Also make …** in the Check & send box adds the other
    tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
    the tooth split is reused, and Send writes the order with every model.
 4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
@@ -121,6 +123,22 @@ of running up the pad. The model is then lowered behind the last tooth on each s
 (`distal_relief`), so the Trimlign bur reaches the distal surface instead of hitting a wall of gum, and ends 3 mm
 behind the tooth (`distal_keep`).
 
+**Exposed root.** A bleaching reservoir must not sit on root (sensitivity). The reservoir stops 1 mm short of the
+gum line everywhere (Settings → Reservoirs), and on each reservoir tooth the app looks for root showing on the
+facial side two ways: the mid-facial profile (an exposed root runs near-vertical or inward for ≥ 0.75 mm above the
+margin before the enamel climbs outward; a healthy crown climbs from the margin) and the clinical crown length
+against the typical anatomic crown + 1 mm. Where root is found the reservoir stops above it plus a leeway (1 mm,
+a setting), and the result line names the teeth. On 15 scans: 0-2 of 10 reservoir teeth flagged on young
+orthodontic patients, 7 of 10 on an adult with generalised recession. Paint *No reservoir* for anything it misses.
+
+**Block-out.** For thermoforming, the space under an overhang - a bridge pontic, the emergence of an implant crown,
+an open embrasure - is filled like block-out resin (`bleachtray/blockout.py`): on a 0.3 mm grid every vertical
+through the model that passes an underside and then free air before the next surface is a candidate; it is filled
+from that surface up to the underside when the undercut is deeper than 0.75 mm measured in from the contour seen
+from above (a setting, retainers only by default - the small natural undercuts stay for retention), or whatever
+its depth under a painted *Block out* stroke. The fill is one heightfield solid unioned into the body before the
+outline cut; it is shown in teal in the Result view and saved as `<name>_blockout.stl`.
+
 **Marks.** Two: (1) the patient's initials + W (whitening) / R (retainer), raised 0.35 mm on the buccal surface of a
 first molar (right side if present, else second premolar / second molar), each letter on its own tangent plane and
 the text shrunk to the flat middle of the crown - it forms into the tray itself, like an aligner maker's mark, with a
@@ -129,8 +147,9 @@ of the base plate inside the arch, when the arch leaves at least 8 mm of room th
 under Settings.
 
 **Settings.** The gear in the New case card opens a panel where every number has a picture of what it means
-(reservoir region / depth / distance to the gum, the two trim lines, how the line crosses between teeth, rim, floor
-depth, the cut behind the last molar, levelling, marks, bulk defaults, learning, the office folders). Settings are
+(reservoir region / depth / distance to the gum / leeway at exposed roots, the two trim lines, block-out of
+undercuts, how the line crosses between teeth, rim, floor depth, the cut behind the last molar, levelling, marks,
+bulk defaults, learning, the office folders). Settings are
 remembered in the browser; *Back to defaults* resets them. The whitening tray and the retainer have their own trim
 line and reservoir settings, applied on top of the model type.
 

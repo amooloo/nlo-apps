@@ -210,6 +210,17 @@ def _run(job):
         if me is not None and me.get("cut"):
             job["progress"] = dict(frac=0.01, label="cutting away the painted parts of the scan", scan=me.get("scan", 0), of=len(job["scans"]))
             remap = _apply_cut(job, me.get("scan", 0), me["cut"], log=log)
+        # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
+        paint = job.setdefault("paint", {})
+        if me is not None and (me.get("noreservoir") or me.get("blockout")):
+            path = job["scans"][me.get("scan", 0)]["path"]
+            entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
+            for key in ("noreservoir", "blockout"):
+                idx = np.asarray(me.get(key) or [], dtype=int)
+                if remap is not None and len(idx):
+                    idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
+                entry[key] = sorted(set(entry.get(key, [])) | set(int(i) for i in idx))
+            log(f"painted: {len(entry['noreservoir'])} vertices without reservoir, {len(entry['blockout'])} to block out")
         for i, k in enumerate(todo):
             scan = job["scans"][k]
             def progress(frac, label, i=i, k=k):
@@ -226,6 +237,8 @@ def _run(job):
             per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") == "TT" else None) or {}
             params.update({k: v for k, v in per_type.items() if v is not None})
             params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
+            pe = paint.get(scan["path"]) or {}
+            params["keep_off_idx"] = pe.get("noreservoir") or []; params["blockout_idx"] = pe.get("blockout") or []
             rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
                           label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
             scan["arch"] = rep["arch"]; scan["report"] = rep
@@ -346,6 +359,13 @@ def _apply_cut(job, k, cut, log=print):
         lab = np.asarray(fixed.pop(old_path)); newlab = np.zeros(len(re.vertices), dtype=lab.dtype); newlab[remap[used]] = lab[used]; fixed[new_path] = newlab
     for key in [key for key in job.get("feat_cache", {}) if (key if isinstance(key, str) else key[0]) == old_path]:
         job["feat_cache"].pop(key, None)
+    paint = job.setdefault("paint", {})
+    if old_path in paint:
+        pe = paint.pop(old_path); newpe = {}
+        for key, idx in pe.items():
+            idx = np.asarray(idx, dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
+            newpe[key] = sorted(int(i) for i in remap[idx] if i >= 0)
+        paint[new_path] = newpe
     for sc in job["scans"]:
         if sc["path"] == old_path:
             sc["path"] = new_path
@@ -601,7 +621,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     try:
         me = json.loads(edits or "{}")
         # a re-run without any painted vertex is just a re-run: it must not count as a brush correction
-        job["mask_edit"] = me if (me.get("add") or me.get("remove") or me.get("cut")) else None
+        job["mask_edit"] = me if any(me.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout")) else None
     except Exception:
         job["mask_edit"] = None
     try:
@@ -806,7 +826,9 @@ def job_status(jid: str):
     out["started"] = job.get("started")
     out["ahead"] = _ahead(job)
     out["fixed"] = _fixed_arches(job)
-    out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset")) for sc in job["scans"]]
+    paint = job.get("paint") or {}
+    out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset"),
+                         painted={k: len(v) for k, v in (paint.get(sc["path"]) or {}).items()}) for sc in job["scans"]]
     if job.get("reports"):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]
         out["report"] = out["reports"][0]
@@ -824,6 +846,7 @@ def job_file(jid: str, kind: str, scan: int = 0):
         "trimline": (f"{name}_trimline.pts", "text/plain"),
         "scan_res": (f"{name}_scan_with_reservoirs.stl", "model/stl"),
         "body": (f"{name}_body_only.stl", "model/stl"),
+        "blockout": (f"{name}_blockout.stl", "model/stl"),
         "report": (f"{name}_report.json", "application/json"),
     }
     tb = (job["scans"][scan].get("report") or {}).get("titan_basename")
@@ -842,7 +865,7 @@ def job_file(jid: str, kind: str, scan: int = 0):
 @app.get("/api/jobs/{jid}/segmesh")
 def seg_mesh(jid: str, scan: int = 0):
     """Binary blob of the rough-oriented scan with labels + displacement, for the brush view.
-    Layout: uint32 nV, uint32 nF, float32 V[nV*3], uint32 F[nF*3], uint16 labels[nV], float32 disp[nV]"""
+    Layout: uint32 nV, uint32 nF, float32 V[nV*3], uint32 F[nF*3], uint16 labels[nV], float32 disp[nV], uint8 paint[nV]"""
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
@@ -859,6 +882,13 @@ def seg_mesh(jid: str, scan: int = 0):
     buf = io.BytesIO()
     buf.write(struct.pack("<II", len(V), len(F)))
     buf.write(V.tobytes()); buf.write(F.tobytes()); buf.write(lab.tobytes()); buf.write(disp.tobytes())
+    # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out
+    pe = (job.get("paint") or {}).get(sc["path"]) or {}
+    flags = np.zeros(len(V), dtype=np.uint8)
+    for bit, key in ((1, "noreservoir"), (2, "blockout")):
+        idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
+        flags[idx] |= bit
+    buf.write(flags.tobytes())
     return Response(content=buf.getvalue(), media_type="application/octet-stream")
 
 

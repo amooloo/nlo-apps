@@ -7,7 +7,7 @@ from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
 from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
                       bridge_embrasures, geodesic_dilate, cap_distal)
-from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery
+from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure
 from .solid import horseshoe_outline, build_body, add_base
 
 # Titan/Trimlign placement convention measured from a Titan export (see notes):
@@ -16,7 +16,9 @@ FLOOR_BELOW_LOWEST_MARGIN = 3.0    # model floor is 3 mm below the lowest point 
 TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this much further forward than the facial gum-line plane's normal (8 raw/Titan pairs, 10/16/2026)
 
 DEFAULTS = dict(
-    reservoir_height=0.5, reservoir_setback=0.5, reservoir_feather=0.6, reservoir_max_position=5,
+    reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=0.6, reservoir_max_position=5,   # setback: the reservoir stops this far short of the gum line (was 0.5; 1 mm is the usual lab rule)
+    recession_auto=True, recession_leeway=1.0,   # exposed root found on a tooth: the reservoir stays that much further up, plus this leeway
+    blockout=False, blockout_depth=0.75,          # fill undercuts deeper than this (mm in from the contour) for thermoforming; presets switch it on for retainers
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
@@ -310,9 +312,22 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         margin = bridge_embrasures(margin, mesh, radius=P["bridge_radius"])
     margin = smooth_polyline(resample_polyline(margin, P["trimline_spacing"]), iters=P["trimline_smooth"])
 
-    # reservoirs
+    # reservoirs - kept off exposed root (recession, a crown's emergence) and off anything the user painted
+    extra_sb, keep_off = None, None
+    if P["reservoir_height"] > 0 and P["reservoir_max_position"] > 0:
+        if P.get("recession_auto", True):
+            roots, rdet = root_exposure(mesh, labels, info, aux, A, arch=arch_hint, max_position=P["reservoir_max_position"], log=lambda m: log(f"[{name}] {m}"))
+            lee = float(P.get("recession_leeway") or 0.0)
+            extra_sb = {t: h + lee for t, h in roots.items() if h > 0}
+            rep["recession"] = {int(t): dict(root_mm=roots[t], reservoir_from_gum_mm=round(float(P["reservoir_setback"]) + extra_sb[t], 2), **rdet[t]) for t in extra_sb}
+        idx = np.asarray(P.get("keep_off_idx") or [], dtype=int)
+        idx = idx[(idx >= 0) & (idx < len(mesh.vertices))]
+        if len(idx):
+            keep_off = np.zeros(len(mesh.vertices), bool); keep_off[idx] = True
+            log(f"[{name}] no reservoir on the {len(idx)} painted vertices (and {float(P.get('recession_leeway') or 1.0):.1f} mm around them)")
     d = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
-                               feather=P["reservoir_feather"], max_position=P["reservoir_max_position"])
+                               feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
+                               setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=float(P.get("recession_leeway") or 1.0))
     mesh_r = apply_displacement(mesh, d)
     if P.get("periphery_smooth", True):
         mesh_r = smooth_periphery(mesh_r, labels, A, start=2.0, full=P["facial_offset"], iters=int(P.get("periphery_iters", 30)), mu=float(P.get("periphery_mu", -0.52)))
@@ -409,7 +424,27 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # real scan kept only within scan_band of the gum line (cleans off ragged cheek/lip tissue);
     # the rest of the body is a smooth synthetic skirt
     scan_region = horseshoe_outline(margin_f[:, :2], P["scan_band"], P["scan_band"]) if P.get("scan_band") else None
-    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)))
+    # block-out: the spaces under pontics, implant emergence profiles and open embrasures are filled so
+    # the thermoformed sheet can seat and come off (retainers by default; also wherever the user painted)
+    extra_solids = []
+    bidx = np.asarray(P.get("blockout_idx") or [], dtype=int)
+    bidx = bidx[(bidx >= 0) & (bidx < len(mesh_f.vertices))]
+    if P.get("blockout") or len(bidx):
+        from .blockout import undercut_fill
+        paint = None
+        if len(bidx):
+            paint = np.zeros(len(mesh_f.vertices), bool); paint[bidx] = True
+        try:
+            fill, binfo = undercut_fill(mesh_f, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=bool(P.get("blockout")),
+                                        paint=paint, log=lambda m: log(f"[{name}] {m}"))
+            rep["blockout"] = binfo
+            if fill is not None:
+                extra_solids.append(fill)
+                fill.export(os.path.join(out_dir, f"{name}_blockout.stl"))
+        except Exception as ex:  # noqa
+            log(f"[{name}] block-out skipped: {ex}")
+            rep["blockout"] = dict(error=str(ex))
+    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids)
     rep["body_method"] = body_method
     rep["body_watertight"] = bool(body.is_watertight)
     rep["body_volume_ml"] = round(float(body.volume) / 1000.0, 2)
