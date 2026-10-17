@@ -1,5 +1,6 @@
 """Local web app: drop a scan STL, get a print-ready bleaching-tray model + Trimlign trimline."""
-import os, sys, io, json, uuid, threading, time, struct, traceback, mimetypes
+import os
+import re, sys, io, json, uuid, threading, time, struct, traceback, mimetypes
 import numpy as np
 import trimesh
 
@@ -410,11 +411,32 @@ def _run(job):
                     _take_off_braces(job, path, log=log)
                 except Exception as ex:  # noqa
                     log(f"braces step skipped: {ex}")
-        # "cut away" strokes: those parts leave the scan file itself (every model from it, every later re-run)
+        # "take off" strokes: a bit of bracket or wire the app missed - cut out and the enamel rebuilt, as a
+        # new scan file (every model from it, every later re-run); everything indexed on the old file follows
         remap = None
+        if me is not None and me.get("takeoff"):
+            k0 = me.get("scan", 0)
+            job["progress"] = dict(frac=0.01, label="taking off the painted parts", scan=k0, of=len(job["scans"]))
+            try:
+                res = _take_off_braces(job, job["scans"][k0]["path"], log=log, painted=me["takeoff"])
+            except Exception as ex:  # noqa
+                res = None; log(f"take off skipped: {ex}")
+            if res is not None:
+                _, remap = res
+                me = dict(me)
+                for key in ("cut",):      # the cut below works on the new file; the other strokes go through `remap` later
+                    idx = np.asarray(me.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
+                    me[key] = [int(i) for i in remap[idx] if i >= 0]
+        # "cut away" strokes: those parts leave the scan file itself (every model from it, every later re-run)
         if me is not None and me.get("cut"):
             job["progress"] = dict(frac=0.01, label="cutting away the painted parts of the scan", scan=me.get("scan", 0), of=len(job["scans"]))
-            remap = _apply_cut(job, me.get("scan", 0), me["cut"], log=log)
+            remap2 = _apply_cut(job, me.get("scan", 0), me["cut"], log=log)
+            if remap2 is not None:
+                if remap is None:
+                    remap = remap2
+                else:   # old file -> take-off file -> cut file
+                    r = -np.ones(len(remap), dtype=np.int64); ok = remap >= 0
+                    r[ok] = remap2[remap[ok]]; remap = r
         # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
         paint = job.setdefault("paint", {})
         if me is not None and (me.get("noreservoir") or me.get("blockout")):
@@ -587,7 +609,7 @@ def _apply_cut(job, k, cut, log=print):
     return remap
 
 
-def _take_off_braces(job, path, log=print):
+def _take_off_braces(job, path, log=print, painted=None):
     """A coloured scan with braces on: find brackets, wire and ties and take them off BEFORE anything
     else sees the scan. The cleaned scan is written as a new PLY next to the case (like a cut), every
     model made from the scan points at it from now on, and the patches are recorded (paint bit 4) so the
@@ -598,51 +620,84 @@ def _take_off_braces(job, path, log=print):
     from bleachtray.appliance import take_off_appliances
     from scipy.spatial import cKDTree
     done = job.setdefault("braces", {})
-    if path in done or "_clean" in os.path.basename(path) or not path.lower().endswith(".ply"):
+    auto = painted is None
+    if auto and (path in done or "_clean" in os.path.basename(path) or not path.lower().endswith(".ply")):
         return None
     raw = load_scan(path)
     rgb = raw.metadata.get("rgb")
-    if rgb is None:
+    if auto and rgb is None:
         done[path] = dict(used=False); return None
     mesh, T_rough = rough_orient(raw)
     A = adjacency(mesh)
-    feats = compute_features(mesh, return_aux=True)
-    clean, info, A2, feats2 = take_off_appliances(mesh, A, mesh.metadata["rgb"], feats, log=log)
-    info = {k: v for k, v in info.items() if k != "passes"} | {"passes": [{kk: vv for kk, vv in p.items()} for p in info.get("passes", [])]}
-    if not info.get("used"):
-        done[path] = info
-        job["feat_cache"][path] = feats       # not wasted: the pipeline uses the same features
-        return None
-    # back to the scanner's own coordinates, and out as a coloured PLY
+    if auto:
+        feats = compute_features(mesh, return_aux=True)
+        clean, info, A2, feats2 = take_off_appliances(mesh, A, mesh.metadata["rgb"], feats, log=log)
+        info = {k: v for k, v in info.items() if k != "passes"} | {"passes": [{kk: vv for kk, vv in p.items()} for p in info.get("passes", [])]}
+        if not info.get("used"):
+            done[path] = info
+            job["feat_cache"][path] = feats       # not wasted: the pipeline uses the same features
+            return None
+    else:
+        # the brush: what was painted is the appliance, no detection
+        from bleachtray.appliance import remove_appliances
+        idx = np.asarray(painted, dtype=int); idx = idx[(idx >= 0) & (idx < len(mesh.vertices))]
+        if len(idx) == 0:
+            return None
+        pmask = np.zeros(len(mesh.vertices), bool); pmask[idx] = True
+        clean, rinfo = remove_appliances(mesh, A, pmask, log=log)
+        prev = next((sc.get("braces") for sc in job["scans"] if sc["path"] == path and sc.get("braces")), None) or {}
+        info = dict(used=True, pieces=int(prev.get("pieces", 0)) + 1, area_mm2=float(prev.get("area_mm2", 0.0)), vertices=int(prev.get("vertices", 0)) + int(pmask.sum()), painted=True, **{k: v for k, v in rinfo.items() if k != "vertices"})
+    # back to the scanner's own coordinates, and out as a coloured PLY (or STL when the scan had no colour)
     clean = clean.copy(); clean.apply_transform(np.linalg.inv(T_rough))
     base = os.path.splitext(os.path.basename(path))[0]
-    new_path = os.path.join(job["dir"], f"{base}_clean.ply")
-    crgb = np.asarray(clean.metadata.get("rgb"), dtype=np.uint8)
-    clean.visual = trimesh.visual.ColorVisuals(clean, vertex_colors=np.column_stack([crgb, np.full(len(crgb), 255, np.uint8)]))
-    clean.export(new_path, encoding="binary")
-    # which vertices of the file as the pipeline will read it are rebuilt enamel: the ones that were not in the raw scan
-    re = load_scan(new_path)
-    d = cKDTree(np.asarray(raw.vertices)).query(np.asarray(re.vertices))[0]
-    patched = np.where(d > 1e-3)[0]
+    m = re.match(r"^(.*)_clean(\d*)$", base)
+    if m:
+        base, n = m.group(1), int(m.group(2) or 1) + 1
+        new_name = f"{base}_clean{n}"
+    else:
+        new_name = f"{base}_clean"
+    crgb = clean.metadata.get("rgb")
+    if crgb is not None:
+        new_path = os.path.join(job["dir"], f"{new_name}.ply")
+        crgb = np.asarray(crgb, dtype=np.uint8)
+        clean.visual = trimesh.visual.ColorVisuals(clean, vertex_colors=np.column_stack([crgb, np.full(len(crgb), 255, np.uint8)]))
+        clean.export(new_path, encoding="binary")
+    else:
+        new_path = os.path.join(job["dir"], f"{new_name}.stl")
+        clean.export(new_path)
+    # which vertices of the file as the pipeline will read it are rebuilt enamel: the ones that were not in the scan before
+    re_ = load_scan(new_path)
+    newV = np.asarray(re_.vertices); rawV = np.asarray(raw.vertices)
+    d = cKDTree(rawV).query(newV)[0]
+    patched = set(int(i) for i in np.where(d > 1e-3)[0])
+    d2, j2 = cKDTree(newV).query(rawV)                      # old index -> new index (-1 = gone)
+    remap = np.where(d2 < 1e-3, j2, -1).astype(np.int64)
     paint = job.setdefault("paint", {})
     entry = paint.setdefault(new_path, {"noreservoir": [], "blockout": []})
     old_entry = paint.pop(path, None)
-    if old_entry:   # strokes painted on the raw scan: carried over by position
-        d2, j2 = cKDTree(np.asarray(re.vertices)).query(np.asarray(raw.vertices))
-        for key in ("noreservoir", "blockout"):
-            idx = np.asarray(old_entry.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(d2))]
-            entry[key] = sorted(set(entry.get(key, [])) | set(int(j2[i]) for i in idx if d2[i] < 1e-3))
-    entry["removed"] = [int(i) for i in patched]
+    if old_entry:   # strokes painted on the earlier file (and its rebuilt enamel): carried over by position
+        for key in ("noreservoir", "blockout", "removed"):
+            idx = np.asarray(old_entry.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
+            kept = set(int(i) for i in remap[idx] if i >= 0)
+            if key == "removed":
+                patched |= kept
+            else:
+                entry[key] = sorted(set(entry.get(key, [])) | kept)
+    entry["removed"] = sorted(patched)
     for sc in job["scans"]:
         if sc["path"] == path:
-            sc["path"] = new_path; sc["raw_path"] = path; sc["braces"] = info
-    job.get("fixed_labels", {}).pop(path, None)
+            sc["path"] = new_path; sc.setdefault("raw_path", path); sc["braces"] = info
+    if job.get("fixed_labels", {}).pop(path, None) is not None:
+        log("the brush fixes saved for this scan were dropped: the teeth are found again on the rebuilt enamel")
     for key in [key for key in job.get("feat_cache", {}) if (key if isinstance(key, str) else key[0]) == path]:
         job["feat_cache"].pop(key, None)
     done[path] = info; done[new_path] = info
-    log(f"braces taken off: {info['pieces']} piece{'s' if info['pieces'] != 1 else ''}, {info['area_mm2']:.0f} mm2 - the scan is now {len(re.vertices)} vertices ({os.path.basename(new_path)}), "
-        f"{len(patched)} of them new enamel")
-    return new_path
+    if auto:
+        log(f"braces taken off: {info['pieces']} piece{'s' if info['pieces'] != 1 else ''}, {info['area_mm2']:.0f} mm2 - the scan is now {len(newV)} vertices ({os.path.basename(new_path)}), "
+            f"{len(patched)} of them new enamel")
+    else:
+        log(f"taken off by hand: {int(pmask.sum())} painted vertices - the scan is now {len(newV)} vertices ({os.path.basename(new_path)})")
+    return new_path, remap
 
 
 def _apply_mask_edit(job, k=0, edit=None, remap=None):
@@ -892,7 +947,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     try:
         me = json.loads(edits or "{}")
         # a re-run without any painted vertex is just a re-run: it must not count as a brush correction
-        job["mask_edit"] = me if any(me.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout")) else None
+        job["mask_edit"] = me if any(me.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "takeoff")) else None
     except Exception:
         job["mask_edit"] = None
     # only the models a change touches are re-made: a retainer-line change leaves the whitening trays

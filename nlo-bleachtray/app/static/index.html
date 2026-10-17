@@ -315,10 +315,10 @@
         </div>
         <div class="brush" id="brush">
           <h4>Brush — fix tooth / gum labels</h4>
-          <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button><button data-mode="noreservoir" title="No bleaching reservoir here (recession, an exposed root, a crown margin) - the reservoir stays a millimetre away">No reservoir</button><button data-mode="blockout" title="Fill the undercut under this spot for thermoforming (under a pontic, round an implant crown, a black triangle)">Block out</button></div>
+          <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button><button data-mode="noreservoir" title="No bleaching reservoir here (recession, an exposed root, a crown margin) - the reservoir stays a millimetre away">No reservoir</button><button data-mode="blockout" title="Fill the undercut under this spot for thermoforming (under a pontic, round an implant crown, a black triangle)">Block out</button><button data-mode="takeoff" title="A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run">Take off</button></div>
           <label class="f">Brush size: <span id="rv">1.5</span> mm radius</label>
           <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
-          <div class="hint">The ball on the model is the brush. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built. <b>No reservoir</b> keeps the gel reservoir off a recession or a crown margin; <b>Block out</b> fills the undercut under a pontic or an implant crown so the retainer seats. Both are kept for every model made from this scan.</div>
+          <div class="hint">The ball on the model is the brush. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built. <b>No reservoir</b> keeps the gel reservoir off a recession or a crown margin; <b>Block out</b> fills the undercut under a pontic or an implant crown so the retainer seats. Both are kept for every model made from this scan. <b>Take off</b> is for a bit of bracket or wire the app missed on a braces scan: it comes off and the enamel is rebuilt.</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
           <div class="hint" id="fixcount">No edits.</div>
         </div>
@@ -627,7 +627,7 @@ let currentJob = null, tab = 'result';
 const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new THREE.Group() };
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null;
-const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set() };
+const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), takeoff: new Set() };
 let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out, bit 4 = brackets removed)
 let segRGB = null;     // the scanner's own colour per vertex (PLY scans), shown under the labels
 let brushMode = 'tooth';
@@ -808,7 +808,7 @@ $('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawReg
 $('#setApply').onclick = async () => {
   if (!currentJob) return;
   saveSettings(); $('#settings').classList.remove('on'); requestRender();
-  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout] })); fd.append('params', JSON.stringify(params()));
+  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout], takeoff:[...edits.takeoff] })); fd.append('params', JSON.stringify(params()));
   const r = await (await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd })).json();
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
   $('#dl').innerHTML = ''; selectJob(currentJob);
@@ -1211,7 +1211,7 @@ function paintColors(){
     // a coloured scan shows its own colour, with the tooth tint laid over it so the labels still read
     if (segRGB && lab !== 99 && lab !== 98) { const w = lab === 0 ? 0.0 : 0.45; c.setRGB(c.r * w + segRGB[i*3] / 255 * (1 - w), c.g * w + segRGB[i*3+1] / 255 * (1 - w), c.b * w + segRGB[i*3+2] / 255 * (1 - w)); }
     const pf = segPaint ? segPaint[i] : 0;
-    if (edits.noreservoir.has(i)) c.setHex(0x7c3aed); else if (edits.blockout.has(i)) c.setHex(0x0d9488);
+    if (edits.noreservoir.has(i)) c.setHex(0x7c3aed); else if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (edits.takeoff.has(i)) c.setHex(0xf97316);
     else if (pf & 1) c.lerp(new THREE.Color(0x7c3aed), 0.55); else if (pf & 2) c.lerp(new THREE.Color(0x0d9488), 0.55);
     else if (pf & 4) c.lerp(new THREE.Color(0x64748b), 0.45);   // brackets / wire taken off: enamel rebuilt here
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
@@ -1225,7 +1225,7 @@ $('#radius').oninput = () => { $('#rv').textContent = $('#radius').value; brushC
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
 const brushOn = () => !!segMesh && tab === 'seg';
 function syncBrush(){
-  brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : brushMode === 'cut' ? 0x991b1b : brushMode === 'noreservoir' ? 0x7c3aed : brushMode === 'blockout' ? 0x0d9488 : 0x1d4ed8);
+  brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : brushMode === 'cut' ? 0x991b1b : brushMode === 'noreservoir' ? 0x7c3aed : brushMode === 'blockout' ? 0x0d9488 : brushMode === 'takeoff' ? 0xf97316 : 0x1d4ed8);
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
   if (!brushOn() && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
 }
@@ -1250,6 +1250,7 @@ function paintAt(ev){
     if (brushMode === 'cut'){ edits.add.delete(i); edits.remove.delete(i); edits.cut.add(i); }
     else if (brushMode === 'noreservoir'){ edits.noreservoir.add(i); }
     else if (brushMode === 'blockout'){ edits.blockout.add(i); }
+    else if (brushMode === 'takeoff'){ edits.takeoff.add(i); }
     else if (brushMode === 'tooth'){ edits.remove.delete(i); edits.cut.delete(i); if (segLabels[i]===0) edits.add.add(i); }
     else { edits.add.delete(i); edits.cut.delete(i); if (segLabels[i]!==0) edits.remove.add(i); } } }
   paintColors(); updateFixCount();
@@ -1265,11 +1266,11 @@ canvas.addEventListener('pointermove', ev => {
 });
 canvas.addEventListener('pointerleave', () => placeCursor(null));
 window.addEventListener('pointerup', () => { painting = false; controls.enabled = true; });
-function updateFixCount(){ const n = Object.values(edits).reduce((a, e) => a + e.size, 0); $('#fixcount').textContent = n ? [edits.add.size ? `${edits.add.size} → tooth` : '', edits.remove.size ? `${edits.remove.size} → gum` : '', edits.cut.size ? `${edits.cut.size} cut away` : '', edits.noreservoir.size ? `${edits.noreservoir.size} no reservoir` : '', edits.blockout.size ? `${edits.blockout.size} block out` : ''].filter(Boolean).join(', ') + ' (vertices)' : 'No edits.'; }
+function updateFixCount(){ const n = Object.values(edits).reduce((a, e) => a + e.size, 0); $('#fixcount').textContent = n ? [edits.add.size ? `${edits.add.size} → tooth` : '', edits.remove.size ? `${edits.remove.size} → gum` : '', edits.cut.size ? `${edits.cut.size} cut away` : '', edits.noreservoir.size ? `${edits.noreservoir.size} no reservoir` : '', edits.blockout.size ? `${edits.blockout.size} block out` : '', edits.takeoff.size ? `${edits.takeoff.size} take off` : ''].filter(Boolean).join(', ') + ' (vertices)' : 'No edits.'; }
 $('#clearfix').onclick = () => { Object.values(edits).forEach(e => e.clear()); paintColors(); updateFixCount(); };
 $('#rerun').onclick = async () => {
   if (!currentJob) return;
-  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout] })); fd.append('params', JSON.stringify(params()));
+  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout], takeoff:[...edits.takeoff] })); fd.append('params', JSON.stringify(params()));
   const r = await (await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd })).json();
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
   $('#dl').innerHTML = ''; selectJob(currentJob);
