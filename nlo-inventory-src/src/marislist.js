@@ -271,7 +271,8 @@ function mlRowHTML(r, forIt) {
 }
 function mlCheaperCardHTML(list, max, home) {
   return '<div class="card mlCheap"' + (home ? ' style="margin-top:18px"' : ' style="margin-bottom:18px"') + '><div class="cardHd"><h3>Cheaper on Mari’s List</h3><span class="sub">' + plural(list.length, 'supply', 'supplies') + ' you buy</span><span style="flex:1"></span>' + (home ? '<button class="btn btn-ghost btn-sm" data-act="nav" data-v="ml">' + ic('tag', 14) + 'Mari’s List</button>' : '') + '</div><div class="cardBd" style="padding-top:0">' +
-    list.slice(0, max).map(({ it, c }) => '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">You pay ' + money(c.cp) + ' · ' + esc(mlVendorName(c.row.v)) + ' ' + money(c.per) + ' per ' + esc(countUnit(it)) + (c.sim ? ' (similar item)' : '') + (c.year ? ' · saves about ' + money(c.year, { whole: true }) + ' a year' : '') + '</span></div>' + mlSaveTag(c) + '</div>').join('') +
+    list.slice(0, max).map(({ it, c }) => '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">You pay ' + money(c.cp) + ' · ' + esc(mlVendorName(c.row.v)) + ' ' + money(c.per) + ' per ' + esc(countUnit(it)) + (c.sim ? ' (similar item)' : '') + (c.year ? ' · saves about ' + money(c.year, { whole: true }) + ' a year' : '') + '</span>' +
+      '<button class="mlQuoteBtn" data-act="mlQuote" data-k="' + esc(c.row.k) + '" data-id="' + esc(it.id) + '" title="Writes the email to ' + esc(mlVendorName(c.row.v)) + '">' + ic('email', 13) + 'Ask for a quote</button></div>' + mlSaveTag(c) + '</div>').join('') +
     (list.length > max ? '<div class="muted small" style="padding:6px 8px">and ' + (list.length - max) + ' more — each supply’s drawer shows its Mari’s List prices</div>' : '') + '</div></div>';
 }
 function mlVendorName(id) { const v = mlVendorById(id); return v ? v.name : id; }
@@ -289,7 +290,7 @@ function mlContactsHTML(mv) {
   const dk = typeof devKind === 'function' ? devKind() : 'pc';
   return listOf(mv.contacts).map(c => {
     const who = c.who ? ' · ' + esc(c.who) : '';
-    if (c.k === 'email' && ML_EMAIL.test(c.v || '')) return '<a class="btn btn-sec btn-sm" href="mailto:' + esc(c.v) + '">' + ic('email', 15) + esc(c.v) + who + '</a>';
+    if (c.k === 'email' && ML_EMAIL.test(c.v || '')) return '<a class="btn btn-sec btn-sm" href="' + esc(mlHelloMail(mv, c.v, c.who)) + '">' + ic('email', 15) + esc(c.v) + who + '</a>';
     if (c.k === 'phone') { const d = dialable(c.v); return d.num ? '<a class="btn btn-sec btn-sm" href="tel:' + esc(d.num + (d.ext ? ',' + d.ext : '')) + '">' + ic('call', 15) + esc(c.v) + who + '</a>' : ''; }
     if (c.k === 'text') { const d = dialable(c.v); return !d.num ? '' : dk === 'pc' ? '<button class="btn btn-sec btn-sm" data-act="mlCopy" data-t="' + esc(c.v) + '" title="This computer can’t send a text: copy the number for your phone">' + ic('text', 15) + 'Text ' + esc(c.v) + who + '</button>' : '<a class="btn btn-sec btn-sm" href="sms:' + esc(d.num) + '">' + ic('text', 15) + 'Text ' + esc(c.v) + who + '</a>'; }
     if (c.k === 'web') { const u = webUrl(c.v); return u ? '<a class="btn btn-sec btn-sm" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + ic('web', 15) + esc(hostOf(u)) + who + '</a>' : ''; }
@@ -309,7 +310,8 @@ DRAWERS.mlv = id => {
   h += '<div class="sec"><h5>How to get it</h5>' + mlHowHTML(mv) + '</div>';
   if (mv.n) h += '<div class="sec"><h5>Member prices</h5><div class="kvRow"><span>' + Number(mv.n).toLocaleString('en-US') + ' prices from ' + plural(files.length || 1, 'price list') + '</span><button class="btn btn-act btn-sm" data-act="mlVendorPrices" data-id="' + esc(id) + '">' + ic('search', 14) + 'See them</button></div></div>';
   if (files.length) h += '<div class="sec"><h5>Price files</h5>' + files.map(f => '<div class="kvRow"><span>' + ic('doc', 13) + ' ' + esc(f.t || 'Price list') + (f.d ? ' <span class="muted">(' + esc(f.d) + ')</span>' : '') + '</span><a class="btn btn-ghost btn-sm" href="' + esc(webUrl(f.u)) + '" target="_blank" rel="noopener noreferrer">Open ' + ic('link', 12) + '</a></div>').join('') + '</div>';
-  if (linked.length) h += '<div class="sec"><h5>Your supplies with its prices</h5>' + linked.map(({ it, ls }) => { const c = mlCompare(it, ls[0]); return '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">' + (c.per != null ? money(c.per) + ' per ' + esc(countUnit(it)) + (c.cp != null ? ' · you pay ' + money(c.cp) : '') : esc(c.row.d)) + '</span></div>' + mlSaveTag(c) + '</div>'; }).join('') + '</div>';
+  if (linked.length) h += '<div class="sec"><h5>Your supplies with its prices</h5>' + linked.map(({ it, ls }) => { const c = mlCompare(it, ls[0]); return '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">' + (c.per != null ? money(c.per) + ' per ' + esc(countUnit(it)) + (c.cp != null ? ' · you pay ' + money(c.cp) : '') : esc(c.row.d)) + '</span></div>' + mlSaveTag(c) + '</div>'; }).join('') +
+    '<div class="btnRow"><button class="btn btn-act btn-sm" data-act="mlQuote" data-v="' + esc(id) + '">' + ic('email', 14) + 'Ask for a quote on ' + (linked.length === 1 ? 'it' : 'these ' + linked.length) + '</button></div></div>';
   if (mv.note) h += '<div class="sec"><h5>Notes</h5><div class="txt">' + esc(mv.note) + '</div></div>';
   h += '<div class="hint" style="margin-top:18px">From the Mari’s List member portal' + (S.ml.info && S.ml.info.at ? ', ' + esc(fmtDate(S.ml.info.at)) : '') + '. For the office only — Mari’s List’s prices aren’t to be shared. <a href="' + ML_PORTAL + '" target="_blank" rel="noopener noreferrer">Open the portal</a></div>';
   return h + '</div>';
@@ -322,7 +324,8 @@ DRAWERS.mlr = k => {
   const linkedTo = activeItems().filter(it => mlLinks(it.id).some(m => m.k === k));
   const forIt = S.ui.ml && S.ui.ml.for ? itemById(S.ui.ml.for) : null;
   let h = '<div class="dHd">' + mlLogoHTML(mv, 'lg') + '<div style="flex:1;min-width:0"><h3 style="font-size:18px">' + esc(r.d) + '</h3><div class="sub"><span class="badge">' + esc(mv.name) + '</span>' + (r.n ? '<span class="badge">#' + esc(r.n) + '</span>' : '') + (r.s ? '<span class="badge">' + esc(r.s) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
-  h += '<div class="sec" style="margin-top:0"><h5>Mari’s List price</h5><div class="mlBigPrice">' + mlPriceHTML(r, true) + '</div>' + (r.note ? '<div class="hint">' + esc(r.note) + '</div>' : '') + '</div>';
+  h += '<div class="sec" style="margin-top:0"><h5>Mari’s List price</h5><div class="mlBigPrice">' + mlPriceHTML(r, true) + '</div>' + (r.note ? '<div class="hint">' + esc(r.note) + '</div>' : '') +
+    '<div class="btnRow"><button class="btn btn-act" data-act="mlQuote" data-k="' + esc(k) + '">' + ic('email', 15) + 'Ask ' + esc(mv.name) + ' for a quote</button></div></div>';
   if (linkedTo.length) h += '<div class="sec"><h5>Your supplies it’s linked to</h5>' + linkedTo.map(it => { const c = mlCompare(it, mlLinks(it.id).find(m => m.k === k)); return '<div class="row" data-act="openItem" data-id="' + esc(it.id) + '">' + thumbHTML(it, 'sm') + '<div class="grow"><span class="pt">' + esc(it.name) + '</span><span class="meta">' + (c.sim ? 'similar item · ' : 'same item · ') + (c.per != null ? '1 ' + esc(r.u || 'unit') + ' = ' + esc(qtyUnit(c.x, countUnit(it))) + ' · ' + money(c.per) + ' per ' + esc(countUnit(it)) + (c.cp != null ? ' · you pay ' + money(c.cp) : '') : '') + '</span></div>' + mlSaveTag(c) + (isAdmin() ? '<button class="iconBtn" data-act="mlUnlink" data-id="' + esc(it.id) + '" data-k="' + esc(k) + '" aria-label="Not the same" title="Not the same — take the link off">' + ic('x', 15) + '</button>' : '') + '</div>'; }).join('') + '</div>';
   if (isAdmin()) h += '<div class="btnRow">' + (forIt && !linkedTo.includes(forIt) ? '<button class="btn btn-act" data-act="mlLinkAsk" data-k="' + esc(k) + '">' + ic('link', 15) + 'Same as ' + esc(mlCut(forIt.name, 28)) + '</button>' : '') + '<button class="btn btn-ghost" data-act="mlLinkPick" data-k="' + esc(k) + '">' + ic('link', 15) + 'Same as one of our supplies…</button></div>';
   h += '<div class="sec"><h5>How to get it from ' + esc(mv.name) + '</h5>' + (mv.deal ? '<div class="txt" style="margin-bottom:8px">' + esc(mv.deal) + '</div>' : '') + mlHowHTML(mv) + '<div class="btnRow"><button class="btn btn-ghost btn-sm" data-act="mlVendor" data-id="' + esc(mv.id) + '">' + ic('build', 14) + 'All about ' + esc(mv.name) + '</button></div></div>';
@@ -347,7 +350,10 @@ function mlItemSecHTML(it) {
   });
   if (mvOurs) h += '<div class="mlNote" data-act="mlVendor" data-id="' + esc(mvOurs.id) + '" role="button" tabindex="0">' + esc(src.vendor) + ' is on Mari’s List: ' + esc(mlCut(mvOurs.deal || '', 110)) + (mvOurs.code ? ' Code <b>' + esc(mvOurs.code) + '</b>.' : '') + '</div>';
   if (!links.length && !mvOurs) h += '<div class="muted small">Not linked to a Mari’s List price yet.</div>';
-  h += '<div class="btnRow"><button class="btn btn-ghost" data-act="mlFind" data-id="' + esc(it.id) + '">' + ic('search', 15) + (links.length ? 'Look for more on Mari’s List' : 'Find it on Mari’s List') + '</button></div>';
+  /* a quote from the vendor with the best linked price (or the only one, when none says a price) — unless it costs more */
+  const q = mlBest(it) || (links.length ? mlCompare(it, links[0]) : null), qmv = q && mlVendorById(q.row.v);
+  h += '<div class="btnRow">' + (q && q.row.k && (q.pct == null || q.pct > -0.03) ? '<button class="btn btn-sec" data-act="mlQuote" data-k="' + esc(q.row.k) + '" data-id="' + esc(it.id) + '">' + ic('email', 15) + 'Ask ' + esc(qmv ? qmv.name : q.row.v) + ' for a quote</button>' : '') +
+    '<button class="btn btn-ghost" data-act="mlFind" data-id="' + esc(it.id) + '">' + ic('search', 15) + (links.length ? 'Look for more on Mari’s List' : 'Find it on Mari’s List') + '</button></div>';
   return h + '</div>';
 }
 /* the words to look for: the supply's name, without what's only on our label */
@@ -438,6 +444,115 @@ function mlPlaceHTML(vn) {
 }
 /* the line the order email and text carry for a vendor that asks to be told */
 function mlOrderSay(vn) { const mv = mlVendorFor(vn); return mv && mv.say ? 'We’re Mari’s List members — please apply our Mari’s List pricing.' : ''; }
+
+/* ---------- asking a vendor for a quote ----------
+   Amir, 17 Oct 2026, of gloves Mari's List has cheaper at Allure: "there is option to email but then it's blank. There should be
+   the option to ask for a quote so it would write out an email asking for a quote for the specific item just to verify that it
+   is in fact the price we think it is".
+   - "Ask for a quote" is on a price, on a supply's Mari's List part, on each "Cheaper on Mari's List" line and on a vendor (for
+     all the office's supplies linked to its prices). It opens the email, written out: each item as the price list names it
+     (item #, unit), the member price we have and the list it's from, what it would replace when it's another maker's, how many
+     (the supply's last order, in their units — changeable in the dialog), and a request to confirm the price, the shipping and
+     any minimum. Nothing is saved.
+   - It goes to the address Mari's List gives for the vendor, else the office's rep or email for them. A vendor's own email
+     button opens with a hello and the office's sign-off, never blank. */
+function mlMailto(to, subject, body) { return 'mailto:' + (to || '') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body); }
+function mlGmail(to, subject, body) { return 'https://mail.google.com/mail/?view=cm&fs=1' + (to ? '&to=' + encodeURIComponent(to) : '') + '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body); }
+/* who a quote goes to */
+function mlQuoteTo(mv) {
+  const c = listOf(mv && mv.contacts).find(c => c && c.k === 'email' && ML_EMAIL.test(c.v || ''));
+  if (c) return { email: c.v, who: c.who || '' };
+  const ov = (mv && vendorByName(mlOurName(mv))) || {};
+  if (ML_EMAIL.test(ov.repEmail || '')) return { email: ov.repEmail, who: ov.rep || '' };
+  if (ML_EMAIL.test(ov.email || '')) return { email: ov.email, who: '' };
+  return { email: '', who: '' };
+}
+/* the sign-off: who's writing, and the office (where it ships to, for the shipping cost) */
+function mlSignOff() { const w = whoNow(); return 'Thank you!\n' + (w && w.name ? firstName(w.name) + '\n' : '') + OFFICE.name + '\n' + OFFICE.address + '\n' + OFFICE.phone; }
+/* a vendor's email button: a hello, never a blank email */
+function mlHelloMail(mv, to, who) {
+  return mlMailto(to, 'Mari’s List member — ' + OFFICE.name, 'Hello' + (who ? ' ' + firstName(who) : '') + ',\n\nWe’re Mari’s List members' + (mv && mv.code ? ' (code ' + mv.code + ')' : '') + '.\n\n\n\n' + mlSignOff());
+}
+/* how many we'd order, in their units: what the supply's last order put on the shelf ('' when it's never been ordered) */
+function mlQuoteQty(it, x) {
+  if (!it) return '';
+  let last = null;
+  S.D.orders.forEach(o => {
+    if (!o || o.status === 'voided') return;
+    const l = listOf(o.items).find(l => l && l.itemId === it.id), t = msOf(o.orderedAt || o.dateOrdered || o.dateReceived);
+    if (l && lineStockDelta(l) > 0 && (!last || t > last.t)) last = { t, n: lineStockDelta(l) };
+  });
+  return last ? String(Math.max(1, Math.round(last.n / (x > 0 ? x : 1)))) : '';
+}
+/* the lines a tap asks about: one price (for the supply it was tapped on, else every supply linked to it), or everything the
+   office has linked at one vendor */
+function mlQuoteLines(t) {
+  const out = [], seen = new Set();
+  const add = (k, it) => {
+    if (seen.has(k + '|' + (it ? it.id : ''))) return; seen.add(k + '|' + (it ? it.id : ''));
+    const m = it && mlLinks(it.id).find(m => m.k === k);
+    out.push({ k, id: it ? it.id : '', qty: it ? mlQuoteQty(it, m && Number(m.x) > 0 ? Number(m.x) : 1) : '' });
+  };
+  if (t.dataset.k) {
+    const k = t.dataset.k, it = t.dataset.id ? itemById(t.dataset.id) : null, ls = it ? [it] : activeItems().filter(i => mlLinks(i.id).some(m => m.k === k));
+    if (ls.length) ls.forEach(i => add(k, i)); else add(k, null);
+  } else if (t.dataset.v) activeItems().forEach(it => mlLinks(it.id).forEach(m => { if (mlLinkRow(m).v === t.dataset.v) add(m.k, it); }));
+  return out.filter(l => mlRowByKey(l.k) || mlSnapRow(l.k));
+}
+function mlQuoteItemText(r, l, mv) {
+  const it = l.id ? itemById(l.id) : null, m = it && mlLinks(it.id).find(m => m.k === r.k), f = Number.isInteger(r.f) && r.f >= 0 ? listOf(mv.files)[r.f] : null, q = num(l.qty);
+  return '• ' + r.d +
+    (r.n || r.u ? '\n  ' + [r.n ? 'Item # ' + r.n : '', r.u ? 'Unit: ' + r.u : ''].filter(Boolean).join(' · ') : '') +
+    '\n  Mari’s List price we have: ' + (r.p != null ? money(r.p) + (r.note ? ' (' + r.note + ')' : '') : (r.note || 'none listed')) +
+    (f && f.t ? '\n  Price list: ' + f.t + (f.d && f.t.indexOf(f.d) < 0 ? ', ' + f.d : '') : '') +
+    (it && m && m.s === 'similar' ? '\n  To replace what we use now: ' + it.name : '') +
+    (q > 0 ? '\n  Quantity: ' + qtyFmt(q) : '');
+}
+/* the email: { to, who, subject, body } */
+function mlQuoteText(Q) {
+  const mv = mlVendorById(Q.v) || { id: Q.v, name: Q.v }, to = mlQuoteTo(mv), ov = vendorByName(mlOurName(mv)) || {};
+  const ls = Q.lines.map(l => ({ l, r: mlRowByKey(l.k) || mlSnapRow(l.k) })).filter(x => x.r), one = ls.length === 1;
+  const subject = 'Quote request: ' + (one ? mlCut(ls[0].r.d, 60) + (ls[0].r.n ? ' (#' + ls[0].r.n + ')' : '') : ls.length + ' items') + ' — ' + OFFICE.name;
+  const body = 'Hello' + (to.who ? ' ' + firstName(to.who) : '') + ',\n\n' +
+    'We’re Mari’s List members' + (mv.code ? ' (code ' + mv.code + ')' : '') + (ov.acct ? '; our account with you is ' + ov.acct : '') + '. Could you send us a quote for ' + (one ? 'this item' : 'these items') + '? We’d like to check the member price before we order.\n\n' +
+    ls.map(x => mlQuoteItemText(x.r, x.l, mv)).join('\n\n') +
+    '\n\nPlease confirm ' + (one ? 'that’s our member price' : 'those are our member prices') + ', and let us know the shipping cost and any minimum order.\n\n' + mlSignOff();
+  return { to: to.email, who: to.who, subject, body };
+}
+ACT.mlQuote = (t, e) => {
+  if (e) e.stopPropagation();
+  const lines = mlQuoteLines(t), r0 = lines[0] && (mlRowByKey(lines[0].k) || mlSnapRow(lines[0].k));
+  if (!r0) return toast('There’s no Mari’s List price here to ask about.', { bad: true });
+  S.ui.quote = { v: r0.v, lines };
+  renderQuote();
+};
+function renderQuote() {
+  const Q = S.ui.quote, mv = mlVendorById(Q.v) || { id: Q.v, name: Q.v }, T = mlQuoteText(Q), dk = typeof devKind === 'function' ? devKind() : 'pc';
+  const items = Q.lines.map((l, i) => {
+    const r = mlRowByKey(l.k) || mlSnapRow(l.k), it = l.id ? itemById(l.id) : null; if (!r) return '';
+    return '<div class="mlq">' + (it ? thumbHTML(it, 'sm') : mlLogoHTML(mv)) + '<div class="grow"><b>' + esc(r.d) + '</b><span>' + esc([r.n ? '#' + r.n : '', r.u, r.p != null ? money(r.p) : r.note].filter(Boolean).join(' · ')) + '</span>' + (it ? '<span class="for">for ' + esc(it.name) + '</span>' : '') + '</div>' +
+      '<label class="mlqQty"><span>How many' + (r.u ? ' (' + esc(mlCut(r.u, 22)) + ')' : '') + '</span><input type="number" inputmode="numeric" min="0" step="1" value="' + esc(l.qty || '') + '" placeholder="—" data-inp="mlQuoteQty" data-i="' + i + '" id="mlqQty' + i + '"></label></div>';
+  }).join('');
+  openModal('<h3>Ask ' + esc(mv.name) + ' for a quote</h3>' +
+    '<div class="lsub">' + (T.to ? 'To <b>' + esc(T.to) + '</b>' + (T.who ? ' (' + esc(T.who) + ')' : '') : 'No email saved for ' + esc(mv.name) + ' — add the address in your email, or copy the email into their website’s form') + '. It asks them to confirm the member price, the shipping and any minimum.</div>' +
+    '<div class="mlqList">' + items + '</div>' +
+    '<div class="btnRow"><a class="btn btn-act" id="mlQuoteMail" href="' + esc(mlMailto(T.to, T.subject, T.body)) + '">' + ic('email', 16) + 'Write the email</a>' +
+    (dk === 'pc' || dk === 'mac' ? '<span class="hint" style="margin:0">Didn’t open? <a id="mlQuoteGmail" href="' + esc(mlGmail(T.to, T.subject, T.body)) + '" target="_blank" rel="noopener">Write it in Gmail</a></span>' : '') + '</div>' +
+    (!T.to && listOf(mv.contacts).length ? '<div class="btnRow">' + mlContactsHTML(mv) + '</div>' : '') +
+    '<div class="subH">The email</div><div class="mlqSubj"><span>Subject</span><b id="mlQuoteSubj">' + esc(T.subject) + '</b></div><div class="copyBox" id="mlQuoteTxt">' + esc(T.body) + '</div>' +
+    '<div class="btnRow"><button class="btn btn-ghost" data-act="mlQuoteCopy">' + ic('copy', 15) + 'Copy the email</button></div>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Close</button></div>', { cls: 'wide', noFocus: true });
+}
+/* a new quantity: the email (and its links) say it at once */
+INP.mlQuoteQty = t => {
+  const Q = S.ui.quote, l = Q && Q.lines[Number(t.dataset.i)]; if (!l) return;
+  l.qty = t.value;
+  const T = mlQuoteText(Q), a = $('#mlQuoteMail'), g = $('#mlQuoteGmail'), x = $('#mlQuoteTxt');
+  if (a) a.href = mlMailto(T.to, T.subject, T.body);
+  if (g) g.href = mlGmail(T.to, T.subject, T.body);
+  if (x) x.textContent = T.body;
+};
+ACT.mlQuoteCopy = () => { const Q = S.ui.quote; if (Q) copyText(mlQuoteText(Q).body); };
 
 /* ---------- Settings → Mari's List (Dr. A): the new rules, loading a set ---------- */
 function mlRulesStepsHTML() {

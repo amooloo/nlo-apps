@@ -1361,6 +1361,12 @@ def t_claim_twice(b):
     check('twice: no page errors', not errs, errs)
     ctx.close()
 
+def mail_parts(href):
+    """a mailto: link → (to, subject, body)"""
+    from urllib.parse import urlparse, parse_qs
+    u = urlparse(href or ''); q = parse_qs(u.query)
+    return (u.path if u.scheme == 'mailto' else None), (q.get('subject') or [''])[0], (q.get('body') or [''])[0]
+
 def ml_file(path, n_rows=5200, extra=None):
     """a made-up Mari's List file, shaped as Claude makes them (big enough to be saved in two parts)"""
     vendors = [
@@ -1451,16 +1457,48 @@ def t_marislist(b):
     check('search: many matches show the first 150 and say how many', J(pg, "document.querySelectorAll('.mlr').length") == 150 and 'of 5,200' in J(pg, "document.querySelector('#view').textContent"))
     J(pg, "openDrawer('mlv', 'acme')"); pg.wait_for_timeout(200)
     dt = J(pg, "document.querySelector('#drawer').textContent")
-    check('vendor drawer: deal, code with Copy, how, contacts (call with the extension), price file', 'ACMETEST15' in dt and 'Order on their website' in dt and J(pg, "document.querySelector('#drawer a[href^=\"tel:\"]').getAttribute('href')") == 'tel:+15550101234,12' and J(pg, "!!document.querySelector('#drawer a[href=\"mailto:orders@acme.example\"]')") and J(pg, "!!document.querySelector('#drawer a[href=\"https://files.example/acme-2026.pdf\"]')"), dt[:500])
+    check('vendor drawer: deal, code with Copy, how, contacts (call with the extension), price file', 'ACMETEST15' in dt and 'Order on their website' in dt and J(pg, "document.querySelector('#drawer a[href^=\"tel:\"]').getAttribute('href')") == 'tel:+15550101234,12' and J(pg, "!!document.querySelector('#drawer a[href^=\"mailto:orders@acme.example?subject=\"]')") and J(pg, "!!document.querySelector('#drawer a[href=\"https://files.example/acme-2026.pdf\"]')"), dt[:500])
+    to, subj, body = mail_parts(J(pg, "document.querySelector('#drawer a[href^=\"mailto:\"]').getAttribute('href')"))
+    check('vendor drawer: its email opens with a hello and the office’s sign-off, not blank (Amir: “then it’s blank”)', to == 'orders@acme.example' and subj == 'Mari’s List member — Next Level Orthodontics' and body.startswith('Hello,\n\nWe’re Mari’s List members (code ACMETEST15).') and body.endswith('Thank you!\nRiley\nNext Level Orthodontics\n320 NW 76th Drive, Gainesville, FL 32607\n(352) 332-7466'), (to, subj, body))
     J(pg, "openDrawer('mlr', 'acme|ZZ-UNIQUE|ea')"); pg.wait_for_timeout(200)
     dt = J(pg, "document.querySelector('#drawer').textContent")
     check('price drawer: the price, retail and % off, how to get it, the file it’s from', '$77.77' in dt and 'retail $99.00' in dt and '21% off' in dt and 'Member price list (2026)' in dt, dt[:400])
-    J(pg, "closeDrawer()")
+    pg.click('#drawer [data-act="mlQuote"]'); pg.wait_for_selector('#mlQuoteMail')
+    to, subj, body = mail_parts(J(pg, "document.querySelector('#mlQuoteMail').getAttribute('href')"))
+    check('quote (a price): to Acme, about that price alone (no supply, so no quantity)', to == 'orders@acme.example' and subj == 'Quote request: Zebra-striped unique test plier (#ZZ-UNIQUE) — Next Level Orthodontics' and '• Zebra-striped unique test plier\n  Item # ZZ-UNIQUE · Unit: EA\n  Mari’s List price we have: $77.77\n  Price list: Member price list (2026)\n\n' in body and 'Quantity' not in body and J(pg, "document.querySelectorAll('.mlq').length") == 1, (to, subj, body))
+    J(pg, "closeModal(true)")
+    # a vendor with no address: the email is written, the address left for them
+    k = J(pg, "S.ml.rows.find(r => r.v === 'lablab').k")
+    J(pg, "openDrawer('mlr', %s)" % json.dumps(k)); pg.wait_for_timeout(200)
+    pg.click('#drawer [data-act="mlQuote"]'); pg.wait_for_selector('#mlQuoteMail')
+    to, subj, body = mail_parts(J(pg, "document.querySelector('#mlQuoteMail').getAttribute('href')"))
+    check('quote (no email saved): written all the same, with no address, and the dialog says so', to == '' and subj.startswith('Quote request: Hawley retainer') and 'No email saved for Lab Lab Test' in J(pg, "document.querySelector('#modalWrap .lsub').textContent"), (to, subj))
+    J(pg, "closeModal(true); closeDrawer()")
     # ---- a supply's drawer
     J(pg, "S.q = ''; go('supplies'); openDrawer('item', 'ppe-1')"); pg.wait_for_timeout(300)
     dt = J(pg, "document.querySelector('#drawer .mlSec').textContent")
     check('supply drawer: its Mari’s List price, per box of ours, and the saving', 'Acme Ortho Test' in dt and '$13.20' in dt and '$6.60/box' in dt and 'Save 28%' in dt, dt)
     check('supply drawer: SunSurgical is on Mari’s List (its deal)', 'SunSurgical is on Mari’s List' in dt, dt)
+    # ---- asking for a quote (Amir, 17 Oct 2026: "There should be the option to ask for a quote so it would write out an email …")
+    remote('invOrders/q-gl', {'id': 'q-gl', 'vendor': 'SunSurgical', 'status': 'received', 'orderedAt': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime()), 'dateOrdered': time.strftime('%Y-%m-%d'), 'dateReceived': time.strftime('%Y-%m-%d'),
+                              'items': [{'itemId': 'ppe-1', 'name': 'Gloves Pulse Nitrile — SM', 'unit': 'case', 'per': 10, 'countUnit': 'box', 'qty': 3, 'price': 91.3, 'lineTotal': 273.9}]})
+    pg.wait_for_function("() => S.D.orders.some(o => o.id === 'q-gl')", timeout=10000)
+    J(pg, "closeDrawer(); openDrawer('item', 'ppe-1')"); pg.wait_for_timeout(250)
+    check('quote: the supply’s Mari’s List part asks the vendor with the best price', J(pg, "(document.querySelector('#drawer .mlSec [data-act=mlQuote]') || {}).textContent") == 'Ask Acme Ortho Test for a quote')
+    pg.click('#drawer .mlSec [data-act="mlQuote"]'); pg.wait_for_selector('#mlQuoteMail')
+    to, subj, body = mail_parts(J(pg, "document.querySelector('#mlQuoteMail').getAttribute('href')"))
+    check('quote: to the address Mari’s List gives for Acme', to == 'orders@acme.example', to)
+    check('quote: the subject names the item and its #', subj == 'Quote request: Nitrile gloves, powder-free, blue, Small (#GL-200S) — Next Level Orthodontics', subj)
+    want = ['Hello,\n\nWe’re Mari’s List members (code ACMETEST15). Could you send us a quote for this item? We’d like to check the member price before we order.',
+            '• Nitrile gloves, powder-free, blue, Small\n  Item # GL-200S · Unit: Box of 200\n  Mari’s List price we have: $13.20\n  Price list: Member price list (2026)\n  To replace what we use now: Gloves Pulse Nitrile — SM\n  Quantity: 15',
+            'Please confirm that’s our member price, and let us know the shipping cost and any minimum order.', 'Thank you!\nRiley\nNext Level Orthodontics\n320 NW 76th Drive, Gainesville, FL 32607\n(352) 332-7466']
+    check('quote: the email — members (code), the item as the list names it, the price and its list, what it replaces, how many (the last order: 3 cases = 30 boxes = 15 boxes of 200), confirm price, shipping, minimum, the office', all(w in body for w in want), [w for w in want if w not in body] + [body])
+    check('quote: the dialog shows the item, for which supply, how many', J(pg, "document.querySelector('#mlqQty0').value") == '15' and 'for Gloves Pulse Nitrile — SM' in J(pg, "document.querySelector('.mlq').textContent"))
+    pg.fill('#mlqQty0', '24'); pg.wait_for_timeout(100)
+    to, subj, body = mail_parts(J(pg, "document.querySelector('#mlQuoteMail').getAttribute('href')"))
+    g = J(pg, "(document.querySelector('#mlQuoteGmail') || {}).href || ''")
+    check('quote: a new quantity is in the email, its link and the Gmail link at once', 'Quantity: 24' in body and 'Quantity: 24' in J(pg, "document.querySelector('#mlQuoteTxt').textContent") and g.startswith('https://mail.google.com/mail/?view=cm&fs=1&to=orders%40acme.example&su=') and 'Quantity%3A%2024' in g, (body[-400:], g[:120]))
+    J(pg, "closeModal(true)")
     # ---- Dr. A links one himself
     J(pg, "closeDrawer(); openDrawer('item', 'ppe-2')"); pg.wait_for_timeout(200)
     pg.click('#drawer [data-act="mlFind"]'); pg.wait_for_function("() => S.view === 'ml' && document.querySelectorAll('.mlr').length > 0", timeout=10000)
@@ -1472,6 +1510,12 @@ def t_marislist(b):
     m = (get('invMl/match') or {}).get('m') or {}
     check('link: saved for ppe-2 by Dr. A, ppe-1’s link kept', (m.get('ppe-2') or [{}])[0].get('k') == 'sunny|S-100L|box of 100' and (m.get('ppe-2') or [{}])[0].get('by') == 'Dr. A' and 'ppe-1' in m, m)
     check('link: the result says Linked', J(pg, "!!document.querySelector('.mlr[data-k=\"sunny|S-100L|box of 100\"] .fl.cart')"))
+    J(pg, "openDrawer('mlv', 'sunny')"); pg.wait_for_timeout(200)
+    check('quote (a vendor): its drawer asks about the supplies linked there', J(pg, "(document.querySelector('#drawer [data-act=mlQuote]') || {}).textContent") == 'Ask for a quote on it')
+    pg.click('#drawer [data-act="mlQuote"]'); pg.wait_for_selector('#mlQuoteMail')
+    to, subj, body = mail_parts(J(pg, "document.querySelector('#mlQuoteMail').getAttribute('href')"))
+    check('quote (a vendor): to Sunny, with the office’s account # there (SunSurgical), a “same” link says nothing about replacing', to == 'gloves@sunny.example' and 'We’re Mari’s List members; our account with you is 12345.' in body and '• Nitrile gloves, Large\n  Item # S-100L · Unit: Box of 100\n  Mari’s List price we have: $7.10' in body and 'To replace' not in body, body)
+    J(pg, "closeModal(true); closeDrawer()")
     J(pg, "ACT.mlForDone()"); pg.wait_for_timeout(100)
     # ---- the cart and the place-order dialog
     J(pg, "go('supplies'); openAddToCart(itemById('ppe-1'), 2)"); pg.wait_for_timeout(200); click(pg, '#addGo', 600)
@@ -1494,6 +1538,10 @@ def t_marislist(b):
     check('Gwen: Mari’s List is in her menu now', J(pg, "!!document.querySelector('#nav-ml')"))
     J(pg, "go('ml')"); pg.wait_for_timeout(200)
     check('Gwen: sees the vendors and what’s cheaper', J(pg, "document.querySelectorAll('.mlv').length") == 3 and 'Cheaper on Mari’s List' in J(pg, "document.querySelector('#view').textContent"))
+    pg.click('.mlCheap [data-act="mlQuote"][data-id="ppe-1"]'); pg.wait_for_selector('#mlQuoteMail')
+    to, subj, body = mail_parts(J(pg, "document.querySelector('#mlQuoteMail').getAttribute('href')"))
+    check('Gwen: asks for a quote from a “Cheaper on Mari’s List” line, signed with her name', to == 'orders@acme.example' and 'Thank you!\nGwen\nNext Level Orthodontics' in body and 'Item # GL-200S' in body, body[-300:])
+    J(pg, "closeModal(true)")
     J(pg, "openDrawer('item', 'ppe-2')"); pg.wait_for_timeout(200)
     pg.click('#drawer [data-act="mlFind"]'); pg.wait_for_function("() => document.querySelectorAll('.mlr').length > 0", timeout=10000)
     check('Gwen: no “Same as ours” for her (Dr. A links them)', not J(pg, "!!document.querySelector('[data-act=mlLinkAsk]')") and 'Dr. A links the one' in J(pg, "document.querySelector('.mlFor').textContent"))

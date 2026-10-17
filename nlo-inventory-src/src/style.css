@@ -900,6 +900,24 @@ body.gated .askFab{display:none}
 .mlPair span{font-size:12px;color:var(--grey-500)}
 .mlFileBtn{cursor:pointer}
 .mlCheap .row .meta{white-space:normal}
+/* asking a vendor for a quote (17 Oct 2026) */
+.mlQuoteBtn{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin-top:4px;padding:3px 10px 3px 8px;border-radius:99px;background:var(--blue-100);color:var(--blue-700);font-size:11.5px;font-weight:700}
+.mlQuoteBtn:hover{background:var(--blue-200)}
+.mlqList{display:flex;flex-direction:column;gap:8px;margin:0 0 4px}
+.mlq{display:flex;align-items:center;gap:12px;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:12px;padding:10px 12px}
+.mlq .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.mlq .grow b{color:var(--navy);font-size:13.5px;line-height:1.3}
+.mlq .grow span{font-size:12px;color:var(--grey-500)}
+.mlq .grow .for{color:var(--grey-600);font-weight:600}
+.mlqQty{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:11px;font-weight:700;color:var(--grey-500);white-space:nowrap}
+.mlqQty input{width:86px;text-align:right}
+.mlqSubj{display:flex;gap:10px;align-items:baseline;font-size:12.5px;margin:0 0 6px}
+.mlqSubj span{color:var(--grey-500);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.mlqSubj b{color:var(--navy);overflow-wrap:anywhere}
+@media (max-width:600px){
+  .mlq{flex-wrap:wrap}
+  .mlqQty{flex-direction:row;align-items:center;justify-content:space-between;width:100%}
+}
 @media (max-width:860px){
   .mlGrid{grid-template-columns:minmax(0,1fr)}
   .mlr{grid-template-columns:22px minmax(0,1fr) auto;padding:10px 12px}

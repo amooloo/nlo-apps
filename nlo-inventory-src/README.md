@@ -108,6 +108,18 @@ the inventory app some how".
   sample of its descriptions. The demo has made-up Mari's List vendors and prices.
 - **Under the rules from before Mari's List** nobody is locked out: the prices just aren't there, and Settings → Mari's List
   (and the Mari's List screen, for Dr. A) has the publish-the-rules steps and Check again.
+- **Ask for a quote** (5.2; Amir, 17 Oct 2026, of gloves cheaper at Allure: "there is option to email but then it's blank.
+  There should be the option to ask for a quote so it would write out an email asking for a quote for the specific item just
+  to verify that it is in fact the price we think it is"): on a price's drawer, a supply's Mari's List part (the vendor with
+  its best linked price, unless that costs more), each "Cheaper on Mari's List" line, and a vendor's drawer (every supply
+  linked to its prices, in one email). A dialog shows the email and opens it (Gmail on a computer if the email program
+  doesn't open; Copy for a website's form): "We're Mari's List members" (with the code, and the office's account # when it
+  buys there), each item as the price list names it (item #, unit), the member price we have, the list it's from, what it
+  would replace when it's a similar item, how many (the supply's last order, in their units; changeable in the dialog), and a
+  request to confirm the member price, the shipping and any minimum — signed by whoever is signed in, with the office's
+  address. It goes to the address Mari's List gives, else the office's rep or email for that vendor; with none, the email is
+  written without an address. Anyone signed in can ask; nothing is saved. A vendor's own email button now opens with a hello
+  and the office's sign-off instead of a blank email.
 
 ## AO Partner Dollars (5.2)
 Amir, 17 Oct 2026: "can you see if you can somehow incoporate their point system in our invenvory?" … "you should APPROXIMATE
