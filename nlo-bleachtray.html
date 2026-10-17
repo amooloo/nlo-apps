@@ -9,9 +9,17 @@
 // Clicking "Bleach Tray" on the home page goes straight to the app running on the lab PC.
 // This page itself (the instructions) is shown only when opened with ?help.
 (function () {
-  window.NLO_BT = { DEFAULT_LAB_PC: "lab", key: "nlo.bleachtray.labpc" };
+  // the key is versioned: when the app moves to another PC the default changes and every browser's
+  // remembered name from before is left behind
+  window.NLO_BT = { DEFAULT_LAB_PC: "lab", key: "nlo.bleachtray.labpc.v2" };
   var name = "";
-  try { name = localStorage.getItem(NLO_BT.key) || ""; } catch (e) {}
+  // ?pc=NAME sets the PC for this browser and goes there (a fresh URL, so no cached copy of this page gets in the way)
+  var m = /[?&]pc=([^&]+)/.exec(location.search);
+  if (m) {
+    name = decodeURIComponent(m[1]).trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
+    try { if (name) localStorage.setItem(NLO_BT.key, name); } catch (e) {}
+  }
+  if (!name) { try { name = localStorage.getItem(NLO_BT.key) || ""; } catch (e) {} }
   name = name || NLO_BT.DEFAULT_LAB_PC;
   if (!/[?&]help\b/.test(location.search) && name) location.replace("http://" + name + ":8765/");
 })();
