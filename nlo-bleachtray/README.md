@@ -27,6 +27,12 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Save as lesson** files a brush-corrected case for the retraining without ordering anything (Send does that
    too, on the side); it is greyed out until a fix has been applied.
 
+**Past cases** (sidebar): every case the app ever made stays on file - type a bit of the name or a date to find it,
+click it and it comes back as it was: look at it, print it again (the model files), **Send to Trimlign again** for a
+lost print or a second set, or paint fixes and re-run. The big model files are kept for 30 days; after that only the
+recipe stays (scan, settings, brush fixes, painted areas - about 15 MB per arch) and opening the case re-makes the
+models in a minute. The case list also survives a restart (the last week comes back by itself).
+
 Nothing reaches OrthoFactory without that click. Files dragged into the folder move to `BleachTray\done` when
 processed, or to `BleachTray\failed` with an `error.txt`. The small black window "NLO Bleach Tray" must be open on
 the PC that runs the app (it starts by itself at sign-in; if it's gone, double-click `start_app.bat` in the app
@@ -138,6 +144,14 @@ from that surface up to the underside when the undercut is deeper than 0.75 mm m
 from above (a setting, retainers only by default - the small natural undercuts stay for retention), or whatever
 its depth under a painted *Block out* stroke. The fill is one heightfield solid unioned into the body before the
 outline cut; it is shown in teal in the Result view and saved as `<name>_blockout.stl`.
+
+**History.** `jobs\<case>\case.json` is the recipe of a case (scans by relative path, settings, brush fixes as
+`fixedlabels_*.npz`, painted areas, review state, when it was sent); it is written whenever a run finishes or the
+case is sent / saved / discarded, and indexed at start-up (folders from before the history existed get one built
+from their report files). `/api/history?q=` searches it; `/api/history/<id>/open` brings a case back into the live
+list, re-running it from the recipe when its outputs have been thinned. Outputs older than `KEEP_OUTPUT_DAYS` (30;
+env `NLO_KEEP_OUTPUT_DAYS`) lose the model / body / Titan-copy files (the Titan pair is a hard link of the model, so
+it costs nothing while it exists). Nothing is ever deleted whole.
 
 **Marks.** Two: (1) the patient's initials + W (whitening) / R (retainer), raised 0.35 mm on the buccal surface of a
 first molar (right side if present, else second premolar / second molar), each letter on its own tangent plane and

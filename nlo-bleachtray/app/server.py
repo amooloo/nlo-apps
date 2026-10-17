@@ -147,6 +147,165 @@ async def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), 
     return {"id": jid}
 
 
+# ---------- case history: every case keeps its recipe on disk (scan, settings, brush fixes, painted areas) ----------
+# jobs/<id>/case.json is small and lives for good; the big outputs (models, Titan copies) are kept KEEP_OUTPUT_DAYS and
+# then thinned - an old case opened from the history re-makes its models in a minute from the recipe.
+KEEP_OUTPUT_DAYS = float(os.environ.get("NLO_KEEP_OUTPUT_DAYS", 30))
+HISTORY = {}      # id -> case summary (from case.json), for every case on disk
+
+
+def _save_case(job):
+    """Write jobs/<id>/case.json: everything needed to list, reopen and re-make this case."""
+    try:
+        jdir = job["dir"]
+        scans = []
+        for sc in job["scans"]:
+            r = sc.get("report") or {}
+            scans.append(dict(path=os.path.relpath(sc["path"], jdir), name=sc["name"], filename=sc.get("filename"), arch=sc.get("arch"),
+                              preset=sc.get("preset"), tag=sc.get("tag"), kind=sc.get("kind"), stage=sc.get("stage"),
+                              titan_basename=r.get("titan_basename"), has_report=bool(r)))
+        fixed = job.get("fixed_labels") or {}
+        for path, lab in fixed.items():
+            np.savez(os.path.join(jdir, "fixedlabels_" + os.path.basename(path) + ".npz"), labels=np.asarray(lab, dtype=np.int16))
+        paint = {os.path.relpath(k, jdir): v for k, v in (job.get("paint") or {}).items()}
+        params = {k: v for k, v in job["params"].items() if k not in ("keep_off_idx", "blockout_idx")}
+        case = dict(id=job["id"], name=job.get("name"), created=job.get("created"), source=job.get("source"), preset=job.get("preset"),
+                    filename=job.get("filename"), params=params, scans=scans, review=job.get("review"), order_folder=job.get("order_folder"),
+                    sent_at=job.get("sent_at"), learned=job.get("learned"), fixed=[os.path.relpath(k, jdir) for k in fixed], paint=paint,
+                    thinned=bool(job.get("thinned")), saved=time.time())
+        with open(os.path.join(jdir, "case.json"), "w") as f:
+            json.dump(case, f, indent=1, default=float)
+        HISTORY[job["id"]] = _summary(case)
+    except Exception as ex:  # noqa
+        job.setdefault("log", []).append(f"case not saved to the history ({ex})")
+
+
+def _summary(case):
+    p = case.get("params") or {}
+    return dict(id=case["id"], name=case.get("name"), patient=f"{p.get('patient_first', '')} {p.get('patient_last', '')}".strip(),
+                created=case.get("created"), review=case.get("review"), sent_at=case.get("sent_at"), thinned=case.get("thinned"),
+                models=[f"{sc.get('arch') or '?'} {sc.get('tag') or ''}".strip() for sc in case.get("scans", [])],
+                filename=case.get("filename"), fixed=len(case.get("fixed") or []), source=case.get("source"))
+
+
+def _backfill_case(d):
+    """A case folder from before the history existed: build its case.json from the report files."""
+    jdir = os.path.join(JOBS_DIR, d)
+    reps = sorted(fn for fn in os.listdir(jdir) if fn.endswith("_report.json"))
+    scans_on_disk = sorted(fn for fn in os.listdir(jdir) if fn.startswith("scan") and fn.lower().endswith((".stl", ".ply")))
+    if not reps or not scans_on_disk:
+        return None
+    scans, params, first_name = [], {}, None
+    for fn in reps:
+        try:
+            rep = json.load(open(os.path.join(jdir, fn)))
+        except Exception:
+            continue
+        name = fn[: -len("_report.json")]
+        tag = name.rsplit("_", 1)[-1] if name.rsplit("_", 1)[-1] in ("WT", "TT", "MODEL") else None
+        p = rep.get("params") or {}
+        params = params or {k: v for k, v in p.items() if k not in ("keep_off_idx", "blockout_idx")}
+        # the scan this model was made from: the one whose name stem matches, else the only one
+        stem = name[: -len(tag) - 1] if tag else name
+        cand = [sc for sc in scans_on_disk if stem.lower() in sc.lower().replace(" ", "_")] or scans_on_disk
+        kind = p.get("kind") or ("A" if tag == "TT" else "T")
+        scans.append(dict(path=cand[0], name=name, filename=cand[0].split("_", 1)[-1] if "_" in cand[0] else cand[0], arch=rep.get("arch"),
+                          preset="aligner_high" if tag == "TT" else "bleaching", tag=tag, kind=kind, stage=p.get("stage", 1 if tag == "TT" else 0),
+                          titan_basename=rep.get("titan_basename"), has_report=True))
+        first_name = first_name or rep.get("name")
+    if not scans:
+        return None
+    pf, pl = params.get("patient_first") or "", params.get("patient_last") or ""
+    nm = f"{pf}_{pl}".strip("_") or (first_name or d)
+    created = min(os.path.getmtime(os.path.join(jdir, fn)) for fn in scans_on_disk)
+    case = dict(id=d, name="".join(c for c in nm if c.isalnum() or c in "-_ ").replace(" ", "_"), created=created, source="app", preset=None,
+                filename=", ".join(sc["filename"] for sc in scans), params=params, scans=scans, review=None, order_folder=None, sent_at=None,
+                learned=None, fixed=[], paint={}, thinned=False, saved=time.time(), backfilled=True)
+    with open(os.path.join(jdir, "case.json"), "w") as f:
+        json.dump(case, f, indent=1, default=float)
+    return case
+
+
+def _load_history():
+    n = 0
+    for d in os.listdir(JOBS_DIR):
+        if not os.path.isdir(os.path.join(JOBS_DIR, d)) or d.startswith("_"):
+            continue
+        cj = os.path.join(JOBS_DIR, d, "case.json")
+        try:
+            case = json.load(open(cj)) if os.path.isfile(cj) else _backfill_case(d)
+            if case:
+                HISTORY[case["id"]] = _summary(case); n += 1
+        except Exception:
+            pass
+    return n
+
+
+def _job_from_case(jid):
+    """Rebuild a lightweight job from jobs/<id>/case.json (no feature cache; reports from disk)."""
+    jdir = os.path.join(JOBS_DIR, jid)
+    case = json.load(open(os.path.join(jdir, "case.json")))
+    scans = []
+    for sc in case["scans"]:
+        s = dict(sc); s["path"] = os.path.join(jdir, sc["path"])
+        rp = os.path.join(jdir, f"{sc['name']}_report.json")
+        rep = None
+        if os.path.exists(rp):
+            try:
+                rep = json.load(open(rp))
+                outs = rep.get("outputs") or {}
+                for k, v in list(outs.items()):      # the app folder may have moved since: re-anchor the paths
+                    if v and not os.path.exists(v):
+                        outs[k] = os.path.join(jdir, os.path.basename(v))
+            except Exception:
+                rep = None
+        s["report"] = rep
+        scans.append(s)
+    fixed = {}
+    for rel in case.get("fixed") or []:
+        fp = os.path.join(jdir, "fixedlabels_" + os.path.basename(rel) + ".npz")
+        if os.path.exists(fp):
+            fixed[os.path.join(jdir, rel)] = np.load(fp)["labels"]
+    paint = {os.path.join(jdir, k): v for k, v in (case.get("paint") or {}).items()}
+    have_models = all(sc["report"] and os.path.exists((sc["report"].get("outputs") or {}).get("model", "")) for sc in scans) and bool(scans)
+    job = dict(id=jid, dir=jdir, scans=scans, name=case.get("name"), params=case.get("params") or {}, status="done" if have_models else "needs_run",
+               created=case.get("created") or time.time(), filename=case.get("filename"), preset=case.get("preset"), source=case.get("source"),
+               review=case.get("review"), order_folder=case.get("order_folder"), order_error=None, sent_at=case.get("sent_at"), learned=case.get("learned"),
+               fixed_labels=fixed, paint=paint, thinned=case.get("thinned"), reopened=True, feat_cache={},
+               log=[f"opened from the history ({time.strftime('%m/%d/%Y', time.localtime(case.get('created') or time.time()))}"
+                    + (f", sent {time.strftime('%m/%d/%Y %H:%M', time.localtime(case['sent_at']))}" if case.get("sent_at") else "") + ")"])
+    reports = [sc["report"] for sc in scans if sc.get("report")]
+    if reports:
+        job["reports"] = reports; job["report"] = reports[0]
+    return job
+
+
+def _thin_old_cases(log=print):
+    """Cases whose outputs are older than KEEP_OUTPUT_DAYS lose the big files (models, Titan copies, bodies);
+    the recipe stays, so the case can still be reopened and re-made."""
+    cutoff = time.time() - KEEP_OUTPUT_DAYS * 86400
+    n = 0
+    for jid, h in list(HISTORY.items()):
+        if h.get("thinned") or (h.get("sent_at") or h.get("created") or time.time()) > cutoff:
+            continue
+        if jid in JOBS and JOBS[jid].get("status") in ("queued", "running"):
+            continue
+        jdir = os.path.join(JOBS_DIR, jid)
+        try:
+            case = json.load(open(os.path.join(jdir, "case.json")))
+            for fn in os.listdir(jdir):
+                if fn.endswith(("_model.stl", "_body_only.stl", "_blockout.stl")) or "_scan_with_reservoirs" in fn or any(sc.get("titan_basename") and fn.startswith(sc["titan_basename"]) for sc in case["scans"]):
+                    os.remove(os.path.join(jdir, fn))
+            case["thinned"] = True
+            json.dump(case, open(os.path.join(jdir, "case.json"), "w"), indent=1, default=float)
+            HISTORY[jid] = _summary(case)
+            JOBS.pop(jid, None)           # out of the live list; reopening from the history re-makes it
+            n += 1
+        except Exception as ex:  # noqa
+            log(f"could not thin case {jid}: {ex}")
+    return n
+
+
 # One case at a time: several people can drop scans at once (each drop is its own case, in line behind
 # the others), and a re-run never collides with a run already going. NLO_WORKERS=2 runs two in parallel.
 import queue
@@ -253,6 +412,8 @@ def _run(job):
             job["review"] = "review"
             job["order_folder"] = None; job["order_error"] = None; job["learned"] = None
         job["status"] = "queued" if job.get("in_queue") else "done"
+        job["thinned"] = False
+        _save_case(job)
     except Exception as ex:  # noqa
         job["status"] = "error"
         job["error"] = f"{ex}\n{traceback.format_exc()}"
@@ -630,6 +791,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         pass
     job["auto_order"] = False
     job["rerun_all"] = True
+    job["thinned"] = False
     _enqueue(job)
     return {"id": jid}
 
@@ -687,6 +849,10 @@ def _learn_loop():
     while True:
         time.sleep(1800)
         try:
+            _thin_old_cases(log=lambda m: None)
+        except Exception:
+            pass
+        try:
             h = time.localtime().tm_hour
             busy = any(j.get("status") in ("queued", "running") for j in JOBS.values())
             st = _learn_status()
@@ -698,6 +864,26 @@ def _learn_loop():
 
 
 threading.Thread(target=_learn_loop, daemon=True).start()
+
+
+def _restore_recent(days=7):
+    """After a restart the list is not empty: the last week's cases come back as they were."""
+    cutoff = time.time() - days * 86400
+    for jid, h in sorted(HISTORY.items(), key=lambda kv: kv[1].get("created") or 0):
+        if (h.get("created") or 0) < cutoff or jid in JOBS:
+            continue
+        try:
+            job = _job_from_case(jid)
+            if job["status"] == "done":
+                job["log"] = []; job.pop("reopened", None)
+                JOBS[jid] = job
+        except Exception:
+            pass
+
+
+_load_history()
+_restore_recent()
+threading.Thread(target=lambda: _thin_old_cases(log=lambda m: None), daemon=True).start()
 
 
 @app.get("/api/learn")
@@ -729,7 +915,7 @@ def _fixed_arches(job):
 
 
 def _review_view(job):
-    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job)}
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned", "sent_at", "reopened")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job)}
 
 
 def _save_training(job, log=print):
@@ -785,6 +971,23 @@ def approve(jid: str):
     _write_order(job, log=lambda m: job["log"].append(m))
     if _save_training(job, log=lambda m: job["log"].append(m)):
         job["learned"] = _learned_note(job)
+    if job.get("review") == "sent":
+        job["sent_at"] = time.time()
+    _save_case(job)
+    return _review_view(job)
+
+
+@app.post("/api/jobs/{jid}/resend")
+def resend(jid: str):
+    """Write the OrthoFactory order again from the models as they are (a lost print, a second set)."""
+    job = JOBS.get(jid)
+    if not job or job.get("status") != "done":
+        raise HTTPException(404)
+    job.setdefault("log", []).append("sent again")
+    _write_order(job, log=lambda m: job["log"].append(m))
+    if job.get("review") == "sent":
+        job["sent_at"] = time.time()
+    _save_case(job)
     return _review_view(job)
 
 
@@ -805,6 +1008,7 @@ def learn_from(jid: str):
     if not _save_training(job, log=lambda m: job["log"].append(m)):
         raise HTTPException(400, "nothing to save - the case has no patient name")
     job["learned"] = _learned_note(job)
+    _save_case(job)
     return _review_view(job)
 
 
@@ -814,7 +1018,42 @@ def discard(jid: str):
     if not job:
         raise HTTPException(404)
     job["review"] = "discarded"
+    _save_case(job)
     return _review_view(job)
+
+
+@app.get("/api/history")
+def history(q: str = "", limit: int = 60):
+    """Past cases (every case on disk), newest first, filtered by a bit of the name / patient / file / date."""
+    words = [w for w in (q or "").lower().split() if w]
+    out = []
+    for h in sorted(HISTORY.values(), key=lambda h: -(h.get("created") or 0)):
+        hay = " ".join(str(x) for x in (h.get("name"), h.get("patient"), h.get("filename"), time.strftime("%m/%d/%Y %Y-%m-%d", time.localtime(h.get("created") or 0)), " ".join(h.get("models") or []))).lower()
+        if all(w in hay for w in words):
+            out.append(dict(h, live=h["id"] in JOBS))
+        if len(out) >= limit:
+            break
+    return dict(cases=out, total=len(HISTORY))
+
+
+@app.post("/api/history/{jid}/open")
+def history_open(jid: str):
+    """Bring a past case back into the list: as it was when its models are still on disk, re-made from the
+    recipe (scan + settings + brush fixes + painted areas) when they have been thinned."""
+    if jid in JOBS:
+        return {"id": jid, "status": JOBS[jid].get("status")}
+    if jid not in HISTORY:
+        raise HTTPException(404)
+    try:
+        job = _job_from_case(jid)
+    except Exception as ex:  # noqa
+        raise HTTPException(500, f"could not open that case: {ex}")
+    JOBS[jid] = job
+    if job["status"] != "done":
+        job["status"] = "queued"; job["rerun_all"] = True; job["auto_order"] = False
+        job["log"].append("the models of this case were cleared to save space - making them again from the scan, with the same fixes and settings")
+        _enqueue(job)
+    return {"id": jid, "status": job["status"]}
 
 
 @app.get("/api/jobs/{jid}")
@@ -822,7 +1061,7 @@ def job_status(jid: str):
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
-    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned")}
+    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned", "sent_at", "reopened", "created")}
     out["started"] = job.get("started")
     out["ahead"] = _ahead(job)
     out["fixed"] = _fixed_arches(job)
