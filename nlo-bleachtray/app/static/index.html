@@ -324,11 +324,13 @@
         </div>
         <div class="place" id="place">
           <h4>Position on the base</h4>
+          <div class="seg" style="margin-bottom:8px"><button class="small" id="viewUnder" title="Look up at the underside: the locating holes in the base plate must stay clear of the arch">Underneath (holes)</button><button class="small" id="viewTop">From above</button></div>
+          <div class="hint" style="margin-bottom:6px"><b>Drag the base plate</b> to slide it, <b>drag the blue ring</b> to turn it - the arch stays where it is. Fine steps:</div>
           <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
           <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
           <div class="prow"><span>Back / forward</span><button data-adj="dy" data-d="-1">&darr; 1</button><button data-adj="dy" data-d="-0.25">&darr; &frac14;</button><span class="val" id="v_dy">0.00</span><button data-adj="dy" data-d="0.25">&frac14; &uarr;</button><button data-adj="dy" data-d="1">1 &uarr;</button></div>
           <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
-          <div class="hint">mm and degrees. The arch moves live on the base; <b>Apply</b> rebuilds the model and replaces the Trimlign order (~1 min). <b>Reset</b> goes back to the automatic placement.</div>
+          <div class="hint">mm and degrees. The base moves live under the arch; <b>Apply</b> rebuilds the model and replaces the Trimlign order (~1 min). <b>Reset</b> goes back to the automatic placement.</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
           <div class="hint" id="placestate"></div>
         </div>
@@ -638,7 +640,7 @@ const brushRingIn = new THREE.Mesh(new THREE.RingGeometry(0.88, 0.94, 64), new T
 brushRingOut.renderOrder = brushRingIn.renderOrder = 12; brushCursor.renderOrder = 11;
 brushCursor.add(brushRingOut, brushRingIn); brushCursor.visible = false; scene.add(brushCursor);
 
-function showTab(t){ tab = t; for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#place').classList.toggle('on', t === 'result' && !!archGroup); syncBrush(); requestRender(); }
+function showTab(t){ tab = t; if (t !== 'result' && underside) lookTop(); for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#place').classList.toggle('on', t === 'result' && !!archGroup); syncBrush(); requestRender(); }
 document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
 $('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); requestRender(); };
 
@@ -1059,16 +1061,29 @@ async function loadResult(id, j){
   let boBuf = null;   // the block-out fills, shown in teal so they can be checked
   if (bo.spots) { const bres = await fetch(`/api/jobs/${id}/file/blockout${q}`); if (bres.ok) boBuf = await bres.arrayBuffer(); }
   if (seq !== loadSeq) return;            // a newer selection took over while this one was loading
-  clear(groups.result); archGroup = null;
-  const g = new THREE.Group(); g.matrixAutoUpdate = false;
+  clear(groups.result); archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null;
+  const g = new THREE.Group();
   g.add(new THREE.Mesh(parseSTL(bodyBuf), mat));
   if (boBuf) g.add(new THREE.Mesh(parseSTL(boBuf), new THREE.MeshStandardMaterial({ color: 0x14b8a6, roughness: .5, metalness: 0, envMapIntensity: .4, polygonOffset: true, polygonOffsetFactor: -1 })));
   addTrimline(g, tl);
   groups.result.add(g); archGroup = g;
-  if (baseBuf) groups.result.add(new THREE.Mesh(parseSTL(baseBuf), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .6, metalness: .05, envMapIntensity: .4 })));
-  requestRender();
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
-  adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0];
+  adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false;
+  if (baseBuf) {
+    // the base plate and its handle ring move as one; the arch never moves on screen
+    baseGroup = new THREE.Group(); baseGroup.matrixAutoUpdate = false;
+    baseMat = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .6, metalness: .05, envMapIntensity: .4, transparent: true, opacity: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    baseMesh = new THREE.Mesh(parseSTL(baseBuf), baseMat); baseGroup.add(baseMesh);
+    ringMesh = new THREE.Mesh(new THREE.TorusGeometry(RING_R, 0.7, 10, 128), new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: .85, depthTest: false, depthWrite: false }));
+    ringMesh.position.set(pivot[0], pivot[1], 1.5); ringMesh.renderOrder = 10; baseGroup.add(ringMesh);
+    for (const a of [0, 90, 180, 270]) {   // four grips on the ring, so it reads as something to turn
+      const grip = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 12), ringMesh.material);
+      grip.position.set(pivot[0] + RING_R * Math.cos(a * Math.PI / 180), pivot[1] + RING_R * Math.sin(a * Math.PI / 180), 1.5); grip.renderOrder = 10; baseGroup.add(grip);
+    }
+    groups.result.add(baseGroup);
+  }
+  setBaseLook();
+  requestRender();
   updatePlacement();
   // segmentation mesh
   Object.values(edits).forEach(e => e.clear()); updateFixCount();   // before the mesh loads: old strokes index the old mesh
@@ -1076,7 +1091,12 @@ async function loadResult(id, j){
   showTab(tab);
 }
 // ---------- placement on the base ----------
-let archGroup = null, pivot = [0, 0];
+// The server moves the ARCH on the base (rotate about the trim-line centroid, then shift). On screen the
+// arch stays where it is and the base plate moves the opposite way - that is what one is really deciding:
+// where the plate, with its locating holes, sits under this arch. Dragging the plate slides it, dragging
+// the blue ring turns it; the step buttons do the same in fixed amounts.
+let archGroup = null, baseGroup = null, baseMesh = null, baseMat = null, ringMesh = null, pivot = [0, 0];
+const RING_R = 33;
 let adjust = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, applied = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 };
 function placeMatrix(a){ // rotate about the trimline centroid, then shift (same as the server)
   return new THREE.Matrix4().makeTranslation(pivot[0] + a.dx, pivot[1] + a.dy, a.dz)
@@ -1084,7 +1104,9 @@ function placeMatrix(a){ // rotate about the trimline centroid, then shift (same
     .multiply(new THREE.Matrix4().makeTranslation(-pivot[0], -pivot[1], 0));
 }
 function updatePlacement(){
-  if (archGroup) archGroup.matrix.copy(placeMatrix(adjust).multiply(placeMatrix(applied).invert()));
+  // arch (as built) = T(applied) * auto; a pending adjust would put it at T(adjust) * auto. Keeping the arch
+  // still, the base must appear at the inverse of that difference: T(applied) * T(adjust)^-1.
+  if (baseGroup) baseGroup.matrix.copy(placeMatrix(applied).multiply(placeMatrix(adjust).invert()));
   requestRender();
   $('#v_yaw_deg').innerHTML = adjust.yaw_deg.toFixed(2).replace(/\.?0+$/, '') + '&deg;';
   for (const k of ['dx', 'dy', 'dz']) $('#v_' + k).textContent = adjust[k].toFixed(2);
@@ -1094,8 +1116,60 @@ function updatePlacement(){
   $('#placestate').style.color = pending ? 'var(--warn)' : 'var(--muted)';
   $('#applyplace').disabled = !pending;
 }
-document.querySelectorAll('[data-adj]').forEach(b => b.onclick = () => { adjust[b.dataset.adj] = Math.round((adjust[b.dataset.adj] + +b.dataset.d) * 100) / 100; updatePlacement(); });
+document.querySelectorAll('[data-adj]').forEach(b => b.onclick = () => { adjust[b.dataset.adj] = Math.round((adjust[b.dataset.adj] + +b.dataset.d) * 100) / 100; updatePlacement(); lookUnder(true); });
 $('#resetplace').onclick = () => { adjust = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 }; updatePlacement(); };
+// ---- looking at the underside: the plate goes see-through so the holes read against the arch footprint
+let underside = false, autoFlipped = false;   // the first touch of the placement on a case flips the view to the underside
+function setBaseLook(){ if (baseMat) { baseMat.opacity = underside ? .55 : 1; baseMat.depthWrite = !underside; baseMat.needsUpdate = true; } grid.visible = !underside; $('#viewUnder').classList.toggle('on', underside); $('#viewTop').classList.toggle('on', !underside); }
+function lookUnder(auto){ if (auto) { if (autoFlipped) return; autoFlipped = true; } if (underside) return; underside = true; setBaseLook(); controls.target.set(12, -18, 2); camera.position.set(12, -45, -175); controls.update(); requestRender(); }
+function lookTop(){ underside = false; setBaseLook(); controls.target.set(0, -15, 5); camera.position.set(0, 105, 70); controls.update(); requestRender(); }
+$('#viewUnder').onclick = () => lookUnder(false); $('#viewTop').onclick = lookTop;
+// ---- dragging the plate (slide) or the ring (turn)
+const pray = new THREE.Raycaster(), ndc = new THREE.Vector2();   // picking for the base handles
+let drag = null;   // { kind: 'move'|'turn', p0, start, c }
+function planeHit(ev, z){
+  const rect = canvas.getBoundingClientRect();
+  ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+  pray.setFromCamera(ndc, camera);
+  const t = (z - pray.ray.origin.z) / pray.ray.direction.z;
+  return isFinite(t) && t > 0 ? pray.ray.at(t, new THREE.Vector3()) : null;
+}
+function baseHandleAt(ev){
+  if (tab !== 'result' || !baseGroup) return null;
+  const c = new THREE.Vector3(pivot[0], pivot[1], 1.5).applyMatrix4(baseGroup.matrix);   // ring centre, world
+  const p = planeHit(ev, c.z);
+  if (p && Math.abs(Math.hypot(p.x - c.x, p.y - c.y) - RING_R) < 3.5) return { kind: 'turn', c };
+  const rect = canvas.getBoundingClientRect();
+  ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+  pray.setFromCamera(ndc, camera);
+  if (pray.intersectObject(baseMesh, false).length) return { kind: 'move', c };
+  return null;
+}
+canvas.addEventListener('pointerdown', ev => {
+  if (ev.shiftKey || ev.button !== 0) return;
+  const h = baseHandleAt(ev); if (!h) return;
+  const p0 = planeHit(ev, h.c.z); if (!p0) return;
+  drag = { kind: h.kind, p0, c: h.c, start: { ...adjust } };
+  controls.enabled = false; canvas.style.cursor = h.kind === 'turn' ? 'grabbing' : 'move'; ev.preventDefault();
+});
+canvas.addEventListener('pointermove', ev => {
+  if (drag) {
+    const p = planeHit(ev, drag.c.z); if (!p) return;
+    if (drag.kind === 'move') {
+      // a world shift D of the plate = the arch moving -D relative to it, expressed in the arch's frame
+      const th = (drag.start.yaw_deg - applied.yaw_deg) * Math.PI / 180, dX = p.x - drag.p0.x, dY = p.y - drag.p0.y;
+      adjust.dx = Math.round((drag.start.dx - (Math.cos(th) * dX - Math.sin(th) * dY)) * 100) / 100;
+      adjust.dy = Math.round((drag.start.dy - (Math.sin(th) * dX + Math.cos(th) * dY)) * 100) / 100;
+    } else {
+      const a0 = Math.atan2(drag.p0.y - drag.c.y, drag.p0.x - drag.c.x), a1 = Math.atan2(p.y - drag.c.y, p.x - drag.c.x);
+      let d = (a1 - a0) * 180 / Math.PI; d = ((d + 540) % 360) - 180;
+      adjust.yaw_deg = Math.round((drag.start.yaw_deg - d) * 100) / 100;   // plate turns one way = arch turns the other
+    }
+    updatePlacement(); return;
+  }
+  if (tab === 'result' && baseGroup && !ev.shiftKey && !ev.buttons) { const h = baseHandleAt(ev); canvas.style.cursor = h ? (h.kind === 'turn' ? 'grab' : 'move') : ''; }
+});
+window.addEventListener('pointerup', () => { if (drag) { drag = null; controls.enabled = true; canvas.style.cursor = ''; lookUnder(true); } });
 $('#applyplace').onclick = async () => {
   if (!currentJob) return;
   const fd = new FormData();
@@ -1144,7 +1218,7 @@ function paintColors(){
   requestRender();
 }
 // ---------- brush ----------
-document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { document.querySelectorAll('.seg button').forEach(x => x.classList.remove('on')); b.classList.add('on'); brushMode = b.dataset.mode; syncBrush(); });
+document.querySelectorAll('#brush .seg button[data-mode]').forEach(b => b.onclick = () => { document.querySelectorAll('#brush .seg button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); brushMode = b.dataset.mode; syncBrush(); });
 $('#radius').oninput = () => { $('#rv').textContent = $('#radius').value; brushCursor.scale.setScalar(+$('#radius').value); if (brushCursor.visible) requestRender(); };
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
 const brushOn = () => !!segMesh && tab === 'seg';
@@ -1216,7 +1290,10 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
-window.__view = { camera, controls, requestRender, project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }) };   // for automated checks
+window.__view = { camera, controls, requestRender, project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
+  ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
+  placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot }),
+  handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; } };   // for automated checks
 window.__appReady = true;
 </script>
 </body>
