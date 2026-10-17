@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-jfMnmgbZJOuaPObXK4s38liYrEhAWUJozjU8g7qXy0Q=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-F6SnIgvkVpop6nBaVek3Q6a3bsH3RMHywvz4h9NqoRk=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Inventory</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B2F4C'/%3E%3Cpath d='M18 24l14-7 14 7v17l-14 7-14-7z' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 24l14 7 14-7M32 31v17' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -560,6 +560,13 @@ a.btn{text-decoration:none}
 .how span{font-size:12px;color:var(--grey-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .how svg{color:var(--blue)}
 .copyBox{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--grey-50);border:1px solid var(--grey-200);border-radius:12px;padding:10px 12px;font-size:12.5px;max-height:220px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace}
+/* a text as a QR code, for a computer that can't send one (the phone's camera opens it in Messages) */
+.smsQr{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:2px 0 14px}
+.smsQr .qrBox{background:#fff;padding:12px;border:1px solid var(--grey-200);border-radius:12px;line-height:0;min-width:96px;min-height:96px;display:flex;align-items:center;justify-content:center;color:var(--grey-500);font-size:12px}
+.smsQr .qrBox img,.smsQr .qrBox canvas{display:block}
+.smsQr .qrSay{flex:1;min-width:200px;font-size:13.5px;line-height:1.45;color:var(--grey-700)}
+.smsQr.alt{margin-top:10px}
+.smsQr.alt .qrSay{font-size:12.5px;color:var(--grey-500)}
 
 /* quick order */
 .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
@@ -818,7 +825,7 @@ body.gated .askFab{display:none}
      Staff Meeting's spending card and AISA's stock answers.
    ===================================================================== */
 
-const APP_VERSION = '5.0.0';
+const APP_VERSION = '5.0.1';
 const APP_NAME = 'NLO Inventory';
 const DEMO_ONLY = false;          // the demo page sets this (build.py)
 const LOGO = 'logo-white.png';     // the demo page carries the logo inside it
@@ -5620,11 +5627,67 @@ function okLines(lines) {
 ACT.cartRemove = async t => { const c = inCartLine(t.dataset.id); if (!c) return; if (!await confirmOut(c)) return; withWho(async () => { if (await act(() => cartRemove(c.itemId), 'Taken out of the cart.')) closeModal(true); }, 'Who’s taking it out?'); };
 
 /* ---------- placing an order ---------- */
+/* Tapping how you're ordering opens it there and then, with the order written out (Amir, 16 Oct 2026: "I used to be able to
+   select email and it would automatically open up the email with the message in it. same thing with text"): Email opens the
+   email program, Text opens Messages, Their website opens in a new tab, and on a phone Phone call dials. A computer that can't
+   send a text ("it would not be able to send a text via pc") shows the text as a QR code instead: the phone's camera opens it
+   in Messages, ready to send. Nothing is marked ordered until "It's ordered". */
 function orderText(vn, lines, who) {
   const v = vendorByName(vn) || {};
   return 'Hello' + (v.rep ? ' ' + firstName(v.rep) : '') + ',\n\nPlease send the following to ' + OFFICE.name + (v.acct ? ' (account ' + v.acct + ')' : '') + ':\n\n' +
     lines.map(c => '• ' + qtyUnit(c.qty, c.unit) + ' — ' + c.name + (c.sku ? ' (#' + c.sku + ')' : '') + (c.price ? ' @ ' + money(c.price) : '')).join('\n') +
     '\n\nShip to: ' + OFFICE.address + '\nPhone: ' + OFFICE.phone + '\n\nPlease confirm the order and expected delivery. Thank you!\n' + (who ? firstName(who.name) + ', ' : '') + OFFICE.name;
+}
+/* the text message: short, in plain characters (so every phone, and the QR code, reads it the same) */
+function orderSms(vn, lines, who) {
+  const v = vendorByName(vn) || {};
+  return plainText('Hi' + (v.rep ? ' ' + firstName(v.rep) : '') + ', please send ' + OFFICE.name + (v.acct ? ' (acct ' + v.acct + ')' : '') + ':\n' +
+    lines.map(c => qtyUnit(c.qty, c.unit) + ' - ' + c.name + (c.sku ? ' #' + c.sku : '')).join('\n') +
+    '\nShip to ' + OFFICE.address + '. Please confirm. Thanks!' + (who ? ' - ' + firstName(who.name) : ''));
+}
+function plainText(s) {
+  return String(s).normalize('NFKD').replace(/[‘’‚′]/g, "'").replace(/[“”„″]/g, '"')
+    .replace(/[‐-―−•·]/g, '-').replace(/⁄/g, '/').replace(/×/g, 'x').replace(/[   ]/g, ' ')
+    .replace(/[^\n\x20-\x7e]/g, '');
+}
+/* a number as a call or a text needs it: digits, +1 in front of a US number; a call keeps the extension after a pause
+   ("800-555-0100 x12" → tel:+18005550100,12) */
+function dialable(n) {
+  const [main, ext] = String(n || '').split(/\s*(?:x|ext\.?|#)\s*/i), d = String(main || '').replace(/[^\d+]/g, '');
+  return { num: /^\d{10}$/.test(d) ? '+1' + d : /^1\d{10}$/.test(d) ? '+' + d : d, ext: String(ext || '').replace(/\D/g, '') };
+}
+/* what this device opens by itself: Messages on a phone, an iPad or a Mac; a call only on a phone */
+function devKind() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPod/.test(ua) || (/Android/.test(ua) && /Mobile/.test(ua))) return 'phone';
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'tablet';
+  return /Macintosh|Mac OS X/.test(ua) ? 'mac' : 'pc';
+}
+const QR_MAX = 1200;   // past this a text's QR code gets too fine to scan off a screen
+/* everything the dialog can open, for this vendor and these lines */
+function placeLinks(vn, ls, w) {
+  const v = vendorByName(vn) || { name: vn }, text = orderText(vn, ls, w), smsText = orderSms(vn, ls, w);
+  const email = v.repEmail || v.email || '', phone = v.tollFree || v.phone || '', textTo = v.repPhone || v.phone || '';
+  const subject = 'Order — ' + OFFICE.name + (v.acct ? ' (acct ' + v.acct + ')' : ''), call = dialable(phone), to = dialable(textTo).num;
+  return {
+    v, text, smsText, email, phone, textTo, web: webUrl(v.portal),
+    toWho: v.rep && v.repPhone ? firstName(v.rep) + ' (' + textTo + ')' : textTo,
+    mailto: email ? 'mailto:' + email + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(text) : '',
+    gmail: email ? 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(email) + '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(text) : '',
+    tel: call.num ? 'tel:' + call.num + (call.ext ? ',' + call.ext : '') : '',
+    smsUrl: to ? 'sms:' + to + '?&body=' + encodeURIComponent(smsText) : '',
+    qr: to ? 'SMSTO:' + to + ':' + smsText : ''
+  };
+}
+/* what a tap on one of the ways opens on this device ('' = nothing to open: the dialog just shows it) */
+function launchUrl(k, L, dk) {
+  return k === 'email' ? L.mailto : k === 'text' ? (dk === 'pc' ? '' : L.smsUrl) : k === 'call' ? (dk === 'phone' ? L.tel : '') : k === 'online' ? L.web : '';
+}
+/* opened from the tap itself (a link the tap clicks), so the browser lets it through */
+function openExternal(url, newTab) {
+  const a = document.createElement('a'); a.href = url; a.style.display = 'none';
+  if (newTab) { a.target = '_blank'; a.rel = 'noopener'; }
+  document.body.appendChild(a); a.click(); a.remove();
 }
 ACT.placeOrder = t => withWho(w => {
   const vn = t.dataset.v, ls = cartLinesFor(vn).filter(c => isAdmin() || okOf(c)), v = vendorByName(vn) || {};
@@ -5634,22 +5697,43 @@ ACT.placeOrder = t => withWho(w => {
   renderPlace();
 }, 'Who’s placing this order?');
 function renderPlace() {
-  const P = S.ui.place, v = vendorByName(P.vendor) || { name: P.vendor }, w = whoNow(), ls = P.snap;
-  const text = orderText(P.vendor, ls, w), email = v.repEmail || v.email || '', phone = v.tollFree || v.phone || '', cell = v.repPhone || '';
+  const P = S.ui.place, w = whoNow(), ls = P.snap, dk = devKind(), L = placeLinks(P.vendor, ls, w), v = L.v;
+  const opened = P.opened === P.how, then = ' Send it, then press <b>It’s ordered</b> below.';
+  const qrHere = P.how === 'text' && !!L.qr && dk !== 'phone', qrFits = L.qr.length <= QR_MAX;
   let detail = '';
-  if (P.how === 'online') detail = webUrl(v.portal) ? '<a class="btn btn-act" href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 16) + 'Open ' + esc(v.name) + '’s website</a><div class="hint">Add the lines below on their site and check out, then come back here.' + (v.acct ? ' Account: <b>' + esc(v.acct) + '</b>.' : '') + '</div>' : '<div class="notice">There’s no website saved for ' + esc(v.name) + '. ' + (isAdmin() ? 'Add it under Vendors.' : 'Dr. A can add it under Vendors.') + '</div>';
-  else if (P.how === 'call') detail = phone ? '<a class="btn btn-act" href="tel:' + esc(phone.replace(/[^\d+]/g, '')) + '">' + ic('call', 16) + 'Call ' + esc(phone) + '</a>' + (v.acct ? '<div class="hint">Account: <b>' + esc(v.acct) + '</b></div>' : '') : '<div class="notice">No phone number saved for ' + esc(v.name) + '.</div>';
-  else if (P.how === 'email') detail = email ? '<a class="btn btn-act" href="mailto:' + esc(email) + '?subject=' + encodeURIComponent('Order — ' + OFFICE.name + (v.acct ? ' (acct ' + v.acct + ')' : '')) + '&body=' + encodeURIComponent(text) + '">' + ic('email', 16) + 'Write the email to ' + esc(email) + '</a><div class="hint">It opens in your email program with the order filled in.</div>' : '<div class="notice">No email saved for ' + esc(v.name) + '. Copy the order below into an email.</div>';
-  else if (P.how === 'text') detail = cell ? '<a class="btn btn-act" href="sms:' + esc(cell.replace(/[^\d+]/g, '')) + '?&body=' + encodeURIComponent(text) + '">' + ic('text', 16) + 'Text ' + esc(v.rep || cell) + '</a>' : '<div class="notice">No mobile number saved for ' + esc(v.name) + '’s rep.</div>';
+  if (P.how === 'online') detail = L.web ? '<a class="btn btn-act" href="' + esc(L.web) + '" target="_blank" rel="noopener">' + ic('web', 16) + 'Open ' + esc(v.name) + '’s website</a><div class="hint">' + (opened ? 'It opened in a new tab. ' : '') + 'Add the lines below on their site and check out, then come back here.' + (v.acct ? ' Account: <b>' + esc(v.acct) + '</b>.' : '') + '</div>' : '<div class="notice">There’s no website saved for ' + esc(v.name) + '. ' + (isAdmin() ? 'Add it under Vendors.' : 'Dr. A can add it under Vendors.') + '</div>';
+  else if (P.how === 'call') detail = L.tel ? '<a class="btn btn-act" href="' + esc(L.tel) + '">' + ic('call', 16) + 'Call ' + esc(L.phone) + '</a>' + (v.acct ? '<div class="hint">Account: <b>' + esc(v.acct) + '</b></div>' : '') : '<div class="notice">No phone number saved for ' + esc(v.name) + '.</div>';
+  else if (P.how === 'email') detail = L.mailto ? '<a class="btn btn-act" href="' + esc(L.mailto) + '">' + ic('email', 16) + 'Write the email to ' + esc(L.email) + '</a><div class="hint">' + (opened ? 'Your email opened with the order written out.' + then : 'It opens your email with the order written out.') + (dk === 'pc' || dk === 'mac' ? ' Didn’t open? <a href="' + esc(L.gmail) + '" target="_blank" rel="noopener">Write it in Gmail</a>.' : '') + '</div>' : '<div class="notice">No email saved for ' + esc(v.name) + '. Copy the order below into an email.</div>';
+  else if (P.how === 'text') detail = !L.smsUrl ? '<div class="notice">No mobile number saved for ' + esc(v.name) + (v.rep ? '’s rep' : '') + '.</div>' :
+    (dk === 'pc' ? '' : '<a class="btn btn-act" href="' + esc(L.smsUrl) + '">' + ic('text', 16) + 'Text ' + esc(L.toWho) + '</a><div class="hint">' + (opened ? 'Messages opened with the order written out.' + then : 'It opens Messages with the order written out.') + '</div>') +
+    (!qrHere ? '' : !qrFits ? (dk === 'pc' ? '<div class="notice">This order is too long to send as a text from here. Email it, or copy the text below.</div>' : '') :
+      '<div class="smsQr' + (dk === 'pc' ? '' : ' alt') + '"><div id="smsQr" class="qrBox" role="img" aria-label="QR code for a text to ' + esc(L.toWho) + ' with the order"></div><div class="qrSay">' +
+      (dk === 'pc' ? '<b>Scan this with your phone’s camera.</b> It opens a text to ' + esc(L.toWho) + ' with the order written out.' + then : 'Or text it from your phone: scan this with its camera.') + '</div></div>');
+  const shown = P.how === 'text' ? L.smsText : L.text;
   openModal('<h3>Order from ' + esc(P.vendor) + '</h3><div class="lsub">' + ls.length + ' line' + (ls.length === 1 ? '' : 's') + ' · ' + money(cartValue(ls)) + ' · ordering as <b>' + esc(w ? w.short : '—') + '</b></div>' +
-    '<div class="subH" style="margin-top:4px">How are you ordering?</div><div class="howGrid">' + HOW.map(([k, l, i]) => '<button class="how" data-act="placeHow" data-k="' + k + '" aria-pressed="' + (P.how === k) + '">' + ic(i, 20) + '<b>' + esc(l) + '</b><span>' + esc(k === 'online' ? (v.portal ? v.portal.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'no website saved') : k === 'call' ? (phone || 'no number saved') : k === 'email' ? (email || 'no email saved') : k === 'text' ? (cell || 'no mobile saved') : k === 'rep' ? (v.rep || 'no rep saved') : 'mark it ordered') + '</span></button>').join('') + '</div>' +
+    '<div class="subH" style="margin-top:4px">How are you ordering?</div><div class="howGrid">' + HOW.map(([k, l, i]) => '<button class="how" data-act="placeHow" data-k="' + k + '" aria-pressed="' + (P.how === k) + '">' + ic(i, 20) + '<b>' + esc(l) + '</b><span>' + esc(k === 'online' ? (v.portal ? v.portal.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'no website saved') : k === 'call' ? (L.phone || 'no number saved') : k === 'email' ? (L.email || 'no email saved') : k === 'text' ? (L.textTo || 'no mobile saved') : k === 'rep' ? (v.rep || 'no rep saved') : 'mark it ordered') + '</span></button>').join('') + '</div>' +
     detail +
-    '<div class="subH">The order</div><div class="copyBox" id="orderTxt">' + esc(text) + '</div><div class="btnRow"><button class="btn btn-ghost" data-act="copyOrder">' + ic('copy', 15) + 'Copy</button></div>' +
+    '<div class="subH">' + (P.how === 'text' ? 'The text' : 'The order') + '</div><div class="copyBox" id="orderTxt">' + esc(shown) + '</div><div class="btnRow"><button class="btn btn-ghost" data-act="copyOrder">' + ic('copy', 15) + 'Copy</button></div>' +
     '<div class="subH">When it’s placed</div><div class="grid2">' + field('Their order or confirmation # (optional)', '<input id="poNum" placeholder="e.g. 4815162">') + field('Expected delivery (optional)', '<input id="poDate" type="date" min="' + todayISO() + '">') + '</div>' +
     field('Note (optional)', '<input id="poNote" placeholder="e.g. rep said gloves ship separately">') +
     '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Not yet — keep it in the cart</button><button class="btn btn-pri" data-act="placeGo">' + ic('check', 16) + 'It’s ordered — move to On the way</button></div>', { cls: 'wide', noFocus: true });
+  if (qrHere && qrFits) drawTextQr(L.qr, dk === 'pc' ? (L.qr.length > 600 ? 320 : 260) : 170);
 }
-ACT.placeHow = t => { S.ui.place.how = t.dataset.k; const n = val('poNum'), d = val('poDate'), x = val('poNote'); renderPlace(); $('#poNum').value = n; $('#poDate').value = d; $('#poNote').value = x; };
+/* the text as a QR code (the library the QR labels use); a dialog redrawn meanwhile draws its own */
+async function drawTextQr(payload, size) {
+  const box = $('#smsQr'); if (!box) return;
+  try { await loadLib('qrcode'); } catch (e) { if (box.isConnected) box.textContent = errText(e); return; }
+  if (!box.isConnected) return;
+  try { new QRCode(box, { text: payload, width: size, height: size, correctLevel: QRCode.CorrectLevel.L }); }
+  catch (e) { box.textContent = 'Too long for a QR code — copy the text below.'; }
+}
+ACT.placeHow = t => {
+  const P = S.ui.place, k = t.dataset.k, url = launchUrl(k, placeLinks(P.vendor, P.snap, whoNow()), devKind());
+  const n = val('poNum'), d = val('poDate'), x = val('poNote');
+  P.how = k; P.opened = url ? k : '';
+  if (url) openExternal(url, k === 'online');
+  renderPlace(); $('#poNum').value = n; $('#poDate').value = d; $('#poNote').value = x;
+};
 ACT.copyOrder = () => copyText($('#orderTxt').textContent);
 ACT.placeGo = t => withWho(async () => {
   const P = S.ui.place; busyBtn(t, true, 'Saving…');

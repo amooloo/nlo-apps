@@ -452,9 +452,11 @@ def t_turned_off(b):
 
 @test
 def t_rules_gate(b):
-    """with the rules published today (no Inventory), Dr. A gets the card to publish the new ones; staff are told to wait"""
-    old = subprocess.run(['git', 'show', 'origin/main:nlo-cases-src/firestore.rules'], cwd=SRC.parent, capture_output=True, text=True, check=True).stdout.replace('__OWNER_EMAIL__', 'dr.test@example.com')
-    assert 'invItems' not in old
+    """with the rules from before Inventory joined them (the newest on main without its block), Dr. A gets the card to publish
+    the new ones; staff are told to wait"""
+    git = lambda *a: subprocess.run(['git'] + list(a), cwd=SRC.parent, capture_output=True, text=True, check=True).stdout
+    old = next(t for t in (git('show', h + ':nlo-cases-src/firestore.rules') for h in git('log', '--format=%H', 'origin/main', '--', 'nlo-cases-src/firestore.rules').split()) if 'invItems' not in t)
+    old = old.replace('__OWNER_EMAIL__', 'dr.test@example.com')
     set_rules(old)
     try:
         ctx, pg, errs = new_page(b, quiet=True); sign_in(pg, 'amir', wait_app=False)
