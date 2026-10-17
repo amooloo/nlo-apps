@@ -67,8 +67,15 @@ def _start_watcher():
     cfg = json.load(open(cfg_path))
     if not cfg.get("inbox"):
         return
-    os.makedirs(cfg["inbox"], exist_ok=True)
-    logf = open(os.path.join(cfg["inbox"], "bleachtray.log"), "a", encoding="utf-8")
+    # a drop folder this PC cannot see (the share on another drive letter, the server off) must not take
+    # the browser app down with it: say so and serve without the watcher
+    try:
+        os.makedirs(cfg["inbox"], exist_ok=True)
+        logf = open(os.path.join(cfg["inbox"], "bleachtray.log"), "a", encoding="utf-8")
+    except OSError as ex:
+        print(f"  Drop folder {cfg['inbox']} is not reachable from this PC ({ex}) - folder watching is off.")
+        print("  Fix the folder in watch_config.json (the office share may be on another drive letter here) and restart the app.")
+        return
 
     def log(msg):
         line = f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S}  {msg}"
