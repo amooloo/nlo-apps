@@ -29,11 +29,12 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    the tooth split is reused, and Send writes the order with every model.
 4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`), a mouthguard as a stage-2 Template piece (`TU2A`).
-   Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Save as lesson** files a brush-corrected case for the retraining without ordering anything (Send does that
-   too, on the side); it is greyed out until a fix has been applied.
+   Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. Send also files the case for the retraining (a brush-corrected case is a lesson). The small
+   **Save as lesson without sending** link, shown only on a corrected case, does the filing alone - for a case that is not going
+   to be ordered - and then asks whether to keep the case in the list or move it to Past cases.
 
 **Cases** (sidebar) holds only what still needs a decision: processing, or done and not yet sent or discarded. Sending
-or discarding moves the case to Past cases at once; Save as lesson leaves it in Cases (it may still want sending).
+or discarding moves the case to Past cases at once; Save as lesson asks whether the case stays or goes.
 
 **Past cases** (sidebar): every case the app ever made stays on file - type a bit of the name or a date to find it,
 click it and it comes back as it was: look at it, print it again (the model files), **Send to Trimlign again** for a
