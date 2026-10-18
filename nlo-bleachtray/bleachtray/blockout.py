@@ -111,9 +111,12 @@ def _slab_from_grid(region, ztop, zbot, x0, y0, cell):
 
 
 def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=True, paint=None,
-                  paint_min_depth=0.15, feather=1.2, upsample=3, log=print):
+                  paint_min_depth=0.15, feather=2.0, upsample=3, near=None, near_mm=1.5, log=print):
     """Return (solid or None, info). `paint`: per-vertex bool mask of areas the user asked to block
-    out (filled whatever their depth, down to the model floor if no surface shows under them)."""
+    out (filled whatever their depth, down to the model floor if no surface shows under them).
+    `near`: per-vertex bool mask (the teeth): an automatic fill only goes under an overhang within
+    `near_mm` of it - the vestibule's own overhangs (the scan's rolled edge, a frenum) are not the
+    tray's business - and only where a real surface shows under the overhang, never down to the floor."""
     V = np.asarray(mesh.vertices); N = np.asarray(mesh.vertex_normals)
     g = _grid_fields(V, N, cell)
     gap = g["gap_top"] - g["gap_bot"]
@@ -122,6 +125,10 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     region = np.zeros_like(has)
     if auto:
         region |= has & (gap >= min_gap) & g["overhang"] & g["floor"] & (depth >= min_depth)
+        region &= g["gap_bot"] > z_floor + 0.5                       # something to build on, not the model's floor
+        if near is not None and np.asarray(near).any():
+            nm = np.zeros(g["nx"] * g["ny"], bool); nm[g["lin"][np.asarray(near, bool)]] = True
+            region &= ndi.binary_dilation(nm.reshape(g["nx"], g["ny"]), iterations=max(1, int(round(near_mm / cell))))
     painted = np.zeros_like(has)
     if paint is not None and np.asarray(paint).any():
         pm = np.zeros(g["nx"] * g["ny"], bool); pm[g["lin"][np.asarray(paint, bool)]] = True
@@ -188,17 +195,18 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     # few scan vertices per cell; the surface wants small steps): fields interpolated, edges rounded
     fine = cell / upsample
     if upsample > 1:
-        wide_f = ndi.zoom(wide.astype(float), upsample, order=1) > 0.5
-        zb_f = ndi.zoom(zb_w, upsample, order=1); zs_f = ndi.zoom(zs_w, upsample, order=1)
+        wide_f = ndi.zoom(ndi.gaussian_filter(wide.astype(float), 0.7), upsample, order=1) > 0.5     # rounded outline, no cell corners
+        zb_f = ndi.zoom(zb_w, upsample, order=3); zs_f = ndi.zoom(zs_w, upsample, order=3)
         wide_f = ndi.binary_opening(wide_f, iterations=1) | ndi.binary_erosion(wide_f, iterations=1)
-        zb_f = ndi.gaussian_filter(zb_f, sigma=upsample * 0.6); zs_f = ndi.gaussian_filter(zs_f, sigma=upsample * 0.6)
+        # resin-smooth: a blur of ~0.5 mm takes out the 0.3 mm grid's facets without moving the wedge
+        zb_f = ndi.gaussian_filter(zb_f, sigma=upsample * 1.5); zs_f = ndi.gaussian_filter(zs_f, sigma=upsample * 1.5)
     else:
         wide_f, zb_f, zs_f = wide, zb_w, zs_w
     dist = ndi.distance_transform_edt(wide_f) * fine
     ramp = np.clip(dist / max(feather, 1e-6), 0.0, 1.0)
     ramp = ramp * ramp * (3 - 2 * ramp)
     ztop = zb_f + ramp * np.maximum(zs_f + 0.3 - zb_f, 0.0)
-    zbot = np.maximum(zb_f - 0.3, z_floor - 0.5)
+    zbot = np.maximum(zb_f - 0.3, z_floor + 0.05)                   # never below the model's floor
     ztop = np.maximum(ztop, zbot + 0.35)
     region = wide_f
     # corner-touching cells would pinch the solid

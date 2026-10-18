@@ -328,11 +328,14 @@ and the same on both sides. (The scan-colour step is seeded, so the same scan no
 an open embrasure - is filled like block-out resin (`bleachtray/blockout.py`): on a 0.3 mm grid every vertical
 through the model that passes an underside and then free air before the next surface is a candidate; it is filled
 from that surface up to the underside when the undercut is deeper than 0.75 mm measured in from the contour seen
-from above (a setting, retainers only by default - the small natural undercuts stay for retention), or whatever
-its depth under a painted *Block out* stroke. The fill is one heightfield solid unioned into the body before the
-outline cut; it is shown in teal in the Result view and saved as `<name>_blockout.stl`. The fill is feathered like
-resin: built on a 0.1 mm grid, it climbs from the surface at the edge of the spot up to the overhang over 1.2 mm, so
-there is no wall and no staircase to see.
+from above (a setting - **off by default**: the doctor paints the undercuts that matter in the Block-outs tab, the
+natural ones stay for retention), or whatever its depth under a painted *Block out* stroke. An automatic fill only
+goes under an overhang within 1.5 mm of a tooth and only where a real surface shows under it - the vestibule's own
+overhangs (the scan's rolled edge, a frenum) are not the tray's business - and no fill ever reaches below the model's
+floor. The fill is one heightfield solid unioned into the body before the outline cut; it is shown in teal in the
+Result view and saved as `<name>_blockout.stl`. It is smoothed like resin: built on a 0.1 mm grid with a ~0.5 mm
+blur and a rounded outline, climbing from the surface at the edge of the spot up to the overhang over 2 mm, so there
+is no wall, no facet and no staircase to see.
 
 **History.** `jobs\<case>\case.json` is the recipe of a case (scans by relative path, settings, brush fixes as
 `fixedlabels_*.npz`, painted areas, review state, when it was sent); it is written whenever a run finishes or the
