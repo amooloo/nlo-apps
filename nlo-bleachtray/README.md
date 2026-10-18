@@ -168,6 +168,10 @@ S: drive can host it; it just has to be on and signed in.
 The old PC keeps its app folder (nothing is deleted); it just no longer starts the app. On a PC that allows .bat
 files, `uninstall_autostart.bat` / `install.bat` do the same by hand.
 
+A case keeps the patient it was made for: the page's name fields are filled from each new drop's file names (empty when
+the name is not in the file name - then it has to be typed), and a re-run never renames a case from them; a case
+without a name takes one through the patient line only.
+
 ## If a case needs a look
 
 From any office computer open `http://lab:8765` — or click **Bleach Tray** on the NLO apps home page,
@@ -194,7 +198,14 @@ re-run. The trim line is drawn as a thin tube lifted 0.16 mm off the model along
 pairs, cross-checked against a parabola fit of the gum-line loop; the shape midline is used when they disagree by > 8°). A gradient-boosted classifier trained on Titan's own tooth segmentation labels every vertex tooth/gingiva
 from multi-scale curvature, height-below-cusp and radial-position features; teeth are separated along the arch from four cues (an interproximal classifier, incisal/occlusal
 height dips, pinches of the crown outline seen from above, facial grooves) checked against expected tooth widths,
-then flooded downhill from each tooth's centre; numbered from the midline. A **contact dot** from the doctor is
+then flooded downhill from each tooth's centre; numbered from the midline. The band the trim line follows is made
+**one piece** before the line is traced: where neighbouring teeth do not touch (an open contact, spacing, a small
+gap the ridge step did not call a missing tooth) the tooth mask is islands and the gum line would be one loop per
+island - the longest of which is half an arch, and the model built from it half a model standing off its place on
+the base. Close islands are joined by a bridge along the shortest surface path between them (the gum between the
+two teeth, 0.8 mm wide; `connect_line_pieces`, "gum line carried across N gaps"); if the line still breaks, the
+edge zone is thinned and the band widened step by step, and a model that is still partial, or not watertight,
+carries a red warning on the result line (`rep["warnings"]`). A **contact dot** from the doctor is
 a boundary of its own: where there are dots they are the only boundaries on that stretch of the arch (automatic ones
 inside it, and within 3.2 mm beyond its ends, go), and round each dot (2.5 mm in plan) the tooth vertices are given to
 one side or the other of the vertical plane through the dot across the contact - the plane normal to the surface's
