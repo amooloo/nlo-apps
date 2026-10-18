@@ -196,8 +196,11 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
         pm = np.zeros(g["nx"] * g["ny"], bool); pm[g["lin"][np.asarray(paint, bool)]] = True
         painted = ndi.binary_dilation(pm.reshape(g["nx"], g["ny"]), iterations=1)
         region |= painted & has & (gap >= 0.2) & g["overhang"] & (depth >= paint_min_depth)
-    # tidy: close one-cell holes (only where a gap exists), drop specks
-    region = ndi.binary_closing(region, iterations=1) & has & g["overhang"]
+    # tidy: close small holes and notches. A steep underside (a tipped molar's mesial face, a near-vertical
+    # proximal wall) crosses only every other column at this cell size, so the columns between have no
+    # crossing pair of their own; they join the fill and take their heights from the neighbours (the comb
+    # of thin slabs seen 10/18/2026)
+    region = ndi.binary_closing(region, iterations=2)
     lab, nlab = ndi.label(region)
     if nlab:
         sizes = ndi.sum(region, lab, index=np.arange(1, nlab + 1))
@@ -211,9 +214,7 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         zmed = ndi.generic_filter(ztop, np.nanmedian, size=3, mode="constant", cval=np.nan)
-        far = region & ~np.isnan(zmed) & (np.abs(ztop - zmed) > 1.5)
-        region &= ~far
-        ztop = np.where(np.isnan(zmed), ztop, np.minimum(ztop, zmed))
+        ztop = np.where(np.isnan(zmed), ztop, np.minimum(ztop, zmed + 0.5))     # a column grazing a contact area is capped, never dropped
     lab, nlab = ndi.label(region)
     if nlab:
         sizes = ndi.sum(region, lab, index=np.arange(1, nlab + 1))
@@ -247,15 +248,15 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     # every filled column needs both heights: gaps from the nearest known, then a light smoothing
     # within the fill (nothing outside it pulls on the edge heights)
     ztop = np.where(region, _nearest_fill(region, ztop), np.nan); zbot = np.where(region, _nearest_fill(region, zbot), np.nan)
-    ztop = _blur_in(region, ztop, 1.0); zbot = _blur_in(region, zbot, 1.0)
+    ztop = _blur_in(region, ztop, 1.3); zbot = _blur_in(region, zbot, 1.3)
     # the fill is built on a finer grid than the one the undercuts were found on (the detection needs a
     # few scan vertices per cell; the surface wants small steps): a rounded outline, heights interpolated
     fine = cell / upsample
     if upsample > 1:
-        region_f = ndi.gaussian_filter(ndi.zoom(region.astype(float), upsample, order=1), upsample * 0.6) > 0.5   # no cell corners on the outline
+        region_f = ndi.gaussian_filter(ndi.zoom(region.astype(float), upsample, order=1), upsample * 0.9) > 0.5   # no cell corners on the outline
         region_f = ndi.binary_opening(region_f, iterations=1) | ndi.binary_erosion(region_f, iterations=1)
         ztop_f = ndi.zoom(_nearest_fill(region, ztop), upsample, order=1); zbot_f = ndi.zoom(_nearest_fill(region, zbot), upsample, order=1)
-        ztop_f = _blur_in(region_f, ztop_f, upsample * 0.8); zbot_f = _blur_in(region_f, zbot_f, upsample * 0.8)
+        ztop_f = _blur_in(region_f, ztop_f, upsample * 1.2); zbot_f = _blur_in(region_f, zbot_f, upsample * 1.2)
     else:
         region_f, ztop_f, zbot_f = region, ztop, zbot
     region_f = _unpinch(region_f)
@@ -272,6 +273,14 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     zbot_f = np.maximum(zb - 0.3, z_floor + 0.05)
     ztop_f = np.maximum(ztop_f, zbot_f + 0.35)
     solid = _slab_from_grid(region_f, ztop_f, zbot_f, g["x0"], g["y0"], fine)
+    # resin-smooth: a volume-keeping Taubin pass takes the grid's staircase off the walls and eases the
+    # edge between wall and top; the result must still be a clean solid, else the plain slab is used
+    try:
+        sm = trimesh.smoothing.filter_taubin(solid.copy(), lamb=0.5, nu=-0.53, iterations=12)
+        if sm.is_watertight and sm.is_winding_consistent and abs(sm.volume) > 0.5 * abs(solid.volume):
+            solid = sm
+    except Exception:
+        pass
     lab, nlab = ndi.label(core)
     vol = float(abs(solid.volume)) / 1000.0
     info = dict(cells=int(core.sum()), spots=int(nlab), volume_ml=round(vol, 3), proud_mm=float(proud or 0.0),
