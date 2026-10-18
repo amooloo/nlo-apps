@@ -15,16 +15,16 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    or files dragged into **`S:\clinical\3D printing\BleachTray`**, run with the default (both) without questions.
    Several people can drop at the same time: cases run one after another and the list shows who is waiting.
 3. A few minutes later the case shows **"check & send"** in the app, with **four models**: whitening tray (WT) and
-   thermoformed retainer (TT) for each arch. Look at the 3D result (trim line, reservoirs, position on the base).
-   Fix a tooth with the brush (the ball on the model is the brush, its size is the slider; hold **Shift** and drag,
-   then **Apply fixes & re-run**) or nudge the base if needed - a fix is kept for every later re-run of that case.
-   **Cut away** (third brush mode) deletes that part of the scan for good - tongue, cheek, a flap, the pad behind the
-   last molar - and the model is built from the clean scan. **No reservoir** keeps the gel reservoir off a recession
-   or a crown margin you paint; **Block out** fills the undercut under what you paint (under a pontic, round an
-   implant crown) so the retainer seats. Both stay with the scan for every model and every later re-run. The
-   reservoirs themselves are painted on the **Scan + reservoirs** tab, where you see them: **Add reservoir** where
-   the automatic one is missing (a tooth behind the 5s, a part a recession set-back took away) and **No reservoir**
-   where it is not wanted - still a millimetre off the gum line, feathered at the edge of your stroke, ignored on gum. **Also make …** in the Check & send box adds the other
+   thermoformed retainer (TT) for each arch. Look at the 3D result (trim line, reservoirs, position on the base) and
+   nudge the base if needed. Each thing you might fix has its own tab, each with one brush (the ball on the model;
+   its size is the slider; hold **Shift** and drag, then **Apply & re-run** - every fix is kept for every model made
+   from that scan and every later re-run): **Clean-up** cuts away what is not the arch (tongue, cheek, a flap, the
+   pad behind the last molar - gone from the scan for good); **Segmentation** repaints tooth / gum labels (the white
+   stone model with each tooth in its own colour); **Reservoirs** shows the reservoirs in red and you **Paint** more
+   (a tooth behind the 5s, a part a recession set-back took away) or **Erase** them (a recession, a crown margin) -
+   always a millimetre off the gum line, feathered at the edge of your stroke, ignored on gum; **Block-outs** fills
+   the undercut under what you paint (under a pontic, round an implant crown) so the retainer seats; **Braces** (only
+   for a scan dropped with Braces on, or a mouthguard) takes off a bracket or bit of wire the app missed. **Also make …** in the Check & send box adds the other
    tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
    the tooth split is reused, and Send writes the order with every model.
 4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
@@ -115,7 +115,7 @@ files, `uninstall_autostart.bat` / `install.bat` do the same by hand.
 From any office computer open `http://lab:8765` — or click **Bleach Tray** on the NLO apps home page,
 which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
 it processes on its own and writes the OrthoFactory order (the green line under the result confirms it). See the
-result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation / fix* tab),
+result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation* tab),
 re-run. **Position on the base** (Result tab): the arch stays where it is and the *base plate* moves under it - drag the plate to slide it, drag the blue ring to turn it (or use the step buttons); the first touch flips the view to the underside with the plate see-through, so the locating holes are checked against the arch footprint (*Underneath (holes)* / *From above* switch the view). *Apply* rebuilds the order, *Reset to automatic* goes back. (The numbers sent to the server are still the arch's move relative to the base, as before.) *Make*: *Whitening tray + retainer* (default, both per arch), *Whitening tray 5-5 only* (reservoirs 5-5, line at the gum), *Whitening 3-3 only*, *Retainer only*
 (line 1.25 mm onto the gums, semi-scallop), *Plain model*.
 
@@ -201,9 +201,9 @@ first; a rim no patch can hold is restored and smoothed over in place instead; p
 seams are relaxed with a few shrink-free Taubin steps. A *second pass* on the result catches the low lips of
 pad or ligature that sat under the first pass's threshold. The cleaned scan is written as
 `<scan>_clean.ply` next to the case and becomes the case's scan file (brush, re-runs, history and the
-Titan export all work on it); its rebuilt vertices are recorded as paint bit 4 (grey in the brush view) and
+Titan export all work on it); its rebuilt vertices are recorded as paint bit 4 (grey on the Braces tab) and
 the result line says how much came off. Scans with braces are kept out of the training set.
-`remove_appliances` = False (default) / True. **Take off brush** (Segmentation / fix): a bit of bracket,
+`remove_appliances` = False (default) / True. **Take off brush** (Braces tab): a bit of bracket,
 wire or tie the app missed - or anything on a scan dropped without the box - is painted and goes through the
 same cut-and-patch on the next run (no detection, what was painted is the appliance); the scan advances to `_clean2.ply`, `_clean3.ply`…, with the earlier
 rebuilt areas, the painted no-reservoir / block-out strokes and a cut in the same run carried over by
@@ -235,7 +235,7 @@ side when a clear one shows in the canine / premolar region; lingually it runs 6
 behind the last tooth on each side it hugs the tooth 2.5 mm back (`mg_distal`), the facial deepening fading out
 over the last 4 mm. No reservoirs, no automatic block-out (the whole sulcus under flared crowns would count as
 one undercut - the real vestibule is what the guard needs), the model still sits on the base by its gum line and
-the body covers the crowns the way a tray body does. The brush view shows what is under the shield in orange;
+the body covers the crowns the way a tray body does. The Braces tab shows what is under the shield in orange;
 **Take off** on a mouthguard adds the painted part to the shield instead of removing it (a tube the app missed),
 and tooth / gum fixes work on the scan as it is. In OrthoFactory the guard is a Template piece, stage 2 (`MG`);
 the base says MOUTHGUARD and the tooth mark is `G`. Settings: `mouthguard`, `mg_inset`, `mg_min_depth`,

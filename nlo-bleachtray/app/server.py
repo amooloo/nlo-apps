@@ -1339,7 +1339,7 @@ def job_status(jid: str):
     out["fixed"] = _fixed_arches(job)
     paint = job.get("paint") or {}
     out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset"),
-                         braces=({k: v for k, v in sc["braces"].items() if k != "passes"} if sc.get("braces") else None),
+                         braces=({k: v for k, v in sc["braces"].items() if k != "passes"} if sc.get("braces") else None), braces_on=bool(sc.get("braces_on")),
                          painted={k: len(v) for k, v in (paint.get(sc["path"]) or {}).items()}) for sc in job["scans"]]
     if job.get("reports"):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]
