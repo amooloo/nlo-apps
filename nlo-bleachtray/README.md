@@ -211,8 +211,10 @@ leave the brackets; a mouthguard scan keeps everything (and the mouthguard model
 iTero; metal brackets, green/purple ties, molar tubes, a palatal expander) and 2 plain iTero arches: the
 brackets, wire and ties are gone on all ten and the enamel reads as enamel; nothing is touched on the
 plain scans. Known limits: clear / ceramic brackets (tooth-coloured) are not found; molar bands and an
-expander's arms are not bumps and stay; the enamel under a bracket is a smooth reconstruction, not the
-scanned surface.
+expander's arms are not bumps and stay; a **stainless-steel crown** is grey and stands proud like a bracket and
+IS taken for one (seen on Dr. Wood's lower, 10/17/2026 - the lingual wall of the crown was cut out and rebuilt), so
+for a braces scan with a metal crown leave the box off and paint the brackets with the **Take off** brush instead;
+the enamel under a bracket is a smooth reconstruction, not the scanned surface.
 
 **Mouthguard (braces on).** Tick **Mouthguard (MG)** on the scan (or choose the *Mouthguard (braces on)* preset),
 scanned with the brackets, wire and ties on and the cheeks and lip pulled back so the scan goes as far into the
