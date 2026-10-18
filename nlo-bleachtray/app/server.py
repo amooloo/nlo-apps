@@ -171,7 +171,7 @@ def _save_case(job):
         for path, lab in fixed.items():
             np.savez(os.path.join(jdir, "fixedlabels_" + os.path.basename(path) + ".npz"), labels=np.asarray(lab, dtype=np.int16))
         paint = {os.path.relpath(k, jdir): v for k, v in (job.get("paint") or {}).items()}
-        params = {k: v for k, v in job["params"].items() if k not in ("keep_off_idx", "blockout_idx")}
+        params = {k: v for k, v in job["params"].items() if k not in ("keep_off_idx", "blockout_idx", "force_on_idx", "shield_idx")}
         case = dict(id=job["id"], name=job.get("name"), created=job.get("created"), source=job.get("source"), preset=job.get("preset"),
                     filename=job.get("filename"), params=params, scans=scans, review=job.get("review"), order_folder=job.get("order_folder"),
                     sent_at=job.get("sent_at"), learned=job.get("learned"), fixed=[os.path.relpath(k, jdir) for k in fixed], paint=paint,
@@ -207,7 +207,7 @@ def _backfill_case(d):
         name = fn[: -len("_report.json")]
         tag = name.rsplit("_", 1)[-1] if name.rsplit("_", 1)[-1] in ("WT", "TT", "MODEL") else None
         p = rep.get("params") or {}
-        params = params or {k: v for k, v in p.items() if k not in ("keep_off_idx", "blockout_idx")}
+        params = params or {k: v for k, v in p.items() if k not in ("keep_off_idx", "blockout_idx", "force_on_idx", "shield_idx")}
         # the scan this model was made from: the one whose name stem matches, else the only one
         stem = name[: -len(tag) - 1] if tag else name
         cand = [sc for sc in scans_on_disk if stem.lower() in sc.lower().replace(" ", "_")] or scans_on_disk
@@ -465,15 +465,20 @@ def _run(job):
                     r = -np.ones(len(remap), dtype=np.int64); ok = remap >= 0
                     r[ok] = remap2[remap[ok]]; remap = r
         # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
-        if me is not None and (me.get("noreservoir") or me.get("blockout")):
+        if me is not None and (me.get("noreservoir") or me.get("blockout") or me.get("reservoir")):
             path = job["scans"][me.get("scan", 0)]["path"]
             entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
-            for key in ("noreservoir", "blockout"):
+            for key in ("noreservoir", "blockout", "reservoir"):
                 idx = np.asarray(me.get(key) or [], dtype=int)
                 if remap is not None and len(idx):
                     idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
                 entry[key] = sorted(set(entry.get(key, [])) | set(int(i) for i in idx))
-            log(f"painted: {len(entry['noreservoir'])} vertices without reservoir, {len(entry['blockout'])} to block out")
+            # the two reservoir brushes cancel each other where they overlap: the later stroke wins
+            if me.get("reservoir"):
+                entry["noreservoir"] = sorted(set(entry["noreservoir"]) - set(entry["reservoir"]))
+            if me.get("noreservoir"):
+                entry["reservoir"] = sorted(set(entry.get("reservoir", [])) - set(entry["noreservoir"]))
+            log(f"painted: {len(entry['noreservoir'])} vertices without reservoir, {len(entry.get('reservoir', []))} with one added, {len(entry['blockout'])} to block out")
         for i, k in enumerate(todo):
             scan = job["scans"][k]
             def progress(frac, label, i=i, k=k):
@@ -492,6 +497,7 @@ def _run(job):
             params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
             pe = paint.get(scan["path"]) or {}
             params["keep_off_idx"] = pe.get("noreservoir") or []; params["blockout_idx"] = pe.get("blockout") or []; params["shield_idx"] = pe.get("shield") or []
+            params["force_on_idx"] = pe.get("reservoir") or []
             rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
                           label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
             scan["arch"] = rep["arch"]; scan["report"] = rep
@@ -720,7 +726,7 @@ def _take_off_braces(job, path, log=print, painted=None):
     entry = paint.setdefault(new_path, {"noreservoir": [], "blockout": []})
     old_entry = paint.pop(path, None)
     if old_entry:   # strokes painted on the earlier file (and its rebuilt enamel): carried over by position
-        for key in ("noreservoir", "blockout", "removed"):
+        for key in ("noreservoir", "blockout", "reservoir", "removed"):
             idx = np.asarray(old_entry.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
             kept = set(int(i) for i in remap[idx] if i >= 0)
             if key == "removed":
@@ -1000,7 +1006,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     try:
         me = json.loads(edits or "{}")
         # a re-run without any painted vertex is just a re-run: it must not count as a brush correction
-        job["mask_edit"] = me if any(me.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "takeoff")) else None
+        job["mask_edit"] = me if any(me.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "takeoff", "reservoir")) else None
     except Exception:
         job["mask_edit"] = None
     # only the models a change touches are re-made: a retainer-line change leaves the whitening trays
@@ -1388,10 +1394,10 @@ def seg_mesh(jid: str, scan: int = 0):
     buf = io.BytesIO()
     buf.write(struct.pack("<II", len(V), len(F)))
     buf.write(V.tobytes()); buf.write(F.tobytes()); buf.write(lab.tobytes()); buf.write(disp.tobytes())
-    # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out; bit 4 = brackets / wire removed; bit 8 = bracket shield
+    # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out; bit 4 = brackets / wire removed; bit 8 = bracket shield; bit 16 = reservoir added
     pe = (job.get("paint") or {}).get(sc["path"]) or {}
     flags = np.zeros(len(V), dtype=np.uint8)
-    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed")):
+    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed"), (16, "reservoir")):
         idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
         flags[idx] |= bit
     # bit 8 = under the mouthguard's bracket shield (found + painted)

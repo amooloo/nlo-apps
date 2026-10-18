@@ -322,6 +322,15 @@
           <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
           <div class="hint" id="fixcount">No edits.</div>
         </div>
+        <div class="brush" id="resbrush">
+          <h4>Reservoirs — paint where one is missing or not wanted</h4>
+          <div class="seg"><button class="on" data-rmode="reservoir" title="A reservoir here: on a tooth the automatic one skipped (behind the 5s, a tooth set back for recession) or a part it missed. Still 1 mm off the gum line and 0.4 mm off the edge">Add reservoir</button><button data-rmode="noreservoir" title="No reservoir here (recession, an exposed root, a crown margin) - it stays a millimetre away">No reservoir</button></div>
+          <label class="f">Brush size: <span id="rv2">1.5</span> mm radius</label>
+          <input type="range" id="radius2" min="0.5" max="5" step="0.25" value="1.5">
+          <div class="hint">The warm colour is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. Pink = a reservoir added, purple = none here; the later stroke wins where they overlap. Paint on gum is ignored. Kept for every model made from this scan and every re-run.</div>
+          <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerunres">Apply &amp; re-run</button><button class="small" id="clearres">Clear</button></div>
+          <div class="hint" id="rescount">No edits.</div>
+        </div>
         <div class="place" id="place">
           <h4>Position on the base</h4>
           <div class="seg" style="margin-bottom:8px"><button class="small" id="viewUnder" title="Look up at the underside: the locating holes in the base plate must stay clear of the arch">Underneath (holes)</button><button class="small" id="viewTop">From above</button></div>
@@ -627,7 +636,8 @@ let currentJob = null, tab = 'result';
 const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new THREE.Group() };
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null;
-const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), takeoff: new Set() };
+const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), takeoff: new Set(), reservoir: new Set() };
+let resMesh = null, resHeat = null, resMode = 'reservoir';   // the Scan + reservoirs view: its mesh, its heat colours, the brush there
 let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out, bit 4 = brackets removed, bit 8 = bracket shield)
 let segRGB = null;     // the scanner's own colour per vertex (PLY scans), shown under the labels
 let brushMode = 'tooth';
@@ -640,7 +650,7 @@ const brushRingIn = new THREE.Mesh(new THREE.RingGeometry(0.88, 0.94, 64), new T
 brushRingOut.renderOrder = brushRingIn.renderOrder = 12; brushCursor.renderOrder = 11;
 brushCursor.add(brushRingOut, brushRingIn); brushCursor.visible = false; scene.add(brushCursor);
 
-function showTab(t){ tab = t; if (t !== 'result' && underside) lookTop(); for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#place').classList.toggle('on', t === 'result' && !!archGroup); syncBrush(); requestRender(); }
+function showTab(t){ tab = t; if (t !== 'result' && underside) lookTop(); for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#resbrush').classList.toggle('on', t === 'scan' && !!resMesh); $('#place').classList.toggle('on', t === 'result' && !!archGroup); syncBrush(); requestRender(); }
 document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
 $('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); requestRender(); };
 
@@ -812,7 +822,7 @@ $('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawReg
 $('#setApply').onclick = async () => {
   if (!currentJob) return;
   saveSettings(); $('#settings').classList.remove('on'); requestRender();
-  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout], takeoff:[...edits.takeoff] })); fd.append('params', JSON.stringify(params()));
+  const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', JSON.stringify(params()));
   const r = await (await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd })).json();
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
   $('#dl').innerHTML = ''; selectJob(currentJob);
@@ -1008,7 +1018,7 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine;
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
-    const unapplied = () => { if (edits.add.size || edits.remove.size || edits.cut.size || edits.noreservoir.size || edits.blockout.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Save as lesson.'); showTab('seg'); return true; } return false; };
+    const unapplied = () => { if (edits.add.size || edits.remove.size || edits.cut.size || edits.noreservoir.size || edits.blockout.size || edits.reservoir.size || edits.takeoff.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Save as lesson.'); showTab('seg'); return true; } return false; };
     $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
     $('#learnbtn').onclick = async () => { if ($('#learnbtn').disabled) return; if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: new FormData() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
     $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); };
@@ -1207,10 +1217,25 @@ async function loadSeg(id, k=0){
   // scan + reservoirs heat
   const g2 = g.clone(); const col2 = new Float32Array(nV*3); const c = new THREE.Color();
   for (let i=0;i<nV;i++){ const t = Math.min(segDisp[i]/0.5, 1); c.setHSL(0.08 - 0.08*t, t>0.02 ? 0.9 : 0, t>0.02 ? 0.35+0.3*t : 0.82); col2[i*3]=c.r; col2[i*3+1]=c.g; col2[i*3+2]=c.b; }
-  g2.setAttribute('color', new THREE.BufferAttribute(col2, 3));
-  groups.scan.add(new THREE.Mesh(g2, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.55, envMapIntensity: .4 })));
+  resHeat = col2; g2.setAttribute('color', new THREE.BufferAttribute(col2.slice(), 3));
+  resMesh = new THREE.Mesh(g2, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.55, envMapIntensity: .4 })); groups.scan.add(resMesh);
+  paintResColors();
+  $('#resbrush').classList.toggle('on', tab === 'scan');
   requestRender();
   const bb = new THREE.Box3().setFromBufferAttribute(g.getAttribute('position')); segBase = bb;
+}
+function paintResColors(){
+  if (!resMesh || !resHeat) return;
+  const attr = resMesh.geometry.getAttribute('color'), a = attr.array, c = new THREE.Color();
+  for (let i = 0; i < segLabels.length; i++){
+    const pf = segPaint ? segPaint[i] : 0;
+    let hex = 0;
+    if (edits.reservoir.has(i)) hex = 0xdb2777; else if (edits.noreservoir.has(i)) hex = 0x7c3aed;
+    else if (pf & 16) hex = 0xf9a8d4; else if (pf & 1) hex = 0xc4b5fd;        // already applied on an earlier run: paler
+    if (hex) { c.setHex(hex); a[i*3] = c.r; a[i*3+1] = c.g; a[i*3+2] = c.b; }
+    else { a[i*3] = resHeat[i*3]; a[i*3+1] = resHeat[i*3+1]; a[i*3+2] = resHeat[i*3+2]; }
+  }
+  attr.needsUpdate = true; requestRender();
 }
 function paintColors(){
   const c = new THREE.Color();
@@ -1220,8 +1245,8 @@ function paintColors(){
     // a coloured scan shows its own colour, with the tooth tint laid over it so the labels still read
     if (segRGB && lab !== 99 && lab !== 98) { const w = lab === 0 ? 0.0 : 0.45; c.setRGB(c.r * w + segRGB[i*3] / 255 * (1 - w), c.g * w + segRGB[i*3+1] / 255 * (1 - w), c.b * w + segRGB[i*3+2] / 255 * (1 - w)); }
     const pf = segPaint ? segPaint[i] : 0;
-    if (edits.noreservoir.has(i)) c.setHex(0x7c3aed); else if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (edits.takeoff.has(i)) c.setHex(0xf97316);
-    else if (pf & 1) c.lerp(new THREE.Color(0x7c3aed), 0.55); else if (pf & 2) c.lerp(new THREE.Color(0x0d9488), 0.55);
+    if (edits.noreservoir.has(i)) c.setHex(0x7c3aed); else if (edits.reservoir.has(i)) c.setHex(0xdb2777); else if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (edits.takeoff.has(i)) c.setHex(0xf97316);
+    else if (pf & 1) c.lerp(new THREE.Color(0x7c3aed), 0.55); else if (pf & 16) c.lerp(new THREE.Color(0xdb2777), 0.45); else if (pf & 2) c.lerp(new THREE.Color(0x0d9488), 0.55);
     else if (pf & 4) c.lerp(new THREE.Color(0x64748b), 0.45);   // brackets / wire taken off: enamel rebuilt here
     else if (pf & 8) c.lerp(new THREE.Color(0xf97316), 0.5);    // mouthguard: under the bracket shield
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
@@ -1231,23 +1256,27 @@ function paintColors(){
 }
 // ---------- brush ----------
 document.querySelectorAll('#brush .seg button[data-mode]').forEach(b => b.onclick = () => { document.querySelectorAll('#brush .seg button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); brushMode = b.dataset.mode; syncBrush(); });
-$('#radius').oninput = () => { $('#rv').textContent = $('#radius').value; brushCursor.scale.setScalar(+$('#radius').value); if (brushCursor.visible) requestRender(); };
+document.querySelectorAll('#resbrush .seg button[data-rmode]').forEach(b => b.onclick = () => { document.querySelectorAll('#resbrush .seg button[data-rmode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); resMode = b.dataset.rmode; syncBrush(); });
+$('#radius').oninput = () => { $('#rv').textContent = $('#radius').value; $('#radius2').value = $('#radius').value; $('#rv2').textContent = $('#radius').value; brushCursor.scale.setScalar(+$('#radius').value); if (brushCursor.visible) requestRender(); };
+$('#radius2').oninput = () => { $('#radius').value = $('#radius2').value; $('#radius').oninput(); };
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
-const brushOn = () => !!segMesh && tab === 'seg';
+const brushOn = () => (!!segMesh && tab === 'seg') || (!!resMesh && tab === 'scan');
+const modeNow = () => tab === 'scan' ? resMode : brushMode;
 function syncBrush(){
-  brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : brushMode === 'cut' ? 0x991b1b : brushMode === 'noreservoir' ? 0x7c3aed : brushMode === 'blockout' ? 0x0d9488 : brushMode === 'takeoff' ? 0xf97316 : 0x1d4ed8);
+  const m = modeNow();
+  brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'noreservoir' ? 0x7c3aed : m === 'reservoir' ? 0xdb2777 : m === 'blockout' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : 0x1d4ed8);
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
   if (!brushOn() && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
 }
 function hitAt(ev){
   const r = canvas.getBoundingClientRect(); mouse.x = ((ev.clientX - r.left)/r.width)*2-1; mouse.y = -((ev.clientY - r.top)/r.height)*2+1;
-  ray.setFromCamera(mouse, camera); return ray.intersectObject(segMesh, false)[0];
+  ray.setFromCamera(mouse, camera); return ray.intersectObject(tab === 'scan' ? resMesh : segMesh, false)[0];
 }
 const tmpN = new THREE.Vector3();
 function placeCursor(hit){
   if (!hit) { if (brushCursor.visible) { brushCursor.visible = false; requestRender(); } return; }
   brushCursor.position.copy(hit.point);
-  tmpN.copy(hit.face ? hit.face.normal : new THREE.Vector3(0, 0, 1)).transformDirection(segMesh.matrixWorld);
+  tmpN.copy(hit.face ? hit.face.normal : new THREE.Vector3(0, 0, 1)).transformDirection((tab === 'scan' ? resMesh : segMesh).matrixWorld);
   brushCursor.lookAt(tmpN.add(hit.point));           // the outline ring lies flat on the surface
   brushCursor.scale.setScalar(+$('#radius').value);
   brushCursor.visible = true; requestRender();
@@ -1256,16 +1285,18 @@ function paintAt(ev){
   if (!brushOn()) return;
   const hit = hitAt(ev); placeCursor(hit); if (!hit) return;
   const rad = +$('#radius').value, r2 = rad*rad, p = hit.point;
+  const mode = modeNow();
   for (let i=0;i<segLabels.length;i++){ const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z; if (dx*dx+dy*dy+dz*dz < r2){
-    if (brushMode === 'cut'){ edits.add.delete(i); edits.remove.delete(i); edits.cut.add(i); }
-    else if (brushMode === 'noreservoir'){ edits.noreservoir.add(i); }
-    else if (brushMode === 'blockout'){ edits.blockout.add(i); }
-    else if (brushMode === 'takeoff'){ edits.takeoff.add(i); }
-    else if (brushMode === 'tooth'){ edits.remove.delete(i); edits.cut.delete(i); if (segLabels[i]===0) edits.add.add(i); }
+    if (mode === 'cut'){ edits.add.delete(i); edits.remove.delete(i); edits.cut.add(i); }
+    else if (mode === 'noreservoir'){ edits.noreservoir.add(i); edits.reservoir.delete(i); }
+    else if (mode === 'reservoir'){ edits.reservoir.add(i); edits.noreservoir.delete(i); }
+    else if (mode === 'blockout'){ edits.blockout.add(i); }
+    else if (mode === 'takeoff'){ edits.takeoff.add(i); }
+    else if (mode === 'tooth'){ edits.remove.delete(i); edits.cut.delete(i); if (segLabels[i]===0) edits.add.add(i); }
     else { edits.add.delete(i); edits.cut.delete(i); if (segLabels[i]!==0) edits.remove.add(i); } } }
-  paintColors(); updateFixCount();
+  paintColors(); paintResColors(); updateFixCount();
 }
-canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && tab === 'seg'){ painting = true; controls.enabled = false; paintAt(ev); } });
+canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && (tab === 'seg' || tab === 'scan')){ painting = true; controls.enabled = false; paintAt(ev); } });
 // hovering: one pick per frame at most (a pick walks every triangle of the scan)
 let hoverEv = null, hoverQueued = false;
 canvas.addEventListener('pointermove', ev => {
@@ -1276,11 +1307,14 @@ canvas.addEventListener('pointermove', ev => {
 });
 canvas.addEventListener('pointerleave', () => placeCursor(null));
 window.addEventListener('pointerup', () => { painting = false; controls.enabled = true; });
-function updateFixCount(){ const n = Object.values(edits).reduce((a, e) => a + e.size, 0); $('#fixcount').textContent = n ? [edits.add.size ? `${edits.add.size} → tooth` : '', edits.remove.size ? `${edits.remove.size} → gum` : '', edits.cut.size ? `${edits.cut.size} cut away` : '', edits.noreservoir.size ? `${edits.noreservoir.size} no reservoir` : '', edits.blockout.size ? `${edits.blockout.size} block out` : '', edits.takeoff.size ? `${edits.takeoff.size} take off` : ''].filter(Boolean).join(', ') + ' (vertices)' : 'No edits.'; }
-$('#clearfix').onclick = () => { Object.values(edits).forEach(e => e.clear()); paintColors(); updateFixCount(); };
-$('#rerun').onclick = async () => {
+function updateFixCount(){ const n = Object.values(edits).reduce((a, e) => a + e.size, 0); $('#fixcount').textContent = n ? [edits.add.size ? `${edits.add.size} → tooth` : '', edits.remove.size ? `${edits.remove.size} → gum` : '', edits.cut.size ? `${edits.cut.size} cut away` : '', edits.noreservoir.size ? `${edits.noreservoir.size} no reservoir` : '', edits.reservoir.size ? `${edits.reservoir.size} reservoir added` : '', edits.blockout.size ? `${edits.blockout.size} block out` : '', edits.takeoff.size ? `${edits.takeoff.size} take off` : ''].filter(Boolean).join(', ') + ' (vertices)' : 'No edits.';
+  const nr = edits.reservoir.size + edits.noreservoir.size; $('#rescount').textContent = nr ? [edits.reservoir.size ? `${edits.reservoir.size} reservoir added` : '', edits.noreservoir.size ? `${edits.noreservoir.size} no reservoir` : ''].filter(Boolean).join(', ') + ' (vertices)' + (n > nr ? ` · plus ${n - nr} other brush edits from Segmentation / fix` : '') : 'No edits.'; }
+const editsPayload = () => JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout], takeoff:[...edits.takeoff], reservoir:[...edits.reservoir] });
+$('#clearfix').onclick = () => { Object.values(edits).forEach(e => e.clear()); paintColors(); paintResColors(); updateFixCount(); };
+$('#clearres').onclick = () => { edits.reservoir.clear(); edits.noreservoir.clear(); paintColors(); paintResColors(); updateFixCount(); };
+$('#rerun').onclick = $('#rerunres').onclick = async () => {
   if (!currentJob) return;
-  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout], takeoff:[...edits.takeoff] })); fd.append('params', JSON.stringify(params()));
+  const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', JSON.stringify(params()));
   const r = await (await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd })).json();
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
   $('#dl').innerHTML = ''; selectJob(currentJob);
@@ -1304,6 +1338,7 @@ $('#learnnow').onclick = async () => {
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
 window.__view = { camera, controls, requestRender, project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
+  strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
   placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot }),
   handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; } };   // for automated checks
