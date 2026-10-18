@@ -33,6 +33,11 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    **Save as lesson without sending** link, shown only on a corrected case, does the filing alone - for a case that is not going
    to be ordered - and then asks whether to keep the case in the list or move it to Past cases.
 
+**Which model is on screen** (bottom right of the viewer): one icon per model - whitening upper, retainer upper,
+whitening lower, retainer lower, then a mouthguard or plain model when the case has one - always in that order, the
+ones the case does not have greyed out; click one and every tab shows that model. **Discard** clears the screen
+entirely (model, boxes, case), so the next case can be picked.
+
 **Cases** (sidebar) holds only what still needs a decision: processing, or done and not yet sent or discarded. Sending
 or discarding moves the case to Past cases at once; Save as lesson asks whether the case stays or goes.
 

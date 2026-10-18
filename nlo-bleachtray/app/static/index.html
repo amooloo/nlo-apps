@@ -225,7 +225,16 @@
   .prow button{padding:4px 0;font-size:11.5px;border:1.5px solid var(--grey-200);border-radius:8px;background:#fff;color:var(--navy);font-weight:600;min-height:28px}
   .prow button:hover{background:var(--grey-100)}
   .prow .val{text-align:center;font-variant-numeric:tabular-nums;color:var(--navy);font-weight:700}
-  .stats{position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:12px;padding:8px 13px;font-size:12px;color:var(--grey-500);max-width:600px;box-shadow:var(--sh-sm)}
+  /* which model of the case is on screen: one icon per model (whitening / retainer / mouthguard, upper / lower); greyed = not in this case */
+  .modelTog{position:absolute;bottom:12px;right:12px;z-index:2;display:none;gap:4px;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:14px;padding:5px;box-shadow:var(--sh-sm);backdrop-filter:blur(6px)}
+  .modelTog.on{display:flex}
+  .mbtn{position:relative;width:66px;height:56px;border-radius:10px;border:1.5px solid transparent;background:transparent;color:var(--grey-500);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .mbtn:hover{background:var(--grey-100);color:var(--navy)}
+  .mbtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .mbtn:disabled{color:var(--grey-300);cursor:not-allowed;background:transparent}
+  .mbtn .ic{width:58px;height:48px;background:currentColor;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
+  .mbtn .badge{position:absolute;top:3px;right:5px;font-family:var(--fd);font-weight:700;font-size:10px;letter-spacing:.05em}
+  .stats{position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:12px;padding:8px 13px;font-size:12px;color:var(--grey-500);max-width:min(600px,calc(100% - 420px));box-shadow:var(--sh-sm)}
   .stats b{color:var(--navy)}
   #fatal{display:none;position:absolute;top:60px;left:12px;right:12px;background:var(--coral-100);color:var(--coral-700);border:1px solid var(--coral-200);border-radius:12px;padding:10px 14px;font-size:13px;z-index:5}
   #errline{display:none;position:absolute;bottom:12px;right:12px;max-width:520px;background:var(--coral-100);color:var(--coral-700);border:1px solid var(--coral-200);border-radius:12px;padding:8px 12px;font-size:12px;z-index:6}
@@ -340,6 +349,7 @@
           <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
           <div class="hint" id="placestate"></div>
         </div>
+        <div class="modelTog" id="modeltog"></div>
         <div class="stats" id="stats">Drop a scan to begin.</div>
         <div id="fatal"></div>
         <div id="errline"></div>
@@ -1111,6 +1121,7 @@ async function selectJob(id){
 
 // ---------- progress while a case is being processed ----------
 function renderProgress(j){
+  $('#modeltog').classList.remove('on');
   const p = j.progress || { frac: 0, label: 'starting' };
   const pct = Math.round(100 * Math.min(1, p.frac));
   const el = j.started ? Math.max(0, Math.round(Date.now() / 1000 - j.started)) : 0;
@@ -1143,6 +1154,13 @@ let errTimer = null;
 function showErr(msg, ms = 12000){ const e = $('#errline'); e.textContent = msg; e.style.display = 'block'; console.error(msg); clearTimeout(errTimer); errTimer = setTimeout(() => { e.style.display = 'none'; }, ms); }
 window.addEventListener('error', ev => showErr('Page error: ' + (ev.message || ev)));
 window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev.reason && ev.reason.message || ev.reason)));
+// the viewer goes blank: no model, no boxes, no case selected (after Discard, or moving a case out of the list)
+function clearViewer(msg){
+  clearInterval(pollTimer); currentJob = null;
+  $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Drop a scan to begin.'; $('#modeltog').classList.remove('on');
+  clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = [];
+  Object.values(edits).forEach(e => e.clear()); renderPanel(); syncPanels(); requestRender(); refreshJobs(); searchHistory();
+}
 function renderReview(id, j){
   const box = $('#review'); box.className = 'review ' + (j.review || '');
   const n = (j.scans || []).length;
@@ -1208,13 +1226,10 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
       box.insertAdjacentHTML('beforeend', `<div class="hint" id="afterlearn" style="margin-top:8px"><b>Saved.</b> Keep this case in the list, or move it to Past cases?
         <div class="btns" style="margin-top:6px"><button class="small" id="keepcase">Keep it here</button><button class="small" id="movecase">Move to Past cases</button></div></div>`);
       box.querySelector('#keepcase').onclick = () => box.querySelector('#afterlearn').remove();
-      box.querySelector('#movecase').onclick = async () => {
-        await fetch(`/api/jobs/${id}/close`, { method: 'POST' });
-        clearInterval(pollTimer); currentJob = null; $('#review').innerHTML = ''; $('#stats').innerHTML = 'Moved to Past cases.'; $('#dl').innerHTML = '';
-        clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; renderPanel(); requestRender(); refreshJobs(); searchHistory();
-      };
+      box.querySelector('#movecase').onclick = async () => { await fetch(`/api/jobs/${id}/close`, { method: 'POST' }); clearViewer('Moved to Past cases.'); };
     };
-    $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); };
+    // a discarded case leaves the screen altogether, so the next case can be picked without the old model in the way
+    $('#discardbtn').onclick = async () => { await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() }); clearViewer('Discarded — nothing went to the Trimlign. Pick a case from the list, or drop a scan.'); };
   }
 }
 
@@ -1242,6 +1257,23 @@ function addTrimline(group, pts, color=0xe11d48){
 }
 let scanIdx = 0;
 let loadSeq = 0;
+// One icon per model of the case, in a fixed order - whitening upper, retainer upper, whitening lower, retainer
+// lower, then any mouthguard / plain model - so the eye learns where things are; a model the case does not have
+// is there but greyed out. Clicking one shows that model in every tab.
+function renderModelToggle(id, j){
+  const scans = j.scans || []; const box = $('#modeltog');
+  const words = { WT: 'whitening tray', TT: 'retainer', MG: 'mouthguard' };
+  const slots = [['upper', 'WT'], ['upper', 'TT'], ['lower', 'WT'], ['lower', 'TT']];
+  for (const a of ['upper', 'lower']) { if (scans.some(s => s.arch === a && s.tag === 'MG')) slots.push([a, 'MG']); if (scans.some(s => s.arch === a && !s.tag)) slots.push([a, null]); }
+  box.innerHTML = slots.map(([a, t]) => {
+    const k = scans.findIndex(s => s.arch === a && (t ? s.tag === t : !s.tag));
+    const ic = t === 'MG' ? 'mg' : t ? `${t.toLowerCase()}_${a}` : `arch_${a}`;
+    const name = `${a[0].toUpperCase() + a.slice(1)} ${t ? words[t] : 'model'}`;
+    return `<button class="mbtn ${k === scanIdx ? 'on' : ''}" data-scan="${k}" ${k < 0 ? 'disabled' : ''} title="${name}${k < 0 ? ' — not in this case' : ''}"><span class="ic" style="--m:url(/static/img/ic_${ic}.png)"></span>${t === 'MG' || !t ? `<span class="badge">${a === 'upper' ? 'U' : 'L'}</span>` : ''}</button>`;
+  }).join('');
+  box.classList.toggle('on', scans.length > 0);
+  box.querySelectorAll('.mbtn:not([disabled])').forEach(b => b.onclick = () => { if (+b.dataset.scan === scanIdx) return; scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
+}
 async function fetchOk(url){ const r = await fetch(url); if (!r.ok) throw new Error(`not available right now (${r.status}) - the case is probably being rebuilt; it reloads when done`); return r; }
 async function loadResult(id, j){
   // a click on a scan button while the case is being re-run must not try to read half-written files
@@ -1251,7 +1283,8 @@ async function loadResult(id, j){
   const seq = ++loadSeq;
   if (scanIdx >= (j.scans||[]).length) scanIdx = 0;
   const r = (j.reports || [j.report])[scanIdx] || {};
-  const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${(s.arch||'scan '+(i+1)) + (s.tag ? ' ' + s.tag : '')}</button>`).join('')}</div>` : '';
+  const scanSel = '';
+  renderModelToggle(id, j);
   { const sc = (j.scans || [])[scanIdx] || {}; setBracesTab(sc.braces_on || sc.preset === 'mouthguard' || !!sc.braces); }
   renderReview(id, j);
   // what was done about exposed roots and undercuts on this model, in the words of the result line
@@ -1267,7 +1300,6 @@ async function loadResult(id, j){
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '');
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
-  document.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => { scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
   // result: the arch body and the base as two pieces, so the arch can be moved on the base
   const mat = new THREE.MeshStandardMaterial({ color: 0xd4cec0, roughness: .5, metalness: 0, envMapIntensity: .4 });
   const bodyRes = await fetch(`/api/jobs/${id}/file/body${q}`);
@@ -1298,6 +1330,7 @@ async function loadResult(id, j){
       grip.position.set(pivot[0] + RING_R * Math.cos(a * Math.PI / 180), pivot[1] + RING_R * Math.sin(a * Math.PI / 180), 1.5); grip.renderOrder = 10; baseGroup.add(grip); ringParts.push(grip);
     }
     groups.result.add(baseGroup);
+    syncHandles();                      // the handles only while Position on the base is open, from the first frame
   }
   setBaseLook();
   requestRender();
