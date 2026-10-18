@@ -6,7 +6,7 @@ from .mesh_utils import load_scan, smooth_field
 from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
 from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads, tooth_threshold, snap_to_crease,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
-                      bridge_embrasures, geodesic_dilate, cap_distal, round_distal, edentulous_gaps)
+                      bridge_embrasures, geodesic_dilate, cap_distal, round_distal, edentulous_gaps, number_by_type)
 from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure
 from .solid import horseshoe_outline, build_body, add_base
 
@@ -393,6 +393,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     ridge_mask, gaps, info = edentulous_gaps(mesh, labels, info, log=lambda m: log(f"[{name}] {m}"))
     if gaps:
         rep["gaps"] = gaps
+    # ... and a tooth missing with the space closed (a lower incisor, an upper lateral): the teeth behind it
+    # are numbered by what they are, so the first molar is not a "5" with a reservoir on one side only
+    info, renumbered = number_by_type(mesh, labels, info, arch_hint, log=lambda m: log(f"[{name}] {m}"))
+    if renumbered:
+        rep["renumbered"] = renumbered
     n_teeth = len(info)
     rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1])) for k, v in info.items()}
     rep["steps"].append(("segment", round(time.time() - t0, 2)))
@@ -449,7 +454,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         idx = idx[(idx >= 0) & (idx < len(mesh.vertices))]
         if len(idx):
             keep_off = np.zeros(len(mesh.vertices), bool); keep_off[idx] = True
-            log(f"[{name}] no reservoir on the {len(idx)} painted vertices (and {float(P.get('recession_leeway') or 1.0):.1f} mm around them)")
+            log(f"[{name}] no reservoir on the {len(idx)} painted vertices (the reservoir ends at the edge of the stroke)")
         fidx = np.asarray(P.get("force_on_idx") or [], dtype=int)
         fidx = fidx[(fidx >= 0) & (fidx < len(mesh.vertices))]
         if len(fidx):
@@ -460,7 +465,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     else:
         d = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
                                    feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
-                                   setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=float(P.get("recession_leeway") or 1.0), force_on=force_on)
+                                   setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=0.0, force_on=force_on)   # the erased patch is the doctor's line: the reservoir ends there (its 0.6 mm slope on the kept side); the leeway is for root the app found on its own
     mesh_r = apply_displacement(mesh, d)
     if P.get("periphery_smooth", True):
         mesh_r = smooth_periphery(mesh_r, labels, A, start=2.0, full=P["facial_offset"], iters=int(P.get("periphery_iters", 30)), mu=float(P.get("periphery_mu", -0.52)))

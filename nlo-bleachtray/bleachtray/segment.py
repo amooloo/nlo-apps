@@ -295,9 +295,15 @@ def order_teeth(mesh, labels, aux):
     c = aux["ring_center"]
     ang = {i: np.arctan2(cents[i][0] - c[0], cents[i][1] - c[1]) for i in ids}  # 0 = +y (anterior)
     order = sorted(ids, key=lambda i: ang[i])
-    # split at the midline: the two teeth whose angles straddle 0
-    left = [i for i in order if ang[i] < 0][::-1]   # from midline outward (negative x side)
-    right = [i for i in order if ang[i] >= 0]
+    # split at the midline. The angle about the ring centre alone put the split one tooth off on many
+    # lowers (incisors are 5 mm wide: a 2-3 mm error in the centre or the yaw flips one to the other side,
+    # and then one side's molar is a "5" with a reservoir and the other side's second premolar is a "6"
+    # without). So every gap between neighbours is scored: how far its contact is from the arch's own
+    # mirror axis (a parabola fitted to the teeth), how unlike the two sides' tooth widths are when
+    # paired from there, and a lopsided count; the best gap splits the arch
+    k = _midline_split(mesh, labels, order, cents)
+    left = list(order[:k])[::-1]                    # from midline outward (negative x side)
+    right = list(order[k:])
     info = {}
     for pos, i in enumerate(left, start=1):
         info[i] = (-1, pos)
@@ -317,6 +323,39 @@ def order_teeth(mesh, labels, aux):
     else:
         contact = np.array([0.0, c[1] + 30.0])
     return info, cents, np.asarray(c), np.asarray(contact)
+
+
+def _midline_split(mesh, labels, order, cents, max_yaw_deg=25.0):
+    """Index k such that order[:k] is the left side and order[k:] the right (see order_teeth)."""
+    from .orient import symmetry_frame
+    n = len(order)
+    if n < 2:
+        return n
+    V = np.asarray(mesh.vertices)
+    by_angle = sum(1 for t in order if cents[t][0] < 0)          # the plain x < 0 split, the fallback
+    by_angle = min(max(by_angle, 1), n - 1)
+    try:
+        T_sym, yaw, _ = symmetry_frame(V[labels > 0][::7, :2])
+    except Exception:
+        return by_angle
+    if abs(np.degrees(yaw)) > max_yaw_deg:
+        return by_angle
+    cs = {t: (T_sym @ np.array([cents[t][0], cents[t][1], 0.0, 1.0]))[:3] for t in order}
+    info0 = {t: (1, i + 1) for i, t in enumerate(order)}
+    widths = tooth_widths(mesh, labels, info0)
+    best, best_k = None, by_angle
+    for k in range(1, n):
+        L, R = order[:k][::-1], order[k:]
+        if not all(t in widths for t in order):
+            return by_angle
+        contact_x = 0.5 * (cs[L[0]][0] + cs[R[0]][0])
+        pairs = min(len(L), len(R))
+        unlike = float(np.mean([abs(widths[L[i]] - widths[R[i]]) for i in range(pairs)]))
+        lopsided = 3.0 * max(0, abs(len(L) - len(R)) - 1)
+        score = abs(contact_x) + 2.0 * unlike + lopsided
+        if best is None or score < best:
+            best, best_k = score, k
+    return best_k
 
 
 def margin_contour(mesh, field, level=0.5):
@@ -538,6 +577,110 @@ def edentulous_gaps(mesh, labels, info, min_gap=3.0, renumber_gap=5.0, tooth_wid
                 what = "gap" if missing == 0 else ("missing tooth" if missing == 1 else f"{missing} missing teeth")
                 log(f"{what} on the {'right' if side > 0 else 'left'} behind position {pa}: {gap:.0f} mm - trim line carried across the ridge ({n_ridge} vertices)")
     return ridge, gaps, new_info
+
+
+# average mesiodistal crown widths, mm (Wheeler), central incisor .. second molar
+TOOTH_WIDTHS = {"upper": [8.5, 6.5, 7.5, 7.0, 6.5, 10.5, 9.5], "lower": [5.0, 5.5, 7.0, 7.0, 7.0, 11.0, 10.5]}
+# what it costs to call a position empty (in width-error units): premolars go missing often (extractions),
+# upper laterals and lower incisors sometimes, canines and upper centrals hardly ever
+SKIP_COSTS = {"upper": [4.0, 2.0, 4.0, 2.0, 2.0, 2.5, 2.5, 2.5], "lower": [3.5, 3.0, 4.0, 2.0, 2.0, 2.5, 2.5, 2.5]}
+
+
+def tooth_widths(mesh, labels, info):
+    """Mesiodistal width of every tooth: the extent of its vertices along the arch's direction at the
+    tooth (from the neighbouring centroids), 3rd..97th percentile so a little gum spill does not count."""
+    V = np.asarray(mesh.vertices)
+    cents = {t: V[labels == t][:, :2].mean(0) for t in info if (labels == t).sum() >= 20}
+    widths = {}
+    for side in (-1, 1):
+        seq = [t for pos, t in sorted((pos, t) for t, (sd, pos) in info.items() if sd == side and t in cents)]
+        for k, t in enumerate(seq):
+            a = cents[seq[k - 1]] if k > 0 else None
+            b = cents[seq[k + 1]] if k + 1 < len(seq) else None
+            if a is None and b is None:
+                d = np.array([1.0, 0.0])
+            else:
+                d = (cents[t] - a) if b is None else ((b - cents[t]) if a is None else (b - a))
+            d = d / max(float(np.linalg.norm(d)), 1e-6)
+            u = (V[labels == t][:, :2] - cents[t]) @ d
+            widths[t] = float(np.percentile(u, 97) - np.percentile(u, 3))
+    return widths
+
+
+def number_by_type(mesh, labels, info, arch, skip_cost=2.5, tol=1.0, log=None):
+    """Tooth positions by what the teeth ARE, not only by counting from the midline. Counting breaks
+    whenever a tooth is missing with the space closed (a lower incisor, an upper lateral, an extracted
+    premolar): every tooth behind it is numbered one too low, the first molar becomes a '5' and gets a
+    reservoir on one side only, the canine is treated as a lateral. Per side the observed sequence is
+    aligned to the canonical one (central .. second molar) by mesiodistal width - a dynamic programme
+    that may skip canonical positions at `skip_cost` each (a missing tooth) and never un-does a skip
+    `edentulous_gaps` already found from a real gap. Returns the renumbered info and the changes."""
+    canon = TOOTH_WIDTHS.get(arch or "", None)
+    if canon is None:
+        return info, []
+    widths = tooth_widths(mesh, labels, info)
+    new_info = dict(info)
+    changes = []
+    seqs = {side: [(pos, t) for pos, t in sorted((pos, t) for t, (sd, pos) in info.items() if sd == side and t in widths)] for side in (-1, 1)}
+    for side in (-1, 1):
+        seq = seqs[side]
+        n = len(seq)
+        if n == 0 or n > 8:
+            continue
+        # minimal jump between consecutive teeth: 1, or more where a real gap was found already
+        jumps = [1] + [max(1, seq[k][0] - seq[k - 1][0]) for k in range(1, n)]
+        P = 8                                             # positions 1..8 (a third molar can take 8)
+        cw = canon + [canon[-1]]                           # position 8 counts as another molar
+        # the other side, when it is complete, is this patient's own yardstick (a narrow lateral, a big
+        # canine): its widths by position are averaged with the textbook ones
+        other = seqs[-side]
+        if len(other) >= 7 and all(pos == k + 1 for k, (pos, _) in enumerate(other)):
+            # (only where the other side's tooth is itself a plausible one for that position)
+            ow = {pos: widths[t] for pos, t in other if abs(widths[t] - cw[pos - 1]) < 2.0}
+            cw = [0.5 * (cw[p - 1] + ow[p]) if p in ow else cw[p - 1] for p in range(1, P + 1)]
+        cw[7] = cw[6]                                      # an 8th position is never an easier molar than the 7th
+        sk = SKIP_COSTS.get(arch, [skip_cost] * P)
+        skip = lambda a, b: sum(sk[p - 1] for p in range(a, b))    # positions a..b-1 left empty
+        INF = 1e9
+        cost = np.full((n, P + 1), INF); back = np.full((n, P + 1), -1, int)
+        def c_at(k, pos):
+            e = abs(widths[seq[k][1]] - cw[pos - 1]) / tol
+            return min(e * e, 9.0)
+        for pos in range(1, P + 1):
+            cost[0, pos] = c_at(0, pos) + skip(1, pos)
+        for k in range(1, n):
+            for pos in range(1, P + 1):
+                best, arg = INF, -1
+                for prev in range(1, pos - jumps[k] + 1):
+                    c = cost[k - 1, prev] + skip(prev + 1, pos)
+                    if c < best:
+                        best, arg = c, prev
+                if arg > 0:
+                    cost[k, pos] = best + c_at(k, pos); back[k, pos] = arg
+        if not np.isfinite(cost[n - 1].min()):
+            continue
+        # the counting answer stands unless the re-numbering is clearly better (a width or two off is noise)
+        counted = [min(p, P) for p, _ in seq]
+        as_counted = sum(c_at(k, counted[k]) for k in range(n)) + skip(1, counted[0]) + sum(skip(counted[k - 1] + 1, counted[k]) for k in range(1, n))
+        if cost[n - 1].min() > as_counted - 1.5:
+            continue
+        # among equal costs keep the counting answer: the smallest final position
+        order = np.argsort(cost[n - 1][1:], kind="stable")
+        pos = int(order[0]) + 1
+        assigned = []
+        for k in range(n - 1, -1, -1):
+            assigned.append(pos); pos = back[k, pos] if k > 0 else pos
+        assigned = assigned[::-1]
+        for (old, t), newpos in zip(seq, assigned):
+            if newpos != old:
+                new_info[t] = (side, int(newpos))
+                changes.append(dict(side=int(side), tooth=int(t), was=int(old), now=int(newpos), width_mm=round(widths[t], 1)))
+        if log and any(ch["side"] == side for ch in changes):
+            skipped = sorted(set(range(1, max(assigned) + 1)) - set(assigned))
+            names = {1: "central incisor", 2: "lateral incisor", 3: "canine", 4: "first premolar", 5: "second premolar", 6: "first molar", 7: "second molar"}
+            log(f"tooth numbering by size, {'right' if side > 0 else 'left'} side: no {' / '.join(names.get(p, str(p)) for p in skipped)} "
+                f"(widths {', '.join(f'{widths[t]:.1f}' for _, t in seq)} mm) - the teeth behind keep their real positions")
+    return new_info, changes
 
 
 def _largest(geom):
