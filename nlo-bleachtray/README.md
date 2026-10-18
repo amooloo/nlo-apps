@@ -355,7 +355,7 @@ height is in the open), negative leaves that much of the undercut for grip. The 
 *as scanned*: a whitening tray's raised reservoirs are taken off again for the detection, because their feathered
 edge read as a shallow overhang all round the cervical third and a painted area grew thin scoops under every
 reservoir (10/18/2026). The fill is one heightfield solid (0.1 mm grid, rounded outline, heights smoothed within the
-fill only) unioned into the body before the outline cut; a fill that could not be joined is reported as such and
+fill only, then a volume-keeping Taubin pass that takes the grid's staircase off the walls) unioned into the body before the outline cut; a steep underside (a tipped molar's mesial face) crosses only every other grid column, so the columns between join the fill with their neighbours' heights (the comb of thin slabs seen 10/18/2026); a fill that could not be joined is reported as such and
 not shown. It is shown in teal in the Result view and saved as `<name>_blockout.stl`.
 
 **History.** `jobs\<case>\case.json` is the recipe of a case (scans by relative path, settings, brush fixes as
