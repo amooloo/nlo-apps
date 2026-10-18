@@ -14,6 +14,21 @@ def load_models(path=None):
     return joblib.load(path or os.path.join(ASSET_DIR, "models.joblib"))
 
 
+# Where "tooth" starts on the model's probability. The shipped model errs one way only - tooth labels run
+# a little past the gum line onto gingiva (the anterior labial and palatal gum, the gum behind the last
+# molars), never the other way - so its cut sits above 0.5. A retrained model carries its own value,
+# calibrated on the brush-corrected lessons (see learn.py).
+DEFAULT_TOOTH_THRESHOLD = 0.65
+
+
+def tooth_threshold(models):
+    try:
+        t = float((models or {}).get("threshold") or 0)
+    except Exception:
+        t = 0.0
+    return t if 0.3 <= t <= 0.9 else DEFAULT_TOOTH_THRESHOLD
+
+
 def predict_tooth_prob(mesh, models=None, feats=None):
     models = models or load_models()
     if feats is None:

@@ -63,6 +63,12 @@ drop below F1 0.95 on the base set, otherwise it is thrown away. An accepted mod
 (the previous three are kept as `models_prev_*`) and is used from the next case on. The sidebar shows the model's
 state; *Retrain now* under Settings → Learning runs it on the spot (10-30 minutes, the app keeps working).
 
+Two things make the doctor's corrections count: a corrected arch weighs **three** base arches in training (where the
+base set's gum line and the brush disagree, the brush wins), and the new model's **tooth threshold** - the cut on
+its probability where tooth starts - is calibrated on the corrected arches and stored with the model. The shipped
+model errs one way only (tooth labels run onto the gum: the anterior labial and palatal gum, the gum behind the
+last molars - never gum onto tooth), so its cut is 0.65 rather than 0.5; a retrained model carries its own value.
+
 The starting set ships with the app as `assets\base_training.npz` - per arch the per-vertex features and targets
 the model learns from (numbers only: no scans, no names), so nothing has to be downloaded for retraining to work.
 Full base cases under `training\_base\` (scan + labels) take precedence when present.

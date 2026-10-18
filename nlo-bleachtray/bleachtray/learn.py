@@ -160,15 +160,43 @@ def _write_status(d):
     json.dump(cur, open(p, "w"), indent=1)
 
 
-def _score(models, c, from_proba=None):
+LESSON_WEIGHT = 3.0     # a brush-corrected arch counts for three base arches: the doctor's gum line wins where the two disagree
+
+
+def _proba(models, c):
+    return models["models"]["tooth"].predict_proba(c["X"])[:, 1]
+
+
+def _score(models, c, from_proba=None, thr=None):
+    """F1 of the tooth mask against the case's labels, at the model's own threshold (the pipeline's cut)."""
     from sklearn.metrics import f1_score
-    p = from_proba if from_proba is not None else models["models"]["tooth"].predict_proba(c["X"])[:, 1]
+    from bleachtray.segment import tooth_threshold
+    p = from_proba if from_proba is not None else _proba(models, c)
+    if thr is None:
+        thr = tooth_threshold(models) if models else 0.5
     if c.get("packed"):              # sampled rows, no mesh: plain per-vertex F1
-        return float(f1_score(c["y_tooth"], (p > 0.5).astype(int)))
+        return float(f1_score(c["y_tooth"], (p > thr).astype(int)))
     from bleachtray.mesh_utils import smooth_field
-    pred = (smooth_field(c["A"], p, 4) > 0.5).astype(int)
+    pred = (smooth_field(c["A"], p, 4) > thr).astype(int)
     v = c["valid"]
     return float(f1_score(c["y_tooth"][v], pred[v]))
+
+
+def _calibrate_threshold(models, lessons, log=print):
+    """The cut on the new model's probability that agrees best with the brush-corrected lessons (the
+    errors run one way - tooth onto gum - so the right cut is usually above 0.5). Mean F1 over the
+    lessons, 0.45..0.80 in steps of 0.05; 0.5 when there is nothing to calibrate on."""
+    meshed = [c for c in lessons if not c.get("packed")]
+    if not meshed:
+        return 0.5
+    probas = {c["name"]: _proba(models, c) for c in meshed}
+    best_t, best = 0.5, -1.0
+    for t in np.arange(0.45, 0.801, 0.05):
+        f = float(np.mean([_score(None, c, from_proba=probas[c["name"]], thr=float(t)) for c in meshed]))
+        if f > best + 1e-6:
+            best_t, best = float(round(t, 2)), f
+    log(f"tooth threshold calibrated on {len(meshed)} corrected arch{'es' if len(meshed) != 1 else ''}: {best_t:.2f} (mean F1 {best:.3f})")
+    return best_t
 
 
 def retrain(root=TRAIN_DIR, force=False, log=None):
@@ -196,7 +224,7 @@ def retrain(root=TRAIN_DIR, force=False, log=None):
             res = dict(outcome="nothing_new", finished=time.time(), running=False); _write_status(res); return res
         if not base and not packed:
             log("WARNING: no base set (training/_base or assets/base_training.npz) - training on the corrections alone")
-        log(f"{len(base) + len(packed)} base + {len(lessons)} corrected/Titan arches")
+        log(f"{len(base) + len(packed)} base + {len(lessons)} corrected/Titan arches (a corrected arch weighs {LESSON_WEIGHT:g}x a base arch)")
         cases = list(packed)
         for c in cases_meta:
             try:
@@ -226,18 +254,24 @@ def retrain(root=TRAIN_DIR, force=False, log=None):
             if not tr:
                 continue
             Xtr = np.vstack([c["X"][c["rows"]] for c in tr]); ytr = np.concatenate([c["y_tooth"][c["rows"]] for c in tr])
-            clf = fit(Xtr, ytr, iters=250)
+            wtr = np.concatenate([np.full(len(c["rows"]), LESSON_WEIGHT if c["kind"] != "base" else 1.0) for c in tr])
+            clf = fit(Xtr, ytr, iters=250, sample_weight=wtr)
+            # the fold model is judged at the cut it would ship with (calibrated on the lessons it trained on)
+            thr_k = _calibrate_threshold(dict(models={"tooth": clf}), [c for c in tr if c["kind"] != "base"], log=lambda m: None)
             for i in hold:
                 c = cases[i]
-                oof[c["name"]] = _score(None, c, from_proba=clf.predict_proba(c["X"])[:, 1])
+                oof[c["name"]] = _score(None, c, from_proba=clf.predict_proba(c["X"])[:, 1], thr=thr_k)
             log(f"  fold {k + 1}/3 done ({time.time() - t0:.0f}s)")
         lesson_names = [c["name"] for c in cases if c["kind"] != "base"]
         base_names = [c["name"] for c in cases if c["kind"] == "base"]
         # final fit on everything, both classifiers; then: did it learn the lessons?
         Xall = np.vstack([c["X"][c["rows"]] for c in cases])
-        final = {"tooth": fit(Xall, np.concatenate([c["y_tooth"][c["rows"]] for c in cases]), iters=400),
-                 "interprox": fit(Xall, np.concatenate([c["y_ip"][c["rows"]] for c in cases]), iters=400)}
-        learned = {n: _score(dict(models=final), next(c for c in cases if c["name"] == n)) for n in lesson_names}
+        wall = np.concatenate([np.full(len(c["rows"]), LESSON_WEIGHT if c["kind"] != "base" else 1.0) for c in cases])
+        final = {"tooth": fit(Xall, np.concatenate([c["y_tooth"][c["rows"]] for c in cases]), iters=400, sample_weight=wall),
+                 "interprox": fit(Xall, np.concatenate([c["y_ip"][c["rows"]] for c in cases]), iters=400, sample_weight=wall)}
+        new_models = dict(models=final)
+        new_models["threshold"] = _calibrate_threshold(new_models, [c for c in cases if c["kind"] != "base"], log=log)
+        learned = {n: _score(new_models, next(c for c in cases if c["name"] == n)) for n in lesson_names}
         oof_lessons = float(np.mean([oof[n] for n in lesson_names])) if lesson_names else float("nan")
         new_on_lessons = float(np.mean(list(learned.values()))) if learned else float("nan")
         cur_on_lessons = float(np.mean([cur_scores[n] for n in lesson_names])) if lesson_names else float("nan")
@@ -248,7 +282,15 @@ def retrain(root=TRAIN_DIR, force=False, log=None):
         log(f"corrected/Titan cases: current model F1 {cur_on_lessons:.3f} -> new {new_on_lessons:.3f} (out of fold {oof_lessons:.3f}); base set out of fold {new_on_base:.3f}")
         ok_learned = not lesson_names or (new_on_lessons >= cur_on_lessons - 0.002 and new_on_lessons >= 0.95)
         ok_base = not base_names or new_on_base >= (MIN_BASE_F1_PACKED if packed else MIN_BASE_F1)
-        ok_general = len(lesson_names) < 3 or oof_lessons >= cur_on_lessons - 0.01
+        # generalisation: held-out new vs current - only on lessons the current model has NOT trained on
+        # (on its own training arches the current model is in-sample, which no held-out score can match)
+        seen = set(current.get("trained_on") or [])
+        gen_names = [n for n in lesson_names if n not in seen]
+        oof_gen = float(np.mean([oof[n] for n in gen_names])) if gen_names else float("nan")
+        cur_gen = float(np.mean([cur_scores[n] for n in gen_names])) if gen_names else float("nan")
+        if gen_names:
+            log(f"held-out check on {len(gen_names)} lesson{'s' if len(gen_names) != 1 else ''} new to the current model: current {cur_gen:.3f} vs new out-of-fold {oof_gen:.3f}")
+        ok_general = len(gen_names) < 3 or oof_gen >= cur_gen - 0.01
         ok = ok_learned and ok_base and ok_general
         res = dict(finished=time.time(), running=False, cases=len(cases), corrected=len(lesson_names),
                    new_on_lessons=round(new_on_lessons, 4), cur_on_lessons=round(cur_on_lessons, 4), new_on_base=round(new_on_base, 4), oof_on_lessons=round(oof_lessons, 4),
@@ -268,7 +310,7 @@ def retrain(root=TRAIN_DIR, force=False, log=None):
                     os.remove(old)
                 except OSError:
                     pass
-        joblib.dump(dict(models=final, feature_names=names, trained_on=[c["name"] for c in cases], trained=time.time()), out)
+        joblib.dump(dict(models=final, threshold=new_models["threshold"], feature_names=names, trained_on=[c["name"] for c in cases], trained=time.time()), out)
         log(f"new model saved: {len(cases)} arches ({len(lesson_names)} corrected/Titan), {time.time() - t0:.0f}s")
         res["outcome"] = "accepted"; res["model_trained_on"] = len(cases); _write_status(res)
         return res
