@@ -9,7 +9,7 @@ import trimesh
 for _ext, _mt in ((".js", "application/javascript"), (".mjs", "application/javascript"), (".css", "text/css"),
                   (".html", "text/html"), (".json", "application/json"), (".stl", "model/stl")):
     mimetypes.add_type(_mt, _ext)
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -62,6 +62,44 @@ def _print_root(cfg=None):
 def _scan_tag(sc):
     """WT / TT / MG for a model: what the case was set up with, else from its preset or kind."""
     return sc.get("tag") or ("MG" if sc.get("preset") == "mouthguard" else "TT" if (sc.get("kind") or "T").upper().startswith("A") else "WT")
+
+
+def _to_unc(path):
+    """A path on a mapped drive (O:\\clinical\\...) as the other PCs can reach it (\\\\server\\share\\clinical\\...).
+    Returns the path unchanged when it is already UNC or the drive is a local disk."""
+    if not path or not re.match(r"^[A-Za-z]:", path) or os.name != "nt":
+        return path
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(1024); n = ctypes.c_ulong(1024)
+        if ctypes.windll.mpr.WNetGetConnectionW(path[:2], buf, ctypes.byref(n)) == 0 and buf.value:
+            return buf.value.rstrip("\\") + path[2:]
+    except Exception:
+        pass
+    return path
+
+
+def _print_files_unc(job):
+    return [_to_unc(f) for f in (job.get("print_files") or [])]
+
+
+def _is_local(request):
+    """True when the page asking is on this PC (the lab PC) - then PreForm opens here; from another
+    PC the models open there instead, through the nlobt: link the browser hands to Windows."""
+    if os.environ.get("NLO_EVERY_PAGE_IS_REMOTE"):      # test hook: behave as if every page were on another PC
+        return False
+    try:
+        host = (request.client.host if request and request.client else "") or ""
+    except Exception:
+        host = ""
+    if host in ("127.0.0.1", "::1", "localhost", ""):
+        return True
+    try:
+        import socket
+        mine = {i[4][0] for i in socket.getaddrinfo(socket.gethostname(), None)}
+        return host in mine
+    except Exception:
+        return False
 
 
 def _write_prints(job, log=print):
@@ -645,8 +683,9 @@ def _run(job):
         job["error"] = f"{ex}\n{traceback.format_exc()}"
 
 
-def _write_order(job, log=print):
-    """Write (or replace) this job's OrthoFactory order folder from its finished pieces."""
+def _write_order(job, log=print, preform_here=True):
+    """Write (or replace) this job's OrthoFactory order folder from its finished pieces. preform_here:
+    the click came from this PC, so the models may open in PreForm on this screen (Settings)."""
     site = site_config()
     root = (job["params"].get("order_root") or "").strip() or site["order_root"]
     prev = job.get("order_folder")
@@ -681,9 +720,12 @@ def _write_order(job, log=print):
     # the printable models are filed by patient in the print folder (Settings -> Print folder) ...
     _write_prints(job, log=log)
     # ... and go straight to the printer's software from there (Settings -> PreForm), so printing is the next click
-    if site.get("preform_on_send", True):
+    if site.get("preform_on_send", True) and preform_here:
         ok, msg = _open_in_preform(job, log=log)
         job["preform"] = dict(ok=ok, message=msg, when=time.time())
+    elif site.get("preform_on_send", True):
+        job["preform"] = None     # the page that sent it (another PC) opens PreForm there
+        log("sent from another PC: PreForm opens there, not on this one")
     return True
 
 
@@ -1306,7 +1348,7 @@ def _fixed_arches(job):
 
 
 def _review_view(job):
-    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned", "sent_at", "reopened", "preform", "print_folder", "print_files", "print_error")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job)}
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned", "sent_at", "reopened", "preform", "print_folder", "print_files", "print_error")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job), "print_files_unc": _print_files_unc(job)}
 
 
 def _save_training(job, log=print):
@@ -1377,13 +1419,13 @@ def _name_from_form(job, first, last):
 
 
 @app.post("/api/jobs/{jid}/approve")
-def approve(jid: str, patient_first: str = Form(""), patient_last: str = Form("")):
+def approve(jid: str, request: Request, patient_first: str = Form(""), patient_last: str = Form("")):
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
     job.setdefault("log", [])
     _name_from_form(job, patient_first, patient_last)
-    _write_order(job, log=lambda m: job["log"].append(m))
+    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
     if _save_training(job, log=lambda m: job["log"].append(m)):
         job["learned"] = _learned_note(job)
     if job.get("review") == "sent":
@@ -1404,14 +1446,36 @@ def open_preform(jid: str):
     return {"ok": ok, "message": msg}
 
 
+@app.post("/api/jobs/{jid}/prints")
+def file_prints(jid: str):
+    """File the case's models in the print folder (no PreForm here) and return their paths as the
+    other PCs see them - the page then opens them in PreForm on its own PC."""
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    job.setdefault("log", [])
+    files = [f for f in (job.get("print_files") or []) if os.path.isfile(f)]
+    if len(files) != len(job["scans"]):
+        files = _write_prints(job, log=lambda m: job["log"].append(m))
+    if not files:
+        raise HTTPException(400, job.get("print_error") or "no finished model to file")
+    return {"files": _print_files_unc(job), "folder": _to_unc(job.get("print_folder") or "")}
+
+
+@app.get("/api/whoami")
+def whoami(request: Request):
+    """Is the page on the PC that runs the app? (decides where PreForm opens)"""
+    return {"local": _is_local(request), "pc": os.environ.get("COMPUTERNAME") or "", "print_root_unc": _to_unc(_print_root())}
+
+
 @app.post("/api/jobs/{jid}/resend")
-def resend(jid: str):
+def resend(jid: str, request: Request):
     """Write the OrthoFactory order again from the models as they are (a lost print, a second set)."""
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
     job.setdefault("log", []).append("sent again")
-    _write_order(job, log=lambda m: job["log"].append(m))
+    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
     if job.get("review") == "sent":
         job["sent_at"] = time.time()
     _save_case(job)
@@ -1506,6 +1570,7 @@ def job_status(jid: str):
     out["started"] = job.get("started")
     out["ahead"] = _ahead(job)
     out["fixed"] = _fixed_arches(job)
+    out["print_files_unc"] = _print_files_unc(job)
     paint = job.get("paint") or {}
     out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset"),
                          braces=({k: v for k, v in sc["braces"].items() if k != "passes"} if sc.get("braces") else None), braces_on=bool(sc.get("braces_on")),

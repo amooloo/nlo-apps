@@ -569,6 +569,7 @@
         <label class="ck" style="margin:4px 0 8px"><input type="checkbox" id="preform_on_send"> Open the models in PreForm when a case is sent</label>
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="preform" placeholder="found by itself when PreForm is installed in the usual place"><button class="small" id="preform_save">Save</button></div>
         <div class="hint" id="preform_hint"></div>
+        <div class="hint" style="margin-top:6px"><b>Other PCs:</b> any PC with PreForm can open the models on its own screen - the button says <i>Open in PreForm on this PC</i> there. Once per PC, Win+R and run: <a href="#" id="pfsetup2">copy the line</a>. The first click asks "Open NLO Bleach Tray?" - tick <i>Always allow</i>.</div>
       </div>
     </div>
   </div>
@@ -900,6 +901,28 @@ SETTING_IDS.forEach(id => $('#' + id).addEventListener('change', () => { if (id 
 loadSettings(); summarizeSettings();
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
+// Where PreForm opens: on the PC that runs the app when the page is there; from any other PC, on that PC through the
+// nlobt: link (one-time setup per PC: preform_link.ps1 registers the handler for the Windows user, no admin)
+let WHO = { local: true, pc: '', print_root_unc: '' }, PREFORM_ON_SEND = true;
+const PF_SETUP = `powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/preform_link.ps1' -UseBasicParsing).Content"`;
+fetch('/api/whoami').then(r => r.json()).then(w => { WHO = w; if (currentJob) refreshJobs(); }).catch(() => {});
+const copySetup = el => { navigator.clipboard.writeText(PF_SETUP).then(() => { el.textContent = 'copied — Win+R, paste, Enter'; }).catch(() => { prompt('Copy this line, then Win+R, paste, Enter:', PF_SETUP); }); };
+async function openPreformHere(id, box, b){
+  if (b) { b.disabled = true; b.textContent = 'Opening…'; }
+  const rs = await fetch(`/api/jobs/${id}/prints`, { method: 'POST' }); const r = await rs.json().catch(() => ({}));
+  if (b) { b.disabled = false; b.textContent = 'Open in PreForm on this PC'; }
+  let l = box.querySelector('#preformline'); if (!l) { l = document.createElement('div'); l.className = 'hint'; l.id = 'preformline'; (box.querySelector('.btns') || box).insertAdjacentElement('afterend', l); }
+  if (!rs.ok) { l.style.color = 'var(--err)'; l.textContent = r.detail || 'Could not file the models.'; return; }
+  const link = 'nlobt://preform?' + r.files.map(f => 'f=' + encodeURIComponent(f)).join('&');
+  l.style.color = '';
+  l.innerHTML = `Handed to PreForm on this PC: ${r.files.map(f => f.split(/[\\/]/).pop()).join(', ')} (from ${r.folder}).<br>Nothing opened? This PC needs the one-time setup — <a href="#" id="pfsetup">copy the line</a>, then Win+R, paste, Enter.`;
+  l.querySelector('#pfsetup').onclick = ev => { ev.preventDefault(); copySetup(ev.target); };
+  location.href = link;
+}
+// the PreForm button(s) for a case box: here when the page is on the app's PC, else "on this PC" + "on the lab PC"
+const preformBtns = () => WHO.local
+  ? `<button class="small" id="preformbtn" title="Open the finished models in PreForm on this PC">Open in PreForm</button>`
+  : `<button class="small" id="preformhere" title="Open the finished models in the PreForm installed on this PC (they are on the office share)">Open in PreForm on this PC</button><button class="small" id="preformbtn" title="Open them in PreForm on the PC that runs the app instead">on ${WHO.pc || 'the lab PC'}</button>`;
 // The folder install.bat found on the lab PC is the default, so nobody has to type it.
 fetch('/api/presets').then(r => r.json()).then(p => {
   const s = p.site || {};
@@ -907,7 +930,7 @@ fetch('/api/presets').then(r => r.json()).then(p => {
   if (s.doctor) $('#doctor').value = s.doctor;
   if (!$('#export').value) $('#exporthint').textContent = 'Not set: orders will NOT reach the Trimlign until this is filled in (or run install.bat on this PC).';
   $('#scanfolder').value = s.scanner_folder || '';
-  $('#preform').value = s.preform || ''; $('#preform_on_send').checked = !!s.preform_on_send;
+  $('#preform').value = s.preform || ''; $('#preform_on_send').checked = !!s.preform_on_send; PREFORM_ON_SEND = !!s.preform_on_send;
   $('#preform_hint').textContent = s.preform_found ? `PreForm: ${s.preform_found}` : 'PreForm was not found on the PC that runs the app - type the path of PreForm.exe here if it is installed somewhere else.';
   $('#printroot').value = s.print_root || ''; showPrintRoot(s);
   refreshScanner();
@@ -918,7 +941,9 @@ $('#printroot_save').onclick = async () => {
   const r = await fetch('/api/settings', { method:'POST', body: fd }); const s = r.ok ? await r.json() : null;
   if (!s) $('#printroot_hint').textContent = 'Could not save.'; else { showPrintRoot(s); $('#printroot_hint').textContent = 'Saved. ' + $('#printroot_hint').textContent; }
 };
+$('#pfsetup2').onclick = ev => { ev.preventDefault(); copySetup(ev.target); };
 $('#preform_save').onclick = $('#preform_on_send').onchange = async () => {
+  PREFORM_ON_SEND = $('#preform_on_send').checked;
   const fd = new FormData(); fd.append('preform', $('#preform').value.trim() || 'auto'); fd.append('preform_on_send', $('#preform_on_send').checked ? '1' : '0');
   const r = await fetch('/api/settings', { method:'POST', body: fd }); const s = r.ok ? await r.json() : null;
   $('#preform_hint').textContent = !s ? 'Could not save.' : (s.preform_found ? `Saved. PreForm: ${s.preform_found}` : 'Saved - but PreForm was not found there.');
@@ -1083,13 +1108,18 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
   setTimeout(play, 0);
   // a sent or discarded case leaves the Cases list by itself and lives on in Past cases
   const closeLine = `<div class="hint" style="margin-top:8px">This case is now under <b>Past cases</b>; the Cases list keeps only what still needs a decision.</div>`;
-  const wirePreform = () => { const b = box.querySelector('#preformbtn'); if (!b) return; b.onclick = async () => { b.disabled = true; b.textContent = 'Opening…'; const r = await (await fetch(`/api/jobs/${id}/preform`, { method:'POST' })).json(); b.disabled = false; b.textContent = 'Open in PreForm'; let l = box.querySelector('#preformline'); if (!l) { l = document.createElement('div'); l.className = 'hint'; l.id = 'preformline'; b.closest('.btns').insertAdjacentElement('afterend', l); } l.style.color = r.ok ? 'var(--teal, #0d9488)' : 'var(--err)'; l.textContent = r.message; }; };
+  const wirePreform = () => {
+    const b = box.querySelector('#preformbtn');
+    if (b) b.onclick = async () => { const label = b.textContent; b.disabled = true; b.textContent = 'Opening…'; const r = await (await fetch(`/api/jobs/${id}/preform`, { method:'POST' })).json(); b.disabled = false; b.textContent = label; let l = box.querySelector('#preformline'); if (!l) { l = document.createElement('div'); l.className = 'hint'; l.id = 'preformline'; b.closest('.btns').insertAdjacentElement('afterend', l); } l.style.color = r.ok ? 'var(--teal, #0d9488)' : 'var(--err)'; l.textContent = r.message; };
+    const h = box.querySelector('#preformhere');
+    if (h) h.onclick = () => openPreformHere(id, box, h);
+  };
   setTimeout(wirePreform, 0);
   if (j.review === 'sent') {
     const when = j.sent_at ? ` ${new Date(j.sent_at * 1000).toLocaleDateString()} ${new Date(j.sent_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
     const printLine = (j.print_files || []).length ? `<div class="hint">Models filed in <b>${j.print_folder}</b>: ${j.print_files.map(f => f.split(/[\\/]/).pop()).join(', ')}</div>` : (j.print_error ? `<div class="hint" style="color:var(--err)">${j.print_error}</div>` : '');
     box.innerHTML = `<div class="anim" id="animCut"></div><b>Sent to the Trimlign${when}.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${printLine}${learnedLine}` +
-      `<div class="btns"><button class="small" id="resendbtn" title="Write the order again from these models - a lost print, a second set. The earlier order folder is replaced.">Send to Trimlign again</button><button class="small" id="preformbtn" title="Open the finished models in PreForm on the PC that runs the app (the lab PC)">Open in PreForm</button></div>` +
+      `<div class="btns"><button class="small" id="resendbtn" title="Write the order again from these models - a lost print, a second set. The earlier order folder is replaced.">Send to Trimlign again</button>${preformBtns()}</div>` +
       (j.preform ? `<div class="hint" id="preformline" style="color:${j.preform.ok ? 'var(--teal, #0d9488)' : 'var(--err)'}">${j.preform.message}</div>` : '') +
       (addLine ? addLine.replace('Also make', 'Need more? Also make') + `<div class="hint">(the case comes back for a check; Send then replaces the order with every model)</div>` : '');
     wireAdd();
@@ -1100,14 +1130,14 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
     box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
-      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button><button class="small" id="preformbtn" title="Open the finished models in PreForm on the PC that runs the app (the lab PC) - without sending">Open in PreForm</button><button class="small" id="discardbtn">Discard</button></div>` +
+      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button>${preformBtns()}<button class="small" id="discardbtn">Discard</button></div>` +
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine +
       // Send files the case for the retraining by itself; this link is for a corrected case that is not going to be sent
       ((j.fixed || []).length && !j.learned ? `<div class="hint" style="margin-top:8px"><a href="#" id="learnlink" title="Keep this brush-corrected case as a lesson for the retraining without sending it anywhere (Send does this on its own)">Save as lesson without sending</a></div>` : '');
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
     const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t) { showErr('You have brush edits that are not applied yet — click "Apply & re-run" first, then Send or Save as lesson.'); showTab(t); return true; } return false; };
-    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
+    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
     const ll = box.querySelector('#learnlink');
     if (ll) ll.onclick = async ev => {
       ev.preventDefault(); if (unapplied()) return; ll.textContent = 'Saving…';
