@@ -295,7 +295,9 @@
           <div class="cardBd">
             <div class="review" id="review"></div>
             <div class="dl" id="dl"></div>
-            <details class="logbox"><summary>Processing log</summary><div class="log" id="log"></div></details>
+            <details class="logbox"><summary>Processing log</summary>
+              <div style="display:flex;gap:6px;align-items:center;margin:6px 0 4px"><button class="small" id="copylog" title="Copy the whole log to the clipboard">Copy log</button><button class="small" id="savelog" title="Save the whole log as a text file">Save as .txt</button><span class="hint" id="logmsg" style="margin:0"></span></div>
+              <div class="log" id="log" tabindex="0" title="Click to select it all"></div></details>
           </div>
         </div>
       </div>
@@ -1137,7 +1139,7 @@ async function selectJob(id){
   let shown = '';
   const tick = async () => {
     const j = await (await fetch('/api/jobs/'+id)).json();
-    $('#log').textContent = (j.log||[]).join('\n') + (j.error ? '\nERROR: '+j.error : '');
+    $('#log').textContent = (j.log||[]).join('\n') + (j.error ? '\nERROR: '+j.error : ''); curJobName = j.name || id;
     const sig = `${j.status}|${(j.reports||[]).length}|${j.review||''}`;
     if (j.status === 'running' || j.status === 'queued') { renderProgress(j); if (shown !== sig) refreshJobs(); shown = sig; return; }
     if (shown === sig) return;
@@ -1694,6 +1696,17 @@ function updateFixCount(){
 }
 const editsPayload = () => JSON.stringify(allEdits());
 $('#showcol').onchange = () => { if (segMesh) paintColors(); };
+// the processing log can be copied whole (the page is plain http on the LAN, where the clipboard API is off:
+// the old select-and-copy route is used then), saved as a text file, or selected with one click
+let curJobName = '';
+$('#copylog').onclick = async () => {
+  const t = $('#log').textContent; let ok = false;
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(t); ok = true; } } catch (e) {}
+  if (!ok) { const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.focus(); ta.select(); try { ok = document.execCommand('copy'); } catch (e) {} ta.remove(); }
+  $('#logmsg').textContent = ok ? 'Copied - paste it anywhere.' : 'Could not copy here - use Save as .txt.'; setTimeout(() => { $('#logmsg').textContent = ''; }, 4000);
+};
+$('#savelog').onclick = () => { const b = new Blob([$('#log').textContent], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `${(curJobName || 'nlo').replace(/[^\w.-]+/g, '_')}_log.txt`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+$('#log').onclick = () => { const r = document.createRange(); r.selectNodeContents($('#log')); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); };
 // Send / Save as lesson carry the name typed in the New case card, for a case that has none (it never replaces one the case has)
 const nameForm = () => { const fd = new FormData(); fd.append('patient_first', $('#pfirst').value.trim()); fd.append('patient_last', $('#plast').value.trim()); return fd; };
 async function applyAndRerun(){
