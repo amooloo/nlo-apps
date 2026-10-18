@@ -847,6 +847,7 @@ function setFiles(fs, auto){
   }
   const preset = $('#preset').value;
   const dflt = TRACKER ? { wt: TRACKER.wt, tt: TRACKER.tt, mg: TRACKER.mg } : { wt: !['aligner_high', 'plain_model', 'mouthguard'].includes(preset), tt: preset === 'both' || preset === 'aligner_high', mg: preset === 'mouthguard' };
+  const fresh = pending.length === 0;      // a new case starts with this drop (not a second file added to one)
   for (const f of fs) {
     if (pending.length >= 2) break;
     pending.push({ file: f, arch: archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : ''), wt: dflt.wt, tt: dflt.tt, mg: dflt.mg, braces: false });
@@ -854,7 +855,10 @@ function setFiles(fs, auto){
   const first = pending[0].file;
   $('#name').value = first.name.replace(/\.(stl|ply)$/i,'');
   const m = nameOf(first.name);
-  if (!TRACKER && (m && !$('#pfirst').value.trim() && !$('#plast').value.trim() || (m && pending.length === 1))) { $('#pfirst').value = m[0]; $('#plast').value = m[1]; }
+  // the name fields are set from THIS drop's file names - never left showing the previous patient (a
+  // case was once named after the patient before, and engraved with the one before that)
+  if (!TRACKER && fresh) { $('#pfirst').value = m ? m[0] : ''; $('#plast').value = m ? m[1] : ''; }
+  else if (!TRACKER && m && !$('#pfirst').value.trim() && !$('#plast').value.trim()) { $('#pfirst').value = m[0]; $('#plast').value = m[1]; }
   $('#filehint').textContent = '';
   $('#rerunbox').style.display = 'none';
   renderSetup();
@@ -1146,7 +1150,7 @@ async function selectJob(id){
     shown = sig; refreshJobs();
     if (j.status === 'done') {
       // the New case card shows the open case's patient (unless a new case is being set up right now)
-      const p = j.params || {}; if (!pending.length && p.patient_first && p.patient_last) { $('#pfirst').value = p.patient_first; $('#plast').value = p.patient_last; } updatePatientLine();
+      const p = j.params || {}; if (!pending.length) { $('#pfirst').value = p.patient_first || ''; $('#plast').value = p.patient_last || ''; } updatePatientLine();
       try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); }
     }
     if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; const box = $('#review'); box.className = 'review discarded'; box.innerHTML = '<b>Processing failed.</b> Open the processing log below and send Dr. Akhavan the last lines; "Run again with these settings" starts the case over.'; $('#dl').innerHTML = ''; $('#rerunbox').style.display = 'block'; }
@@ -1336,8 +1340,11 @@ async function loadResult(id, j){
                   ap.used && ap.area_mm2 && !mg ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — rebuilt enamel shown grey on the Braces tab` : '',
                   recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
                   (r.renumbered || []).length ? `a missing tooth allowed for in the numbering (${[...new Set((r.renumbered || []).map(c => c.side < 0 ? 'left' : 'right'))].join(' and ')} side — see the log)` : '',
+                  r.label_error ? `base not engraved: ${r.label_error}` : '',
                   bo.spots ? `${bo.spots} undercut${bo.spots > 1 ? 's' : ''} blocked out (${bo.volume_ml} mL${bo.painted_cells ? ', incl. painted' : ''}${bo.proud_mm ? `, wall ${bo.proud_mm > 0 ? '+' : ''}${bo.proud_mm} mm` : ''})` : (bo.error ? `block-out: ${bo.error}` : '')].filter(Boolean);
-  $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '');
+  const warns = (r.warnings || []);
+  $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : '<span style="color:var(--err)">NOT watertight</span>'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '')
+    + (warns.length ? `<br><span style="color:var(--err);font-weight:600">&#9888; ${warns.join(' · ')}</span>` : '');
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
   // result: the arch body and the base as two pieces, so the arch can be moved on the base

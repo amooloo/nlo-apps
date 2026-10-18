@@ -584,6 +584,7 @@ def _scan_params(job, scan):
     params["force_on_idx"] = pe.get("reservoir") or []
     params["adjust"] = _adjust_by_arch(job["params"], job["scans"]).get(scan.get("arch") or "", dict(ADJUST_ZERO))
     params.pop("adjust_by_arch", None)
+
     return params
 
 
@@ -1272,6 +1273,15 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         if k in new and not (str(new[k]).strip() if new[k] is not None else ""):
             new.pop(k)
     old = job["params"]
+    # ... and a case keeps the patient it was made for: the page's name fields are a shared card that may
+    # still show the previous patient, and a re-run must never rename (and re-engrave) a case from them.
+    # A case that has no name yet takes one through the patient line (_name_from_form), nowhere else.
+    for k in ("patient_first", "patient_last", "patient_id"):
+        if k in new and str(old.get(k) or "").strip() and str(new[k]).strip() != str(old[k]).strip():
+            job.setdefault("log", []).append(f"{k.replace('_', ' ')} '{new[k]}' from the page ignored - this case is {old.get('patient_first', '')} {old.get('patient_last', '')}".strip())
+            new.pop(k)
+        elif k in new and str(old.get(k) or "").strip():
+            new.pop(k)
     volatile = {"adjust", "adjust_by_arch", "tracker_case"}
     def changed(a, b):
         return json.dumps(a, sort_keys=True, default=str) != json.dumps(b, sort_keys=True, default=str)

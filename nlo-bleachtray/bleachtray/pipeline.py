@@ -97,6 +97,60 @@ def scan_edge_zone(mesh, A, mm=1.0):
     return geodesic_dilate(mesh, A, on_edge, mm)
 
 
+def connect_line_pieces(mesh, A, mask, max_gap=6.0, width=0.8, min_piece=300):
+    """The band the trim line follows must be one piece: where neighbouring teeth do not touch (an open
+    contact, spacing, a small gap the ridge step did not call a missing tooth) the tooth mask falls into
+    separate islands and the gum line into separate loops - the longest of which is half an arch. Each
+    pair of close islands is joined by a bridge along the shortest surface path between them (the gum
+    between the two teeth), `width` mm wide. Returns (mask, number of bridges)."""
+    from scipy.sparse.csgraph import connected_components, dijkstra
+    from scipy.sparse import csr_matrix
+    from scipy.spatial import cKDTree
+    idx = np.where(mask)[0]
+    if len(idx) < min_piece:
+        return mask, 0
+    n, lab = connected_components(A[idx][:, idx], directed=False)
+    if n <= 1:
+        return mask, 0
+    sizes = np.bincount(lab)
+    big = [c for c in range(n) if sizes[c] >= min_piece]
+    if len(big) <= 1:
+        return mask, 0
+    V = np.asarray(mesh.vertices)
+    W = A.tocoo()
+    G = csr_matrix((np.linalg.norm(V[W.row] - V[W.col], axis=1), (W.row, W.col)), shape=A.shape)
+    members = {c: idx[lab == c] for c in big}
+    trees = {c: cKDTree(V[members[c]]) for c in big}
+    pairs = []
+    for i, a in enumerate(big):
+        for b in big[i + 1:]:
+            d, j = trees[b].query(V[members[a]], distance_upper_bound=max_gap)
+            k = int(np.argmin(d))
+            if np.isfinite(d[k]):
+                pairs.append((float(d[k]), a, b, int(members[a][k]), int(members[b][j[k]])))
+    pairs.sort()
+    parent = {c: c for c in big}
+    def find(c):
+        while parent[c] != c:
+            parent[c] = parent[parent[c]]; c = parent[c]
+        return c
+    added = np.zeros(len(V), bool); bridges = 0
+    for d, a, b, va, vb in pairs:
+        if find(a) == find(b):
+            continue
+        dist, pred = dijkstra(G, indices=va, return_predecessors=True, limit=4.0 * max_gap)
+        if not np.isfinite(dist[vb]):
+            continue
+        path, v = [], vb
+        while v >= 0 and v != va and len(path) < 5000:
+            path.append(v); v = pred[v]
+        path.append(va)
+        pm = np.zeros(len(V), bool); pm[path] = True
+        added |= geodesic_dilate(mesh, A, pm, width)
+        parent[find(a)] = find(b); bridges += 1
+    return mask | added, bridges
+
+
 def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print, contacts=None):
     """Per-tooth labels: arch-profile boundaries (contacts from the interproximal classifier, incisal
     height dips, footprint pinches, facial grooves) + downhill flood. Falls back to the older
@@ -408,16 +462,40 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # trimline: gum line (tooth/gingiva boundary), optionally pushed `trimline_offset` mm onto the
     # gingiva (aligners/retainers), with straight bridges across the papillae
     line_mask = mask | ridge_mask
+    # one band: open contacts and small gaps are bridged along the gum between the teeth, so the gum line
+    # is one loop round the arch (not one loop per island of teeth, of which the longest was kept)
+    line_mask, n_bridges = connect_line_pieces(mesh, A, line_mask)
+    if n_bridges:
+        log(f"[{name}] gum line carried across {n_bridges} gap{'s' if n_bridges > 1 else ''} between teeth that do not touch")
+        rep["line_bridges"] = n_bridges
     if P["trimline_offset"] > 0:
         line_mask = geodesic_dilate(mesh, A, line_mask, P["trimline_offset"])
     # where the scan stops right at the teeth (common on the lingual of lowers) the gum line would
     # run off the edge of the mesh and the contour could not close: keep it ~1 mm inside the scan edge
     edge_zone = scan_edge_zone(mesh, A, 1.0)
+    line_mask0 = line_mask
     line_mask = line_mask & ~edge_zone
     field = smooth_field(A, line_mask.astype(float), 3)
     loops = margin_contour(mesh, field, 0.5)
-    if len(loops) > 1 and len(loops[1]) > 0.5 * len(loops[0]):
-        log(f"[{name}] note: gum line came out in {len(loops)} pieces; using the longest")
+    broken = lambda lp: len(lp) > 1 and len(lp[1]) > 0.2 * len(lp[0])
+    if broken(loops):
+        # the line fell apart: the tooth band is cut by the scan edge somewhere (a partial scan, a hole next
+        # to the teeth), and the longest piece would be half an arch - the model built from it half a model,
+        # off its place on the base. Keep less off the edge, then widen the band a little, until it is one
+        # line again (the retainer's line, 1.25 mm onto the gum, never breaks here: that is the same cure)
+        n0 = len(loops)
+        for ez, grow in ((0.5, 0.0), (0.25, 0.0), (0.5, 0.5), (0.5, 1.0)):
+            lm = geodesic_dilate(mesh, A, line_mask0, grow) if grow > 0 else line_mask0
+            lm = lm & ~scan_edge_zone(mesh, A, ez)
+            fld = smooth_field(A, lm.astype(float), 3)
+            lps = margin_contour(mesh, fld, 0.5)
+            if lps and not broken(lps):
+                line_mask, field, loops = lm, fld, lps
+                log(f"[{name}] gum line came out in {n0} pieces at the scan edge - whole again with the line {ez} mm off the edge" + (f" and widened {grow} mm onto the gum" if grow else ""))
+                break
+        else:
+            log(f"[{name}] WARNING gum line came out in {n0} pieces; using the longest - the model covers only part of the arch (partial scan?)")
+            rep.setdefault("warnings", []).append(f"the gum line came out in {n0} pieces and only the longest was used: the model covers part of the arch - check the scan")
     margin = resample_polyline(loops[0], 0.25)
     if P["bridge_radius"] > 0:
         margin = bridge_embrasures(margin, mesh, radius=P["bridge_radius"])
@@ -676,6 +754,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if os.path.exists(bo_path):
             os.remove(bo_path)
     rep["body_watertight"] = bool(body.is_watertight)
+    if not body.is_watertight:
+        rep.setdefault("warnings", []).append("the model is not watertight - check it before printing")
     rep["body_volume_ml"] = round(float(body.volume) / 1000.0, 2)
     rep["steps"].append(("solid", round(time.time() - t0, 2)))
     prog(0.85, "adding the base and engraving")
@@ -685,7 +765,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     if P.get("engrave", True) and P.get("tooth_mark", True):
         from .engrave import emboss_on_tooth
         body, mark = emboss_on_tooth(body, mesh_f, labels, info, P, log=lambda m: log(f"[{name}] {m}"))
-        rep["tooth_mark"] = mark
+        rep["tooth_mark"] = mark["text"] if mark else None
+        rep["mark"] = mark                                   # where it sits (output frame), for the page
     margin_n = trimline_normals(body, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
     rep["elapsed_s"] = round(time.time() - t0, 2)
@@ -728,8 +809,10 @@ def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path,
         rep["base"] = how
         if P.get("engrave", True):
             from .engrave import engrave_model
-            model, placed = engrave_model(model, P, outline=outline, log=lambda m: log(f"[{name}] {m}"))
-            rep["engraved"] = placed
+            model, einfo = engrave_model(model, P, outline=outline, log=lambda m: log(f"[{name}] {m}"))
+            einfo = einfo or {}
+            rep["engraved"] = einfo.get("placed")
+            rep["label_error"] = einfo.get("error")          # why the plate engraving was skipped, for the result line
     else:
         model, how = body, "none"
         rep["base"] = how
