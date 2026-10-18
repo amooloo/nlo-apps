@@ -63,6 +63,13 @@ The starting set ships with the app as `assets\base_training.npz` - per arch the
 the model learns from (numbers only: no scans, no names), so nothing has to be downloaded for retraining to work.
 Full base cases under `training\_base\` (scan + labels) take precedence when present.
 
+## Printing (PreForm)
+
+When a case is **sent**, its finished models (the printable STLs, base and all) also open in **PreForm** on the PC that
+runs the app - the lab PC, where the Form 4B's software is - so printing is the next click. **Open in PreForm** in the
+Check & send box does the same any time, before or after sending. PreForm is found by itself in its usual install
+folder; Settings → PreForm has the path if it lives somewhere else, and the switch to turn the open-on-send off.
+
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 
 Settings → *Scanner export folder* → Save (once, for the whole office). The app lists the scans exported in
