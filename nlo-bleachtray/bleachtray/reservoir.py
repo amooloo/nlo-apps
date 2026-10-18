@@ -118,15 +118,22 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
     out_dir = aux["out_dir"]
     n_out = (nrm[:, :2] * out_dir).sum(1)
     facial = n_out > 0.05 if facial_only else np.ones(n, bool)
-    # incisal edge / cusp zone: surface facing up, plus the top band of each tooth (sharp edges have
-    # few up-facing vertices, the band catches those)
-    edge_zone = (nrm[:, 2] > edge_normal_z) if exclude_occlusal else np.zeros(n, bool)
+    # incisal edge / cusp zone: what faces up, judged against each tooth's own facial slope - an incisor's
+    # face is near vertical, a lower premolar's buccal face leans in and already faces up ~35 deg, so a
+    # fixed "faces up" cut would take most of a premolar's face (and leave it a sliver of reservoir).
+    # Plus the top band of each tooth (sharp edges have few up-facing vertices, the band catches those).
+    edge_zone = np.zeros(n, bool)
     for tid in sel_ids:
         m = labels == tid
         if m.sum() < 10:
             continue
         top = np.percentile(z[m], 99.5)
         edge_zone |= m & (z > top - edge_band) & (nrm[:, 2] > 0.25)
+        if exclude_occlusal:
+            low = m & (n_out > 0.3) & (z < np.percentile(z[m], 50))      # cervical half of the face: its slope, not the cusp
+            fz = float(np.median(nrm[low, 2])) if low.sum() >= 20 else 0.0
+            thr = float(np.clip(fz + 0.3, edge_normal_z, 0.92))           # never below the old cut, never the occlusal table itself
+            edge_zone |= m & (nrm[:, 2] > thr)
     region = sel & facial & ~edge_zone
     if force is not None:
         # the painted patch itself, wherever it faces; a tooth selected only by paint gets nothing beyond it
@@ -172,8 +179,20 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
         sb[force] = float(setback)             # the paint overrides a recession set-back, never the gum line itself
         if keep_off is not None:
             keep_off = np.asarray(keep_off, bool) & ~force
-    w = _smoothstep((d_rim - edge_clearance) / max(edge_feather, 1e-6))
-    w *= _smoothstep((d_gum - sb) / max(feather, 1e-6))
+    # a short clinical crown (a young patient, gum still high - 4-5 mm of premolar face) has little room
+    # between the gum set-back and the incisal clearance: the ramps shorten there, in proportion, so the
+    # reservoir still reaches its height on the tooth instead of being all ramp
+    fe_gum = np.full(n, float(feather)); fe_rim = np.full(n, float(edge_feather))
+    for tid in sel_ids:
+        m = region & (labels == tid)
+        if m.sum() < 10:
+            continue
+        room = float(np.percentile(d_gum[m], 98)) - float(sb[m].min())      # usable height above the set-back
+        if room < 5.0:
+            k = max(0.4, room / 5.0)
+            fe_gum[m] = max(0.4, float(feather) * k); fe_rim[m] = max(0.3, float(edge_feather) * k)
+    w = _smoothstep((d_rim - edge_clearance) / np.maximum(fe_rim, 1e-6))
+    w *= _smoothstep((d_gum - sb) / np.maximum(fe_gum, 1e-6))
     d_off = None
     if keep_off is not None and np.asarray(keep_off).any():
         off = np.asarray(keep_off, bool)
@@ -184,8 +203,13 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
     # smooth the weight field so the bump has no steps, renormalise its plateau, then re-impose the
     # clearances exactly (smoothing creeps a few edges outward)
     w = smooth_field(A, w, 3)
-    pos = w[region & (w > 0)]
-    w = np.clip(w / max(np.percentile(pos, 97) if len(pos) else 1.0, 1e-6), 0, 1)
+    # each tooth reaches full height on its own plateau (a small premolar is not held down by the big
+    # incisors next to it); a tooth whose weights stay low is lifted at most 1.7x, so a sliver stays a sliver
+    for tid in sel_ids:
+        m = region & (labels == tid) & (w > 0)
+        if m.sum() >= 10:
+            w[m] = w[m] / max(float(np.percentile(w[m], 97)), 0.6, 1e-6)
+    w = np.clip(w, 0, 1)
     w[~region] = 0.0
     w[d_rim < edge_clearance] = 0.0
     w[d_gum < sb] = 0.0

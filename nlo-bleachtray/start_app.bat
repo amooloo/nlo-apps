@@ -1,15 +1,15 @@
 @echo off
-rem NLO Bleach Tray - browser app (check a case in 3D, fix a tooth, re-run). The browser opens by itself.
+rem NLO Tray Maker - browser app (check a case in 3D, fix a tooth, re-run). The browser opens by itself.
 if "%~1"=="autostart" (
-  start "NLO Bleach Tray" /min cmd /k ""%~f0" run --no-browser"
+  start "NLO Tray Maker" /min cmd /k ""%~f0" run --no-browser"
   exit /b
 )
 if not "%~1"=="run" (
-  start "NLO Bleach Tray" cmd /k ""%~f0" run"
+  start "NLO Tray Maker" cmd /k ""%~f0" run"
   exit /b
 )
 cd /d "%~dp0"
-title NLO Bleach Tray
+title NLO Tray Maker
 call "%~dp0_findpy.bat"
 if not defined PY (
   echo  Python 3.13 was not found on this PC. Close this window and double-click install.bat.

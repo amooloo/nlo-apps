@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # Windows PowerShell's byte-by-byte progress bar makes a download 10x slower
 Write-Host ''
 Write-Host ' ==============================================='
-Write-Host '  NLO Bleach Tray - update'
+Write-Host '  NLO Tray Maker - update'
 Write-Host ' ==============================================='
 $cands = @('C:\nlo-bleachtray\nlo-bleachtray', 'C:\nlo-bleachtray', 'C:\NLO\nlo-bleachtray',
            "$env:USERPROFILE\nlo-bleachtray\nlo-bleachtray", "$env:USERPROFILE\nlo-bleachtray",

@@ -48,7 +48,9 @@ def refine_with_colour(mesh, A, p_shape, rgb, band_mm=3.0, log=None, rng_seed=0)
     perm = rng.permutation(len(idx)); idx, y = idx[perm], y[perm]
     k = int(0.8 * len(idx))
     from sklearn.ensemble import HistGradientBoostingClassifier
-    clf = HistGradientBoostingClassifier(max_iter=120, learning_rate=0.1, max_leaf_nodes=31)
+    # random_state: with >10k samples the booster holds out a random validation set for early stopping,
+    # and an unseeded split made the same scan segment a little differently on every run
+    clf = HistGradientBoostingClassifier(max_iter=120, learning_rate=0.1, max_leaf_nodes=31, random_state=rng_seed)
     clf.fit(X[idx[:k]], y[:k])
     acc = float((clf.predict(X[idx[k:]]) == y[k:]).mean())
     info["holdout_acc"] = round(acc, 3)

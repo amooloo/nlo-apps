@@ -1,4 +1,4 @@
-# NLO Bleach Tray
+# NLO Tray Maker (nlo-bleachtray)
 
 Makes the bleaching-tray model from a scan — with the gel reservoirs, the Trimlign base and the trim line — and
 puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per case. Runs on the lab PC.
@@ -43,7 +43,7 @@ recipe stays (scan, settings, brush fixes, painted areas - about 15 MB per arch)
 models in a minute. The case list also survives a restart (the last week comes back by itself).
 
 Nothing reaches OrthoFactory without that click. Files dragged into the folder move to `BleachTray\done` when
-processed, or to `BleachTray\failed` with an `error.txt`. The small black window "NLO Bleach Tray" must be open on
+processed, or to `BleachTray\failed` with an `error.txt`. The small black window "NLO Tray Maker" must be open on
 the PC that runs the app (it starts by itself at sign-in; if it's gone, double-click `start_app.bat` in the app
 folder). That one window watches the drop folder *and* serves the app page to the whole office.
 
@@ -298,6 +298,13 @@ margin before the enamel climbs outward; a healthy crown climbs from the margin)
 against the typical anatomic crown + 1 mm. Where root is found the reservoir stops above it plus a leeway (1 mm,
 a setting), and the result line names the teeth. On 15 scans: 0-2 of 10 reservoir teeth flagged on young
 orthodontic patients, 7 of 10 on an adult with generalised recession. Paint *No reservoir* for anything it misses.
+
+**Short crowns and premolars.** The incisal / occlusal cut is judged against each tooth's own facial slope (an
+incisor's face is near vertical, a lower premolar's leans in and faces up ~35°), so a premolar keeps its face rather
+than a sliver at the gum. On a short clinical crown (young patient, gum still high - 4-5 mm of premolar face) the
+ramps from the gum set-back and the incisal clearance shorten in proportion, and each tooth reaches full height on
+its own plateau; the reservoir is still smaller there than on a tall incisor - there is less tooth - but it is there,
+and the same on both sides. (The scan-colour step is seeded, so the same scan now gives the same result every run.)
 
 **Block-out.** For thermoforming, the space under an overhang - a bridge pontic, the emergence of an implant crown,
 an open embrasure - is filled like block-out resin (`bleachtray/blockout.py`): on a 0.3 mm grid every vertical

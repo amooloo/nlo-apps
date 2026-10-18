@@ -1,4 +1,4 @@
-# NLO Bleach Tray - let THIS PC open the app's models in PreForm.
+# NLO Tray Maker - let THIS PC open the app's models in PreForm.
 #
 # The app runs on the lab PC; from any other PC the page cannot start a program by itself. This
 # registers a small link handler (nlobt:) for the current Windows user - no admin - so the "Open in
@@ -15,12 +15,12 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $handler = Join-Path $dir 'preform_open.ps1'
 
 @'
-# Handler for nlobt: links from the NLO Bleach Tray page: nlobt://preform?f=<path>&f=<path>
+# Handler for nlobt: links from the NLO Tray Maker page: nlobt://preform?f=<path>&f=<path>
 # Opens the listed model files (STL, must exist - normally on the office share) in PreForm on this PC.
 param([string]$url)
 Add-Type -AssemblyName System.Web
 Add-Type -AssemblyName System.Windows.Forms
-function Say($m) { [System.Windows.Forms.MessageBox]::Show($m, 'NLO Bleach Tray') | Out-Null }
+function Say($m) { [System.Windows.Forms.MessageBox]::Show($m, 'NLO Tray Maker') | Out-Null }
 function Find-PreForm {
   foreach ($b in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA\Programs")) {
     if (-not $b) { continue }
@@ -47,7 +47,7 @@ try {
 
 $k = 'HKCU:\Software\Classes\nlobt'
 New-Item -Path $k -Force | Out-Null
-Set-ItemProperty -Path $k -Name '(default)' -Value 'URL:NLO Bleach Tray'
+Set-ItemProperty -Path $k -Name '(default)' -Value 'URL:NLO Tray Maker'
 Set-ItemProperty -Path $k -Name 'URL Protocol' -Value ''
 New-Item -Path "$k\DefaultIcon" -Force | Out-Null
 $pf = $null

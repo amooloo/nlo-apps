@@ -1,4 +1,4 @@
-"""Start the NLO Bleach Tray app on this computer and open it in the browser.
+"""Start the NLO Tray Maker app on this computer and open it in the browser.
 
     python run_app.py            # http://127.0.0.1:8765
     python run_app.py --lan      # also reachable from other office computers on port 8765
@@ -27,7 +27,7 @@ def _guard():
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "trimlign_base_manifold.ply")
     if missing or not os.path.exists(base):
         print()
-        print("  NLO Bleach Tray is not set up on this computer yet.")
+        print("  NLO Tray Maker is not set up on this computer yet.")
         if missing:
             print("  Missing components:", ", ".join(missing))
         if not os.path.exists(base):
@@ -112,12 +112,12 @@ def _wait_for_port(seconds=40):
 
 if __name__ == "__main__":
     import socket
-    print(f"  NLO Bleach Tray - browser app on this PC: http://127.0.0.1:{port}")
+    print(f"  NLO Tray Maker - browser app on this PC: http://127.0.0.1:{port}")
     if host == "0.0.0.0":
         print(f"  Other office computers:  http://{socket.gethostname()}:{port}")
     if not _wait_for_port():
         print("")
-        print("  Another copy of the app is already running on this PC (look for a window called 'NLO Bleach Tray').")
+        print("  Another copy of the app is already running on this PC (look for a window called 'NLO Tray Maker').")
         print("  Nothing to do - that copy serves the app. This window can be closed.")
         print("  (If no such window exists, restart the PC, or run update again.)")
         sys.exit(0)
