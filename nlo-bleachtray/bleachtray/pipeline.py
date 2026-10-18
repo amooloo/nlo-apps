@@ -274,9 +274,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     from .features import compute_features
     # braces on (a scan at the eval appointment): find brackets, wire and ties by colour + shape and take
     # them off - the enamel underneath is rebuilt as a smooth continuation of the surrounding surface.
-    # "auto" removes whatever is found on a coloured scan; False leaves the scan as it is
+    # Only when asked for (remove_appliances=True - the app's "Braces on" box): the detector has taken
+    # stained or shadowed enamel for a bracket on plain scans, so it never runs on its own
     appliance = np.zeros(len(mesh.vertices), bool)
-    want = P.get("remove_appliances", "auto")
+    want = bool(P.get("remove_appliances", False))
     MG = bool(P.get("mouthguard"))
     feats_forced = None       # mouthguard: the features that go with the mesh the teeth are found on
     mesh_orig = None          # mouthguard: the scan as it is (brackets on) - the body is built from this one

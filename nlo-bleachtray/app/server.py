@@ -164,7 +164,8 @@ def _save_case(job):
             r = sc.get("report") or {}
             scans.append(dict(path=os.path.relpath(sc["path"], jdir), name=sc["name"], filename=sc.get("filename"), arch=sc.get("arch"),
                               preset=sc.get("preset"), tag=sc.get("tag"), kind=sc.get("kind"), stage=sc.get("stage"),
-                              titan_basename=r.get("titan_basename"), has_report=bool(r),
+                              titan_basename=r.get("titan_basename"), has_report=bool(r), braces_on=bool(sc.get("braces_on")),
+                              raw_path=(os.path.relpath(sc["raw_path"], jdir) if sc.get("raw_path") else None),
                               braces=({k: v for k, v in sc["braces"].items() if k != "passes"} if sc.get("braces") else None)))
         fixed = job.get("fixed_labels") or {}
         for path, lab in fixed.items():
@@ -284,6 +285,8 @@ def _job_from_case(jid):
     scans = []
     for sc in case["scans"]:
         s = dict(sc); s["path"] = os.path.join(jdir, sc["path"])
+        if sc.get("raw_path"):
+            s["raw_path"] = os.path.join(jdir, sc["raw_path"])
         rp = os.path.join(jdir, f"{sc['name']}_report.json")
         rep = None
         if os.path.exists(rp):
@@ -401,19 +404,32 @@ def _run(job):
         job.setdefault("feat_cache", {})
         fixed = job.setdefault("fixed_labels", {})   # brush fixes, kept for every later re-run of this case
         overrides = {}                                # ... and applied to every model made from the same scan file
-        # braces on? brackets, wire and ties come off the scan file first (once per scan) - except for a
-        # scan that only becomes a mouthguard: that model keeps the brackets (under shields)
-        if job["params"].get("remove_appliances", "auto"):
-            for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
-                if path in job.get("braces", {}) or "_clean" in os.path.basename(path):
-                    continue
-                if all(sc.get("preset") == "mouthguard" for sc in job["scans"] if sc["path"] == path):
-                    continue
-                job["progress"] = dict(frac=0.01, label="looking for braces on the scan", scan=0, of=len(job["scans"]))
-                try:
-                    _take_off_braces(job, path, log=log)
-                except Exception as ex:  # noqa
-                    log(f"braces step skipped: {ex}")
+        # braces on? Only when the scan was dropped with "Braces on" ticked (or the job says so): brackets,
+        # wire and ties come off the scan file first (once per scan) - except for a scan that only becomes a
+        # mouthguard: that model keeps the brackets (under shields). Never assumed: the detector has taken
+        # stained or shadowed enamel for a bracket on plain scans
+        for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
+            mine = [sc for sc in job["scans"] if sc["path"] == path]
+            asked = any(sc.get("braces_on") for sc in mine) or bool(job["params"].get("remove_appliances"))
+            if not asked:
+                # a clean file from a run that assumed braces: back to the scan as scanned
+                raw = _raw_scan_for(mine[0])
+                if raw and raw != path:
+                    for sc in mine:
+                        sc["path"] = raw; sc.pop("braces", None); sc.pop("raw_path", None)
+                    job.get("braces", {}).pop(raw, None); fixed.pop(path, None); job.get("paint", {}).pop(path, None)
+                    job["feat_cache"] = {}
+                    log(f"braces were taken off this scan without being asked for - the scan as scanned ({os.path.basename(raw)}) is used again")
+                continue
+            if path in job.get("braces", {}) or "_clean" in os.path.basename(path):
+                continue
+            if all(sc.get("preset") == "mouthguard" for sc in mine):
+                continue
+            job["progress"] = dict(frac=0.01, label="taking the braces off the scan", scan=0, of=len(job["scans"]))
+            try:
+                _take_off_braces(job, path, log=log)
+            except Exception as ex:  # noqa
+                log(f"braces step skipped: {ex}")
         # "take off" strokes: a bit of bracket or wire the app missed - cut out and the enamel rebuilt, as a
         # new scan file (every model from it, every later re-run); everything indexed on the old file follows
         remap = None
@@ -619,6 +635,24 @@ def _apply_cut(job, k, cut, log=print):
     return remap
 
 
+def _raw_scan_for(sc):
+    """The scan as scanned behind a `_clean` / `_clean2` file (recorded on the scan, else by name)."""
+    raw = sc.get("raw_path")
+    if raw and os.path.exists(raw):
+        return raw
+    path = sc["path"]
+    d, base = os.path.split(path)
+    stem, ext = os.path.splitext(base)
+    m = re.match(r"^(.*)_clean\d*$", stem)
+    if not m:
+        return None
+    for e in (ext, ".ply", ".stl", ".PLY", ".STL"):
+        cand = os.path.join(d, m.group(1) + e)
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
 def _take_off_braces(job, path, log=print, painted=None):
     """A coloured scan with braces on: find brackets, wire and ties and take them off BEFORE anything
     else sees the scan. The cleaned scan is written as a new PLY next to the case (like a cut), every
@@ -797,17 +831,20 @@ def _open_case_for(first, last, arch, max_age=45 * 60):
     return None
 
 
-def _add_scans(job, path, filename, arch, preset, variants=None):
+def _add_scans(job, path, filename, arch, preset, variants=None, braces_on=None):
     same = [sc for sc in job["scans"] if sc["path"] == path]
     if same:   # another model from a scan the case already holds: keep its name stem
         stem = same[0]["name"][: -len(same[0]["tag"]) - 1] if same[0].get("tag") and same[0]["name"].endswith("_" + same[0]["tag"]) else same[0]["name"]
+        if braces_on is None:
+            braces_on = bool(same[0].get("braces_on"))
     else:
         stem = "".join(c for c in os.path.splitext(filename)[0] if c.isalnum() or c in "-_ ").strip().replace(" ", "_") or "scan"
         k = len({sc["path"] for sc in job["scans"]})
         if any(sc["name"].startswith(stem) for sc in job["scans"]):
             stem = f"{stem}_{k + 1}"
     for vpreset, tag, kind, stage in (variants or variants_for(preset)):
-        job["scans"].append(dict(path=path, name=f"{stem}_{tag}", filename=filename, arch=arch, preset=vpreset, tag=tag, kind=kind, stage=stage))
+        job["scans"].append(dict(path=path, name=f"{stem}_{tag}", filename=filename, arch=arch, preset=vpreset, tag=tag, kind=kind, stage=stage,
+                                 braces_on=bool(braces_on)))
     job["filename"] = ", ".join(dict.fromkeys(sc["filename"] for sc in job["scans"]))
 
 
@@ -843,9 +880,10 @@ def _variants_from_makes(makes, preset):
 
 @app.post("/api/jobs")
 async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bleaching"), params: str = Form("{}"),
-                     name: str = Form(""), arches: str = Form("[]"), makes: str = Form("")):
+                     name: str = Form(""), arches: str = Form("[]"), makes: str = Form(""), braces: str = Form("")):
     """Any number of scans at once: one case per patient (upper + lower paired by the file names).
-    `makes`: per-file list of what to make (["WT","TT"]); without it every file gets the preset's variants."""
+    `makes`: per-file list of what to make (["WT","TT"]); without it every file gets the preset's variants.
+    `braces`: per-file list of booleans - the scan has braces on and they are to come off first (never assumed)."""
     p0 = dict(PRESETS.get(preset, PRESETS["bleaching"]))
     try:
         p0.update(json.loads(params or "{}"))
@@ -859,6 +897,10 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
         makes_list = json.loads(makes) if makes else None
     except Exception:
         makes_list = None
+    try:
+        braces_list = json.loads(braces) if braces else []
+    except Exception:
+        braces_list = []
     from bleachtray.watch import titan_export, file_titan_export
     blobs, filed = [], []
     for k, f in enumerate(files):
@@ -884,6 +926,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
     cases = _group_uploads([(k, fn, (arch_list[i] if i < len(arch_list) else None) or None) for i, (k, fn, _) in enumerate(blobs)])
     data = {k: (fn, b) for k, fn, b in blobs}
     per_file = {k: (_variants_from_makes(makes_list[i], preset) if makes_list and i < len(makes_list) else None) for i, (k, fn, _) in enumerate(blobs)}
+    per_braces = {k: bool(braces_list[i]) if i < len(braces_list) else bool(p0.get("remove_appliances")) for i, (k, fn, _) in enumerate(blobs)}
     single = len(cases) == 1
     ids, joined = [], []
     for case in cases:
@@ -900,7 +943,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
                 path = os.path.join(other["dir"], f"scan{len({sc['path'] for sc in other['scans']})}_{''.join(c for c in fn if c.isalnum() or c in '-_.')}")
                 with open(path, "wb") as fh:
                     fh.write(data[k][1])
-                _add_scans(other, path, fn, arch, other.get("preset") or preset, variants=per_file.get(k))
+                _add_scans(other, path, fn, arch, other.get("preset") or preset, variants=per_file.get(k), braces_on=per_braces.get(k))
                 other.setdefault("log", []).append(f"{arch} scan added to this case: {fn}")
                 ids.append(other["id"]); joined.append(other["id"])
                 _enqueue(other)
@@ -913,7 +956,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
             path = os.path.join(jdir, f"scan{len({sc['path'] for sc in job['scans']})}_{''.join(c for c in fn if c.isalnum() or c in '-_.')}")
             with open(path, "wb") as fh:
                 fh.write(data[k][1])
-            _add_scans(job, path, fn, arch, preset, variants=per_file.get(k))
+            _add_scans(job, path, fn, arch, preset, variants=per_file.get(k), braces_on=per_braces.get(k))
         nm = f"{first} {last}".strip() or (name if single else "") or job["scans"][0]["name"]
         job["name"] = ("".join(c for c in nm if c.isalnum() or c in "-_ ").strip() or "case").replace(" ", "_")
         JOBS[jid] = job
@@ -975,7 +1018,10 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     per_type = {t: changed(old.get(t), new.get(t)) for t in ("wt", "tt") if t in new}
     job["params"].update(new)
     me = job.get("mask_edit")
-    if me is not None or shared_changed or adjust_changed or not job.get("reports"):
+    # a scan cleaned of braces without being asked for (an earlier version assumed them) goes back to the
+    # scan as scanned on this re-run - everything is re-made from it
+    undo = any(not sc.get("braces_on") and not job["params"].get("remove_appliances") and _raw_scan_for(sc) not in (None, sc["path"]) for sc in job["scans"])
+    if me is not None or shared_changed or adjust_changed or undo or not job.get("reports"):
         only = None                                   # everything
     else:
         only = {k for k, sc in enumerate(job["scans"]) if per_type.get({"WT": "wt", "TT": "tt"}.get(sc.get("tag"), ""), False) or not sc.get("report")}

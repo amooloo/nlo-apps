@@ -9,7 +9,8 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    its own, e.g. `Jane_Doe_20261015_09-20-31_upper.ply`). **PLY when the scanner offers it** - it carries the colour,
    which the app uses to find the gum line; STL works too.
 2. Drop the file on the **Bleach Tray** app page (any office computer; home page → Bleach Tray). The app asks what
-   to make of it - **whitening tray**, **retainer (TT)** and/or **mouthguard (MG, braces on)** - and whether the opposing arch is coming: drop that
+   to make of it - **whitening tray**, **retainer (TT)** and/or **mouthguard (MG, braces on)** - whether the scan has
+   **braces on** that should come off first (never assumed) - and whether the opposing arch is coming: drop that
    one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once,
    or files dragged into **`S:\clinical\3D printing\BleachTray`**, run with the default (both) without questions.
    Several people can drop at the same time: cases run one after another and the list shows who is waiting.
@@ -169,9 +170,13 @@ points go back onto the surface. The distal relief and the model's end plane use
 leaked onto the pad no longer carries the pad along. On the 23 stored arches the line was pulled 0.3-1.5 mm onto the
 tooth where it was already fine and 2-7 mm where it had run onto the pad.
 
-**Braces on (a scan at the eval appointment).** A coloured scan with brackets on goes through
-`appliance.py` before anything else sees it (the app does this itself in `_take_off_braces`, once per scan;
-`process()` repeats it only for a scan that comes in by another route, e.g. the watch folder). *Finding
+**Braces on (a scan at the eval appointment).** Tick **Braces on - take them off first** on the scan when you
+drop it. Only then does a coloured scan with brackets on go through `appliance.py` before anything else sees it
+(the app does this itself in `_take_off_braces`, once per scan; `process()` does it for a scan that comes in by
+another route when `remove_appliances` is set). It is never assumed: on plain scans the detector has taken
+stained or shadowed enamel for a bracket and rebuilt real tooth surface, so a scan dropped without the box is
+left exactly as scanned (and a case cleaned by an earlier version that assumed braces goes back to the scan as
+scanned on its next re-run). *Finding
 them* - candidates come from colour: metal is grey on iTero and a cyan-blue sheen on AlliedStar, dark
 grey-brown in shadow, ties green / purple / blue, while enamel and gum sit in a narrow pink-ivory-yellow
 band. Whether a candidate really is an appliance is decided by its height above the surface continued
@@ -195,9 +200,9 @@ pad or ligature that sat under the first pass's threshold. The cleaned scan is w
 `<scan>_clean.ply` next to the case and becomes the case's scan file (brush, re-runs, history and the
 Titan export all work on it); its rebuilt vertices are recorded as paint bit 4 (grey in the brush view) and
 the result line says how much came off. Scans with braces are kept out of the training set.
-`remove_appliances` = "auto" (default) / False. **Take off brush** (Segmentation / fix): a bit of bracket,
-wire or tie the app missed is painted and goes through the same cut-and-patch on the next run (no detection,
-what was painted is the appliance); the scan advances to `_clean2.ply`, `_clean3.ply`…, with the earlier
+`remove_appliances` = False (default) / True. **Take off brush** (Segmentation / fix): a bit of bracket,
+wire or tie the app missed - or anything on a scan dropped without the box - is painted and goes through the
+same cut-and-patch on the next run (no detection, what was painted is the appliance); the scan advances to `_clean2.ply`, `_clean3.ply`…, with the earlier
 rebuilt areas, the painted no-reservoir / block-out strokes and a cut in the same run carried over by
 position; saved brush fixes of tooth labels are dropped for that scan (the teeth are found again on the
 rebuilt enamel). Wire and ties left on at the eval scan make this harder (the wire floats across the

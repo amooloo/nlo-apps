@@ -318,7 +318,7 @@
           <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button><button data-mode="noreservoir" title="No bleaching reservoir here (recession, an exposed root, a crown margin) - the reservoir stays a millimetre away">No reservoir</button><button data-mode="blockout" title="Fill the undercut under this spot for thermoforming (under a pontic, round an implant crown, a black triangle)">Block out</button><button data-mode="takeoff" title="A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run">Take off</button></div>
           <label class="f">Brush size: <span id="rv">1.5</span> mm radius</label>
           <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
-          <div class="hint">The ball on the model is the brush. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built. <b>No reservoir</b> keeps the gel reservoir off a recession or a crown margin; <b>Block out</b> fills the undercut under a pontic or an implant crown so the retainer seats. Both are kept for every model made from this scan. <b>Take off</b> is for a bit of bracket or wire the app missed on a braces scan: it comes off and the enamel is rebuilt (on a mouthguard the brackets stay — the painted part joins the shield instead).</div>
+          <div class="hint">The ball on the model is the brush. Hold <kbd class="key">Shift</kbd> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built. <b>No reservoir</b> keeps the gel reservoir off a recession or a crown margin; <b>Block out</b> fills the undercut under a pontic or an implant crown so the retainer seats. Both are kept for every model made from this scan. <b>Take off</b> cuts out what you paint (a bracket or bit of wire the app missed, or on a scan dropped without "Braces on") and rebuilds the enamel there (on a mouthguard the brackets stay — the painted part joins the shield instead).</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
           <div class="hint" id="fixcount">No edits.</div>
         </div>
@@ -708,7 +708,7 @@ function setFiles(fs, auto){
   const dflt = TRACKER ? { wt: TRACKER.wt, tt: TRACKER.tt, mg: TRACKER.mg } : { wt: !['aligner_high', 'plain_model', 'mouthguard'].includes(preset), tt: preset === 'both' || preset === 'aligner_high', mg: preset === 'mouthguard' };
   for (const f of fs) {
     if (pending.length >= 2) break;
-    pending.push({ file: f, arch: archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : ''), wt: dflt.wt, tt: dflt.tt, mg: dflt.mg });
+    pending.push({ file: f, arch: archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : ''), wt: dflt.wt, tt: dflt.tt, mg: dflt.mg, braces: false });
   }
   const first = pending[0].file;
   $('#name').value = first.name.replace(/\.(stl|ply)$/i,'');
@@ -730,11 +730,13 @@ function renderSetup(){
         <label class="ck"><input type="checkbox" data-wt="${i}" ${p.wt?'checked':''}> Whitening tray</label>
         <label class="ck"><input type="checkbox" data-tt="${i}" ${p.tt?'checked':''}> Retainer (TT)</label>
         <label class="ck" title="Sports mouthguard with the braces on: brackets stay under smooth shields, the trim line runs deep into the vestibule with notches at the frena and 6 mm onto the palate"><input type="checkbox" data-mg="${i}" ${p.mg?'checked':''}> Mouthguard (MG)</label>
+        <label class="ck" title="Tick only for a scan taken with brackets on (eval appointment): brackets, wire and ties are found and taken off and the enamel rebuilt before the tray is made. Never done on its own - leave it off for a plain scan." style="margin-left:10px;color:#b45309"><input type="checkbox" data-br="${i}" ${p.braces?'checked':''}> Braces on — take them off first</label>
       </div></div>`).join('');
   document.querySelectorAll('[data-arch]').forEach(e => e.onchange = () => { pending[+e.dataset.arch].arch = e.value; });
   document.querySelectorAll('[data-wt]').forEach(e => e.onchange = () => { pending[+e.dataset.wt].wt = e.checked; setupCount(); });
   document.querySelectorAll('[data-tt]').forEach(e => e.onchange = () => { pending[+e.dataset.tt].tt = e.checked; setupCount(); });
   document.querySelectorAll('[data-mg]').forEach(e => e.onchange = () => { pending[+e.dataset.mg].mg = e.checked; setupCount(); });
+  document.querySelectorAll('[data-br]').forEach(e => e.onchange = () => { pending[+e.dataset.br].braces = e.checked; });
   document.querySelectorAll('[data-rm]').forEach(e => e.onclick = () => { pending.splice(+e.dataset.rm, 1); renderSetup(); });
   const n = pending.length;
   $('#addopp').style.display = n < 2 ? '' : 'none';
@@ -753,7 +755,7 @@ $('#startcase').onclick = () => {
   if (!pending.length) return;
   if (!($('#pfirst').value.trim() && $('#plast').value.trim())) { $('#filehint').textContent = "Type the patient's first and last name first."; return; }
   files = pending.map(p => p.file);
-  $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null, p.mg ? 'MG' : null].filter(Boolean) })));
+  $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null, p.mg ? 'MG' : null].filter(Boolean), braces: !!p.braces })));
   $('#go').click();
 };
 
@@ -864,7 +866,7 @@ $('#go').onclick = async () => {
   const pend = $('#go').dataset.pending ? JSON.parse($('#go').dataset.pending) : null; delete $('#go').dataset.pending;
   const fd = new FormData(); files.forEach(f => fd.append('files', f));
   fd.append('arches', JSON.stringify(pend ? pend.map(p => p.arch) : files.map((f,i) => (i===0 && !bulk) ? ($('#arch').value || null) : null)));
-  if (pend) fd.append('makes', JSON.stringify(pend.map(p => p.makes)));
+  if (pend) { fd.append('makes', JSON.stringify(pend.map(p => p.makes))); fd.append('braces', JSON.stringify(pend.map(p => !!p.braces))); }
   fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(pr)); fd.append('name', bulk ? '' : $('#name').value);
   $('#go').disabled = true; $('#startcase').disabled = true; $('#startcase').textContent = 'Starting…';
   const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();
