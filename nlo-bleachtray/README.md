@@ -32,6 +32,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Save as lesson** files a brush-corrected case for the retraining without ordering anything (Send does that
    too, on the side); it is greyed out until a fix has been applied.
 
+**Cases** (sidebar) holds only what still needs a decision: processing, or done and not yet sent or discarded. Sending
+or discarding moves the case to Past cases at once; Save as lesson leaves it in Cases (it may still want sending).
+
 **Past cases** (sidebar): every case the app ever made stays on file - type a bit of the name or a date to find it,
 click it and it comes back as it was: look at it, print it again (the model files), **Send to Trimlign again** for a
 lost print or a second set, or paint fixes and re-run. The big model files are kept for 30 days; after that only the
