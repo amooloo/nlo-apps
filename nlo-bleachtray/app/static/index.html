@@ -201,10 +201,18 @@
   .toolbar .tab.off{opacity:.4;cursor:not-allowed}
   .toolbar label{font-size:12px;color:var(--grey-600);font-weight:600;padding:0 10px 0 4px;display:flex;align-items:center;gap:5px}
   .toolbar label input{accent-color:var(--blue)}
-  .brush,.place{position:absolute;top:64px;right:12px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
-  .brush{width:300px} .place{width:318px}
+  .brush,.place{position:absolute;top:64px;right:12px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:9px 11px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
+  .brush{width:auto;max-width:320px} .place{width:318px}
   .brush.on,.place.on{display:block}
-  .brush h4,.place h4{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin-bottom:8px}
+  .brush h4,.place h4{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin:0}
+  /* the boxes stay small: controls only; the words sit behind "?" and the whole box folds to a chip with "–" */
+  .phead{display:flex;align-items:center;gap:6px} .phead .sp{flex:1}
+  .ibtn{width:24px;height:24px;min-height:0;padding:0;border-radius:50%;border:1.5px solid var(--grey-200);background:#fff;color:var(--grey-600);font-weight:700;font-size:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+  .ibtn:hover{background:var(--grey-100)} .ibtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .phelp{display:none;margin-top:8px} .phelp.on{display:block}
+  .szrow{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11.5px;color:var(--grey-500)} .szrow input[type=range]{width:110px;margin:0} .szrow b{color:var(--navy);font-variant-numeric:tabular-nums;min-width:30px}
+  .pchip{position:absolute;top:64px;right:12px;z-index:2;display:none;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.94);border:1px solid var(--grey-200);box-shadow:var(--sh-sm);color:var(--navy);font-weight:600;font-size:12px;cursor:pointer;backdrop-filter:blur(6px)}
+  .pchip.on{display:inline-flex} .pchip:hover{background:var(--grey-100)}
   .prow{display:grid;grid-template-columns:76px 1fr 1fr 54px 1fr 1fr;gap:4px;align-items:center;margin:4px 0;font-size:12px;color:var(--grey-500)}
   .prow button{padding:4px 0;font-size:11.5px;border:1.5px solid var(--grey-200);border-radius:8px;background:#fff;color:var(--navy);font-weight:600;min-height:28px}
   .prow button:hover{background:var(--grey-100)}
@@ -319,16 +327,17 @@
           <label title="A PLY carries the scanner's colour; off = the white stone-model look"><input type="checkbox" id="showcol"> colour</label>
         </div>
         <div class="brush" id="brush"></div>
+        <button class="pchip" id="brushchip" title="Show the brush tools">&#9998; Brush &#9656;</button>
+        <button class="pchip" id="placechip" title="Fine steps for the base, underside view, Apply / Reset">&#10021; Position on the base &#9656;</button>
         <div class="place" id="place">
-          <h4>Position on the base</h4>
-          <div class="seg" style="margin-bottom:8px"><button class="small" id="viewUnder" title="Look up at the underside: the locating holes in the base plate must stay clear of the arch">Underneath (holes)</button><button class="small" id="viewTop">From above</button></div>
-          <div class="hint" style="margin-bottom:6px"><b>Drag the base plate</b> to slide it, <b>drag the blue ring</b> to turn it - the arch stays where it is. Fine steps:</div>
+          <div class="phead"><h4>Position on the base</h4><span class="sp"></span><button class="ibtn" id="placehelp" title="How to move the base">?</button><button class="ibtn" id="placehide" title="Hide this box - the Position chip brings it back">&ndash;</button></div>
+          <div class="hint phelp" id="placehelptext"><b>Drag the base plate</b> to slide it, <b>drag the blue ring</b> to turn it - the arch stays where it is. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> rebuilds the model and replaces the Trimlign order (~1 min); <b>Reset</b> goes back to the automatic placement.</div>
+          <div class="seg" style="margin:8px 0"><button class="small" id="viewUnder" title="Look up at the underside: the locating holes in the base plate must stay clear of the arch">Underneath (holes)</button><button class="small" id="viewTop">From above</button></div>
           <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
           <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
           <div class="prow"><span>Back / forward</span><button data-adj="dy" data-d="-1">&darr; 1</button><button data-adj="dy" data-d="-0.25">&darr; &frac14;</button><span class="val" id="v_dy">0.00</span><button data-adj="dy" data-d="0.25">&frac14; &uarr;</button><button data-adj="dy" data-d="1">1 &uarr;</button></div>
           <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
-          <div class="hint">mm and degrees. The base moves live under the arch; <b>Apply</b> rebuilds the model and replaces the Trimlign order (~1 min). <b>Reset</b> goes back to the automatic placement.</div>
-          <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
+          <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
           <div class="hint" id="placestate"></div>
         </div>
         <div class="stats" id="stats">Drop a scan to begin.</div>
@@ -654,22 +663,36 @@ const ICONS = {
   eraser: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M20 20H9"/><path d="M4.5 15.5l9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8l-7 7H9l-4.5-4.5a2 2 0 0 1 0-2.8z"/><path d="M10 10l5 5"/></svg>',
 };
 let brushR = 1.5, bracesTab = false;   // brush radius (shared by every tab); whether this job's scan has braces on
+// The two boxes over the viewer stay out of the way: controls only, the explanation behind "?", and "–" folds
+// the box to a chip. Position on the base starts folded (dragging the plate and the ring works without it).
+const panelOpen = { brush: true, place: false }, helpOpen = { brush: false, place: false };
+function syncPanels(){
+  const P = PANELS[tab];
+  const brushHas = !!(P && (P.group === 'scan' ? resMesh : segMesh));
+  $('#brush').classList.toggle('on', brushHas && panelOpen.brush); $('#brushchip').classList.toggle('on', brushHas && !panelOpen.brush);
+  const placeHas = tab === 'result' && !!archGroup;
+  $('#place').classList.toggle('on', placeHas && panelOpen.place); $('#placechip').classList.toggle('on', placeHas && !panelOpen.place);
+}
+$('#brushchip').onclick = () => { panelOpen.brush = true; syncPanels(); };
+$('#placechip').onclick = () => { panelOpen.place = true; syncPanels(); };
+$('#placehide').onclick = () => { panelOpen.place = false; syncPanels(); };
+$('#placehelp').onclick = () => { helpOpen.place = !helpOpen.place; $('#placehelptext').classList.toggle('on', helpOpen.place); $('#placehelp').classList.toggle('on', helpOpen.place); };
 function renderPanel(){
   const P = PANELS[tab]; const box = $('#brush');
-  if (!P) { box.classList.remove('on'); return; }
-  box.innerHTML = `<h4>${P.title}</h4>
-    <div class="seg">${P.modes.map(([m, lab, tip, ic]) => `<button class="${tabMode[tab] === m ? 'on' : ''}" data-mode="${m}" title="${tip}">${ic ? ICONS[ic] : ''}${lab}</button>`).join('')}</div>
-    <label class="f">Brush size: <span id="rv">${brushR}</span> mm radius</label>
-    <input type="range" id="radius" min="0.5" max="5" step="0.25" value="${brushR}">
-    <div class="hint">${P.hint} <b>Outline instead of filling:</b> a stroke that comes back onto itself paints everything inside the loop.</div>
-    <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
+  if (!P) { syncPanels(); return; }
+  box.innerHTML = `<div class="phead"><div class="seg">${P.modes.map(([m, lab, tip, ic]) => `<button class="${tabMode[tab] === m ? 'on' : ''}" data-mode="${m}" title="${tip}">${ic ? ICONS[ic] : ''}${lab}</button>`).join('')}</div>
+      <span class="sp"></span><button class="ibtn ${helpOpen.brush ? 'on' : ''}" id="brushhelp" title="What this tab does">?</button><button class="ibtn" id="brushhide" title="Hide this box - the Brush chip brings it back">&ndash;</button></div>
+    <div class="szrow">Brush <input type="range" id="radius" min="0.5" max="5" step="0.25" value="${brushR}" title="Brush radius"> <b id="rv">${brushR}</b> mm</div>
+    <div class="hint phelp ${helpOpen.brush ? 'on' : ''}" id="brushhelptext"><b>${P.title}.</b> ${P.hint} <b>Outline instead of filling:</b> a stroke that comes back onto itself paints everything inside the loop.</div>
+    <div style="margin-top:8px;display:flex;gap:6px;align-items:center"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
     <div class="hint" id="fixcount">No edits.</div>`;
-  box.classList.toggle('on', !!(P.group === 'scan' ? resMesh : segMesh));
   box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); });
   $('#radius').oninput = () => { brushR = +$('#radius').value; $('#rv').textContent = brushR; brushCursor.scale.setScalar(brushR); if (brushCursor.visible) requestRender(); };
   $('#clearfix').onclick = () => { P.sets.forEach(k => edits[k].clear()); paintColors(); paintResColors(); updateFixCount(); };
   $('#rerun').onclick = applyAndRerun;
-  updateFixCount();
+  $('#brushhide').onclick = () => { panelOpen.brush = false; syncPanels(); };
+  $('#brushhelp').onclick = () => { helpOpen.brush = !helpOpen.brush; $('#brushhelptext').classList.toggle('on', helpOpen.brush); $('#brushhelp').classList.toggle('on', helpOpen.brush); };
+  updateFixCount(); syncPanels();
 }
 let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out, bit 4 = brackets removed, bit 8 = bracket shield)
 let segRGB = null;     // the scanner's own colour per vertex (PLY scans), shown under the labels
@@ -689,7 +712,7 @@ function showTab(t){
   for (const k in groups) groups[k].visible = (k === g);
   document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t));
   renderPanel(); if (segMesh) paintColors();
-  $('#place').classList.toggle('on', t === 'result' && !!archGroup); syncBrush(); requestRender();
+  syncPanels(); syncBrush(); requestRender();
 }
 document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
 function setBracesTab(on){ bracesTab = !!on; const e = document.querySelector('.tab[data-tab="braces"]'); e.classList.toggle('off', !bracesTab); e.title = bracesTab ? 'Take off a bracket or wire the app missed' : 'Only for a scan dropped with Braces on (or a mouthguard)'; if (!bracesTab && tab === 'braces') showTab('seg'); }
