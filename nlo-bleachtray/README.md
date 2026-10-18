@@ -298,7 +298,11 @@ block-out when it is on. Not done yet: building the edentulous span up to the ne
 (a pontic-like filler) so the retainer is not a thin strip there.
 
 **Exposed root.** A bleaching reservoir must not sit on root (sensitivity). The reservoir stops 1 mm short of the
-gum line everywhere (Settings → Reservoirs), and on each reservoir tooth the app looks for root showing on the
+gum line everywhere (Settings → Reservoirs). Recession itself is the doctor's call: by default the app does **not**
+pull reservoirs off roots on its own - on a patient with recession, open the Reservoirs tab and **Erase** where the gel
+must not go (the erased patch keeps the reservoir 1 mm away, a setting). The automatic detection is still there as
+Settings → *Exposed root* → On; it was switched off because a gum line the model drew too low looks exactly like a
+long root to it, and the priority is getting the gum line right first. Switched on, it looks for root showing on the
 facial side two ways: the mid-facial profile (an exposed root runs near-vertical or inward for ≥ 0.75 mm above the
 margin before the enamel climbs outward; a healthy crown climbs from the margin) and the clinical crown length
 against the typical anatomic crown + 1 mm. Where root is found the reservoir stops above it plus a leeway (1 mm,

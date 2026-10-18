@@ -17,7 +17,7 @@ TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this muc
 
 DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=0.6, reservoir_max_position=5,   # setback: the reservoir stops this far short of the gum line (was 0.5; 1 mm is the usual lab rule)
-    recession_auto=True, recession_leeway=1.0,   # exposed root found on a tooth: the reservoir stays that much further up, plus this leeway
+    recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
     blockout=False, blockout_depth=0.75,          # fill undercuts deeper than this (mm in from the contour) for thermoforming; presets switch it on for retainers
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
@@ -424,7 +424,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # reservoirs - kept off exposed root (recession, a crown's emergence) and off anything the user painted
     extra_sb, keep_off, force_on = None, None, None
     if P["reservoir_height"] > 0 and P["reservoir_max_position"] > 0:
-        if P.get("recession_auto", True):
+        if P.get("recession_auto", False):
             roots, rdet = root_exposure(mesh, labels, info, aux, A, arch=arch_hint, max_position=P["reservoir_max_position"], log=lambda m: log(f"[{name}] {m}"))
             lee = float(P.get("recession_leeway") or 0.0)
             extra_sb = {t: h + lee for t, h in roots.items() if h > 0}
