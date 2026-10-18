@@ -18,7 +18,7 @@ TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this muc
 DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=0.6, reservoir_max_position=5,   # setback: the reservoir stops this far short of the gum line (was 0.5; 1 mm is the usual lab rule)
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
-    blockout=False, blockout_depth=0.75,          # fill undercuts deeper than this (mm in from the contour) for thermoforming; presets switch it on for retainers
+    blockout=False, blockout_depth=0.75,          # automatic block-out of undercuts deeper than this (mm in from the contour): off by default - the doctor paints the ones that matter (Block-outs tab)
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
@@ -600,7 +600,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             # (a mouthguard keeps the vestibule as it is - the whole sulcus under flared crowns would count as
             # one big undercut; the brackets get their own shields below; painted areas still apply)
             fill, binfo = undercut_fill(mesh_f, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=bool(P.get("blockout")) and not MG,
-                                        paint=paint, log=lambda m: log(f"[{name}] {m}"))
+                                        paint=paint, near=(labels > 0), log=lambda m: log(f"[{name}] {m}"))
             rep["blockout"] = binfo
             if fill is not None:
                 extra_solids.append(fill)

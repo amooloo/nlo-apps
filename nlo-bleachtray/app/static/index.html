@@ -424,7 +424,7 @@
           <path d="M50 36 L50 47 Q60 45 70 47 L70 36 Q60 40 50 36 Z" fill="#5EEAD4" stroke="#0D9488" stroke-width="1.2"/>
           <path d="M108 28 L108 46" stroke="#1D3EA9" stroke-width="1.4"/><path d="M105 31 L108 28 L111 31 M105 43 L108 46 L111 43" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
         </svg></div>
-        <select id="blockout"><option value="0">Off</option><option value="0.5">Deeper than 0.5 mm</option><option value="0.75" selected>Deeper than 0.75 mm</option><option value="1">Deeper than 1 mm</option><option value="1.5">Deeper than 1.5 mm</option></select>
+        <select id="blockout"><option value="0" selected>Off — paint the ones that matter (Block-outs tab)</option><option value="0.5">Deeper than 0.5 mm</option><option value="0.75">Deeper than 0.75 mm</option><option value="1">Deeper than 1 mm</option><option value="1.5">Deeper than 1.5 mm</option></select>
       </div>
       <div class="scard"><div class="sLab">Tray edge between the teeth <span class="info" title="The shape of the tray edge where it passes between two teeth: a smooth wave (easier to trim, seals well) or a deep point up into every gap.">i</span></div>
         <div class="sPic" data-img="between_teeth_straight" data-img-by="bridge" data-img-map='{"0":"between_teeth_scallop","3":"between_teeth_straight","4":"between_teeth_smoother"}'><svg viewBox="0 0 120 72">
@@ -858,6 +858,8 @@ function saveSettings(){ try { const o = {}; SETTING_IDS.forEach(id => o[id] = $
 function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bleachtray.settings') || '{}');
   // the reservoir's distance to the gum went from 0.5 to 1 mm (the usual lab rule); a saved 0.5 from before that is the old default, not a choice
   if (o.res_sb === '0.5' && !localStorage.getItem('nlo.bleachtray.settings.v2')) { o.res_sb = '1'; localStorage.setItem('nlo.bleachtray.settings.v2', '1'); }
+  // automatic block-out went from "deeper than 0.75 mm" to off (the doctor paints the ones that matter); a saved 0.75 is the old default, not a choice
+  if (o.blockout === '0.75' && !localStorage.getItem('nlo.bleachtray.settings.v3')) { o.blockout = '0'; localStorage.setItem('nlo.bleachtray.settings.v3', '1'); }
   SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
 function summarizeSettings(){
   const bits = [];
@@ -1180,13 +1182,16 @@ function parseSTL(buf){
 }
 function clear(group){ group.traverse(c => { if (c !== group) { c.geometry?.dispose(); c.material?.dispose(); } }); while(group.children.length) group.remove(group.children[0]); requestRender(); }
 function addTrimline(group, pts, color=0xe11d48){
-  // the line lies on the surface, so parts of it would sink just under the mesh (gum bulges, 1 mm
-  // onto the gum for retainers): draw it twice - solid where visible, faint where the model hides it
-  const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0],p[1],p[2])));
-  const solid = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, linewidth:2}));
-  const ghost = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, transparent:true, opacity:0.1, depthTest:false}));   // the far side: a whisper, not a second line
+  // The line lies ON the surface, so a plain line sinks in and out of the mesh as it is drawn. It is a thin
+  // tube instead, pulled a hair toward the eye in depth (polygon offset) so the near side reads as one
+  // unbroken thread; the far side, hidden by the model, is only a whisper (a faint depth-free line).
+  const v = pts.map(p => new THREE.Vector3(p[0], p[1], p[2]));
+  const curve = new THREE.CatmullRomCurve3(v, true, 'centripetal', 0.5);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.min(2400, v.length * 3), 0.12, 6, true),
+    new THREE.MeshBasicMaterial({ color, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+  const ghost = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(v), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.1, depthTest: false }));
   ghost.renderOrder = 10;
-  for (const m of [solid, ghost]) { m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m); }
+  for (const m of [tube, ghost]) { m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m); }
 }
 let scanIdx = 0;
 let loadSeq = 0;
