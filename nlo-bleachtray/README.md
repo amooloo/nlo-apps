@@ -65,9 +65,17 @@ state; *Retrain now* under Settings → Learning runs it on the spot (10-30 minu
 
 Two things make the doctor's corrections count: a corrected arch weighs **three** base arches in training (where the
 base set's gum line and the brush disagree, the brush wins), and the new model's **tooth threshold** - the cut on
-its probability where tooth starts - is calibrated on the corrected arches and stored with the model. The shipped
-model errs one way only (tooth labels run onto the gum: the anterior labial and palatal gum, the gum behind the
-last molars - never gum onto tooth), so its cut is 0.65 rather than 0.5; a retrained model carries its own value.
+its probability where tooth starts - is calibrated on the corrected arches and stored with the model (the shipped
+model's is 0.65).
+
+**The gum line follows the gingival crease.** The model is sure well inside a tooth and well out on the gum; in the
+band between, it leans *tooth* on smooth gum (the labial and palatal gum next to the incisors, behind the last
+molars) and leans *gum* on the low, smooth end of a crown (a cingulum, a canine's facial bulge) - a bare probability
+cut gets one or the other wrong. The gingival sulcus runs between the two as a concave crease, so the band is
+decided by a race: confident tooth and confident gum spread across it, crossing a crease costs up to ~12x the
+distance, and each vertex goes to the side that reaches it first (`segment.snap_to_crease`). On a young arch
+with high gum this took the labial and palatal spill off and gave the cingulums back in one go; on an adult arch
+and an iTero arch it changed little.
 
 The starting set ships with the app as `assets\base_training.npz` - per arch the per-vertex features and targets
 the model learns from (numbers only: no scans, no names), so nothing has to be downloaded for retraining to work.
