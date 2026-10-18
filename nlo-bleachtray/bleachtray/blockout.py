@@ -110,13 +110,52 @@ def _slab_from_grid(region, ztop, zbot, x0, y0, cell):
     return solid
 
 
+def _nearest_fill(mask, field):
+    """`field` where it is known (finite and inside `mask`), the nearest known value elsewhere."""
+    known = mask & np.isfinite(field)
+    if not known.any():
+        return np.zeros_like(field)
+    idx = ndi.distance_transform_edt(~known, return_indices=True)[1]
+    return field[idx[0], idx[1]]
+
+
+def _blur_in(mask, field, sigma):
+    """Gaussian blur of `field` restricted to `mask` (normalised convolution: cells outside the mask
+    neither count nor pull), so a fill's heights are smooth without bending toward anything outside it."""
+    if sigma <= 0:
+        return field
+    w = mask.astype(float)
+    num = ndi.gaussian_filter(np.where(mask, field, 0.0), sigma)
+    den = ndi.gaussian_filter(w, sigma)
+    out = np.where(den > 1e-6, num / np.maximum(den, 1e-6), field)
+    return np.where(mask, out, field)
+
+
+def _unpinch(region):
+    """Two cells touching only at a corner would pinch the solid: make such pairs 4-connected."""
+    for _ in range(4):
+        a = region[:-1, :-1] & region[1:, 1:] & ~region[1:, :-1] & ~region[:-1, 1:]
+        b = region[1:, :-1] & region[:-1, 1:] & ~region[:-1, :-1] & ~region[1:, 1:]
+        if not (a.any() or b.any()):
+            break
+        fix = a | b
+        region[:-1, :-1] |= fix; region[1:, 1:] |= fix; region[1:, :-1] |= fix; region[:-1, 1:] |= fix
+    return region
+
+
 def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=True, paint=None,
-                  paint_min_depth=0.15, feather=2.0, upsample=3, near=None, near_mm=1.5, log=print):
+                  paint_min_depth=0.15, proud=0.0, bevel=0.5, upsample=3, near=None, near_mm=1.5, below_mm=2.0, log=print):
     """Return (solid or None, info). `paint`: per-vertex bool mask of areas the user asked to block
-    out (filled whatever their depth, down to the model floor if no surface shows under them).
-    `near`: per-vertex bool mask (the teeth): an automatic fill only goes under an overhang within
-    `near_mm` of it - the vestibule's own overhangs (the scan's rolled edge, a frenum) are not the
-    tray's business - and only where a real surface shows under the overhang, never down to the floor."""
+    out (filled whatever their depth). `near`: per-vertex bool mask (the teeth): an automatic fill
+    only goes under an overhang within `near_mm` of it - the vestibule's own overhangs (the scan's
+    rolled edge, a frenum) are not the tray's business - and only where a real surface shows under
+    the overhang, never down to the floor.
+
+    The fill is what a technician's block-out resin is: every column under an overhang is filled from
+    the surface below up to the overhang's underside, out to the tooth's contour seen from above -
+    so the crown's widest line continues straight down to the gum (a vertical wall, with a short
+    bevel where it meets the gum). `proud` moves that wall: > 0 mm out beyond the contour (more
+    block-out), < 0 mm in from it (that much of the undercut is left for grip)."""
     V = np.asarray(mesh.vertices); N = np.asarray(mesh.vertex_normals)
     g = _grid_fields(V, N, cell)
     gap = g["gap_top"] - g["gap_bot"]
@@ -127,8 +166,16 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
         region |= has & (gap >= min_gap) & g["overhang"] & g["floor"] & (depth >= min_depth)
         region &= g["gap_bot"] > z_floor + 0.5                       # something to build on, not the model's floor
         if near is not None and np.asarray(near).any():
-            nm = np.zeros(g["nx"] * g["ny"], bool); nm[g["lin"][np.asarray(near, bool)]] = True
+            nmask = np.asarray(near, bool)
+            nm = np.zeros(g["nx"] * g["ny"], bool); nm[g["lin"][nmask]] = True
             region &= ndi.binary_dilation(nm.reshape(g["nx"], g["ny"]), iterations=max(1, int(round(near_mm / cell))))
+            # ... and not further down the gum than the tray reaches: the fill stands on a surface no more
+            # than `below_mm` under the gum line - taken as the lowest tooth point within 3 mm (the cervical
+            # margins round about); the root prominence's hollow further down is below the trim line,
+            # nothing for the sheet to catch on. A papilla in a black triangle is above that level
+            tl = np.full(g["nx"] * g["ny"], np.inf); np.minimum.at(tl, g["lin"][nmask], V[nmask, 2])
+            tl = ndi.minimum_filter(tl.reshape(g["nx"], g["ny"]), size=2 * int(round(3.0 / cell)) + 1, mode="nearest")
+            region &= ~np.isfinite(tl) | (g["gap_bot"] > tl - below_mm)
     painted = np.zeros_like(has)
     if paint is not None and np.asarray(paint).any():
         pm = np.zeros(g["nx"] * g["ny"], bool); pm[g["lin"][np.asarray(paint, bool)]] = True
@@ -139,20 +186,16 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     lab, nlab = ndi.label(region)
     if nlab:
         sizes = ndi.sum(region, lab, index=np.arange(1, nlab + 1))
-        small = np.isin(lab, 1 + np.where(sizes < 4)[0])
-        region &= ~small
+        region &= ~np.isin(lab, 1 + np.where(sizes < 4)[0])
     if not region.any():
-        return None, dict(cells=0, spots=0)
-    ztop = np.where(has, g["gap_top"], np.nan)
-    zbot = np.where(has & g["floor"], g["gap_bot"], z_floor)
-    # the top of the fill follows the overhang's underside; a 3x3 median then mean within each spot
-    # takes out single-column outliers (a column that grazes a contact area reads 5 mm taller than
-    # its neighbours) so the fill is a smooth wedge, not a row of spikes
+        return None, dict(cells=0, spots=0, painted_cells=0)
+    # top = the overhang's underside, bottom = the surface under it. A 3x3 median takes out single
+    # columns that graze a contact area (they read millimetres taller than their neighbours)
     import warnings
+    ztop = np.where(region, g["gap_top"], np.nan); zbot = np.where(region, g["gap_bot"], np.nan)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        zr = np.where(region, ztop, np.nan)
-        zmed = ndi.generic_filter(zr, np.nanmedian, size=3, mode="constant", cval=np.nan)
+        zmed = ndi.generic_filter(ztop, np.nanmedian, size=3, mode="constant", cval=np.nan)
         far = region & ~np.isnan(zmed) & (np.abs(ztop - zmed) > 1.5)
         region &= ~far
         ztop = np.where(np.isnan(zmed), ztop, np.minimum(ztop, zmed))
@@ -160,70 +203,64 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     if nlab:
         sizes = ndi.sum(region, lab, index=np.arange(1, nlab + 1))
         region &= ~np.isin(lab, 1 + np.where(sizes < 4)[0])
-    # two cells touching only at a corner would pinch the solid: make such pairs 4-connected
-    for _ in range(4):
-        a = region[:-1, :-1] & region[1:, 1:] & ~region[1:, :-1] & ~region[:-1, 1:]
-        b = region[1:, :-1] & region[:-1, 1:] & ~region[:-1, :-1] & ~region[1:, 1:]
-        if not (a.any() or b.any()):
-            break
-        fix = a | b
-        region[:-1, :-1] |= fix; region[1:, 1:] |= fix; region[1:, :-1] |= fix; region[:-1, 1:] |= fix
+    core = region.copy()
+    # the amount: the wall moves `proud` mm out past the contour (the ring keeps the top height of
+    # the nearest filled column and stands on the surface there) or in from it
+    n_pr = int(round(abs(proud) / cell)) if proud else 0
+    if proud > 0 and n_pr:
+        grown = ndi.binary_dilation(region, iterations=n_pr)
+        ring = grown & ~region
+        # the ring continues the wall at the height of the fill's own edge (its outermost cells), never
+        # above an overhang the ring column itself has
+        edge = region & ~ndi.binary_erosion(region, iterations=1)
+        carried = _nearest_fill(edge, np.where(edge, ztop, np.nan))
+        surf = np.where(g["z_top"] > -1e8, g["z_top"], np.nan)
+        # only where that height is in the open: nothing in the column above it (in front of the tooth,
+        # the fill stands on the gum), or it falls in the column's own air gap (under a neighbouring
+        # overhang); a column inside a crown at that height is the crown's, not the fill's
+        free = ring & np.isfinite(surf) & (surf <= carried + 0.1)
+        in_gap = ring & has & (g["gap_bot"] < carried - 0.2) & (g["gap_top"] >= carried - 0.3)
+        ztop = np.where(free | in_gap, np.where(in_gap, np.minimum(carried, g["gap_top"]), carried), ztop)
+        zbot = np.where(in_gap, g["gap_bot"], np.where(free, surf, zbot))
+        region = region | free | in_gap
+    elif proud < 0 and n_pr:
+        region = ndi.binary_erosion(region, iterations=n_pr)
+        core = region.copy()
+    region = _unpinch(region)
     if not region.any():
-        return None, dict(cells=0, spots=0)
-    # heights averaged over each cell's neighbours in the spot (cells added by the tidying get theirs
-    # from the neighbours too), the underside pushed 0.3 mm into the overhang and the base 0.3 mm into
-    # the surface so the union leaves no sliver
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        zs = ndi.generic_filter(np.where(region, ztop, np.nan), np.nanmean, size=5, mode="constant", cval=np.nan)
-        zb = ndi.generic_filter(np.where(region, zbot, np.nan), np.nanmean, size=5, mode="constant", cval=np.nan)
-    zs = np.where(np.isnan(zs), z_floor, zs); zb = np.where(np.isnan(zb), z_floor, zb)
-    # feathered like resin: the fill climbs from the surface at the edge of the spot up to the
-    # overhang over `feather` mm, so there is no vertical wall and no staircase to see; the spot is
-    # widened by the feather so the climb starts outside the undercut
-    region_core = region.copy()
-    grow = max(1, int(round(feather / cell)))
-    wide = ndi.binary_dilation(region, iterations=grow)
-    zb_w = ndi.generic_filter(np.where(wide, np.where(region, zb, np.nan), np.nan), np.nanmean, size=2 * grow + 1, mode="constant", cval=np.nan) if grow > 0 else zb
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        zb_w = ndi.generic_filter(np.where(wide, zb_w, np.nan), np.nanmean, size=3, mode="constant", cval=np.nan)
-    zb_w = np.where(np.isnan(zb_w), zb, zb_w)
-    zs_w = ndi.generic_filter(np.where(wide, np.where(region, zs, np.nan), np.nan), np.nanmean, size=2 * grow + 1, mode="constant", cval=np.nan)
-    zs_w = np.where(np.isnan(zs_w), zs, zs_w)
+        return None, dict(cells=0, spots=0, painted_cells=int((painted & core).sum()))
+    # every filled column needs both heights: gaps from the nearest known, then a light smoothing
+    # within the fill (nothing outside it pulls on the edge heights)
+    ztop = np.where(region, _nearest_fill(region, ztop), np.nan); zbot = np.where(region, _nearest_fill(region, zbot), np.nan)
+    ztop = _blur_in(region, ztop, 1.0); zbot = _blur_in(region, zbot, 1.0)
     # the fill is built on a finer grid than the one the undercuts were found on (the detection needs a
-    # few scan vertices per cell; the surface wants small steps): fields interpolated, edges rounded
+    # few scan vertices per cell; the surface wants small steps): a rounded outline, heights interpolated
     fine = cell / upsample
     if upsample > 1:
-        wide_f = ndi.zoom(ndi.gaussian_filter(wide.astype(float), 0.7), upsample, order=1) > 0.5     # rounded outline, no cell corners
-        zb_f = ndi.zoom(zb_w, upsample, order=3); zs_f = ndi.zoom(zs_w, upsample, order=3)
-        wide_f = ndi.binary_opening(wide_f, iterations=1) | ndi.binary_erosion(wide_f, iterations=1)
-        # resin-smooth: a blur of ~0.5 mm takes out the 0.3 mm grid's facets without moving the wedge
-        zb_f = ndi.gaussian_filter(zb_f, sigma=upsample * 1.5); zs_f = ndi.gaussian_filter(zs_f, sigma=upsample * 1.5)
+        region_f = ndi.gaussian_filter(ndi.zoom(region.astype(float), upsample, order=1), upsample * 0.6) > 0.5   # no cell corners on the outline
+        region_f = ndi.binary_opening(region_f, iterations=1) | ndi.binary_erosion(region_f, iterations=1)
+        ztop_f = ndi.zoom(_nearest_fill(region, ztop), upsample, order=1); zbot_f = ndi.zoom(_nearest_fill(region, zbot), upsample, order=1)
+        ztop_f = _blur_in(region_f, ztop_f, upsample * 0.8); zbot_f = _blur_in(region_f, zbot_f, upsample * 0.8)
     else:
-        wide_f, zb_f, zs_f = wide, zb_w, zs_w
-    dist = ndi.distance_transform_edt(wide_f) * fine
-    ramp = np.clip(dist / max(feather, 1e-6), 0.0, 1.0)
-    ramp = ramp * ramp * (3 - 2 * ramp)
-    ztop = zb_f + ramp * np.maximum(zs_f + 0.3 - zb_f, 0.0)
-    zbot = np.maximum(zb_f - 0.3, z_floor + 0.05)                   # never below the model's floor
-    ztop = np.maximum(ztop, zbot + 0.35)
-    region = wide_f
-    # corner-touching cells would pinch the solid
-    for _ in range(4):
-        a = region[:-1, :-1] & region[1:, 1:] & ~region[1:, :-1] & ~region[:-1, 1:]
-        b = region[1:, :-1] & region[:-1, 1:] & ~region[:-1, :-1] & ~region[1:, 1:]
-        if not (a.any() or b.any()):
-            break
-        fix = a | b
-        region[:-1, :-1] |= fix; region[1:, 1:] |= fix; region[1:, :-1] |= fix; region[:-1, 1:] |= fix
-    if not region.any():
-        return None, dict(cells=0, spots=0)
-    solid = _slab_from_grid(region, ztop, zbot, g["x0"], g["y0"], fine)
-    lab, nlab = ndi.label(region_core)
+        region_f, ztop_f, zbot_f = region, ztop, zbot
+    region_f = _unpinch(region_f)
+    if not region_f.any():
+        return None, dict(cells=0, spots=0, painted_cells=int((painted & core).sum()))
+    # the wall: full height from the surface up to the overhang (pushed 0.3 mm into it so the union
+    # leaves no sliver); over the outer `bevel` mm the top eases down to the surface - resin wiped
+    # against the gum, not a machined block. The foot sits 0.3 mm into the surface, never under the floor
+    dist = ndi.distance_transform_edt(region_f) * fine
+    s = np.clip(dist / max(bevel, 1e-6), 0.0, 1.0); s = s * s * (3 - 2 * s)
+    zb = np.where(np.isfinite(zbot_f), zbot_f, z_floor)
+    zt = np.where(np.isfinite(ztop_f), ztop_f, zb)
+    ztop_f = zb + s * np.maximum(zt + 0.3 - zb, 0.0)
+    zbot_f = np.maximum(zb - 0.3, z_floor + 0.05)
+    ztop_f = np.maximum(ztop_f, zbot_f + 0.35)
+    solid = _slab_from_grid(region_f, ztop_f, zbot_f, g["x0"], g["y0"], fine)
+    lab, nlab = ndi.label(core)
     vol = float(abs(solid.volume)) / 1000.0
-    info = dict(cells=int(region_core.sum()), spots=int(nlab), volume_ml=round(vol, 3),
-                deepest_mm=round(float(np.nanmax(np.where(region_core, depth, 0))), 2), painted_cells=int((painted & region_core).sum()))
+    info = dict(cells=int(core.sum()), spots=int(nlab), volume_ml=round(vol, 3), proud_mm=float(proud or 0.0),
+                deepest_mm=round(float(np.nanmax(np.where(core, depth, 0))), 2), painted_cells=int((painted & core).sum()))
     if log:
-        log(f"block-out: {nlab} undercut{'s' if nlab != 1 else ''} filled ({vol:.2f} mL, deepest {info['deepest_mm']} mm in from the contour)")
+        log(f"block-out: {nlab} undercut{'s' if nlab != 1 else ''} filled ({vol:.2f} mL, deepest {info['deepest_mm']} mm in from the contour{f', wall {proud:+.2f} mm from it' if proud else ''})")
     return solid, info

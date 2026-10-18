@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from bleachtray.pipeline import process, DEFAULTS  # noqa: E402
+from bleachtray.pipeline import process, replace_placement, ADJUST_ZERO, DEFAULTS  # noqa: E402
 from bleachtray.segment import load_models  # noqa: E402
 from bleachtray.orderfolder import write_order_folder  # noqa: E402
 from bleachtray.printfolder import write_print_folder, default_print_root  # noqa: E402
@@ -552,6 +552,41 @@ def _ahead(job):
     return sum(1 for j in JOBS.values() if j is not job and (j.get("status") == "running" or (j.get("status") == "queued" and j.get("queued_at", 0) < t)))
 
 
+def _norm_adjust(a):
+    out = dict(ADJUST_ZERO)
+    out.update({k: round(float(v or 0.0), 4) for k, v in (a or {}).items() if k in out})
+    return out
+
+
+def _adjust_by_arch(params, scans):
+    """The placement on the base per arch ({"upper": {yaw_deg, dx, dy, dz}, ...}). A case made before
+    the placement was kept per arch has one `adjust` for every model: it counts for every arch it has."""
+    m = {a: _norm_adjust(v) for a, v in (params.get("adjust_by_arch") or {}).items() if a in ("upper", "lower")}
+    if not m and params.get("adjust"):
+        leg = _norm_adjust(params["adjust"])
+        if any(abs(v) > 1e-9 for v in leg.values()):
+            m = {sc["arch"]: dict(leg) for sc in scans if sc.get("arch")}
+    return m
+
+
+def _scan_params(job, scan):
+    """The pipeline's parameters for one model: the case's settings, the model's preset, the page's
+    per-type settings on top, the painted areas, and the arch's placement on the base."""
+    params = dict(job["params"]); params["arch"] = scan.get("arch") or None
+    if scan.get("preset"):
+        params.update(PRESETS.get(scan["preset"], {}))
+    # the page's per-type settings (whitening tray / retainer) sit on top of the preset
+    per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") == "TT" else None) or {}
+    params.update({k: v for k, v in per_type.items() if v is not None})
+    params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
+    pe = (job.get("paint") or {}).get(scan["path"]) or {}
+    params["keep_off_idx"] = pe.get("noreservoir") or []; params["blockout_idx"] = pe.get("blockout") or []; params["shield_idx"] = pe.get("shield") or []
+    params["force_on_idx"] = pe.get("reservoir") or []
+    params["adjust"] = _adjust_by_arch(job["params"], job["scans"]).get(scan.get("arch") or "", dict(ADJUST_ZERO))
+    params.pop("adjust_by_arch", None)
+    return params
+
+
 def _run(job):
     job["status"] = "running"
     job["log"] = job.get("log") or []
@@ -559,7 +594,8 @@ def _run(job):
     full = job.pop("rerun_all", False)
     me = job.pop("mask_edit", None)
     only = job.pop("rerun_only", None)
-    todo = [k for k, sc in enumerate(job["scans"]) if full or me is not None or not sc.get("report") or (only is not None and k in only)]
+    fast = set(job.pop("rerun_fast", None) or [])    # models that only moved on the base: body kept, base + files re-made
+    todo = [k for k, sc in enumerate(job["scans"]) if full or not sc.get("report") or (only is not None and k in only) or (only is None and me is not None)]
     job["progress"] = dict(frac=0.0, label="starting", scan=0, of=len(job["scans"]))
     try:
         def log(msg):
@@ -652,18 +688,17 @@ def _run(job):
                 overrides[scan["path"]] = _apply_mask_edit(job, me.get("scan", 0), edit=me, remap=remap)
                 fixed[scan["path"]] = overrides[scan["path"]]
             override = overrides.get(scan["path"], fixed.get(scan["path"]))
-            params = dict(job["params"]); params["arch"] = scan.get("arch") or None
-            if scan.get("preset"):
-                params.update(PRESETS.get(scan["preset"], {}))
-            # the page's per-type settings (whitening tray / retainer) sit on top of the preset
-            per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") == "TT" else None) or {}
-            params.update({k: v for k, v in per_type.items() if v is not None})
-            params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
-            pe = paint.get(scan["path"]) or {}
-            params["keep_off_idx"] = pe.get("noreservoir") or []; params["blockout_idx"] = pe.get("blockout") or []; params["shield_idx"] = pe.get("shield") or []
-            params["force_on_idx"] = pe.get("reservoir") or []
-            rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
-                          label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
+            params = _scan_params(job, scan)
+            if k in fast and not full and scan.get("report") and os.path.exists(os.path.join(job["dir"], f"{scan['name']}_body_only.stl")):
+                try:
+                    rep = replace_placement(job["dir"], scan["name"], params, scan["report"], params["adjust"], log=log, progress=progress)
+                except Exception as ex:  # noqa
+                    log(f"[{scan['name']}] could not be moved on the base ({ex}); re-made instead")
+                    rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
+                                  label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
+            else:
+                rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
+                              label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
             scan["arch"] = rep["arch"]; scan["report"] = rep
         reports = [sc["report"] for sc in job["scans"] if sc.get("report")]
         job["report"] = reports[0]
@@ -1195,33 +1230,58 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         if k in new and not (str(new[k]).strip() if new[k] is not None else ""):
             new.pop(k)
     old = job["params"]
-    volatile = {"adjust", "tracker_case"}
+    volatile = {"adjust", "adjust_by_arch", "tracker_case"}
     def changed(a, b):
         return json.dumps(a, sort_keys=True, default=str) != json.dumps(b, sort_keys=True, default=str)
     shared_changed = any(changed(old.get(k), v) for k, v in new.items() if k not in ("wt", "tt") and k not in volatile)
-    adjust_changed = changed(old.get("adjust"), new.get("adjust")) if "adjust" in new else False
     per_type = {t: changed(old.get(t), new.get(t)) for t in ("wt", "tt") if t in new}
+    # the placement on the base is kept per arch: moving the lower touches the lower's models only, and
+    # a turn / shift (same height) moves the finished body instead of re-making it
+    old_by = _adjust_by_arch(old, job["scans"])
+    new_by = _adjust_by_arch(new, job["scans"]) if ("adjust_by_arch" in new or "adjust" in new) else old_by
+    zero = dict(ADJUST_ZERO)
+    adj_arches = {a for a in set(old_by) | set(new_by) if old_by.get(a, zero) != new_by.get(a, zero)}
+    fast_arches = {a for a in adj_arches if abs(old_by.get(a, zero)["dz"] - new_by.get(a, zero)["dz"]) < 1e-9}
+    new.pop("adjust", None); new.pop("adjust_by_arch", None)
     job["params"].update(new)
+    job["params"]["adjust_by_arch"] = new_by; job["params"].pop("adjust", None)
     me = job.get("mask_edit")
     # a scan cleaned of braces without being asked for (an earlier version assumed them) goes back to the
     # scan as scanned on this re-run - everything is re-made from it
     undo = any(not sc.get("braces_on") and not job["params"].get("remove_appliances") and _raw_scan_for(sc) not in (None, sc["path"]) for sc in job["scans"])
-    if me is not None or shared_changed or adjust_changed or undo or not job.get("reports"):
+    fast = set()
+    if shared_changed or undo or not job.get("reports"):
         only = None                                   # everything
     else:
-        only = {k for k, sc in enumerate(job["scans"]) if per_type.get({"WT": "wt", "TT": "tt"}.get(sc.get("tag"), ""), False) or not sc.get("report")}
+        only = set()
+        # a brush edit is on one scan file: the models made from it are re-made, the other arch is left alone
+        painted_path = job["scans"][me.get("scan", 0)]["path"] if me is not None and 0 <= int(me.get("scan", 0) or 0) < len(job["scans"]) else None
+        for k, sc in enumerate(job["scans"]):
+            typed = per_type.get({"WT": "wt", "TT": "tt"}.get(sc.get("tag"), ""), False)
+            moved = sc.get("arch") in adj_arches
+            brushed = painted_path is not None and sc["path"] == painted_path
+            if typed or moved or brushed or not sc.get("report"):
+                only.add(k)
+            if moved and not typed and not brushed and sc.get("report") and sc.get("arch") in fast_arches:
+                fast.add(k)
         if not only:
             only = None if not job.get("reports") else set()   # nothing changed: nothing to do
     job["auto_order"] = False
     job["rerun_all"] = only is None
     job["rerun_only"] = sorted(only) if only else None
+    job["rerun_fast"] = sorted(fast) if fast else None
     job["thinned"] = False
     if only is not None and not only:
         return {"id": jid, "nothing": True}
     if only:
-        job.setdefault("log", []).append("re-making only the models the changed settings touch: " + ", ".join(f"{job['scans'][k].get('arch') or ''} {job['scans'][k].get('tag') or ''}".strip() for k in sorted(only)))
+        label = lambda k: f"{job['scans'][k].get('arch') or ''} {job['scans'][k].get('tag') or ''}".strip()
+        remade = sorted(only - fast)
+        if fast:
+            job.setdefault("log", []).append("moving on the base (model kept): " + ", ".join(label(k) for k in sorted(fast)))
+        if remade:
+            job.setdefault("log", []).append("re-making only the models the changed settings touch: " + ", ".join(label(k) for k in remade))
     _enqueue(job)
-    return {"id": jid, "models": None if only is None else len(only)}
+    return {"id": jid, "models": None if only is None else len(only), "moved": len(fast)}
 
 
 # ---------- learning: retrain at night from training/ (brush-corrected cases, Titan exports) ----------
@@ -1651,4 +1711,9 @@ def trimline_json(jid: str, scan: int = 0):
     if not job or job.get("status") != "done":
         raise HTTPException(404)
     st = np.load(os.path.join(job["dir"], f"{job['scans'][scan]['name']}_state.npz"))
-    return JSONResponse(np.round(st["margin"], 3).tolist())
+    pts = np.round(st["margin"], 3)
+    # with the body's surface normal per point when the model has them: [x, y, z, nx, ny, nz] - the page
+    # lifts the drawn line a hair along it, so it lies on the surface from every angle
+    if "margin_n" in st.files and len(st["margin_n"]) == len(pts):
+        pts = np.column_stack([pts, np.round(st["margin_n"], 3)])
+    return JSONResponse(pts.tolist())

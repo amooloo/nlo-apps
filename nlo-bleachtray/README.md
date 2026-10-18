@@ -171,7 +171,7 @@ From any office computer open `http://lab:8765` — or click **Bleach Tray** on 
 which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
 it processes on its own and writes the OrthoFactory order (the green line under the result confirms it). See the
 result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation* tab),
-re-run. The boxes over the viewer stay small: controls only, the explanation behind **?**, and **–** folds a box to a chip in the corner that brings it back. **Position on the base** (Result tab, folded by default - the chip opens it, and the base's handles - the thin blue ring and the draggable plate - exist only while it is open, so the plain view is just the model): the arch stays where it is and the *base plate* moves under it - drag the plate to slide it, drag the ring to turn it (or use the step buttons); the first touch flips the view to the underside with the plate see-through, so the locating holes are checked against the arch footprint (*Underneath (holes)* / *From above* switch the view). *Apply* rebuilds the order, *Reset to automatic* goes back. (The numbers sent to the server are still the arch's move relative to the base, as before.) *Make*: *Whitening tray + retainer* (default, both per arch), *Whitening tray 5-5 only* (reservoirs 5-5, line at the gum), *Whitening 3-3 only*, *Retainer only*
+re-run. The trim line is drawn as a thin tube lifted 0.16 mm off the model along the body's surface normal at each point (the pipeline keeps the normals in the state file and the report notes how far the line sits from the surface, `trimline_off_surface_mm`), so it lies on the model like a thread from every angle and never shows through it; the far side is only a faint whisper. The boxes over the viewer stay small: controls only, the explanation behind **?**, and **–** folds a box to a chip in the corner that brings it back. **Position on the base** (Result tab, folded by default - the chip opens it, and the base's handles - the thin blue ring and the draggable plate - exist only while it is open, so the plain view is just the model): the arch stays where it is and the *base plate* moves under it - drag the plate to slide it, drag the ring to turn it (or use the step buttons); the first touch flips the view to the underside with the plate see-through, so the locating holes are checked against the arch footprint (*Underneath (holes)* / *From above* switch the view). *Apply* re-makes the order, *Reset to automatic* goes back. The placement is kept **per arch** (`params.adjust_by_arch`): moving the lower touches the lower's two models only, the upper stays where it is, and a move that is not applied yet survives a look at the other models of the case. A turn / shift at the same height does not re-run the pipeline: the finished body (tooth mark included - it is put on the body before the base now) is moved as one rigid piece and only the base plate, the engraving and the files are made again (`replace_placement`, ~3 s a model instead of ~45); a height change (*Down / up*) rebuilds that arch's models. A brush fix likewise re-makes only the models made from the scan it was painted on. (The numbers sent to the server are the arch's move relative to the base, as before.) *Make*: *Whitening tray + retainer* (default, both per arch), *Whitening tray 5-5 only* (reservoirs 5-5, line at the gum), *Whitening 3-3 only*, *Retainer only*
 (line 1.25 mm onto the gums, semi-scallop), *Plain model*.
 
 ---
@@ -337,10 +337,18 @@ from above (a setting - **off by default**: the doctor paints the undercuts that
 natural ones stay for retention), or whatever its depth under a painted *Block out* stroke. An automatic fill only
 goes under an overhang within 1.5 mm of a tooth and only where a real surface shows under it - the vestibule's own
 overhangs (the scan's rolled edge, a frenum) are not the tray's business - and no fill ever reaches below the model's
-floor. The fill is one heightfield solid unioned into the body before the outline cut; it is shown in teal in the
-Result view and saved as `<name>_blockout.stl`. It is smoothed like resin: built on a 0.1 mm grid with a ~0.5 mm
-blur and a rounded outline, climbing from the surface at the edge of the spot up to the overhang over 2 mm, so there
-is no wall, no facet and no staircase to see.
+floor, and an automatic fill stands on nothing more than 2 mm below the gum line (the cervical margins round
+about) - the root prominence's hollow further down is below the trim line. The fill is what resin is: each column
+is filled solid from the surface below up to the overhang, out to the tooth's contour seen from above, so the crown's
+widest line continues straight down to the gum - a vertical wall (parallel to the pull), with a 0.5 mm bevel where
+it meets the gum, and nothing of its own that undercuts. **Block-out amount** (Settings, mm, default 0) moves that
+wall: positive stands it out beyond the contour (the ring carries the fill's own edge height, only where that
+height is in the open), negative leaves that much of the undercut for grip. The undercuts are found on the teeth
+*as scanned*: a whitening tray's raised reservoirs are taken off again for the detection, because their feathered
+edge read as a shallow overhang all round the cervical third and a painted area grew thin scoops under every
+reservoir (10/18/2026). The fill is one heightfield solid (0.1 mm grid, rounded outline, heights smoothed within the
+fill only) unioned into the body before the outline cut; a fill that could not be joined is reported as such and
+not shown. It is shown in teal in the Result view and saved as `<name>_blockout.stl`.
 
 **History.** `jobs\<case>\case.json` is the recipe of a case (scans by relative path, settings, brush fixes as
 `fixedlabels_*.npz`, painted areas, review state, when it was sent); it is written whenever a run finishes or the

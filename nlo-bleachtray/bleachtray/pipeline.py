@@ -19,6 +19,7 @@ DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=0.6, reservoir_max_position=5,   # setback: the reservoir stops this far short of the gum line (was 0.5; 1 mm is the usual lab rule)
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
     blockout=False, blockout_depth=0.75,          # automatic block-out of undercuts deeper than this (mm in from the contour): off by default - the doctor paints the ones that matter (Block-outs tab)
+    blockout_proud=0.0,    # mm: where the block-out's wall stands relative to the tooth's contour seen from above - 0 flush with it, > 0 that much further out, < 0 that much of the undercut left for grip
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
@@ -37,6 +38,20 @@ DEFAULTS = dict(
     tilt_deg=0.0,          # manual extra pitch (deg, + = front up) on top of the automatic levelling (Position on the base)
     patient_first="", patient_last="", stage=0, arch=None, export_folder="",
 )
+
+
+ADJUST_ZERO = dict(yaw_deg=0.0, dx=0.0, dy=0.0, dz=0.0)
+
+
+def adjust_matrix(adj, pivot):
+    """The manual placement on the base as a 4x4: turn about the trim line's centroid `pivot` (x, y), then
+    shift. Identity for an all-zero adjust. The same maths as the page's preview."""
+    a = dict(ADJUST_ZERO); a.update({k: float(v or 0.0) for k, v in (adj or {}).items() if k in a})
+    T = np.eye(4)
+    if any(abs(v) > 1e-9 for v in a.values()):
+        T = trimesh.transformations.rotation_matrix(np.deg2rad(a["yaw_deg"]), [0, 0, 1], [float(pivot[0]), float(pivot[1]), 0.0])
+        T[:3, 3] += [a["dx"], a["dy"], a["dz"]]
+    return T
 
 
 def write_pts(path, pts):
@@ -548,13 +563,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # centroid, then shift. Zero by default; the app's Reset puts it back to the automatic placement.
     pivot = margin_f[:, :2].mean(0)
     rep["adjust_pivot"] = [round(float(pivot[0]), 3), round(float(pivot[1]), 3)]
-    adj = dict(yaw_deg=0.0, dx=0.0, dy=0.0, dz=0.0)
+    adj = dict(ADJUST_ZERO)
     adj.update({k: float(v or 0.0) for k, v in (P.get("adjust") or {}).items() if k in adj})
     rep["adjust"] = adj
-    T_adj = np.eye(4)
+    T_adj = adjust_matrix(adj, rep["adjust_pivot"])
     if any(abs(v) > 1e-9 for v in adj.values()):
-        R = trimesh.transformations.rotation_matrix(np.deg2rad(adj["yaw_deg"]), [0, 0, 1], [pivot[0], pivot[1], 0.0])
-        T_adj = R.copy(); T_adj[:3, 3] += [adj["dx"], adj["dy"], adj["dz"]]
         mesh_f.apply_transform(T_adj)
         margin_f = trimesh.transform_points(margin_f, T_adj)
         if gum_line_f is not None:
@@ -589,6 +602,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # block-out: the spaces under pontics, implant emergence profiles and open embrasures are filled so
     # the thermoformed sheet can seat and come off (retainers by default; also wherever the user painted)
     extra_solids = []
+    fill_at = None
+    bo_path = os.path.join(out_dir, f"{name}_blockout.stl")
+    if os.path.exists(bo_path):
+        os.remove(bo_path)
     bidx = np.asarray(P.get("blockout_idx") or [], dtype=int)
     bidx = bidx[(bidx >= 0) & (bidx < len(mesh_f.vertices))]
     if (P.get("blockout") and not MG) or len(bidx):
@@ -597,14 +614,25 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if len(bidx):
             paint = np.zeros(len(mesh_f.vertices), bool); paint[bidx] = True
         try:
+            # the undercuts are those of the teeth as scanned: the reservoirs' raised crowns are taken off
+            # again for this (their feathered edge would read as a shallow overhang all round the cervical
+            # third - the scoops under every reservoir a painted area used to grow)
+            plain = mesh_f
+            if (d > 1e-3).any():
+                R = (T_adj @ T_place @ T_tilt @ T_ref)[:3, :3]
+                V0 = np.asarray(mesh_f.vertices) - (np.asarray(mesh.vertex_normals) @ R.T) * d[:, None]
+                plain = trimesh.Trimesh(V0, mesh_f.faces, process=False)
             # (a mouthguard keeps the vestibule as it is - the whole sulcus under flared crowns would count as
             # one big undercut; the brackets get their own shields below; painted areas still apply)
-            fill, binfo = undercut_fill(mesh_f, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=bool(P.get("blockout")) and not MG,
-                                        paint=paint, near=(labels > 0), log=lambda m: log(f"[{name}] {m}"))
+            fill, binfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=bool(P.get("blockout")) and not MG,
+                                        paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), log=lambda m: log(f"[{name}] {m}"))
             rep["blockout"] = binfo
             if fill is not None:
+                fill_at = len(extra_solids)
                 extra_solids.append(fill)
-                fill.export(os.path.join(out_dir, f"{name}_blockout.stl"))
+                fill.export(bo_path)
+            elif len(bidx):
+                log(f"[{name}] painted block-out: no undercut under the painted area (nothing to fill)")
         except Exception as ex:  # noqa
             log(f"[{name}] block-out skipped: {ex}")
             rep["blockout"] = dict(error=str(ex))
@@ -630,14 +658,63 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         except Exception as ex:  # noqa
             log(f"[{name}] bracket shields skipped: {ex}")
             rep["shields"] = dict(error=str(ex))
-    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids)
+    extras_status = []
+    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status)
     rep["body_method"] = body_method
+    if fill_at is not None and (len(extras_status) <= fill_at or extras_status[fill_at] != "merged"):
+        # a fill that is not part of the model must not be shown as if it were
+        rep["blockout"] = dict(rep.get("blockout") or {}, error="the fill could not be joined to the model (nothing blocked out)", spots=0)
+        log(f"[{name}] block-out: the fill could not be joined to the model - nothing blocked out")
+        if os.path.exists(bo_path):
+            os.remove(bo_path)
     rep["body_watertight"] = bool(body.is_watertight)
     rep["body_volume_ml"] = round(float(body.volume) / 1000.0, 2)
     rep["steps"].append(("solid", round(time.time() - t0, 2)))
     prog(0.85, "adding the base and engraving")
     log(f"[{name}] body watertight={body.is_watertight} volume={rep['body_volume_ml']} mL")
+    # the tooth mark goes on the body (it belongs to the arch: when the arch is moved on the base
+    # later, body and mark move together and only the base is made again)
+    if P.get("engrave", True) and P.get("tooth_mark", True):
+        from .engrave import emboss_on_tooth
+        body, mark = emboss_on_tooth(body, mesh_f, labels, info, P, log=lambda m: log(f"[{name}] {m}"))
+        rep["tooth_mark"] = mark
+    margin_n = trimline_normals(body, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
+    stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
+    rep["elapsed_s"] = round(time.time() - t0, 2)
+    with open(os.path.join(out_dir, f"{name}_report.json"), "w") as f:
+        json.dump(rep, f, indent=2)
+    # debug state for the UI / verification
+    np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
+             T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, T_adj=T_adj, p_tooth=p_tooth,
+             outline=np.asarray(outline.exterior.coords, dtype=float),
+             **({"margin_n": margin_n} if margin_n is not None else {}),
+             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}),
+             **({"shield": np.asarray(mg_appliance, bool)} if MG and mg_appliance is not None and len(mg_appliance) == len(labels) else {}))
+    prog(1.0, "done")
+    log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
+    return rep
 
+
+def trimline_normals(body, margin_f, rep, log=print):
+    """The body's surface normal at each trim-line point (the page lifts the drawn line a hair along it so
+    it lies on the surface from every angle), and how far the line is from the surface - a line that
+    floats off the model is a defect worth seeing in the report."""
+    try:
+        from trimesh.proximity import ProximityQuery
+        _, dist, tri = ProximityQuery(body).on_surface(margin_f)
+        rep["trimline_off_surface_mm"] = dict(median=round(float(np.median(dist)), 3), p95=round(float(np.percentile(dist, 95)), 3), max=round(float(dist.max()), 3))
+        if rep["trimline_off_surface_mm"]["p95"] > 1.0:
+            log(f"trim line off the surface: median {rep['trimline_off_surface_mm']['median']} mm, p95 {rep['trimline_off_surface_mm']['p95']} mm")
+        return np.asarray(body.face_normals[tri], dtype=np.float32)
+    except Exception as ex:  # noqa
+        log(f"trim-line normals skipped: {ex}")
+        return None
+
+
+def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=print):
+    """From the finished body (tooth mark included) to the files: the base plate and its engraving,
+    loose pieces dropped, the model and the trim line written, the Titan-named pair (and the export
+    copy). Used by the full pipeline and by `replace_placement`. Returns the model's path."""
     if P["add_base"]:
         model, how = add_base(body)
         rep["base"] = how
@@ -647,13 +724,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rep["engraved"] = placed
     else:
         model, how = body, "none"
-    if P.get("engrave", True) and P.get("tooth_mark", True):
-        from .engrave import emboss_on_tooth
-        model, mark = emboss_on_tooth(model, mesh_f, labels, info, P, log=lambda m: log(f"[{name}] {m}"))
-        rep["tooth_mark"] = mark
+        rep["base"] = how
     # one piece: the model is body + base in one solid (two when the base could only be concatenated);
     # anything else - slivers from the booleans, tissue cut loose by the floor - would print as crumbs
     parts = model.split(only_watertight=False)
+    rep["loose_pieces_dropped"] = 0
     if len(parts) > 1:
         parts = sorted(parts, key=lambda q: abs(q.volume), reverse=True)
         n_keep = 2 if (P["add_base"] and rep.get("base") == "concat") else 1
@@ -699,14 +774,57 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 rep["export_error"] = str(ex)
                 log(f"[{name}] export to {exp} failed: {ex}")
     rep["trimline_points"] = int(len(margin_f))
+    return stl_path
+
+
+def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=None):
+    """The arch was moved on the base (turned / shifted, same height): the finished body is moved as
+    one rigid piece and only the base plate, the engraving and the files are made again - seconds
+    instead of the whole pipeline. `rep` is the model's report (updated in place and returned);
+    the state file and the shown fills move with it."""
+    t0 = time.time()
+    P = dict(DEFAULTS); P.update(params or {})
+    prog = progress or (lambda f, s: None)
+    prog(0.1, "moving the model on the base")
+    st_path = os.path.join(out_dir, f"{name}_state.npz")
+    st = dict(np.load(st_path))
+    body = trimesh.load(os.path.join(out_dir, f"{name}_body_only.stl"), force="mesh")
+    pivot = rep.get("adjust_pivot") or [0.0, 0.0]
+    old = dict(ADJUST_ZERO); old.update({k: float(v or 0.0) for k, v in (rep.get("adjust") or {}).items() if k in old})
+    new = dict(ADJUST_ZERO); new.update({k: float(v or 0.0) for k, v in (adjust or {}).items() if k in new})
+    T_new = adjust_matrix(new, pivot)
+    T_delta = T_new @ np.linalg.inv(adjust_matrix(old, pivot))
+    body.apply_transform(T_delta)
+    margin_f = trimesh.transform_points(np.asarray(st["margin"], float), T_delta)
+    if "margin_n" in st:
+        st["margin_n"] = (np.asarray(st["margin_n"], float) @ T_delta[:3, :3].T).astype(np.float32)
+    if "outline" in st and len(st["outline"]) >= 4:
+        from shapely.geometry import Polygon
+        xy = trimesh.transform_points(np.column_stack([np.asarray(st["outline"], float), np.zeros(len(st["outline"]))]), T_delta)[:, :2]
+        outline = Polygon(xy)
+        if not outline.is_valid:
+            outline = outline.buffer(0)
+    else:   # a model from before outlines were kept: the outline from the moved trim line
+        outline = horseshoe_outline(margin_f[:, :2], P["facial_offset"], P["lingual_offset"])
+    for extra in ("blockout", "shields"):   # the fills shown in teal on the page: already part of the body
+        p = os.path.join(out_dir, f"{name}_{extra}.stl")
+        if os.path.exists(p):
+            try:
+                m = trimesh.load(p, force="mesh"); m.apply_transform(T_delta); m.export(p)
+            except Exception as ex:  # noqa
+                log(f"[{name}] {extra} not moved: {ex}")
+    rep["adjust"] = new
+    if rep.get("transform_raw_to_output"):
+        rep["transform_raw_to_output"] = (T_delta @ np.asarray(rep["transform_raw_to_output"], float)).tolist()
+    log(f"[{name}] moved on the base: yaw {new['yaw_deg']:+.2f} deg, shift x {new['dx']:+.2f} y {new['dy']:+.2f} z {new['dz']:+.2f} mm (the model itself is kept)")
+    prog(0.4, "adding the base and engraving")
+    stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, (rep.get("outputs") or {}).get("scan_with_reservoirs"), log=log)
+    st["margin"] = margin_f; st["T_adj"] = T_new; st["outline"] = np.asarray(outline.exterior.coords, dtype=float)
+    np.savez(st_path, **st)
     rep["elapsed_s"] = round(time.time() - t0, 2)
+    rep["steps"] = [("moved on the base", rep["elapsed_s"])]
     with open(os.path.join(out_dir, f"{name}_report.json"), "w") as f:
         json.dump(rep, f, indent=2)
-    # debug state for the UI / verification
-    np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
-             T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, p_tooth=p_tooth,
-             **({"rgb": np.asarray(mesh.metadata["rgb"], dtype=np.uint8)} if mesh.metadata.get("rgb") is not None else {}),
-             **({"shield": np.asarray(mg_appliance, bool)} if MG and mg_appliance is not None and len(mg_appliance) == len(labels) else {}))
     prog(1.0, "done")
-    log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
+    log(f"[{name}] moved in {rep['elapsed_s']} s -> {stl_path}")
     return rep

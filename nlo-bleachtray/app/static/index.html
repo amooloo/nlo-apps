@@ -340,7 +340,7 @@
         <button class="pchip" id="placechip" title="Fine steps for the base, underside view, Apply / Reset">&#10021; Position on the base &#9656;</button>
         <div class="place" id="place">
           <div class="phead"><h4>Position on the base</h4><span class="sp"></span><button class="ibtn" id="placehelp" title="How to move the base">?</button><button class="ibtn" id="placehide" title="Hide this box - the Position chip brings it back">&ndash;</button></div>
-          <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> rebuilds the model and replaces the Trimlign order (~1 min); <b>Reset</b> goes back to the automatic placement.</div>
+          <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> moves this arch's models on the base (a few seconds - a height change rebuilds them, ~1 min) and replaces the Trimlign order; the other arch stays as it is. <b>Reset</b> goes back to the automatic placement.</div>
           <div class="seg" style="margin:8px 0"><button class="small" id="viewUnder" title="Look up at the underside: the locating holes in the base plate must stay clear of the arch">Underneath (holes)</button><button class="small" id="viewTop">From above</button></div>
           <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
           <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
@@ -451,6 +451,9 @@
           <path d="M108 28 L108 46" stroke="#1D3EA9" stroke-width="1.4"/><path d="M105 31 L108 28 L111 31 M105 43 L108 46 L111 43" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
         </svg></div>
         <select id="blockout"><option value="0" selected>Off — paint the ones that matter (Block-outs tab)</option><option value="0.5">Deeper than 0.5 mm</option><option value="0.75">Deeper than 0.75 mm</option><option value="1">Deeper than 1 mm</option><option value="1.5">Deeper than 1.5 mm</option></select>
+        <div class="sLab" style="margin-top:10px">Block-out amount (mm) <span class="info" title="Where the block-out's outer wall stands, for painted and automatic block-outs alike. 0 = flush with the tooth's widest line seen from above: the crown continues straight down to the gum and the sheet drops past it. Positive = the wall stands that much further out (more block-out); negative = that much of the undercut is left for grip.">i</span></div>
+        <div class="stepper"><button data-step="-0.25" data-for="blockout_proud">−</button><input type="number" id="blockout_proud" step="0.25" min="-0.5" max="1.5" value="0"><button data-step="0.25" data-for="blockout_proud">+</button></div>
+        <div class="hint">0 = flush with the tooth (the usual full block-out); + stands out more, − leaves some undercut for grip.</div>
       </div>
       <div class="scard"><div class="sLab">Tray edge between the teeth <span class="info" title="The shape of the tray edge where it passes between two teeth: a smooth wave (easier to trim, seals well) or a deep point up into every gap.">i</span></div>
         <div class="sPic" data-img="between_teeth_straight" data-img-by="bridge" data-img-map='{"0":"between_teeth_scallop","3":"between_teeth_straight","4":"between_teeth_smoother"}'><svg viewBox="0 0 120 72">
@@ -687,7 +690,7 @@ const PANELS = {
   res:    { group: 'scan', title: 'Reservoirs — paint or erase', modes: [['reservoir', 'Paint', 'A reservoir here: on a tooth the automatic one skipped (behind the 5s, a tooth set back for recession) or a part it missed. Still 1 mm off the gum line and 0.4 mm off the edge', 'brush'], ['noreservoir', 'Erase', 'No reservoir here (recession, an exposed root, a crown margin) - it stays a millimetre away', 'eraser']],
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
   block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['blockout', 'Block out', 'Fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats']],
-            sets: ['blockout'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over the spot; rotate with the mouse otherwise. Already applied block-outs show pale green. Retainers block out deep undercuts on their own; this is for the ones they should not miss. Kept for every model made from this scan and every re-run.' },
+            sets: ['blockout'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the shield)']],
             sets: ['takeoff'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard shield. Hold <kbd class="key">Shift</kbd> and drag over anything that was missed; rotate with the mouse otherwise. On a retainer it comes off and the enamel is rebuilt; on a mouthguard it joins the shield.' },
 };
@@ -887,16 +890,16 @@ $('#startcase').onclick = () => {
 function params(){ return {
   tracker_case: (TRACKER && TRACKER.case) || '',
   // per model type: the whitening tray gets reservoirs and its own line, the retainer its line onto the gum
-  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, recession_auto: $('#rec_auto').value === '1', recession_leeway: +$('#rec_lee').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, blockout: false },
-  tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0), blockout: $('#blockout').value !== '0', blockout_depth: +$('#blockout').value || 0.75 },
+  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, recession_auto: $('#rec_auto').value === '1', recession_leeway: +$('#rec_lee').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, blockout: false, blockout_proud: +$('#blockout_proud').value || 0 },
+  tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0), blockout: $('#blockout').value !== '0', blockout_depth: +$('#blockout').value || 0.75, blockout_proud: +$('#blockout_proud').value || 0 },
   // the base
   facial_offset: +$('#rim').value, lingual_offset: +$('#rim').value, floor_below: +$('#floor_below').value, distal_keep: +$('#distal_keep').value,
   level: $('#level').value === '1', add_base: $('#base').value === '1', tooth_mark: $('#tooth_mark').value === '1',
   engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(),
   patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null,
-  order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust: { ...adjust } }; }
+  order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust_by_arch: adjustMap() }; }
 // ---------- settings panel ----------
-const SETTING_IDS = ['res_n','res_h','res_sb','rec_auto','rec_lee','tl_off','tt_off','blockout','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
+const SETTING_IDS = ['res_n','res_h','res_sb','rec_auto','rec_lee','tl_off','tt_off','blockout','blockout_proud','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
 const SETTING_DEFAULTS = {};
 SETTING_IDS.forEach(id => { SETTING_DEFAULTS[id] = $('#' + id).value; });
 function saveSettings(){ try { const o = {}; SETTING_IDS.forEach(id => o[id] = $('#' + id).value); localStorage.setItem('nlo.bleachtray.settings', JSON.stringify(o)); } catch (e) {} summarizeSettings(); }
@@ -1098,6 +1101,7 @@ async function refreshJobs(){
 }
 let pollTimer = null;
 async function selectJob(id){
+  if (id !== currentJob) { pendingAdj = {}; curReports = []; curArch = null; }   // a pending move belongs to the case it was made on
   currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
   clearInterval(pollTimer);
   // keeps watching the open case: a lower dropped by someone else joins it and shows up when done
@@ -1158,7 +1162,7 @@ window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev
 function clearViewer(msg){
   clearInterval(pollTimer); currentJob = null;
   $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Drop a scan to begin.'; $('#modeltog').classList.remove('on');
-  clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = [];
+  clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; pendingAdj = {}; curReports = []; curArch = null;
   Object.values(edits).forEach(e => e.clear()); renderPanel(); syncPanels(); requestRender(); refreshJobs(); searchHistory();
 }
 function renderReview(id, j){
@@ -1245,12 +1249,15 @@ function parseSTL(buf){
 function clear(group){ group.traverse(c => { if (c !== group) { c.geometry?.dispose(); c.material?.dispose(); } }); while(group.children.length) group.remove(group.children[0]); requestRender(); }
 function addTrimline(group, pts, color=0xe11d48){
   // The line lies ON the surface, so a plain line sinks in and out of the mesh as it is drawn. It is a thin
-  // tube instead, pulled a hair toward the eye in depth (polygon offset) so the near side reads as one
-  // unbroken thread; the far side, hidden by the model, is only a whisper (a faint depth-free line).
-  const v = pts.map(p => new THREE.Vector3(p[0], p[1], p[2]));
+  // tube instead, lifted a hair off the surface along the body's normal (the server sends one per point),
+  // so it lies on the model like a thread from every angle and never shows through it; the far side,
+  // hidden by the model, is only a whisper (a faint depth-free line). A model from before the normals were
+  // kept gets a small depth offset instead.
+  const lifted = pts.length > 0 && pts[0].length >= 6, LIFT = 0.16;
+  const v = pts.map(p => lifted ? new THREE.Vector3(p[0] + LIFT * p[3], p[1] + LIFT * p[4], p[2] + LIFT * p[5]) : new THREE.Vector3(p[0], p[1], p[2]));
   const curve = new THREE.CatmullRomCurve3(v, true, 'centripetal', 0.5);
   const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.min(2400, v.length * 3), 0.12, 6, true),
-    new THREE.MeshBasicMaterial({ color, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+    new THREE.MeshBasicMaterial({ color, polygonOffset: !lifted, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
   const ghost = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(v), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.1, depthTest: false }));
   ghost.renderOrder = 10;
   for (const m of [tube, ghost]) { m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m); }
@@ -1296,7 +1303,7 @@ async function loadResult(id, j){
   const extras = [mgLine,
                   ap.used && ap.area_mm2 && !mg ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — rebuilt enamel shown grey on the Braces tab` : '',
                   recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
-                  bo.spots ? `${bo.spots} undercut${bo.spots > 1 ? 's' : ''} blocked out (${bo.volume_ml} mL${bo.painted_cells ? ', incl. painted' : ''})` : ''].filter(Boolean);
+                  bo.spots ? `${bo.spots} undercut${bo.spots > 1 ? 's' : ''} blocked out (${bo.volume_ml} mL${bo.painted_cells ? ', incl. painted' : ''}${bo.proud_mm ? `, wall ${bo.proud_mm > 0 ? '+' : ''}${bo.proud_mm} mm` : ''})` : (bo.error ? `block-out: ${bo.error}` : '')].filter(Boolean);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '');
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
@@ -1316,8 +1323,11 @@ async function loadResult(id, j){
   if (boBuf) g.add(new THREE.Mesh(parseSTL(boBuf), new THREE.MeshStandardMaterial({ color: 0x14b8a6, roughness: .5, metalness: 0, envMapIntensity: .4, polygonOffset: true, polygonOffsetFactor: -1 })));
   addTrimline(g, tl);
   groups.result.add(g); archGroup = g;
+  // the placement on the base belongs to the arch: both of the lower's models move together, and a move
+  // not applied yet survives a look at the other models of the case
+  curReports = j.reports || []; curArch = r.arch || null;
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
-  adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false;
+  adjust = pendingAdj[curArch] ? { ...pendingAdj[curArch] } : { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false;
   if (baseBuf) {
     // the base plate and its handle ring move as one; the arch never moves on screen
     baseGroup = new THREE.Group(); baseGroup.matrixAutoUpdate = false;
@@ -1352,6 +1362,17 @@ const handlesOn = () => tab === 'result' && panelOpen.place && !!baseGroup;
 function syncHandles(){ const on = handlesOn(); ringParts.forEach(m => { m.visible = on; }); }
 const RING_R = 33;
 let adjust = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, applied = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 };
+let pendingAdj = {}, curReports = [], curArch = null;   // per arch: a placement moved on screen but not applied yet
+const KEYS_ADJ = ['yaw_deg', 'dx', 'dy', 'dz'];
+function adjustMap(){
+  // what the page asks for, arch by arch: the applied placement of every arch of the case, with the pending
+  // moves on top - so a re-run for any other reason keeps the arches that were not touched where they are
+  const m = {};
+  for (const r of curReports) if (r && r.arch && !(r.arch in m)) m[r.arch] = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
+  for (const a in pendingAdj) m[a] = { ...pendingAdj[a] };
+  if (curArch && !(curArch in m)) m[curArch] = { ...adjust };
+  return m;
+}
 function placeMatrix(a){ // rotate about the trimline centroid, then shift (same as the server)
   return new THREE.Matrix4().makeTranslation(pivot[0] + a.dx, pivot[1] + a.dy, a.dz)
     .multiply(new THREE.Matrix4().makeRotationZ(a.yaw_deg * Math.PI / 180))
@@ -1364,9 +1385,11 @@ function updatePlacement(){
   requestRender();
   $('#v_yaw_deg').innerHTML = adjust.yaw_deg.toFixed(2).replace(/\.?0+$/, '') + '&deg;';
   for (const k of ['dx', 'dy', 'dz']) $('#v_' + k).textContent = adjust[k].toFixed(2);
-  const pending = ['yaw_deg', 'dx', 'dy', 'dz'].some(k => Math.abs(adjust[k] - applied[k]) > 1e-9);
-  const auto = ['yaw_deg', 'dx', 'dy', 'dz'].every(k => Math.abs(adjust[k]) < 1e-9);
-  $('#placestate').textContent = pending ? 'Preview only — click Apply to rebuild the model with this placement.' : (auto ? 'Automatic placement.' : 'Applied.');
+  const pending = KEYS_ADJ.some(k => Math.abs(adjust[k] - applied[k]) > 1e-9);
+  const auto = KEYS_ADJ.every(k => Math.abs(adjust[k]) < 1e-9);
+  if (curArch) { if (pending) pendingAdj[curArch] = { ...adjust }; else delete pendingAdj[curArch]; }
+  const dzMoved = Math.abs(adjust.dz - applied.dz) > 1e-9;
+  $('#placestate').textContent = pending ? (dzMoved ? `Preview only — Apply rebuilds the ${curArch || ''} models at this height (~1 min).` : `Preview only — Apply moves the ${curArch || ''} models on the base (a few seconds).`) : (auto ? 'Automatic placement.' : 'Applied.');
   $('#placestate').style.color = pending ? 'var(--warn)' : 'var(--muted)';
   $('#applyplace').disabled = !pending;
 }
@@ -1429,7 +1452,8 @@ $('#applyplace').onclick = async () => {
   const fd = new FormData();
   fd.append('edits', JSON.stringify((edits.add.size || edits.remove.size) ? { scan: scanIdx, add:[...edits.add], remove:[...edits.remove] } : null));
   fd.append('params', JSON.stringify(params()));
-  $('#applyplace').disabled = true; $('#placestate').textContent = 'Rebuilding…';
+  $('#applyplace').disabled = true; $('#placestate').textContent = 'Moving…';
+  pendingAdj = {};
   await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 const palette = [0xcfd4da, 0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xfb7185, 0x22d3ee, 0x4ade80, 0xf59e0b, 0x818cf8, 0xe879f9, 0x2dd4bf, 0xf97316, 0x93c5fd, 0xbef264];
@@ -1633,7 +1657,7 @@ window.__view = { camera, controls, requestRender, project: (x, y, z) => { const
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   stroke3d: (mode, pts) => { stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } const before = Object.values(edits).reduce((a, e) => a + e.size, 0); finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
-  placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot }),
+  placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot, arch: curArch, map: adjustMap(), pending: JSON.parse(JSON.stringify(pendingAdj)) }),
   handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; } };   // for automated checks
 window.__appReady = true;
 </script>
