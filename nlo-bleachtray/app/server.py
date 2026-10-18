@@ -91,20 +91,31 @@ def _write_prints(job, log=print):
     return files
 
 
+def _preform_in(folder):
+    """The PreForm programs an install folder can hold, best first: PreForm.exe beside the launcher
+    (older installs), the newest versioned subfolder's PreForm.exe (PreForm 3.6x keeps the program in
+    ...\\PreForm\\3.64.1.664\\), then PreFormLauncher.exe itself."""
+    import glob, re
+    out = [os.path.join(folder, "PreForm.exe")]
+    def ver(p):
+        return [int(x) for x in re.findall(r"\d+", os.path.basename(os.path.dirname(p)))]
+    out += sorted(glob.glob(os.path.join(folder, "*", "PreForm.exe")), key=ver, reverse=True)
+    out += [os.path.join(folder, "PreFormLauncher.exe")] + sorted(glob.glob(os.path.join(folder, "PreForm*.exe")))
+    return out
+
+
 def _find_preform(cfg=None):
     """PreForm.exe on this PC: the path from the settings, else the usual install folders, else the
     registry's App Paths entry. None when there is none (the app then says so instead of guessing)."""
     cfg = cfg if cfg is not None else _read_cfg()
-    import glob
     typed = (cfg.get("preform") or "").strip().strip('"')
     cands = [typed] if typed else []
     if typed and os.path.isdir(typed):      # the install folder was typed, not the exe: look inside it
-        cands += [os.path.join(typed, "PreForm.exe")] + sorted(glob.glob(os.path.join(typed, "PreForm*.exe")))
+        cands += _preform_in(typed)
     bases = [os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramW6432"),
              r"C:\Program Files", r"C:\Program Files (x86)", os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs")]
     for base in [b for b in bases if b]:
-        cands.append(os.path.join(base, "Formlabs", "PreForm", "PreForm.exe"))
-        cands += sorted(glob.glob(os.path.join(base, "Formlabs", "PreForm*", "PreForm*.exe")), reverse=True)
+        cands += _preform_in(os.path.join(base, "Formlabs", "PreForm"))
     for c in cands:
         if c and os.path.isfile(c):
             return c
