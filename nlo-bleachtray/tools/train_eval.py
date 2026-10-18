@@ -57,9 +57,9 @@ def case_data(raw_path, gt_path, log=print):
     return dict(X=X, names=names, A=A, y_tooth=(labels > 0).astype(int), y_ip=ip.astype(int), valid=valid, name=os.path.basename(raw_path))
 
 
-def fit(X, y, iters=300):
-    clf = HistGradientBoostingClassifier(max_iter=iters, learning_rate=0.08, max_leaf_nodes=31, l2_regularization=1.0)
-    clf.fit(X, y)
+def fit(X, y, iters=300, sample_weight=None):
+    clf = HistGradientBoostingClassifier(max_iter=iters, learning_rate=0.08, max_leaf_nodes=31, l2_regularization=1.0, random_state=0)
+    clf.fit(X, y, sample_weight=sample_weight)
     return clf
 
 
