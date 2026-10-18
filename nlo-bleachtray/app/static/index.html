@@ -1100,13 +1100,30 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
     box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
-      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button><button class="small" id="preformbtn" title="Open the finished models in PreForm on the PC that runs the app (the lab PC) - without sending">Open in PreForm</button><button class="small" id="learnbtn" ${(j.fixed || []).length && !j.learned ? '' : 'disabled'} title="${(j.fixed || []).length ? (j.learned ? 'Already saved - change something and apply to save again' : 'Keep this corrected case as a lesson for the retraining (no order). Send does this too.') : 'Greyed out until a brush fix has been applied on this case - an untouched result teaches nothing'}">Save as lesson</button><button class="small" id="discardbtn">Discard</button></div>` +
-      (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine;
+      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button><button class="small" id="preformbtn" title="Open the finished models in PreForm on the PC that runs the app (the lab PC) - without sending">Open in PreForm</button><button class="small" id="discardbtn">Discard</button></div>` +
+      (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine +
+      // Send files the case for the retraining by itself; this link is for a corrected case that is not going to be sent
+      ((j.fixed || []).length && !j.learned ? `<div class="hint" style="margin-top:8px"><a href="#" id="learnlink" title="Keep this brush-corrected case as a lesson for the retraining without sending it anywhere (Send does this on its own)">Save as lesson without sending</a></div>` : '');
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
     const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t) { showErr('You have brush edits that are not applied yet — click "Apply & re-run" first, then Send or Save as lesson.'); showTab(t); return true; } return false; };
     $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
-    $('#learnbtn').onclick = async () => { if ($('#learnbtn').disabled) return; if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: nameForm() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
+    const ll = box.querySelector('#learnlink');
+    if (ll) ll.onclick = async ev => {
+      ev.preventDefault(); if (unapplied()) return; ll.textContent = 'Saving…';
+      const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: nameForm() }); const r = await rs.json();
+      if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; }
+      renderReview(id, Object.assign({}, j, r)); refreshLearn();
+      // saved - keep it in Cases (something else may still be coming), or move it out now?
+      box.insertAdjacentHTML('beforeend', `<div class="hint" id="afterlearn" style="margin-top:8px"><b>Saved.</b> Keep this case in the list, or move it to Past cases?
+        <div class="btns" style="margin-top:6px"><button class="small" id="keepcase">Keep it here</button><button class="small" id="movecase">Move to Past cases</button></div></div>`);
+      box.querySelector('#keepcase').onclick = () => box.querySelector('#afterlearn').remove();
+      box.querySelector('#movecase').onclick = async () => {
+        await fetch(`/api/jobs/${id}/close`, { method: 'POST' });
+        clearInterval(pollTimer); currentJob = null; $('#review').innerHTML = ''; $('#stats').innerHTML = 'Moved to Past cases.'; $('#dl').innerHTML = '';
+        clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; renderPanel(); requestRender(); refreshJobs(); searchHistory();
+      };
+    };
     $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); };
   }
 }
