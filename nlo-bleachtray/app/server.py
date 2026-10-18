@@ -1272,10 +1272,14 @@ def learn_run():
 
 @app.get("/api/jobs")
 def list_jobs():
+    """The live list: cases still waiting for a decision (processing, or done and not yet sent / discarded).
+    A sent or discarded case leaves it at once and lives on in Past cases; it stays open in memory, so the
+    viewer showing it keeps working (Send again, Open in PreForm, add the opposing arch)."""
     return [{k: v for k, v in j.items() if k in ("id", "name", "status", "created", "filename", "preset", "review", "source")}
             | dict(ahead=_ahead(j), arches=sorted({sc.get("arch") for sc in j["scans"] if sc.get("arch")}), models=len(j["scans"]),
                    progress=(j.get("progress") if j.get("status") == "running" else None))
-            for j in sorted(JOBS.values(), key=lambda j: -j["created"])]
+            for j in sorted(JOBS.values(), key=lambda j: -j["created"])
+            if j.get("review") not in ("sent", "discarded") or j.get("status") in ("queued", "running")]
 
 
 def _fixed_arches(job):
