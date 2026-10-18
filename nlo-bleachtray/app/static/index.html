@@ -684,7 +684,27 @@ let currentJob = null, tab = 'result';
 const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new THREE.Group() };
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null, segAdj = null;
-const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), takeoff: new Set(), reservoir: new Set() };
+const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), unblockout: new Set(), takeoff: new Set(), reservoir: new Set() };
+// strokes are kept per scan file while the case is open: paint the upper, switch to the lower and paint that
+// too - one Apply sends both. The whitening tray and the retainer of an arch are made from the same file, so
+// they share its strokes (a mouthguard with the braces on is made from the scan as scanned: its own set)
+const EDIT_KEYS = Object.keys(edits);
+let editsByFile = {}, curFile = null, curScans = [];
+const fileKeyOf = sc => sc ? `${sc.filename}|${sc.preset === 'mouthguard' ? 'mg' : 'std'}` : null;
+function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size)) editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); else delete editsByFile[curFile]; }
+function restoreEdits(key){ const e = editsByFile[key]; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); }
+function forgetEdits(){ editsByFile = {}; curFile = null; EDIT_KEYS.forEach(k => edits[k].clear()); }
+// every file's strokes, as the server takes them: one entry per scan file, with the index of a scan made from it
+function allEdits(){
+  stashEdits();
+  const out = [];
+  for (const key in editsByFile) {
+    const k = curScans.findIndex(sc => fileKeyOf(sc) === key); if (k < 0) continue;
+    const e = editsByFile[key]; out.push(Object.assign({ scan: k }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
+  }
+  return out;
+}
+const otherEditCount = () => { stashEdits(); return Object.keys(editsByFile).filter(k => k !== curFile).reduce((a, k) => a + EDIT_KEYS.reduce((b, x) => b + editsByFile[k][x].size, 0), 0); };
 let resMesh = null, resHeat = null;   // the Reservoirs view: its mesh and its heat colours
 // one brush tab per job: which view it paints on, its modes, what Clear empties, the words
 const PANELS = {
@@ -694,8 +714,8 @@ const PANELS = {
             sets: ['add', 'remove'], hint: 'Each tooth has its own colour, gum is plain. Hold <kbd class="key">Shift</kbd> and drag to repaint; rotate with the mouse otherwise. A corrected case that is sent or saved as a lesson teaches the model.' },
   res:    { group: 'scan', title: 'Reservoirs — paint or erase', modes: [['reservoir', 'Paint', 'A reservoir here: on a tooth the automatic one skipped (behind the 5s, a tooth set back for recession) or a part it missed. Still 1 mm off the gum line and 0.4 mm off the edge', 'brush'], ['noreservoir', 'Erase', 'No reservoir here (recession, an exposed root, a crown margin) - the reservoir ends at the edge of your stroke, with its 0.6 mm slope on the side you kept', 'eraser']],
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
-  block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['blockout', 'Block out', 'Fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats']],
-            sets: ['blockout'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
+  block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['blockout', 'Block out', 'Fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats', 'brush'], ['unblockout', 'Clear', 'Take a painted block-out away here (an applied one shows pale green) - the next Apply re-makes the model without it', 'eraser']],
+            sets: ['blockout', 'unblockout'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the shield)']],
             sets: ['takeoff'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard shield. Hold <kbd class="key">Shift</kbd> and drag over anything that was missed; rotate with the mouse otherwise. On a retainer it comes off and the enamel is rebuilt; on a mouthguard it joins the shield.' },
 };
@@ -966,7 +986,7 @@ $('#setApply').onclick = async () => {
   const resp = await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); const r = await resp.json().catch(() => ({}));
   if (!resp.ok) { showErr('Could not re-run: ' + (r.detail || resp.status) + (resp.status === 404 ? ' — the case is not open any more; pick it from the list or Past cases and try again' : '')); return; }
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
-  $('#dl').innerHTML = ''; selectJob(currentJob);
+  forgetEdits(); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 $('#setClose').onclick = () => { $('#settings').classList.remove('on'); saveSettings(); requestRender(); };
 $('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
@@ -1108,7 +1128,7 @@ async function refreshJobs(){
 }
 let pollTimer = null;
 async function selectJob(id){
-  if (id !== currentJob) { pendingAdj = {}; curReports = []; curArch = null; }   // a pending move belongs to the case it was made on
+  if (id !== currentJob) { pendingAdj = {}; curReports = []; curArch = null; forgetEdits(); }   // a pending move and unapplied strokes belong to the case they were made on
   currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
   clearInterval(pollTimer);
   // keeps watching the open case: a lower dropped by someone else joins it and shows up when done
@@ -1170,7 +1190,7 @@ function clearViewer(msg){
   clearInterval(pollTimer); currentJob = null;
   $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Drop a scan to begin.'; $('#modeltog').classList.remove('on');
   clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; pendingAdj = {}; curReports = []; curArch = null;
-  Object.values(edits).forEach(e => e.clear()); renderPanel(); syncPanels(); requestRender(); refreshJobs(); searchHistory();
+  forgetEdits(); renderPanel(); syncPanels(); requestRender(); refreshJobs(); searchHistory();
 }
 function renderReview(id, j){
   const box = $('#review'); box.className = 'review ' + (j.review || '');
@@ -1225,7 +1245,7 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
       ((j.fixed || []).length && !j.learned ? `<div class="hint" style="margin-top:8px"><a href="#" id="learnlink" title="Keep this brush-corrected case as a lesson for the retraining without sending it anywhere (Send does this on its own)">Save as lesson without sending</a></div>` : '');
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
-    const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t) { showErr('You have brush edits that are not applied yet — click "Apply & re-run" first, then Send or Save as lesson.'); showTab(t); return true; } return false; };
+    const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Send or Save as lesson.'); if (t) showTab(t); return true; } return false; };
     $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
     const ll = box.querySelector('#learnlink');
     if (ll) ll.onclick = async ev => {
@@ -1353,8 +1373,9 @@ async function loadResult(id, j){
   setBaseLook();
   requestRender();
   updatePlacement();
-  // segmentation mesh
-  Object.values(edits).forEach(e => e.clear()); updateFixCount();   // before the mesh loads: old strokes index the old mesh
+  // segmentation mesh: the strokes of the model we leave are kept, the ones of the model we show come back
+  // (before the mesh loads: old strokes index the old mesh)
+  stashEdits(); curScans = j.scans || []; curFile = fileKeyOf(curScans[scanIdx]); restoreEdits(curFile); updateFixCount();
   await loadSeg(id, scanIdx);
   showTab(tab);
 }
@@ -1458,10 +1479,10 @@ window.addEventListener('pointerup', () => { if (drag) { drag = null; controls.e
 $('#applyplace').onclick = async () => {
   if (!currentJob) return;
   const fd = new FormData();
-  fd.append('edits', JSON.stringify((edits.add.size || edits.remove.size) ? { scan: scanIdx, add:[...edits.add], remove:[...edits.remove] } : null));
+  fd.append('edits', editsPayload());
   fd.append('params', JSON.stringify(params()));
   $('#applyplace').disabled = true; $('#placestate').textContent = 'Moving…';
-  pendingAdj = {};
+  pendingAdj = {}; forgetEdits();
   await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 const palette = [0xcfd4da, 0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xfb7185, 0x22d3ee, 0x4ade80, 0xf59e0b, 0x818cf8, 0xe879f9, 0x2dd4bf, 0xf97316, 0x93c5fd, 0xbef264];
@@ -1522,7 +1543,7 @@ function paintColors(){
     if (segRGB && showCol && lab !== 99) { const w = (t === 'seg' && lab !== 0) ? 0.45 : 0.0; c.setRGB(c.r * w + segRGB[i*3] / 255 * (1 - w), c.g * w + segRGB[i*3+1] / 255 * (1 - w), c.b * w + segRGB[i*3+2] / 255 * (1 - w)); }
     const pf = segPaint ? segPaint[i] : 0;
     if (t === 'clean') { if (edits.cut.has(i)) c.setHex(0x7f1d1d); }
-    else if (t === 'block') { if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (pf & 2) c.lerp(teal, 0.45); }
+    else if (t === 'block') { if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (edits.unblockout.has(i)) c.setHex(0xfecaca); else if (pf & 2) c.lerp(teal, 0.45); }
     else if (t === 'braces') { if (edits.takeoff.has(i)) c.setHex(0xf97316); else if (pf & 4) c.lerp(grey, 0.5); else if (pf & 8) c.lerp(orange, 0.5); }
     else if (t === 'seg' && edits.cut.has(i)) c.setHex(0x7f1d1d);
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
@@ -1561,7 +1582,8 @@ function applyMode(mode, i){
   if (mode === 'cut'){ edits.add.delete(i); edits.remove.delete(i); edits.cut.add(i); }
   else if (mode === 'noreservoir'){ edits.noreservoir.add(i); edits.reservoir.delete(i); }
   else if (mode === 'reservoir'){ edits.reservoir.add(i); edits.noreservoir.delete(i); }
-  else if (mode === 'blockout'){ edits.blockout.add(i); }
+  else if (mode === 'blockout'){ edits.blockout.add(i); edits.unblockout.delete(i); }
+  else if (mode === 'unblockout'){ edits.unblockout.add(i); edits.blockout.delete(i); }
   else if (mode === 'takeoff'){ edits.takeoff.add(i); }
   else if (mode === 'tooth'){ edits.remove.delete(i); edits.cut.delete(i); if (segLabels[i]===0) edits.add.add(i); }
   else { edits.add.delete(i); edits.cut.delete(i); if (segLabels[i]!==0) edits.remove.add(i); }
@@ -1625,13 +1647,14 @@ canvas.addEventListener('pointerleave', () => placeCursor(null));
 window.addEventListener('pointerup', () => { if (painting) finishStroke(); painting = false; controls.enabled = true; });
 function updateFixCount(){
   const el = $('#fixcount'); if (!el) return;
-  const words = { add: '→ tooth', remove: '→ gum', cut: 'cut away', noreservoir: 'reservoir erased', reservoir: 'reservoir painted', blockout: 'block out', takeoff: 'take off' };
+  const words = { add: '→ tooth', remove: '→ gum', cut: 'cut away', noreservoir: 'reservoir erased', reservoir: 'reservoir painted', blockout: 'block out', unblockout: 'block-out cleared', takeoff: 'take off' };
   const P = PANELS[tab]; const mine = P ? P.sets : [];
   const here = mine.filter(k => edits[k].size).map(k => `${edits[k].size} ${words[k]}`);
   const other = Object.keys(edits).filter(k => !mine.includes(k)).reduce((a, k) => a + edits[k].size, 0);
-  el.textContent = (here.length ? here.join(', ') + ' (vertices)' : 'No edits here.') + (other ? ` · ${other} more painted on other tabs - Apply sends them all` : '');
+  const elsewhere = otherEditCount();
+  el.textContent = (here.length ? here.join(', ') + ' (vertices)' : 'No edits here.') + (other ? ` · ${other} more painted on other tabs` : '') + (elsewhere ? ` · ${elsewhere} more on the other arch` : '') + (other || elsewhere ? ' - Apply sends them all' : '');
 }
-const editsPayload = () => JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout], takeoff:[...edits.takeoff], reservoir:[...edits.reservoir] });
+const editsPayload = () => JSON.stringify(allEdits());
 $('#showcol').onchange = () => { if (segMesh) paintColors(); };
 // Send / Save as lesson carry the name typed in the New case card, for a case that has none (it never replaces one the case has)
 const nameForm = () => { const fd = new FormData(); fd.append('patient_first', $('#pfirst').value.trim()); fd.append('patient_last', $('#plast').value.trim()); return fd; };
@@ -1641,7 +1664,7 @@ async function applyAndRerun(){
   const resp = await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); const r = await resp.json().catch(() => ({}));
   if (!resp.ok) { showErr('Could not re-run: ' + (r.detail || resp.status) + (resp.status === 404 ? ' — the case is not open any more; pick it from the list or Past cases and try again' : '')); return; }
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
-  $('#dl').innerHTML = ''; selectJob(currentJob);
+  forgetEdits(); $('#dl').innerHTML = ''; selectJob(currentJob);
 }
 async function refreshLearn(){
   let st; try { st = await (await fetch('/api/learn')).json(); } catch (e) { return; }
@@ -1666,6 +1689,7 @@ window.__view = { camera, controls, requestRender, project: (x, y, z) => { const
   stroke3d: (mode, pts) => { stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } const before = Object.values(edits).reduce((a, e) => a + e.size, 0); finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
   placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot, arch: curArch, map: adjustMap(), pending: JSON.parse(JSON.stringify(pendingAdj)) }),
+  editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }),
   handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; } };   // for automated checks
 window.__appReady = true;
 </script>

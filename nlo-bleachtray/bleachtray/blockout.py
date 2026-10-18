@@ -43,11 +43,14 @@ def _grid_fields(V, N, cell):
     i = idx[first]
     gap_bot = np.full(ncell, np.nan); gap_top = np.full(ncell, np.nan)
     gap_bot[cells_g] = zs[i]; gap_top[cells_g] = zs[i + 1]
+    # which way the overhang's underside faces, horizontally (a proclined crown's labial face vs the
+    # proximal walls of an embrasure vs the underside of a pontic)
+    nxy = np.zeros((ncell, 2)); nxy[cells_g] = N[order][i + 1][:, :2]
     shape = (nx, ny)
     f = lambda a: a.reshape(shape)
     has = ~np.isnan(gap_top)
     return dict(x0=x0, y0=y0, cell=cell, nx=nx, ny=ny, lin=lin, z_top=f(z_top), gap_bot=f(gap_bot), gap_top=f(gap_top),
-                overhang=f(has), floor=f(has))
+                overhang=f(has), floor=f(has), over_nx=f(nxy[:, 0]), over_ny=f(nxy[:, 1]))
 
 
 def _undercut_depth(z_top, gap_top, cell, step=0.25):
@@ -144,7 +147,7 @@ def _unpinch(region):
 
 
 def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=True, paint=None,
-                  paint_min_depth=0.15, proud=0.0, bevel=0.5, upsample=3, near=None, near_mm=1.5, below_mm=2.0, log=print):
+                  paint_min_depth=0.15, proud=0.0, bevel=0.5, upsample=3, near=None, near_mm=1.5, below_mm=2.0, centre=None, log=print):
     """Return (solid or None, info). `paint`: per-vertex bool mask of areas the user asked to block
     out (filled whatever their depth). `near`: per-vertex bool mask (the teeth): an automatic fill
     only goes under an overhang within `near_mm` of it - the vestibule's own overhangs (the scan's
@@ -176,6 +179,18 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
             tl = np.full(g["nx"] * g["ny"], np.inf); np.minimum.at(tl, g["lin"][nmask], V[nmask, 2])
             tl = ndi.minimum_filter(tl.reshape(g["nx"], g["ny"]), size=2 * int(round(3.0 / cell)) + 1, mode="nearest")
             region &= ~np.isfinite(tl) | (g["gap_bot"] > tl - below_mm)
+        # ... and never the facial or lingual face of a crown itself: a proclined incisor's labial face leans
+        # out over the gum and reads as an undercut along the pull, but that is the tooth, not a space to fill
+        # (filling it would put a flat wall on the whole labial). An overhang whose underside faces outward
+        # or inward across the arch is such a face; the proximal walls of an embrasure face along the arch
+        # and a pontic's underside faces down, those stay
+        if centre is not None:
+            cx = g["x0"] + np.arange(g["nx"])[:, None] * cell; cy = g["y0"] + np.arange(g["ny"])[None, :] * cell
+            rx, ry = cx - float(centre[0]), cy - float(centre[1]); rn = np.hypot(rx, ry) + 1e-9
+            hx, hy = g["over_nx"], g["over_ny"]; hn = np.hypot(hx, hy)
+            radial = np.abs(hx * rx + hy * ry) / (rn * np.maximum(hn, 1e-9))
+            faces_across = (hn > 0.45) & (radial > 0.75)
+            region &= ~faces_across
     painted = np.zeros_like(has)
     if paint is not None and np.asarray(paint).any():
         pm = np.zeros(g["nx"] * g["ny"], bool); pm[g["lin"][np.asarray(paint, bool)]] = True

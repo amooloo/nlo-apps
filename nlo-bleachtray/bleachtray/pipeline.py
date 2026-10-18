@@ -629,8 +629,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 plain = trimesh.Trimesh(V0, mesh_f.faces, process=False)
             # (a mouthguard keeps the vestibule as it is - the whole sulcus under flared crowns would count as
             # one big undercut; the brackets get their own shields below; painted areas still apply)
+            rc0 = np.asarray(aux.get("ring_center", margin[:, :2].mean(0)), float)[:2]
+            rc_bo = trimesh.transform_points(np.array([[rc0[0], rc0[1], 0.0]]), T_adj @ T_place @ T_tilt @ T_ref)[0, :2]
             fill, binfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=bool(P.get("blockout")) and not MG,
-                                        paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), log=lambda m: log(f"[{name}] {m}"))
+                                        paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), centre=rc_bo, log=lambda m: log(f"[{name}] {m}"))
             rep["blockout"] = binfo
             if fill is not None:
                 fill_at = len(extra_solids)
