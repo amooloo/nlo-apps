@@ -22,7 +22,7 @@ from bleachtray.printfolder import write_print_folder, default_print_root  # noq
 
 JOBS_DIR = os.path.join(ROOT, "jobs")
 os.makedirs(JOBS_DIR, exist_ok=True)
-app = FastAPI(title="NLO Bleach Tray")
+app = FastAPI(title="NLO Tray Maker")
 app.mount("/static", StaticFiles(directory=os.path.join(ROOT, "app", "static")), name="static")
 
 JOBS = {}

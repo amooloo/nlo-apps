@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<title>NLO Bleach Tray</title>
+<title>NLO Tray Maker</title>
 <script>
-// Clicking "Bleach Tray" on the home page goes straight to the app running on the lab PC.
+// Clicking "Tray Maker" on the home page goes straight to the app running on the lab PC.
 // This page itself (the instructions) is shown only when opened with ?help.
 (function () {
   // the key is versioned: when the app moves to another PC the default changes and every browser's
@@ -54,7 +54,7 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
 </head>
 <body>
 <header>
-  <h1>NLO Bleach Tray</h1>
+  <h1>NLO Tray Maker</h1>
   <p>Makes the bleaching-tray model from a scan, with the gel reservoirs, the Trimlign base and the trim line, and puts it into OrthoFactory as an order. Nothing to pay per case.</p>
 </header>
 <main>
@@ -62,16 +62,16 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
   <div class="card">
     <h2>Everyday use <span class="pill">takes 2 minutes</span></h2>
     <div class="step"><div class="num">1</div><p class="big">Export the patient's scan from the scanner, with the patient's name in the file name (the scanner does this on its own: <code>Jane_Doe_20261015_09-20-31_upper.ply</code>). <b>Choose PLY when the scanner offers it</b> — it carries the colour, and the app uses the colour to find the gum line (pink against white) and to throw out gum it would otherwise take for a tooth. STL works too, from shape alone.</p></div>
-    <div class="step"><div class="num">2</div><p class="big">Drop the file on the <b>Bleach Tray</b> app page (home page → Bleach Tray). The app asks what to make — <b>whitening tray</b> and/or <b>retainer (TT)</b> — and whether the opposing arch is coming: drop that one too, answer for it, then <b>Start</b>. Nothing runs before Start. A whole day's scans at once, or files dragged into <span class="path">S:\clinical\3D printing\BleachTray</span>, run with the default (both) without questions. Several people dropping at the same time is fine — cases run one after another.</p></div>
+    <div class="step"><div class="num">2</div><p class="big">Drop the file on the <b>Tray Maker</b> app page (home page → Tray Maker). The app asks what to make — <b>whitening tray</b> and/or <b>retainer (TT)</b> — and whether the opposing arch is coming: drop that one too, answer for it, then <b>Start</b>. Nothing runs before Start. A whole day's scans at once, or files dragged into <span class="path">S:\clinical\3D printing\BleachTray</span>, run with the default (both) without questions. Several people dropping at the same time is fine — cases run one after another.</p></div>
     <div class="step"><div class="num">3</div><p class="big">A few minutes later the case shows <b>"check &amp; send"</b> in the app with <b>four models</b>: whitening tray (WT) and thermoformed retainer (TT), upper and lower. Look at the 3D result — trim line, reservoirs, position on the base. Each thing you might fix has its own tab with one brush (the ball on the model; hold <b>Shift</b> and drag, then <b>Apply &amp; re-run</b>): <b>Clean-up</b> cuts away a tongue, cheek or flap the scanner caught; <b>Segmentation</b> repaints a tooth the app missed; <b>Reservoirs</b> shows the reservoirs in red - paint more or erase them where you see them; <b>Block-outs</b> fills the undercut under a pontic or implant crown so the retainer seats; <b>Braces</b> (only for a scan dropped with Braces on) takes off a bracket the app missed. Or nudge the base if something is off. Chose only the retainer and need the whitening tray too? <b>Also make …</b> in the Check &amp; send box adds it from the scan already there.</p></div>
     <div class="step"><div class="num">4</div><p class="big">Click <b>Send to Trimlign</b>. Only then does the patient appear in OrthoFactory (the Trimlign software) → <b>Production</b>, like any Titan case (whitening trays as Template pieces, retainers as Aligner pieces). Print on the Form 4B, thermoform, trim on the Trimlign. <b>Discard</b> throws it away. <b>Save as lesson</b> keeps a brush-corrected case as a lesson for the app without ordering anything (Send does that too); it lights up once a fix has been applied.</p></div>
-    <p class="muted" style="margin-top:12px">Nothing reaches OrthoFactory without that click. Files dragged into the folder move into <code>BleachTray\done</code> when processed, or into <code>BleachTray\failed</code> with a note explaining what happened. The small black window called "NLO Bleach Tray" must be open on the PC that runs the app (Dr. A's PC for now; it starts by itself at sign-in; if it's gone, double-click <code>start_app.bat</code> in the app folder).</p>
+    <p class="muted" style="margin-top:12px">Nothing reaches OrthoFactory without that click. Files dragged into the folder move into <code>BleachTray\done</code> when processed, or into <code>BleachTray\failed</code> with a note explaining what happened. The small black window called "NLO Tray Maker" must be open on the PC that runs the app (Dr. A's PC for now; it starts by itself at sign-in; if it's gone, double-click <code>start_app.bat</code> in the app folder).</p>
   </div>
 
   <div class="card">
     <h2>If a case needs a look <span class="pill">optional</span></h2>
-    <p>Open the app from any office computer and drop a scan anywhere on the page: it asks what to make, processes, and shows the result for a check — nothing reaches OrthoFactory until someone clicks Send. See the result in 3D, paint over a tooth the computer missed (the ball on the model is the brush; hold <b>Shift</b> and drag), re-run; move the base plate under the arch with <b>Position on the base</b> (drag the plate to slide it, the blue ring to turn it — the view flips to the underside so the locating holes can be kept clear of the arch; Apply rebuilds, Reset goes back to automatic). It runs on Dr. A's PC for now, so that PC has to be on. Clicking <b>Bleach Tray</b> on the NLO apps home page opens it directly.</p>
-    <a class="btn" id="openapp" href="#">Open the Bleach Tray app</a>
+    <p>Open the app from any office computer and drop a scan anywhere on the page: it asks what to make, processes, and shows the result for a check — nothing reaches OrthoFactory until someone clicks Send. See the result in 3D, paint over a tooth the computer missed (the ball on the model is the brush; hold <b>Shift</b> and drag), re-run; move the base plate under the arch with <b>Position on the base</b> (drag the plate to slide it, the blue ring to turn it — the view flips to the underside so the locating holes can be kept clear of the arch; Apply rebuilds, Reset goes back to automatic). It runs on Dr. A's PC for now, so that PC has to be on. Clicking <b>Tray Maker</b> on the NLO apps home page opens it directly.</p>
+    <a class="btn" id="openapp" href="#">Open the Tray Maker app</a>
     <p class="muted" id="labpc-line" style="margin-top:10px"></p>
   </div>
 
@@ -123,7 +123,7 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
   function render() {
     btn.href = "http://" + name + ":8765/";
     btn.target = "_blank";
-    line.innerHTML = 'The app runs on the PC named <b>' + name + '</b> (it has to be on, with the black "NLO Bleach Tray" window open). ' +
+    line.innerHTML = 'The app runs on the PC named <b>' + name + '</b> (it has to be on, with the black "NLO Tray Maker" window open). ' +
       '<a href="#" id="chg">Use a different PC in this browser</a>' +
       (name !== NLO_BT.DEFAULT_LAB_PC ? ' &nbsp;·&nbsp; <a href="#" id="rst">back to ' + NLO_BT.DEFAULT_LAB_PC + '</a>' : '');
     document.getElementById("chg").onclick = function (ev) { ev.preventDefault(); ask(); };
@@ -131,7 +131,7 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
     if (r) r.onclick = function (ev) { ev.preventDefault(); name = NLO_BT.DEFAULT_LAB_PC; try { localStorage.removeItem(key); } catch (e) {} render(); };
   }
   function ask() {
-    var v = prompt("Computer name of the PC that runs the app (the black NLO Bleach Tray window prints it as http://NAME:8765):", name || "");
+    var v = prompt("Computer name of the PC that runs the app (the black NLO Tray Maker window prints it as http://NAME:8765):", name || "");
     if (v === null) return;
     v = v.trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
     if (!v) return;

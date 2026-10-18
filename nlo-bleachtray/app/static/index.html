@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NLO Bleach Tray</title>
+<title>NLO Tray Maker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
@@ -40,6 +40,8 @@
   @media screen{ html.nlo-home-on .sideTop{padding-top:var(--nlo-home-drop)} }
   .nav{padding:8px 12px;display:flex;flex-direction:column;gap:2px}
   .navLbl{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7E92B5;padding:14px 12px 6px;display:flex;align-items:center}
+  .navFold{cursor:pointer;user-select:none;gap:6px} .navFold:hover{color:#fff} .navFold .caret{font-size:11px;transition:transform .15s} .navFold.closed .caret{transform:rotate(-90deg)}
+  .navFold.closed + .sidebox{display:none}
   .navLbl a{margin-left:auto;color:#9DB0CC;font-family:var(--fb);font-size:11px;letter-spacing:0;text-transform:none;font-weight:600;text-decoration:none}
   .navLbl a:hover{color:#fff}
   .job{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:10px;color:#C9D4E5;font-weight:600;font-size:13px;text-align:left;cursor:pointer;transition:background .14s var(--ease)}
@@ -232,14 +234,14 @@
 <body>
 <div id="app">
   <aside id="side">
-    <div class="sideTop"><img src="/static/logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Bleach Tray</div></div>
+    <div class="sideTop"><img src="/static/logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Tray Maker</div></div>
     <div class="nav">
       <div class="navLbl">Cases</div>
       <div id="jobs"></div>
     </div>
     <div class="nav" id="historybox">
-      <div class="navLbl">Past cases</div>
-      <div class="sidebox"><input type="search" id="histq" placeholder="name, date (10/16), upper…" autocomplete="off" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:7px 10px;font:600 12.5px/1.2 var(--fb)">
+      <div class="navLbl navFold" id="histfold" title="Show / hide">Past cases <span class="caret">&#9662;</span><span class="hint" id="histcount" style="margin:0 0 0 auto;color:#7E92B5;font-size:10.5px;letter-spacing:0;text-transform:none"></span></div>
+      <div class="sidebox" id="histbody"><input type="search" id="histq" placeholder="name, date (10/16), upper…" autocomplete="off" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:7px 10px;font:600 12.5px/1.2 var(--fb)">
         <div id="hist" class="hint" style="color:#7E92B5;margin:6px 0 0">Every case stays here · type to search</div></div>
     </div>
     <div class="nav" id="scannerbox" style="display:none">
@@ -253,7 +255,7 @@
     </div>
   </aside>
   <div id="main">
-    <div class="topBar"><h2>Bleach Tray</h2><span class="sub">Drop a scan — whitening tray + retainer models go to the Trimlign after you check them.</span></div>
+    <div class="topBar"><h2>Tray Maker</h2><span class="sub">Drop a scan — whitening tray + retainer models go to the Trimlign after you check them.</span></div>
     <main id="view">
       <div class="leftCol">
         <div class="card">
@@ -569,7 +571,7 @@
         <label class="ck" style="margin:4px 0 8px"><input type="checkbox" id="preform_on_send"> Open the models in PreForm when a case is sent</label>
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="preform" placeholder="found by itself when PreForm is installed in the usual place"><button class="small" id="preform_save">Save</button></div>
         <div class="hint" id="preform_hint"></div>
-        <div class="hint" style="margin-top:6px"><b>Other PCs:</b> any PC with PreForm can open the models on its own screen - the button says <i>Open in PreForm on this PC</i> there. Once per PC, Win+R and run: <a href="#" id="pfsetup2">copy the line</a>. The first click asks "Open NLO Bleach Tray?" - tick <i>Always allow</i>.</div>
+        <div class="hint" style="margin-top:6px"><b>Other PCs:</b> any PC with PreForm can open the models on its own screen - the button says <i>Open in PreForm on this PC</i> there. Once per PC, Win+R and run: <a href="#" id="pfsetup2">copy the line</a>. The first click asks "Open NLO Tray Maker?" - tick <i>Always allow</i>.</div>
       </div>
     </div>
   </div>
@@ -1005,6 +1007,7 @@ async function searchHistory(){
   const st = h => h.review === 'sent' ? ['sent', 'sent'] : h.review === 'discarded' ? ['discarded', 'discarded'] : ['queued', 'not sent'];
   const rows = (r.cases || []).map(h => `<div class="job" data-hid="${h.id}" title="${(h.models || []).join(', ')}${h.thinned ? ' · models cleared to save space: opening re-makes them (about a minute)' : ''}"><span class="nm">${h.name || '?'} <span class="hint">${when(h)}</span></span><span class="pill ${st(h)[0]}">${st(h)[1]}${h.thinned ? ' ·' : ''}</span></div>`).join('');
   $('#hist').innerHTML = (rows || `<div class="hint" style="color:#7E92B5">${q ? 'Nothing matches.' : 'None yet.'}</div>`) + (!q && r.total > 12 ? `<div class="hint" style="color:#7E92B5;margin-top:4px">${r.total} cases on file · type to search</div>` : '');
+  if (!q) $('#histcount').textContent = r.total ? `${r.total}` : '';
   document.querySelectorAll('[data-hid]').forEach(e => e.onclick = async () => {
     e.querySelector('.pill').textContent = 'opening…';
     const rs = await fetch(`/api/history/${e.dataset.hid}/open`, { method: 'POST' }); const o = await rs.json();
@@ -1013,6 +1016,10 @@ async function searchHistory(){
   });
 }
 $('#histq').addEventListener('input', () => { clearTimeout(histTimer); histTimer = setTimeout(searchHistory, 250); });
+// Past cases folds away (it is the long list); the choice is remembered on this PC
+const setHistFold = closed => { $('#histfold').classList.toggle('closed', closed); try { localStorage.setItem('nlo.bleachtray.histfold', closed ? '1' : '0'); } catch (e) {} };
+$('#histfold').onclick = () => setHistFold(!$('#histfold').classList.contains('closed'));
+try { setHistFold(localStorage.getItem('nlo.bleachtray.histfold') === '1'); } catch (e) {}
 searchHistory(); setInterval(() => { if (!$('#histq').value) searchHistory(); }, 60000);
 
 async function refreshJobs(){
