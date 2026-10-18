@@ -106,6 +106,8 @@
   .drop.over{border-color:var(--mint-600);background:var(--mint-100);color:var(--mint-700)}
   .scanrow{border:1.5px solid var(--grey-200);border-radius:12px;padding:10px 12px;margin-top:10px;background:var(--grey-50)}
   .scanrow .fn{font-weight:700;color:var(--navy);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .scanrow .archic{flex:none;width:44px;height:34px;color:var(--navy);background:currentColor;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
+  .scanrow .archic.none{color:var(--grey-300)}
   .scanrow .opts{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:8px}
   .scanrow label.ck{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;color:var(--grey-700);cursor:pointer}
   .scanrow label.ck input{accent-color:var(--blue);width:15px;height:15px}
@@ -853,8 +855,10 @@ function renderSetup(){
   box.style.display = 'block'; $('#modaltitle').textContent = 'New case';
   $('#modalintro').innerHTML = 'What should be made from this scan? Tick the trays, check the arch, add the opposing arch if it is coming — nothing runs until you click <b>Start</b>.';
   openCaseModal();
+  // upper first, then lower, then anything still unknown - the order the viewer's model buttons use
+  pending.sort((a, b) => ({ upper: 0, lower: 1 }[a.arch] ?? 2) - ({ upper: 0, lower: 1 }[b.arch] ?? 2));
   $('#setuplist').innerHTML = pending.map((p, i) => `<div class="scanrow" data-i="${i}">
-      <div style="display:flex;align-items:center;gap:8px"><span class="fn" title="${p.file.name}">${p.file.name}</span><span class="rm" data-rm="${i}" title="remove">×</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="archic ${p.arch || 'none'}" title="${p.arch ? p.arch[0].toUpperCase() + p.arch.slice(1) : 'arch not known yet'}" style="--m:url(/static/img/ic_arch_${p.arch || 'upper'}.png)"></span><span class="fn" title="${p.file.name}">${p.file.name}</span><span class="rm" data-rm="${i}" title="remove">×</span></div>
       <div class="opts">
         <select data-arch="${i}"><option value="" ${!p.arch?'selected':''}>Arch: auto-detect</option><option value="upper" ${p.arch==='upper'?'selected':''}>Upper (maxilla)</option><option value="lower" ${p.arch==='lower'?'selected':''}>Lower (mandible)</option></select>
         <label class="ck"><input type="checkbox" data-wt="${i}" ${p.wt?'checked':''}> Whitening tray</label>
@@ -862,7 +866,7 @@ function renderSetup(){
         <label class="ck" title="Sports mouthguard with the braces on: brackets stay under smooth shields, the trim line runs deep into the vestibule with notches at the frena and 6 mm onto the palate"><input type="checkbox" data-mg="${i}" ${p.mg?'checked':''}> Mouthguard (MG)</label>
         <label class="ck" title="Tick only for a scan taken with brackets on (eval appointment): brackets, wire and ties are found and taken off and the enamel rebuilt before the tray is made. Never done on its own - leave it off for a plain scan." style="margin-left:10px;color:#b45309"><input type="checkbox" data-br="${i}" ${p.braces?'checked':''}> Braces on — take them off first</label>
       </div></div>`).join('');
-  document.querySelectorAll('[data-arch]').forEach(e => e.onchange = () => { pending[+e.dataset.arch].arch = e.value; });
+  document.querySelectorAll('[data-arch]').forEach(e => e.onchange = () => { pending[+e.dataset.arch].arch = e.value; renderSetup(); });
   document.querySelectorAll('[data-wt]').forEach(e => e.onchange = () => { pending[+e.dataset.wt].wt = e.checked; setupCount(); });
   document.querySelectorAll('[data-tt]').forEach(e => e.onchange = () => { pending[+e.dataset.tt].tt = e.checked; setupCount(); });
   document.querySelectorAll('[data-mg]').forEach(e => e.onchange = () => { pending[+e.dataset.mg].mg = e.checked; setupCount(); });
