@@ -67,7 +67,7 @@
   .topBar{display:flex;align-items:center;gap:14px;padding:18px 28px 12px;flex:none}
   .topBar h2{font-family:var(--fd);font-weight:600;font-size:24px;letter-spacing:.02em;text-transform:uppercase;color:var(--navy);white-space:nowrap}
   .topBar .sub{font-size:12.5px;color:var(--grey-500)}
-  #view{padding:4px 28px 22px;flex:1;min-height:0;display:grid;grid-template-columns:350px minmax(0,1fr);gap:18px;align-items:stretch}
+  #view{position:relative;padding:4px 28px 22px;flex:1;min-height:0;display:grid;grid-template-columns:350px minmax(0,1fr);gap:18px;align-items:stretch}
   .leftCol{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:2px}
 
   /* ---------- cards ---------- */
@@ -179,28 +179,31 @@
   .modal{background:#fff;border-radius:18px;padding:22px 26px 20px;width:min(660px,92vw);max-height:90vh;overflow:auto;box-shadow:var(--sh-lg)}
   .modal h3{font-family:var(--fd);font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:0 0 6px}
   .modal .scanrow{margin-top:10px}
-  .setTabs{margin-left:6px} .setTab{display:none} .setTab.on{display:block}
-  .settings{display:none;position:absolute;inset:0;z-index:4;background:var(--grey-50);overflow:auto}
+  .setTabs{margin-left:6px;flex:none;flex-wrap:nowrap;white-space:nowrap} .setTab{display:none} .setTab.on{display:block}
+  #sethint{flex:1 1 auto;min-width:0} @media (max-width:1400px){#sethint{display:none}}
+  .settings{display:none;position:absolute;inset:4px 28px 22px 28px;z-index:4;background:var(--grey-50);overflow:auto;border-radius:var(--r);border:1px solid var(--grey-100);box-shadow:var(--sh-xs)}
+  @media (max-width:1100px){.settings{inset:4px 14px 20px 14px}}
   .settings.on{display:block}
-  .setHd{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;padding:14px 18px;background:rgba(247,248,249,.96);border-bottom:1px solid var(--grey-100);backdrop-filter:blur(6px)}
-  .setHd h3{font-family:var(--fd);font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:0}
-  .setBd{padding:6px 18px 28px}
-  .setSec{font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-600);margin:22px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--grey-200)}
-  .setGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-  .scard{background:#fff;border:1px solid var(--grey-100);border-radius:12px;padding:12px 12px 12px;box-shadow:var(--sh-xs);display:flex;flex-direction:column;gap:8px}
+  .setHd{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;padding:9px 16px;background:rgba(247,248,249,.96);border-bottom:1px solid var(--grey-100);backdrop-filter:blur(6px)}
+  .setHd h3{font-family:var(--fd);font-weight:600;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:0}
+  .setBd{padding:2px 16px 22px}
+  .setSec{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-600);margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--grey-200)}
+  .setGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:8px;align-items:start}
+  .scard{background:#fff;border:1px solid var(--grey-100);border-radius:10px;padding:8px 9px 9px;box-shadow:var(--sh-xs);display:flex;flex-direction:column;gap:6px}
   .scard.wide{grid-column:1 / -1}
-  .sLab{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;color:var(--grey-700)}
+  .sLab{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px;line-height:1.25;color:var(--grey-700)}
   .info{margin-left:auto;flex:none;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--grey-300);color:var(--grey-500);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;cursor:help;font-family:Georgia,serif;font-style:italic}
-  .sPic{height:84px;display:flex;align-items:center;justify-content:center;background:var(--grey-50);border-radius:10px}
-  .sPic svg{width:140px;height:84px}
-  .sPic img{height:76px;width:auto;max-width:100%}
-  .stepper{display:grid;grid-template-columns:36px 1fr 36px;border:1.5px solid var(--grey-200);border-radius:10px;overflow:hidden}
-  .stepper button{min-height:38px;font-size:18px;color:var(--navy);background:var(--grey-50)}
+  .sPic{height:62px;display:flex;align-items:center;justify-content:center;background:var(--grey-50);border-radius:8px}
+  .sPic svg{width:104px;height:62px}
+  .sPic img{height:56px;width:auto;max-width:100%}
+  .stepper{display:grid;grid-template-columns:30px 1fr 30px;border:1.5px solid var(--grey-200);border-radius:8px;overflow:hidden}
+  .stepper button{min-height:30px;font-size:16px;color:var(--navy);background:var(--grey-50)}
   .stepper button:hover{background:var(--grey-100)}
-  .stepper input{border:0;border-radius:0;text-align:center;min-height:38px;font-weight:600;-moz-appearance:textfield}
+  .stepper input{border:0;border-radius:0;text-align:center;min-height:30px;padding:2px 4px;font-weight:600;-moz-appearance:textfield}
   .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .sVal{min-height:38px;display:flex;align-items:center;justify-content:center;border:1.5px dashed var(--grey-200);border-radius:10px;color:var(--grey-500);font-weight:600;font-size:12.5px}
-  .scard select,.scard input[type=text]{margin:0}
+  .scard select,.scard input[type=text]{margin:0;min-height:30px;padding:3px 8px;font-size:12px}
+  .scard .hint{margin-top:0;font-size:11px}
   .toolbar,.brush,.place,.stats,#fatal,#errline{z-index:2}
   .toolbar{position:absolute;top:12px;left:12px;max-width:calc(100% - 24px);display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:999px;padding:5px 6px;backdrop-filter:blur(6px);box-shadow:var(--sh-sm)}
   .toolbar .tab{padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--grey-600);font-weight:600;font-size:12.5px;user-select:none}
@@ -369,7 +372,9 @@
     <div class="btns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="primary small" id="startcase">Start</button><button class="small" id="addopp">Add the opposing arch…</button><button class="small" id="cancelcase">Cancel</button></div>
   </div>
 </div>
-<!-- SETTINGS PANEL (illustrated): opened from the gear at the top right; sits over the viewer -->
+        <canvas id="c"></canvas>
+      </section>
+<!-- SETTINGS PANEL (illustrated): opened from the gear at the top right; sits over the whole work area -->
 <div class="settings" id="settings">
   <div class="setHd">
     <h3>Settings</h3>
@@ -453,7 +458,7 @@
         <select id="blockout"><option value="0" selected>Off — paint the ones that matter (Block-outs tab)</option><option value="0.5">Deeper than 0.5 mm</option><option value="0.75">Deeper than 0.75 mm</option><option value="1">Deeper than 1 mm</option><option value="1.5">Deeper than 1.5 mm</option></select>
         <div class="sLab" style="margin-top:10px">Block-out amount (mm) <span class="info" title="Where the block-out's outer wall stands, for painted and automatic block-outs alike. 0 = flush with the tooth's widest line seen from above: the crown continues straight down to the gum and the sheet drops past it. Positive = the wall stands that much further out (more block-out); negative = that much of the undercut is left for grip.">i</span></div>
         <div class="stepper"><button data-step="-0.25" data-for="blockout_proud">−</button><input type="number" id="blockout_proud" step="0.25" min="-0.5" max="1.5" value="0"><button data-step="0.25" data-for="blockout_proud">+</button></div>
-        <div class="hint">0 = flush with the tooth (the usual full block-out); + stands out more, − leaves some undercut for grip.</div>
+        <div class="hint">0 = flush with the tooth; + stands out, − leaves undercut for grip.</div>
       </div>
       <div class="scard"><div class="sLab">Tray edge between the teeth <span class="info" title="The shape of the tray edge where it passes between two teeth: a smooth wave (easier to trim, seals well) or a deep point up into every gap.">i</span></div>
         <div class="sPic" data-img="between_teeth_straight" data-img-by="bridge" data-img-map='{"0":"between_teeth_scallop","3":"between_teeth_straight","4":"between_teeth_smoother"}'><svg viewBox="0 0 120 72">
@@ -610,8 +615,6 @@
    </div>
   </div>
 </div>
-        <canvas id="c"></canvas>
-      </section>
     </main>
   </div>
 </div>

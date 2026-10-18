@@ -365,7 +365,7 @@ recess on the inside that touches nothing; (2) the name and WHITENING / RETAINER
 of the base plate inside the arch, when the arch leaves at least 8 mm of room there (skipped otherwise). Switch off
 under Settings.
 
-**Settings.** The gear at the top right of the page opens a panel with two tabs - *Model settings* (reservoirs, trim lines, base, marks, bulk-drop defaults) and *Office* (learning, the Trimlign / scanner / print folders, PreForm) - where every number has a picture of what it means;
+**Settings.** The gear at the top right of the page opens a panel over the whole work area (compact cards, five across on a lab screen; the two tabs never wrap) with two tabs - *Model settings* (reservoirs, trim lines, base, marks, bulk-drop defaults) and *Office* (learning, the Trimlign / scanner / print folders, PreForm) - where every number has a picture of what it means;
 *Apply to this case & re-run* re-makes the open case with the changed settings - only the models the change touches
 (a retainer-line change leaves the whitening trays alone), brush fixes and painted areas kept
 (reservoir region / depth / distance to the gum / leeway at exposed roots, the two trim lines, block-out of
