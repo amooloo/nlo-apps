@@ -8,7 +8,7 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
 1. Export the patient's scan from the scanner, with the patient's name in the file name (the scanner does this on
    its own, e.g. `Jane_Doe_20261015_09-20-31_upper.ply`). **PLY when the scanner offers it** - it carries the colour,
    which the app uses to find the gum line; STL works too.
-2. Drop the file on the **Bleach Tray** app page (any office computer; home page → Bleach Tray). The app asks what
+2. Drop the file on the **Tray Maker** app page (any office computer; home page → Tray Maker). A pop-up in the middle of the screen asks what
    to make of it - **whitening tray**, **retainer (TT)** and/or **mouthguard (MG, braces on)** - whether the scan has
    **braces on** that should come off first (never assumed) - and whether the opposing arch is coming: drop that
    one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once,
@@ -352,7 +352,7 @@ recess on the inside that touches nothing; (2) the name and WHITENING / RETAINER
 of the base plate inside the arch, when the arch leaves at least 8 mm of room there (skipped otherwise). Switch off
 under Settings.
 
-**Settings.** The gear in the New case card opens a panel where every number has a picture of what it means;
+**Settings.** The gear at the top right of the page opens a panel with two tabs - *Model settings* (reservoirs, trim lines, base, marks, bulk-drop defaults) and *Office* (learning, the Trimlign / scanner / print folders, PreForm) - where every number has a picture of what it means;
 *Apply to this case & re-run* re-makes the open case with the changed settings - only the models the change touches
 (a retainer-line change leaves the whitening trays alone), brush fixes and painted areas kept
 (reservoir region / depth / distance to the gum / leeway at exposed roots, the two trim lines, block-out of

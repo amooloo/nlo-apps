@@ -174,6 +174,12 @@
   @media (prefers-reduced-motion: reduce){.anim *{animation:none !important;opacity:1 !important;transform:none !important}}
   kbd.key{display:inline-block;font:600 10.5px/1 var(--fb);color:var(--navy);background:#fff;border:1.5px solid var(--grey-300);border-bottom-width:3px;border-radius:5px;padding:2px 6px 1px;margin:0 1px;vertical-align:1px;white-space:nowrap;box-shadow:0 1px 0 rgba(17,32,58,.08)}
   /* ---- illustrated settings panel (over the viewer) ---- */
+  .modalBg{display:none;position:fixed;inset:0;z-index:60;background:rgba(27,47,76,.42);align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+  .modalBg.on{display:flex}
+  .modal{background:#fff;border-radius:18px;padding:22px 26px 20px;width:min(660px,92vw);max-height:90vh;overflow:auto;box-shadow:var(--sh-lg)}
+  .modal h3{font-family:var(--fd);font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:0 0 6px}
+  .modal .scanrow{margin-top:10px}
+  .setTabs{margin-left:6px} .setTab{display:none} .setTab.on{display:block}
   .settings{display:none;position:absolute;inset:0;z-index:4;background:var(--grey-50);overflow:auto}
   .settings.on{display:block}
   .setHd{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;padding:14px 18px;background:rgba(247,248,249,.96);border-bottom:1px solid var(--grey-100);backdrop-filter:blur(6px)}
@@ -255,7 +261,8 @@
     </div>
   </aside>
   <div id="main">
-    <div class="topBar"><h2>Tray Maker</h2><span class="sub">Drop a scan — whitening tray + retainer models go to the Trimlign after you check them.</span></div>
+    <div class="topBar"><h2>Tray Maker</h2><span class="sub">Drop a scan — whitening tray + retainer models go to the Trimlign after you check them.</span>
+      <span class="hint" style="margin:0 0 0 auto" id="setsum"></span><button class="small" id="openSettings" title="Model settings and office settings">&#9881; Settings</button></div>
     <main id="view">
       <div class="leftCol">
         <div class="card">
@@ -263,19 +270,10 @@
           <div class="cardBd">
             <div class="drop" id="drop"><b>Drop the scan STL here</b>anywhere on this page works · one arch at a time — the app then asks what to make and whether the opposing arch is coming. A whole day's scans at once run with the defaults. Or click to choose.</div>
             <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
-            <div class="row">
-              <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="First"></div>
-              <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Last"></div>
-            </div>
             <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
+            <div class="hint" style="margin-top:10px">Patient: <a href="#" id="patientline" title="The patient of the open case - click to change the name">—</a></div>
             <div class="hint" id="filehint">No file yet.</div>
-            <div id="setup" style="display:none">
-              <div id="setuplist"></div>
-              <div class="hint" id="setuphint"></div>
-              <div class="btns" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="primary small" id="startcase">Start</button><button class="small" id="addopp">Add the opposing arch…</button><button class="small" id="cancelcase">Cancel</button></div>
-            </div>
             <div id="rerunbox" style="display:none;margin-top:10px"><button class="small" id="go">Run again with these settings</button></div>
-            <div style="margin-top:12px;display:flex;gap:8px;align-items:center"><button class="small" id="openSettings">&#9881; Settings</button><span class="hint" style="margin:0" id="setsum"></span></div>
           </div>
         </div>
         <div class="card" id="detail" style="display:none">
@@ -345,16 +343,34 @@
         <div class="stats" id="stats">Drop a scan to begin.</div>
         <div id="fatal"></div>
         <div id="errline"></div>
-<!-- SETTINGS PANEL (illustrated): opened from "Settings" in the New case card; sits over the viewer -->
+<!-- NEW CASE pop-up: a dropped scan asks what to make before anything runs -->
+<div class="modalBg" id="casemodal">
+  <div class="modal">
+    <h3 id="modaltitle">New case</h3>
+    <div class="hint" id="modalintro" style="margin:0 0 10px">What should be made from this scan? Tick the trays, check the arch, add the opposing arch if it is coming — nothing runs until you click <b>Start</b>.</div>
+    <div class="row">
+      <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="First"></div>
+      <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Last"></div>
+    </div>
+    <div id="setup">
+      <div id="setuplist"></div>
+      <div class="hint" id="setuphint"></div>
+    </div>
+    <div class="btns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="primary small" id="startcase">Start</button><button class="small" id="addopp">Add the opposing arch…</button><button class="small" id="cancelcase">Cancel</button></div>
+  </div>
+</div>
+<!-- SETTINGS PANEL (illustrated): opened from the gear at the top right; sits over the viewer -->
 <div class="settings" id="settings">
   <div class="setHd">
     <h3>Settings</h3>
-    <div class="hint" style="margin:0 auto 0 14px">Each number has a picture of what it means. Changes apply to the next case — or to the case that is open, with <b>Apply to this case</b>.</div>
+    <div class="seg setTabs"><button class="on" data-settab="model">Model settings</button><button data-settab="office">Office</button></div>
+    <div class="hint" id="sethint" style="margin:0 auto 0 14px">Each number has a picture of what it means. Changes apply to the next case — or to the case that is open, with <b>Apply to this case</b>.</div>
     <button class="small" id="setDefaults">Back to defaults</button>
     <button class="small primary" id="setApply" style="display:none" title="Re-make every model of the open case with these settings (brush fixes and painted areas are kept)">Apply to this case &amp; re-run</button>
     <button class="small" id="setClose">Done</button>
   </div>
   <div class="setBd">
+   <div class="setTab on" data-settab="model">
 
     <h4 class="setSec">Whitening tray — gel reservoirs</h4>
     <div class="setGrid">
@@ -543,6 +559,8 @@
       </div>
     </div>
 
+   </div>
+   <div class="setTab" data-settab="office">
     <h4 class="setSec">Learning</h4>
     <div class="setGrid">
       <div class="scard wide"><div class="sLab">The model learns from your corrections <span class="info" title="Cases fixed with the brush and then Sent or Saved as lesson are lessons. Retraining runs at night, or now with the button; a new model is only used if it scores at least as well.">i</span></div>
@@ -576,6 +594,7 @@
         <div class="hint" style="margin-top:6px"><b>Other PCs:</b> any PC with PreForm can open the models on its own screen - the button says <i>Open in PreForm on this PC</i> there. Once per PC, Win+R and run: <a href="#" id="pfsetup2">copy the line</a>. The first click asks "Open NLO Tray Maker?" - tick <i>Always allow</i>.</div>
       </div>
     </div>
+   </div>
   </div>
 </div>
         <canvas id="c"></canvas>
@@ -799,10 +818,25 @@ function setFiles(fs, auto){
   renderSetup();
 }
 let bulk = false;
+// the New case pop-up: the questions for a dropped scan (name, arch, what to make), or just the name when
+// opened from the patient line; closed by Start / OK / Cancel / Esc
+let nameOnly = false;
+function updatePatientLine(){ const f = $('#pfirst').value.trim(), l = $('#plast').value.trim(); $('#patientline').textContent = f || l ? `${f} ${l}`.trim() : '— (click to set)'; }
+function openCaseModal(){ $('#casemodal').classList.add('on'); setTimeout(() => { if (!$('#pfirst').value.trim()) $('#pfirst').focus(); }, 50); }
+function closeCaseModal(){ $('#casemodal').classList.remove('on'); nameOnly = false; updatePatientLine(); }
+$('#patientline').onclick = ev => { ev.preventDefault(); if (pending.length) { openCaseModal(); return; } nameOnly = true; renderSetup(); };
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#casemodal').classList.contains('on')) $('#cancelcase').click(); });
+$('#casemodal').addEventListener('mousedown', ev => { if (ev.target === $('#casemodal')) $('#cancelcase').click(); });
 function renderSetup(){
   const box = $('#setup');
-  if (!pending.length) { box.style.display = 'none'; return; }
-  box.style.display = 'block';
+  if (!pending.length && !nameOnly) { closeCaseModal(); return; }
+  if (nameOnly) {      // just the patient's name for the open case
+    box.style.display = 'none'; $('#addopp').style.display = 'none'; $('#modaltitle').textContent = 'Patient name';
+    $('#modalintro').innerHTML = 'The name the order, the print files and the lesson are filed under.'; $('#startcase').textContent = 'OK'; openCaseModal(); return;
+  }
+  box.style.display = 'block'; $('#modaltitle').textContent = 'New case';
+  $('#modalintro').innerHTML = 'What should be made from this scan? Tick the trays, check the arch, add the opposing arch if it is coming — nothing runs until you click <b>Start</b>.';
+  openCaseModal();
   $('#setuplist').innerHTML = pending.map((p, i) => `<div class="scanrow" data-i="${i}">
       <div style="display:flex;align-items:center;gap:8px"><span class="fn" title="${p.file.name}">${p.file.name}</span><span class="rm" data-rm="${i}" title="remove">×</span></div>
       <div class="opts">
@@ -830,10 +864,11 @@ function setupCount(){
   $('#startcase').textContent = `Start — make ${nModels} model${nModels > 1 ? 's' : ''}` + (new Set(what).size === 1 ? ` (${what[0]})` : '');
 }
 $('#addopp').onclick = () => $('#file').click();
-$('#cancelcase').onclick = () => { pending = []; files = []; renderSetup(); $('#filehint').textContent = 'No file yet.'; };
+$('#cancelcase').onclick = () => { if (nameOnly) { closeCaseModal(); return; } pending = []; files = []; renderSetup(); $('#filehint').textContent = 'No file yet.'; };
 $('#startcase').onclick = () => {
+  if (nameOnly) { closeCaseModal(); return; }
   if (!pending.length) return;
-  if (!($('#pfirst').value.trim() && $('#plast').value.trim())) { $('#filehint').textContent = "Type the patient's first and last name first."; return; }
+  if (!($('#pfirst').value.trim() && $('#plast').value.trim())) { $('#modalintro').innerHTML = '<span style="color:var(--err)">Type the patient\'s first and last name first.</span>'; $('#pfirst').focus(); return; }
   files = pending.map(p => p.file);
   $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null, p.mg ? 'MG' : null].filter(Boolean), braces: !!p.braces })));
   $('#go').click();
@@ -891,7 +926,19 @@ function showPic(el){
   if (el.dataset.shown === name) return;
   const im = new Image(); im.onload = () => { el.innerHTML = ''; el.appendChild(im); el.dataset.shown = name; }; im.alt = ''; im.src = `/static/img/${name}.png`;
 }
-$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); $('#setApply').style.display = (currentJob && ($('#sendbtn') || $('#resendbtn'))) ? '' : 'none'; };
+function showSetTab(t){
+  document.querySelectorAll('.setTabs button').forEach(b => b.classList.toggle('on', b.dataset.settab === t));
+  document.querySelectorAll('.setTab').forEach(d => d.classList.toggle('on', d.dataset.settab === t));
+  const model = t === 'model';
+  $('#setDefaults').style.display = model ? '' : 'none';
+  $('#setApply').style.display = (model && currentJob && ($('#sendbtn') || $('#resendbtn'))) ? '' : 'none';
+  $('#sethint').innerHTML = model ? 'Each number has a picture of what it means. Changes apply to the next case — or to the case that is open, with <b>Apply to this case</b>.'
+                                 : 'Office-wide: the folders, the printer software and the learning. Saved on the PC that runs the app.';
+}
+document.querySelectorAll('.setTabs button').forEach(b => b.onclick = () => showSetTab(b.dataset.settab));
+$('#learnline').style.cursor = 'pointer'; $('#learnline').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); showSetTab('office'); };
+updatePatientLine();
+$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); showSetTab('model'); };
 $('#setApply').onclick = async () => {
   if (!currentJob) return;
   saveSettings(); $('#settings').classList.remove('on'); requestRender();
@@ -1054,7 +1101,7 @@ async function selectJob(id){
     shown = sig; refreshJobs();
     if (j.status === 'done') {
       // the New case card shows the open case's patient (unless a new case is being set up right now)
-      const p = j.params || {}; if (!pending.length && p.patient_first && p.patient_last) { $('#pfirst').value = p.patient_first; $('#plast').value = p.patient_last; }
+      const p = j.params || {}; if (!pending.length && p.patient_first && p.patient_last) { $('#pfirst').value = p.patient_first; $('#plast').value = p.patient_last; } updatePatientLine();
       try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); }
     }
     if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; const box = $('#review'); box.className = 'review discarded'; box.innerHTML = '<b>Processing failed.</b> Open the processing log below and send Dr. Akhavan the last lines; "Run again with these settings" starts the case over.'; $('#dl').innerHTML = ''; $('#rerunbox').style.display = 'block'; }
