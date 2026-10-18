@@ -4,7 +4,7 @@ import numpy as np
 import trimesh
 from .mesh_utils import load_scan, smooth_field
 from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
-from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads, tooth_threshold,
+from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads, tooth_threshold, snap_to_crease,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
                       bridge_embrasures, geodesic_dilate, cap_distal, round_distal, edentulous_gaps)
 from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure
@@ -366,7 +366,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         log("tooth separation reused from the previous run")
     else:
         thr = float(P["tooth_threshold"]) if P.get("tooth_threshold") else tooth_threshold(models)
-        mask = clean_mask(smooth_field(A, p_tooth, 4) > thr, A)
+        # the gum line follows the gingival crease through the model's unsure band (see snap_to_crease)
+        mask = clean_mask(snap_to_crease(mesh, A, smooth_field(A, p_tooth, 4), aux["Hs"], thr=thr), A)
         labels = separate_teeth(mesh, mask, p_ip, A, aux, arch_hint, log=log)
         mask = labels > 0          # separation may have dropped soft tissue mistaken for a tooth
         if feat_cache is not None:

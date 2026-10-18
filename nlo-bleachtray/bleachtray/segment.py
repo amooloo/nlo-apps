@@ -40,6 +40,48 @@ def predict_tooth_prob(mesh, models=None, feats=None):
     return p_tooth, p_ip, aux
 
 
+def snap_to_crease(mesh, A, p, Hs, thr=0.5, crease=-0.6, k=12.0, reach_mm=4.0):
+    """Tooth mask whose gum line follows the gingival crease rather than a bare probability cut.
+
+    The model is sure well inside a tooth and well out on the gum; the trouble is the band in between,
+    where it leans tooth on smooth gum (the labial and palatal gum next to the incisors, behind the last
+    molars) and leans gum on the low, smooth end of a crown (a cingulum, a canine's facial bulge). The
+    gingival sulcus runs between the two as a concave crease, and that is the line the gum line should
+    follow: confident tooth (p > thr + 0.15) and confident gum (p < thr - 0.3) race across the band on
+    a graph where stepping through a concave crease (Hs < `crease`, 1/mm, on the smoothed mesh) costs
+    up to ~k times the distance, and each band vertex goes to whichever side reaches it first. Band
+    vertices neither side reaches (a band wider than reach_mm) fall back to p > thr.
+    """
+    import scipy.sparse as sp, scipy.sparse.csgraph as csg
+    n = len(p)
+    hi = float(np.clip(thr + 0.15, 0.6, 0.9)); lo = float(np.clip(thr - 0.30, 0.15, 0.5))
+    tooth = p > hi; gum = p < lo; band = ~tooth & ~gum
+    out = p > thr
+    if not band.any() or not tooth.any() or not gum.any():
+        return out
+    V = np.asarray(mesh.vertices); e = mesh.edges_unique
+    length = np.linalg.norm(V[e[:, 0]] - V[e[:, 1]], axis=1)
+    h = np.minimum(Hs[e[:, 0]], Hs[e[:, 1]])
+    pen = np.clip((crease - h) / abs(crease), 0, None)          # 0 on flat / convex, grows into a trough
+    w = length * (1.0 + k * pen ** 2)
+    G = sp.coo_matrix((np.r_[w, w], (np.r_[e[:, 0], e[:, 1]], np.r_[e[:, 1], e[:, 0]])), shape=(n, n)).tocsr()
+    e2 = A.tocoo()
+    seed_t = np.zeros(n, bool); seed_t[e2.row[tooth[e2.row] & band[e2.col]]] = True
+    seed_g = np.zeros(n, bool); seed_g[e2.row[gum[e2.row] & band[e2.col]]] = True
+    if not seed_t.any() or not seed_g.any():
+        return out
+    keep = band | seed_t | seed_g
+    idx = np.where(keep)[0]; Gs = G[idx][:, idx]
+    pos = -np.ones(n, int); pos[idx] = np.arange(len(idx))
+    lim = reach_mm * (1.0 + k)        # a path may cross creases and still arrive
+    dt = csg.dijkstra(Gs, directed=False, indices=pos[np.where(seed_t)[0]], min_only=True, limit=lim)
+    dg = csg.dijkstra(Gs, directed=False, indices=pos[np.where(seed_g)[0]], min_only=True, limit=lim)
+    b = np.where(band)[0]; bt, bg = dt[pos[b]], dg[pos[b]]
+    decided = np.isfinite(bt) | np.isfinite(bg)
+    out[b[decided]] = bt[decided] < bg[decided]
+    return out
+
+
 def clean_mask(mask, A, min_verts=400, fill_holes_max=1500):
     """Remove small tooth islands; fill small gingiva holes enclosed in teeth."""
     mask = mask.copy()
