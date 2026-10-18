@@ -673,9 +673,9 @@ def _run(job):
                         r[ok] = remap2[remap[ok]]; remap = r
             # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
             path = job["scans"][k0]["path"]       # (a take-off / cut gave the scan a new file)
-            if me.get("noreservoir") or me.get("blockout") or me.get("reservoir") or me.get("unblockout"):
+            if me.get("noreservoir") or me.get("blockout") or me.get("reservoir") or me.get("unblockout") or me.get("contact") or me.get("uncontact"):
                 entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
-                for key in ("noreservoir", "blockout", "reservoir"):
+                for key in ("noreservoir", "blockout", "reservoir", "contact"):
                     idx = np.asarray(me.get(key) or [], dtype=int)
                     if remap is not None and len(idx):
                         idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
@@ -693,6 +693,16 @@ def _run(job):
                     before = len(entry["blockout"])
                     entry["blockout"] = sorted(set(entry["blockout"]) - set(int(i) for i in idx))
                     log(f"painted: block-out cleared on {before - len(entry['blockout'])} vertices")
+                # a contact dot taken away again (an applied one shows pale on the Segmentation tab)
+                if me.get("uncontact"):
+                    idx = np.asarray(me["uncontact"], dtype=int)
+                    if remap is not None and len(idx):
+                        idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
+                    before = len(entry.get("contact", []))
+                    entry["contact"] = sorted(set(entry.get("contact", [])) - set(int(i) for i in idx))
+                    log(f"contact dots: {before - len(entry['contact'])} taken away, {len(entry['contact'])} kept")
+                if me.get("contact"):
+                    log(f"contact dots: {len(entry['contact'])} on this scan")
                 log(f"painted: {len(entry['noreservoir'])} vertices without reservoir, {len(entry.get('reservoir', []))} with one added, {len(entry['blockout'])} to block out")
             remaps[path] = remap; edits_by_path[path] = (k0, me)
         for i, k in enumerate(todo):
@@ -701,7 +711,7 @@ def _run(job):
                 job["progress"] = dict(frac=round((i + frac) / n, 3), label=label, scan=k, of=len(job["scans"]), step=i, steps=n)
             if scan["path"] in edits_by_path and scan["path"] not in overrides:
                 k0, me = edits_by_path[scan["path"]]
-                if me.get("add") or me.get("remove"):
+                if me.get("add") or me.get("remove") or me.get("contact") or me.get("uncontact"):
                     progress(0.02, "applying your brush fixes")
                     overrides[scan["path"]] = _apply_mask_edit(job, k0, edit=me, remap=remaps.get(scan["path"]))
                     fixed[scan["path"]] = overrides[scan["path"]]
@@ -1012,7 +1022,18 @@ def _apply_mask_edit(job, k=0, edit=None, remap=None):
     A = aux["A"]
     mask = clean_mask(mask, A)
     arch = scan.get("arch") or job["params"].get("arch") or detect_arch(mesh, os.path.basename(scan["path"]))
-    return separate_teeth(mesh, mask, p_ip, A, aux, arch, log=lambda m: None)
+    # the doctor's contact dots (this edit's and the ones kept from earlier) decide where crowded teeth split
+    dots = set(int(i) for i in ((job.get("paint") or {}).get(scan["path"]) or {}).get("contact", []))
+    con = np.array(edit.get("contact", []), dtype=int)
+    if remap is not None and len(remap) == len(st["labels"]) and len(con):
+        con = remap[con[(con >= 0) & (con < len(remap))]]; con = con[con >= 0]
+    dots |= set(int(i) for i in con)
+    log_lines = []
+    labels2 = separate_teeth(mesh, mask, p_ip, A, aux, arch, log=log_lines.append, contacts=sorted(dots))
+    for ln in log_lines:
+        if "contact dots" in ln:
+            job.setdefault("log", []).append(f"[{scan['name']}] {ln}")
+    return labels2
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -1235,7 +1256,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
         # any painted vertex is just a re-run: it must not count as a brush correction
         mes = me if isinstance(me, list) else ([me] if me else [])
-        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "reservoir"))]
+        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "reservoir", "contact", "uncontact"))]
         job["mask_edit"] = mes or None
     except Exception:
         job["mask_edit"] = None
@@ -1686,7 +1707,9 @@ def job_file(jid: str, kind: str, scan: int = 0):
     path = os.path.join(job["dir"], fn)
     if not os.path.exists(path):
         raise HTTPException(404)
-    return FileResponse(path, media_type=mt, filename=fn)
+    # rewritten at the same URL on every re-run: the browser must not keep a copy (without this, Chrome's
+    # heuristic freshness served the previous body for a while after a move on the base)
+    return FileResponse(path, media_type=mt, filename=fn, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/jobs/{jid}/segmesh")
@@ -1712,7 +1735,7 @@ def seg_mesh(jid: str, scan: int = 0):
     # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out; bit 4 = brackets / wire removed; bit 8 = bracket shield; bit 16 = reservoir added
     pe = (job.get("paint") or {}).get(sc["path"]) or {}
     flags = np.zeros(len(V), dtype=np.uint8)
-    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed"), (16, "reservoir")):
+    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed"), (16, "reservoir"), (32, "contact")):
         idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
         flags[idx] |= bit
     # bit 8 = under the mouthguard's bracket shield (found + painted)
