@@ -382,7 +382,9 @@
         </svg></div>
         <div class="stepper"><button data-step="-0.1" data-for="res_sb">−</button><input type="number" id="res_sb" step="0.1" min="0" max="3" value="1.0"><button data-step="0.1" data-for="res_sb">+</button></div>
       </div>
-      <div class="scard"><div class="sLab">Exposed root: extra leeway (mm) <span class="info" title="Where a tooth shows root (recession, a crown's margin) the app finds the root on its own and the reservoir stops above it - plus this much more. Gel on root means sensitivity. Paint 'No reservoir' on anything it misses.">i</span></div>
+      <div class="scard"><div class="sLab">Exposed root <span class="info" title="Recession is the doctor's call: by default the reservoir simply stays 1 mm off the gum line everywhere and root is handled with Erase in the Reservoirs tab (the leeway is how far the erased patch keeps the reservoir away). Switched on, the app looks for root showing on each reservoir tooth and keeps the reservoir above it plus the leeway - it also fires on a gum line the model drew too low, so it is off until the gum line is right.">i</span></div>
+        <select id="rec_auto" style="width:100%;margin:0 0 6px"><option value="0">Off — I erase recession myself (Reservoirs tab)</option><option value="1">On — find root and keep the reservoir above it</option></select>
+        <div class="sLab" style="margin-top:4px">Leeway around root / erased patch (mm)</div>
         <div class="sPic" data-img="recession"><svg viewBox="0 0 120 72">
           <path d="M60 8 C72 6 82 12 84 22 L88 46 C90 60 76 68 60 66 C44 64 38 54 36 44 L34 22 C34 12 48 10 60 8 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
           <path d="M26 56 Q44 44 60 52 Q76 60 98 50 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
@@ -839,7 +841,7 @@ $('#startcase').onclick = () => {
 function params(){ return {
   tracker_case: (TRACKER && TRACKER.case) || '',
   // per model type: the whitening tray gets reservoirs and its own line, the retainer its line onto the gum
-  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, recession_leeway: +$('#rec_lee').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, blockout: false },
+  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, recession_auto: $('#rec_auto').value === '1', recession_leeway: +$('#rec_lee').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, blockout: false },
   tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0), blockout: $('#blockout').value !== '0', blockout_depth: +$('#blockout').value || 0.75 },
   // the base
   facial_offset: +$('#rim').value, lingual_offset: +$('#rim').value, floor_below: +$('#floor_below').value, distal_keep: +$('#distal_keep').value,
@@ -848,7 +850,7 @@ function params(){ return {
   patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null,
   order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust: { ...adjust } }; }
 // ---------- settings panel ----------
-const SETTING_IDS = ['res_n','res_h','res_sb','rec_lee','tl_off','tt_off','blockout','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
+const SETTING_IDS = ['res_n','res_h','res_sb','rec_auto','rec_lee','tl_off','tt_off','blockout','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
 const SETTING_DEFAULTS = {};
 SETTING_IDS.forEach(id => { SETTING_DEFAULTS[id] = $('#' + id).value; });
 function saveSettings(){ try { const o = {}; SETTING_IDS.forEach(id => o[id] = $('#' + id).value); localStorage.setItem('nlo.bleachtray.settings', JSON.stringify(o)); } catch (e) {} summarizeSettings(); }
@@ -862,6 +864,7 @@ function summarizeSettings(){
   if (diff('res_n') || diff('res_h')) bits.push(`reservoirs ${$('#res_n').value}-${$('#res_n').value} · ${$('#res_h').value} mm`);
   if (diff('tt_off')) bits.push(`retainer line ${$('#tt_off').value} mm`);
   if (diff('res_sb') || diff('rec_lee')) bits.push(`gum distance ${$('#res_sb').value} mm, root leeway ${$('#rec_lee').value} mm`);
+  if (diff('rec_auto')) bits.push($('#rec_auto').value === '1' ? 'finds exposed roots' : 'no root detection');
   if (diff('blockout')) bits.push($('#blockout').value === '0' ? 'no block-out' : `block-out > ${$('#blockout').value} mm`);
   if (diff('rim') || diff('floor_below')) bits.push(`base ${$('#rim').value} / ${$('#floor_below').value} mm`);
   if ($('#level').value !== '1') bits.push('not levelled');
