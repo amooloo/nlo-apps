@@ -333,7 +333,7 @@
         <button class="pchip" id="placechip" title="Fine steps for the base, underside view, Apply / Reset">&#10021; Position on the base &#9656;</button>
         <div class="place" id="place">
           <div class="phead"><h4>Position on the base</h4><span class="sp"></span><button class="ibtn" id="placehelp" title="How to move the base">?</button><button class="ibtn" id="placehide" title="Hide this box - the Position chip brings it back">&ndash;</button></div>
-          <div class="hint phelp" id="placehelptext"><b>Drag the base plate</b> to slide it, <b>drag the blue ring</b> to turn it - the arch stays where it is. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> rebuilds the model and replaces the Trimlign order (~1 min); <b>Reset</b> goes back to the automatic placement.</div>
+          <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> rebuilds the model and replaces the Trimlign order (~1 min); <b>Reset</b> goes back to the automatic placement.</div>
           <div class="seg" style="margin:8px 0"><button class="small" id="viewUnder" title="Look up at the underside: the locating holes in the base plate must stay clear of the arch">Underneath (holes)</button><button class="small" id="viewTop">From above</button></div>
           <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
           <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
@@ -677,6 +677,7 @@ function syncPanels(){
   $('#brush').classList.toggle('on', brushHas && panelOpen.brush); $('#brushchip').classList.toggle('on', brushHas && !panelOpen.brush);
   const placeHas = tab === 'result' && !!archGroup;
   $('#place').classList.toggle('on', placeHas && panelOpen.place); $('#placechip').classList.toggle('on', placeHas && !panelOpen.place);
+  syncHandles(); requestRender();
 }
 $('#brushchip').onclick = () => { panelOpen.brush = true; syncPanels(); };
 $('#placechip').onclick = () => { panelOpen.place = true; syncPanels(); };
@@ -1183,7 +1184,7 @@ function addTrimline(group, pts, color=0xe11d48){
   // onto the gum for retainers): draw it twice - solid where visible, faint where the model hides it
   const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0],p[1],p[2])));
   const solid = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, linewidth:2}));
-  const ghost = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, transparent:true, opacity:0.45, depthTest:false}));
+  const ghost = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, transparent:true, opacity:0.1, depthTest:false}));   // the far side: a whisper, not a second line
   ghost.renderOrder = 10;
   for (const m of [solid, ghost]) { m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m); }
 }
@@ -1225,7 +1226,7 @@ async function loadResult(id, j){
   let boBuf = null;   // the block-out fills, shown in teal so they can be checked
   if (bo.spots) { const bres = await fetch(`/api/jobs/${id}/file/blockout${q}`); if (bres.ok) boBuf = await bres.arrayBuffer(); }
   if (seq !== loadSeq) return;            // a newer selection took over while this one was loading
-  clear(groups.result); archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null;
+  clear(groups.result); archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = [];
   const g = new THREE.Group();
   g.add(new THREE.Mesh(parseSTL(bodyBuf), mat));
   if (boBuf) g.add(new THREE.Mesh(parseSTL(boBuf), new THREE.MeshStandardMaterial({ color: 0x14b8a6, roughness: .5, metalness: 0, envMapIntensity: .4, polygonOffset: true, polygonOffsetFactor: -1 })));
@@ -1238,11 +1239,11 @@ async function loadResult(id, j){
     baseGroup = new THREE.Group(); baseGroup.matrixAutoUpdate = false;
     baseMat = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .6, metalness: .05, envMapIntensity: .4, transparent: true, opacity: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     baseMesh = new THREE.Mesh(parseSTL(baseBuf), baseMat); baseGroup.add(baseMesh);
-    ringMesh = new THREE.Mesh(new THREE.TorusGeometry(RING_R, 0.7, 10, 128), new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: .85, depthTest: false, depthWrite: false }));
-    ringMesh.position.set(pivot[0], pivot[1], 1.5); ringMesh.renderOrder = 10; baseGroup.add(ringMesh);
+    ringMesh = new THREE.Mesh(new THREE.TorusGeometry(RING_R, 0.35, 10, 128), new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: .5, depthTest: false, depthWrite: false }));
+    ringMesh.position.set(pivot[0], pivot[1], 1.5); ringMesh.renderOrder = 10; baseGroup.add(ringMesh); ringParts = [ringMesh];
     for (const a of [0, 90, 180, 270]) {   // four grips on the ring, so it reads as something to turn
-      const grip = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 12), ringMesh.material);
-      grip.position.set(pivot[0] + RING_R * Math.cos(a * Math.PI / 180), pivot[1] + RING_R * Math.sin(a * Math.PI / 180), 1.5); grip.renderOrder = 10; baseGroup.add(grip);
+      const grip = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 12), ringMesh.material);
+      grip.position.set(pivot[0] + RING_R * Math.cos(a * Math.PI / 180), pivot[1] + RING_R * Math.sin(a * Math.PI / 180), 1.5); grip.renderOrder = 10; baseGroup.add(grip); ringParts.push(grip);
     }
     groups.result.add(baseGroup);
   }
@@ -1259,7 +1260,11 @@ async function loadResult(id, j){
 // arch stays where it is and the base plate moves the opposite way - that is what one is really deciding:
 // where the plate, with its locating holes, sits under this arch. Dragging the plate slides it, dragging
 // the blue ring turns it; the step buttons do the same in fixed amounts.
-let archGroup = null, baseGroup = null, baseMesh = null, baseMat = null, ringMesh = null, pivot = [0, 0];
+let archGroup = null, baseGroup = null, baseMesh = null, baseMat = null, ringMesh = null, ringParts = [], pivot = [0, 0];
+// the base handles (ring + grips, plate dragging) exist only while "Position on the base" is open - otherwise the
+// view is just the model, and a drag is always an orbit
+const handlesOn = () => tab === 'result' && panelOpen.place && !!baseGroup;
+function syncHandles(){ const on = handlesOn(); ringParts.forEach(m => { m.visible = on; }); }
 const RING_R = 33;
 let adjust = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, applied = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 };
 function placeMatrix(a){ // rotate about the trimline centroid, then shift (same as the server)
@@ -1299,7 +1304,7 @@ function planeHit(ev, z){
   return isFinite(t) && t > 0 ? pray.ray.at(t, new THREE.Vector3()) : null;
 }
 function baseHandleAt(ev){
-  if (tab !== 'result' || !baseGroup) return null;
+  if (!handlesOn()) return null;
   const c = new THREE.Vector3(pivot[0], pivot[1], 1.5).applyMatrix4(baseGroup.matrix);   // ring centre, world
   const p = planeHit(ev, c.z);
   if (p && Math.abs(Math.hypot(p.x - c.x, p.y - c.y) - RING_R) < 3.5) return { kind: 'turn', c };
