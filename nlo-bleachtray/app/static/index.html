@@ -237,6 +237,8 @@
   .mbtn:hover{background:var(--grey-100);color:var(--navy)}
   .mbtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
   .mbtn:disabled{color:var(--grey-300);cursor:not-allowed;background:transparent}
+  .mbtn.ghost{color:var(--grey-300)} .mbtn.ghost:hover{color:var(--grey-500);background:var(--grey-100)}
+  .mgask{position:absolute;right:12px;bottom:76px;z-index:3;width:300px;background:#fff;border:1px solid var(--grey-100);border-radius:12px;padding:12px 14px;box-shadow:var(--sh-md, 0 8px 24px rgba(0,0,0,.12));font-size:13px}
   .mbtn .ic{width:58px;height:48px;background:currentColor;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
   .mbtn .badge{position:absolute;top:3px;right:5px;font-family:var(--fd);font-weight:700;font-size:10px;letter-spacing:.05em}
   .stats{position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:12px;padding:8px 13px;font-size:12px;color:var(--grey-500);max-width:min(600px,calc(100% - 420px));box-shadow:var(--sh-sm)}
@@ -347,12 +349,14 @@
         <button class="pchip" id="placechip" title="Fine steps for the base, underside view, Apply / Reset">&#10021; Position on the base &#9656;</button>
         <div class="place" id="place">
           <div class="phead"><h4>Position on the base</h4><span class="sp"></span><button class="ibtn" id="placehelp" title="How to move the base">?</button><button class="ibtn" id="placehide" title="Hide this box - the Position chip brings it back">&ndash;</button></div>
-          <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> moves this arch's models on the base (a few seconds - a height change rebuilds them, ~1 min) and replaces the Trimlign order; the other arch stays as it is. <b>Reset</b> goes back to the automatic placement.</div>
+          <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. The <b>mark</b> on the model (the raised initials + W/R that form into the tray) shows as a small card on the model: <b>drag it</b> onto any tooth or onto the side of the model, turn it and size it with the Mark buttons, choose what it says, raised or cut in; <b>Auto</b> puts it back on a first molar. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> moves this arch's models on the base (a few seconds - a height change rebuilds them, ~1 min) and replaces the Trimlign order; the other arch stays as it is. <b>Reset</b> goes back to the automatic placement.</div>
           <div class="seg" style="margin:8px 0"><button class="small" id="viewUnder" title="Look up at the underside: the locating holes in the base plate must stay clear of the arch">Underneath (holes)</button><button class="small" id="viewTop">From above</button></div>
           <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
           <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
           <div class="prow"><span>Back / forward</span><button data-adj="dy" data-d="-1">&darr; 1</button><button data-adj="dy" data-d="-0.25">&darr; &frac14;</button><span class="val" id="v_dy">0.00</span><button data-adj="dy" data-d="0.25">&frac14; &uarr;</button><button data-adj="dy" data-d="1">1 &uarr;</button></div>
           <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
+          <div class="prow" style="margin-top:6px;border-top:1px solid var(--grey-100);padding-top:6px;flex-wrap:wrap"><span title="The mark on the model (initials + W/R, raised so it forms into the tray): drag the card onto any tooth or the side of the model">Mark</span><button data-mk="angle_deg" data-d="-15" title="Turn the mark">&#8634; 15&deg;</button><button data-mk="angle_deg" data-d="15" title="Turn the mark">15&deg; &#8635;</button><button data-mk="cap" data-d="-0.3" title="Smaller letters">A&minus;</button><button data-mk="cap" data-d="0.3" title="Bigger letters">A+</button><select id="mktext" class="small" title="What the mark says"><option value="initials">Initials + W/R</option><option value="last">Last name + W/R</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button><button class="small" id="mkauto" title="Back to the automatic spot: the cheek of a first molar">Auto</button></div>
+          <div class="hint" id="markstate" style="margin:2px 0 0"></div>
           <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
           <div class="hint" id="placestate"></div>
         </div>
@@ -850,7 +854,8 @@ function setFiles(fs, auto){
   const fresh = pending.length === 0;      // a new case starts with this drop (not a second file added to one)
   for (const f of fs) {
     if (pending.length >= 2) break;
-    pending.push({ file: f, arch: archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : ''), wt: dflt.wt, tt: dflt.tt, mg: dflt.mg, braces: false });
+    const arch = archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : '');
+    pending.push({ file: f, arch, wt: dflt.wt, tt: dflt.tt, mg: dflt.mg && arch !== 'lower', braces: false });   // a mouthguard is made for the upper only
   }
   const first = pending[0].file;
   $('#name').value = first.name.replace(/\.(stl|ply)$/i,'');
@@ -891,10 +896,10 @@ function renderSetup(){
         <select data-arch="${i}"><option value="" ${!p.arch?'selected':''}>Arch: auto-detect</option><option value="upper" ${p.arch==='upper'?'selected':''}>Upper (maxilla)</option><option value="lower" ${p.arch==='lower'?'selected':''}>Lower (mandible)</option></select>
         <label class="ck"><input type="checkbox" data-wt="${i}" ${p.wt?'checked':''}> Whitening tray</label>
         <label class="ck"><input type="checkbox" data-tt="${i}" ${p.tt?'checked':''}> Retainer (TT)</label>
-        <label class="ck" title="Sports mouthguard with the braces on: brackets stay under smooth shields, the trim line runs deep into the vestibule with notches at the frena and 6 mm onto the palate"><input type="checkbox" data-mg="${i}" ${p.mg?'checked':''}> Mouthguard (MG)</label>
+        ${p.arch === 'lower' ? '' : `<label class="ck" title="Sports mouthguard (upper only) with the braces on: brackets stay under smooth shields, the trim line runs deep into the vestibule with notches at the frena and 6 mm onto the palate"><input type="checkbox" data-mg="${i}" ${p.mg?'checked':''}> Mouthguard (MG)</label>`}
         <label class="ck" title="Tick only for a scan taken with brackets on (eval appointment): brackets, wire and ties are found and taken off and the enamel rebuilt before the tray is made. Never done on its own - leave it off for a plain scan." style="margin-left:10px;color:#b45309"><input type="checkbox" data-br="${i}" ${p.braces?'checked':''}> Braces on — take them off first</label>
       </div></div>`).join('');
-  document.querySelectorAll('[data-arch]').forEach(e => e.onchange = () => { pending[+e.dataset.arch].arch = e.value; renderSetup(); });
+  document.querySelectorAll('[data-arch]').forEach(e => e.onchange = () => { pending[+e.dataset.arch].arch = e.value; if (e.value === 'lower') pending[+e.dataset.arch].mg = false; renderSetup(); });
   document.querySelectorAll('[data-wt]').forEach(e => e.onchange = () => { pending[+e.dataset.wt].wt = e.checked; setupCount(); });
   document.querySelectorAll('[data-tt]').forEach(e => e.onchange = () => { pending[+e.dataset.tt].tt = e.checked; setupCount(); });
   document.querySelectorAll('[data-mg]').forEach(e => e.onchange = () => { pending[+e.dataset.mg].mg = e.checked; setupCount(); });
@@ -932,7 +937,7 @@ function params(){ return {
   level: $('#level').value === '1', add_base: $('#base').value === '1', tooth_mark: $('#tooth_mark').value === '1',
   engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(),
   patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null,
-  order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust_by_arch: adjustMap() }; }
+  order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust_by_arch: adjustMap(), mark_by_arch: markMap() }; }
 // ---------- settings panel ----------
 const SETTING_IDS = ['res_n','res_h','res_sb','rec_auto','rec_lee','tl_off','tt_off','blockout','blockout_proud','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
 const SETTING_DEFAULTS = {};
@@ -1136,7 +1141,7 @@ async function refreshJobs(){
 }
 let pollTimer = null;
 async function selectJob(id){
-  if (id !== currentJob) { pendingAdj = {}; curReports = []; curArch = null; forgetEdits(); }   // a pending move and unapplied strokes belong to the case they were made on
+  if (id !== currentJob) { pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null; forgetEdits(); }   // a pending move and unapplied strokes belong to the case they were made on
   currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
   clearInterval(pollTimer);
   // keeps watching the open case: a lower dropped by someone else joins it and shows up when done
@@ -1197,7 +1202,7 @@ window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev
 function clearViewer(msg){
   clearInterval(pollTimer); currentJob = null;
   $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Drop a scan to begin.'; $('#modeltog').classList.remove('on');
-  clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; pendingAdj = {}; curReports = []; curArch = null;
+  clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; markMesh = null; pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null;
   forgetEdits(); renderPanel(); syncPanels(); requestRender(); refreshJobs(); searchHistory();
 }
 function renderReview(id, j){
@@ -1210,7 +1215,7 @@ function renderReview(id, j){
   // one more model from a scan already in the case (chose the retainer, now the whitening tray is wanted too)
   const have = new Set((j.scans || []).map(s => `${s.arch}|${s.tag}`));
   const archesIn = [...new Set((j.scans || []).map(s => s.arch).filter(Boolean))];
-  const addable = archesIn.flatMap(a => [['WT', 'whitening tray'], ['TT', 'retainer'], ['MG', 'mouthguard']].filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));
+  const addable = archesIn.flatMap(a => [['WT', 'whitening tray'], ['TT', 'retainer']].filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));   // the mouthguard: the fifth icon in the model row
   const addLine = addable.length ? `<div class="hint" style="margin-top:8px">Also make from the scan${archesIn.length > 1 ? 's' : ''} already here: ` +
     addable.map(o => `<button class="small addmodel" data-arch="${o.a}" data-make="${o.t}" style="margin:3px 4px 0 0">+ ${o.lab} ${o.a}</button>`).join('') + `</div>` : '';
   const wireAdd = () => box.querySelectorAll('.addmodel').forEach(b => b.onclick = async () => {
@@ -1305,16 +1310,40 @@ let loadSeq = 0;
 function renderModelToggle(id, j){
   const scans = j.scans || []; const box = $('#modeltog');
   const words = { WT: 'whitening tray', TT: 'retainer', MG: 'mouthguard' };
-  const slots = [['upper', 'WT'], ['upper', 'TT'], ['lower', 'WT'], ['lower', 'TT']];
-  for (const a of ['upper', 'lower']) { if (scans.some(s => s.arch === a && s.tag === 'MG')) slots.push([a, 'MG']); if (scans.some(s => s.arch === a && !s.tag)) slots.push([a, null]); }
+  const slots = [['upper', 'WT'], ['upper', 'TT'], ['lower', 'WT'], ['lower', 'TT'], ['upper', 'MG']];   // the mouthguard: upper only, always shown
+  if (scans.some(s => s.arch === 'lower' && s.tag === 'MG')) slots.push(['lower', 'MG']);               // (an older case that has one)
+  for (const a of ['upper', 'lower']) if (scans.some(s => s.arch === a && !s.tag)) slots.push([a, null]);
+  const hasUpper = scans.some(s => s.arch === 'upper');
+  const canAsk = (j.review || 'review') === 'review' || j.review === 'sent';
   box.innerHTML = slots.map(([a, t]) => {
     const k = scans.findIndex(s => s.arch === a && (t ? s.tag === t : !s.tag));
     const ic = t === 'MG' ? 'mg' : t ? `${t.toLowerCase()}_${a}` : `arch_${a}`;
     const name = `${a[0].toUpperCase() + a.slice(1)} ${t ? words[t] : 'model'}`;
-    return `<button class="mbtn ${k === scanIdx ? 'on' : ''}" data-scan="${k}" ${k < 0 ? 'disabled' : ''} title="${name}${k < 0 ? ' — not in this case' : ''}"><span class="ic" style="--m:url(/static/img/ic_${ic}.png)"></span>${t === 'MG' || !t ? `<span class="badge">${a === 'upper' ? 'U' : 'L'}</span>` : ''}</button>`;
+    const ghost = k < 0 && t === 'MG' && a === 'upper' && hasUpper && canAsk;   // not made yet: grey, a click asks
+    return `<button class="mbtn ${k === scanIdx ? 'on' : ''} ${ghost ? 'ghost' : ''}" data-scan="${k}" ${ghost ? 'data-ask="upper"' : ''} ${k < 0 && !ghost ? 'disabled' : ''} title="${name}${ghost ? ' — not made yet: click to add one' : (k < 0 ? ' — not in this case' : '')}"><span class="ic" style="--m:url(/static/img/ic_${ic}.png)"></span>${t === 'MG' || !t ? `<span class="badge">${a === 'upper' ? 'U' : 'L'}</span>` : ''}</button>`;
   }).join('');
   box.classList.toggle('on', scans.length > 0);
-  box.querySelectorAll('.mbtn:not([disabled])').forEach(b => b.onclick = () => { if (+b.dataset.scan === scanIdx) return; scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
+  box.querySelectorAll('.mbtn:not([disabled]):not([data-ask])').forEach(b => b.onclick = () => { if (+b.dataset.scan === scanIdx) return; scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
+  box.querySelectorAll('.mbtn[data-ask]').forEach(b => b.onclick = () => askMouthguard(id, b));
+}
+// the grey mouthguard icon: "make one?" - a small card above the row, Make it / Not now
+function askMouthguard(id, btn){
+  let pop = $('#mgask'); if (pop) pop.remove();
+  pop = document.createElement('div'); pop.id = 'mgask'; pop.className = 'mgask';
+  pop.innerHTML = `<div><b>Make a mouthguard for the upper?</b></div><div class="hint" style="margin:4px 0 8px">From the upper scan already in this case: brackets stay under smooth shields, the line runs deep into the vestibule. The case comes back for a check.</div><div style="display:flex;gap:6px;justify-content:flex-end"><button class="small" id="mgno">Not now</button><button class="primary small" id="mgyes">Make it</button></div>`;
+  $('#view').appendChild(pop);
+  const close = () => { pop.remove(); document.removeEventListener('mousedown', away, true); };
+  const away = ev => { if (!pop.contains(ev.target) && ev.target !== btn) close(); };
+  setTimeout(() => document.addEventListener('mousedown', away, true), 0);
+  $('#mgno').onclick = close;
+  $('#mgyes').onclick = async () => {
+    $('#mgyes').disabled = true; $('#mgyes').textContent = 'Adding…';
+    const fd = new FormData(); fd.append('arch', 'upper'); fd.append('make', 'MG');
+    const rs = await fetch(`/api/jobs/${id}/add`, { method: 'POST', body: fd }); const r = await rs.json();
+    close();
+    if (!rs.ok) { showErr(r.detail || 'Could not add the mouthguard.'); return; }
+    $('#dl').innerHTML = ''; refreshJobs(); selectJob(id);
+  };
 }
 const NOCACHE = { cache: 'no-store' };   // the case's files are rewritten at the same URL on every re-run: never the browser's copy
 async function fetchOk(url){ const r = await fetch(url, NOCACHE); if (!r.ok) throw new Error(`not available right now (${r.status}) - the case is probably being rebuilt; it reloads when done`); return r; }
@@ -1357,7 +1386,7 @@ async function loadResult(id, j){
   let boBuf = null;   // the block-out fills, shown in teal so they can be checked
   if (bo.spots) { const bres = await fetch(`/api/jobs/${id}/file/blockout${q}`, NOCACHE); if (bres.ok) boBuf = await bres.arrayBuffer(); }
   if (seq !== loadSeq) return;            // a newer selection took over while this one was loading
-  clear(groups.result); archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = [];
+  clear(groups.result); archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; markMesh = null;
   const g = new THREE.Group();
   g.add(new THREE.Mesh(parseSTL(bodyBuf), mat));
   if (boBuf) g.add(new THREE.Mesh(parseSTL(boBuf), new THREE.MeshStandardMaterial({ color: 0x14b8a6, roughness: .5, metalness: 0, envMapIntensity: .4, polygonOffset: true, polygonOffsetFactor: -1 })));
@@ -1368,6 +1397,8 @@ async function loadResult(id, j){
   curReports = j.reports || []; curArch = r.arch || null;
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
   adjust = pendingAdj[curArch] ? { ...pendingAdj[curArch] } : { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false;
+  markInfo = r.mark || null; markApplied = r.mark_param || null; markNow = curArch in pendingMark ? pendingMark[curArch] : undefined; curScanIdx = scanIdx;
+  makeMarkCard();
   if (baseBuf) {
     // the base plate and its handle ring move as one; the arch never moves on screen
     baseGroup = new THREE.Group(); baseGroup.matrixAutoUpdate = false;
@@ -1400,10 +1431,95 @@ let archGroup = null, baseGroup = null, baseMesh = null, baseMat = null, ringMes
 // the base handles (ring + grips, plate dragging) exist only while "Position on the base" is open - otherwise the
 // view is just the model, and a drag is always an orbit
 const handlesOn = () => tab === 'result' && panelOpen.place && !!baseGroup;
-function syncHandles(){ const on = handlesOn(); ringParts.forEach(m => { m.visible = on; }); }
+function syncHandles(){ const on = handlesOn(); ringParts.forEach(m => { m.visible = on; }); if (markMesh) markMesh.visible = markOn(); }
 const RING_R = 33;
 let adjust = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, applied = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 };
 let pendingAdj = {}, curReports = [], curArch = null;   // per arch: a placement moved on screen but not applied yet
+// the mark on the model, per arch like the placement: `markInfo` is where the server put it (output frame, with
+// its reading frame), `markApplied` what the server was asked (null = automatic), `markNow` what is on screen -
+// undefined = as applied, 'auto' = back to automatic, else {x, y, z, nx, ny, nz, angle_deg, cap, text, raised}
+let markInfo = null, markApplied = null, markNow, pendingMark = {}, markMesh = null, markTex = null, curScanIdx = 0;
+function markMap(){
+  const m = {};
+  for (const r of curReports) if (r && r.arch && !(r.arch in m)) m[r.arch] = r.mark_param || null;
+  for (const a in pendingMark) m[a] = pendingMark[a] === 'auto' ? null : Object.assign({ frame: 'output' }, pendingMark[a]);
+  return m;
+}
+const trayLetter = () => { const t = ((curScans[curScanIdx] || {}).tag || ''); return t === 'TT' ? 'R' : t === 'MG' ? 'G' : 'W'; };
+function markText(mode){
+  const f = $('#pfirst').value.trim(), l = $('#plast').value.trim(), L = trayLetter();
+  if (mode === 'full' && (f || l)) return `${f} ${l}`.trim().toUpperCase();
+  if (mode === 'last' && l) return `${l} ${L}`.toUpperCase();
+  return (((f[0] || '') + (l[0] || '')) || 'NL').toUpperCase() + ' ' + L;
+}
+// the current mark as a placement: what is on screen, else where the server put it
+function markCurrent(){
+  if (markNow && markNow !== 'auto') return markNow;
+  if (markNow === 'auto' || !markInfo) return null;
+  const a = markInfo.anchor, n = markInfo.normal;
+  return { x: a[0], y: a[1], z: a[2], nx: n[0], ny: n[1], nz: n[2], angle_deg: markInfo.angle_deg || 0, cap: markInfo.cap || 2.4, text: markInfo.mode || 'initials', raised: markInfo.raised !== false, right: markInfo.right, up: markInfo.up, width: markInfo.width_mm };
+}
+function markFrame(mk){
+  // reading frame at the spot: up is up on the model, right the viewer's right looking from outside, turned by the angle
+  const n = new THREE.Vector3(mk.nx, mk.ny, mk.nz).normalize();
+  let up = new THREE.Vector3(0, 0, 1).addScaledVector(n, -n.z);
+  if (up.length() < 0.3) up = new THREE.Vector3(0, -1, 0).addScaledVector(n, n.y);
+  up.normalize();
+  let right = new THREE.Vector3().crossVectors(up, n).normalize();
+  const a = (mk.angle_deg || 0) * Math.PI / 180, c = Math.cos(a), s_ = Math.sin(a);
+  const r2 = right.clone().multiplyScalar(c).addScaledVector(up, s_), u2 = right.clone().multiplyScalar(-s_).addScaledVector(up, c);
+  return { n, right: r2.normalize(), up: u2.normalize() };
+}
+function markLabelText(mk){ return markText(mk.text || 'initials'); }
+function makeMarkCard(){
+  if (markMesh) { if (markMesh.parent) markMesh.parent.remove(markMesh); markMesh = null; }
+  const mk = markCurrent(); if (!mk || !archGroup) { updateMarkState(); return; }
+  const text = markLabelText(mk), cap = mk.cap || 2.4;
+  const est = 0.72 * cap * text.length + 0.3 * cap;                       // about what the letters will take
+  const w = Math.max(mk.width && mk.text === (markInfo && markInfo.mode) && markNow === undefined ? mk.width : est, 3), h = cap * 1.6;
+  const cv = document.createElement('canvas'); cv.width = 64 * Math.ceil(w); cv.height = Math.round(64 * h);
+  const cx = cv.getContext('2d');
+  cx.fillStyle = mk.raised === false ? 'rgba(254,243,199,0.78)' : 'rgba(255,255,255,0.82)'; cx.fillRect(0, 0, cv.width, cv.height);
+  cx.strokeStyle = '#1B2F4C'; cx.lineWidth = 6; cx.strokeRect(3, 3, cv.width - 6, cv.height - 6);
+  cx.fillStyle = '#1B2F4C'; cx.font = `bold ${Math.round(64 * cap * 0.98)}px Arial, Helvetica, sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  const tw = cx.measureText(text).width; if (tw > cv.width * 0.92) cx.font = `bold ${Math.round(64 * cap * 0.98 * cv.width * 0.92 / tw)}px Arial, Helvetica, sans-serif`;
+  cx.fillText(text, cv.width / 2, cv.height / 2 + 2);
+  markTex = new THREE.CanvasTexture(cv); markTex.colorSpace = THREE.SRGBColorSpace;
+  markMesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: markTex, transparent: true, depthTest: true, depthWrite: false, side: THREE.DoubleSide }));
+  markMesh.renderOrder = 9;
+  const f = markFrame(mk);
+  markMesh.matrixAutoUpdate = false;
+  markMesh.matrix.makeBasis(f.right, f.up, f.n).setPosition(new THREE.Vector3(mk.x, mk.y, mk.z).addScaledVector(f.n, 0.6));
+  markMesh.visible = markOn();
+  archGroup.add(markMesh);
+  updateMarkState();
+}
+const markOn = () => tab === 'result' && panelOpen.place && !!archGroup;
+function updateMarkState(){
+  const el = $('#markstate'); if (!el) return;
+  const mk = markCurrent();
+  const where = markInfo && markInfo.tooth ? ` on tooth ${markInfo.tooth}` : '';
+  if (markNow === 'auto') el.textContent = 'Mark: back to the automatic spot - Apply makes it (a few seconds).';
+  else if (markNow) el.textContent = `Mark: ${mk.raised === false ? 'cut in' : 'raised'}, ${markLabelText(mk)}, letters ${(mk.cap || 2.4).toFixed(1)} mm - Apply places it (a few seconds).`;
+  else if (markInfo) el.textContent = `Mark: "${markInfo.text}"${markInfo.auto !== false ? where + ' (automatic)' : ' where you put it'} - drag the card to move it.`;
+  else el.textContent = 'No mark on this model (Settings: Tooth mark off, or no spot found).';
+  el.style.color = markNow !== undefined ? 'var(--warn)' : 'var(--muted)';
+  const btn = $('#mkraised'); if (btn) btn.textContent = mk && mk.raised === false ? 'Cut in' : 'Raised';
+  const sel = $('#mktext'); if (sel && mk) sel.value = mk.text || 'initials';
+}
+function touchMark(change){
+  // the first touch starts from where the mark is now
+  let mk = markCurrent();
+  if (!mk) { if (!archGroup) return; const V = archGroup.children[0].geometry.getAttribute('position'); mk = { x: V.getX(0), y: V.getY(0), z: V.getZ(0), nx: 0, ny: 1, nz: 0, angle_deg: 0, cap: 2.4, text: 'initials', raised: true }; }
+  mk = Object.assign({}, mk); delete mk.right; delete mk.up; delete mk.width;
+  change(mk);
+  markNow = mk; if (curArch) pendingMark[curArch] = mk;
+  makeMarkCard(); updatePlacement();
+}
+document.querySelectorAll('[data-mk]').forEach(b => b.onclick = () => touchMark(mk => { mk[b.dataset.mk] = Math.round((mk[b.dataset.mk] + +b.dataset.d) * 100) / 100; if (b.dataset.mk === 'cap') mk.cap = Math.min(4, Math.max(1.4, mk.cap)); }));
+$('#mkraised').onclick = () => touchMark(mk => { mk.raised = mk.raised === false; });
+$('#mktext').onchange = () => touchMark(mk => { mk.text = $('#mktext').value; });
+$('#mkauto').onclick = () => { markNow = 'auto'; if (curArch) pendingMark[curArch] = 'auto'; makeMarkCard(); updatePlacement(); };
 const KEYS_ADJ = ['yaw_deg', 'dx', 'dy', 'dz'];
 function adjustMap(){
   // what the page asks for, arch by arch: the applied placement of every arch of the case, with the pending
@@ -1426,13 +1542,17 @@ function updatePlacement(){
   requestRender();
   $('#v_yaw_deg').innerHTML = adjust.yaw_deg.toFixed(2).replace(/\.?0+$/, '') + '&deg;';
   for (const k of ['dx', 'dy', 'dz']) $('#v_' + k).textContent = adjust[k].toFixed(2);
-  const pending = KEYS_ADJ.some(k => Math.abs(adjust[k] - applied[k]) > 1e-9);
+  const moved = KEYS_ADJ.some(k => Math.abs(adjust[k] - applied[k]) > 1e-9);
   const auto = KEYS_ADJ.every(k => Math.abs(adjust[k]) < 1e-9);
-  if (curArch) { if (pending) pendingAdj[curArch] = { ...adjust }; else delete pendingAdj[curArch]; }
+  if (curArch) { if (moved) pendingAdj[curArch] = { ...adjust }; else delete pendingAdj[curArch]; }
+  const markMoved = markNow !== undefined || Object.keys(pendingMark).length > 0;
+  const pending = moved || markMoved || Object.keys(pendingAdj).length > 0;
   const dzMoved = Math.abs(adjust.dz - applied.dz) > 1e-9;
-  $('#placestate').textContent = pending ? (dzMoved ? `Preview only — Apply rebuilds the ${curArch || ''} models at this height (~1 min).` : `Preview only — Apply moves the ${curArch || ''} models on the base (a few seconds).`) : (auto ? 'Automatic placement.' : 'Applied.');
+  $('#placestate').textContent = moved ? (dzMoved ? `Preview only — Apply rebuilds the ${curArch || ''} models at this height (~1 min).` : `Preview only — Apply moves the ${curArch || ''} models on the base (a few seconds).`)
+    : (markMoved ? 'Apply places the mark (a few seconds).' : (auto ? 'Automatic placement.' : 'Applied.'));
   $('#placestate').style.color = pending ? 'var(--warn)' : 'var(--muted)';
   $('#applyplace').disabled = !pending;
+  updateMarkState();
 }
 document.querySelectorAll('[data-adj]').forEach(b => b.onclick = () => { adjust[b.dataset.adj] = Math.round((adjust[b.dataset.adj] + +b.dataset.d) * 100) / 100; updatePlacement(); lookUnder(true); });
 $('#resetplace').onclick = () => { adjust = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 }; updatePlacement(); };
@@ -1452,7 +1572,25 @@ function planeHit(ev, z){
   const t = (z - pray.ray.origin.z) / pray.ray.direction.z;
   return isFinite(t) && t > 0 ? pray.ray.at(t, new THREE.Vector3()) : null;
 }
+function markHandleAt(ev){
+  if (!markOn() || !markMesh || !markMesh.visible) return false;
+  const rect = canvas.getBoundingClientRect();
+  ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+  pray.setFromCamera(ndc, camera);
+  return pray.intersectObject(markMesh, false).length > 0;
+}
+function dropMarkAt(ev){
+  // the card follows the mouse over the model: the spot under it and the surface there
+  if (!archGroup) return;
+  const rect = canvas.getBoundingClientRect();
+  ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+  pray.setFromCamera(ndc, camera);
+  const hit = pray.intersectObject(archGroup.children[0], false)[0]; if (!hit || !hit.face) return;
+  const n = hit.face.normal.clone().transformDirection(archGroup.children[0].matrixWorld);
+  touchMark(mk => { mk.x = hit.point.x; mk.y = hit.point.y; mk.z = hit.point.z; mk.nx = n.x; mk.ny = n.y; mk.nz = n.z; });
+}
 function baseHandleAt(ev){
+  if (markHandleAt(ev)) return { kind: 'mark', c: new THREE.Vector3() };
   if (!handlesOn()) return null;
   const c = new THREE.Vector3(pivot[0], pivot[1], 1.5).applyMatrix4(baseGroup.matrix);   // ring centre, world
   const p = planeHit(ev, c.z);
@@ -1466,12 +1604,14 @@ function baseHandleAt(ev){
 canvas.addEventListener('pointerdown', ev => {
   if (ev.shiftKey || ev.button !== 0) return;
   const h = baseHandleAt(ev); if (!h) return;
+  if (h.kind === 'mark') { drag = { kind: 'mark' }; controls.enabled = false; canvas.style.cursor = 'grabbing'; ev.preventDefault(); return; }
   const p0 = planeHit(ev, h.c.z); if (!p0) return;
   drag = { kind: h.kind, p0, c: h.c, start: { ...adjust } };
   controls.enabled = false; canvas.style.cursor = h.kind === 'turn' ? 'grabbing' : 'move'; ev.preventDefault();
 });
 canvas.addEventListener('pointermove', ev => {
   if (drag) {
+    if (drag.kind === 'mark') { dropMarkAt(ev); return; }
     const p = planeHit(ev, drag.c.z); if (!p) return;
     if (drag.kind === 'move') {
       // a world shift D of the plate = the arch moving -D relative to it, expressed in the arch's frame
@@ -1485,16 +1625,16 @@ canvas.addEventListener('pointermove', ev => {
     }
     updatePlacement(); return;
   }
-  if (tab === 'result' && baseGroup && !ev.shiftKey && !ev.buttons) { const h = baseHandleAt(ev); canvas.style.cursor = h ? (h.kind === 'turn' ? 'grab' : 'move') : ''; }
+  if (tab === 'result' && archGroup && !ev.shiftKey && !ev.buttons) { const h = baseHandleAt(ev); canvas.style.cursor = h ? (h.kind === 'turn' || h.kind === 'mark' ? 'grab' : 'move') : ''; }
 });
-window.addEventListener('pointerup', () => { if (drag) { drag = null; controls.enabled = true; canvas.style.cursor = ''; lookUnder(true); } });
+window.addEventListener('pointerup', () => { if (drag) { const wasMark = drag.kind === 'mark'; drag = null; controls.enabled = true; canvas.style.cursor = ''; if (!wasMark) lookUnder(true); } });
 $('#applyplace').onclick = async () => {
   if (!currentJob) return;
   const fd = new FormData();
   fd.append('edits', editsPayload());
   fd.append('params', JSON.stringify(params()));
   $('#applyplace').disabled = true; $('#placestate').textContent = 'Moving…';
-  pendingAdj = {}; forgetEdits();
+  pendingAdj = {}; pendingMark = {}; forgetEdits();
   await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 const palette = [0xcfd4da, 0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xfb7185, 0x22d3ee, 0x4ade80, 0xf59e0b, 0x818cf8, 0xe879f9, 0x2dd4bf, 0xf97316, 0x93c5fd, 0xbef264];
@@ -1746,7 +1886,7 @@ window.__view = { camera, controls, requestRender, project: (x, y, z) => { const
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   stroke3d: (mode, pts) => { stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } const before = Object.values(edits).reduce((a, e) => a + e.size, 0); finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
-  placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot, arch: curArch, map: adjustMap(), pending: JSON.parse(JSON.stringify(pendingAdj)) }),
+  placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot, arch: curArch, map: adjustMap(), pending: JSON.parse(JSON.stringify(pendingAdj)), marks: markMap() }), archGroup: () => archGroup,
   editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }),
   handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; } };   // for automated checks
 window.__appReady = true;

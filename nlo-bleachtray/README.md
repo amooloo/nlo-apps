@@ -29,7 +29,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    the undercut under what you paint (under a pontic, round an implant crown) so the retainer seats; **Braces** (only
    for a scan dropped with Braces on, or a mouthguard) takes off a bracket or bit of wire the app missed. **Also make …** in the Check & send box adds the other
    tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
-   the tooth split is reused, and Send writes the order with every model.
+   the tooth split is reused, and Send writes the order with every model. The **mouthguard** (upper only, for now) is
+   the fifth icon in the model row at the bottom right: grey while the case has none - a click asks whether to make
+   one from the upper scan - and a model like the other four once it is made.
 4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`), a mouthguard as a stage-2 Template piece (`TU2A`).
    Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. Send also files the case for the retraining (a brush-corrected case is a lesson). The small
@@ -393,8 +395,19 @@ it costs nothing while it exists). Nothing is ever deleted whole.
 first molar (right side if present, else second premolar / second molar), each letter on its own tangent plane and
 the text shrunk to the flat middle of the crown - it forms into the tray itself, like an aligner maker's mark, with a
 recess on the inside that touches nothing; (2) the name and WHITENING / RETAINER engraved 0.4 mm deep on the flat strip
-of the base plate inside the arch, when the arch leaves at least 8 mm of room there (skipped otherwise). Switch off
-under Settings.
+of the base plate inside the arch, when the arch leaves at least 8 mm of room there (skipped otherwise - the result
+line says why). Switch off under Settings. The mark on the model can be **put anywhere**: in *Position on the base*
+it shows as a small card on the model - drag it onto any tooth or onto the side wall of the model, turn it (15° steps),
+size the letters (A- / A+), choose what it says (initials + W/R, last name + W/R, full name), raised or cut in; *Auto*
+puts it back on the molar. The text is laid along the surface's horizontal tangent at the spot, each letter on its own
+tangent plane, upright for someone looking at the spot from outside with the model standing on its base; it is kept
+within the surface (shrunk to the room on the shorter side, a letter that would hang past the end of a wall is left
+out and the log says so). The placement is kept per arch in the scan's own coordinates (`params.mark_by_arch`:
+`{raw, angle_deg, cap, text, raised}`; the page sends a spot in the output frame and the server converts it with the
+arch's `transform_raw_to_output`), so it follows the arch through base moves and re-runs; the body before the mark is
+kept (`*_body_plain.stl`) so moving the mark alone re-finishes that arch's models in seconds (`apply_mark`, in the full
+run and in `replace_placement`), while *Auto* needs the teeth and runs the arch again. The report carries where it sits
+(`mark`: anchor, normal, reading frame, cap, width, text).
 
 **New case pop-up.** Each dropped scan is a row with the arch icon the viewer uses (upper / lower, greyed until the arch is known), upper listed first and lower second whatever the order they were dropped in; changing a row's arch moves it and its icon.
 

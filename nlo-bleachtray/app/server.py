@@ -497,7 +497,7 @@ def _thin_old_cases(log=print):
         try:
             case = json.load(open(os.path.join(jdir, "case.json")))
             for fn in os.listdir(jdir):
-                if fn.endswith(("_model.stl", "_body_only.stl", "_blockout.stl")) or "_scan_with_reservoirs" in fn or any(sc.get("titan_basename") and fn.startswith(sc["titan_basename"]) for sc in case["scans"]):
+                if fn.endswith(("_model.stl", "_body_only.stl", "_body_plain.stl", "_blockout.stl")) or "_scan_with_reservoirs" in fn or any(sc.get("titan_basename") and fn.startswith(sc["titan_basename"]) for sc in case["scans"]):
                     os.remove(os.path.join(jdir, fn))
             case["thinned"] = True
             json.dump(case, open(os.path.join(jdir, "case.json"), "w"), indent=1, default=float)
@@ -569,6 +569,49 @@ def _adjust_by_arch(params, scans):
     return m
 
 
+def _mark_by_arch(params):
+    """The mark on the model per arch: None = automatic (a first molar), else {raw: [x, y, z] in the
+    scan's own coordinates, angle_deg, cap, text, raised}."""
+    out = {}
+    for a, v in (params.get("mark_by_arch") or {}).items():
+        if a in ("upper", "lower"):
+            out[a] = _norm_mark(v)
+    return out
+
+
+def _norm_mark(v):
+    if not isinstance(v, dict) or v.get("raw") is None:
+        return None
+    try:
+        raw = [round(float(x), 3) for x in v["raw"]][:3]
+    except Exception:
+        return None
+    if len(raw) != 3:
+        return None
+    return dict(raw=raw, angle_deg=round(float(v.get("angle_deg") or 0.0), 1), cap=round(min(4.0, max(1.4, float(v.get("cap") or 2.4))), 2),
+                text=str(v.get("text") or "initials"), raised=bool(v.get("raised", True)))
+
+
+def _mark_to_raw(job, arch, v):
+    """A mark the page placed in the output frame ({x, y, z, frame: "output", ...}) becomes the scan-frame
+    form, through the arch's current transform; one already in raw form passes through."""
+    if not isinstance(v, dict):
+        return None
+    if v.get("raw") is not None:
+        return _norm_mark(v)
+    if v.get("frame") != "output":
+        return None
+    T = None
+    for sc in job["scans"]:
+        if sc.get("arch") == arch and (sc.get("report") or {}).get("transform_raw_to_output"):
+            T = np.asarray(sc["report"]["transform_raw_to_output"], float); break
+    if T is None:
+        return None
+    p = np.array([float(v.get("x", 0)), float(v.get("y", 0)), float(v.get("z", 0)), 1.0])
+    raw = (np.linalg.inv(T) @ p)[:3]
+    return _norm_mark(dict(v, raw=raw.tolist()))
+
+
 def _scan_params(job, scan):
     """The pipeline's parameters for one model: the case's settings, the model's preset, the page's
     per-type settings on top, the painted areas, and the arch's placement on the base."""
@@ -584,6 +627,8 @@ def _scan_params(job, scan):
     params["force_on_idx"] = pe.get("reservoir") or []
     params["adjust"] = _adjust_by_arch(job["params"], job["scans"]).get(scan.get("arch") or "", dict(ADJUST_ZERO))
     params.pop("adjust_by_arch", None)
+    params["mark"] = _mark_by_arch(job["params"]).get(scan.get("arch") or "") or None
+    params.pop("mark_by_arch", None)
 
     return params
 
@@ -1098,6 +1143,8 @@ def _add_scans(job, path, filename, arch, preset, variants=None, braces_on=None)
         if any(sc["name"].startswith(stem) for sc in job["scans"]):
             stem = f"{stem}_{k + 1}"
     for vpreset, tag, kind, stage in (variants or variants_for(preset)):
+        if tag == "MG" and (arch or "") == "lower":
+            continue                                  # a mouthguard is made for the upper only (for now)
         job["scans"].append(dict(path=path, name=f"{stem}_{tag}", filename=filename, arch=arch, preset=vpreset, tag=tag, kind=kind, stage=stage,
                                  braces_on=bool(braces_on)))
     job["filename"] = ", ".join(dict.fromkeys(sc["filename"] for sc in job["scans"]))
@@ -1237,6 +1284,8 @@ async def add_model(jid: str, arch: str = Form(...), make: str = Form(...)):
     src = next((sc for sc in job["scans"] if sc.get("arch") == arch), None)
     if src is None or make not in ("WT", "TT", "MG"):
         raise HTTPException(400, "no such scan in this case")
+    if make == "MG" and arch == "lower":
+        raise HTTPException(400, "a mouthguard is made for the upper only")
     if any(sc["path"] == src["path"] and sc.get("tag") == make for sc in job["scans"]):
         raise HTTPException(409, f"{make} {arch} is already part of this case")
     variants = _variants_from_makes([make], job.get("preset") or "bleaching")
@@ -1282,7 +1331,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
             new.pop(k)
         elif k in new and str(old.get(k) or "").strip():
             new.pop(k)
-    volatile = {"adjust", "adjust_by_arch", "tracker_case"}
+    volatile = {"adjust", "adjust_by_arch", "mark_by_arch", "tracker_case"}
     def changed(a, b):
         return json.dumps(a, sort_keys=True, default=str) != json.dumps(b, sort_keys=True, default=str)
     shared_changed = any(changed(old.get(k), v) for k, v in new.items() if k not in ("wt", "tt") and k not in volatile)
@@ -1294,9 +1343,20 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     zero = dict(ADJUST_ZERO)
     adj_arches = {a for a in set(old_by) | set(new_by) if old_by.get(a, zero) != new_by.get(a, zero)}
     fast_arches = {a for a in adj_arches if abs(old_by.get(a, zero)["dz"] - new_by.get(a, zero)["dz"]) < 1e-9}
-    new.pop("adjust", None); new.pop("adjust_by_arch", None)
+    # the mark on the model is kept per arch too: moving it alone re-finishes that arch's models from the
+    # body kept before the mark (seconds), unless a model has no such body yet (made before this)
+    old_mk = _mark_by_arch(old)
+    new_mk = {a: _mark_to_raw(job, a, v) for a, v in (new.get("mark_by_arch") or {}).items() if a in ("upper", "lower")} if "mark_by_arch" in new else old_mk
+    mark_arches = {a for a in set(old_mk) | set(new_mk) if old_mk.get(a) != new_mk.get(a)}
+    for a in mark_arches:
+        # back to the automatic spot needs the teeth (a full run); a placed spot only needs the plain body
+        if a not in adj_arches and new_mk.get(a) is not None and all(os.path.exists(os.path.join(job["dir"], f"{sc['name']}_body_plain.stl")) for sc in job["scans"] if sc.get("arch") == a and sc.get("report")):
+            fast_arches.add(a)
+    adj_arches = adj_arches | mark_arches
+    new.pop("adjust", None); new.pop("adjust_by_arch", None); new.pop("mark_by_arch", None)
     job["params"].update(new)
     job["params"]["adjust_by_arch"] = new_by; job["params"].pop("adjust", None)
+    job["params"]["mark_by_arch"] = new_mk
     me = job.get("mask_edit")
     # a scan cleaned of braces without being asked for (an earlier version assumed them) goes back to the
     # scan as scanned on this re-run - everything is re-made from it
@@ -1329,7 +1389,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         label = lambda k: f"{job['scans'][k].get('arch') or ''} {job['scans'][k].get('tag') or ''}".strip()
         remade = sorted(only - fast)
         if fast:
-            job.setdefault("log", []).append("moving on the base (model kept): " + ", ".join(label(k) for k in sorted(fast)))
+            job.setdefault("log", []).append(("moving the mark (model kept): " if not (adj_arches - mark_arches) else "moving on the base (model kept): ") + ", ".join(label(k) for k in sorted(fast)))
         if remade:
             job.setdefault("log", []).append("re-making only the models the changed settings touch: " + ", ".join(label(k) for k in remade))
     _enqueue(job)

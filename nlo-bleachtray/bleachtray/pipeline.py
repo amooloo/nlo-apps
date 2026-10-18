@@ -426,11 +426,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     prog(0.30, "separating the teeth")
     # the tooth split is the same for the same scan + arch, so the retainer made right after the
     # whitening tray (and a base nudge later) reuses it
-    lkey = (scan_path, "labels", arch_hint)
+    lkey = (scan_path, "labels", arch_hint, len(mesh.vertices))   # (the mouthguard finds teeth on a cleaned copy: its own mesh, its own split)
     if label_override is not None:
         labels = np.asarray(label_override)
         mask = labels > 0
-    elif feat_cache is not None and lkey in feat_cache:
+    elif feat_cache is not None and lkey in feat_cache and len(feat_cache[lkey]) == len(mesh.vertices):
         labels = feat_cache[lkey]
         mask = labels > 0
         log("tooth separation reused from the previous run")
@@ -760,13 +760,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     rep["steps"].append(("solid", round(time.time() - t0, 2)))
     prog(0.85, "adding the base and engraving")
     log(f"[{name}] body watertight={body.is_watertight} volume={rep['body_volume_ml']} mL")
-    # the tooth mark goes on the body (it belongs to the arch: when the arch is moved on the base
-    # later, body and mark move together and only the base is made again)
-    if P.get("engrave", True) and P.get("tooth_mark", True):
-        from .engrave import emboss_on_tooth
-        body, mark = emboss_on_tooth(body, mesh_f, labels, info, P, log=lambda m: log(f"[{name}] {m}"))
-        rep["tooth_mark"] = mark["text"] if mark else None
-        rep["mark"] = mark                                   # where it sits (output frame), for the page
+    # the mark goes on the body (it belongs to the arch: when the arch is moved on the base later, body
+    # and mark move together and only the base is made again). The body before the mark is kept, so the
+    # mark can be moved without re-making the model
+    body.export(os.path.join(out_dir, f"{name}_body_plain.stl"))
+    body = apply_mark(body, P, rep, T_total=T_total, mesh_f=mesh_f, labels=labels, info=info, log=lambda m: log(f"[{name}] {m}"))
     margin_n = trimline_normals(body, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
     rep["elapsed_s"] = round(time.time() - t0, 2)
@@ -782,6 +780,49 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     prog(1.0, "done")
     log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
     return rep
+
+
+def apply_mark(body, P, rep, T_total=None, mesh_f=None, labels=None, info=None, prev=None, log=print):
+    """The mark on the model (initials + tray letter, or the name): where the doctor put it (`P["mark"]`:
+    {raw: [x, y, z] in the scan's own coordinates, angle_deg, cap, text, raised} - carried to the output
+    frame with `T_total`), else where it was before (`prev`: the mark of the model this one is remade
+    from, anchor already in the new frame), else the automatic spot on a first molar. Records
+    rep["mark"] / rep["tooth_mark"] / rep["mark_param"]; returns the marked body."""
+    from .engrave import emboss_at, emboss_on_tooth, mark_text
+    rep["mark"] = None; rep["tooth_mark"] = None; rep["mark_param"] = P.get("mark") or None
+    if not (P.get("engrave", True) and P.get("tooth_mark", True)):
+        return body
+    mk = P.get("mark") if isinstance(P.get("mark"), dict) else None
+    if mk and mk.get("raw") is not None and T_total is not None:
+        raw = np.asarray(mk["raw"], float).reshape(3)
+        anchor = trimesh.transform_points(raw[None, :], np.asarray(T_total, float))[0]
+        text = mark_text(P, str(mk.get("text") or "initials"))
+        body2, minfo = emboss_at(body, body, anchor, text, angle_deg=float(mk.get("angle_deg") or 0.0), cap=float(mk.get("cap") or 2.4),
+                                 raised=bool(mk.get("raised", True)), log=log)
+        if minfo:
+            minfo.update(auto=False, mode=str(mk.get("text") or "initials"))
+            log(f"mark: '{text}' {'raised' if minfo['raised'] else 'cut'} where it was put ({minfo['width_mm']} mm wide, letters {minfo['cap']} mm)")
+            rep["mark"], rep["tooth_mark"] = minfo, text
+            return body2
+        log("mark: the chosen spot could not be used - the automatic spot instead")
+    if prev and prev.get("anchor") is not None and (mesh_f is None or labels is None):
+        body2, minfo = emboss_at(body, body, prev["anchor"], prev["text"], angle_deg=float(prev.get("angle_deg") or 0.0), cap=float(prev.get("cap") or 2.4),
+                                 raised=bool(prev.get("raised", True)), log=log)
+        if minfo:
+            minfo.update(auto=bool(prev.get("auto", True)), mode=prev.get("mode", "initials"))
+            for k in ("tooth", "side", "position"):
+                if k in prev:
+                    minfo[k] = prev[k]
+            rep["mark"], rep["tooth_mark"] = minfo, prev["text"]
+            return body2
+        return body
+    if mesh_f is None or labels is None or info is None:
+        return body
+    body2, minfo = emboss_on_tooth(body, mesh_f, labels, info, P, log=log)
+    if minfo:
+        minfo["mode"] = "initials"
+        rep["mark"], rep["tooth_mark"] = minfo, minfo["text"]
+    return body2
 
 
 def trimline_normals(body, margin_f, rep, log=print):
@@ -879,7 +920,9 @@ def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=No
     prog(0.1, "moving the model on the base")
     st_path = os.path.join(out_dir, f"{name}_state.npz")
     st = dict(np.load(st_path))
-    body = trimesh.load(os.path.join(out_dir, f"{name}_body_only.stl"), force="mesh")
+    plain_path = os.path.join(out_dir, f"{name}_body_plain.stl")
+    from_plain = os.path.exists(plain_path)
+    body = trimesh.load(plain_path if from_plain else os.path.join(out_dir, f"{name}_body_only.stl"), force="mesh")
     pivot = rep.get("adjust_pivot") or [0.0, 0.0]
     old = dict(ADJUST_ZERO); old.update({k: float(v or 0.0) for k, v in (rep.get("adjust") or {}).items() if k in old})
     new = dict(ADJUST_ZERO); new.update({k: float(v or 0.0) for k, v in (adjust or {}).items() if k in new})
@@ -908,12 +951,19 @@ def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=No
     if rep.get("transform_raw_to_output"):
         rep["transform_raw_to_output"] = (T_delta @ np.asarray(rep["transform_raw_to_output"], float)).tolist()
     log(f"[{name}] moved on the base: yaw {new['yaw_deg']:+.2f} deg, shift x {new['dx']:+.2f} y {new['dy']:+.2f} z {new['dz']:+.2f} mm (the model itself is kept)")
+    if from_plain:
+        # the mark again: where the doctor put it (params), or where it was, moved along with the body
+        prev = dict(rep["mark"]) if rep.get("mark") else None
+        if prev and prev.get("anchor") is not None:
+            prev["anchor"] = trimesh.transform_points(np.asarray([prev["anchor"]], float), T_delta)[0].tolist()
+        body.export(plain_path)
+        body = apply_mark(body, P, rep, T_total=np.asarray(rep["transform_raw_to_output"], float) if rep.get("transform_raw_to_output") else None, prev=prev, log=lambda m: log(f"[{name}] {m}"))
     prog(0.4, "adding the base and engraving")
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, (rep.get("outputs") or {}).get("scan_with_reservoirs"), log=log)
     st["margin"] = margin_f; st["T_adj"] = T_new; st["outline"] = np.asarray(outline.exterior.coords, dtype=float)
     np.savez(st_path, **st)
     rep["elapsed_s"] = round(time.time() - t0, 2)
-    rep["steps"] = [("moved on the base", rep["elapsed_s"])]
+    rep["steps"] = [("moved on the base" if not from_plain else "moved on the base, marked again", rep["elapsed_s"])]
     with open(os.path.join(out_dir, f"{name}_report.json"), "w") as f:
         json.dump(rep, f, indent=2)
     prog(1.0, "done")

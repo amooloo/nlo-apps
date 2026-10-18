@@ -205,7 +205,7 @@ def auto_mark_anchor(mesh_f, labels, info, log=print):
     return np.asarray(P[j], float), int(side), int(tid), int(info[tid][1]), extent
 
 
-def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, height=0.35, depth_in=1.5, fit_extent=None, log=print):
+def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, height=0.35, depth_in=1.5, fit_extent=None, min_cap=1.4, log=print):
     """`text` laid on the surface of `surface` (a mesh in the same frame as `model`) round `point`:
     each letter on its own local tangent plane, so the curve of the crown does not change its height,
     reading left to right for someone looking at that spot from outside; `angle_deg` turns the line
@@ -261,7 +261,7 @@ def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, 
         along = (P - p_anchor) @ right
         extent = fit_extent if fit_extent is not None else 2.0 * float(min(-along.min(), along.max()))
         if total > 0.85 * extent:
-            cap = max(1.4, cap * 0.85 * extent / total)
+            cap = max(min_cap, cap * 0.85 * extent / total)
             widths, total = layout(cap)
         x_cursor = -total / 2.0
         ptree = cKDTree(P)
@@ -325,7 +325,7 @@ def emboss_on_tooth(model, mesh_f, labels, info, params, height=0.35, cap=2.4, d
         point, side, tid, pos, extent = where
         text = mark_text(params, "initials")
         out, minfo = emboss_at(model, model, point, text, angle_deg=0.0, cap=cap, raised=True, height=height, depth_in=depth_in,
-                               fit_extent=0.72 / 0.85 * extent, log=log)      # the text within 72 % of the cheek, as before
+                               fit_extent=0.72 / 0.85 * extent, min_cap=1.6, log=log)      # the text within 72 % of the cheek, letters 1.6 mm at least, as before
         if minfo:
             minfo.update(auto=True, tooth=tid, side=side, position=pos)
             log(f"tooth mark: '{text}' raised {height} mm on the buccal of tooth {tid} (side {side:+d}, position {pos})")
