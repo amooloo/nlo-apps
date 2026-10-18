@@ -21,7 +21,10 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    **Cut away** (third brush mode) deletes that part of the scan for good - tongue, cheek, a flap, the pad behind the
    last molar - and the model is built from the clean scan. **No reservoir** keeps the gel reservoir off a recession
    or a crown margin you paint; **Block out** fills the undercut under what you paint (under a pontic, round an
-   implant crown) so the retainer seats. Both stay with the scan for every model and every later re-run. **Also make …** in the Check & send box adds the other
+   implant crown) so the retainer seats. Both stay with the scan for every model and every later re-run. The
+   reservoirs themselves are painted on the **Scan + reservoirs** tab, where you see them: **Add reservoir** where
+   the automatic one is missing (a tooth behind the 5s, a part a recession set-back took away) and **No reservoir**
+   where it is not wanted - still a millimetre off the gum line, feathered at the edge of your stroke, ignored on gum. **Also make …** in the Check & send box adds the other
    tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
    the tooth split is reused, and Send writes the order with every model.
 4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:

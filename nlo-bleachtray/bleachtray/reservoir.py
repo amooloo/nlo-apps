@@ -83,7 +83,7 @@ def root_exposure(mesh, labels, info, aux, A, arch="upper", max_position=5, stri
 def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, feather=1.0,
                            max_position=5, edge_clearance=0.4, edge_feather=0.6, edge_normal_z=0.6,
                            edge_band=0.3, facial_only=True, exclude_occlusal=True, setback_extra=None,
-                           keep_off=None, keep_off_clearance=1.0):
+                           keep_off=None, keep_off_clearance=1.0, force_on=None):
     """Return per-vertex displacement magnitude (mm) along vertex normals.
 
     labels: per-vertex tooth id (0 = gingiva); info: id -> (side, position from midline)
@@ -94,13 +94,25 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
     (interproximal) and from the facial-lingual transition. Full height is reached `feather` /
     `edge_feather` mm further in. `keep_off`: boolean per-vertex mask painted by the user (a
     recession, a restoration): no reservoir there nor within `keep_off_clearance` mm of it.
+    `force_on`: boolean per-vertex mask painted by the user: a reservoir HERE, on whatever tooth
+    (beyond `max_position` too, on the part a recession set-back or a keep-off took away) - still
+    `setback` mm off the gum line and `edge_clearance` off the incisal edge, feathered at the paint's
+    own edge; paint on gingiva is ignored.
     """
     n = len(mesh.vertices)
+    tooth_mask = labels > 0
+    force = None
+    if force_on is not None and np.asarray(force_on).any():
+        force = np.asarray(force_on, bool) & tooth_mask
+        if not force.any():
+            force = None
     sel_ids = [tid for tid, (side, pos) in info.items() if pos <= max_position]
+    forced_ids = sorted(set(int(t) for t in np.unique(labels[force])) - {0}) if force is not None else []
+    only_forced = [t for t in forced_ids if t not in sel_ids]
+    sel_ids = sorted(set(sel_ids) | set(forced_ids))
     sel = np.isin(labels, sel_ids)
     if not sel.any():
         return np.zeros(n)
-    tooth_mask = labels > 0
     nrm = mesh.vertex_normals
     z = mesh.vertices[:, 2]
     out_dir = aux["out_dir"]
@@ -116,6 +128,11 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
         top = np.percentile(z[m], 99.5)
         edge_zone |= m & (z > top - edge_band) & (nrm[:, 2] > 0.25)
     region = sel & facial & ~edge_zone
+    if force is not None:
+        # the painted patch itself, wherever it faces; a tooth selected only by paint gets nothing beyond it
+        region |= force & ~edge_zone
+        if only_forced:
+            region &= ~(np.isin(labels, only_forced) & ~force)
     # a tooth label sometimes drags in a patch of gingiva (classifier slip): keep only the main
     # facial patch of each tooth, and nothing clearly below its facial gum line
     from .mesh_utils import connected_components
@@ -151,6 +168,10 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
     for tid, extra in (setback_extra or {}).items():
         if extra and extra > 0:
             sb[labels == tid] += float(extra)
+    if force is not None:
+        sb[force] = float(setback)             # the paint overrides a recession set-back, never the gum line itself
+        if keep_off is not None:
+            keep_off = np.asarray(keep_off, bool) & ~force
     w = _smoothstep((d_rim - edge_clearance) / max(edge_feather, 1e-6))
     w *= _smoothstep((d_gum - sb) / max(feather, 1e-6))
     d_off = None

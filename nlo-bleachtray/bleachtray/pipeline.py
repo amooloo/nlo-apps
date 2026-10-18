@@ -421,7 +421,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         # already on the original scan (corrected labels from the app, or nothing was found to clean)
         mg_appliance = appliance if len(appliance) == len(mesh.vertices) else np.zeros(len(mesh.vertices), bool)
     # reservoirs - kept off exposed root (recession, a crown's emergence) and off anything the user painted
-    extra_sb, keep_off = None, None
+    extra_sb, keep_off, force_on = None, None, None
     if P["reservoir_height"] > 0 and P["reservoir_max_position"] > 0:
         if P.get("recession_auto", True):
             roots, rdet = root_exposure(mesh, labels, info, aux, A, arch=arch_hint, max_position=P["reservoir_max_position"], log=lambda m: log(f"[{name}] {m}"))
@@ -433,12 +433,17 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if len(idx):
             keep_off = np.zeros(len(mesh.vertices), bool); keep_off[idx] = True
             log(f"[{name}] no reservoir on the {len(idx)} painted vertices (and {float(P.get('recession_leeway') or 1.0):.1f} mm around them)")
+        fidx = np.asarray(P.get("force_on_idx") or [], dtype=int)
+        fidx = fidx[(fidx >= 0) & (fidx < len(mesh.vertices))]
+        if len(fidx):
+            force_on = np.zeros(len(mesh.vertices), bool); force_on[fidx] = True
+            log(f"[{name}] reservoir added on the {len(fidx)} painted vertices ({int((force_on & (labels > 0)).sum())} on teeth)")
     if MG or P["reservoir_height"] <= 0:
         d = np.zeros(len(mesh.vertices))
     else:
         d = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
                                    feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
-                                   setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=float(P.get("recession_leeway") or 1.0))
+                                   setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=float(P.get("recession_leeway") or 1.0), force_on=force_on)
     mesh_r = apply_displacement(mesh, d)
     if P.get("periphery_smooth", True):
         mesh_r = smooth_periphery(mesh_r, labels, A, start=2.0, full=P["facial_offset"], iters=int(P.get("periphery_iters", 30)), mu=float(P.get("periphery_mu", -0.52)))
