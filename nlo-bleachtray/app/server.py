@@ -43,18 +43,75 @@ def _read_cfg():
 
 def site_config():
     """Settings install.bat saved for this PC (watch_config.json): the OrthoFactory input folder, the
-    doctor name, the drop folder, the scanner's export folder. The browser app uses them as defaults."""
+    doctor name, the drop folder, the scanner's export folder, PreForm. The browser app uses them as defaults."""
     cfg = _read_cfg()
     return dict(order_root=cfg.get("titan") or "", doctor=cfg.get("doctor") or "Dr. Amir Akhavan",
-                inbox=cfg.get("inbox") or "", scanner_folder=cfg.get("scanner_folder") or "")
+                inbox=cfg.get("inbox") or "", scanner_folder=cfg.get("scanner_folder") or "",
+                preform=cfg.get("preform") or "", preform_found=_find_preform(cfg) or "", preform_on_send=bool(cfg.get("preform_on_send", True)))
+
+
+def _find_preform(cfg=None):
+    """PreForm.exe on this PC: the path from the settings, else the usual install folders, else the
+    registry's App Paths entry. None when there is none (the app then says so instead of guessing)."""
+    cfg = cfg if cfg is not None else _read_cfg()
+    cands = [cfg.get("preform") or ""]
+    for base in (os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                 os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs")):
+        cands.append(os.path.join(base, "Formlabs", "PreForm", "PreForm.exe"))
+    for c in cands:
+        if c and os.path.isfile(c):
+            return c
+    if os.name == "nt":
+        try:
+            import winreg
+            for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                try:
+                    with winreg.OpenKey(hive, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\PreForm.exe") as k:
+                        v = winreg.QueryValue(k, None)
+                        if v and os.path.isfile(v):
+                            return v
+                except OSError:
+                    pass
+        except Exception:
+            pass
+    return None
+
+
+def _open_in_preform(job, log=print):
+    """Open this case's finished models (the printable STLs, base and all) in PreForm on this PC - the
+    one the app runs on, which is where the printer's PC is. Returns (ok, message)."""
+    exe = _find_preform()
+    if not exe:
+        return False, "PreForm was not found on the PC that runs the app - type its path under Settings (PreForm)"
+    stls = []
+    for sc in job["scans"]:
+        m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
+        if m and os.path.isfile(m):
+            stls.append(m)
+    if not stls:
+        return False, "no finished model to open"
+    try:
+        import subprocess
+        flags = (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == "nt" else 0
+        subprocess.Popen([exe] + stls, cwd=os.path.dirname(stls[0]), creationflags=flags, close_fds=True)
+    except Exception as ex:  # noqa
+        log(f"PreForm did not start: {ex}")
+        return False, f"PreForm did not start: {ex}"
+    names = ", ".join(os.path.basename(x) for x in stls)
+    log(f"opened in PreForm: {names}")
+    return True, f"{len(stls)} model{'s' if len(stls) != 1 else ''} opened in PreForm on {os.environ.get('COMPUTERNAME') or 'this PC'}: {names}"
 
 
 @app.post("/api/settings")
-async def save_settings(scanner_folder: str = Form(None)):
+async def save_settings(scanner_folder: str = Form(None), preform: str = Form(None), preform_on_send: str = Form(None)):
     """Persist office-wide settings into watch_config.json (only the keys given)."""
     cfg = _read_cfg()
     if scanner_folder is not None:
         cfg["scanner_folder"] = scanner_folder.strip()
+    if preform is not None:
+        cfg["preform"] = "" if preform.strip().lower() in ("", "auto") else preform.strip()   # "auto" clears a typed path (an empty field does not reach here)
+    if preform_on_send is not None:
+        cfg["preform_on_send"] = preform_on_send.strip().lower() in ("1", "true", "yes", "on")
     try:
         with open(CFG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
@@ -548,11 +605,15 @@ def _write_order(job, log=print):
         job["order_folder"] = folder
         job["review"] = "sent"
         log(f"OrthoFactory order written: {folder}")
-        return True
     except Exception as ex:  # noqa
         job["order_error"] = str(ex)
         log(f"order folder failed: {ex}")
         return False
+    # the models go straight to the printer's software too (Settings -> PreForm), so printing is the next click
+    if site.get("preform_on_send", True):
+        ok, msg = _open_in_preform(job, log=log)
+        job["preform"] = dict(ok=ok, message=msg, when=time.time())
+    return True
 
 
 def register_watcher_result(ent, work, results, log=print):
@@ -1165,7 +1226,7 @@ def _fixed_arches(job):
 
 
 def _review_view(job):
-    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned", "sent_at", "reopened")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job)}
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned", "sent_at", "reopened", "preform")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job)}
 
 
 def _save_training(job, log=print):
@@ -1234,6 +1295,18 @@ def approve(jid: str):
         job["sent_at"] = time.time()
     _save_case(job)
     return _review_view(job)
+
+
+@app.post("/api/jobs/{jid}/preform")
+def open_preform(jid: str):
+    """Open the case's finished models in PreForm on the PC that runs the app."""
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    job.setdefault("log", [])
+    ok, msg = _open_in_preform(job, log=lambda m: job["log"].append(m))
+    job["preform"] = dict(ok=ok, message=msg, when=time.time())
+    return {"ok": ok, "message": msg}
 
 
 @app.post("/api/jobs/{jid}/resend")
@@ -1333,7 +1406,7 @@ def job_status(jid: str):
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
-    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned", "sent_at", "reopened", "created")}
+    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned", "sent_at", "reopened", "created", "preform")}
     out["started"] = job.get("started")
     out["ahead"] = _ahead(job)
     out["fixed"] = _fixed_arches(job)
