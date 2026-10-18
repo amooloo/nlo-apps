@@ -592,7 +592,9 @@ def _run(job):
     job["log"] = job.get("log") or []
     job["started"] = time.time()
     full = job.pop("rerun_all", False)
-    me = job.pop("mask_edit", None)
+    mes = job.pop("mask_edit", None)
+    mes = [] if not mes else (mes if isinstance(mes, list) else [mes])    # one entry per scan file painted on (upper and lower in one Apply)
+    me = mes[0] if mes else None                                         # (kept for the todo rule below: any edit re-makes what it touches)
     only = job.pop("rerun_only", None)
     fast = set(job.pop("rerun_fast", None) or [])    # models that only moved on the base: body kept, base + files re-made
     todo = [k for k, sc in enumerate(job["scans"]) if full or not sc.get("report") or (only is not None and k in only) or (only is None and me is not None)]
@@ -630,63 +632,79 @@ def _run(job):
                 _take_off_braces(job, path, log=log)
             except Exception as ex:  # noqa
                 log(f"braces step skipped: {ex}")
-        # "take off" strokes: a bit of bracket or wire the app missed - cut out and the enamel rebuilt, as a
-        # new scan file (every model from it, every later re-run); everything indexed on the old file follows
-        remap = None
+        # the strokes, scan file by scan file (the upper's and the lower's can come in one Apply)
         paint = job.setdefault("paint", {})
-        if me is not None and me.get("takeoff") and job["scans"][me.get("scan", 0)].get("preset") == "mouthguard":
-            # on a mouthguard nothing comes off: the painted part joins the bracket shield instead
-            path = job["scans"][me.get("scan", 0)]["path"]
-            entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
-            entry["shield"] = sorted(set(entry.get("shield", [])) | set(int(i) for i in me["takeoff"]))
-            log(f"painted: {len(entry['shield'])} vertices added to the bracket shield")
-            me = dict(me); me.pop("takeoff")
-        if me is not None and me.get("takeoff"):
-            k0 = me.get("scan", 0)
-            job["progress"] = dict(frac=0.01, label="taking off the painted parts", scan=k0, of=len(job["scans"]))
-            try:
-                res = _take_off_braces(job, job["scans"][k0]["path"], log=log, painted=me["takeoff"])
-            except Exception as ex:  # noqa
-                res = None; log(f"take off skipped: {ex}")
-            if res is not None:
-                _, remap = res
-                me = dict(me)
-                for key in ("cut",):      # the cut below works on the new file; the other strokes go through `remap` later
-                    idx = np.asarray(me.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
-                    me[key] = [int(i) for i in remap[idx] if i >= 0]
-        # "cut away" strokes: those parts leave the scan file itself (every model from it, every later re-run)
-        if me is not None and me.get("cut"):
-            job["progress"] = dict(frac=0.01, label="cutting away the painted parts of the scan", scan=me.get("scan", 0), of=len(job["scans"]))
-            remap2 = _apply_cut(job, me.get("scan", 0), me["cut"], log=log)
-            if remap2 is not None:
-                if remap is None:
-                    remap = remap2
-                else:   # old file -> take-off file -> cut file
-                    r = -np.ones(len(remap), dtype=np.int64); ok = remap >= 0
-                    r[ok] = remap2[remap[ok]]; remap = r
-        # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
-        if me is not None and (me.get("noreservoir") or me.get("blockout") or me.get("reservoir")):
-            path = job["scans"][me.get("scan", 0)]["path"]
-            entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
-            for key in ("noreservoir", "blockout", "reservoir"):
-                idx = np.asarray(me.get(key) or [], dtype=int)
-                if remap is not None and len(idx):
-                    idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
-                entry[key] = sorted(set(entry.get(key, [])) | set(int(i) for i in idx))
-            # the two reservoir brushes cancel each other where they overlap: the later stroke wins
-            if me.get("reservoir"):
-                entry["noreservoir"] = sorted(set(entry["noreservoir"]) - set(entry["reservoir"]))
-            if me.get("noreservoir"):
-                entry["reservoir"] = sorted(set(entry.get("reservoir", [])) - set(entry["noreservoir"]))
-            log(f"painted: {len(entry['noreservoir'])} vertices without reservoir, {len(entry.get('reservoir', []))} with one added, {len(entry['blockout'])} to block out")
+        remaps, edits_by_path = {}, {}
+        for me in mes:
+            k0 = int(me.get("scan", 0) or 0)
+            if not (0 <= k0 < len(job["scans"])):
+                continue
+            path0 = job["scans"][k0]["path"]
+            me = dict(me)
+            # "take off" strokes: a bit of bracket or wire the app missed - cut out and the enamel rebuilt, as a
+            # new scan file (every model from it, every later re-run); everything indexed on the old file follows
+            remap = None
+            if me.get("takeoff") and job["scans"][k0].get("preset") == "mouthguard":
+                # on a mouthguard nothing comes off: the painted part joins the bracket shield instead
+                entry = paint.setdefault(path0, {"noreservoir": [], "blockout": []})
+                entry["shield"] = sorted(set(entry.get("shield", [])) | set(int(i) for i in me["takeoff"]))
+                log(f"painted: {len(entry['shield'])} vertices added to the bracket shield")
+                me.pop("takeoff")
+            if me.get("takeoff"):
+                job["progress"] = dict(frac=0.01, label="taking off the painted parts", scan=k0, of=len(job["scans"]))
+                try:
+                    res = _take_off_braces(job, job["scans"][k0]["path"], log=log, painted=me["takeoff"])
+                except Exception as ex:  # noqa
+                    res = None; log(f"take off skipped: {ex}")
+                if res is not None:
+                    _, remap = res
+                    for key in ("cut",):      # the cut below works on the new file; the other strokes go through `remap` later
+                        idx = np.asarray(me.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
+                        me[key] = [int(i) for i in remap[idx] if i >= 0]
+            # "cut away" strokes: those parts leave the scan file itself (every model from it, every later re-run)
+            if me.get("cut"):
+                job["progress"] = dict(frac=0.01, label="cutting away the painted parts of the scan", scan=k0, of=len(job["scans"]))
+                remap2 = _apply_cut(job, k0, me["cut"], log=log)
+                if remap2 is not None:
+                    if remap is None:
+                        remap = remap2
+                    else:   # old file -> take-off file -> cut file
+                        r = -np.ones(len(remap), dtype=np.int64); ok = remap >= 0
+                        r[ok] = remap2[remap[ok]]; remap = r
+            # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
+            path = job["scans"][k0]["path"]       # (a take-off / cut gave the scan a new file)
+            if me.get("noreservoir") or me.get("blockout") or me.get("reservoir") or me.get("unblockout"):
+                entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
+                for key in ("noreservoir", "blockout", "reservoir"):
+                    idx = np.asarray(me.get(key) or [], dtype=int)
+                    if remap is not None and len(idx):
+                        idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
+                    entry[key] = sorted(set(entry.get(key, [])) | set(int(i) for i in idx))
+                # the two reservoir brushes cancel each other where they overlap: the later stroke wins
+                if me.get("reservoir"):
+                    entry["noreservoir"] = sorted(set(entry["noreservoir"]) - set(entry["reservoir"]))
+                if me.get("noreservoir"):
+                    entry["reservoir"] = sorted(set(entry.get("reservoir", [])) - set(entry["noreservoir"]))
+                # the Clear brush takes a painted block-out away (what the Block-outs tab shows pale green)
+                if me.get("unblockout"):
+                    idx = np.asarray(me["unblockout"], dtype=int)
+                    if remap is not None and len(idx):
+                        idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
+                    before = len(entry["blockout"])
+                    entry["blockout"] = sorted(set(entry["blockout"]) - set(int(i) for i in idx))
+                    log(f"painted: block-out cleared on {before - len(entry['blockout'])} vertices")
+                log(f"painted: {len(entry['noreservoir'])} vertices without reservoir, {len(entry.get('reservoir', []))} with one added, {len(entry['blockout'])} to block out")
+            remaps[path] = remap; edits_by_path[path] = (k0, me)
         for i, k in enumerate(todo):
             scan = job["scans"][k]
             def progress(frac, label, i=i, k=k):
                 job["progress"] = dict(frac=round((i + frac) / n, 3), label=label, scan=k, of=len(job["scans"]), step=i, steps=n)
-            if me is not None and job["scans"][me.get("scan", 0)]["path"] == scan["path"] and scan["path"] not in overrides and (me.get("add") or me.get("remove")):
-                progress(0.02, "applying your brush fixes")
-                overrides[scan["path"]] = _apply_mask_edit(job, me.get("scan", 0), edit=me, remap=remap)
-                fixed[scan["path"]] = overrides[scan["path"]]
+            if scan["path"] in edits_by_path and scan["path"] not in overrides:
+                k0, me = edits_by_path[scan["path"]]
+                if me.get("add") or me.get("remove"):
+                    progress(0.02, "applying your brush fixes")
+                    overrides[scan["path"]] = _apply_mask_edit(job, k0, edit=me, remap=remaps.get(scan["path"]))
+                    fixed[scan["path"]] = overrides[scan["path"]]
             override = overrides.get(scan["path"], fixed.get(scan["path"]))
             params = _scan_params(job, scan)
             if k in fast and not full and scan.get("report") and os.path.exists(os.path.join(job["dir"], f"{scan['name']}_body_only.stl")):
@@ -1214,8 +1232,11 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         raise HTTPException(404)
     try:
         me = json.loads(edits or "{}")
-        # a re-run without any painted vertex is just a re-run: it must not count as a brush correction
-        job["mask_edit"] = me if any(me.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "takeoff", "reservoir")) else None
+        # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
+        # any painted vertex is just a re-run: it must not count as a brush correction
+        mes = me if isinstance(me, list) else ([me] if me else [])
+        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "reservoir"))]
+        job["mask_edit"] = mes or None
     except Exception:
         job["mask_edit"] = None
     # only the models a change touches are re-made: a retainer-line change leaves the whitening trays
@@ -1254,12 +1275,12 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         only = None                                   # everything
     else:
         only = set()
-        # a brush edit is on one scan file: the models made from it are re-made, the other arch is left alone
-        painted_path = job["scans"][me.get("scan", 0)]["path"] if me is not None and 0 <= int(me.get("scan", 0) or 0) < len(job["scans"]) else None
+        # a brush edit is on a scan file: the models made from it are re-made, an arch not painted on is left alone
+        painted_paths = {job["scans"][int(e.get("scan", 0) or 0)]["path"] for e in (me or []) if 0 <= int(e.get("scan", 0) or 0) < len(job["scans"])}
         for k, sc in enumerate(job["scans"]):
             typed = per_type.get({"WT": "wt", "TT": "tt"}.get(sc.get("tag"), ""), False)
             moved = sc.get("arch") in adj_arches
-            brushed = painted_path is not None and sc["path"] == painted_path
+            brushed = sc["path"] in painted_paths
             if typed or moved or brushed or not sc.get("report"):
                 only.add(k)
             if moved and not typed and not brushed and sc.get("report") and sc.get("arch") in fast_arches:
