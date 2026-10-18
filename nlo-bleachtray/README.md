@@ -87,8 +87,17 @@ The models then open in **PreForm** on the PC that runs the app (the lab PC, whe
 from the print folder, so printing is the next click. They are written flat with the base on the platform (z = 0), so
 they land horizontal with no supports; PreForm keeps its own last resin and layer height. **Open in PreForm** in the
 Check & send box does the same any time, before or after sending (it files the models too). PreForm is found by itself
-in its usual install folder; Settings → PreForm has the path if it lives somewhere else, and the switch to turn the
-open-on-send off.
+in its usual install folder (PreForm 3.6x keeps the program in a versioned subfolder next to `PreFormLauncher.exe`);
+Settings → PreForm has the path if it lives somewhere else, and the switch to turn the open-on-send off.
+
+**From any other PC** with PreForm installed, the button reads **Open in PreForm on this PC** (with a smaller *on the lab PC*
+beside it), and a Send made from that PC opens the models there rather than on the lab's screen. Once per PC, Win+R:
+
+    powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/preform_link.ps1' -UseBasicParsing).Content"
+
+(Settings → PreForm has a *copy the line* link.) It registers a small `nlobt:` link handler for that Windows user - no admin -
+which hands the model files on the office share to the PreForm installed there. The first click shows the browser's
+"Open …?" question; tick *Always allow*. The print folder must be on the office share for this (the default is).
 
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 
