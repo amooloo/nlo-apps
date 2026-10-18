@@ -18,6 +18,7 @@ sys.path.insert(0, ROOT)
 from bleachtray.pipeline import process, DEFAULTS  # noqa: E402
 from bleachtray.segment import load_models  # noqa: E402
 from bleachtray.orderfolder import write_order_folder  # noqa: E402
+from bleachtray.printfolder import write_print_folder, default_print_root  # noqa: E402
 
 JOBS_DIR = os.path.join(ROOT, "jobs")
 os.makedirs(JOBS_DIR, exist_ok=True)
@@ -47,7 +48,47 @@ def site_config():
     cfg = _read_cfg()
     return dict(order_root=cfg.get("titan") or "", doctor=cfg.get("doctor") or "Dr. Amir Akhavan",
                 inbox=cfg.get("inbox") or "", scanner_folder=cfg.get("scanner_folder") or "",
-                preform=cfg.get("preform") or "", preform_found=_find_preform(cfg) or "", preform_on_send=bool(cfg.get("preform_on_send", True)))
+                preform=cfg.get("preform") or "", preform_found=_find_preform(cfg) or "", preform_on_send=bool(cfg.get("preform_on_send", True)),
+                print_root=cfg.get("print_root") or "", print_root_default=default_print_root(cfg.get("titan") or "", ROOT),
+                print_root_used=_print_root(cfg))
+
+
+def _print_root(cfg=None):
+    """Where the finished models are filed (Settings -> Print folder), else next to Titan's folder."""
+    cfg = cfg if cfg is not None else _read_cfg()
+    return (cfg.get("print_root") or "").strip() or default_print_root(cfg.get("titan") or "", ROOT)
+
+
+def _scan_tag(sc):
+    """WT / TT / MG for a model: what the case was set up with, else from its preset or kind."""
+    return sc.get("tag") or ("MG" if sc.get("preset") == "mouthguard" else "TT" if (sc.get("kind") or "T").upper().startswith("A") else "WT")
+
+
+def _write_prints(job, log=print):
+    """Copy the case's finished models into the print folder, filed by patient (see printfolder.py).
+    Returns the list of files there (empty when the case has no patient name or the copy failed)."""
+    job["print_error"] = None
+    first, last = job["params"].get("patient_first"), job["params"].get("patient_last")
+    if not (first and last):
+        job["print_error"] = "patient first + last name needed to file the models in the print folder"
+        return []
+    pieces = []
+    for sc in job["scans"]:
+        m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
+        if m and os.path.isfile(m):
+            pieces.append(dict(arch=sc.get("arch"), tag=_scan_tag(sc), stl=m))
+    if not pieces:
+        job["print_error"] = "no finished model to file"
+        return []
+    try:
+        folder, files = write_print_folder(_print_root(), first, last, pieces, own=job.get("print_files") or [])
+    except Exception as ex:  # noqa
+        job["print_error"] = f"models not filed in the print folder: {ex}"
+        log(job["print_error"])
+        return []
+    job["print_folder"], job["print_files"] = folder, files
+    log(f"models filed: {folder} ({', '.join(os.path.basename(f) for f in files)})")
+    return files
 
 
 def _find_preform(cfg=None):
@@ -83,11 +124,17 @@ def _open_in_preform(job, log=print):
     exe = _find_preform()
     if not exe:
         return False, "PreForm was not found on the PC that runs the app - type its path under Settings (PreForm)"
-    stls = []
-    for sc in job["scans"]:
-        m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
-        if m and os.path.isfile(m):
-            stls.append(m)
+    # the copies in the print folder (filed by patient) are what PreForm sees, so a file saved from
+    # there lands next to them; a case without a patient name opens its working files instead
+    stls = [f for f in (job.get("print_files") or []) if os.path.isfile(f)]
+    if len(stls) != len(job["scans"]):
+        stls = _write_prints(job, log=log)
+    where = job.get("print_folder") if stls else None
+    if not stls:
+        for sc in job["scans"]:
+            m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
+            if m and os.path.isfile(m):
+                stls.append(m)
     if not stls:
         return False, "no finished model to open"
     try:
@@ -99,11 +146,12 @@ def _open_in_preform(job, log=print):
         return False, f"PreForm did not start: {ex}"
     names = ", ".join(os.path.basename(x) for x in stls)
     log(f"opened in PreForm: {names}")
-    return True, f"{len(stls)} model{'s' if len(stls) != 1 else ''} opened in PreForm on {os.environ.get('COMPUTERNAME') or 'this PC'}: {names}"
+    return True, (f"{len(stls)} model{'s' if len(stls) != 1 else ''} opened in PreForm on {os.environ.get('COMPUTERNAME') or 'this PC'}"
+                  + (f" from {where}" if where else "") + f": {names}")
 
 
 @app.post("/api/settings")
-async def save_settings(scanner_folder: str = Form(None), preform: str = Form(None), preform_on_send: str = Form(None)):
+async def save_settings(scanner_folder: str = Form(None), preform: str = Form(None), preform_on_send: str = Form(None), print_root: str = Form(None)):
     """Persist office-wide settings into watch_config.json (only the keys given)."""
     cfg = _read_cfg()
     if scanner_folder is not None:
@@ -112,6 +160,8 @@ async def save_settings(scanner_folder: str = Form(None), preform: str = Form(No
         cfg["preform"] = "" if preform.strip().lower() in ("", "auto") else preform.strip()   # "auto" clears a typed path (an empty field does not reach here)
     if preform_on_send is not None:
         cfg["preform_on_send"] = preform_on_send.strip().lower() in ("1", "true", "yes", "on")
+    if print_root is not None:
+        cfg["print_root"] = "" if print_root.strip().lower() in ("", "auto") else print_root.strip()   # "auto" = back to the folder next to Titan's
     try:
         with open(CFG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
@@ -232,6 +282,7 @@ def _save_case(job):
         case = dict(id=job["id"], name=job.get("name"), created=job.get("created"), source=job.get("source"), preset=job.get("preset"),
                     filename=job.get("filename"), params=params, scans=scans, review=job.get("review"), order_folder=job.get("order_folder"),
                     sent_at=job.get("sent_at"), learned=job.get("learned"), fixed=[os.path.relpath(k, jdir) for k in fixed], paint=paint,
+                    print_folder=job.get("print_folder"), print_files=job.get("print_files") or [],
                     thinned=bool(job.get("thinned")), saved=time.time())
         with open(os.path.join(jdir, "case.json"), "w") as f:
             json.dump(case, f, indent=1, default=float)
@@ -367,6 +418,7 @@ def _job_from_case(jid):
     job = dict(id=jid, dir=jdir, scans=scans, name=case.get("name"), params=case.get("params") or {}, status="done" if have_models else "needs_run",
                created=case.get("created") or time.time(), filename=case.get("filename"), preset=case.get("preset"), source=case.get("source"),
                review=case.get("review"), order_folder=case.get("order_folder"), order_error=None, sent_at=case.get("sent_at"), learned=case.get("learned"),
+               print_folder=case.get("print_folder"), print_files=case.get("print_files") or [],
                fixed_labels=fixed, paint=paint, thinned=case.get("thinned"), reopened=True, feat_cache={},
                log=[f"opened from the history ({time.strftime('%m/%d/%Y', time.localtime(case.get('created') or time.time()))}"
                     + (f", sent {time.strftime('%m/%d/%Y %H:%M', time.localtime(case['sent_at']))}" if case.get("sent_at") else "") + ")"])
@@ -609,7 +661,9 @@ def _write_order(job, log=print):
         job["order_error"] = str(ex)
         log(f"order folder failed: {ex}")
         return False
-    # the models go straight to the printer's software too (Settings -> PreForm), so printing is the next click
+    # the printable models are filed by patient in the print folder (Settings -> Print folder) ...
+    _write_prints(job, log=log)
+    # ... and go straight to the printer's software from there (Settings -> PreForm), so printing is the next click
     if site.get("preform_on_send", True):
         ok, msg = _open_in_preform(job, log=log)
         job["preform"] = dict(ok=ok, message=msg, when=time.time())
@@ -1226,7 +1280,7 @@ def _fixed_arches(job):
 
 
 def _review_view(job):
-    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned", "sent_at", "reopened", "preform")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job)}
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned", "sent_at", "reopened", "preform", "print_folder", "print_files", "print_error")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job)}
 
 
 def _save_training(job, log=print):
@@ -1406,7 +1460,7 @@ def job_status(jid: str):
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
-    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned", "sent_at", "reopened", "created", "preform")}
+    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned", "sent_at", "reopened", "created", "preform", "print_folder", "print_files", "print_error")}
     out["started"] = job.get("started")
     out["ahead"] = _ahead(job)
     out["fixed"] = _fixed_arches(job)
