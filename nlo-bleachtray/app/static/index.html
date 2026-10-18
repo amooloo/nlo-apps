@@ -887,7 +887,8 @@ $('#setApply').onclick = async () => {
   if (!currentJob) return;
   saveSettings(); $('#settings').classList.remove('on'); requestRender();
   const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', JSON.stringify(params()));
-  const r = await (await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd })).json();
+  const resp = await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); const r = await resp.json().catch(() => ({}));
+  if (!resp.ok) { showErr('Could not re-run: ' + (r.detail || resp.status) + (resp.status === 404 ? ' — the case is not open any more; pick it from the list or Past cases and try again' : '')); return; }
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
   $('#dl').innerHTML = ''; selectJob(currentJob);
 };
@@ -1013,7 +1014,11 @@ async function selectJob(id){
     if (j.status === 'running' || j.status === 'queued') { renderProgress(j); if (shown !== sig) refreshJobs(); shown = sig; return; }
     if (shown === sig) return;
     shown = sig; refreshJobs();
-    if (j.status === 'done') { try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); } }
+    if (j.status === 'done') {
+      // the New case card shows the open case's patient (unless a new case is being set up right now)
+      const p = j.params || {}; if (!pending.length && p.patient_first && p.patient_last) { $('#pfirst').value = p.patient_first; $('#plast').value = p.patient_last; }
+      try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); }
+    }
     if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; const box = $('#review'); box.className = 'review discarded'; box.innerHTML = '<b>Processing failed.</b> Open the processing log below and send Dr. Akhavan the last lines; "Run again with these settings" starts the case over.'; $('#dl').innerHTML = ''; $('#rerunbox').style.display = 'block'; }
   };
   await tick(); pollTimer = setInterval(tick, 1500);
@@ -1101,8 +1106,8 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
     const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t) { showErr('You have brush edits that are not applied yet — click "Apply & re-run" first, then Send or Save as lesson.'); showTab(t); return true; } return false; };
-    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
-    $('#learnbtn').onclick = async () => { if ($('#learnbtn').disabled) return; if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: new FormData() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
+    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
+    $('#learnbtn').onclick = async () => { if ($('#learnbtn').disabled) return; if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: nameForm() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
     $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); };
   }
 }
@@ -1450,10 +1455,13 @@ function updateFixCount(){
 }
 const editsPayload = () => JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove], cut:[...edits.cut], noreservoir:[...edits.noreservoir], blockout:[...edits.blockout], takeoff:[...edits.takeoff], reservoir:[...edits.reservoir] });
 $('#showcol').onchange = () => { if (segMesh) paintColors(); };
+// Send / Save as lesson carry the name typed in the New case card, for a case that has none (it never replaces one the case has)
+const nameForm = () => { const fd = new FormData(); fd.append('patient_first', $('#pfirst').value.trim()); fd.append('patient_last', $('#plast').value.trim()); return fd; };
 async function applyAndRerun(){
   if (!currentJob) return;
   const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', JSON.stringify(params()));
-  const r = await (await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd })).json();
+  const resp = await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); const r = await resp.json().catch(() => ({}));
+  if (!resp.ok) { showErr('Could not re-run: ' + (r.detail || resp.status) + (resp.status === 404 ? ' — the case is not open any more; pick it from the list or Past cases and try again' : '')); return; }
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
   $('#dl').innerHTML = ''; selectJob(currentJob);
 }

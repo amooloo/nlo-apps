@@ -1130,6 +1130,11 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         new = json.loads(params or "{}")
     except Exception:
         new = {}
+    # the page sends its New-case fields with every re-run; after a reload those are empty, and an
+    # empty name / folder / doctor must never wipe the ones the case was made with
+    for k in IDENTITY_KEYS:
+        if k in new and not (str(new[k]).strip() if new[k] is not None else ""):
+            new.pop(k)
     old = job["params"]
     volatile = {"adjust", "tracker_case"}
     def changed(a, b):
@@ -1336,12 +1341,27 @@ def _save_training(job, log=print):
     return saved
 
 
+IDENTITY_KEYS = ("patient_first", "patient_last", "patient_id", "doctor", "order_root")
+
+
+def _name_from_form(job, first, last):
+    """A case that lost (or never had) its patient name takes the one typed in the New case card when
+    Send / Save as lesson is clicked - the typed name never replaces one the case already has."""
+    p = job["params"]
+    if first and last and not (p.get("patient_first") and p.get("patient_last")):
+        p["patient_first"], p["patient_last"] = first.strip(), last.strip()
+        if not job.get("name") or job["name"].lower().startswith(("scan", "upload")):
+            job["name"] = f"{p['patient_first']}_{p['patient_last']}"
+        job.setdefault("log", []).append(f"patient name set from the page: {p['patient_first']} {p['patient_last']}")
+
+
 @app.post("/api/jobs/{jid}/approve")
-def approve(jid: str):
+def approve(jid: str, patient_first: str = Form(""), patient_last: str = Form("")):
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
     job.setdefault("log", [])
+    _name_from_form(job, patient_first, patient_last)
     _write_order(job, log=lambda m: job["log"].append(m))
     if _save_training(job, log=lambda m: job["log"].append(m)):
         job["learned"] = _learned_note(job)
@@ -1384,15 +1404,16 @@ def _learned_note(job):
 
 
 @app.post("/api/jobs/{jid}/learn")
-def learn_from(jid: str):
+def learn_from(jid: str, patient_first: str = Form(""), patient_last: str = Form("")):
     """'Looks good' without an order: file the case (scan + labels as they stand) for the night-time
     retraining. Same thing Send does on the side, minus OrthoFactory."""
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
     job.setdefault("log", [])
+    _name_from_form(job, patient_first, patient_last)
     if not _save_training(job, log=lambda m: job["log"].append(m)):
-        raise HTTPException(400, "nothing to save - the case has no patient name")
+        raise HTTPException(400, "nothing to save - the case has no patient name: type the first and last name in the New case card and click Save as lesson again")
     job["learned"] = _learned_note(job)
     _save_case(job)
     return _review_view(job)
