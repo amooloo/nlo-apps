@@ -63,12 +63,28 @@ The starting set ships with the app as `assets\base_training.npz` - per arch the
 the model learns from (numbers only: no scans, no names), so nothing has to be downloaded for retraining to work.
 Full base cases under `training\_base\` (scan + labels) take precedence when present.
 
-## Printing (PreForm)
+## Printing (print folder + PreForm)
 
-When a case is **sent**, its finished models (the printable STLs, base and all) also open in **PreForm** on the PC that
-runs the app - the lab PC, where the Form 4B's software is - so printing is the next click. **Open in PreForm** in the
-Check & send box does the same any time, before or after sending. PreForm is found by itself in its usual install
-folder; Settings → PreForm has the path if it lives somewhere else, and the switch to turn the open-on-send off.
+Two things leave the app when a case is **sent**:
+
+- the **OrthoFactory order** (Titan-style folder with the `.pts` trim line) goes to the Trimlign input folder, as always;
+- the **printable models** (STLs, base and all) are filed in the **print folder**, one folder per patient and one file
+  per model named by date, patient, arch and type:
+
+      O:\clinical\3D printing\Models\
+          Wood, Charles\
+              2026-10-18_Wood_Charles_Upper_WT.stl      WT whitening tray, TT retainer template, MG mouthguard
+              2026-10-18_Wood_Charles_Lower_WT.stl
+
+  Sending the same case again replaces its files; a new case for the same patient on the same day gets `_2`, `_3`.
+  The folder defaults to `Models` next to Titan's folder on the office share; Settings → *Print folder* changes it.
+
+The models then open in **PreForm** on the PC that runs the app (the lab PC, where the Form 4B's software is) straight
+from the print folder, so printing is the next click. They are written flat with the base on the platform (z = 0), so
+they land horizontal with no supports; PreForm keeps its own last resin and layer height. **Open in PreForm** in the
+Check & send box does the same any time, before or after sending (it files the models too). PreForm is found by itself
+in its usual install folder; Settings → PreForm has the path if it lives somewhere else, and the switch to turn the
+open-on-send off.
 
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 

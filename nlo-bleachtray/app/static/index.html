@@ -552,7 +552,11 @@
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
         <div class="hint" id="scanfolder_hint"></div>
       </div>
-      <div class="scard wide"><div class="sLab">PreForm (Form 4B) <span class="info" title="The printer's software on the PC that runs the app. When a case is sent, its finished models open there, ready to print; the Open in PreForm button does the same any time.">i</span></div>
+      <div class="scard wide"><div class="sLab">Print folder (finished models) <span class="info" title="Every sent case's printable models are filed here, one folder per patient (Last, First) and one file per model named by date, patient, arch and type - e.g. Wood, Charles\2026-10-18_Wood_Charles_Upper_WT.stl. PreForm opens them from here. The trim line for the Trimlign goes to the OrthoFactory folder above, as before.">i</span></div>
+        <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="printroot" placeholder="next to Titan's folder: ...\3D printing\Models"><button class="small" id="printroot_save">Save</button></div>
+        <div class="hint" id="printroot_hint"></div>
+      </div>
+      <div class="scard wide"><div class="sLab">PreForm (Form 4B) <span class="info" title="The printer's software on the PC that runs the app. When a case is sent, its finished models open there from the print folder, ready to print; the Open in PreForm button does the same any time.">i</span></div>
         <label class="ck" style="margin:4px 0 8px"><input type="checkbox" id="preform_on_send"> Open the models in PreForm when a case is sent</label>
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="preform" placeholder="found by itself when PreForm is installed in the usual place"><button class="small" id="preform_save">Save</button></div>
         <div class="hint" id="preform_hint"></div>
@@ -881,8 +885,15 @@ fetch('/api/presets').then(r => r.json()).then(p => {
   $('#scanfolder').value = s.scanner_folder || '';
   $('#preform').value = s.preform || ''; $('#preform_on_send').checked = !!s.preform_on_send;
   $('#preform_hint').textContent = s.preform_found ? `PreForm: ${s.preform_found}` : 'PreForm was not found on the PC that runs the app - type the path of PreForm.exe here if it is installed somewhere else.';
+  $('#printroot').value = s.print_root || ''; showPrintRoot(s);
   refreshScanner();
 }).catch(() => {});
+function showPrintRoot(s){ $('#printroot_hint').textContent = s.print_root_used ? `Models are filed in ${s.print_root_used}${s.print_root ? '' : ' (next to the Trimlign folder - type another folder to change it)'}` : 'Set the Trimlign folder first, or type a folder here.'; }
+$('#printroot_save').onclick = async () => {
+  const fd = new FormData(); fd.append('print_root', $('#printroot').value.trim() || 'auto');
+  const r = await fetch('/api/settings', { method:'POST', body: fd }); const s = r.ok ? await r.json() : null;
+  if (!s) $('#printroot_hint').textContent = 'Could not save.'; else { showPrintRoot(s); $('#printroot_hint').textContent = 'Saved. ' + $('#printroot_hint').textContent; }
+};
 $('#preform_save').onclick = $('#preform_on_send').onchange = async () => {
   const fd = new FormData(); fd.append('preform', $('#preform').value.trim() || 'auto'); fd.append('preform_on_send', $('#preform_on_send').checked ? '1' : '0');
   const r = await fetch('/api/settings', { method:'POST', body: fd }); const s = r.ok ? await r.json() : null;
@@ -1049,7 +1060,8 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
   const wireClose = () => { const a = box.querySelector('#closecase'); if (a) a.onclick = async ev => { ev.preventDefault(); await fetch(`/api/jobs/${id}/close`, { method: 'POST' }); currentJob = null; $('#review').innerHTML = ''; $('#stats').innerHTML = ''; $('#dl').innerHTML = ''; clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; renderPanel(); requestRender(); refreshJobs(); searchHistory(); }; };
   if (j.review === 'sent') {
     const when = j.sent_at ? ` ${new Date(j.sent_at * 1000).toLocaleDateString()} ${new Date(j.sent_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
-    box.innerHTML = `<div class="anim" id="animCut"></div><b>Sent to the Trimlign${when}.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${learnedLine}` +
+    const printLine = (j.print_files || []).length ? `<div class="hint">Models filed in <b>${j.print_folder}</b>: ${j.print_files.map(f => f.split(/[\\/]/).pop()).join(', ')}</div>` : (j.print_error ? `<div class="hint" style="color:var(--err)">${j.print_error}</div>` : '');
+    box.innerHTML = `<div class="anim" id="animCut"></div><b>Sent to the Trimlign${when}.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${printLine}${learnedLine}` +
       `<div class="btns"><button class="small" id="resendbtn" title="Write the order again from these models - a lost print, a second set. The earlier order folder is replaced.">Send to Trimlign again</button><button class="small" id="preformbtn" title="Open the finished models in PreForm on the PC that runs the app (the lab PC)">Open in PreForm</button></div>` +
       (j.preform ? `<div class="hint" id="preformline" style="color:${j.preform.ok ? 'var(--teal, #0d9488)' : 'var(--err)'}">${j.preform.message}</div>` : '') +
       (addLine ? addLine.replace('Also make', 'Need more? Also make') + `<div class="hint">(the case comes back for a check; Send then replaces the order with every model)</div>` : '');
