@@ -371,14 +371,21 @@ left alone) the contact - the closest points of the two crowns' upper halves - s
 slab, and the notch between them on each side (buccal / lingual) is the region within *reach* of both outlines,
 closed by a flat face across its mouth (the hull of that lens) - so the fill is flush with both crowns and can
 never be a sheet on one of them. Each side ends where the papilla has closed the notch (gum on the notch's axis
-reaching its mouth); the wedge stands on that level (and a step into the gum), is *top* mm tall, full reach at its
-foot and tapering to nothing at its top, and reaches `reach` into both crowns, so the union makes one solid -
-nothing thin sits on the outside. The stacked notches are voxelised (0.2 mm), marching-cubed and Taubin-smoothed;
-all wedges go into the body union as one extra solid and are shown teal. Settings (retainer): **Interproximal fill**
-on/off (on by default), **Reach out of the embrasure** (uLab's Buccal / Lingual, 1.25 mm), **Height above the gum**
-(uLab's Top, 3 mm). The report says "N of M contacts filled" and lists the contacts left out and why. The whitening
-tray gets none (soft tray). Anything else - under a pontic, round an implant crown - is painted on the Block-outs tab
-and filled by the column method below.
+reaching its mouth); the fill is a **triangle** standing on that level (and a step into the gum): full reach at the
+gum, narrowing to a point at the contact (or at `top` mm above the gum when that is set lower) - as the doctor drew
+it; it reaches `reach` into both crowns, so the union makes one solid - the fill goes into the teeth and its edges
+are inside them, nothing thin sits on the outside. **Next to an edentulous space** (`gap_fills`, one per tooth
+flanking a gap from `edentulous_gaps`): the second rule of the drawing - a straight vertical face starting
+`fill_retention` (0.5 mm) below the tooth's height of contour on the gap side, so the top of the undercut stays for
+grip, the undercut between the face and the crown, then the ridge sloping away under it, filled down to where the
+ridge reaches the face, flush with the crown's width; a crown that widens all the way to the gum has its face at its
+foot. (Not yet seen on a real undercut next to a gap - the scans at hand have high ridges; check on the next case
+with a missing tooth.) The stacked notches are voxelised (0.2 mm), marching-cubed and
+Taubin-smoothed; all fills go into the body union as one extra solid and are shown teal. Settings (retainer):
+**Interproximal fill** on/off (on by default), **Reach out of the embrasure** (uLab's Buccal / Lingual, 1.25 mm),
+**Fill height above the gum** (20 = to the contact). The report says "N of M contacts filled, K faces next to
+a gap" and lists the contacts left out and why. The whitening tray gets none (soft tray). Anything else - under a pontic, round an
+implant crown - is painted on the Block-outs tab and filled by the column method below.
 
 **Painted block-out.** The space under an overhang the doctor paints - a bridge pontic, the emergence of an implant
 crown - is filled like block-out resin (`bleachtray/blockout.py`): on a 0.3 mm grid every vertical

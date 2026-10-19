@@ -19,7 +19,8 @@ DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=0.6, reservoir_max_position=5,   # setback: the reservoir stops this far short of the gum line (was 0.5; 1 mm is the usual lab rule)
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
     blockout=False, blockout_depth=0.75,          # automatic interproximal fill (a wedge under every contact, the way aligner labs do it): off by default here, on for the retainer in the app
-    fill_reach=1.25, fill_top=3.0,  # the wedge: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how tall it stands above the papilla
+    fill_reach=1.25, fill_top=20.0,  # the fill: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how far up from the papilla (20 = to the contact)
+    fill_retention=0.5,    # next to an edentulous space: the fill's straight face starts this far below the tooth's height of contour (that much undercut stays for grip)
     blockout_proud=0.0,    # mm: where a PAINTED block-out's wall stands relative to the tooth's contour seen from above - 0 flush with it, > 0 that much further out, < 0 that much of the undercut left for grip
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
@@ -717,12 +718,20 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             fills, binfo = [], dict(spots=0, volume_ml=0.0)
             if P.get("blockout") and not MG:
                 from .interprox import contact_fills
-                cfill, cinfo = contact_fills(plain, labels, info, rc_bo, top=float(P.get("fill_top") or 3.0), reach=float(P.get("fill_reach") or 1.25),
+                cfill, cinfo = contact_fills(plain, labels, info, rc_bo, top=float(P.get("fill_top") or 20.0), reach=float(P.get("fill_reach") or 1.25),
                                              log=lambda m: log(f"[{name}] {m}"))
                 binfo.update(contacts=cinfo.get("contacts", 0), contacts_filled=cinfo.get("spots", 0), fill_skipped=cinfo.get("skipped", []),
                              spots=cinfo.get("spots", 0), volume_ml=cinfo.get("volume_ml", 0.0), top_mm=cinfo.get("top_mm"), reach_mm=float(P.get("fill_reach") or 1.25))
                 if cfill is not None:
                     fills.append(cfill)
+                # a tooth facing an edentulous space: a straight face a little below its height of contour
+                if rep.get("gaps"):
+                    from .interprox import gap_fills
+                    gsolids, ginfo = gap_fills(plain, labels, info, rep["gaps"], rc_bo, retention=float(P.get("fill_retention") or 0.5), log=lambda m: log(f"[{name}] {m}"))
+                    if gsolids:
+                        fills.extend(gsolids)
+                        binfo.update(gap_faces=len(ginfo), gap_fills=ginfo, spots=int(binfo.get("spots", 0)) + len(ginfo),
+                                     volume_ml=round(float(binfo.get("volume_ml", 0.0)) + sum(q["volume_ml"] for q in ginfo), 3))
             if paint is not None:
                 pfill, pinfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=False,
                                              paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), centre=rc_bo, log=lambda m: log(f"[{name}] {m}"))
