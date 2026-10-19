@@ -835,7 +835,12 @@ window.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList
 window.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer && e.dataTransfer.files.length) setFiles([...e.dataTransfer.files], true); });
 const isTitan = fn => /^(\d{6,}[ _-]+)?.+?[ _]+-[ _]+\d+[ _]+-[ _]+(Maxilla|Mandible)/i.test(fn.replace(/\.(stl|pts)$/i, ''));
 const nameOf = fn => { const m = fn.replace(/\.(stl|ply)$/i,'').replace(/^(dr|mr|mrs|ms|miss|prof)\.?[ _-]+/i, '').match(/^([A-Za-z][A-Za-z'\-]*)[_ -]+([A-Za-z][A-Za-z'\-]*)/); return m ? [m[1], m[2]] : null; };
-const archOf = fn => /upper|maxil/i.test(fn) ? 'upper' : (/lower|mandib/i.test(fn) ? 'lower' : '');
+// an iTero export: "<order number>_<export type>_<u|l>.ply" (328336123_lprofile_occlusion_u.ply) - no patient name
+// in it; the order number is what ties its upper to its lower
+const iteroOf = fn => { const m = fn.replace(/\.(stl|ply)$/i, '').match(/^(\d{5,})(?:[ _-].*)?[ _-]([ul])$/i); return m ? { order: m[1], arch: /u/i.test(m[2]) ? 'upper' : 'lower' } : null; };
+const archOf = fn => /upper|maxil/i.test(fn) ? 'upper' : (/lower|mandib/i.test(fn) ? 'lower' : ((iteroOf(fn) || {}).arch || ''));
+// whose scan the file is, as far as its name tells: the patient's name, or the iTero order number; null when it tells neither
+const patientOf = fn => { const m = nameOf(fn); if (m) return (m[0] + ' ' + m[1]).toLowerCase(); const it = iteroOf(fn); return it ? '#' + it.order : null; };
 async function fileTitan(titanFiles){
   const fd = new FormData(); titanFiles.forEach(f => fd.append('files', f));
   const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();
@@ -924,12 +929,15 @@ function setFiles(fs, auto){
   const titanFiles = fs.filter(f => isTitan(f.name)); fs = fs.filter(f => !isTitan(f.name));
   if (titanFiles.length) fileTitan(titanFiles);
   if (!fs.length) return;
-  // several patients at once (a whole day's scans): one case per patient, names from the file names
-  const patients = new Set(fs.map(f => (nameOf(f.name) || ['', f.name]).join(' ').toLowerCase()));
-  bulk = fs.length > 2 || patients.size > 1;
+  // several patients at once (a whole day's scans): one case per patient, names from the file names. Only when
+  // the names show more than one patient - two files whose names hold no patient (an iTero export's upper +
+  // lower: an order number, no name) are one patient's, and get the New case questions like any other drop
+  const who = fs.map(f => patientOf(f.name));
+  const patients = new Set(who.map((k, i) => k || '?' + i));
+  bulk = fs.length > 2 || new Set(who.filter(Boolean)).size > 1;
   if (bulk) {
     files = fs; pending = []; renderSetup();
-    $('#filehint').textContent = `${fs.length} files · ${patients.size} patient${patients.size > 1 ? 's' : ''} — one case each, upper + lower paired by name — processing with the defaults (${$('#preset').selectedOptions[0].text})…`;
+    $('#filehint').textContent = `${fs.length} files · ${patients.size} patient${patients.size > 1 ? 's' : ''} — one case each, upper + lower paired by name (or iTero order number) — processing with the defaults (${$('#preset').selectedOptions[0].text}), braces left on (drop one patient's scans on their own to have them taken off)…`;
     $('#rerunbox').style.display = 'none';
     if (auto) $('#go').click();
     return;
@@ -1180,7 +1188,8 @@ $('#go').onclick = async () => {
   const pend = $('#go').dataset.pending ? JSON.parse($('#go').dataset.pending) : null; delete $('#go').dataset.pending;
   const fd = new FormData(); files.forEach(f => fd.append('files', f));
   fd.append('arches', JSON.stringify(pend ? pend.map(p => p.arch) : files.map((f,i) => (i===0 && !bulk) ? ($('#arch').value || null) : null)));
-  if (pend) { fd.append('makes', JSON.stringify(pend.map(p => p.makes))); fd.append('braces', JSON.stringify(pend.map(p => !!p.braces))); }
+  // from the New case pop-up: these scans are one patient's, the name typed there (the file names may hold none)
+  if (pend) { fd.append('makes', JSON.stringify(pend.map(p => p.makes))); fd.append('braces', JSON.stringify(pend.map(p => !!p.braces))); fd.append('one_case', '1'); }
   fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(pr)); fd.append('name', bulk ? '' : $('#name').value);
   $('#go').disabled = true; $('#startcase').disabled = true; $('#startcase').textContent = 'Starting…';
   const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();

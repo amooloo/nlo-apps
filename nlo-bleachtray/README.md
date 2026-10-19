@@ -11,8 +11,12 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
 2. Drop the file on the **Tray Maker** app page (any office computer; home page → Tray Maker). A pop-up in the middle of the screen asks what
    to make of it - **whitening tray**, **retainer (TT)** and/or **mouthguard (MG, braces on)** - whether the scan has
    **braces on** that should come off first (never assumed) - and whether the opposing arch is coming: drop that
-   one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once,
-   or files dragged into **`S:\clinical\3D printing\BleachTray`**, run with the default (both) without questions.
+   one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once
+   (file names of more than one patient, or more than two files), or files dragged into
+   **`S:\clinical\3D printing\BleachTray`**, run with the default (both) without questions - and with any braces left
+   on. An iTero export's upper + lower (`328336123_lprofile_occlusion_u.ply` / `_l.ply`: an order number, no name)
+   are one patient's: the pop-up asks as for any drop, with the arches filled in from `_u` / `_l` - type the name
+   (until 10/19/2026 the two were taken for two patients and ran as a whole day's drop: no questions, braces on).
    Several people can drop at the same time: cases run one after another and the list shows who is waiting.
 3. A few minutes later the case shows **"check & send"** in the app, with **four models**: whitening tray (WT) and
    thermoformed retainer (TT) for each arch. Look at the 3D result (trim line, reservoirs, position on the base) and
@@ -408,6 +412,11 @@ and the same on both sides. (The scan-colour step is seeded, so the same scan no
 **Tooth numbering: the midline and missing teeth.** Positions (1 = central .. 7 = second molar, per side) used to come from counting outward from a midline found by the angle about the arch's ring centre. On lower arches that split was one tooth off more often than not (incisors are 5 mm wide: a 2-3 mm error in the centre or the yaw flips one to the other side), and then one side's first molar was a "5" with a reservoir and the other side's second premolar a "6" without - the asymmetric reservoirs seen on 10/18/2026. Now every gap between neighbouring teeth is scored as the midline: distance of its contact from the arch's own mirror axis (`symmetry_frame` on the tooth vertices), how unlike the two sides' mesiodistal widths are when paired from there, and a lopsided count (`segment._midline_split`); on 24 arches this gave 7/7 wherever the old split gave 8/6. After that, `number_by_type` aligns each side's width sequence to the textbook widths (`TOOTH_WIDTHS`, averaged with the other side's own widths when that side is complete and plausible) by dynamic programming that may leave positions empty at a per-position cost (`SKIP_COSTS`: premolars cheap - extractions; canines and upper centrals dear), never un-does a gap `edentulous_gaps` found, and only overrides the count when clearly better. So a lower with a missing incisor and the space closed keeps its molars at 6-7 and the canine at 3; the result line says when it happened and the report keeps `renumbered`.
 
 **Erased reservoir.** A *No reservoir* (Erase) stroke is the doctor's line: the reservoir ends at the edge of the stroke, with its 0.6 mm slope on the kept side - it used to stay a further `recession_leeway` (1 mm) away all round the stroke, which ate the reservoirs on a recession case to small ragged islands (10/18/2026). The leeway now applies only to root the app found on its own (switch in Settings).
+
+**Needs scikit-image** (its marching cubes builds the fill solids). It was missing from `requirements.txt` until
+10/19/2026, so the lab PC made every retainer from 10/18 without block-out - painted outlines included, since one
+failure took the whole step down - and only the log said so. Now each part (contact fill, gap fill, painted) is
+made on its own, and a part that cannot be made is a red warning on the case.
 
 **Interproximal fill (the automatic block-out).** The way aligner labs fill their models (uLab's "digital fill"):
 one wedge under every contact, by construction - not found by hunting for undercuts on the surface, which put fins
