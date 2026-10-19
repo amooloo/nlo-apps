@@ -216,6 +216,10 @@
   .toolbar label input{accent-color:var(--blue)}
   .brush,.place{position:absolute;top:64px;right:12px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:9px 11px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
   .brush{width:auto;max-width:320px} .place{width:318px}
+  .textbox{position:absolute;top:64px;right:12px;z-index:2;width:318px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:9px 11px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
+  .textbox.on{display:block} .textbox h4{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin:0}
+  #textchip{top:104px} .textbox{top:64px} .place.withtext{top:64px}
+  .placing{outline:2px solid var(--amber-500, #f59e0b);outline-offset:-2px}
   .brush.on,.place.on{display:block}
   .brush h4,.place h4{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin:0}
   /* the boxes stay small: controls only; the words sit behind "?" and the whole box folds to a chip with "–" */
@@ -347,6 +351,7 @@
         <div class="brush" id="brush"></div>
         <button class="pchip" id="brushchip" title="Show the brush tools">&#9998; Brush &#9656;</button>
         <button class="pchip" id="placechip" title="Fine steps for the base, underside view, Apply / Reset">&#10021; Position on the base &#9656;</button>
+        <button class="pchip" id="textchip" title="The text on the model: where it goes, what it says, raised or cut in">T&#1090; Text &#9656;</button>
         <div class="place" id="place">
           <div class="phead"><h4>Position on the base</h4><span class="sp"></span><button class="ibtn" id="placehelp" title="How to move the base">?</button><button class="ibtn" id="placehide" title="Hide this box - the Position chip brings it back">&ndash;</button></div>
           <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. The <b>mark</b> on the model (the raised initials + W/R that form into the tray) shows as a small card on the model: <b>drag it</b> onto any tooth or onto the side of the model, turn it and size it with the Mark buttons, choose what it says, raised or cut in; <b>Auto</b> puts it back on a first molar. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> moves this arch's models on the base (a few seconds - a height change rebuilds them, ~1 min) and replaces the Trimlign order; the other arch stays as it is. <b>Reset</b> goes back to the automatic placement.</div>
@@ -355,10 +360,17 @@
           <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
           <div class="prow"><span>Back / forward</span><button data-adj="dy" data-d="-1">&darr; 1</button><button data-adj="dy" data-d="-0.25">&darr; &frac14;</button><span class="val" id="v_dy">0.00</span><button data-adj="dy" data-d="0.25">&frac14; &uarr;</button><button data-adj="dy" data-d="1">1 &uarr;</button></div>
           <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
-          <div class="prow" style="margin-top:6px;border-top:1px solid var(--grey-100);padding-top:6px;flex-wrap:wrap"><span title="The mark on the model (initials + W/R, raised so it forms into the tray): drag the card onto any tooth or the side of the model">Mark</span><button data-mk="angle_deg" data-d="-15" title="Turn the mark">&#8634; 15&deg;</button><button data-mk="angle_deg" data-d="15" title="Turn the mark">15&deg; &#8635;</button><button data-mk="cap" data-d="-0.3" title="Smaller letters">A&minus;</button><button data-mk="cap" data-d="0.3" title="Bigger letters">A+</button><select id="mktext" class="small" title="What the mark says"><option value="initials">Initials + W/R</option><option value="last">Last name + W/R</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button><button class="small" id="mkauto" title="Back to the automatic spot: the cheek of a first molar">Auto</button></div>
-          <div class="hint" id="markstate" style="margin:2px 0 0"></div>
           <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
           <div class="hint" id="placestate"></div>
+        </div>
+        <div class="textbox" id="textbox">
+          <div class="phead"><h4>Text on the model</h4><span class="sp"></span><button class="ibtn" id="texthelp" title="How the text works">?</button><button class="ibtn" id="texthide" title="Hide this box - the Text chip brings it back">&ndash;</button></div>
+          <div class="hint phelp" id="texthelptext">The text is part of the model: <b>raised</b> it forms into the tray and reads on it (the way aligner makers mark theirs), <b>cut in</b> it stays on the model only. <b>Place</b>: click a start point and an end point on the model and the letters are laid along the surface between them, sized to fit; or drag the yellow card. Turn and size with the buttons. <b>Auto</b> puts it back on a first molar. Apply makes it (a few seconds - the model itself is kept).</div>
+          <div class="prow" style="margin-top:8px;grid-template-columns:76px 1fr 64px"><span>Says</span><select id="mktext" class="small" style="width:100%;min-width:0" title="What the text says"><option value="initials">Initials + W/R</option><option value="last">Last name + W/R</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button></div>
+          <div class="prow" style="margin-top:6px;grid-template-columns:76px 1fr 64px"><span>Place</span><button class="primary small" id="mkplace" title="Click a start point and an end point on the model">Start &rarr; end on the model</button><button class="small" id="mkauto" title="Back to the automatic spot: the cheek of a first molar">Auto</button></div>
+          <div class="prow" style="margin-top:6px;grid-template-columns:76px 1fr 1fr 1fr 1fr"><span>Adjust</span><button data-mk="angle_deg" data-d="-15" title="Turn">&#8634; 15&deg;</button><button data-mk="angle_deg" data-d="15" title="Turn">15&deg; &#8635;</button><button data-mk="cap" data-d="-0.3" title="Smaller letters">A&minus;</button><button data-mk="cap" data-d="0.3" title="Bigger letters">A+</button></div>
+          <div class="hint" id="markstate" style="margin:6px 0 0"></div>
+          <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applytext">Apply</button></div>
         </div>
         <div class="modelTog" id="modeltog"></div>
         <div class="stats" id="stats">Drop a scan to begin.</div>
@@ -463,7 +475,7 @@
           <path d="M50 36 L50 47 Q60 45 70 47 L70 36 Q60 40 50 36 Z" fill="#5EEAD4" stroke="#0D9488" stroke-width="1.2"/>
           <path d="M108 28 L108 46" stroke="#1D3EA9" stroke-width="1.4"/><path d="M105 31 L108 28 L111 31 M105 43 L108 46 L111 43" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
         </svg></div>
-        <select id="blockout"><option value="1" selected>On — a wedge under every contact</option><option value="0">Off — paint the ones that matter (Block-outs tab)</option></select>
+        <select id="blockout"><option value="0" selected>Off — mark the ones that matter (Block-outs tab)</option><option value="1">On — a fill under every contact (rarely wanted as a global)</option></select>
         <div class="sLab" style="margin-top:8px">Reach out of the embrasure (mm) <span class="info" title="uLab's Buccal / Lingual: the notch between two crowns is filled where it is narrower than twice this, with a flat face across its mouth. 1.25 fills the usual black triangle; more covers wider, flatter embrasures.">i</span></div>
         <div class="stepper"><button data-step="-0.25" data-for="fill_reach">−</button><input type="number" id="fill_reach" step="0.25" min="0.5" max="2.5" value="1.25"><button data-step="0.25" data-for="fill_reach">+</button></div>
         <div class="sLab" style="margin-top:8px">Fill height above the gum (mm) <span class="info" title="How far up from the papilla the fill goes. 20 = all the way to the contact (the notch closes there by itself); a smaller number stops the fill lower and leaves the embrasure above it as it is.">i</span></div>
@@ -700,16 +712,17 @@ const edits = { add: new Set(), remove: new Set(), cut: new Set(), noreservoir: 
 const EDIT_KEYS = Object.keys(edits);
 let editsByFile = {}, curFile = null, curScans = [];
 const fileKeyOf = sc => sc ? `${sc.filename}|${sc.preset === 'mouthguard' ? 'mg' : 'std'}` : null;
-function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size)) editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); else delete editsByFile[curFile]; }
-function restoreEdits(key){ const e = editsByFile[key]; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); }
-function forgetEdits(){ editsByFile = {}; curFile = null; EDIT_KEYS.forEach(k => edits[k].clear()); }
+let outlines = [];   // closed outlines on the current file: lists of corner vertices (sent with the strokes, kept with the case)
+function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].outlines = outlines.map(o => o.slice()); } else delete editsByFile[curFile]; }
+function restoreEdits(key){ const e = editsByFile[key]; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); outlines = e && e.outlines ? e.outlines.map(o => o.slice()) : []; }
+function forgetEdits(){ editsByFile = {}; curFile = null; EDIT_KEYS.forEach(k => edits[k].clear()); outlines = []; if (typeof dropOutline === 'function') dropOutline(); }
 // every file's strokes, as the server takes them: one entry per scan file, with the index of a scan made from it
 function allEdits(){
   stashEdits();
   const out = [];
   for (const key in editsByFile) {
     const k = curScans.findIndex(sc => fileKeyOf(sc) === key); if (k < 0) continue;
-    const e = editsByFile[key]; out.push(Object.assign({ scan: k }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
+    const e = editsByFile[key]; out.push(Object.assign({ scan: k, outlines: (e.outlines || []).map(o => o.slice()) }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
   }
   return out;
 }
@@ -723,32 +736,39 @@ const PANELS = {
             sets: ['add', 'remove', 'contact', 'uncontact'], hint: 'Each tooth has its own colour, gum is plain. Hold <kbd class="key">Shift</kbd> and drag to repaint; rotate with the mouse otherwise. <b>Contact</b> is a dot, not a brush: Shift-click once where two teeth touch and the split between them is moved there - for crowded lower incisors, where one colour runs across two teeth and the reservoir ends mid-tooth. A dot already applied shows pale; click it to take it away. The dots are kept with the scan, and a corrected case that is sent or saved as a lesson teaches the model where teeth meet.' },
   res:    { group: 'scan', title: 'Reservoirs — paint or erase', modes: [['reservoir', 'Paint', 'A reservoir here: on a tooth the automatic one skipped (behind the 5s, a tooth set back for recession) or a part it missed. Still 1 mm off the gum line and 0.4 mm off the edge', 'brush'], ['noreservoir', 'Erase', 'No reservoir here (recession, an exposed root, a crown margin) - the reservoir ends at the edge of your stroke, with its 0.6 mm slope on the side you kept', 'eraser']],
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
-  block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['blockout', 'Block out', 'Fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats', 'brush'], ['unblockout', 'Clear', 'Take a painted block-out away here (an applied one shows pale green) - the next Apply re-makes the model without it', 'eraser']],
-            sets: ['blockout', 'unblockout'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
+  block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['outline', 'Outline', 'Click round the undercut, corner by corner (Shift-click): the corners are joined along the surface; click the first dot again to close and everything inside is blocked out. Esc drops an unfinished outline', 'poly'], ['blockout', 'Block out', 'Brush: fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats', 'brush'], ['unblockout', 'Clear', 'Take a painted block-out away here (an applied one shows pale green) - the next Apply re-makes the model without it', 'eraser']],
+            sets: ['blockout', 'unblockout'], hint: '<b>Outline</b>: Shift-click corner after corner round the undercut and click the first dot again to close it - the inside is blocked out and the outline is kept with the case (it teaches the automatic block-out where you want them). <b>Block out</b> is the brush instead: hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the shield)']],
             sets: ['takeoff'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard shield. Hold <kbd class="key">Shift</kbd> and drag over anything that was missed; rotate with the mouse otherwise. On a retainer it comes off and the enamel is rebuilt; on a mouthguard it joins the shield.' },
 };
-const tabMode = { clean: 'cut', seg: 'tooth', res: 'reservoir', block: 'blockout', braces: 'takeoff' };
+const tabMode = { clean: 'cut', seg: 'tooth', res: 'reservoir', block: 'outline', braces: 'takeoff' };
 const ICONS = {
   brush: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M14 3l7 7-8.5 8.5a3 3 0 0 1-4.2 0L7 17.2a3 3 0 0 1 0-4.2L14 3z"/><path d="M11 16c-2 0-3 1-3.5 3.5S5 21 3 21c1.5-1 2-2 2-3.5S6 14 8 14"/></svg>',
   eraser: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M20 20H9"/><path d="M4.5 15.5l9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8l-7 7H9l-4.5-4.5a2 2 0 0 1 0-2.8z"/><path d="M10 10l5 5"/></svg>',
   dot: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M3 14c3-4 5-6 8-6"/><path d="M21 14c-3-4-5-6-8-6"/><circle cx="12" cy="13" r="2.6" fill="currentColor" stroke="none"/></svg>',
+  poly: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 5l12 2-2 12-11-3z"/><circle cx="6" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="18" cy="7" r="1.8" fill="currentColor" stroke="none"/><circle cx="16" cy="19" r="1.8" fill="currentColor" stroke="none"/><circle cx="5" cy="16" r="1.8" fill="currentColor" stroke="none"/></svg>',
 };
 let brushR = 1.5, bracesTab = false;   // brush radius (shared by every tab); whether this job's scan has braces on
 // The two boxes over the viewer stay out of the way: controls only, the explanation behind "?", and "–" folds
 // the box to a chip. Position on the base starts folded (dragging the plate and the ring works without it).
-const panelOpen = { brush: true, place: false }, helpOpen = { brush: false, place: false };
+const panelOpen = { brush: true, place: false, text: false }, helpOpen = { brush: false, place: false, text: false };
 function syncPanels(){
   const P = PANELS[tab];
   const brushHas = !!(P && (P.group === 'scan' ? resMesh : segMesh));
   $('#brush').classList.toggle('on', brushHas && panelOpen.brush); $('#brushchip').classList.toggle('on', brushHas && !panelOpen.brush);
   const placeHas = tab === 'result' && !!archGroup;
   $('#place').classList.toggle('on', placeHas && panelOpen.place); $('#placechip').classList.toggle('on', placeHas && !panelOpen.place);
+  // one box at a time on the right: opening Text closes Position and the other way round
+  $('#textbox').classList.toggle('on', placeHas && panelOpen.text); $('#textchip').classList.toggle('on', placeHas && !panelOpen.text);
+  $('#textchip').style.top = (placeHas && !panelOpen.place) ? '104px' : '64px';
   syncHandles(); requestRender();
 }
 $('#brushchip').onclick = () => { panelOpen.brush = true; syncPanels(); };
-$('#placechip').onclick = () => { panelOpen.place = true; syncPanels(); };
+$('#placechip').onclick = () => { panelOpen.place = true; panelOpen.text = false; syncPanels(); };
 $('#placehide').onclick = () => { panelOpen.place = false; syncPanels(); };
+$('#textchip').onclick = () => { panelOpen.text = true; panelOpen.place = false; makeMarkCard(); syncPanels(); };
+$('#texthide').onclick = () => { panelOpen.text = false; stopPlacing(); syncPanels(); };
+$('#texthelp').onclick = () => { helpOpen.text = !helpOpen.text; $('#texthelptext').classList.toggle('on', helpOpen.text); $('#texthelp').classList.toggle('on', helpOpen.text); };
 $('#placehelp').onclick = () => { helpOpen.place = !helpOpen.place; $('#placehelptext').classList.toggle('on', helpOpen.place); $('#placehelp').classList.toggle('on', helpOpen.place); };
 function renderPanel(){
   const P = PANELS[tab]; const box = $('#brush');
@@ -761,7 +781,7 @@ function renderPanel(){
     <div class="hint" id="fixcount">No edits.</div>`;
   box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); });
   $('#radius').oninput = () => { brushR = +$('#radius').value; $('#rv').textContent = brushR; brushCursor.scale.setScalar(cursorR()); if (brushCursor.visible) requestRender(); };
-  $('#clearfix').onclick = () => { P.sets.forEach(k => edits[k].clear()); paintColors(); paintResColors(); updateFixCount(); };
+  $('#clearfix').onclick = () => { P.sets.forEach(k => edits[k].clear()); if (tab === 'block') { outlines = []; dropOutline(); } paintColors(); paintResColors(); updateFixCount(); };
   $('#rerun').onclick = applyAndRerun;
   $('#brushhide').onclick = () => { panelOpen.brush = false; syncPanels(); };
   $('#brushhelp').onclick = () => { helpOpen.brush = !helpOpen.brush; $('#brushhelptext').classList.toggle('on', helpOpen.brush); $('#brushhelp').classList.toggle('on', helpOpen.brush); };
@@ -956,6 +976,8 @@ function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bl
   // "deeper than x mm" choices and the old default all mean On now - once
   if (!localStorage.getItem('nlo.bleachtray.settings.v4')) { o.blockout = '1'; localStorage.setItem('nlo.bleachtray.settings.v4', '1'); }
   else if (o.blockout != null) o.blockout = SETTING_MIGRATE.blockout(String(o.blockout));
+  // ... and off again by default (the doctor marks the areas that matter; the global fill is rare) - once
+  if (!localStorage.getItem('nlo.bleachtray.settings.v5')) { o.blockout = '0'; localStorage.setItem('nlo.bleachtray.settings.v5', '1'); }
   SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
 function summarizeSettings(){
   const bits = [];
@@ -1149,7 +1171,7 @@ async function refreshJobs(){
 }
 let pollTimer = null;
 async function selectJob(id){
-  if (id !== currentJob) { pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null; forgetEdits(); }   // a pending move and unapplied strokes belong to the case they were made on
+  if (id !== currentJob) { pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null; forgetEdits(); if (typeof stopPlacing === 'function') stopPlacing(); }   // a pending move and unapplied strokes belong to the case they were made on
   currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
   clearInterval(pollTimer);
   // keeps watching the open case: a lower dropped by someone else joins it and shows up when done
@@ -1393,11 +1415,14 @@ async function loadResult(id, j){
   if (r.base && r.base !== 'none') { const bres = await fetch('/api/base.stl'); if (bres.ok) baseBuf = await bres.arrayBuffer(); }
   let boBuf = null;   // the block-out fills, shown in teal so they can be checked
   if (bo.spots) { const bres = await fetch(`/api/jobs/${id}/file/blockout${q}`, NOCACHE); if (bres.ok) boBuf = await bres.arrayBuffer(); }
+  let mkBuf = null;   // the text's letters, shown in yellow so they can be found
+  if (r.mark) { const mres = await fetch(`/api/jobs/${id}/file/mark${q}`, NOCACHE); if (mres.ok) mkBuf = await mres.arrayBuffer(); r.mark.has_letters = !!mkBuf; }
   if (seq !== loadSeq) return;            // a newer selection took over while this one was loading
   clear(groups.result); archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; markMesh = null;
   const g = new THREE.Group();
   g.add(new THREE.Mesh(parseSTL(bodyBuf), mat));
   if (boBuf) g.add(new THREE.Mesh(parseSTL(boBuf), new THREE.MeshStandardMaterial({ color: 0x14b8a6, roughness: .5, metalness: 0, envMapIntensity: .4, polygonOffset: true, polygonOffsetFactor: -1 })));
+  if (mkBuf) g.add(new THREE.Mesh(parseSTL(mkBuf), new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0x6b5300, emissiveIntensity: .35, roughness: .45, metalness: 0, envMapIntensity: .4, polygonOffset: true, polygonOffsetFactor: -1 })));
   addTrimline(g, tl);
   groups.result.add(g); archGroup = g;
   // the placement on the base belongs to the arch: both of the lower's models move together, and a move
@@ -1487,11 +1512,17 @@ function makeMarkCard(){
   const w = Math.max(mk.width && mk.text === (markInfo && markInfo.mode) && markNow === undefined ? mk.width : est, 3), h = cap * 1.6;
   const cv = document.createElement('canvas'); cv.width = 64 * Math.ceil(w); cv.height = Math.round(64 * h);
   const cx = cv.getContext('2d');
-  cx.fillStyle = mk.raised === false ? 'rgba(254,243,199,0.78)' : 'rgba(255,255,255,0.82)'; cx.fillRect(0, 0, cv.width, cv.height);
-  cx.strokeStyle = '#1B2F4C'; cx.lineWidth = 6; cx.strokeRect(3, 3, cv.width - 6, cv.height - 6);
-  cx.fillStyle = '#1B2F4C'; cx.font = `bold ${Math.round(64 * cap * 0.98)}px Arial, Helvetica, sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-  const tw = cx.measureText(text).width; if (tw > cv.width * 0.92) cx.font = `bold ${Math.round(64 * cap * 0.98 * cv.width * 0.92 / tw)}px Arial, Helvetica, sans-serif`;
-  cx.fillText(text, cv.width / 2, cv.height / 2 + 2);
+  const applied = markNow === undefined && !!markInfo && !!(markInfo.has_letters);   // the yellow letters are on the model: frame only
+  if (!applied) { cx.fillStyle = mk.raised === false ? 'rgba(254,243,199,0.85)' : 'rgba(255,249,196,0.85)'; cx.fillRect(0, 0, cv.width, cv.height); }
+  else { cx.fillStyle = 'rgba(255,255,255,0.06)'; cx.fillRect(0, 0, cv.width, cv.height); }
+  cx.strokeStyle = applied ? '#2563eb' : '#1B2F4C'; cx.lineWidth = applied ? 4 : 6; cx.strokeRect(3, 3, cv.width - 6, cv.height - 6);
+  if (!applied) {
+    cx.fillStyle = '#1B2F4C'; cx.font = `bold ${Math.round(64 * cap * 0.98)}px Arial, Helvetica, sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    const tw = cx.measureText(text).width; if (tw > cv.width * 0.92) cx.font = `bold ${Math.round(64 * cap * 0.98 * cv.width * 0.92 / tw)}px Arial, Helvetica, sans-serif`;
+    cx.fillText(text, cv.width / 2, cv.height / 2 + 2);
+  } else {   // end handles, like Titan's
+    cx.fillStyle = '#2563eb'; for (const x of [10, cv.width - 10]) { cx.beginPath(); cx.arc(x, cv.height / 2, 9, 0, Math.PI * 2); cx.fill(); }
+  }
   markTex = new THREE.CanvasTexture(cv); markTex.colorSpace = THREE.SRGBColorSpace;
   markMesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: markTex, transparent: true, depthTest: true, depthWrite: false, side: THREE.DoubleSide }));
   markMesh.renderOrder = 9;
@@ -1502,11 +1533,12 @@ function makeMarkCard(){
   archGroup.add(markMesh);
   updateMarkState();
 }
-const markOn = () => tab === 'result' && panelOpen.place && !!archGroup;
+const markOn = () => tab === 'result' && panelOpen.text && !!archGroup;
 function updateMarkState(){
   const el = $('#markstate'); if (!el) return;
   const mk = markCurrent();
   const where = markInfo && markInfo.tooth ? ` on tooth ${markInfo.tooth}` : '';
+  if (placing) { el.textContent = placing === 1 ? 'Click the START point on the model.' : 'Now click the END point.'; el.style.color = 'var(--warn)'; return; }
   if (markNow === 'auto') el.textContent = 'Mark: back to the automatic spot - Apply makes it (a few seconds).';
   else if (markNow) el.textContent = `Mark: ${mk.raised === false ? 'cut in' : 'raised'}, ${markLabelText(mk)}, letters ${(mk.cap || 2.4).toFixed(1)} mm - Apply places it (a few seconds).`;
   else if (markInfo) el.textContent = `Mark: "${markInfo.text}"${markInfo.auto !== false ? where + ' (automatic)' : ' where you put it'} - drag the card to move it.`;
@@ -1527,7 +1559,40 @@ function touchMark(change){
 document.querySelectorAll('[data-mk]').forEach(b => b.onclick = () => touchMark(mk => { mk[b.dataset.mk] = Math.round((mk[b.dataset.mk] + +b.dataset.d) * 100) / 100; if (b.dataset.mk === 'cap') mk.cap = Math.min(4, Math.max(1.4, mk.cap)); }));
 $('#mkraised').onclick = () => touchMark(mk => { mk.raised = mk.raised === false; });
 $('#mktext').onchange = () => touchMark(mk => { mk.text = $('#mktext').value; });
-$('#mkauto').onclick = () => { markNow = 'auto'; if (curArch) pendingMark[curArch] = 'auto'; makeMarkCard(); updatePlacement(); };
+$('#mkauto').onclick = () => { stopPlacing(); markNow = 'auto'; if (curArch) pendingMark[curArch] = 'auto'; makeMarkCard(); updatePlacement(); };
+// Place: a start point and an end point on the model (Titan's way) - the text runs from one to the other along the
+// surface, its size fitted to the span
+let placing = 0, placePts = [], placeDots = [];
+function stopPlacing(){ placing = 0; placePts = []; placeDots.forEach(d => d.parent && d.parent.remove(d)); placeDots = []; $('#mkplace').classList.remove('placing'); $('#mkplace').textContent = 'Start \u2192 end on the model'; canvas.style.cursor = ''; updateMarkState(); requestRender(); }
+$('#mkplace').onclick = () => { if (placing) { stopPlacing(); return; } placing = 1; placePts = []; $('#mkplace').classList.add('placing'); $('#mkplace').textContent = 'Click the START point\u2026'; canvas.style.cursor = 'crosshair'; updateMarkState(); };
+function placeClick(ev){
+  if (!placing || !archGroup) return false;
+  const rect = canvas.getBoundingClientRect();
+  ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+  pray.setFromCamera(ndc, camera);
+  const hit = pray.intersectObject(archGroup.children[0], false)[0]; if (!hit || !hit.face) return true;
+  const n = hit.face.normal.clone().transformDirection(archGroup.children[0].matrixWorld);
+  placePts.push({ p: hit.point.clone(), n });
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 10), new THREE.MeshBasicMaterial({ color: 0x2563eb })); dot.position.copy(hit.point).addScaledVector(n, 0.3); archGroup.add(dot); placeDots.push(dot);
+  if (placePts.length === 1) { placing = 2; $('#mkplace').textContent = 'Click the END point\u2026'; updateMarkState(); requestRender(); return true; }
+  // both points: the text's middle is between them on the surface, it runs from start to end, and its size fits the span
+  const a = placePts[0], b = placePts[1];
+  const mid = a.p.clone().add(b.p).multiplyScalar(0.5), nm = a.n.clone().add(b.n).normalize();
+  // the surface point nearest the middle: look along the average normal
+  pray.set(mid.clone().addScaledVector(nm, 8), nm.clone().negate());
+  const h2 = pray.intersectObject(archGroup.children[0], false)[0];
+  const P = h2 ? h2.point.clone() : mid, N = h2 && h2.face ? h2.face.normal.clone().transformDirection(archGroup.children[0].matrixWorld) : nm;
+  const d = b.p.clone().sub(a.p); const span = d.length(); d.addScaledVector(N, -d.dot(N)).normalize();
+  let up0 = new THREE.Vector3(0, 0, 1).addScaledVector(N, -N.z); if (up0.length() < 0.3) up0 = new THREE.Vector3(0, -1, 0).addScaledVector(N, N.y); up0.normalize();
+  const right0 = new THREE.Vector3().crossVectors(up0, N).normalize();
+  let ang = Math.atan2(d.dot(up0), d.dot(right0)) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;   // reading left to right
+  const cur = markCurrent() || { text: 'initials', raised: true };
+  const text = markText(cur.text || 'initials');
+  const cap = Math.min(4, Math.max(1.4, span / (0.72 * text.length + 0.3)));
+  touchMark(mk => { mk.x = P.x; mk.y = P.y; mk.z = P.z; mk.nx = N.x; mk.ny = N.y; mk.nz = N.z; mk.angle_deg = Math.round(ang); mk.cap = Math.round(cap * 10) / 10; });
+  stopPlacing();
+  return true;
+}
 const KEYS_ADJ = ['yaw_deg', 'dx', 'dy', 'dz'];
 function adjustMap(){
   // what the page asks for, arch by arch: the applied placement of every arch of the case, with the pending
@@ -1559,7 +1624,7 @@ function updatePlacement(){
   $('#placestate').textContent = moved ? (dzMoved ? `Preview only — Apply rebuilds the ${curArch || ''} models at this height (~1 min).` : `Preview only — Apply moves the ${curArch || ''} models on the base (a few seconds).`)
     : (markMoved ? 'Apply places the mark (a few seconds).' : (auto ? 'Automatic placement.' : 'Applied.'));
   $('#placestate').style.color = pending ? 'var(--warn)' : 'var(--muted)';
-  $('#applyplace').disabled = !pending;
+  $('#applyplace').disabled = !pending; const at = $('#applytext'); if (at) at.disabled = !pending;
   updateMarkState();
 }
 document.querySelectorAll('[data-adj]').forEach(b => b.onclick = () => { adjust[b.dataset.adj] = Math.round((adjust[b.dataset.adj] + +b.dataset.d) * 100) / 100; updatePlacement(); lookUnder(true); });
@@ -1610,7 +1675,9 @@ function baseHandleAt(ev){
   return null;
 }
 canvas.addEventListener('pointerdown', ev => {
-  if (ev.shiftKey || ev.button !== 0) return;
+  if (ev.button !== 0) return;
+  if (placing && placeClick(ev)) { ev.preventDefault(); return; }
+  if (ev.shiftKey) return;
   const h = baseHandleAt(ev); if (!h) return;
   if (h.kind === 'mark') { drag = { kind: 'mark' }; controls.enabled = false; canvas.style.cursor = 'grabbing'; ev.preventDefault(); return; }
   const p0 = planeHit(ev, h.c.z); if (!p0) return;
@@ -1636,6 +1703,7 @@ canvas.addEventListener('pointermove', ev => {
   if (tab === 'result' && archGroup && !ev.shiftKey && !ev.buttons) { const h = baseHandleAt(ev); canvas.style.cursor = h ? (h.kind === 'turn' || h.kind === 'mark' ? 'grab' : 'move') : ''; }
 });
 window.addEventListener('pointerup', () => { if (drag) { const wasMark = drag.kind === 'mark'; drag = null; controls.enabled = true; canvas.style.cursor = ''; if (!wasMark) lookUnder(true); } });
+$('#applytext').onclick = () => $('#applyplace').click();
 $('#applyplace').onclick = async () => {
   if (!currentJob) return;
   const fd = new FormData();
@@ -1669,6 +1737,7 @@ async function loadSeg(id, k=0){
   segColors = new Float32Array(nV*3); paintColors();
   g.setAttribute('color', new THREE.BufferAttribute(segColors, 3));
   segMesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.55, envMapIntensity: .4 })); groups.seg.add(segMesh);
+  if (typeof outlGroup !== 'undefined') { dropOutline(); groups.seg.add(outlGroup); }   // the outline tool's dots live with the scan
   // scan + reservoirs heat
   const g2 = g.clone(); const col2 = new Float32Array(nV*3); const c = new THREE.Color();
   for (let i=0;i<nV;i++){ const t = Math.min(segDisp[i]/0.5, 1); c.setHSL(0.08 - 0.08*t, t>0.02 ? 0.9 : 0, t>0.02 ? 0.35+0.3*t : 0.82); col2[i*3]=c.r; col2[i*3+1]=c.g; col2[i*3+2]=c.b; }
@@ -1753,7 +1822,7 @@ const cursorR = () => modeNow() === 'contact' ? 0.7 : brushR;   // the Contact t
 function syncBrush(){
   const m = modeNow();
   if (tab === 'res') brushCursor.material.color.setHSL(0, m === 'reservoir' ? 0.9 : 0, m === 'reservoir' ? 0.55 : 0.45);
-  else brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'blockout' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : m === 'contact' ? 0xeab308 : 0x1d4ed8);
+  else brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'blockout' || m === 'outline' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : m === 'contact' ? 0xeab308 : 0x1d4ed8);
   brushCursor.scale.setScalar(cursorR());
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
   if (!brushOn() && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
@@ -1828,7 +1897,51 @@ function finishStroke(){
   for (let i = 0; i < n; i++) if (comp[i] >= 0 && comp[i] !== biggest) { applyMode(st.mode, i); filled++; }
   if (filled) { paintColors(); paintResColors(); updateFixCount(); }
 }
-canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (modeNow() === 'contact') { dotAt(ev); return; } painting = true; controls.enabled = false; stroke = null; paintAt(ev); } });
+// Outline: corner by corner round an undercut. Each Shift-click adds a corner on the surface; the corners are
+// joined along the surface (a thin painted line, blockout); clicking the first dot again closes the loop and
+// everything the loop encloses is blocked out (the same component fill as a closed brush stroke). The corners
+// are kept with the case, so the outlines teach the automatic block-out over time.
+let outl = null;   // { pts: [Vector3], ids: [vertex], dots: [Mesh], line: Line|null, set: Set }
+const outlGroup = new THREE.Group(); groups.seg.add(outlGroup);
+function nearestVertex(p){ let best = -1, bd = 1e9; for (let i = 0; i < segLabels.length; i++) { const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z, d = dx*dx+dy*dy+dz*dz; if (d < bd) { bd = d; best = i; } } return best; }
+function paintPath(a, b, set){   // a thin line of block-out along the surface from a to b (samples snapped to the nearest vertex)
+  const d = a.distanceTo(b), step = 0.35, r0 = brushR; brushR = 0.55;
+  for (let t = 0; t <= d + 1e-6; t += step) { const q = new THREE.Vector3().lerpVectors(a, b, Math.min(1, t / d)); const i = nearestVertex(q); if (i >= 0) { const v = new THREE.Vector3(segPos[i*3], segPos[i*3+1], segPos[i*3+2]); stroke = { set }; paintBall(v, 'blockout'); stroke = null; } }
+  brushR = r0;
+}
+function dropOutline(){ if (outl) { outl.dots.forEach(m => outlGroup.remove(m)); if (outl.line) outlGroup.remove(outl.line); } outl = null; requestRender(); }
+function outlineDots(){ if (!outl) return; if (outl.line) outlGroup.remove(outl.line); if (outl.pts.length >= 2) { const g = new THREE.BufferGeometry().setFromPoints(outl.pts.map((p, k) => p.clone().addScaledVector(outl.ns[k], 0.25))); outl.line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x0f766e, linewidth: 2, depthTest: false })); outl.line.renderOrder = 8; outlGroup.add(outl.line); } requestRender(); }
+function outlineClick(ev){
+  const hit = hitAt(ev); if (!hit || !hit.face) return;
+  const p = hit.point.clone(), n = hit.face.normal.clone().transformDirection(brushMeshNow().matrixWorld);
+  if (!outl) outl = { pts: [], ids: [], ns: [], dots: [], line: null, set: new Set() };
+  if (outl.pts.length >= 3 && p.distanceTo(outl.pts[0]) < Math.max(1.2, brushR)) { closeOutline(); return; }
+  if (outl.pts.length) paintPath(outl.pts[outl.pts.length - 1], p, outl.set);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(outl.pts.length ? 0.35 : 0.5, 12, 8), new THREE.MeshBasicMaterial({ color: outl.pts.length ? 0x0f766e : 0xf59e0b, depthTest: false })); dot.renderOrder = 9;
+  dot.position.copy(p).addScaledVector(n, 0.3); outlGroup.add(dot); outl.dots.push(dot);
+  outl.pts.push(p); outl.ns.push(n); outl.ids.push(nearestVertex(p));
+  outlineDots(); paintColors(); updateFixCount();
+}
+function closeOutline(){
+  if (!outl || outl.pts.length < 3) { dropOutline(); return; }
+  paintPath(outl.pts[outl.pts.length - 1], outl.pts[0], outl.set);
+  // everything the loop encloses: components of the surface with the line taken out, all but the largest
+  const n = segLabels.length, comp = new Int32Array(n).fill(-1), sizes = [];
+  const { off, nb } = segAdj; const queue = new Uint32Array(n);
+  for (let s0 = 0; s0 < n; s0++) {
+    if (comp[s0] >= 0 || outl.set.has(s0)) continue;
+    const id = sizes.length; let head = 0, tail = 0; queue[tail++] = s0; comp[s0] = id;
+    while (head < tail) { const v = queue[head++]; for (let e = off[v]; e < off[v + 1]; e++) { const w = nb[e]; if (comp[w] < 0 && !outl.set.has(w)) { comp[w] = id; queue[tail++] = w; } } }
+    sizes.push(tail);
+  }
+  let filled = 0;
+  if (sizes.length >= 2) { const biggest = sizes.indexOf(Math.max(...sizes)); for (let i = 0; i < n; i++) if (comp[i] >= 0 && comp[i] !== biggest) { applyMode('blockout', i); filled++; } }
+  outlines.push(outl.ids.slice());
+  dropOutline(); paintColors(); updateFixCount();
+  if (!filled) showErr('The outline did not enclose anything - make it a little bigger, or add corners where the surface curves.');
+}
+window.addEventListener('keydown', ev => { if (ev.key === 'Escape' && outl) dropOutline(); });
+canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (modeNow() === 'contact') { dotAt(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } painting = true; controls.enabled = false; stroke = null; paintAt(ev); } });
 // hovering: one pick per frame at most (a pick walks every triangle of the scan)
 let hoverEv = null, hoverQueued = false;
 canvas.addEventListener('pointermove', ev => {
@@ -1845,6 +1958,8 @@ function updateFixCount(){
   const P = PANELS[tab]; const mine = P ? P.sets : [];
   const dotWord = (k, n) => k === 'contact' ? `${n} contact dot${n > 1 ? 's' : ''}` : `${n} contact dot${n > 1 ? 's' : ''} taken away`;
   const here = mine.filter(k => edits[k].size).map(k => k.endsWith('contact') ? dotWord(k, edits[k].size) : `${edits[k].size} ${words[k]} (vertices)`);
+  if (tab === 'block' && outl && outl.pts.length) here.unshift(`outline: ${outl.pts.length} corner${outl.pts.length > 1 ? 's' : ''} - click the first dot to close`);
+  else if (tab === 'block' && outlines.length) here.unshift(`${outlines.length} outline${outlines.length > 1 ? 's' : ''}`);
   const other = Object.keys(edits).filter(k => !mine.includes(k)).reduce((a, k) => a + edits[k].size, 0);
   const elsewhere = otherEditCount();
   el.textContent = (here.length ? here.join(', ') : 'No edits here.') + (other ? ` · ${other} more painted on other tabs` : '') + (elsewhere ? ` · ${elsewhere} more on the other arch` : '') + (other || elsewhere ? ' - Apply sends them all' : '');
@@ -1895,7 +2010,7 @@ window.__view = { camera, controls, requestRender, project: (x, y, z) => { const
   stroke3d: (mode, pts) => { stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } const before = Object.values(edits).reduce((a, e) => a + e.size, 0); finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
   placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot, arch: curArch, map: adjustMap(), pending: JSON.parse(JSON.stringify(pendingAdj)), marks: markMap() }), archGroup: () => archGroup,
-  editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }),
+  editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }), allEdits,
   handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; } };   // for automated checks
 window.__appReady = true;
 </script>

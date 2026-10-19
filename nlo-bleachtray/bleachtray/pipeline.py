@@ -337,6 +337,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     prog(0.02, "loading the scan")
 
     raw = load_scan(scan_path)
+    if raw.metadata.get("reconstructed_removed"):
+        rr = raw.metadata["reconstructed_removed"]
+        rep["reconstructed_removed"] = rr
+        log(f"[{name}] scanner fill-ins left out: {rr['faces']} large flat triangles ({rr['area_mm2']:.0f} mm2) - the model's skirt takes over where the real surface ends")
     mesh, T_rough = rough_orient(raw)
     rep["steps"].append(("load+orient", round(time.time() - t0, 2)))
     prog(0.08, "finding teeth and gum")
@@ -793,7 +797,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # and mark move together and only the base is made again). The body before the mark is kept, so the
     # mark can be moved without re-making the model
     body.export(os.path.join(out_dir, f"{name}_body_plain.stl"))
-    body = apply_mark(body, P, rep, T_total=T_total, mesh_f=mesh_f, labels=labels, info=info, log=lambda m: log(f"[{name}] {m}"))
+    body = apply_mark(body, P, rep, T_total=T_total, mesh_f=mesh_f, labels=labels, info=info, log=lambda m: log(f"[{name}] {m}"),
+                      letters_path=os.path.join(out_dir, f"{name}_mark.stl"))
     margin_n = trimline_normals(body, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
     rep["elapsed_s"] = round(time.time() - t0, 2)
@@ -811,16 +816,30 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     return rep
 
 
-def apply_mark(body, P, rep, T_total=None, mesh_f=None, labels=None, info=None, prev=None, log=print):
+def apply_mark(body, P, rep, T_total=None, mesh_f=None, labels=None, info=None, prev=None, log=print, letters_path=None):
     """The mark on the model (initials + tray letter, or the name): where the doctor put it (`P["mark"]`:
     {raw: [x, y, z] in the scan's own coordinates, angle_deg, cap, text, raised} - carried to the output
     frame with `T_total`), else where it was before (`prev`: the mark of the model this one is remade
     from, anchor already in the new frame), else the automatic spot on a first molar. Records
-    rep["mark"] / rep["tooth_mark"] / rep["mark_param"]; returns the marked body."""
+    rep["mark"] / rep["tooth_mark"] / rep["mark_param"]; returns the marked body. With `letters_path` the
+    letters alone are written there (the page draws them in colour so the text can be found)."""
     from .engrave import emboss_at, emboss_on_tooth, mark_text
     rep["mark"] = None; rep["tooth_mark"] = None; rep["mark_param"] = P.get("mark") or None
+    if letters_path and os.path.exists(letters_path):
+        os.remove(letters_path)
     if not (P.get("engrave", True) and P.get("tooth_mark", True)):
         return body
+    body = _apply_mark(body, P, rep, T_total, mesh_f, labels, info, prev, log, emboss_at, emboss_on_tooth, mark_text)
+    letters = (rep.get("mark") or {}).pop("_letters", None) if isinstance(rep.get("mark"), dict) else None
+    if letters is not None and letters_path:
+        try:
+            letters.export(letters_path)
+        except Exception as ex:  # noqa
+            log(f"mark letters not written: {ex}")
+    return body
+
+
+def _apply_mark(body, P, rep, T_total, mesh_f, labels, info, prev, log, emboss_at, emboss_on_tooth, mark_text):
     mk = P.get("mark") if isinstance(P.get("mark"), dict) else None
     if mk and mk.get("raw") is not None and T_total is not None:
         raw = np.asarray(mk["raw"], float).reshape(3)
@@ -969,7 +988,7 @@ def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=No
             outline = outline.buffer(0)
     else:   # a model from before outlines were kept: the outline from the moved trim line
         outline = horseshoe_outline(margin_f[:, :2], P["facial_offset"], P["lingual_offset"])
-    for extra in ("blockout", "shields"):   # the fills shown in teal on the page: already part of the body
+    for extra in ("blockout", "shields") + (() if from_plain else ("mark",)):   # the fills shown in teal on the page (and the letters, when they are not made again): already part of the body
         p = os.path.join(out_dir, f"{name}_{extra}.stl")
         if os.path.exists(p):
             try:
@@ -986,7 +1005,8 @@ def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=No
         if prev and prev.get("anchor") is not None:
             prev["anchor"] = trimesh.transform_points(np.asarray([prev["anchor"]], float), T_delta)[0].tolist()
         body.export(plain_path)
-        body = apply_mark(body, P, rep, T_total=np.asarray(rep["transform_raw_to_output"], float) if rep.get("transform_raw_to_output") else None, prev=prev, log=lambda m: log(f"[{name}] {m}"))
+        body = apply_mark(body, P, rep, T_total=np.asarray(rep["transform_raw_to_output"], float) if rep.get("transform_raw_to_output") else None, prev=prev, log=lambda m: log(f"[{name}] {m}"),
+                          letters_path=os.path.join(out_dir, f"{name}_mark.stl"))
     prog(0.4, "adding the base and engraving")
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, (rep.get("outputs") or {}).get("scan_with_reservoirs"), log=log)
     st["margin"] = margin_f; st["T_adj"] = T_new; st["outline"] = np.asarray(outline.exterior.coords, dtype=float)

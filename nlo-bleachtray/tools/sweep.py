@@ -26,7 +26,7 @@ PAGE = dict(reservoir_setback=1.0, recession_auto=False, recession_leeway=1.0, f
             floor_below=3.0, distal_keep=3.0, level=True, add_base=True, tooth_mark=True, engrave=True, engrave_text="")
 TYPES = {
     "WT": dict(PRESETS["bleaching"], blockout=False, blockout_proud=0.0, stage=0, kind="T"),
-    "TT": dict(PRESETS["aligner_high"], blockout=True, blockout_depth=0.75, fill_reach=1.25, fill_top=20.0, blockout_proud=0.0, stage=1, kind="A"),
+    "TT": dict(PRESETS["aligner_high"], blockout=False, blockout_depth=0.75, fill_reach=1.25, fill_top=20.0, blockout_proud=0.0, stage=1, kind="A"),
 }
 RAW_SKIP = ("_-_", "Template")        # Titan exports ("Name - 0 - Maxilla") and templates are references, not scans
 

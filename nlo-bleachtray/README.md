@@ -26,7 +26,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    shows pale, red once marked to go); **Reservoirs** shows the reservoirs in red and you **Paint** more
    (a tooth behind the 5s, a part a recession set-back took away) or **Erase** them (a recession, a crown margin) -
    always a millimetre off the gum line, feathered at the edge of your stroke, ignored on gum; **Block-outs** fills
-   the undercut under what you paint (under a pontic, round an implant crown) so the retainer seats; **Braces** (only
+   the undercut you mark out (under a pontic, round an implant crown, a black triangle) so the retainer seats - **Outline**
+   it: Shift-click corner after corner round the area and click the first dot again to close, the inside is filled
+   (or use the **Block out** brush); **Braces** (only
    for a scan dropped with Braces on, or a mouthguard) takes off a bracket or bit of wire the app missed. **Also make …** in the Check & send box adds the other
    tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
    the tooth split is reused, and Send writes the order with every model. The **mouthguard** (upper only, for now) is
@@ -180,7 +182,7 @@ From any office computer open `http://lab:8765` — or click **Bleach Tray** on 
 which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
 it processes on its own and writes the OrthoFactory order (the green line under the result confirms it). See the
 result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation* tab),
-re-run. The trim line is drawn as a thin tube lifted 0.16 mm off the model along the body's surface normal at each point (the pipeline keeps the normals in the state file and the report notes how far the line sits from the surface, `trimline_off_surface_mm`), so it lies on the model like a thread from every angle and never shows through it; the far side is only a faint whisper. The boxes over the viewer stay small: controls only, the explanation behind **?**, and **–** folds a box to a chip in the corner that brings it back. **Position on the base** (Result tab, folded by default - the chip opens it, and the base's handles - the thin blue ring and the draggable plate - exist only while it is open, so the plain view is just the model): the arch stays where it is and the *base plate* moves under it - drag the plate to slide it, drag the ring to turn it (or use the step buttons); the first touch flips the view to the underside with the plate see-through, so the locating holes are checked against the arch footprint (*Underneath (holes)* / *From above* switch the view). *Apply* re-makes the order, *Reset to automatic* goes back. The placement is kept **per arch** (`params.adjust_by_arch`): moving the lower touches the lower's two models only, the upper stays where it is, and a move that is not applied yet survives a look at the other models of the case. A turn / shift at the same height does not re-run the pipeline: the finished body (tooth mark included - it is put on the body before the base now) is moved as one rigid piece and only the base plate, the engraving and the files are made again (`replace_placement`, ~3 s a model instead of ~45); a height change (*Down / up*) rebuilds that arch's models. A brush fix likewise re-makes only the models made from the scan it was painted on. The page fetches the case's files (body, block-outs, trim line, brush mesh) with the browser cache bypassed and the server sends them `Cache-Control: no-store`: they are rewritten at the same URL on every re-run, and Chrome's heuristic freshness (a `Last-Modified` minutes old, no cache header) used to serve the previous body for a while after a move - the moved arch's trim line over the unmoved body, "the base shifted back and the trim line moved". (The numbers sent to the server are the arch's move relative to the base, as before.) *Make*: *Whitening tray + retainer* (default, both per arch), *Whitening tray 5-5 only* (reservoirs 5-5, line at the gum), *Whitening 3-3 only*, *Retainer only*
+re-run. The trim line is drawn as a thin tube lifted 0.16 mm off the model along the body's surface normal at each point (the pipeline keeps the normals in the state file and the report notes how far the line sits from the surface, `trimline_off_surface_mm`), so it lies on the model like a thread from every angle and never shows through it; the far side is only a faint whisper. The boxes over the viewer stay small: controls only, the explanation behind **?**, and **–** folds a box to a chip in the corner that brings it back. **Position on the base** (Result tab, folded by default - the chip opens it, and the base's handles - the thin blue ring and the draggable plate - exist only while it is open, so the plain view is just the model): the arch stays where it is and the *base plate* moves under it - drag the plate to slide it, drag the ring to turn it (or use the step buttons); the first touch flips the view to the underside with the plate see-through, so the locating holes are checked against the arch footprint (*Underneath (holes)* / *From above* switch the view). *Apply* re-makes the order, *Reset to automatic* goes back. The placement is kept **per arch** (`params.adjust_by_arch`): moving the lower touches the lower's two models only, the upper stays where it is, and a move that is not applied yet survives a look at the other models of the case. A turn / shift at the same height does not re-run the pipeline: the finished body (tooth mark included - it is put on the body before the base now) is moved as one rigid piece and only the base plate, the engraving and the files are made again (`replace_placement`, ~3 s a model instead of ~45); a height change (*Down / up*) rebuilds that arch's models. A brush fix likewise re-makes only the models made from the scan it was painted on. The page fetches the case's files (body, block-outs, trim line, brush mesh) with the browser cache bypassed and the server sends them `Cache-Control: no-store`: they are rewritten at the same URL on every re-run, and Chrome's heuristic freshness (a `Last-Modified` minutes old, no cache header) used to serve the previous body for a while after a move - the moved arch's trim line over the unmoved body, "the base shifted back and the trim line moved". (The numbers sent to the server are the arch's move relative to the base, as before.) **Text** (Result tab, its own chip under *Position on the base*): the text on the model shows the moment the box opens - a yellow card where it is now, and the letters themselves in yellow once made, so they are found at a glance; *Start → end on the model* then two clicks on the model lay the text between them (Titan's way: the middle of the text at the middle of the span, reading from the first click to the second, letters sized to the span), or drag the card; what it says (initials + W/R, last name + W/R, full name), *Raised* / *Cut in*, turn and size buttons, *Auto* for the molar again, *Apply* (seconds - the model itself is kept). *Make*: *Whitening tray + retainer* (default, both per arch), *Whitening tray 5-5 only* (reservoirs 5-5, line at the gum), *Whitening 3-3 only*, *Retainer only*
 (line 1.25 mm onto the gums, semi-scallop), *Plain model*.
 
 ---
@@ -382,23 +384,35 @@ ridge reaches the face, flush with the crown's width; a crown that widens all th
 foot. (Not yet seen on a real undercut next to a gap - the scans at hand have high ridges; check on the next case
 with a missing tooth.) The stacked notches are voxelised (0.2 mm), marching-cubed and
 Taubin-smoothed; all fills go into the body union as one extra solid and are shown teal. Settings (retainer):
-**Interproximal fill** on/off (on by default), **Reach out of the embrasure** (uLab's Buccal / Lingual, 1.25 mm),
+**Interproximal fill** on/off (**off by default** - it is rarely wanted on every contact; the usual case is a chosen
+spot, outlined on the Block-outs tab), **Reach out of the embrasure** (uLab's Buccal / Lingual, 1.25 mm),
 **Fill height above the gum** (20 = to the contact). The report says "N of M contacts filled, K faces next to
 a gap" and lists the contacts left out and why. The whitening tray gets none (soft tray). Anything else - under a pontic, round an
 implant crown - is painted on the Block-outs tab and filled by the column method below.
 
-**Painted block-out.** The space under an overhang the doctor paints - a bridge pontic, the emergence of an implant
-crown - is filled like block-out resin (`bleachtray/blockout.py`): on a 0.3 mm grid every vertical
+**Painted block-out.** The space under an overhang the doctor marks out - a bridge pontic, the emergence of an implant
+crown, a black triangle - is filled like block-out resin (`bleachtray/blockout.py`). Marking it out is the **Outline**
+tool on the Block-outs tab (the default there): Shift-click corner after corner round the area - each corner is joined
+to the last along the surface as a thin painted line - and click the first dot again to close; everything the loop
+encloses becomes the painted area (the same component fill as a brush stroke that comes back onto itself), Esc drops an
+unfinished outline. The corners are kept with the case (`paint[path]["outlines"]`, corner vertices, sent with the
+strokes and remapped like them through a take-off or a cut) so the outlines drawn over time can teach the automatic
+block-out where they are wanted; the *Block out* brush is still there. On a 0.3 mm grid every vertical
 through the model that passes an underside and then free air before the next surface is a candidate; it is filled
 from that surface up to the underside under a painted *Block out* stroke, whatever its depth. A fill only
 goes under an overhang within 1.5 mm of a tooth and only where a real surface shows under it - the vestibule's own
 overhangs (the scan's rolled edge, a frenum) are not the tray's business - and no fill ever reaches below the model's
 floor, and an automatic fill stands on nothing more than 2 mm below the gum line (the cervical margins round
-about) - the root prominence's hollow further down is below the trim line. The fill is what resin is: each column
-is filled solid from the surface below up to the overhang, out to the tooth's contour seen from above, so the crown's
-widest line continues straight down to the gum - a vertical wall (parallel to the pull), with a 0.5 mm bevel where
-it meets the gum, and nothing of its own that undercuts. **Painted block-out wall** (Settings, mm, default 0) moves that
-wall: positive stands it out beyond the contour (the ring carries the fill's own edge height, only where that
+about) - the root prominence's hollow further down is below the trim line. The fill is shaped the way the doctor
+drew a blocked-out pontic and implant crown: not a vertical wall under the contour but a **straight sloped face** that
+starts 0.3 mm under the height of contour and runs down and in to the gum, its foot 65 % of the undercut's depth in
+from the contour (`taper_start`, `taper_foot`) - inside the foot the fill stands on the gum, outside it hangs under the
+crown with air beneath, and at the contour it thins to nothing, so the tray formed over it still has some grip under
+the contour and nothing stands proud of the tooth. (`taper_foot=0` gives the old vertical wall with a bevel at the gum.)
+The sloped face is laid on the fine 0.1 mm grid as geometry, after the heights are smoothed, and the depth each column
+sits in from the contour is measured from the fill's own outermost columns on a silhouette with its holes filled (a
+coarse occlusal used to read as the edge). **Painted block-out wall** (Settings, mm, default 0) moves the contour the
+fill reaches to: positive stands it out beyond the contour (the ring carries the fill's own edge height, only where that
 height is in the open), negative leaves that much of the undercut for grip. The undercuts are found on the teeth
 *as scanned*: a whitening tray's raised reservoirs are taken off again for the detection, because their feathered
 edge read as a shallow overhang all round the cervical third and a painted area grew thin scoops under every
@@ -421,10 +435,16 @@ first molar (right side if present, else second premolar / second molar), each l
 the text shrunk to the flat middle of the crown - it forms into the tray itself, like an aligner maker's mark, with a
 recess on the inside that touches nothing; (2) the name and WHITENING / RETAINER engraved 0.4 mm deep on the flat strip
 of the base plate inside the arch, when the arch leaves at least 8 mm of room there (skipped otherwise - the result
-line says why). Switch off under Settings. The mark on the model can be **put anywhere**: in *Position on the base*
-it shows as a small card on the model - drag it onto any tooth or onto the side wall of the model, turn it (15° steps),
-size the letters (A- / A+), choose what it says (initials + W/R, last name + W/R, full name), raised or cut in; *Auto*
-puts it back on the molar. The text is laid along the surface's horizontal tangent at the spot, each letter on its own
+line says why). Switch off under Settings. The mark on the model can be **put anywhere**, from the **Text** box on
+the Result tab (its own chip - not hidden in the base placement): opening it shows a card on the model at once, with
+the letters drawn on the card until they are made and as a thin frame with end handles once they are, and the made
+letters themselves are drawn in yellow (`<name>_mark.stl`, the letters alone, written by `apply_mark` next to the
+model and served as `file/mark`) so the text no longer disappears into the stone. **Place** is Titan's two-point
+placement: *Start → end on the model*, click where the text should begin and where it should end - the text is
+centred between the two on the surface, reads from the first click to the second (the angle comes from the line between
+them in the surface's reading frame) and the letter size is fitted to the span (1.4-4 mm cap); or drag the card onto any
+tooth or onto the side wall, turn it (15° steps), size the letters (A- / A+), choose what it says (initials + W/R,
+last name + W/R, full name), raised or cut in; *Auto* puts it back on the molar. The text is laid along the surface's horizontal tangent at the spot, each letter on its own
 tangent plane, upright for someone looking at the spot from outside with the model standing on its base; it is kept
 within the surface (shrunk to the room on the shorter side, a letter that would hang past the end of a wall is left
 out and the log says so). The placement is kept per arch in the scan's own coordinates (`params.mark_by_arch`:
@@ -452,7 +472,14 @@ molars, a palate the scanner cut, facial of proclined incisors) a smooth gingiva
 outline instead of leaving a cliff.
 
 **Scanner exports.** Open-shell or closed-shell (iTero "with base", 3Shape solid) STLs both work: a large flat floor is
-detected and removed before orientation, the skirt reads as gum. Scans over 200k faces are decimated first.
+detected and removed before orientation, the skirt reads as gum. The scanner's own **fill-ins** are left out too
+(`strip_reconstructed`): where the scanner saw nothing - under the lip, the floor of the vestibule, behind the last
+molar - its software fills the gap with large flat triangles (an iTero export carries 1,500-4,000 mm² of them; a
+scanned surface has triangles of 0.02-0.3 mm², these are 1-300 mm² each). Left in, such a patch reaching the floor
+became part of the model: a flat ledge sticking out at the base where the gum should end ("the extra pieces where an
+area is reconstructed"). Faces over 0.6 mm² are removed, never more than 8 % of the surface (a coarse mesh all over is
+a decimated scan, left alone); the log says how much went, and the model's skirt takes over where the real surface
+ends. Scans over 200k faces are decimated first.
 **Export PLY when the scanner offers it** (AlliedStar, iTero, Medit, 3Shape): a PLY carries a colour per vertex and the
 app uses it (`bleachtray/colour.py`). No fixed colour rule - every scanner, light and mouth differs - instead each scan
 teaches its own: the vertices the shape model is sure about (tooth core, gum well away from the teeth) train a small

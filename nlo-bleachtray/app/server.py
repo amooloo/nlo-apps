@@ -501,7 +501,7 @@ def _thin_old_cases(log=print):
         try:
             case = json.load(open(os.path.join(jdir, "case.json")))
             for fn in os.listdir(jdir):
-                if fn.endswith(("_model.stl", "_body_only.stl", "_body_plain.stl", "_blockout.stl")) or "_scan_with_reservoirs" in fn or any(sc.get("titan_basename") and fn.startswith(sc["titan_basename"]) for sc in case["scans"]):
+                if fn.endswith(("_model.stl", "_body_only.stl", "_body_plain.stl", "_blockout.stl", "_mark.stl")) or "_scan_with_reservoirs" in fn or any(sc.get("titan_basename") and fn.startswith(sc["titan_basename"]) for sc in case["scans"]):
                     os.remove(os.path.join(jdir, fn))
             case["thinned"] = True
             json.dump(case, open(os.path.join(jdir, "case.json"), "w"), indent=1, default=float)
@@ -723,8 +723,18 @@ def _run(job):
                         r[ok] = remap2[remap[ok]]; remap = r
             # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
             path = job["scans"][k0]["path"]       # (a take-off / cut gave the scan a new file)
-            if me.get("noreservoir") or me.get("blockout") or me.get("reservoir") or me.get("unblockout") or me.get("contact") or me.get("uncontact"):
+            if me.get("noreservoir") or me.get("blockout") or me.get("reservoir") or me.get("unblockout") or me.get("contact") or me.get("uncontact") or me.get("outlines"):
                 entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
+                # block-out outlines (corner vertices, clicked round an undercut): kept as drawn, for the record and
+                # for teaching the automatic block-out where the doctor wants them
+                for o in (me.get("outlines") or []):
+                    idx = np.asarray(o or [], dtype=int)
+                    if remap is not None and len(idx):
+                        idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
+                    if len(idx) >= 3:
+                        entry.setdefault("outlines", []).append([int(i) for i in idx])
+                if me.get("outlines"):
+                    log(f"block-out outlines: {len(me['outlines'])} drawn, {len(entry.get('outlines', []))} on this scan")
                 for key in ("noreservoir", "blockout", "reservoir", "contact"):
                     idx = np.asarray(me.get(key) or [], dtype=int)
                     if remap is not None and len(idx):
@@ -1796,6 +1806,7 @@ def job_file(jid: str, kind: str, scan: int = 0):
         "scan_res": (f"{name}_scan_with_reservoirs.stl", "model/stl"),
         "body": (f"{name}_body_only.stl", "model/stl"),
         "blockout": (f"{name}_blockout.stl", "model/stl"),
+        "mark": (f"{name}_mark.stl", "model/stl"),
         "report": (f"{name}_report.json", "application/json"),
     }
     tb = (job["scans"][scan].get("report") or {}).get("titan_basename")
