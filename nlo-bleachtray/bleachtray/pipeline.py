@@ -90,6 +90,36 @@ def titan_basename(first, last, stage, arch):
     return f"{clean(first)}_{clean(last)}_-_{int(stage)}_-_{archname}"
 
 
+RETAINER_EDGE_KEEP = 0.5   # mm: how close to the scan's open edge a retainer line may come (the gum line keeps 1 mm)
+
+
+def line_depth(mesh, teeth, line, asked):
+    """How far onto the gum the line really is, cheek side and tongue side separately: the median
+    distance from the line to the tooth/gum boundary (a little under the geodesic distance where the
+    gum curves). The scan's edge can hold a retainer line short of what was asked."""
+    from scipy.spatial import cKDTree
+    E = mesh.edges_unique
+    t = np.asarray(teeth, bool)
+    cross = E[t[E[:, 0]] != t[E[:, 1]]]
+    if len(cross) < 10 or len(line) < 20:
+        return {}
+    G = np.asarray(mesh.vertices)[cross].mean(1)
+    L = np.asarray(line, float)
+    d = cKDTree(G).query(L)[0]
+    # cheek or tongue side: the loop's outward normal (away from the teeth it goes round) points away from
+    # the middle of the teeth on the cheek side and towards it on the tongue side
+    P2 = L[:, :2]
+    area = 0.5 * np.sum(P2[:, 0] * np.roll(P2[:, 1], -1) - np.roll(P2[:, 0], -1) * P2[:, 1])
+    T = np.roll(P2, -1, axis=0) - np.roll(P2, 1, axis=0)
+    N = np.column_stack([T[:, 1], -T[:, 0]]) * (1.0 if area > 0 else -1.0)
+    C = np.asarray(mesh.vertices)[t][:, :2].mean(0)
+    out = ((P2 - C) * N).sum(1) > 0
+    if out.all() or not out.any():
+        return {}
+    return dict(asked=float(asked), cheek=round(float(np.median(d[out])), 2), tongue=round(float(np.median(d[~out])), 2),
+                cheek_p10=round(float(np.percentile(d[out], 10)), 2), tongue_p10=round(float(np.percentile(d[~out], 10)), 2))
+
+
 def scan_edge_zone(mesh, A, mm=1.0):
     """Vertices within `mm` (geodesic) of the open edge of the scan."""
     import trimesh
@@ -476,13 +506,20 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     if n_bridges:
         log(f"[{name}] gum line carried across {n_bridges} gap{'s' if n_bridges > 1 else ''} between teeth that do not touch")
         rep["line_bridges"] = n_bridges
+    teeth_band = line_mask.copy()
     if P["trimline_offset"] > 0:
         line_mask = geodesic_dilate(mesh, A, line_mask, P["trimline_offset"])
     # where the scan stops right at the teeth (common on the lingual of lowers) the gum line would
-    # run off the edge of the mesh and the contour could not close: keep it ~1 mm inside the scan edge
+    # run off the edge of the mesh and the contour could not close: keep it ~1 mm inside the scan edge.
+    # A retainer's line (the band widened onto the gum) may come to RETAINER_EDGE_KEEP of the edge: on a
+    # lower scanned with ~2 mm of gum below the teeth on the outside, the 1 mm rule held the 1.25 mm line to
+    # about 1 mm onto the gum on the cheek side, 0.3 mm in places at the back teeth (10/19/2026); 14 lowers
+    # re-run: medians unchanged, the short places where the scan ends come down
     edge_zone = scan_edge_zone(mesh, A, 1.0)
+    keep_mm = RETAINER_EDGE_KEEP if P["trimline_offset"] > 0 else 1.0
+    keep_off = scan_edge_zone(mesh, A, keep_mm) if keep_mm != 1.0 else edge_zone
     line_mask0 = line_mask
-    line_mask = line_mask & ~edge_zone
+    line_mask = line_mask & ~keep_off
     field = smooth_field(A, line_mask.astype(float), 3)
     loops = margin_contour(mesh, field, 0.5)
     broken = lambda lp: len(lp) > 1 and len(lp[1]) > 0.2 * len(lp[0])
@@ -493,6 +530,9 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         # line again (the retainer's line, 1.25 mm onto the gum, never breaks here: that is the same cure)
         n0 = len(loops)
         for ez, grow in ((0.5, 0.0), (0.25, 0.0), (0.5, 0.5), (0.5, 1.0)):
+            ez = min(ez, keep_mm)
+            if grow == 0 and ez >= keep_mm:
+                continue                            # that is the line that just broke
             lm = geodesic_dilate(mesh, A, line_mask0, grow) if grow > 0 else line_mask0
             lm = lm & ~scan_edge_zone(mesh, A, ez)
             fld = smooth_field(A, lm.astype(float), 3)
@@ -508,6 +548,15 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     if P["bridge_radius"] > 0:
         margin = bridge_embrasures(margin, mesh, radius=P["bridge_radius"])
     margin = smooth_polyline(resample_polyline(margin, P["trimline_spacing"]), iters=P["trimline_smooth"])
+    if P["trimline_offset"] > 0 and not MG:
+        rep["line_depth"] = line_depth(mesh, teeth_band, margin, P["trimline_offset"])
+        short = [s for s in ("cheek", "tongue") if rep["line_depth"].get(s) is not None and rep["line_depth"][s] < P["trimline_offset"] - 0.35]
+        if short:
+            msg = (f"the scan has little gum below the teeth on the {' and '.join(short)} side: the line is "
+                   + ", ".join(f"{rep['line_depth'][s]:.1f} mm onto the gum on the {s} side" for s in short)
+                   + f" ({P['trimline_offset']:g} mm asked) - a scan with more gum gives the full depth")
+            log(f"[{name}] {msg}")
+            rep.setdefault("warnings", []).append(msg)
 
     # mouthguard: from here on the ORIGINAL scan (brackets on) is the surface; the teeth found on the
     # cleaned copy are carried over by position, the gum line is a point set and needs nothing
@@ -931,7 +980,10 @@ def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path,
         model, how = body, "none"
         rep["base"] = how
     # one piece: the model is body + base in one solid (two when the base could only be concatenated);
-    # anything else - slivers from the booleans, tissue cut loose by the floor - would print as crumbs
+    # anything else - slivers from the booleans, tissue cut loose by the floor - would print as crumbs.
+    # Split with the corners merged: a zero-volume fin (two triangles back to back, left by the rebuilt
+    # base's booleans) hangs on the solid by its corners until then, and made re-based models "not watertight"
+    model = trimesh.Trimesh(np.asarray(model.vertices), np.asarray(model.faces), process=True)
     parts = model.split(only_watertight=False)
     rep["loose_pieces_dropped"] = 0
     if len(parts) > 1:

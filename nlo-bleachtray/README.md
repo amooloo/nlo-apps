@@ -36,6 +36,14 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    one from the upper scan - and a model like the other four once it is made.
 4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`), a mouthguard as a stage-2 Template piece (`TU2A`).
+   **The last letter moves on** (`AL1B`, `AL1C`, …) whenever that piece has been sent for the patient before - from
+   this case, another case, or Titan - the way Titan marks a new version. OrthoFactory takes a repeated name for the
+   same piece and keeps cutting along the first one's path: a second lower retainer for one patient, sent as `AL1A`
+   again after the first had been moved 1.4 mm on the base, was cut along the old line - shifted sideways, not
+   following the teeth (10/19/2026). After Send the box names the pieces, and says so when OrthoFactory still has an
+   earlier order for the patient (with how far its trim line is from the new one): trim each tray with the order
+   of the model it was printed from, and delete the earlier order in OrthoFactory if its model is not used. In the
+   Trimlign simulator the green dashed line (the cutter's path) must lie on the black dots (the trim line).
    Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. Send also files the case for the retraining (a brush-corrected case is a lesson). The small
    **Save as lesson without sending** link, shown only on a corrected case, does the filing alone - for a case that is not going
    to be ordered - and then asks whether to keep the case in the list or move it to Past cases.
@@ -206,10 +214,15 @@ re-run. The trim line is drawn as a thin tube lifted 0.16 mm off the model along
 
 ```
 <Titan folder>\2026-10-15 10 59 21 - A - Dr. Amir Akhavan - Jane Doe - 4ee1\
-    2610151059_1_Order.xml                 <OrderData Type="Titan_Angled"> … <Aligner Name="TU0A"> …
+    125189205_1_Order.xml                  <OrderData Type="Titan_Angled"> … <Aligner Name="TU0A"> …
     Jane Doe - 0 - Maxilla.stl         solid horseshoe + Trimlign base (locating hole at the origin)
     Jane Doe - 0 - Maxilla.pts         trim line, same frame, CRLF
 ```
+
+The order ID is 100000000 + the seconds since 1 Jan 2026 (9 digits, unique per send, a 32-bit integer like
+Titan's; it was yymmddHHMM, 26xxxxxxxx, more than one holds). Piece letters as above (`bleachtray/orderfolder.py`:
+`sent_revisions` reads every order folder of the patient, Titan's too; the case also remembers what it sent, since
+Send again replaces its own folder while OrthoFactory keeps the piece).
 
 **How it works.** Auto-orientation from geometry (occlusal up, anterior +y, midline from mirror-image tooth
 pairs, cross-checked against a parabola fit of the gum-line loop; the shape midline is used when they disagree by > 8°). A gradient-boosted classifier trained on Titan's own tooth segmentation labels every vertex tooth/gingiva
