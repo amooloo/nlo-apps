@@ -32,7 +32,7 @@ DEFAULTS = dict(
     scan_band=0.0,         # >0: keep real scan only this far beyond the gum line and fill the rest with a synthetic skirt (off: validated look)
     periphery_smooth=True, # smooth the scan surface beyond 2 mm from the gum line (ragged cheek/lip tissue)
     mouthguard=False,      # sports mouthguard: brackets stay under a smooth shield, the line runs into the vestibule with frenum notches, a flange onto the palate
-    mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_clearance=1.0,
+    mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_clearance=1.0, mg_band_smooth=1.25,
     distal_round=3.0,      # mm: corner radius of the trim line round the last tooth; it never goes past that tooth, dips behind it are lifted, and a tooth the scan cut through gets the line 2 mm short of the edge, over the tooth; 0 = off
     distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
     distal_relief=2.0,     # mm: the model behind the last molar (retromolar pad / tuberosity) is lowered to this far below the trim line so the trimmer reaches the distal surface; 0 = off
@@ -743,6 +743,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # block-out: the spaces under pontics, implant emergence profiles and open embrasures are filled so
     # the thermoformed sheet can seat and come off (retainers by default; also wherever the user painted)
     extra_solids = []
+    after_solids = []         # unioned after the outline cut (the mouthguard's band)
     fill_at = None
     bo_path = os.path.join(out_dir, f"{name}_blockout.stl")
     if os.path.exists(bo_path):
@@ -843,16 +844,18 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rc_f = trimesh.transform_points(np.array([[rc[0], rc[1], 0.0]]), T_adj @ T_place @ T_tilt @ T_ref)[0, :2]
             # one continuous band over brackets and wire round the arch (caps over each bracket left bare tooth
             # between them for the sheet to lock onto); caps only when there are too few pieces for a band
-            caps, sinfo = appliance_band(mesh_f, mg_appliance, A, rc_f, clearance=float(P.get("mg_clearance", 1.0)), log=lambda m: log(f"[{name}] {m}"))
+            caps, sinfo = appliance_band(mesh_f, mg_appliance, A, rc_f, clearance=float(P.get("mg_clearance", 1.0)),
+                                         smooth=float(P.get("mg_band_smooth", 1.25)), log=lambda m: log(f"[{name}] {m}"))
             rep["shields"] = sinfo
             if caps:
-                extra_solids.extend(caps)
+                after_solids.extend(caps)          # after the outline cut: the band stands out past the crowns
                 trimesh.util.concatenate(caps).export(os.path.join(out_dir, f"{name}_shields.stl"))
         except Exception as ex:  # noqa
             log(f"[{name}] bracket shields skipped: {ex}")
             rep["shields"] = dict(error=str(ex))
     extras_status = []
-    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status)
+    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status,
+                                   extra_after=after_solids)
     rep["body_method"] = body_method
     if fill_at is not None and (len(extras_status) <= fill_at or extras_status[fill_at] != "merged"):
         # a fill that is not part of the model must not be shown as if it were
