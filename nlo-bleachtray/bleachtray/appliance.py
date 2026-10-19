@@ -559,6 +559,36 @@ def remove_appliances(mesh, A, mask, rings=2, log=None):
     return out, info
 
 
+LARGE_PATCH_MM2 = 40.0     # a rebuilt area bigger than this is most of a tooth's face, or two teeth (a lone bracket: 15-30 mm2)
+
+
+def rebuilt_areas(before, after, min_mm2=1.0):
+    """The connected areas of `after` that are not in `before` (rebuilt enamel, and what was smoothed over in
+    place), largest first, in mm2. A lone bracket leaves 15-30 mm2; brackets, wire and ties run together on
+    crowded teeth (initial bonding) leave 40-100 mm2 - most of a tooth's cheek side, or two teeth across an
+    embrasure - and the enamel rebuilt over that much is a guess (flat or carved: a crowded iTero case,
+    10/19/2026). Returns (areas, per-vertex area of the region each vertex of `after` is in, 0 = scanned)."""
+    import trimesh
+    from scipy.spatial import cKDTree
+    V1 = np.asarray(after.vertices); F1 = np.asarray(after.faces)
+    new = cKDTree(np.asarray(before.vertices)).query(V1)[0] > 1e-3
+    fm = new[F1].all(1)
+    per_v = np.zeros(len(V1))
+    if not fm.any():
+        return [], per_v
+    idx = np.where(fm)[0]
+    adj = after.face_adjacency
+    keep = fm[adj[:, 0]] & fm[adj[:, 1]]
+    comps = trimesh.graph.connected_components(adj[keep], nodes=idx, min_len=1)
+    out = []
+    for c in comps:
+        a = float(after.area_faces[c].sum())
+        if a >= min_mm2:
+            out.append(a)
+            per_v[np.unique(F1[c])] = np.maximum(per_v[np.unique(F1[c])], a)
+    return sorted(out, reverse=True), per_v
+
+
 def _frame(nrm):
     nrm = nrm / max(np.linalg.norm(nrm), 1e-12)
     a = np.array([1.0, 0, 0]) if abs(nrm[0]) < 0.9 else np.array([0, 1.0, 0])
@@ -833,6 +863,7 @@ def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2):
     from .mesh_utils import adjacency
     info = dict(used=False, passes=[])
     total_area = 0.0; pieces = 0
+    mesh0 = mesh
     for k in range(passes):
         thr = 0.35 if k == 0 else 0.25
         mask, dinfo = detect_appliances(mesh, A, rgb, feats=feats, log=log if k == 0 else None, thr=thr)
@@ -850,4 +881,15 @@ def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2):
         # the mesh changed: adjacency and features go with it (the caller segments on these)
         A = adjacency(mesh)
         feats = compute_features(mesh, return_aux=True)
+    if info.get("used"):
+        try:
+            areas, _ = rebuilt_areas(mesh0, mesh)
+            info["rebuilt_mm2"] = [round(a) for a in areas[:16]]
+            info["large_patches"] = [round(a) for a in areas if a > LARGE_PATCH_MM2]
+            if info["large_patches"] and log:
+                n_l = len(info['large_patches'])
+                log(f"{n_l} rebuilt area{'s cover' if n_l != 1 else ' covers'} most of a tooth "
+                    f"({', '.join(str(a) for a in info['large_patches'])} mm2; a lone bracket leaves 15-30): the enamel there is a guess - check those teeth")
+        except Exception as ex:  # noqa
+            info["rebuilt_error"] = str(ex)[:120]
     return mesh, info, A, feats

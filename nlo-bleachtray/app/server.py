@@ -678,6 +678,16 @@ def _run(job):
         # wire and ties come off the scan file first (once per scan) - except for a scan that only becomes a
         # mouthguard: that model keeps the brackets (under shields). Never assumed: the detector has taken
         # stained or shadowed enamel for a bracket on plain scans
+        # a mouthguard is worn over the braces: its model is made from the scan as scanned, even when the same
+        # scan's retainer / whitening tray has them taken off (a case made before 10/19/2026 had the guard on the
+        # cleaned scan too - no room for the brackets; it goes back to the scan as scanned and is made again)
+        for sc in job["scans"]:
+            if sc.get("preset") == "mouthguard":
+                raw = _raw_scan_for(sc)
+                if raw and raw != sc["path"]:
+                    sc["path"] = raw; sc.pop("braces", None); sc.pop("raw_path", None); sc.pop("report", None)
+                    todo = sorted(set(todo) | {k for k, s in enumerate(job["scans"]) if s is sc})
+                    log(f"[{sc.get('name')}] the mouthguard is made from the scan as scanned, braces on - it is worn over them")
         for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
             mine = [sc for sc in job["scans"] if sc["path"] == path]
             asked = any(sc.get("braces_on") for sc in mine) or bool(job["params"].get("remove_appliances"))
@@ -1079,8 +1089,22 @@ def _take_off_braces(job, path, log=print, painted=None):
             else:
                 entry[key] = sorted(set(entry.get(key, [])) | kept)
     entry["removed"] = sorted(patched)
+    # rebuilt areas bigger than most of a tooth (brackets, wire and ties run together on crowded teeth): red on
+    # the Braces tab and named on the case - the enamel there is a guess
+    try:
+        from bleachtray.appliance import rebuilt_areas, LARGE_PATCH_MM2
+        orig = next((sc.get("raw_path") for sc in job["scans"] if sc["path"] == path and sc.get("raw_path")), None)
+        before = load_scan(orig) if orig and orig != path and os.path.exists(orig) else raw
+        areas, per_v = rebuilt_areas(before, re_)
+        entry["large"] = [int(i) for i in np.where(per_v > LARGE_PATCH_MM2)[0]]
+        info["large_patches"] = [round(a) for a in areas if a > LARGE_PATCH_MM2]
+        info["rebuilt_mm2"] = [round(a) for a in areas[:16]]
+    except Exception as ex:  # noqa
+        log(f"rebuilt areas not measured: {ex}")
     for sc in job["scans"]:
         if sc["path"] == path:
+            if sc.get("preset") == "mouthguard":
+                continue          # worn over the braces: its model keeps them (under shields), from the scan as scanned
             sc["path"] = new_path; sc.setdefault("raw_path", path); sc["braces"] = info
     if job.get("fixed_labels", {}).pop(path, None) is not None:
         log("the brush fixes saved for this scan were dropped: the teeth are found again on the rebuilt enamel")
@@ -1996,7 +2020,8 @@ def seg_mesh(jid: str, scan: int = 0):
     # painted areas kept for this scan file: bit 1 = no reservoir, bit 2 = block out; bit 4 = brackets / wire removed; bit 8 = bracket shield; bit 16 = reservoir added
     pe = (job.get("paint") or {}).get(sc["path"]) or {}
     flags = np.zeros(len(V), dtype=np.uint8)
-    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed"), (16, "reservoir"), (32, "contact")):
+    # bit 64 = rebuilt over a large area (most of a tooth, or two teeth: the enamel there is a guess)
+    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed"), (16, "reservoir"), (32, "contact"), (64, "large")):
         idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
         flags[idx] |= bit
     # bit 8 = under the mouthguard's bracket shield (found + painted)

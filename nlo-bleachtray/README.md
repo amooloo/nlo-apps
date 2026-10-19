@@ -354,7 +354,16 @@ ones. Known limits: clear / ceramic brackets (tooth-coloured) are not found; mol
 expander's arms are not bumps and stay (a band's outline can stay as a faint ridge once its tube is off); a **stainless-steel crown** is grey and stands proud like a bracket and
 IS taken for one (seen on Dr. Wood's lower, 10/17/2026 - the lingual wall of the crown was cut out and rebuilt), so
 for a braces scan with a metal crown leave the box off and paint the brackets with the **Take off** brush instead;
-the enamel under a bracket is a smooth reconstruction, not the scanned surface.
+the enamel under a bracket is a smooth reconstruction, not the scanned surface. That holds for a lone bracket on
+a tooth in line (a patch of 15-30 mm²); on crowded teeth at initial bonding the brackets, wire and ties run
+together into one area over most of a tooth's cheek side, or across two teeth, and what is rebuilt there is a
+guess - flat or carved (a crowded iTero case, 10/19/2026: the upper incisors fine, laterals / canines and a lower
+canine-premolar pair carved). Every rebuilt area over 40 mm² is red on the Braces tab and named in a red warning
+on the case (`appliance.rebuilt_areas`). Braces on is meant for scans near debond, teeth in line; a retainer
+from an initial-bonding scan would not fit after treatment anyway - the mouthguard is the piece for those.
+A **mouthguard made from the same scan** as a retainer or whitening tray with Braces on keeps the brackets: only
+the other models get the cleaned scan (until 10/19/2026 the guard got it too and was made with no room for the
+brackets; a case from before goes back to the scan as scanned when it is run again).
 
 **Mouthguard (braces on).** Tick **Mouthguard (MG)** on the scan (or choose the *Mouthguard (braces on)* preset),
 scanned with the brackets, wire and ties on and the cheeks and lip pulled back so the scan goes as far into the
