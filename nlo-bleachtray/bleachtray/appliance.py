@@ -669,8 +669,15 @@ def detect_appliances(mesh, A, rgb, feats=None, log=None, rng_seed=0, thr=0.35):
         F = feats[0]; names = list(feats[1])
         if "radial" in names:
             radial = F[:, names.index("radial")]
-        if "below_top5" in names:
-            below = F[:, names.index("below_top5")]
+        # the incisal / occlusal band is measured against the highest point within 4.5 mm (below_top9), not 2.5 mm:
+        # a bracket or tube that stands out past the tooth's own outline is the highest thing in a small column
+        # round it, so its upper half read as "top of the tooth" and was never a candidate - on a lower with
+        # lingually tipped molars and premolars (iTero, 10/19/2026) most of the premolar brackets and both molar
+        # tubes stayed on. Over 26 coloured arches: +10-50 % appliance area on the braces scans, all of it on
+        # brackets, tubes and wire; nothing new on the 9 plain ones
+        key = "below_top9" if "below_top9" in names else "below_top5"
+        if key in names:
+            below = F[:, names.index(key)]
         if len(feats) > 2 and isinstance(feats[2], dict):
             H = feats[2].get("H")
     if H is None:

@@ -344,8 +344,14 @@ embrasures and hides the gingival enamel) - for a retainer scan, take the wire a
 leave the brackets; a mouthguard scan keeps everything (and the mouthguard model keeps the brackets, see below). Checked on 10 arches with braces (3 AlliedStar patients, 2
 iTero; metal brackets, green/purple ties, molar tubes, a palatal expander) and 2 plain iTero arches: the
 brackets, wire and ties are gone on all ten and the enamel reads as enamel; nothing is touched on the
-plain scans. Known limits: clear / ceramic brackets (tooth-coloured) are not found; molar bands and an
-expander's arms are not bumps and stay; a **stainless-steel crown** is grey and stands proud like a bracket and
+plain scans. The incisal / occlusal band (never a candidate - translucent incisal edges and dark fissures
+look like metal) is measured against the highest point within 4.5 mm, not 2.5 mm: a bracket or tube standing out
+past the tooth's own outline is the highest thing in a small column round it, so its upper half read as "top of
+the tooth" and stayed on - an iTero lower with lingually tipped premolars and molars (10/19/2026) kept most of its
+premolar brackets and both molar tubes. With the wider band they come off; over 26 coloured arches the found
+area grows 10-50 % on the braces scans, all of it bracket, tube and wire, and nothing new appears on the 9 plain
+ones. Known limits: clear / ceramic brackets (tooth-coloured) are not found; molar bands and an
+expander's arms are not bumps and stay (a band's outline can stay as a faint ridge once its tube is off); a **stainless-steel crown** is grey and stands proud like a bracket and
 IS taken for one (seen on Dr. Wood's lower, 10/17/2026 - the lingual wall of the crown was cut out and rebuilt), so
 for a braces scan with a metal crown leave the box off and paint the brackets with the **Take off** brush instead;
 the enamel under a bracket is a smooth reconstruction, not the scanned surface.
