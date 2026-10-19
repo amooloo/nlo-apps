@@ -305,6 +305,7 @@ async def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), 
     job = dict(id=jid, dir=jdir, scans=scans, name=f"{first}_{last}", params=pr, status="queued",
                created=time.time(), filename=", ".join(sc["filename"] for sc in scans), preset=preset, source="scanner")
     JOBS[jid] = job
+    _save_case(job)
     _trim_caches()
     _enqueue(job)
     return {"id": jid}
@@ -338,7 +339,8 @@ def _save_case(job):
                     filename=job.get("filename"), params=params, scans=scans, review=job.get("review"), order_folder=job.get("order_folder"),
                     sent_at=job.get("sent_at"), learned=job.get("learned"), fixed=[os.path.relpath(k, jdir) for k in fixed], paint=paint,
                     print_folder=job.get("print_folder"), print_files=job.get("print_files") or [],
-                    thinned=bool(job.get("thinned")), saved=time.time())
+                    thinned=bool(job.get("thinned")), saved=time.time(),
+                    status=job.get("status"), error=job.get("error"), log=list(job.get("log") or [])[-400:])
         with open(os.path.join(jdir, "case.json"), "w") as f:
             json.dump(case, f, indent=1, default=float)
         HISTORY[job["id"]] = _summary(case)
@@ -475,8 +477,10 @@ def _job_from_case(jid):
                review=case.get("review"), order_folder=case.get("order_folder"), order_error=None, sent_at=case.get("sent_at"), learned=case.get("learned"),
                print_folder=case.get("print_folder"), print_files=case.get("print_files") or [],
                fixed_labels=fixed, paint=paint, thinned=case.get("thinned"), reopened=True, feat_cache={},
-               log=[f"opened from the history ({time.strftime('%m/%d/%Y', time.localtime(case.get('created') or time.time()))}"
+               log=list(case.get("log") or []) + [f"opened from the history ({time.strftime('%m/%d/%Y', time.localtime(case.get('created') or time.time()))}"
                     + (f", sent {time.strftime('%m/%d/%Y %H:%M', time.localtime(case['sent_at']))}" if case.get("sent_at") else "") + ")"])
+    if case.get("status") == "error" and case.get("error"):
+        job["error"] = case["error"]          # what went wrong last time stays readable; the next run clears it
     reports = [sc["report"] for sc in scans if sc.get("report")]
     if reports:
         job["reports"] = reports; job["report"] = reports[0]
@@ -790,6 +794,7 @@ def _run(job):
     except Exception as ex:  # noqa
         job["status"] = "error"
         job["error"] = f"{ex}\n{traceback.format_exc()}"
+        _save_case(job)                        # the case, its scans and what went wrong survive a restart
 
 
 def _write_order(job, log=print, preform_here=True):
@@ -1248,6 +1253,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
                 _add_scans(other, path, fn, arch, other.get("preset") or preset, variants=per_file.get(k), braces_on=per_braces.get(k))
                 other.setdefault("log", []).append(f"{arch} scan added to this case: {fn}")
                 ids.append(other["id"]); joined.append(other["id"])
+                _save_case(other)
                 _enqueue(other)
                 continue
         jid = uuid.uuid4().hex[:10]
@@ -1262,6 +1268,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
         nm = f"{first} {last}".strip() or (name if single else "") or job["scans"][0]["name"]
         job["name"] = ("".join(c for c in nm if c.isalnum() or c in "-_ ").strip() or "case").replace(" ", "_")
         JOBS[jid] = job
+        _save_case(job)
         ids.append(jid)
     _trim_caches()
     for jid in ids:
@@ -1292,6 +1299,7 @@ async def add_model(jid: str, arch: str = Form(...), make: str = Form(...)):
     _add_scans(job, src["path"], src["filename"], arch, job.get("preset") or "bleaching", variants=variants)
     job.setdefault("log", []).append(f"{ {'WT': 'whitening tray', 'TT': 'retainer', 'MG': 'mouthguard'}[make] } added for the {arch} from the scan already in the case")
     job["auto_order"] = False
+    _save_case(job)                            # the added model is part of the case from now, run or not
     _enqueue(job)
     return {"id": jid, "models": len(job["scans"])}
 
@@ -1535,6 +1543,29 @@ def _save_training(job, log=print):
         return []
     d = training_dir(ROOT, first, last)
     fixed = job.get("fixed_labels") or {}
+    # the folder is per patient and visit; a DIFFERENT scan of the same arch must never overwrite the one
+    # already there (a case filed under the wrong name did exactly that once) - it gets a folder of its own
+    import hashlib
+    def digest(fp):
+        h = hashlib.md5()
+        with open(fp, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    clash = False
+    for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
+        sc = next(sc for sc in job["scans"] if sc["path"] == path)
+        arch = sc.get("arch") or "scan"
+        for ext in (".stl", ".ply"):
+            there = os.path.join(d, f"scan_{arch}{ext}")
+            if os.path.exists(there) and (os.path.getsize(there) != os.path.getsize(path) or digest(there) != digest(path)):
+                clash = True
+    if clash:
+        k = 2
+        while os.path.exists(f"{d} ({k})"):
+            k += 1
+        log(f"training: {os.path.basename(d)} already holds a different scan - this case goes to '{os.path.basename(d)} ({k})'")
+        d = f"{d} ({k})"; os.makedirs(d, exist_ok=True)
     saved, meta = [], dict(first=first, last=last, sent=time.strftime("%Y-%m-%d %H:%M"), case=job["id"], arches={})
     for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
         sc = next(sc for sc in job["scans"] if sc["path"] == path)

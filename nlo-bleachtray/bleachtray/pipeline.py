@@ -18,8 +18,9 @@ TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this muc
 DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=0.6, reservoir_max_position=5,   # setback: the reservoir stops this far short of the gum line (was 0.5; 1 mm is the usual lab rule)
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
-    blockout=False, blockout_depth=0.75,          # automatic block-out of undercuts deeper than this (mm in from the contour): off by default - the doctor paints the ones that matter (Block-outs tab)
-    blockout_proud=0.0,    # mm: where the block-out's wall stands relative to the tooth's contour seen from above - 0 flush with it, > 0 that much further out, < 0 that much of the undercut left for grip
+    blockout=False, blockout_depth=0.75,          # automatic interproximal fill (a wedge under every contact, the way aligner labs do it): off by default here, on for the retainer in the app
+    fill_reach=1.25, fill_top=3.0,  # the wedge: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how tall it stands above the papilla
+    blockout_proud=0.0,    # mm: where a PAINTED block-out's wall stands relative to the tooth's contour seen from above - 0 flush with it, > 0 that much further out, < 0 that much of the undercut left for grip
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
@@ -710,15 +711,34 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             # one big undercut; the brackets get their own shields below; painted areas still apply)
             rc0 = np.asarray(aux.get("ring_center", margin[:, :2].mean(0)), float)[:2]
             rc_bo = trimesh.transform_points(np.array([[rc0[0], rc0[1], 0.0]]), T_adj @ T_place @ T_tilt @ T_ref)[0, :2]
-            fill, binfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=bool(P.get("blockout")) and not MG,
-                                        paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), centre=rc_bo, log=lambda m: log(f"[{name}] {m}"))
+            # automatic: one wedge under every contact, built from the two crowns' outlines (never found by
+            # hunting for undercuts on the surface - that gave fins on the line angles); painted: the brush's
+            # own fill under what was painted
+            fills, binfo = [], dict(spots=0, volume_ml=0.0)
+            if P.get("blockout") and not MG:
+                from .interprox import contact_fills
+                cfill, cinfo = contact_fills(plain, labels, info, rc_bo, top=float(P.get("fill_top") or 3.0), reach=float(P.get("fill_reach") or 1.25),
+                                             log=lambda m: log(f"[{name}] {m}"))
+                binfo.update(contacts=cinfo.get("contacts", 0), contacts_filled=cinfo.get("spots", 0), fill_skipped=cinfo.get("skipped", []),
+                             spots=cinfo.get("spots", 0), volume_ml=cinfo.get("volume_ml", 0.0), top_mm=cinfo.get("top_mm"), reach_mm=float(P.get("fill_reach") or 1.25))
+                if cfill is not None:
+                    fills.append(cfill)
+            if paint is not None:
+                pfill, pinfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=False,
+                                             paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), centre=rc_bo, log=lambda m: log(f"[{name}] {m}"))
+                binfo.update(painted_cells=pinfo.get("painted_cells"), proud_mm=pinfo.get("proud_mm"), painted_spots=pinfo.get("spots", 0))
+                binfo["spots"] = int(binfo.get("spots", 0)) + int(pinfo.get("spots", 0) or 0)
+                binfo["volume_ml"] = round(float(binfo.get("volume_ml", 0.0)) + float(pinfo.get("volume_ml", 0.0) or 0.0), 3)
+                if pfill is not None:
+                    fills.append(pfill)
+                else:
+                    log(f"[{name}] painted block-out: no undercut under the painted area (nothing to fill)")
             rep["blockout"] = binfo
-            if fill is not None:
+            if fills:
+                fill = trimesh.util.concatenate(fills) if len(fills) > 1 else fills[0]
                 fill_at = len(extra_solids)
                 extra_solids.append(fill)
                 fill.export(bo_path)
-            elif len(bidx):
-                log(f"[{name}] painted block-out: no undercut under the painted area (nothing to fill)")
         except Exception as ex:  # noqa
             log(f"[{name}] block-out skipped: {ex}")
             rep["blockout"] = dict(error=str(ex))
