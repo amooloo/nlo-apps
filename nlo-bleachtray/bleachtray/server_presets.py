@@ -2,7 +2,7 @@
 PRESETS = {
     "bleaching": dict(reservoir_height=0.5, reservoir_max_position=5, trimline_offset=0.0, bridge_radius=3.0),
     "bleaching_3_3": dict(reservoir_height=0.5, reservoir_max_position=3, trimline_offset=0.0, bridge_radius=3.0),
-    "aligner_high": dict(reservoir_height=0.0, reservoir_max_position=0, trimline_offset=1.25, bridge_radius=4.0, blockout=True),   # the interproximal fill: a wedge under every contact
+    "aligner_high": dict(reservoir_height=0.0, reservoir_max_position=0, trimline_offset=1.25, bridge_radius=4.0, blockout=False),  # the interproximal fill is a choice in the app, not a default
     "plain_model": dict(reservoir_height=0.0, reservoir_max_position=0, trimline_offset=0.0, bridge_radius=3.0),
     # sports mouthguard, braces on: brackets stay under smooth shields, the line runs into the vestibule with
     # frenum notches and 6 mm onto the palate; no reservoirs, no automatic block-out (the sulcus is not an undercut)

@@ -64,7 +64,10 @@ def _undercut_depth(z_top, gap_top, cell, step=0.25):
     for L in levels:
         zl = L * step
         sel = has & (np.round(gap_top / step) == L)
-        covered = z_top >= zl - 0.05           # something above this height -> inside the silhouette
+        covered = z_top > zl + 0.05            # something above this height -> inside the silhouette (gum lying at the level itself is not)
+        # a cell the scan's vertices happened to miss (a coarse occlusal, a big flat facet) is not an edge of the
+        # silhouette: small gaps closed, enclosed ones filled
+        covered = ndi.binary_fill_holes(ndi.binary_closing(covered, iterations=1))
         dt = ndi.distance_transform_edt(covered) * cell
         depth[sel] = dt[sel]
     return depth
@@ -147,7 +150,8 @@ def _unpinch(region):
 
 
 def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=True, paint=None,
-                  paint_min_depth=0.15, proud=0.0, bevel=0.5, upsample=3, near=None, near_mm=1.5, below_mm=2.0, centre=None, log=print):
+                  paint_min_depth=0.15, proud=0.0, bevel=0.5, upsample=3, near=None, near_mm=1.5, below_mm=2.0, centre=None,
+                  taper_foot=0.65, taper_start=0.3, log=print):
     """Return (solid or None, info). `paint`: per-vertex bool mask of areas the user asked to block
     out (filled whatever their depth). `near`: per-vertex bool mask (the teeth): an automatic fill
     only goes under an overhang within `near_mm` of it - the vestibule's own overhangs (the scan's
@@ -155,10 +159,13 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     the overhang, never down to the floor.
 
     The fill is what a technician's block-out resin is: every column under an overhang is filled from
-    the surface below up to the overhang's underside, out to the tooth's contour seen from above -
-    so the crown's widest line continues straight down to the gum (a vertical wall, with a short
-    bevel where it meets the gum). `proud` moves that wall: > 0 mm out beyond the contour (more
-    block-out), < 0 mm in from it (that much of the undercut is left for grip)."""
+    the surface below up to the overhang's underside, out to the tooth's contour seen from above.
+    Its face is not a vertical wall under the contour but a straight slope (the doctor's sketch of a
+    pontic or an implant crown): it starts `taper_start` mm under the height of contour and runs
+    straight down and in to the gum, with its foot `taper_foot` of the way in from the contour
+    towards the neck - the tray formed over it still has some grip under the contour, and nothing
+    stands proud of the tooth. `taper_foot=0` gives the old vertical wall. `proud` moves the
+    contour the fill reaches to: > 0 mm out beyond it (more block-out), < 0 mm in from it."""
     V = np.asarray(mesh.vertices); N = np.asarray(mesh.vertex_normals)
     g = _grid_fields(V, N, cell)
     gap = g["gap_top"] - g["gap_bot"]
@@ -248,7 +255,20 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     # every filled column needs both heights: gaps from the nearest known, then a light smoothing
     # within the fill (nothing outside it pulls on the edge heights)
     ztop = np.where(region, _nearest_fill(region, ztop), np.nan); zbot = np.where(region, _nearest_fill(region, zbot), np.nan)
-    ztop = _blur_in(region, ztop, 1.3); zbot = _blur_in(region, zbot, 1.3)
+    ztop = _blur_in(region, ztop, 0.8); zbot = _blur_in(region, zbot, 0.8)
+    # how far in from the contour each column is (for the sloped face below): measured from the fill's own
+    # outermost columns, since the grid puts the silhouette's edge up to a cell outside the contour
+    din = D = None
+    if taper_foot and taper_foot > 0:
+        lab_t, nlab_t = ndi.label(region)
+        if nlab_t:
+            din = _nearest_fill(region, np.where(region & (depth > 0), depth, np.nan))   # in from the contour (not from the neck side)
+            din = np.where(np.isfinite(din), din, 0.0)
+            idx_t = np.arange(1, nlab_t + 1)
+            dmin = np.asarray(ndi.minimum(np.where(region, din, np.inf), lab_t, index=idx_t), float)
+            dmax = np.asarray(ndi.maximum(np.where(region, din, 0.0), lab_t, index=idx_t), float)
+            d0 = np.where(region, dmin[np.maximum(lab_t - 1, 0)], 0.0); D = np.where(region, dmax[np.maximum(lab_t - 1, 0)], 0.0) - d0
+            din = np.clip(din - d0, 0.0, None)
     # the fill is built on a finer grid than the one the undercuts were found on (the detection needs a
     # few scan vertices per cell; the surface wants small steps): a rounded outline, heights interpolated
     fine = cell / upsample
@@ -256,21 +276,49 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
         region_f = ndi.gaussian_filter(ndi.zoom(region.astype(float), upsample, order=1), upsample * 0.9) > 0.5   # no cell corners on the outline
         region_f = ndi.binary_opening(region_f, iterations=1) | ndi.binary_erosion(region_f, iterations=1)
         ztop_f = ndi.zoom(_nearest_fill(region, ztop), upsample, order=1); zbot_f = ndi.zoom(_nearest_fill(region, zbot), upsample, order=1)
-        ztop_f = _blur_in(region_f, ztop_f, upsample * 1.2); zbot_f = _blur_in(region_f, zbot_f, upsample * 1.2)
+        ztop_f = _blur_in(region_f, ztop_f, upsample * 0.8); zbot_f = _blur_in(region_f, zbot_f, upsample * 0.8)
+        if din is not None:
+            din_f = ndi.zoom(_nearest_fill(region, din), upsample, order=1); D_f = ndi.zoom(_nearest_fill(region, D), upsample, order=0)
     else:
         region_f, ztop_f, zbot_f = region, ztop, zbot
+        if din is not None:
+            din_f, D_f = din, D
     region_f = _unpinch(region_f)
     if not region_f.any():
         return None, dict(cells=0, spots=0, painted_cells=int((painted & core).sum()))
+    # the sloped face: the fill's underside is lifted onto a plane that leaves the contour `taper_start` under
+    # the overhang's edge and reaches the gum `taper_foot` of the undercut's depth in from the contour. Inside
+    # the foot the fill stands on the gum as before; outside it hangs under the crown with air beneath, and at
+    # the contour it thins to nothing (done on the fine grid: the plane is geometry, not something to blur)
+    if din is not None:
+        edge_f = region_f & ~ndi.binary_erosion(region_f, iterations=1)
+        outer_f = edge_f & (din_f <= 1.5 * cell)
+        if not outer_f.any():
+            outer_f = edge_f
+        z_edge_f = _nearest_fill(region_f, np.where(outer_f, ztop_f, np.nan))
+        top0 = z_edge_f - taper_start
+        r_f = np.maximum(taper_foot * D_f, 2 * cell)
+        plane = top0 - np.clip(din_f, 0, None) * np.maximum(top0 - zbot_f, 0.0) / r_f
+        lifted = region_f & np.isfinite(plane) & (plane > zbot_f)
+        zbot_f = np.where(lifted, plane, zbot_f)
+        thin = region_f & ((ztop_f - zbot_f) < 0.25)
+        region_f = _unpinch(region_f & ~thin)
+        if not region_f.any():
+            return None, dict(cells=0, spots=0, painted_cells=int((painted & core).sum()))
+        hang = lifted & region_f            # the hanging part keeps its underside where the plane puts it (no 0.3 mm foot into the gum)
+    else:
+        hang = np.zeros_like(region_f)
     # the wall: full height from the surface up to the overhang (pushed 0.3 mm into it so the union
     # leaves no sliver); over the outer `bevel` mm the top eases down to the surface - resin wiped
     # against the gum, not a machined block. The foot sits 0.3 mm into the surface, never under the floor
     dist = ndi.distance_transform_edt(region_f) * fine
+    if taper_foot and taper_foot > 0:
+        bevel = 0.0          # the sloped face already thins to nothing at the contour; a bevel there would take the wedge away
     s = np.clip(dist / max(bevel, 1e-6), 0.0, 1.0); s = s * s * (3 - 2 * s)
     zb = np.where(np.isfinite(zbot_f), zbot_f, z_floor)
     zt = np.where(np.isfinite(ztop_f), ztop_f, zb)
     ztop_f = zb + s * np.maximum(zt + 0.3 - zb, 0.0)
-    zbot_f = np.maximum(zb - 0.3, z_floor + 0.05)
+    zbot_f = np.maximum(np.where(hang, zb, zb - 0.3), z_floor + 0.05)
     ztop_f = np.maximum(ztop_f, zbot_f + 0.35)
     solid = _slab_from_grid(region_f, ztop_f, zbot_f, g["x0"], g["y0"], fine)
     # resin-smooth: a volume-keeping Taubin pass takes the grid's staircase off the walls and eases the

@@ -13,6 +13,7 @@ from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
+import manifold3d as m3
 from shapely import affinity
 
 BAND_Y0, BAND_Y1, PLATE_Z = -13.5, -8.4, 1.0     # usable strip (0.4 mm inside the real one), plate top
@@ -309,6 +310,13 @@ def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, 
         out_m = from_manifold((mm + ml) if raised else (mm - ml), drop_zero_volume=False)
         info = dict(dropped=dropped, text=text, anchor=np.round(p_anchor, 3).tolist(), normal=np.round(n0, 4).tolist(), right=np.round(right, 4).tolist(), up=np.round(up, 4).tolist(),
                     cap=round(float(cap), 2), width_mm=round(float(total), 2), angle_deg=round(float(angle_deg), 1), raised=bool(raised))
+        # the letters on their own, for the page to show in colour: the part standing proud when raised,
+        # the part sunk into the model when cut in (not saved in the report - the caller writes it to a file)
+        try:
+            vis = (ml - mm) if raised else (ml ^ mm)
+            info["_letters"] = from_manifold(vis, drop_zero_volume=False) if vis.status() == m3.Error.NoError else letters
+        except Exception:  # noqa
+            info["_letters"] = letters
         return out_m, info
     except Exception as ex:  # noqa
         log(f"mark skipped: {ex}")

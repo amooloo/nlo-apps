@@ -107,6 +107,7 @@ def load_scan(path, max_faces=MAX_FACES):
         m = max(parts, key=lambda p: p.area)
     m.remove_unreferenced_vertices()
     m = strip_flat_base(m)
+    m = strip_reconstructed(m)
     if max_faces and len(m.faces) > max_faces:
         m = decimate(m, max_faces)
     trimesh.repair.fix_normals(m)  # consistent winding; outward sign fixed in orient
@@ -115,6 +116,32 @@ def load_scan(path, max_faces=MAX_FACES):
         _, j = cKDTree(raw_xyz).query(np.asarray(m.vertices))
         m.metadata["rgb"] = raw_rgb[j]
     return m
+
+
+def strip_reconstructed(m, max_area=0.6, max_share=0.08):
+    """The scanner's own fill-ins. Where the scanner saw nothing (under the lip, the floor of the
+    vestibule, behind the last molar) its software fills the gap with large flat triangles - a scanned
+    surface has triangles of 0.02-0.3 mm2, a reconstructed patch tens of mm2 each. Left in, such a patch
+    becomes part of the model: a flat ledge sticking out at the base where the gum should end. Faces
+    over `max_area` mm2 are removed (never more than `max_share` of the surface's faces: a coarse mesh
+    all over is a decimated scan, not a reconstruction, and is left alone). The scan's open edge is then
+    where the real surface ends and the model's skirt takes over from there."""
+    try:
+        A = m.area_faces
+        big = A > max_area
+        n_big = int(big.sum())
+        if n_big == 0 or n_big > max_share * len(A):
+            return m
+        out = m.submesh([np.where(~big)[0]], append=True)
+        out.remove_unreferenced_vertices()
+        parts = out.split(only_watertight=False)
+        if len(parts) > 1:
+            out = max(parts, key=lambda p: p.area)
+        out.metadata.update(m.metadata)
+        out.metadata["reconstructed_removed"] = dict(faces=n_big, area_mm2=round(float(A[big].sum()), 1))
+        return out
+    except Exception:
+        return m
 
 
 def strip_flat_base(m, min_frac=0.06, tol=0.35):
