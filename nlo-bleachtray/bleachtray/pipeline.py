@@ -771,32 +771,52 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             # hunting for undercuts on the surface - that gave fins on the line angles); painted: the brush's
             # own fill under what was painted
             fills, binfo = [], dict(spots=0, volume_ml=0.0)
+            failed = []     # each part on its own: one that cannot be made never takes the others with it
             if P.get("blockout") and not MG:
-                from .interprox import contact_fills
-                cfill, cinfo = contact_fills(plain, labels, info, rc_bo, top=float(P.get("fill_top") or 20.0), reach=float(P.get("fill_reach") or 1.25),
-                                             log=lambda m: log(f"[{name}] {m}"))
-                binfo.update(contacts=cinfo.get("contacts", 0), contacts_filled=cinfo.get("spots", 0), fill_skipped=cinfo.get("skipped", []),
-                             spots=cinfo.get("spots", 0), volume_ml=cinfo.get("volume_ml", 0.0), top_mm=cinfo.get("top_mm"), reach_mm=float(P.get("fill_reach") or 1.25))
-                if cfill is not None:
-                    fills.append(cfill)
+                try:
+                    from .interprox import contact_fills
+                    cfill, cinfo = contact_fills(plain, labels, info, rc_bo, top=float(P.get("fill_top") or 20.0), reach=float(P.get("fill_reach") or 1.25),
+                                                 log=lambda m: log(f"[{name}] {m}"))
+                    binfo.update(contacts=cinfo.get("contacts", 0), contacts_filled=cinfo.get("spots", 0), fill_skipped=cinfo.get("skipped", []),
+                                 spots=cinfo.get("spots", 0), volume_ml=cinfo.get("volume_ml", 0.0), top_mm=cinfo.get("top_mm"), reach_mm=float(P.get("fill_reach") or 1.25))
+                    if cfill is not None:
+                        fills.append(cfill)
+                except Exception as ex:  # noqa
+                    failed.append(("the fill under the contacts", ex))
                 # a tooth facing an edentulous space: a straight face a little below its height of contour
                 if rep.get("gaps"):
-                    from .interprox import gap_fills
-                    gsolids, ginfo = gap_fills(plain, labels, info, rep["gaps"], rc_bo, retention=float(P.get("fill_retention") or 0.5), log=lambda m: log(f"[{name}] {m}"))
-                    if gsolids:
-                        fills.extend(gsolids)
-                        binfo.update(gap_faces=len(ginfo), gap_fills=ginfo, spots=int(binfo.get("spots", 0)) + len(ginfo),
-                                     volume_ml=round(float(binfo.get("volume_ml", 0.0)) + sum(q["volume_ml"] for q in ginfo), 3))
+                    try:
+                        from .interprox import gap_fills
+                        gsolids, ginfo = gap_fills(plain, labels, info, rep["gaps"], rc_bo, retention=float(P.get("fill_retention") or 0.5), log=lambda m: log(f"[{name}] {m}"))
+                        if gsolids:
+                            fills.extend(gsolids)
+                            binfo.update(gap_faces=len(ginfo), gap_fills=ginfo, spots=int(binfo.get("spots", 0)) + len(ginfo),
+                                         volume_ml=round(float(binfo.get("volume_ml", 0.0)) + sum(q["volume_ml"] for q in ginfo), 3))
+                    except Exception as ex:  # noqa
+                        failed.append(("the fill beside the gaps", ex))
             if paint is not None:
-                pfill, pinfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=False,
-                                             paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), centre=rc_bo, log=lambda m: log(f"[{name}] {m}"))
-                binfo.update(painted_cells=pinfo.get("painted_cells"), proud_mm=pinfo.get("proud_mm"), painted_spots=pinfo.get("spots", 0))
-                binfo["spots"] = int(binfo.get("spots", 0)) + int(pinfo.get("spots", 0) or 0)
-                binfo["volume_ml"] = round(float(binfo.get("volume_ml", 0.0)) + float(pinfo.get("volume_ml", 0.0) or 0.0), 3)
-                if pfill is not None:
-                    fills.append(pfill)
-                else:
-                    log(f"[{name}] painted block-out: no undercut under the painted area (nothing to fill)")
+                try:
+                    pfill, pinfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=False,
+                                                 paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), centre=rc_bo, log=lambda m: log(f"[{name}] {m}"))
+                    binfo.update(painted_cells=pinfo.get("painted_cells"), proud_mm=pinfo.get("proud_mm"), painted_spots=pinfo.get("spots", 0))
+                    binfo["spots"] = int(binfo.get("spots", 0)) + int(pinfo.get("spots", 0) or 0)
+                    binfo["volume_ml"] = round(float(binfo.get("volume_ml", 0.0)) + float(pinfo.get("volume_ml", 0.0) or 0.0), 3)
+                    if pfill is not None:
+                        fills.append(pfill)
+                    else:
+                        log(f"[{name}] painted block-out: no undercut under the painted area (nothing to fill)")
+                except Exception as ex:  # noqa
+                    failed.append(("the painted block-out", ex))
+            if failed:
+                # (10/19/2026: the lab PC had no scikit-image - every retainer since the contact fill came in was
+                # made without its block-out, painted outlines included, and only the log said so)
+                binfo["error"] = "; ".join(f"{what}: {ex}" for what, ex in failed)
+                log(f"[{name}] block-out skipped: {binfo['error']}")
+                missing = sorted({ex.name for _, ex in failed if isinstance(ex, ImportError) and getattr(ex, "name", None)})
+                rep.setdefault("warnings", []).append(
+                    f"block-out not made ({', '.join(w for w, _ in failed)}): " +
+                    (f"a part of the app is missing on this PC ({', '.join(missing)}) - run the update, then re-run this case"
+                     if missing else "re-run the case; if it happens again, the tray will grip the undercuts there"))
             rep["blockout"] = binfo
             if fills:
                 fill = trimesh.util.concatenate(fills) if len(fills) > 1 else fills[0]
@@ -806,6 +826,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         except Exception as ex:  # noqa
             log(f"[{name}] block-out skipped: {ex}")
             rep["blockout"] = dict(error=str(ex))
+            rep.setdefault("warnings", []).append(f"block-out not made ({ex}) - re-run the case; if it happens again, the tray will grip the undercuts there")
     # mouthguard: the brackets stay on the model under smooth convex caps with `mg_clearance` mm of room, so
     # the sheet forms over a band instead of locking into the bracket undercuts (mesh_f keeps the scan's
     # vertex order, so the appliance mask applies as it is)

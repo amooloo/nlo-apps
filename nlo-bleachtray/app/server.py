@@ -1215,14 +1215,16 @@ def _add_scans(job, path, filename, arch, preset, variants=None, braces_on=None)
 def _group_uploads(items):
     """items: [(index, filename, arch or None)] -> list of cases, each [(index, filename, arch, first, last)].
     Files are grouped by the patient name in the file name; within a patient one upper + one lower make
-    a case; a file whose name holds no patient name is a case of its own."""
-    from bleachtray.watch import parse_name
+    a case; an iTero export's upper + lower are paired by their order number (the names hold no patient); any
+    other file whose name holds no patient name is a case of its own."""
+    from bleachtray.watch import parse_name, itero_order
     cases, by_patient = [], {}
     for idx, fn, arch in items:
         first, last, a = parse_name(fn)
         arch = arch or a
         known = first != "Scan"
-        key = (first.lower(), last.lower()) if known else ("", f"#{idx}")
+        order = None if known else itero_order(fn)
+        key = (first.lower(), last.lower()) if known else (("#itero", order) if order else ("", f"#{idx}"))
         subs = by_patient.setdefault(key, [])
         home = None
         for sj in subs:
@@ -1244,10 +1246,13 @@ def _variants_from_makes(makes, preset):
 
 @app.post("/api/jobs")
 async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bleaching"), params: str = Form("{}"),
-                     name: str = Form(""), arches: str = Form("[]"), makes: str = Form(""), braces: str = Form("")):
+                     name: str = Form(""), arches: str = Form("[]"), makes: str = Form(""), braces: str = Form(""),
+                     one_case: str = Form("")):
     """Any number of scans at once: one case per patient (upper + lower paired by the file names).
     `makes`: per-file list of what to make (["WT","TT"]); without it every file gets the preset's variants.
-    `braces`: per-file list of booleans - the scan has braces on and they are to come off first (never assumed)."""
+    `braces`: per-file list of booleans - the scan has braces on and they are to come off first (never assumed).
+    `one_case`: the New case pop-up's Start - its one or two scans are one patient's, under the name typed
+    there, whatever the file names say (an iTero export's hold an order number, no name)."""
     p0 = dict(PRESETS.get(preset, PRESETS["bleaching"]))
     try:
         p0.update(json.loads(params or "{}"))
@@ -1287,7 +1292,15 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
         if filed:
             return {"id": None, "ids": [], "joined": [], "cases": 0, "filed": filed}
         raise HTTPException(400, "no STL files")
-    cases = _group_uploads([(k, fn, (arch_list[i] if i < len(arch_list) else None) or None) for i, (k, fn, _) in enumerate(blobs)])
+    items = [(k, fn, (arch_list[i] if i < len(arch_list) else None) or None) for i, (k, fn, _) in enumerate(blobs)]
+    cases = None
+    if one_case and len(items) <= 2:
+        from bleachtray.watch import parse_name
+        arch_k = [a or parse_name(fn)[2] for _, fn, a in items]
+        if len(items) == 1 or None in arch_k or arch_k[0] != arch_k[1]:       # two uppers stay two cases
+            cases = [[(k, fn, a, "", "") for (k, fn, _), a in zip(items, arch_k)]]
+    if cases is None:
+        cases = _group_uploads(items)
     data = {k: (fn, b) for k, fn, b in blobs}
     per_file = {k: (_variants_from_makes(makes_list[i], preset) if makes_list and i < len(makes_list) else None) for i, (k, fn, _) in enumerate(blobs)}
     per_braces = {k: bool(braces_list[i]) if i < len(braces_list) else bool(p0.get("remove_appliances")) for i, (k, fn, _) in enumerate(blobs)}
@@ -1296,7 +1309,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
     for case in cases:
         first, last = case[0][3], case[0][4]
         p = dict(p0)
-        if single and (p0.get("patient_first") or p0.get("patient_last")):
+        if (single or one_case) and (p0.get("patient_first") or p0.get("patient_last")):
             first, last = p0.get("patient_first", ""), p0.get("patient_last", "")
         p["patient_first"], p["patient_last"] = first, last
         # a lone arch of a patient who already has an unsent case: join it

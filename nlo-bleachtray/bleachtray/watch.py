@@ -16,6 +16,9 @@ from datetime import datetime
 NAME_RE = re.compile(r"^(?P<first>[A-Za-z][A-Za-z'\-]*)[ _\-]+(?P<last>[A-Za-z][A-Za-z'\-]*)")
 TITLE_RE = re.compile(r"^(dr|mr|mrs|ms|miss|prof)\.?[ _\-]+", re.I)
 ARCH_RE = re.compile(r"(upper|maxil|lower|mandib)", re.I)
+# an iTero export: "<order number>_<export type>_<u|l>" (328336123_lprofile_occlusion_u.ply) - no patient name;
+# the order number ties the upper to the lower
+ITERO_RE = re.compile(r"^(?P<order>\d{5,})(?:[ _\-].*)?[ _\-](?P<arch>[ul])$", re.I)
 # a Titan / OrthoFactory export ("First Last - 0 - Maxilla.stl", also with _ instead of spaces, with or
 # without a leading timestamp): a reference for training, never a scan to process
 TITAN_RE = re.compile(r"^(?:\d{6,}[ _-]+)?(?P<name>.+?)[ _]+-[ _]+(?P<stage>\d+)[ _]+-[ _]+(?P<arch>Maxilla|Mandible)(?P<rest>.*)$", re.I)
@@ -93,7 +96,17 @@ def parse_name(filename):
     arch = None
     if a:
         arch = "upper" if a.group(1).lower() in ("upper", "maxil") else "lower"
+    else:
+        it = ITERO_RE.match(stem)
+        if it:
+            arch = "upper" if it.group("arch").lower() == "u" else "lower"
     return first, last, arch
+
+
+def itero_order(filename):
+    """The iTero order number of an iTero export's file name (its upper and lower share it), else None."""
+    m = ITERO_RE.match(os.path.splitext(os.path.basename(filename))[0])
+    return m.group("order") if m else None
 
 
 def stable(path, seconds=3):
