@@ -51,6 +51,9 @@
   .job .nm .hint{display:inline;margin:0 0 0 4px;color:#7E92B5;font-size:11px;font-weight:600}
   .job .hint{color:#9DB0CC;font-size:11px;font-weight:500;margin:0}
   .pill{margin-left:auto;flex:none;display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:2px 8px;white-space:nowrap;letter-spacing:.02em}
+  .drop.pulse{animation:dropPulse 1.6s ease-out 1} @keyframes dropPulse{0%{box-shadow:0 0 0 0 rgba(245,158,11,.6)}100%{box-shadow:0 0 0 14px rgba(245,158,11,0)}}
+  .job.q .nm{font-weight:600} .job.q .sub{display:block;color:#7E92B5;font-size:11px;font-weight:500;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .job.q.picked{background:rgba(255,255,255,.14);box-shadow:inset 3px 0 0 var(--amber-500, #f59e0b)} .pill.q{background:rgba(245,158,11,.25)} .pill.started{background:rgba(59,130,246,.35)} .pill.sent{background:rgba(16,185,129,.35)}
   .pill.review{background:var(--amber);color:var(--navy-900)} .pill.sent{background:var(--mint);color:var(--navy-900)} .pill.discarded{background:rgba(255,255,255,.08);color:#9DB0CC}
   .pill.running{background:var(--blue-500);color:#fff} .pill.queued{background:rgba(255,255,255,.14);color:#DCE4EE} .pill.error{background:var(--coral-600);color:#fff}
   .sidebox{padding:4px 12px 8px}
@@ -261,6 +264,10 @@
 <div id="app">
   <aside id="side">
     <div class="sideTop"><img src="/static/logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Tray Maker</div></div>
+    <div class="nav" id="queuebox" style="display:none">
+      <div class="navLbl">To make <span class="hint" id="queuecount" style="margin:0 0 0 auto;color:#7E92B5;font-size:10.5px;letter-spacing:0;text-transform:none"></span></div>
+      <div id="queue"></div>
+    </div>
     <div class="nav">
       <div class="navLbl">Cases</div>
       <div id="jobs"></div>
@@ -619,6 +626,11 @@
         <div class="hint" id="exporthint" style="margin-top:2px"></div>
       </div>
       <div class="scard"><div class="sLab">Doctor (order folder name)</div><input type="text" id="doctor" value="Dr. Amir Akhavan"></div>
+      <div class="scard wide"><div class="sLab">NLO Cases (the case tracker) <span class="info" title="Retainer, whitening and mouthguard cases entered in NLO Cases wait here under To make: click one and drop its scan - the name, arches and what to make are filled in. When the models are sent to OrthoFactory the case is told (it notes 'models in OrthoFactory' and leaves the queue). The link is the lab PC's own login from NLO Cases (Team & security → Lab PC → the setup code, the same one the NLO Lab Bridge uses): it can read the queue and add notes to NLO Cases' inbox, nothing else. The cases are sealed to this PC's own key; nothing is readable in between.">i</span></div>
+        <div class="hint" id="tracker_state" style="margin:2px 0 8px">Checking…</div>
+        <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="tracker_code" placeholder="paste the setup code from NLO Cases (NLOLAB1.…)" autocomplete="off"><button class="small primary" id="tracker_link">Link</button></div>
+        <div class="hint" style="margin-top:6px">In NLO Cases: <b>Team &amp; security → Lab PC → New setup code</b> (or Set up the lab PC), copy the code, paste it here. A new code there means pasting it here too (and in the NLO Lab Bridge). <a href="#" id="tracker_unlink" style="color:var(--coral-700)">Unlink</a></div>
+      </div>
       <div class="scard"><div class="sLab">Patient ID in Edge (optional)</div><input type="text" id="pid" placeholder="80010"></div>
       <div class="scard wide"><div class="sLab">Scanner export folder(s) <span class="info" title="Lists recent scans in the sidebar. Several PCs: separate with ;">i</span></div>
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
@@ -835,7 +847,8 @@ async function fileTitan(titanFiles){
 let pending = [];   // [{file, arch, wt, tt}]
 // Opened from the case tracker (NLO Cases → Make models): the patient, the arches and what to make come in the URL,
 // and the tracker tab is told when the models are sent so it can note it on the case.
-const TRACKER = (() => {
+let TRACKER_ORIGIN = null;   // where the NLO Cases tab that opened this page lives (for the message back), once TRACKER is used up
+let TRACKER = (() => {
   const q = new URLSearchParams(location.search);
   if (!q.get('case') && !q.get('first')) return null;
   const makes = (q.get('make') || 'WT,TT').toUpperCase().split(',').map(x => x.trim()).filter(Boolean);
@@ -844,16 +857,65 @@ const TRACKER = (() => {
   return { first: q.get('first') || '', last: q.get('last') || '', case: q.get('case') || '', arches: (q.get('arches') || '').split(',').filter(Boolean),
            wt: makes.includes('WT'), tt: makes.includes('TT'), mg: makes.includes('MG'), origin };
 })();
-if (TRACKER) {
+function trackerHint(){
+  if (!TRACKER) return;
   $('#pfirst').value = TRACKER.first; $('#plast').value = TRACKER.last;
   const what = [TRACKER.wt ? 'whitening' : '', TRACKER.tt ? 'retainer' : '', TRACKER.mg ? 'mouthguard' : ''].filter(Boolean).join(' + ') || 'plain model';
-  $('#filehint').innerHTML = `<b>From the case tracker:</b> ${TRACKER.first} ${TRACKER.last} · ${TRACKER.arches.length ? TRACKER.arches.join(' + ') : 'arch as scanned'} · ${what}. Drop the scan — the case is told when the models are sent.`;
+  $('#filehint').innerHTML = `<b>From NLO Cases:</b> ${TRACKER.first} ${TRACKER.last} · ${TRACKER.arches.length ? TRACKER.arches.join(' + ') : 'arch as scanned'} · ${what}${TRACKER.remake ? ' · ' + TRACKER.remake : ''}${TRACKER.due ? ' · due ' + TRACKER.due : ''}. Drop the scan — the case is told when the models are sent.`;
 }
+trackerHint();
+// ---------- the queue: NLO Cases' retainer / whitening / mouthguard cases waiting for their models (server: /api/queue) ----------
+let QUEUE = { items: [], state: null, picked: '' };
+function queueRow(it){
+  const arches = it.arches.length ? it.arches.map(a => a === 'upper' ? 'U' : 'L').join('+') : '?';
+  const h = it.here, pill = it.sent_here || (h && h.review === 'sent') ? '<span class="pill sent">sent</span>' : h ? `<span class="pill started">${h.status === 'done' ? 'started' : h.status}</span>` : `<span class="pill q">${it.make.join('+')}</span>`;
+  const due = it.due ? ` · due ${it.due.slice(5).replace('-', '/')}` : '';
+  return `<div class="job q ${QUEUE.picked === it.case ? 'picked' : ''}" data-case="${it.case}" title="${it.patient} · ${it.arches.join(' + ') || 'arch as scanned'} · ${it.kinds || it.make.join(' + ')}${it.remake ? ' · ' + it.remake : ''}${it.assignee ? ' · ' + it.assignee : ''}\nClick, then drop the scan"><span class="nm">${it.patient}<span class="sub">${arches}${it.type === 'mouthguard' ? ' · mouthguard' : it.kinds ? ' · ' + it.kinds : ''}${it.remake ? ' · remake' : ''}${it.scanOnFile ? ' · scan on file' : ''}${due}</span></span>${pill}</div>`;
+}
+function renderQueue(){
+  const box = $('#queuebox'); const st = QUEUE.state;
+  if (!st || !st.linked) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  const items = QUEUE.items.filter(it => !it.sent_here && !(it.here && it.here.review === 'sent'));
+  $('#queuecount').textContent = items.length ? `${items.length} waiting` : (st.last_err ? 'not reachable' : 'nothing waiting');
+  $('#queue').innerHTML = items.map(queueRow).join('') || `<div class="hint" style="padding:0 12px 6px">${st.last_err ? 'NLO Cases not reachable: ' + st.last_err : 'Every case entered in NLO Cases has its models.'}</div>`;
+  document.querySelectorAll('.job.q').forEach(e => e.onclick = () => pickQueue(e.dataset.case));
+}
+function pickQueue(cid){
+  const it = QUEUE.items.find(x => x.case === cid); if (!it) return;
+  if (it.here && it.here.job && it.here.review !== 'sent') { selectJob(it.here.job); return; }   // already started here: open it
+  const parts = it.patient.trim().split(/\s+/);
+  TRACKER = { first: parts[0] || '', last: parts.slice(1).join(' ') || '', case: cid, arches: it.arches, wt: it.make.includes('WT'), tt: it.make.includes('TT'), mg: it.make.includes('MG'),
+              origin: null, remake: it.remake || '', due: it.due || '' };
+  QUEUE.picked = cid; renderQueue(); trackerHint();
+  $('#filehint').scrollIntoView({ block: 'nearest' }); $('#drop').classList.add('pulse'); setTimeout(() => $('#drop').classList.remove('pulse'), 1600);
+}
+async function refreshQueue(){
+  try { const r = await (await fetch('/api/queue', NOCACHE)).json(); QUEUE.items = r.items || []; QUEUE.state = r.state || null; }
+  catch (e) { QUEUE.state = QUEUE.state || null; }
+  renderQueue(); trackerSettings();
+}
+function trackerSettings(){
+  const el = $('#tracker_state'); if (!el) return; const st = QUEUE.state;
+  if (!st) { el.textContent = 'Checking…'; return; }
+  if (!st.linked) { el.innerHTML = 'Not linked. Paste the setup code from NLO Cases below.'; return; }
+  const ago = st.last_ok ? Math.round((Date.now() / 1000 - st.last_ok) / 60) : null;
+  el.innerHTML = `<b>Linked</b> as ${st.email}${ago !== null ? ` · queue read ${ago < 1 ? 'just now' : ago + ' min ago'}` : ' · not read yet'} · ${st.n} waiting` + (st.last_err ? `<br><span style="color:var(--coral-700)">Last problem: ${st.last_err}</span>` : '') + (st.skipped ? `<br>${st.skipped} item${st.skipped > 1 ? 's' : ''} sealed to another key (an earlier link of this PC - NLO Cases re-seals them on its next save)` : '');
+}
+$('#tracker_link').onclick = async () => {
+  const code = $('#tracker_code').value.trim(); if (!code) { showErr('Paste the setup code from NLO Cases first.'); return; }
+  $('#tracker_link').disabled = true; $('#tracker_link').textContent = 'Linking…';
+  try { const r = await fetch('/api/tracker/link', { method: 'POST', body: new URLSearchParams({ code }) }); if (!r.ok) throw new Error((await r.json()).detail || r.statusText); $('#tracker_code').value = ''; await refreshQueue(); }
+  catch (e) { showErr('NLO Cases: ' + e.message); }
+  $('#tracker_link').disabled = false; $('#tracker_link').textContent = 'Link';
+};
+$('#tracker_unlink').onclick = async ev => { ev.preventDefault(); if (!confirm('Unlink NLO Cases? The queue disappears here; the case tracker is no longer told when models are sent.')) return; await fetch('/api/tracker/unlink', { method: 'POST' }); refreshQueue(); };
+refreshQueue(); setInterval(refreshQueue, 60000);
 function notifyTracker(j, event){
   try {
     const cid = (j.params && j.params.tracker_case) || (TRACKER && TRACKER.case);
     if (!cid || !window.opener) return;
-    window.opener.postMessage({ nlo: 'bleachtray', event, case: cid, models: (j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')) }, TRACKER ? TRACKER.origin : 'https://amooloo.github.io');
+    window.opener.postMessage({ nlo: 'bleachtray', event, case: cid, models: (j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')) }, (TRACKER && TRACKER.origin) || TRACKER_ORIGIN || 'https://amooloo.github.io');
   } catch (e) { console.warn('tracker not told', e); }
 }
 function setFiles(fs, auto){
@@ -1126,6 +1188,8 @@ $('#go').onclick = async () => {
   if (!r.ok) { showErr(j.detail || 'Upload failed'); renderSetup(); return; }
   pending = []; renderSetup(); $('#rerunbox').style.display = bulk ? 'none' : 'block';
   $('#filehint').textContent = files.map(f => f.name).join(' + ') + ' — processing…';
+  // the case from NLO Cases is on its way: the next drop is a new case of its own
+  if (TRACKER) { TRACKER_ORIGIN = TRACKER.origin || TRACKER_ORIGIN; TRACKER = null; QUEUE.picked = ''; setTimeout(refreshQueue, 1500); }
   if ((j.filed || []).length) $('#filehint').textContent = `Filed for training: ${j.filed.join(', ')}` + (j.cases ? ' — and processing the scans.' : '');
   if (!j.id) { refreshJobs(); return; }
   if ((j.joined || []).length) $('#filehint').textContent += ' — added to the case already open for this patient.';
@@ -1289,7 +1353,7 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
     const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Send or Save as lesson.'); if (t) showTab(t); return true; } return false; };
-    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
+    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800); if (r.order_error) showErr(r.order_error); else { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
     const ll = box.querySelector('#learnlink');
     if (ll) ll.onclick = async ev => {
       ev.preventDefault(); if (unapplied()) return; ll.textContent = 'Saving…';
@@ -2011,7 +2075,7 @@ window.__view = { camera, controls, requestRender, project: (x, y, z) => { const
   stroke3d: (mode, pts) => { stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } const before = Object.values(edits).reduce((a, e) => a + e.size, 0); finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
   placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot, arch: curArch, map: adjustMap(), pending: JSON.parse(JSON.stringify(pendingAdj)), marks: markMap() }), archGroup: () => archGroup,
-  editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }), allEdits,
+  editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }), allEdits, refreshQueue, tracker: () => TRACKER, queue: () => QUEUE, renderQueue,
   handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; } };   // for automated checks
 window.__appReady = true;
 </script>

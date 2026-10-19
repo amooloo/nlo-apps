@@ -182,7 +182,7 @@ const FB = {
 
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.inboxPriv = FB.idxKey = null; FB.curV = FB.ringV = 0; FB.idxOn = FB.msgOn = false;
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.inboxPriv = FB.idxKey = null; FB.curV = FB.ringV = 0; FB.idxOn = FB.msgOn = FB.labqOn = false;
     try { await FB.auth.signOut(); } catch (e) { }
   },
   stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; FB.msgUnsub = null; },
@@ -446,6 +446,7 @@ const FB = {
         if (FB.idxOn) { const ix = await FB.idxFields(body); if (ix.pn) doc.pn = ix.pn; if (ix.pc) doc.pc = ix.pc; }
         rec.set(ref, doc);
         await FB.logOps(rec, ref.id, 1, null, item.action || { a: 'create' });
+        const q = await tmQueueDoc(ref.id, body, done ? 'done' : 'open'); if (q) rec.set(q.ref, q.data); // (the Tray Maker's queue - traymaker.js)
         if (ph) rec.set(FB.db.doc('photos/' + ref.id), ph);
         item.id = ref.id; item.photoV = body.photo || '';
       }
@@ -484,6 +485,7 @@ const FB = {
         if (FB.idxOn) { const ix = await FB.idxFields(data); upd.pn = ix.pn || FB.del(); upd.pc = ix.pc || FB.del(); }
         tx.update(ref, upd);
         await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, action || { a: 'save' });
+        if (FB.labqOn) { const q = await tmQueueDoc(id, data, status); if (q) tx.set(q.ref, q.data); else tx.delete(FB.db.doc('labq/' + id)); } // (traymaker.js)
         if (ops) await ops(tx, data);
       }));
     } catch (e) {
@@ -507,7 +509,7 @@ const FB = {
       await FB.track(FB.db.runTransaction(async tx => {
         const s = await tx.get(ref); if (!s.exists) throw errCode('gone'); const d = s.data();
         await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, { a: 'delete' }, FB.idxOn ? { del: true } : null);
-        tx.delete(ref); tx.delete(FB.db.doc('photos/' + id));
+        tx.delete(ref); tx.delete(FB.db.doc('photos/' + id)); if (FB.labqOn) tx.delete(FB.db.doc('labq/' + id));
       }));
     } catch (e) {
       if (!tries && FB.idxOn && /permission/i.test(String(e.code || e.message || '')) && !(await FB.idxRecheck())) return FB.deleteCase(id, 1);
@@ -529,7 +531,8 @@ const FB = {
     let lv = !(await can('photos/_rules_check')) ? 0 : (await can('meta/rules_20261004')) ? 2 : 1;
     if (lv === 2 && await can('meta/rules_20261008')) lv = 3;
     if (lv === 3 && await can('meta/rules_20261012')) lv = 4;
-    FB.idxOn = lv >= 2; FB.msgOn = lv >= 4; return lv;
+    if (lv === 4 && await can('meta/rules_20261019')) lv = 5;
+    FB.idxOn = lv >= 2; FB.msgOn = lv >= 4; FB.labqOn = lv >= 5; return lv;
   },
 
   /* ---------- read marks on Messages (notes.js, 12 Oct 2026): each person's own copy, msgSeen/<staff id> ----------

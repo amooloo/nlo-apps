@@ -471,6 +471,7 @@ function labSetupModal(creds) {
     '<li>When it asks for the setup code, paste this one and press Enter:<div class="labCmd"><code id="labCode">' + esc(code) + '</code><button type="button" class="btn btn-pri btn-sm" data-act="labCopyCode">Copy the setup code</button></div></li>' +
     '<li>It checks itself, signs in and starts with Windows (a small minimised “NLO Lab Bridge” window). Back here, the lab PC appears under Lab PC with its first check-in.</li></ol>' +
     '<p class="small muted">The setup code is the lab PC’s own login: it can only add sealed lab progress to this app, and it’s shown this once. Don’t share it. Need it again? Make a new one (the old one stops working).</p>' +
+    '<p class="small muted"><b>The Tray Maker</b> (the models for retainers, whitening trays and mouthguards) uses the same code: in the Tray Maker, Settings → NLO Cases, paste it there too. It then lists the cases waiting for their models under <i>To make</i>, and tells the case here when the models are in OrthoFactory.</p>' +
     '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Done</button></div>', w => w.querySelector('.modal').classList.add('wide'));
 }
 Object.assign(ADMIN_ACTS, {

@@ -29,6 +29,10 @@ JOBS = {}
 MODELS = load_models()
 
 from bleachtray.server_presets import PRESETS, variants_for  # noqa: E402
+from app.tracker import Tracker  # noqa: E402
+# the link to NLO Cases (the case tracker): the queue of cases waiting for models, the note back when they are sent
+TRACKER = Tracker(JOBS_DIR, log=lambda m: print(m, flush=True))
+TRACKER.start()
 
 
 CFG_PATH = os.path.join(ROOT, "watch_config.json")
@@ -1526,7 +1530,7 @@ def list_jobs():
     viewer showing it keeps working (Send again, Open in PreForm, add the opposing arch)."""
     return [{k: v for k, v in j.items() if k in ("id", "name", "status", "created", "filename", "preset", "review", "source")}
             | dict(ahead=_ahead(j), arches=sorted({sc.get("arch") for sc in j["scans"] if sc.get("arch")}), models=len(j["scans"]),
-                   progress=(j.get("progress") if j.get("status") == "running" else None))
+                   progress=(j.get("progress") if j.get("status") == "running" else None), tracker_case=(j.get("params") or {}).get("tracker_case") or "")
             for j in sorted(JOBS.values(), key=lambda j: -j["created"])
             if j.get("review") not in ("sent", "discarded") or j.get("status") in ("queued", "running")]
 
@@ -1643,8 +1647,24 @@ def approve(jid: str, request: Request, patient_first: str = Form(""), patient_l
         job["learned"] = _learned_note(job)
     if job.get("review") == "sent":
         job["sent_at"] = time.time()
+        _tell_tracker(job)
     _save_case(job)
     return _review_view(job)
+
+
+def _tell_tracker(job):
+    """The case came from NLO Cases: a sealed note to its inbox that the models are in OrthoFactory (the case
+    notes it and leaves the queue). Never fails the Send."""
+    cid = (job.get("params") or {}).get("tracker_case") or ""
+    if not cid or not TRACKER.state().get("linked"):
+        return
+    try:
+        models = [" ".join(x for x in (sc.get("arch"), sc.get("tag")) if x) for sc in job["scans"]]
+        TRACKER.sent_models(cid, f"{job['params'].get('patient_first', '')} {job['params'].get('patient_last', '')}".strip(), models)
+        job["log"].append(f"NLO Cases told: models for case {cid} are in OrthoFactory ({', '.join(models)})")
+        job["tracker_told"] = time.time()
+    except Exception as ex:  # noqa
+        job["log"].append(f"NLO Cases not told (the case tracker link): {ex}")
 
 
 @app.post("/api/jobs/{jid}/preform")
@@ -1673,6 +1693,51 @@ def file_prints(jid: str):
     if not files:
         raise HTTPException(400, job.get("print_error") or "no finished model to file")
     return {"files": _print_files_unc(job), "folder": _to_unc(job.get("print_folder") or "")}
+
+
+# ---------- NLO Cases (the case tracker): the queue of cases waiting for models ----------
+@app.get("/api/tracker")
+def tracker_state():
+    return TRACKER.state()
+
+
+@app.post("/api/tracker/link")
+def tracker_link(code: str = Form("")):
+    try:
+        return TRACKER.link(code)
+    except ValueError as ex:
+        raise HTTPException(400, str(ex))
+    except Exception as ex:  # noqa
+        raise HTTPException(400, f"could not link: {ex}")
+
+
+@app.post("/api/tracker/unlink")
+def tracker_unlink():
+    TRACKER.unlink()
+    return TRACKER.state()
+
+
+@app.post("/api/tracker/refresh")
+def tracker_refresh():
+    TRACKER.refresh()
+    return TRACKER.state()
+
+
+@app.get("/api/queue")
+def tracker_queue():
+    """The cases waiting for models, with what this PC has done about each: the live job started from it
+    (status / review) when there is one."""
+    here = {}
+    for j in JOBS.values():
+        cid = (j.get("params") or {}).get("tracker_case")
+        if cid and (cid not in here or j["created"] > here[cid]["created"]):
+            here[cid] = dict(job=j["id"], status=j.get("status"), review=j.get("review"), created=j["created"])
+    out = []
+    for it in TRACKER.queue():
+        h = here.get(it["case"])
+        it["here"] = {k: v for k, v in h.items() if k != "created"} if h else None
+        out.append(it)
+    return dict(state=TRACKER.state(), items=out)
 
 
 @app.get("/api/whoami")
