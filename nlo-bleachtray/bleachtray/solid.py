@@ -367,7 +367,8 @@ def outline_prism(outline, z0, z1):
     return m3.Manifold.extrude(cs, z1 - z0).translate([0, 0, z0])
 
 
-def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=False, scan_region=None, extra_solids=None, extras_status=None):
+def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=False, scan_region=None, extra_solids=None, extras_status=None,
+               extra_after=None):
     """Printable solid horseshoe: clip the surface (to `scan_region` if given, else loosely to the
     outline), close it below the floor, union a smooth synthetic skirt out to the outline, then cut
     with the outline prism so walls and floor are exact. Returns (trimesh body, method)."""
@@ -434,6 +435,20 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
     if cut.status() != m3.Error.NoError or cut.volume() < 100:
         log("body: prism intersection failed; using uncut solid")
         return from_manifold(man), "uncut"
+    # solids that must not be cut by the outline's walls (the mouthguard's band over the brackets stands out past
+    # the crowns; cut by the walls it had flat faces where it reached them): unioned after the cut
+    for i, ex in enumerate(extra_after or []):
+        try:
+            mex = to_manifold(ex)
+            if mex is None:
+                log(f"solid {i + 1} added after the outline cut is not manifold; skipped"); continue
+            u = cut + mex
+            if u.status() == m3.Error.NoError:
+                cut = u
+            else:
+                log(f"solid {i + 1} added after the outline cut: union failed; skipped")
+        except Exception as ex2:  # noqa
+            log(f"solid {i + 1} added after the outline cut skipped: {ex2}")
     return largest_piece(from_manifold(cut), log=log), "boolean"
 
 

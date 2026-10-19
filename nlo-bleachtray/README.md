@@ -375,7 +375,15 @@ through the bracket and tube centres round the arch, as the wire does, and along
 2 mm each take the convex hull of the appliance in the window pushed out `mg_clearance` = 1 mm, the spine pushed out
 as far, and the surface within 2 mm of the spine plus a 1 mm skirt round the appliance; the union is one band from
 the last tube on one side to the last on the other, bracket height, bridging every embrasure at the wire's height
-(the crowded iTero upper: 95 mm through 13 brackets / tubes, 1.06 mL). Appliance more than 6 mm off the spine (an
+(the crowded iTero upper: 95 mm through 13 brackets / tubes). The windows' flat faces read as blocks (the doctor:
+"very blocky"), so the band is **rounded off** (`mouthguard.smooth_solids`): the windows are filled into a 0.2 mm
+voxel grid (column by column - a convex window is one z-interval per column), padded 0.8 mm round the appliance
+(blurring thins whatever is thin - a stretch over a tube and wire lost a quarter of its appliance before the
+padding), blurred with a Gaussian of `mg_band_smooth` = 1.25 mm and taken by marching cubes at the level that keeps
+99 % of the appliance inside with at least 0.7 of its clearance - every edge and corner between the windows is
+then round over about 2.5 mm; where 99 % cannot be kept the rounding backs off to 1.0, then 0.75 mm (Lucas Ortiz's
+palatal caps: 1.0). The band is joined to the model after the outline cut: before, the outline's walls cut flat
+faces into it where it stood out past the crowns. Adds 2-3 s and ~70 MB to a case. Appliance more than 6 mm off the spine (an
 expander's arms, a lingual wire) keeps caps of its own (`appliance_shields`, as before); fewer than 3 pieces round
 the arch: caps only. So the sheet forms over a smooth channel instead of locking into the bracket undercuts. The trim
 line (`mouthguard.vestibular_trimline`) is one closed loop: on the facial side it follows the surface down into the
@@ -391,8 +399,8 @@ the body covers the crowns the way a tray body does. The Braces tab shows what i
 **Take off** on a mouthguard adds the painted part to the shield instead of removing it (a tube the app missed),
 and tooth / gum fixes work on the scan as it is. In OrthoFactory the guard is a Template piece, stage 2 (`MG`);
 the base says MOUTHGUARD and the tooth mark is `G`. Settings: `mouthguard`, `mg_inset`, `mg_min_depth`,
-`mg_max_depth`, `mg_palate`, `mg_distal`, `mg_notch_top`, `mg_notch_width`, `mg_clearance`. Known limits: the
-band is faceted (smooth enough for the sheet, not pretty); a 2x4 in the mixed dentition (molar bands + four
+`mg_max_depth`, `mg_palate`, `mg_distal`, `mg_notch_top`, `mg_notch_width`, `mg_clearance`, `mg_band_smooth`. Known limits: the
+band is a little fuller over the brackets than between them (a soft bead at each bracket); a 2x4 in the mixed dentition (molar bands + four
 incisor brackets, erupting teeth under the gum) is still hard for the tooth split - the edentulous ridge comes out as
 "tooth" (harmless for a guard) but the anterior palate may too, which pushes the palatal line back: paint it **Gum**
 and re-run; a scan that stops at the gum line gives a line 3 mm below it and nothing deeper.

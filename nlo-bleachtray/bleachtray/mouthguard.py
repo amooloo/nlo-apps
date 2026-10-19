@@ -215,7 +215,7 @@ def vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_cente
     return out, res
 
 
-def appliance_shields(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.5, chunk_mm=6.0, log=None):
+def appliance_shields(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.5, chunk_mm=6.0, merge=True, log=None):
     """Smooth block-out over brackets, wire and tubes for thermoforming: the appliance is covered in
     overlapping convex caps, each the hull of a ~`chunk_mm` stretch of appliance pushed out `clearance`
     mm facially plus a skirt of surface `skirt` mm round it, so the sheet forms over a smooth band
@@ -262,8 +262,8 @@ def appliance_shields(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.
             caps.append(hull); vol += float(hull.volume)
     info = dict(caps=len(caps), volume_ml=round(vol / 1000.0, 2), clearance_mm=clearance)
     # one solid: the caps overlap, so their union is a smooth band; a single boolean against the body
-    # later instead of one per cap
-    if len(caps) > 1:
+    # later instead of one per cap (merge=False: the convex caps themselves, for the band's rounding)
+    if len(caps) > 1 and merge:
         try:
             import manifold3d as m3
             from .solid import to_manifold, from_manifold
@@ -301,8 +301,115 @@ def _union(solids, log=None):
     return solids, None
 
 
+def _occupancy(solids, origin, shape, spacing):
+    """Voxels (centres at origin + i*spacing) inside any of the convex `solids`. Column by column: along a
+    vertical line a convex solid is one z-interval - the planes facing up bound it from above, those facing
+    down from below, a vertical plane either keeps the column or not - so each solid costs (columns x planes),
+    not (voxels x planes) (that took 20 s a band at 0.2 mm)."""
+    occ = np.zeros(shape, bool)
+    shp = np.asarray(shape)
+    for h in solids:
+        if not h.is_convex:
+            raise ValueError("a block-out piece to round off is not convex")
+        lo = np.clip(np.floor((h.bounds[0] - origin) / spacing).astype(int), 0, shp)
+        hi = np.clip(np.ceil((h.bounds[1] - origin) / spacing).astype(int) + 1, 0, shp)
+        if (hi - lo).min() <= 0:
+            continue
+        nrm = np.asarray(h.face_normals); off = (np.asarray(h.triangles)[:, 0] * nrm).sum(1)
+        _, keep = np.unique(np.round(np.column_stack([nrm, off]), 5), axis=0, return_index=True)
+        nrm, off = nrm[keep], off[keep]
+        I, J = np.meshgrid(np.arange(lo[0], hi[0]), np.arange(lo[1], hi[1]), indexing="ij")
+        I, J = I.ravel(), J.ravel()
+        x = origin[0] + I * spacing; y = origin[1] + J * spacing
+        rhs = off[None, :] - x[:, None] * nrm[None, :, 0] - y[:, None] * nrm[None, :, 1]     # n_z * z <= rhs
+        nz = nrm[:, 2]
+        up, down, flat = nz > 1e-9, nz < -1e-9, np.abs(nz) <= 1e-9
+        zmax = (rhs[:, up] / nz[up]).min(1) if up.any() else np.full(len(I), np.inf)
+        zmin = (rhs[:, down] / nz[down]).max(1) if down.any() else np.full(len(I), -np.inf)
+        ok = zmin <= zmax
+        if flat.any():
+            ok &= (rhs[:, flat] >= -1e-9).all(1)
+        if not ok.any():
+            continue
+        I, J, zmin, zmax = I[ok], J[ok], zmin[ok], zmax[ok]
+        k0 = np.clip(np.ceil((zmin - origin[2]) / spacing).astype(int), lo[2], hi[2])
+        k1 = np.clip(np.floor((zmax - origin[2]) / spacing).astype(int) + 1, lo[2], hi[2])
+        ks = np.arange(lo[2], hi[2])
+        fill = (ks[None, :] >= k0[:, None]) & (ks[None, :] < k1[:, None])
+        ci, kk = np.nonzero(fill)
+        occ[I[ci], J[ci], ks[kk]] = True
+    return occ
+
+
+def smooth_solids(solids, sigma=1.25, spacing=0.2, keep_pts=None, pad=0.8, log=None):
+    """One smooth surface round the union of convex `solids` (the band's windows): their union is filled into a
+    `spacing` mm voxel grid, blurred with a Gaussian of `sigma` mm and taken at the half level (marching cubes) -
+    flat stretches stay where they were, every edge and corner between the windows is rounded off over about
+    2*sigma mm (the doctor, 10/19/2026: the band was very blocky). `keep_pts` (the appliance pushed out by the
+    least room it must keep) stay inside: when blurring would round a corner in past one, the level is lowered
+    until all are in. Returns (mesh, info) - mesh None when it cannot be made (the caller keeps the solids)."""
+    import trimesh
+    from scipy import ndimage
+    from skimage import measure
+    lo = np.min([s.bounds[0] for s in solids], axis=0) - (3 * sigma + 4 * spacing)
+    hi = np.max([s.bounds[1] for s in solids], axis=0) + (3 * sigma + 4 * spacing)
+    shape = tuple(int(x) for x in np.ceil((hi - lo) / spacing) + 1)
+    occ = _occupancy(solids, lo, shape, spacing)
+    if not occ.any():
+        return None, dict(error="nothing to smooth")
+    if keep_pts is not None and len(keep_pts) and pad > 0:
+        # a ball of `pad` mm round every point that must stay inside: blurring thins whatever is thin (a stretch of
+        # band over a tube and wire: a quarter of the appliance came out through it on one test arch); with the
+        # balls the appliance is wrapped before it is rounded off
+        seeds = np.zeros(shape, bool)
+        q = np.clip(np.round((np.asarray(keep_pts) - lo) / spacing).astype(int), 0, np.array(shape) - 1)
+        seeds[q[:, 0], q[:, 1], q[:, 2]] = True
+        occ |= ndimage.distance_transform_edt(~seeds, sampling=spacing) <= pad
+    F = ndimage.gaussian_filter(occ.astype(np.float32), sigma / spacing, mode="constant")
+    level = 0.5
+    info = dict(sigma_mm=sigma)
+    if keep_pts is not None and len(keep_pts):
+        q = (np.asarray(keep_pts) - lo) / spacing
+        f = ndimage.map_coordinates(F, q.T, order=1, mode="constant")
+        low = float(np.percentile(f, 0.5))
+        if low < level:
+            level = max(0.3, low - 0.02)
+        info["level"] = round(level, 3); info["kept_inside"] = round(float((f >= level).mean()), 4)
+    # where two stretches of the band just touch, the iso-surface can pinch to an edge shared by four faces (not
+    # watertight - seen on one of four test arches at the half level); a hair lower level closes the pinch
+    m = None
+    for lv in (level, level - 0.03, level - 0.06, level + 0.03, level - 0.1):
+        if lv <= 0.05:
+            continue
+        verts, faces, _, _ = measure.marching_cubes(F, level=lv, spacing=(spacing, spacing, spacing))
+        cand = trimesh.Trimesh(verts + lo, faces, process=True)
+        cand.update_faces(cand.nondegenerate_faces()); cand.remove_unreferenced_vertices()
+        if cand.is_watertight:
+            m = cand; info["level"] = round(lv, 3)
+            break
+    if m is None:
+        return None, dict(info, error="not watertight")
+    if m.volume < 0:
+        m.invert()
+    # far fewer, smoother triangles (marching cubes gives ~6 per voxel face of surface)
+    try:
+        import fast_simplification
+        target = max(0.0, min(0.85, 1.0 - 20000.0 / max(len(m.faces), 1)))
+        if target > 0:
+            v2, f2 = fast_simplification.simplify(np.asarray(m.vertices, np.float32), np.asarray(m.faces, np.int32), target_reduction=target)
+            m2 = trimesh.Trimesh(v2, f2, process=True)
+            if m2.is_watertight and abs(m2.volume - m.volume) < 0.02 * m.volume:
+                m = m2
+    except Exception:
+        pass
+    info.update(faces=int(len(m.faces)), watertight=bool(m.is_watertight), volume_ml=round(float(m.volume) / 1000.0, 2))
+    if not m.is_watertight:
+        return None, dict(info, error="not watertight")
+    return m, info
+
+
 def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, window_mm=6.0, step_mm=2.0,
-                   reach_mm=2.0, off_band_mm=6.0, log=None):
+                   reach_mm=2.0, off_band_mm=6.0, smooth=1.25, log=None):
     """One continuous block-out band over brackets, wire and tubes, from the last appliance on one side
     round to the last on the other - not a cap over each bracket with bare tooth between them (the doctor,
     10/19/2026: the mouthguard's block-out must be continuous). A spine runs through the bracket centres
@@ -405,13 +512,34 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
     off = appliance & ~app_band
     extra = []
     if off.sum() >= 20:
-        extra, _ = appliance_shields(mesh_f, off, A, ring_center, clearance=clearance, skirt=skirt)
-    solids, uvol = _union(hulls + extra, log=log)
+        extra, _ = appliance_shields(mesh_f, off, A, ring_center, clearance=clearance, skirt=skirt, merge=False)
+    sm = None
+    if smooth and smooth > 0:
+        # rounded off: the windows' flat faces and the edges between them read as blocks; the appliance keeps at
+        # least 0.7 of its clearance everywhere (bracket corners are where blurring would round in)
+        try:
+            keep = V[appliance] + push[appliance] * (0.7 * clearance)
+            # rounder is better, but never at the brackets' expense: a thin stretch (palatal caps, a lone tube) can
+            # blur away - then a little less rounding, until 99 % of the appliance keeps its room
+            for sg in (float(smooth), 0.8 * float(smooth), 0.6 * float(smooth)):
+                sm, sinfo = smooth_solids(hulls + extra, sigma=sg, keep_pts=keep, log=log)
+                if sm is not None and sinfo.get("kept_inside", 1.0) >= 0.99:
+                    break
+            if sm is not None and sinfo.get("kept_inside", 1.0) < 0.99:
+                sm, sinfo = None, dict(sinfo, error=f"rounding would leave {100 * (1 - sinfo['kept_inside']):.0f} % of the appliance without its room")
+        except Exception as ex:  # noqa
+            sm, sinfo = None, dict(error=str(ex)[:120])
+    if sm is not None:
+        solids, uvol = [sm], float(sm.volume)
+    else:
+        solids, uvol = _union(hulls + extra, log=log)
     info = dict(caps=len(hulls) + len(extra), band=True, band_length_mm=round(float(s_len[-1]), 1), brackets_on_band=int(len(S)),
-                separate_caps=len(extra), volume_ml=round((uvol if uvol is not None else vol) / 1000.0, 2), clearance_mm=clearance)
+                separate_caps=len(extra), volume_ml=round((uvol if uvol is not None else vol) / 1000.0, 2), clearance_mm=clearance,
+                smooth=(sinfo if smooth and smooth > 0 else None))
     if uvol is not None:
         info["union_volume_ml"] = round(uvol / 1000.0, 2)
     if log:
         log(f"brackets and wire under one continuous band: {info['band_length_mm']:.0f} mm round the arch through {len(S)} brackets / tubes, "
-            f"{clearance:.1f} mm clearance ({info['volume_ml']:.2f} mL)" + (f"; {len(extra)} cap(s) over appliance away from the wire" if extra else ""))
+            f"{clearance:.1f} mm clearance ({info['volume_ml']:.2f} mL)" + (f"; {len(extra)} cap{'s' if len(extra) != 1 else ''} over appliance away from the wire (palate / tongue side)" if extra else "")
+            + (f"; rounded off over {2 * sinfo['sigma_mm']:.1f} mm" if sm is not None else (f"; not rounded off ({sinfo.get('error')})" if smooth and smooth > 0 else "")))
     return solids, info
