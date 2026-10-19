@@ -347,6 +347,9 @@ class BaseMissing(RuntimeError):
 def load_base(manifold=True):
     fn = "trimlign_base_manifold.ply" if manifold else "trimlign_base_titan.stl"
     path = os.path.join(ASSET_DIR, fn)
+    from .basebuild import LOCK as _BASE_LOCK     # (a base being checked / rebuilt at start-up is waited for - basebuild.ensure_base)
+    with _BASE_LOCK:
+        pass
     if not os.path.exists(path):
         raise BaseMissing("Trimlign base not imported yet. Run once:  python tools/import_base.py \"<any Titan export .stl that has the base>\"")
     return trimesh.load(path, force="mesh", process=False) if manifold else trimesh.load(path, force="mesh")

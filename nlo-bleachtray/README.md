@@ -240,6 +240,25 @@ placement (facial gum line of the centrals 6.0 / 4.5 mm in front of the locating
 3 mm below the lowest trim-line point). The model is one solid: anything the floor or the outline cuts loose from the
 arch (cheek or lip tissue, scan islands) is dropped instead of printing as a slab lying next to the model.
 
+**The Trimlign base and its locating holes** (`bleachtray/basebuild.py`, 19 Oct 2026). The base is taken once from a
+Titan export (`tools/import_base.py`, at install) and rebuilt as a manifold by stacking horizontal cross-sections
+0.05 mm apart, because Titan's own base mesh is not watertight. Its two locating holes (at ±7.47, -19.0) are clear from
+the bottom to 3.5 mm, like Titan's (3.51). The first printed model came out with them "shallow by a lot": the lab PC's
+base had been rebuilt from one of Titan's lighter exports (a ~17,000-face base instead of ~110,000), where the plane at
+1.875 mm misses a single contour, the even-odd nesting of everything inside it flips, and that one slab came out solid
+across both holes - a 0.05 mm skin at 1.85 mm that the printer prints, so the pins stopped at 1.85. (Which Titan export
+the PC happened to import decided whether its base had the skin; the light exports all did.) The rebuild is robust now:
+every slab is the majority of three sections a hair apart, a slab unlike both neighbours where they agree with each other
+is replaced by the majority of the three, and the result is checked against Titan's mesh with vertical rays on a 0.5 mm
+grid - no thin solid layer where Titan's base is open (a skin), the locating holes clear to 3.5 mm, watertight - and is
+only saved when it passes. **When the app starts** it checks its base once (`ensure_base`, cached by checksum in
+`assets/trimlign_base_manifold.ok`; models wait meanwhile) and rebuilds a base whose holes are blocked. A model finished
+with an older base is finished again with the corrected one when it is **sent** (Send and Send again: `_rebase` compares
+the report's `base_sig` with the current base; only the base plate, its engraving and the files are made again, a few
+seconds a model), so nothing that was made before the correction reaches the printer with the skin. If a base could
+not be rebuilt to pass its check, every model made with it says so in red. `tools/sweep.py` checks the holes in every
+model it makes.
+
 **Levelled like Titan.** Before basing, the model is pitched/rolled so the plane through the *facial* gum line is
 horizontal (plus Titan's small forward lean: 0.75° upper, 2.75° lower - measured on 8 raw/Titan pairs, which put our
 frame within ~1° of Titan's). With the gum line level the floor sits a few mm under the line all the way round, so

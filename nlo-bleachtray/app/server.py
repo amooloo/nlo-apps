@@ -30,6 +30,18 @@ MODELS = load_models()
 
 from bleachtray.server_presets import PRESETS, variants_for  # noqa: E402
 from app.tracker import Tracker  # noqa: E402
+from bleachtray import basebuild  # noqa: E402
+
+# the Trimlign base: checked when the app starts (its locating holes must be clear to 3.5 mm) and rebuilt from Titan's
+# base when they are not - 19 Oct 2026, a base rebuilt from a light Titan export had a skin across both holes at 1.85 mm.
+# load_base waits while this runs, so no model is finished with the old base meanwhile.
+BASE_STATUS = {}
+def _check_base():
+    try:
+        BASE_STATUS.update(basebuild.ensure_base(ROOT, log=lambda m: print(m, flush=True)) or {})
+    except Exception as ex:  # noqa
+        BASE_STATUS.update(ok=None, error=str(ex)); print(f"Trimlign base check failed: {ex}", flush=True)
+threading.Thread(target=_check_base, name="basecheck", daemon=True).start()
 # the link to NLO Cases (the case tracker): the queue of cases waiting for models, the note back when they are sent
 TRACKER = Tracker(JOBS_DIR, log=lambda m: print(m, flush=True))
 TRACKER.start()
@@ -1642,6 +1654,7 @@ def approve(jid: str, request: Request, patient_first: str = Form(""), patient_l
         raise HTTPException(404)
     job.setdefault("log", [])
     _name_from_form(job, patient_first, patient_last)
+    _rebase(job, log=lambda m: job["log"].append(m))
     _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
     if _save_training(job, log=lambda m: job["log"].append(m)):
         job["learned"] = _learned_note(job)
@@ -1753,11 +1766,38 @@ def resend(jid: str, request: Request):
     if not job or job.get("status") != "done":
         raise HTTPException(404)
     job.setdefault("log", []).append("sent again")
+    _rebase(job, log=lambda m: job["log"].append(m))
     _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
     if job.get("review") == "sent":
         job["sent_at"] = time.time()
     _save_case(job)
     return _review_view(job)
+
+
+def _rebase(job, log=print):
+    """Models finished with a Trimlign base that has been replaced since (the app's start-up check rebuilt it) are
+    finished again with the current one before they go to OrthoFactory and the print folder: the body is kept, only
+    the base plate, its engraving and the files are made again (replace_placement, a few seconds a model)."""
+    cur = basebuild.base_sig(ROOT)
+    if not cur:
+        return
+    for sc in job["scans"]:
+        rep = sc.get("report") or {}
+        if rep.get("base") not in ("union", "concat") or rep.get("base_sig") == cur:
+            continue
+        if not os.path.exists(os.path.join(job["dir"], f"{sc['name']}_body_only.stl")):
+            continue
+        try:
+            t0 = time.time()
+            params = _scan_params(job, sc)
+            quiet = lambda m: None if ("moved on the base" in m or " moved in " in m) else log(m)
+            sc["report"] = replace_placement(job["dir"], sc["name"], params, rep, rep.get("adjust") or params.get("adjust"), log=quiet)
+            log(f"[{sc['name']}] made before the Trimlign base was corrected (its locating holes were not deep enough) - base made again ({time.time() - t0:.0f} s)")
+        except Exception as ex:  # noqa
+            log(f"[{sc['name']}] the base could not be made again ({ex}) - re-run the case before printing")
+    reports = [sc["report"] for sc in job["scans"] if sc.get("report")]
+    if reports:
+        job["report"] = reports[0]; job["reports"] = reports
 
 
 def _learned_note(job):

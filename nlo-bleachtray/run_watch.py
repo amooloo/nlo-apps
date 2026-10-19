@@ -58,6 +58,12 @@ def main():
         line = f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S}  {msg}"
         print(line, flush=True); logf.write(line + "\n"); logf.flush()
 
+    # the Trimlign base's locating holes are checked (and the base rebuilt if they are blocked) before anything is made
+    from bleachtray import basebuild
+    try:
+        basebuild.ensure_base(os.path.dirname(os.path.abspath(__file__)), log=log)
+    except Exception as ex:  # noqa
+        log(f"Trimlign base check failed: {ex}")
     from bleachtray.watch import Watcher
     Watcher(cfg, log=log).run_forever()
 
