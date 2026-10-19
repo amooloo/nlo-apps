@@ -280,3 +280,138 @@ def appliance_shields(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.
     if log:
         log(f"brackets shielded: {info['caps']} smooth caps over the appliance, {clearance:.1f} mm clearance ({info.get('union_volume_ml', vol / 1000.0):.2f} mL)")
     return caps, info
+
+
+def _union(solids, log=None):
+    """One solid from overlapping ones (manifold batch union); the list as it was when that fails."""
+    if len(solids) < 2:
+        return solids, None
+    try:
+        import manifold3d as m3
+        from .solid import to_manifold, from_manifold
+        mans = [m for m in (to_manifold(s) for s in solids) if m is not None]
+        if mans:
+            u = m3.Manifold.batch_boolean(mans, m3.OpType.Add)
+            if u.status() == m3.Error.NoError:
+                merged = from_manifold(u, drop_zero_volume=False)
+                return [merged], float(merged.volume)
+    except Exception as ex:  # noqa
+        if log:
+            log(f"block-out union skipped ({ex}); pieces added one by one")
+    return solids, None
+
+
+def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, window_mm=6.0, step_mm=2.0,
+                   reach_mm=2.0, off_band_mm=6.0, log=None):
+    """One continuous block-out band over brackets, wire and tubes, from the last appliance on one side
+    round to the last on the other - not a cap over each bracket with bare tooth between them (the doctor,
+    10/19/2026: the mouthguard's block-out must be continuous). A spine runs through the bracket centres
+    round the arch, as the wire does; along it, overlapping windows (`window_mm` long, every `step_mm`)
+    each take the convex hull of: the appliance in the window pushed `clearance` mm out, the spine itself
+    pushed out as far, and the tooth / gum surface within `reach_mm` of the spine plus a `skirt` round the
+    appliance (pulled 0.15 mm in, so the band sits on the model). Over a bracket that is the cap it always
+    was; between two brackets it is a smooth ridge at the wire's height bridging the embrasure; the hulls
+    overlap, so their union is one band. Appliance more than `off_band_mm` from the spine (an expander's
+    arms, a lingual wire) keeps caps of its own. Fewer than 3 pieces round the arch: caps, as before.
+    Returns (list of solids, info)."""
+    import trimesh
+    from scipy.spatial import cKDTree
+    from .mesh_utils import connected_components
+    V = np.asarray(mesh_f.vertices)
+    n = len(V)
+    appliance = np.asarray(appliance, bool)
+    if not appliance.any():
+        return [], dict(caps=0)
+    c = np.asarray(ring_center)[:2]
+    def outward(P):
+        d = P[:, :2] - c
+        d = d / np.maximum(np.linalg.norm(d, axis=1), 1e-6)[:, None]
+        return np.column_stack([d, np.zeros(len(P))])
+    push = outward(V)
+    labels = connected_components(appliance, A)
+    pieces = [np.where(labels == k)[0] for k in np.unique(labels[labels >= 0])]
+    pieces = [p for p in pieces if len(p) >= 20]
+    def caps_only(why):
+        caps, info = appliance_shields(mesh_f, appliance, A, ring_center, clearance=clearance, skirt=skirt, log=log)
+        return caps, dict(info, band=False, why=why)
+    # the spine runs on the cheek side, where the wire is: only pieces that mostly face out set it (an
+    # expander's arms or a lingual wire face the palate / tongue - a spine through them would cut across the
+    # teeth), and a piece that wraps round a tooth (a molar band) counts by its cheek-side part
+    Nv = np.asarray(mesh_f.vertex_normals)
+    facing = (Nv * push).sum(1)
+    C = []
+    for p in pieces:
+        out_p = p[facing[p] > 0.3]
+        if len(out_p) >= max(12, 0.35 * len(p)):
+            C.append(V[out_p].mean(0))
+    if len(C) < 3:
+        return caps_only("fewer than 3 pieces of appliance on the cheek side")
+    C = np.asarray(C)
+    order = np.argsort(_arch_angle(C[:, :2], c))
+    C = C[order]
+    # the spine runs where the wire does: a centre well off the line through its neighbours is not on it
+    good = np.ones(len(C), bool)
+    for i in range(1, len(C) - 1):
+        mid = 0.5 * (C[i - 1] + C[i + 1])
+        if np.linalg.norm(C[i] - mid) > 4.0 and np.linalg.norm(C[i + 1] - C[i - 1]) < 22.0:
+            good[i] = False
+    S = C[good]
+    if len(S) < 3:
+        return caps_only("no line through the brackets")
+    # Catmull-Rom through the centres, through the end ones too (mirrored phantom points)
+    Pp = np.vstack([2 * S[0] - S[1], S, 2 * S[-1] - S[-2]])
+    sp = []
+    for i in range(1, len(Pp) - 2):
+        p0, p1, p2, p3 = Pp[i - 1], Pp[i], Pp[i + 1], Pp[i + 2]
+        seg = max(int(np.linalg.norm(p2 - p1) / 0.25), 2)
+        for t in np.linspace(0.0, 1.0, seg, endpoint=False):
+            t2, t3 = t * t, t * t * t
+            sp.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3))
+    sp.append(S[-1])
+    sp = np.asarray(sp)
+    s_len = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(sp, axis=0), axis=1))])
+    sp_push = outward(sp)
+    tree = cKDTree(sp)
+    d_all, j_all = tree.query(V)
+    s_all = s_len[j_all]
+    app_band = appliance & (d_all < off_band_mm)
+    ring = app_band.copy()
+    for _ in range(max(1, int(round(skirt / 0.3)))):
+        ring |= (A @ ring.astype(float) > 0)
+    surf = ~appliance & ((d_all < reach_mm) | (ring & (d_all < off_band_mm)))
+    a_idx = np.where(app_band)[0]; f_idx = np.where(surf)[0]
+    hulls = []
+    half = 0.5 * window_mm
+    for s0 in np.arange(0.0, float(s_len[-1]) + 1e-9, step_mm):
+        lo, hi = s0 - half, s0 + half
+        a_sel = a_idx[(s_all[a_idx] >= lo) & (s_all[a_idx] <= hi)]
+        f_sel = f_idx[(s_all[f_idx] >= lo) & (s_all[f_idx] <= hi)]
+        k_sel = (s_len >= lo) & (s_len <= hi)
+        pts = [V[a_sel] + push[a_sel] * clearance, sp[k_sel] + sp_push[k_sel] * clearance, V[f_sel] - push[f_sel] * 0.15]
+        pts = np.vstack([p for p in pts if len(p)])
+        if len(pts) < 12:
+            continue
+        try:
+            hull = trimesh.convex.convex_hull(pts)
+        except Exception:
+            continue
+        if hull.volume < 0.5:
+            continue
+        hulls.append(hull)
+    if not hulls:
+        return caps_only("no band could be built")
+    vol = float(sum(h.volume for h in hulls))
+    # appliance away from the wire line (an expander's arms, a lingual wire): caps of its own
+    off = appliance & ~app_band
+    extra = []
+    if off.sum() >= 20:
+        extra, _ = appliance_shields(mesh_f, off, A, ring_center, clearance=clearance, skirt=skirt)
+    solids, uvol = _union(hulls + extra, log=log)
+    info = dict(caps=len(hulls) + len(extra), band=True, band_length_mm=round(float(s_len[-1]), 1), brackets_on_band=int(len(S)),
+                separate_caps=len(extra), volume_ml=round((uvol if uvol is not None else vol) / 1000.0, 2), clearance_mm=clearance)
+    if uvol is not None:
+        info["union_volume_ml"] = round(uvol / 1000.0, 2)
+    if log:
+        log(f"brackets and wire under one continuous band: {info['band_length_mm']:.0f} mm round the arch through {len(S)} brackets / tubes, "
+            f"{clearance:.1f} mm clearance ({info['volume_ml']:.2f} mL)" + (f"; {len(extra)} cap(s) over appliance away from the wire" if extra else ""))
+    return solids, info

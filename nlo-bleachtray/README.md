@@ -369,9 +369,15 @@ brackets; a case from before goes back to the scan as scanned when it is run aga
 scanned with the brackets, wire and ties on and the cheeks and lip pulled back so the scan goes as far into the
 vestibule as it can - that is how deep the guard will go. The model keeps the brackets: the teeth are found on a
 cleaned copy (brackets confuse the tooth split), but the body is built from the scan as it is, with every bracket,
-tube and stretch of wire under a smooth **shield** (`mouthguard.appliance_shields`: overlapping convex caps over ~6 mm
-stretches of appliance pushed out `mg_clearance` = 1 mm, with a skirt of surface 1.5 mm round them, unioned into one
-band per side) so the sheet forms over a smooth channel instead of locking into the bracket undercuts. The trim
+tube and stretch of wire under one continuous **block-out band** (`mouthguard.appliance_band`, 10/19/2026 - before,
+a cap over each bracket left bare tooth between them; the doctor: the block-out must be continuous): a spine runs
+through the bracket and tube centres round the arch, as the wire does, and along it overlapping 6 mm windows every
+2 mm each take the convex hull of the appliance in the window pushed out `mg_clearance` = 1 mm, the spine pushed out
+as far, and the surface within 2 mm of the spine plus a 1 mm skirt round the appliance; the union is one band from
+the last tube on one side to the last on the other, bracket height, bridging every embrasure at the wire's height
+(the crowded iTero upper: 95 mm through 13 brackets / tubes, 1.06 mL). Appliance more than 6 mm off the spine (an
+expander's arms, a lingual wire) keeps caps of its own (`appliance_shields`, as before); fewer than 3 pieces round
+the arch: caps only. So the sheet forms over a smooth channel instead of locking into the bracket undercuts. The trim
 line (`mouthguard.vestibular_trimline`) is one closed loop: on the facial side it follows the surface down into the
 vestibule to 1.5 mm above the scan's own edge (`mg_inset`; never less than 3 or more than 14 mm below the gum line,
 measured from the running mean of the scalloped gum line, and never the inside of the lip); it rises in a rounded
@@ -386,7 +392,7 @@ the body covers the crowns the way a tray body does. The Braces tab shows what i
 and tooth / gum fixes work on the scan as it is. In OrthoFactory the guard is a Template piece, stage 2 (`MG`);
 the base says MOUTHGUARD and the tooth mark is `G`. Settings: `mouthguard`, `mg_inset`, `mg_min_depth`,
 `mg_max_depth`, `mg_palate`, `mg_distal`, `mg_notch_top`, `mg_notch_width`, `mg_clearance`. Known limits: the
-shield is a faceted band (smooth enough for the sheet, not pretty); a 2x4 in the mixed dentition (molar bands + four
+band is faceted (smooth enough for the sheet, not pretty); a 2x4 in the mixed dentition (molar bands + four
 incisor brackets, erupting teeth under the gum) is still hard for the tooth split - the edentulous ridge comes out as
 "tooth" (harmless for a guard) but the anterior palate may too, which pushes the palatal line back: paint it **Gum**
 and re-run; a scan that stops at the gum line gives a line 3 mm below it and nothing deeper.

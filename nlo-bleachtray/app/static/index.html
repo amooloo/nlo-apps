@@ -1467,7 +1467,8 @@ async function loadResult(id, j){
   const mg = r.mouthguard || null, sh = r.shields || {};
   const mgLine = mg && !mg.error ? `mouthguard: trim line ${mg.depth_mm ? `${mg.depth_mm.median} mm into the vestibule (${mg.depth_mm.min}–${mg.depth_mm.max}; the scan holds ${mg.sulcus_captured_mm})` : ''}` +
     `, notches at ${(mg.frena || []).map(f => `${f.kind} ${f.angle_deg > 0 ? '+' : ''}${Math.round(f.angle_deg)}°${f.found ? '' : ' (assumed)'}`).join(', ') || 'no frenum'}` +
-    (sh.caps ? ` · brackets shielded: ${sh.caps} caps, ${sh.clearance_mm} mm clearance — paint any bracket the shield missed on the Braces tab` : (r.mouthguard ? ' · no brackets found on this scan' : '')) : (mg && mg.error ? `mouthguard line could not be made (${mg.error}) — gum line used` : '');
+    (sh.band ? ` · brackets and wire under one continuous block-out band (${Math.round(sh.band_length_mm)} mm round the arch, ${sh.clearance_mm} mm clearance) — paint any bracket it missed on the Braces tab`
+     : sh.caps ? ` · brackets shielded: ${sh.caps} caps, ${sh.clearance_mm} mm clearance — paint any bracket the shield missed on the Braces tab` : (r.mouthguard ? ' · no brackets found on this scan' : '')) : (mg && mg.error ? `mouthguard line could not be made (${mg.error}) — gum line used` : '');
   const extras = [mgLine,
                   ap.used && ap.area_mm2 && !mg ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — rebuilt enamel shown grey on the Braces tab` : '',
                   recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',

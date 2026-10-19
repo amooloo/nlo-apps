@@ -837,11 +837,13 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             mg_appliance = mg_appliance.copy(); mg_appliance[sidx] = True
             log(f"[{name}] bracket shield: {len(sidx)} painted vertices added")
     if MG and mg_appliance is not None and mg_appliance.any() and len(mg_appliance) == len(mesh_f.vertices):
-        from .mouthguard import appliance_shields
+        from .mouthguard import appliance_band
         try:
             rc = np.asarray(aux.get("ring_center", margin[:, :2].mean(0)), float)[:2]
             rc_f = trimesh.transform_points(np.array([[rc[0], rc[1], 0.0]]), T_adj @ T_place @ T_tilt @ T_ref)[0, :2]
-            caps, sinfo = appliance_shields(mesh_f, mg_appliance, A, rc_f, clearance=float(P.get("mg_clearance", 1.0)), log=lambda m: log(f"[{name}] {m}"))
+            # one continuous band over brackets and wire round the arch (caps over each bracket left bare tooth
+            # between them for the sheet to lock onto); caps only when there are too few pieces for a band
+            caps, sinfo = appliance_band(mesh_f, mg_appliance, A, rc_f, clearance=float(P.get("mg_clearance", 1.0)), log=lambda m: log(f"[{name}] {m}"))
             rep["shields"] = sinfo
             if caps:
                 extra_solids.extend(caps)
