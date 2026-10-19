@@ -1430,7 +1430,7 @@ async function loadResult(id, j){
   curReports = j.reports || []; curArch = r.arch || null;
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
   adjust = pendingAdj[curArch] ? { ...pendingAdj[curArch] } : { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false;
-  markInfo = r.mark || null; markApplied = r.mark_param || null; markNow = curArch in pendingMark ? pendingMark[curArch] : undefined; curScanIdx = scanIdx;
+  markInfo = r.mark || null; markError = r.mark_error || null; markApplied = r.mark_param || null; markNow = curArch in pendingMark ? pendingMark[curArch] : undefined; curScanIdx = scanIdx;
   makeMarkCard();
   if (baseBuf) {
     // the base plate and its handle ring move as one; the arch never moves on screen
@@ -1471,7 +1471,7 @@ let pendingAdj = {}, curReports = [], curArch = null;   // per arch: a placement
 // the mark on the model, per arch like the placement: `markInfo` is where the server put it (output frame, with
 // its reading frame), `markApplied` what the server was asked (null = automatic), `markNow` what is on screen -
 // undefined = as applied, 'auto' = back to automatic, else {x, y, z, nx, ny, nz, angle_deg, cap, text, raised}
-let markInfo = null, markApplied = null, markNow, pendingMark = {}, markMesh = null, markTex = null, curScanIdx = 0;
+let markInfo = null, markError = null, markApplied = null, markNow, pendingMark = {}, markMesh = null, markTex = null, curScanIdx = 0;
 function markMap(){
   const m = {};
   for (const r of curReports) if (r && r.arch && !(r.arch in m)) m[r.arch] = r.mark_param || null;
@@ -1542,6 +1542,7 @@ function updateMarkState(){
   if (markNow === 'auto') el.textContent = 'Mark: back to the automatic spot - Apply makes it (a few seconds).';
   else if (markNow) el.textContent = `Mark: ${mk.raised === false ? 'cut in' : 'raised'}, ${markLabelText(mk)}, letters ${(mk.cap || 2.4).toFixed(1)} mm - Apply places it (a few seconds).`;
   else if (markInfo) el.textContent = `Mark: "${markInfo.text}"${markInfo.auto !== false ? where + ' (automatic)' : ' where you put it'} - drag the card to move it.`;
+  else if (markError) { el.textContent = `No text on this model: ${markError}. Place it again (Start → end, or drag the card) and Apply.`; el.style.color = 'var(--bad, #b91c1c)'; return; }
   else el.textContent = 'No mark on this model (Settings: Tooth mark off, or no spot found).';
   el.style.color = markNow !== undefined ? 'var(--warn)' : 'var(--muted)';
   const btn = $('#mkraised'); if (btn) btn.textContent = mk && mk.raised === false ? 'Cut in' : 'Raised';

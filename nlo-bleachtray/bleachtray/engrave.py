@@ -206,6 +206,21 @@ def auto_mark_anchor(mesh_f, labels, info, log=print):
     return np.asarray(P[j], float), int(side), int(tid), int(info[tid][1]), extent
 
 
+def _repaired_manifold(model):
+    """A manifold of `model` after a meshfix repair, or None (a model the booleans refuse: not watertight)."""
+    try:
+        import pymeshfix
+        from .solid import to_manifold
+        mf = pymeshfix.MeshFix(np.asarray(model.vertices).copy(), np.asarray(model.faces).copy())
+        mf.repair()
+        fixed = trimesh.Trimesh(np.asarray(mf.points, dtype=float), np.asarray(mf.faces, dtype=np.int64).reshape(-1, 3), process=False)   # (mf.mesh needs pyvista, which the lab PC does not have)
+        if not fixed.is_watertight or abs(fixed.volume) < 0.5 * abs(model.volume):
+            return None
+        return to_manifold(fixed)
+    except Exception:  # noqa
+        return None
+
+
 def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, height=0.35, depth_in=1.5, fit_extent=None, min_cap=1.4, log=print):
     """`text` laid on the surface of `surface` (a mesh in the same frame as `model`) round `point`:
     each letter on its own local tangent plane, so the curve of the crown does not change its height,
@@ -304,12 +319,26 @@ def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, 
             log(f"mark: {dropped} letter{'s' if dropped > 1 else ''} left out - the surface ends there (move the mark or make it smaller)")
         letters = trimesh.util.concatenate(solids)
         mm, ml = to_manifold(model), to_manifold(letters)
-        if mm is None or ml is None:
-            log("mark skipped: mesh not manifold")
+        if ml is None:
+            log("mark skipped: the letters did not make a clean solid")
             return model, None
-        out_m = from_manifold((mm + ml) if raised else (mm - ml), drop_zero_volume=False)
         info = dict(dropped=dropped, text=text, anchor=np.round(p_anchor, 3).tolist(), normal=np.round(n0, 4).tolist(), right=np.round(right, 4).tolist(), up=np.round(up, 4).tolist(),
                     cap=round(float(cap), 2), width_mm=round(float(total), 2), angle_deg=round(float(angle_deg), 1), raised=bool(raised))
+        if mm is None:
+            # a model that is not watertight cannot take a boolean: repair it first (meshfix), and if that fails too, raised
+            # letters are laid on it as separate pieces - they print - rather than nothing at all
+            mm = _repaired_manifold(model)
+            if mm is not None:
+                log("mark: the model was not watertight - repaired (meshfix) so the letters could be joined")
+            elif raised:
+                log("mark: the model is not watertight, so the letters sit on it as separate pieces (not joined) - check the model before printing")
+                info.update(joined=False)
+                info["_letters"] = letters
+                return trimesh.util.concatenate([model, letters]), info
+            else:
+                log("mark skipped: the model is not watertight, so nothing can be cut into it (raised letters would still go on)")
+                return model, None
+        out_m = from_manifold((mm + ml) if raised else (mm - ml), drop_zero_volume=False)
         # the letters on their own, for the page to show in colour: the part standing proud when raised,
         # the part sunk into the model when cut in (not saved in the report - the caller writes it to a file)
         try:
