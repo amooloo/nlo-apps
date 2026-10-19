@@ -455,7 +455,7 @@
         </svg></div>
         <div class="stepper"><button data-step="-0.25" data-for="tt_off">−</button><input type="number" id="tt_off" step="0.25" min="0" max="3" value="1.25"><button data-step="0.25" data-for="tt_off">+</button></div>
       </div>
-      <div class="scard"><div class="sLab">Block out undercuts (retainer) <span class="info" title="The space under a pontic, round an implant crown or in an open embrasure is filled, like block-out resin, so the thermoformed sheet seats and comes off. Only undercuts deeper than this (measured in from the contour seen from above) are filled; the small natural ones stay for retention. Paint 'Block out' to fill a spot whatever its depth.">i</span></div>
+      <div class="scard"><div class="sLab">Interproximal fill (retainer) <span class="info" title="A wedge under every contact, the way aligner labs fill their models: it stands on the papilla, reaches into the embrasure on the cheek and tongue sides as far as the notch is narrower than twice the reach, is flush with both crowns, anchored into them, and tapers to nothing at its height. Anything else (under a pontic, round an implant crown) is painted on the Block-outs tab.">i</span></div>
         <div class="sPic" data-img="blockout"><svg viewBox="0 0 120 72">
           <path d="M18 50 Q60 42 102 50 L106 72 L14 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <path d="M28 12 C36 8 44 12 46 20 L48 42 C46 48 30 48 28 42 Z M74 12 C82 8 90 12 92 20 L94 42 C92 48 76 48 74 42 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
@@ -463,10 +463,13 @@
           <path d="M50 36 L50 47 Q60 45 70 47 L70 36 Q60 40 50 36 Z" fill="#5EEAD4" stroke="#0D9488" stroke-width="1.2"/>
           <path d="M108 28 L108 46" stroke="#1D3EA9" stroke-width="1.4"/><path d="M105 31 L108 28 L111 31 M105 43 L108 46 L111 43" fill="none" stroke="#1D3EA9" stroke-width="1.4"/>
         </svg></div>
-        <select id="blockout"><option value="0" selected>Off — paint the ones that matter (Block-outs tab)</option><option value="0.5">Deeper than 0.5 mm</option><option value="0.75">Deeper than 0.75 mm</option><option value="1">Deeper than 1 mm</option><option value="1.5">Deeper than 1.5 mm</option></select>
-        <div class="sLab" style="margin-top:10px">Block-out amount (mm) <span class="info" title="Where the block-out's outer wall stands, for painted and automatic block-outs alike. 0 = flush with the tooth's widest line seen from above: the crown continues straight down to the gum and the sheet drops past it. Positive = the wall stands that much further out (more block-out); negative = that much of the undercut is left for grip.">i</span></div>
+        <select id="blockout"><option value="1" selected>On — a wedge under every contact</option><option value="0">Off — paint the ones that matter (Block-outs tab)</option></select>
+        <div class="sLab" style="margin-top:8px">Reach out of the embrasure (mm) <span class="info" title="uLab's Buccal / Lingual: the notch between two crowns is filled where it is narrower than twice this, with a flat face across its mouth. 1.25 fills the usual black triangle; more covers wider, flatter embrasures.">i</span></div>
+        <div class="stepper"><button data-step="-0.25" data-for="fill_reach">−</button><input type="number" id="fill_reach" step="0.25" min="0.5" max="2.5" value="1.25"><button data-step="0.25" data-for="fill_reach">+</button></div>
+        <div class="sLab" style="margin-top:8px">Height above the gum (mm) <span class="info" title="uLab's Top: how tall the wedge stands above the papilla; it tapers to nothing there, so the sheet runs over it without a step. 3 mm fills the cervical third; the incisal embrasures keep the retainer's grip.">i</span></div>
+        <div class="stepper"><button data-step="-0.5" data-for="fill_top">−</button><input type="number" id="fill_top" step="0.5" min="1" max="6" value="3"><button data-step="0.5" data-for="fill_top">+</button></div>
+        <div class="sLab" style="margin-top:8px">Painted block-out wall (mm) <span class="info" title="For block-outs painted on the Block-outs tab: where the fill's outer wall stands. 0 = flush with the tooth's widest line seen from above; positive = that much further out; negative = that much of the undercut left for grip.">i</span></div>
         <div class="stepper"><button data-step="-0.25" data-for="blockout_proud">−</button><input type="number" id="blockout_proud" step="0.25" min="-0.5" max="1.5" value="0"><button data-step="0.25" data-for="blockout_proud">+</button></div>
-        <div class="hint">0 = flush with the tooth; + stands out, − leaves undercut for grip.</div>
       </div>
       <div class="scard"><div class="sLab">Tray edge between the teeth <span class="info" title="The shape of the tray edge where it passes between two teeth: a smooth wave (easier to trim, seals well) or a deep point up into every gap.">i</span></div>
         <div class="sPic" data-img="between_teeth_straight" data-img-by="bridge" data-img-map='{"0":"between_teeth_scallop","3":"between_teeth_straight","4":"between_teeth_smoother"}'><svg viewBox="0 0 120 72">
@@ -931,7 +934,7 @@ function params(){ return {
   tracker_case: (TRACKER && TRACKER.case) || '',
   // per model type: the whitening tray gets reservoirs and its own line, the retainer its line onto the gum
   wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, recession_auto: $('#rec_auto').value === '1', recession_leeway: +$('#rec_lee').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, blockout: false, blockout_proud: +$('#blockout_proud').value || 0 },
-  tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0), blockout: $('#blockout').value !== '0', blockout_depth: +$('#blockout').value || 0.75, blockout_proud: +$('#blockout_proud').value || 0 },
+  tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0), blockout: $('#blockout').value !== '0', blockout_depth: 0.75, fill_reach: +$('#fill_reach').value || 1.25, fill_top: +$('#fill_top').value || 3, blockout_proud: +$('#blockout_proud').value || 0 },
   // the base
   facial_offset: +$('#rim').value, lingual_offset: +$('#rim').value, floor_below: +$('#floor_below').value, distal_keep: +$('#distal_keep').value,
   level: $('#level').value === '1', add_base: $('#base').value === '1', tooth_mark: $('#tooth_mark').value === '1',
@@ -939,8 +942,9 @@ function params(){ return {
   patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null,
   order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust_by_arch: adjustMap(), mark_by_arch: markMap() }; }
 // ---------- settings panel ----------
-const SETTING_IDS = ['res_n','res_h','res_sb','rec_auto','rec_lee','tl_off','tt_off','blockout','blockout_proud','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
+const SETTING_IDS = ['res_n','res_h','res_sb','rec_auto','rec_lee','tl_off','tt_off','blockout','fill_reach','fill_top','blockout_proud','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
 const SETTING_DEFAULTS = {};
+const SETTING_MIGRATE = { blockout: v => (v === '0' ? '0' : '1') };   // the old "deeper than x mm" choices all mean On
 SETTING_IDS.forEach(id => { SETTING_DEFAULTS[id] = $('#' + id).value; });
 function saveSettings(){ try { const o = {}; SETTING_IDS.forEach(id => o[id] = $('#' + id).value); localStorage.setItem('nlo.bleachtray.settings', JSON.stringify(o)); } catch (e) {} summarizeSettings(); }
 function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bleachtray.settings') || '{}');
@@ -948,6 +952,10 @@ function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bl
   if (o.res_sb === '0.5' && !localStorage.getItem('nlo.bleachtray.settings.v2')) { o.res_sb = '1'; localStorage.setItem('nlo.bleachtray.settings.v2', '1'); }
   // automatic block-out went from "deeper than 0.75 mm" to off (the doctor paints the ones that matter); a saved 0.75 is the old default, not a choice
   if (o.blockout === '0.75' && !localStorage.getItem('nlo.bleachtray.settings.v3')) { o.blockout = '0'; localStorage.setItem('nlo.bleachtray.settings.v3', '1'); }
+  // the automatic block-out became the interproximal fill (a wedge under every contact, on by default); the old
+  // "deeper than x mm" choices and the old default all mean On now - once
+  if (!localStorage.getItem('nlo.bleachtray.settings.v4')) { o.blockout = '1'; localStorage.setItem('nlo.bleachtray.settings.v4', '1'); }
+  else if (o.blockout != null) o.blockout = SETTING_MIGRATE.blockout(String(o.blockout));
   SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
 function summarizeSettings(){
   const bits = [];
@@ -1370,7 +1378,7 @@ async function loadResult(id, j){
                   recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
                   (r.renumbered || []).length ? `a missing tooth allowed for in the numbering (${[...new Set((r.renumbered || []).map(c => c.side < 0 ? 'left' : 'right'))].join(' and ')} side — see the log)` : '',
                   r.label_error ? `base not engraved: ${r.label_error}` : '',
-                  bo.spots ? `${bo.spots} undercut${bo.spots > 1 ? 's' : ''} blocked out (${bo.volume_ml} mL${bo.painted_cells ? ', incl. painted' : ''}${bo.proud_mm ? `, wall ${bo.proud_mm > 0 ? '+' : ''}${bo.proud_mm} mm` : ''})` : (bo.error ? `block-out: ${bo.error}` : '')].filter(Boolean);
+                  bo.contacts_filled ? `${bo.contacts_filled} of ${bo.contacts} contacts filled (${bo.volume_ml} mL${bo.painted_spots ? `, + ${bo.painted_spots} painted` : ''})` : (bo.spots ? `${bo.spots} painted block-out${bo.spots > 1 ? 's' : ''} (${bo.volume_ml} mL${bo.proud_mm ? `, wall ${bo.proud_mm > 0 ? '+' : ''}${bo.proud_mm} mm` : ''})` : (bo.error ? `block-out: ${bo.error}` : ''))].filter(Boolean);
   const warns = (r.warnings || []);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : '<span style="color:var(--err)">NOT watertight</span>'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '')
     + (warns.length ? `<br><span style="color:var(--err);font-weight:600">&#9888; ${warns.join(' · ')}</span>` : '');

@@ -362,19 +362,35 @@ and the same on both sides. (The scan-colour step is seeded, so the same scan no
 
 **Erased reservoir.** A *No reservoir* (Erase) stroke is the doctor's line: the reservoir ends at the edge of the stroke, with its 0.6 mm slope on the kept side - it used to stay a further `recession_leeway` (1 mm) away all round the stroke, which ate the reservoirs on a recession case to small ragged islands (10/18/2026). The leeway now applies only to root the app found on its own (switch in Settings).
 
-**Block-out.** For thermoforming, the space under an overhang - a bridge pontic, the emergence of an implant crown,
-an open embrasure - is filled like block-out resin (`bleachtray/blockout.py`): on a 0.3 mm grid every vertical
+**Interproximal fill (the automatic block-out).** The way aligner labs fill their models (uLab's "digital fill"):
+one wedge under every contact, by construction - not found by hunting for undercuts on the surface, which put fins
+on the line angles of crowns (10/18/2026). `bleachtray/interprox.py contact_fills`: for each pair of neighbouring
+teeth (consecutive positions on a side, the two centrals across the midline; an open contact wider than 1.5 mm is
+left alone) the contact - the closest points of the two crowns' upper halves - sets a local frame; level by level
+(0.25 mm) below it the two crowns' outlines in the level are the convex hulls of their surface points in a 4.5 mm
+slab, and the notch between them on each side (buccal / lingual) is the region within *reach* of both outlines,
+closed by a flat face across its mouth (the hull of that lens) - so the fill is flush with both crowns and can
+never be a sheet on one of them. Each side ends where the papilla has closed the notch (gum on the notch's axis
+reaching its mouth); the wedge stands on that level (and a step into the gum), is *top* mm tall, full reach at its
+foot and tapering to nothing at its top, and reaches `reach` into both crowns, so the union makes one solid -
+nothing thin sits on the outside. The stacked notches are voxelised (0.2 mm), marching-cubed and Taubin-smoothed;
+all wedges go into the body union as one extra solid and are shown teal. Settings (retainer): **Interproximal fill**
+on/off (on by default), **Reach out of the embrasure** (uLab's Buccal / Lingual, 1.25 mm), **Height above the gum**
+(uLab's Top, 3 mm). The report says "N of M contacts filled" and lists the contacts left out and why. The whitening
+tray gets none (soft tray). Anything else - under a pontic, round an implant crown - is painted on the Block-outs tab
+and filled by the column method below.
+
+**Painted block-out.** The space under an overhang the doctor paints - a bridge pontic, the emergence of an implant
+crown - is filled like block-out resin (`bleachtray/blockout.py`): on a 0.3 mm grid every vertical
 through the model that passes an underside and then free air before the next surface is a candidate; it is filled
-from that surface up to the underside when the undercut is deeper than 0.75 mm measured in from the contour seen
-from above (a setting - **off by default**: the doctor paints the undercuts that matter in the Block-outs tab, the
-natural ones stay for retention), or whatever its depth under a painted *Block out* stroke. An automatic fill only
+from that surface up to the underside under a painted *Block out* stroke, whatever its depth. A fill only
 goes under an overhang within 1.5 mm of a tooth and only where a real surface shows under it - the vestibule's own
 overhangs (the scan's rolled edge, a frenum) are not the tray's business - and no fill ever reaches below the model's
 floor, and an automatic fill stands on nothing more than 2 mm below the gum line (the cervical margins round
 about) - the root prominence's hollow further down is below the trim line. The fill is what resin is: each column
 is filled solid from the surface below up to the overhang, out to the tooth's contour seen from above, so the crown's
 widest line continues straight down to the gum - a vertical wall (parallel to the pull), with a 0.5 mm bevel where
-it meets the gum, and nothing of its own that undercuts. **Block-out amount** (Settings, mm, default 0) moves that
+it meets the gum, and nothing of its own that undercuts. **Painted block-out wall** (Settings, mm, default 0) moves that
 wall: positive stands it out beyond the contour (the ring carries the fill's own edge height, only where that
 height is in the open), negative leaves that much of the undercut for grip. The undercuts are found on the teeth
 *as scanned*: a whitening tray's raised reservoirs are taken off again for the detection, because their feathered
@@ -384,9 +400,11 @@ fill only, then a volume-keeping Taubin pass that takes the grid's staircase off
 not shown. It is shown in teal in the Result view and saved as `<name>_blockout.stl`.
 
 **History.** `jobs\<case>\case.json` is the recipe of a case (scans by relative path, settings, brush fixes as
-`fixedlabels_*.npz`, painted areas, review state, when it was sent); it is written whenever a run finishes or the
+`fixedlabels_*.npz`, painted areas, review state, when it was sent, the last 400 log lines and the last error); it
+is written the moment a case is made or a model / arch is added to it, whenever a run finishes or fails, and when the
 case is sent / saved / discarded, and indexed at start-up (folders from before the history existed get one built
-from their report files). `/api/history?q=` searches it; `/api/history/<id>/open` brings a case back into the live
+from their report files) - so a case survives a restart from its first second, with its log, and a model added
+just before a restart is not lost. `/api/history?q=` searches it; `/api/history/<id>/open` brings a case back into the live
 list, re-running it from the recipe when its outputs have been thinned. Outputs older than `KEEP_OUTPUT_DAYS` (30;
 env `NLO_KEEP_OUTPUT_DAYS`) lose the model / body / Titan-copy files (the Titan pair is a hard link of the model, so
 it costs nothing while it exists). Nothing is ever deleted whole.
@@ -414,8 +432,8 @@ run and in `replace_placement`), while *Auto* needs the teeth and runs the arch 
 **Settings.** The gear at the top right of the page opens a panel over the whole work area (compact cards, five across on a lab screen; the two tabs never wrap) with two tabs - *Model settings* (reservoirs, trim lines, base, marks, bulk-drop defaults) and *Office* (learning, the Trimlign / scanner / print folders, PreForm) - where every number has a picture of what it means;
 *Apply to this case & re-run* re-makes the open case with the changed settings - only the models the change touches
 (a retainer-line change leaves the whitening trays alone), brush fixes and painted areas kept
-(reservoir region / depth / distance to the gum / leeway at exposed roots, the two trim lines, block-out of
-undercuts, how the line crosses between teeth, rim, floor depth, the cut behind the last molar, levelling, marks,
+(reservoir region / depth / distance to the gum / leeway at exposed roots, the two trim lines, interproximal fill (reach, height) / painted block-out wall,
+how the line crosses between teeth, rim, floor depth, the cut behind the last molar, levelling, marks,
 bulk defaults, learning, the office folders). Settings are
 remembered in the browser; *Back to defaults* resets them. The whitening tray and the retainer have their own trim
 line and reservoir settings, applied on top of the model type.
@@ -447,6 +465,15 @@ on 10/15/2026 (order 10 59 21).
 **Command line.** `python run_watch.py --inbox <folder> --titan <OrthoFactory input folder>` (settings remembered in
 `watch_config.json`); `python run_app.py [--lan]` (`NLO_WORKERS=2` processes two cases at once on a strong PC);
 `python tools/import_base.py <Titan folder or export .stl>`.
+
+**Checking the app.** `python tools/sweep.py <folder of scans> [--out DIR] [--thumbs]` runs every scan the way the
+app does (whitening tray + retainer, the page's default settings) and checks each result mechanically: ran without
+error, body watertight, base joined, trim line long enough for a full arch, plausible tooth count and volume, mark
+and base engraving present (or the reason given), no pipeline warnings, every output file written; `sweep.md` /
+`sweep.json` hold the table, `--thumbs` a contact sheet of facial views with the trim line. Run it on the scans at
+hand before a change that touches the pipeline; the output folder is outside the repo (patient scans never leave
+the machine). A lesson folder (`training\<Last, First - date>`) never has a different scan of the same arch written
+over the one it holds: a case that lands on a folder already holding another scan goes to `... (2)`.
 
 **Retraining.** `python tools/make_ground_truth.py <raw scan> <Titan '- 0 -' export> <out.npz>` per arch (stage-1 exports
 work too: moved/missing teeth are marked 'ignore'), then `python tools/train_eval.py cases.json` (leave-one-case-out
