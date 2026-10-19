@@ -15,6 +15,8 @@ FACIAL_MARGIN_Y_AT_MIDLINE = {"upper": 6.0, "lower": 4.5}   # facial gum line of
 FLOOR_BELOW_LOWEST_MARGIN = 3.0    # model floor is 3 mm below the lowest point of the trimline (validated in OrthoFactory 10/15/2026)
 TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this much further forward than the facial gum-line plane's normal (8 raw/Titan pairs, 10/16/2026)
 
+ASSET_DIR_BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+
 DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=0.6, reservoir_max_position=5,   # setback: the reservoir stops this far short of the gum line (was 0.5; 1 mm is the usual lab rule)
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
@@ -914,6 +916,11 @@ def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path,
     if P["add_base"]:
         model, how = add_base(body)
         rep["base"] = how
+        from .basebuild import base_sig, base_problem
+        rep["base_sig"] = base_sig(os.path.dirname(ASSET_DIR_BASE))      # which Trimlign base it has (Send re-makes a model whose base was replaced since)
+        bp = base_problem(os.path.dirname(ASSET_DIR_BASE))
+        if bp:
+            rep.setdefault("warnings", []).append(bp)
         if P.get("engrave", True):
             from .engrave import engrave_model
             model, einfo = engrave_model(model, P, outline=outline, log=lambda m: log(f"[{name}] {m}"))

@@ -68,6 +68,16 @@ def check(rep, out_dir, name):
     mc = rep.get("midline_check") or {}
     if mc.get("used") == "arch_shape":
         bad.append("midline from arch shape (tooth pairs disagreed)")
+    if rep.get("base") == "union" and os.path.exists(os.path.join(out_dir, name + "_model.stl")):
+        # the locating holes in the printed base: clear from the bottom to 3.5 mm (19 Oct 2026: a skin at 1.85 mm)
+        try:
+            import trimesh
+            from bleachtray.basebuild import hole_depths, HOLE_DEPTH
+            d = hole_depths(trimesh.load(os.path.join(out_dir, name + "_model.stl"), force="mesh", process=False))
+            if min(d) < HOLE_DEPTH - 0.15:
+                bad.append(f"base holes clear only to {min(d):.2f} mm")
+        except Exception as ex:  # noqa
+            bad.append(f"base holes not checked ({ex})")
     for suffix in ("_model.stl", "_trimline.pts", "_body_only.stl", "_body_plain.stl", "_state.npz", "_report.json"):
         if not os.path.exists(os.path.join(out_dir, name + suffix)):
             bad.append(f"missing {suffix}")
