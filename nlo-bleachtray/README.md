@@ -452,7 +452,12 @@ out and the log says so). The placement is kept per arch in the scan's own coord
 arch's `transform_raw_to_output`), so it follows the arch through base moves and re-runs; the body before the mark is
 kept (`*_body_plain.stl`) so moving the mark alone re-finishes that arch's models in seconds (`apply_mark`, in the full
 run and in `replace_placement`), while *Auto* needs the teeth and runs the arch again. The report carries where it sits
-(`mark`: anchor, normal, reading frame, cap, width, text).
+(`mark`: anchor, normal, reading frame, cap, width, text). A model that is not watertight cannot take the boolean that
+joins the letters: it is repaired first (meshfix) and, if that fails too, raised letters are laid on it as separate
+pieces (they print) rather than nothing; when there is no text at all the Text box says why (`mark_error`), instead of
+an Apply that does nothing. (19 Oct 2026: on the lab PC every meshfix repair had been failing with "No module named
+pyvista" - pymeshfix's `.mesh` needs pyvista, which the PC does not have - so a scan whose skirt did not close went out
+not watertight, with no text and no base engraving; the repair reads pymeshfix's `points` / `faces` now.)
 
 **New case pop-up.** Each dropped scan is a row with the arch icon the viewer uses (upper / lower, greyed until the arch is known), upper listed first and lower second whatever the order they were dropped in; changing a row's arch moves it and its icon.
 

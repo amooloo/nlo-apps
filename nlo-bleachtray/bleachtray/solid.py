@@ -382,7 +382,7 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
             import pymeshfix
             mf = pymeshfix.MeshFix(raw_solid.vertices.copy(), raw_solid.faces.copy())
             mf.repair()
-            fixed = trimesh.Trimesh(np.asarray(mf.mesh.points), np.asarray(mf.mesh.faces).reshape(-1, 4)[:, 1:], process=False)
+            fixed = trimesh.Trimesh(np.asarray(mf.points, dtype=float), np.asarray(mf.faces, dtype=np.int64).reshape(-1, 3), process=False)   # (mf.mesh needs pyvista, which the lab PC does not have)
             man = to_manifold(fixed)
             if man is not None:
                 log("body: solid repaired with meshfix")

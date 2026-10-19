@@ -799,6 +799,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     body.export(os.path.join(out_dir, f"{name}_body_plain.stl"))
     body = apply_mark(body, P, rep, T_total=T_total, mesh_f=mesh_f, labels=labels, info=info, log=lambda m: log(f"[{name}] {m}"),
                       letters_path=os.path.join(out_dir, f"{name}_mark.stl"))
+    _watertight_again(body, rep, log=lambda m: log(f"[{name}] {m}"))
     margin_n = trimline_normals(body, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
     rep["elapsed_s"] = round(time.time() - t0, 2)
@@ -829,7 +830,15 @@ def apply_mark(body, P, rep, T_total=None, mesh_f=None, labels=None, info=None, 
         os.remove(letters_path)
     if not (P.get("engrave", True) and P.get("tooth_mark", True)):
         return body
-    body = _apply_mark(body, P, rep, T_total, mesh_f, labels, info, prev, log, emboss_at, emboss_on_tooth, mark_text)
+    reasons = []
+    def log2(m):
+        if str(m).startswith("mark skipped"):
+            reasons.append(str(m)[len("mark skipped:"):].strip(" -"))
+        log(m)
+    rep.pop("mark_error", None)
+    body = _apply_mark(body, P, rep, T_total, mesh_f, labels, info, prev, log2, emboss_at, emboss_on_tooth, mark_text)
+    if rep.get("mark") is None and reasons:
+        rep["mark_error"] = reasons[-1]          # why there is no text on the model, for the page
     letters = (rep.get("mark") or {}).pop("_letters", None) if isinstance(rep.get("mark"), dict) else None
     if letters is not None and letters_path:
         try:
@@ -871,6 +880,15 @@ def _apply_mark(body, P, rep, T_total, mesh_f, labels, info, prev, log, emboss_a
         minfo["mode"] = "initials"
         rep["mark"], rep["tooth_mark"] = minfo, minfo["text"]
     return body2
+
+
+def _watertight_again(body, rep, log=print):
+    """The mark's repair (meshfix, when the body was not watertight) leaves a watertight body: the report says so."""
+    if not rep.get("body_watertight") and body.is_watertight:
+        rep["body_watertight"] = True
+        rep["warnings"] = [w for w in (rep.get("warnings") or []) if "watertight" not in w]
+        rep["body_volume_ml"] = round(float(body.volume) / 1000.0, 2)
+        log("the model is watertight after the repair made for the mark")
 
 
 def trimline_normals(body, margin_f, rep, log=print):
@@ -1007,6 +1025,7 @@ def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=No
         body.export(plain_path)
         body = apply_mark(body, P, rep, T_total=np.asarray(rep["transform_raw_to_output"], float) if rep.get("transform_raw_to_output") else None, prev=prev, log=lambda m: log(f"[{name}] {m}"),
                           letters_path=os.path.join(out_dir, f"{name}_mark.stl"))
+        _watertight_again(body, rep, log=lambda m: log(f"[{name}] {m}"))
     prog(0.4, "adding the base and engraving")
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, (rep.get("outputs") or {}).get("scan_with_reservoirs"), log=log)
     st["margin"] = margin_f; st["T_adj"] = T_new; st["outline"] = np.asarray(outline.exterior.coords, dtype=float)
