@@ -44,7 +44,131 @@ def _hull(pts2):
     return h if h.geom_type == "Polygon" and h.area > 1e-4 else None
 
 
-def contact_fills(mesh, labels, info, centre_xy, top=3.0, proud=0.0, reach=1.2, reach_lingual=None, max_gap=1.5, half_width=4.5, depth_n=7.0,
+def _voxel_solid(belts, level, cell, frame):
+    """Stacked level polygons (z, polygon) in a local (s, u, z) frame -> a smoothed watertight mesh in world
+    coordinates. `frame` = (t, n, c): s along t, u along n, origin c."""
+    t, n, c = frame
+    zs = np.array([zl for zl, _ in belts])
+    s_lo, s_hi = min(p.bounds[0] for _, p in belts) - 0.4, max(p.bounds[2] for _, p in belts) + 0.4
+    u_lo, u_hi = min(p.bounds[1] for _, p in belts) - 0.4, max(p.bounds[3] for _, p in belts) + 0.4
+    ns, nu = int(np.ceil((s_hi - s_lo) / cell)) + 2, int(np.ceil((u_hi - u_lo) / cell)) + 2
+    z_lo = zs.min() - 0.4; nz = int(np.ceil((zs.max() + 0.4 - z_lo) / cell)) + 2
+    occ = np.zeros((ns, nu, nz), bool)
+    sg = s_lo + np.arange(ns) * cell; ug = u_lo + np.arange(nu) * cell
+    SS, UU = np.meshgrid(sg, ug, indexing="ij")
+    from shapely import vectorized
+    for zl, poly in belts:
+        m = vectorized.contains(poly, SS.ravel(), UU.ravel()).reshape(ns, nu)
+        k0 = int(round((zl - level / 2 - z_lo) / cell)); k1 = int(round((zl + level / 2 - z_lo) / cell))
+        occ[:, :, max(0, k0):max(1, k1) + 1] |= m[:, :, None]
+    import scipy.ndimage as ndi
+    occ = ndi.binary_closing(occ, iterations=1)
+    if occ.sum() < 20:
+        return None
+    from skimage import measure
+    pad = np.pad(occ, 1, constant_values=False)
+    verts, faces, _, _ = measure.marching_cubes(pad.astype(np.float32), level=0.5, spacing=(cell, cell, cell))
+    verts = verts - cell + np.array([s_lo, u_lo, z_lo])
+    R = np.array([[t[0], n[0], 0.0], [t[1], n[1], 0.0], [0.0, 0.0, 1.0]])
+    m = trimesh.Trimesh(verts @ R.T + c, faces, process=True)
+    m.fix_normals()
+    m = trimesh.smoothing.filter_taubin(m, lamb=0.5, nu=-0.53, iterations=10)
+    if not m.is_watertight:
+        m.fill_holes()
+    return m
+
+
+def gap_fills(mesh, labels, info, gaps, centre_xy, retention=0.5, level=0.25, cell=0.2, log=print):
+    """The fill against a tooth that faces an edentulous space: a straight vertical face, starting
+    `retention` mm below the tooth's height of contour on that side (the top of the undercut stays, for
+    grip) and running down to the ridge - the undercut between the face and the tooth is filled, flush with
+    the crown's width. One per tooth flanking each gap. -> (list of meshes, [fill info])."""
+    V = np.asarray(mesh.vertices, float)
+    labels = np.asarray(labels)
+    by = {(int(sd), int(ps)): int(t) for t, (sd, ps) in info.items()}
+    cents = {int(t): V[labels == t].mean(0) for t in np.unique(labels) if t > 0 and (labels == t).sum() > 50}
+    solids, made = [], []
+    tree_all = cKDTree(V)
+    for g in gaps or []:
+        side, pos = int(g.get("side", 0)), int(g.get("after_position", 0))
+        a = by.get((side, pos))
+        behind = sorted(p for (sd, p) in by if sd == side and p > pos)
+        b = by.get((side, behind[0])) if behind else None
+        if a is None or b is None or a not in cents or b not in cents:
+            continue
+        for tooth, other in ((a, b), (b, a)):
+            it = np.where(labels == tooth)[0]
+            if len(it) < 50:
+                continue
+            ct = np.asarray(cents[tooth]); co = np.asarray(cents[other])
+            t = (co[:2] - ct[:2]); t = t / max(np.linalg.norm(t), 1e-6)      # +s: towards the gap
+            n = np.array([-t[1], t[0]])
+            if np.dot(n, ct[:2] - np.asarray(centre_xy)[:2]) < 0:
+                n = -n
+            c = np.array([ct[0], ct[1], V[it, 2].max()])
+            near = np.asarray(tree_all.query_ball_point(c, 16.0), dtype=int)
+            rel = V[near] - c
+            s = rel[:, :2] @ t; u = rel[:, :2] @ n; z = rel[:, 2]; lab = labels[near]
+            # the crown's reach towards the gap, level by level: the height of contour is its maximum
+            levels = np.arange(0.0, float(V[it, 2].min() - c[2] - 1.0), -level)
+            sections = []
+            for zl in levels:
+                band = np.abs(z - zl) <= 0.6 * level + 0.05
+                A = np.c_[s[band & (lab == tooth)], u[band & (lab == tooth)]]
+                hA = _hull(A)
+                if hA is None or hA.area < 1.5:
+                    sections.append((zl, None, None)); continue
+                sections.append((zl, hA, float(hA.bounds[2])))
+            have = [(zl, hA, smax) for zl, hA, smax in sections if hA is not None]
+            if len(have) < 4:
+                continue
+            k_hoc = int(np.argmax([smax for _, _, smax in have]))
+            z_hoc, s_hoc = have[k_hoc][0], have[k_hoc][2]
+            z_start = z_hoc - retention
+            # the face: where the crown is at z_start (a little inside the height of contour); a crown that
+            # widens all the way to the gum has its undercut in the ridge below - the face is then at its foot
+            s_face = None
+            for zl, hA, smax in have:
+                if zl <= z_start + 1e-6:
+                    s_face = smax; break
+            if s_face is None:
+                z_start, s_face = have[-1][0], have[-1][2]
+            # below the face's start the gap-facing surface is the crown, then the ridge sloping away under it:
+            # level by level, the surface is the furthest point towards the gap among tooth and gum within the
+            # crown's width; the fill runs from a little inside that surface out to the face, and ends where the
+            # ridge reaches the face
+            u_lo, u_hi = have[k_hoc][1].bounds[1], have[k_hoc][1].bounds[3]
+            belts = []
+            for zl in levels:
+                if zl > z_start + 1e-6:
+                    continue
+                band = np.abs(z - zl) <= 0.6 * level + 0.05
+                # the proximal zone just inside the face: the surface there (crown, then ridge) and 2.5 mm of solid
+                # behind it for the anchor; solid AT the face means the ridge has come up to it - the fill ends
+                sel = band & (u >= u_lo) & (u <= u_hi) & (s <= s_face + 0.3) & (s >= s_face - 2.5)
+                if sel.sum() < 3:
+                    continue
+                P = np.c_[s[sel], u[sel]]
+                if (P[:, 0] >= s_face - 0.15).sum() >= 3:
+                    break
+                shadow = np.c_[np.full(len(P), s_face), P[:, 1]]
+                poly = _hull(np.r_[P, shadow])
+                if poly is None:
+                    continue
+                belts.append((zl, poly))
+            if len(belts) < 2:
+                continue
+            m = _voxel_solid(belts, level, cell, (t, n, c))
+            if m is None or abs(m.volume) > 400.0 or (belts[0][0] - belts[-1][0]) > 9.0:   # nothing this size is a gap fill
+                continue
+            solids.append(m)
+            made.append(dict(tooth=int(tooth), gap_side=side, face_below_hoc_mm=retention, height_mm=round(float(belts[0][0] - belts[-1][0] + level), 2), volume_ml=round(float(abs(m.volume)) / 1000.0, 3)))
+    if log and made:
+        log(f"edentulous fill: {len(made)} tooth face{'s' if len(made) > 1 else ''} next to a gap filled straight down from {retention} mm below the height of contour")
+    return solids, made
+
+
+def contact_fills(mesh, labels, info, centre_xy, top=20.0, proud=0.0, reach=1.25, reach_lingual=None, max_gap=1.5, half_width=4.5, depth_n=7.0,
                   level=0.25, cell=0.2, min_belt=0.35, log=print):
     """-> (fill mesh or None, info). `mesh`: the arch in the output frame (floor at z=0, crowns up);
     `labels`: tooth id per vertex (0 = gum); `info`: {tooth: (side, position)}; `centre_xy`: a point inside
@@ -135,21 +259,26 @@ def contact_fills(mesh, labels, info, centre_xy, top=3.0, proud=0.0, reach=1.2, 
                 continue
             z_foot = papilla[side_sign] if papilla[side_sign] is not None else rows[-1][0]
             z_foot = z_foot + level           # the first level above the gum
+            H = min(float(top), max(-z_foot, level))     # the triangle's height: to the contact, or `top` above the gum
             # the wedge is not laid over the surface: it reaches `r` into both crowns (and a step into the gum at
             # its foot), so the union with the body makes one solid - nothing thin sits on the outside
             by_z = {zl: (hA, hB, hAB, side_box) for zl, part, hA, hB, hAB, side_box in rows}
             for zl in sorted(by_z, reverse=True):
                 hA, hB, hAB, side_box = by_z[zl]
                 h = zl - z_foot
-                if h < -2 * level - 1e-6 or h > top:
+                if h < -2 * level - 1e-6 or h > H:
                     continue
-                rr = r * max(0.15, 1.0 - max(h, 0.0) / top)
+                # a triangle: full reach at the gum, a point at the top; the fill is the hull of the region within
+                # reach of both crowns - a flat face across the notch's mouth, and the crowns' own slices inside it,
+                # so the fill goes INTO both teeth and its edges are inside them
+                rr = max(0.12, r * (1.0 - max(h, 0.0) / H))
                 lens = hA.buffer(rr).intersection(hB.buffer(rr)).intersection(hAB.buffer(max(proud, 0.0))).intersection(side_box)
                 if lens.is_empty or lens.area < 1e-3:
                     continue
-                wedge = lens.convex_hull.intersection(side_box)
+                wedge = lens.convex_hull
                 if proud < 0:
                     wedge = wedge.buffer(proud, join_style=1).union(hA.union(hB).intersection(lens.convex_hull))
+                wedge = wedge.intersection(side_box.union(hA).union(hB))
                 if wedge.is_empty or wedge.area < 1e-3:
                     continue
                 belts.append((zl, wedge))
