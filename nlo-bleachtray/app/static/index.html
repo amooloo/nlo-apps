@@ -1474,7 +1474,9 @@ async function loadResult(id, j){
                   (r.renumbered || []).length ? `a missing tooth allowed for in the numbering (${[...new Set((r.renumbered || []).map(c => c.side < 0 ? 'left' : 'right'))].join(' and ')} side — see the log)` : '',
                   r.label_error ? `base not engraved: ${r.label_error}` : '',
                   bo.contacts_filled || bo.gap_faces ? `${bo.contacts_filled || 0} of ${bo.contacts || 0} contacts filled${bo.gap_faces ? `, ${bo.gap_faces} face${bo.gap_faces > 1 ? 's' : ''} next to a gap` : ''} (${bo.volume_ml} mL${bo.painted_spots ? `, + ${bo.painted_spots} painted` : ''})` : (bo.spots ? `${bo.spots} painted block-out${bo.spots > 1 ? 's' : ''} (${bo.volume_ml} mL${bo.proud_mm ? `, wall ${bo.proud_mm > 0 ? '+' : ''}${bo.proud_mm} mm` : ''})` : (bo.error ? `block-out: ${bo.error}` : ''))].filter(Boolean);
-  const warns = (r.warnings || []);
+  // braces off: a rebuilt patch over most of a tooth (brackets, wire and ties run together on crowded teeth) is a guess
+  const big = (ap.used && !mg && ap.large_patches) || [];
+  const warns = (r.warnings || []).concat(big.length ? [`braces: ${big.length} rebuilt area${big.length > 1 ? 's cover' : ' covers'} most of a tooth (${big.join(', ')} mm², red on the Braces tab) — the enamel there is a guess (crowded teeth: brackets and wire run together); check those teeth before printing`] : []);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : '<span style="color:var(--err)">NOT watertight</span>'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '')
     + (warns.length ? `<br><span style="color:var(--err);font-weight:600">&#9888; ${warns.join(' · ')}</span>` : '');
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
@@ -1837,7 +1839,7 @@ function paintColors(){
   // the one brush mesh, coloured for the tab it is shown on: labels on Segmentation, the white stone model
   // with this tab's strokes everywhere else
   if (!segLabels || !segColors) return;
-  const showCol = $('#showcol').checked, c = new THREE.Color(), grey = new THREE.Color(0x64748b), orange = new THREE.Color(0xf97316), teal = new THREE.Color(0x0d9488);
+  const showCol = $('#showcol').checked, c = new THREE.Color(), grey = new THREE.Color(0x64748b), orange = new THREE.Color(0xf97316), teal = new THREE.Color(0x0d9488), red = new THREE.Color(0xdc2626);
   const t = tab in PANELS ? tab : 'seg';
   for (let i=0;i<segLabels.length;i++){
     let lab = segLabels[i]; if (edits.add.has(i)) lab = 99; if (edits.remove.has(i)) lab = 0;
@@ -1848,7 +1850,7 @@ function paintColors(){
     const pf = segPaint ? segPaint[i] : 0;
     if (t === 'clean') { if (edits.cut.has(i)) c.setHex(0x7f1d1d); }
     else if (t === 'block') { if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (edits.unblockout.has(i)) c.setHex(0xfecaca); else if (pf & 2) c.lerp(teal, 0.45); }
-    else if (t === 'braces') { if (edits.takeoff.has(i)) c.setHex(0xf97316); else if (pf & 4) c.lerp(grey, 0.5); else if (pf & 8) c.lerp(orange, 0.5); }
+    else if (t === 'braces') { if (edits.takeoff.has(i)) c.setHex(0xf97316); else if (pf & 64) c.lerp(red, 0.55); else if (pf & 4) c.lerp(grey, 0.5); else if (pf & 8) c.lerp(orange, 0.5); }
     else if (t === 'seg' && edits.cut.has(i)) c.setHex(0x7f1d1d);
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
   }
