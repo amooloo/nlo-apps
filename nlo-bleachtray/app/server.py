@@ -355,6 +355,7 @@ def _save_case(job):
                     filename=job.get("filename"), params=params, scans=scans, review=job.get("review"), order_folder=job.get("order_folder"),
                     sent_at=job.get("sent_at"), learned=job.get("learned"), fixed=[os.path.relpath(k, jdir) for k in fixed], paint=paint,
                     print_folder=job.get("print_folder"), print_files=job.get("print_files") or [],
+                    revisions=job.get("revisions") or {}, order_pieces=job.get("order_pieces") or [], order_note=job.get("order_note"),
                     thinned=bool(job.get("thinned")), saved=time.time(),
                     status=job.get("status"), error=job.get("error"), log=list(job.get("log") or [])[-400:])
         with open(os.path.join(jdir, "case.json"), "w") as f:
@@ -491,6 +492,7 @@ def _job_from_case(jid):
     job = dict(id=jid, dir=jdir, scans=scans, name=case.get("name"), params=case.get("params") or {}, status="done" if have_models else "needs_run",
                created=case.get("created") or time.time(), filename=case.get("filename"), preset=case.get("preset"), source=case.get("source"),
                review=case.get("review"), order_folder=case.get("order_folder"), order_error=None, sent_at=case.get("sent_at"), learned=case.get("learned"),
+               revisions=case.get("revisions") or {}, order_pieces=case.get("order_pieces") or [], order_note=case.get("order_note"),
                print_folder=case.get("print_folder"), print_files=case.get("print_files") or [],
                fixed_labels=fixed, paint=paint, thinned=case.get("thinned"), reopened=True, feat_cache={},
                log=list(case.get("log") or []) + [f"opened from the history ({time.strftime('%m/%d/%Y', time.localtime(case.get('created') or time.time()))}"
@@ -829,6 +831,18 @@ def _write_order(job, log=print, preform_here=True):
     site = site_config()
     root = (job["params"].get("order_root") or "").strip() or site["order_root"]
     prev = job.get("order_folder")
+    # the revision letters this patient's pieces have had (read before this case's own earlier folder goes:
+    # OrthoFactory still has that one) - every piece is written with the next letter, so OrthoFactory makes
+    # a fresh cut path instead of reusing the earlier piece's (orderfolder.py)
+    seen = dict(job.get("revisions") or {})
+    if root and job["params"].get("patient_first") and job["params"].get("patient_last"):
+        try:
+            from bleachtray.orderfolder import sent_revisions
+            for k, v in sent_revisions(root, job["params"]["patient_first"], job["params"]["patient_last"]).items():
+                if v > seen.get(k, ""):
+                    seen[k] = v
+        except Exception as ex:  # noqa
+            log(f"earlier revision letters not read: {ex}")
     if prev and os.path.isdir(prev):
         try:
             import shutil
@@ -849,10 +863,27 @@ def _write_order(job, log=print, preform_here=True):
     try:
         folder = write_order_folder(root, job["params"]["patient_first"], job["params"]["patient_last"], pieces,
                                     patient_id=job["params"].get("patient_id") or None,
-                                    doctor=job["params"].get("doctor") or site["doctor"])
+                                    doctor=job["params"].get("doctor") or site["doctor"], seen=seen)
         job["order_folder"] = folder
         job["review"] = "sent"
-        log(f"OrthoFactory order written: {folder}")
+        revs = dict(seen)
+        for p in pieces:
+            if p.get("code"):
+                revs[p["code"][:-1]] = max(p["code"][-1], revs.get(p["code"][:-1], ""))
+        job["revisions"] = revs
+        job["order_pieces"] = [p.get("code") for p in pieces]
+        log(f"OrthoFactory order written: {folder} ({', '.join(p.get('code') or '?' for p in pieces)})")
+        # another case of this patient already sent the same piece: OrthoFactory lists both orders, and the
+        # two models need not sit alike on the base (one moved by hand) - say so, the trimmer must not mix them
+        job["order_note"] = None
+        try:
+            from bleachtray.orderfolder import earlier_orders, earlier_orders_note
+            note = earlier_orders_note(earlier_orders(root, job["params"]["patient_first"], job["params"]["patient_last"], pieces, this_folder=folder))
+            if note:
+                job["order_note"] = note
+                log(note)
+        except Exception as ex:  # noqa
+            log(f"earlier orders not checked: {ex}")
     except Exception as ex:  # noqa
         job["order_error"] = str(ex)
         log(f"order folder failed: {ex}")
@@ -1554,7 +1585,7 @@ def _fixed_arches(job):
 
 
 def _review_view(job):
-    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned", "sent_at", "reopened", "preform", "print_folder", "print_files", "print_error")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job), "print_files_unc": _print_files_unc(job)}
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "order_note", "order_pieces", "learned", "sent_at", "reopened", "preform", "print_folder", "print_files", "print_error")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job), "print_files_unc": _print_files_unc(job)}
 
 
 def _save_training(job, log=print):
@@ -1884,7 +1915,7 @@ def job_status(jid: str):
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
-    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned", "sent_at", "reopened", "created", "preform", "print_folder", "print_files", "print_error")}
+    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "order_note", "order_pieces", "review", "source", "progress", "learned", "sent_at", "reopened", "created", "preform", "print_folder", "print_files", "print_error")}
     out["started"] = job.get("started")
     out["ahead"] = _ahead(job)
     out["fixed"] = _fixed_arches(job)
@@ -1908,7 +1939,7 @@ def job_file(jid: str, kind: str, scan: int = 0):
     files = {
         "model": (f"{name}_model.stl", "model/stl"),
         "trimline": (f"{name}_trimline.pts", "text/plain"),
-        "scan_res": (f"{name}_scan_with_reservoirs.stl", "model/stl"),
+        "scan_res": (f"{name}_scan_with_reservoirs_NOBASE_not_for_trimlign.stl", "model/stl"),   # (the page's "Scan + reservoirs" button: the old name was never written)
         "body": (f"{name}_body_only.stl", "model/stl"),
         "blockout": (f"{name}_blockout.stl", "model/stl"),
         "mark": (f"{name}_mark.stl", "model/stl"),
