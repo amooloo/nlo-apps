@@ -284,6 +284,7 @@ function plainStr(v) { return typeof v === 'string' ? v : typeof v === 'number' 
 function mailNorm(m) {
   if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
   if (m.lab) return Object.assign({}, m, { lab: 1 }); // (the lab PC's: lab.js reads its own fields as carefully)
+  if (m.bt) return Object.assign({}, m, { bt: 1 }); // (the Tray Maker's: traymaker.js)
   const n = typeof m.date === 'number' ? m.date : Number(plainStr(m.date));
   return { box: plainStr(m.box), from: plainStr(m.from), subject: plainStr(m.subject), text: plainStr(m.text), html: plainStr(m.html), date: n > 0 && isFinite(n) ? n : 0 };
 }
@@ -295,7 +296,7 @@ async function mailSync() {
     const docs = await B.inboxLoad(); if (!S.inApp) return;
     docs.forEach(d => { d.mail = mailNorm(d.mail); });
     if (docs.length) await mailClosedReady(docs);
-    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad(), labDocs = [], prDocs = [];
+    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad(), labDocs = [], prDocs = [], btDocs = [];
     // updates waiting for someone, one row per update however many emails carry it
     const wait = (d, i, ev, cands, check) => {
       const fp = mailFp(ev); let g = groups.get(fp);
@@ -308,6 +309,7 @@ async function mailSync() {
       // can't be opened (another key, or damaged): kept a month like a format the app doesn't read, then cleared
       if (!d.mail) { if (old) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d, bad: true }); continue; }
       if (d.mail.lab) { labDocs.push(d); continue; } // the lab PC's progress on the in-house sets (lab.js)
+      if (d.mail.bt) { btDocs.push(d); continue; } // the Tray Maker: a case's models are in OrthoFactory (traymaker.js)
       if (prMail(d.mail)) { prDocs.push(d); continue; } // Formlabs' emails about each print (prints.js)
       try {
         if (leadsMail(d.mail)) { if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
@@ -339,6 +341,7 @@ async function mailSync() {
     }
     let labSig = ''; try { labSig = await labSync(labDocs, open, closed, mem); } catch (e) { if (window.console) console.warn('lab progress:', e && e.message); }
     if (prDocs.length) { try { (await prSync(prDocs, open)).unread.forEach(x => unread.push(x)); } catch (e) { if (window.console) console.warn('prints:', e && e.message); } }
+    if (btDocs.length) { try { await tmSync(btDocs, open, closed); } catch (e) { if (window.console) console.warn('tray maker:', e && e.message); } }
     const list = Array.from(groups.values()).filter(g => !MAILS.goneFp.has(g.fp)).sort((a, b) => (b.ev.at || 0) - (a.ev.at || 0));
     MAILS.list = list; MAILS.unread = unread;
     const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length + '|' + labSig;

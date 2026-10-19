@@ -62,12 +62,13 @@ function shipWarnCardHTML() {
    (they ship inside the page, so they always match it; the owner's own sign-in email is filled in here) */
 const NLO_RULES = "__NLO_RULES__";
 function rulesCardHTML() {
-  if (!(S.rulesOld || S.rulesIdx || S.rulesMail || S.rulesMsg) || !isOwner()) return '';
+  if (!(S.rulesOld || S.rulesIdx || S.rulesMail || S.rulesMsg || S.rulesLab) || !isOwner()) return '';
   const pid = (FB.cfg && FB.cfg.projectId) || '';
   const why = S.rulesOld ? 'Patient photos and email updates need them. Until then they stay hidden.'
     : S.rulesIdx ? 'They keep NLO Cases quick as completed cases pile up: each computer loads only the patients it shows. Everything works meanwhile.'
     : S.rulesMail ? 'The front-desk email for cases not shipped in time needs them (8 Oct 2026). Everything else works meanwhile.'
-    : 'So a message read on one computer or phone is read on all of them (12 Oct 2026). Until then, read marks stay with each browser.';
+    : S.rulesMsg ? 'So a message read on one computer or phone is read on all of them (12 Oct 2026). Until then, read marks stay with each browser.'
+    : 'So the Tray Maker on the lab PC can show the retainer, whitening and mouthguard cases waiting for their models (19 Oct 2026). Everything else works meanwhile.';
   return '<div class="card rulesCard" id="rulesCard"><div class="cardHd"><h3>One-time update: security rules</h3><span class="sub">' + why + '</span></div><div class="cardBd">' +
     '<ol class="small mlSteps"><li>Click <b>Copy the new rules</b>.</li><li>Click <b>Open the Firebase console</b> (the Google account that owns the project). Pick <b>Firestore Database</b> in the left menu (the stacked-lines icon under the gear), then the <b>Rules</b> tab.</li>' +
     '<li>Select everything in the editor, paste, and click <b>Publish</b>.</li><li>Come back here and click <b>Check again</b>.</li></ol>' +
@@ -181,7 +182,7 @@ const ADMIN_ACTS = {
       // (a print starting isn't either: how it ended is — "Formlabs", prints.js)
       const labHand = x => x.a === 'lab' && (x.hand || x.unlink || x.relink);
       box.innerHTML = list.filter(x => x.a !== 'rekey' && x.a !== 'sticker' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length) && !(x.a === 'print' && (x.st === 'run' || x.st === 'pause'))).slice(0, 80).map(x => {
-        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : firstName(staffName(x.sid, x.sid));
+        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : x.a === 'bt' ? 'Tray Maker' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : firstName(staffName(x.sid, x.sid));
         const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to', noship: 'emailed the front desk about', print: x.st === 'fail' ? 'reported an aborted print for' : 'finished a print for' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');

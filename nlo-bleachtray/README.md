@@ -59,6 +59,19 @@ processed, or to `BleachTray\failed` with an `error.txt`. The small black window
 the PC that runs the app (it starts by itself at sign-in; if it's gone, double-click `start_app.bat` in the app
 folder). That one window watches the drop folder *and* serves the app page to the whole office.
 
+## Cases from NLO Cases (the case tracker)
+
+Retainer, whitening-tray and mouthguard cases are entered in **NLO Cases** first. Once the two are linked, those
+cases wait here under **To make** at the top of the sidebar - patient, arches, what to make, remake / scan on file,
+due date. Click one and drop its scan: the name, arches and tray types are filled in, and when the models are sent to
+OrthoFactory the case in NLO Cases notes "models in OrthoFactory" by itself and leaves the queue (a case started here
+shows *started* in the queue until then). Linking, once: in NLO Cases, **Team & security → Lab PC → New setup code**
+(or *Set up the lab PC*; it is the lab PC's own login, the same code the NLO Lab Bridge uses), copy the code, and in
+the Tray Maker **Settings → NLO Cases** paste it and click **Link**. A new code made in NLO Cases means pasting it here
+again (and in the Lab Bridge). The link can read the queue and add notes to NLO Cases' inbox, nothing else; the queue
+items are sealed to a key this PC makes for itself (NLO Cases never gives its office key to anyone), and the setup
+code and that key are kept in `jobs\tracker.dat` under Windows' own per-user encryption. Technical notes below.
+
 ## It learns from your corrections - by itself
 
 Every case that is sent (or saved as a lesson) is saved in the app folder under `training\<Last, First> - <date>\`:
@@ -475,6 +488,27 @@ line and reservoir settings, applied on top of the model type.
 point cannot make the whole model 10 mm taller. Wherever the scan stops short of the outline (distal to the last
 molars, a palate the scanner cut, facial of proclined incisors) a smooth gingiva shelf fills the body out to the
 outline instead of leaving a cliff.
+
+**NLO Cases link** (`app/tracker.py`, 19 Oct 2026). NLO Cases keeps every case sealed with its office key, which this
+PC never has, so the flow is: this app makes a P-256 key pair once (`jobs/tracker.dat`, DPAPI-protected on Windows,
+`PLAIN:` elsewhere for the tests), signs in to NLO Cases' Firebase project over HTTPS with the lab PC's robot login
+from the setup code (`NLOLAB1.` + base64 JSON `{p, k, e, w}` - the same code the NLO Lab Bridge takes; `parse_code`
+refuses anything else), publishes its public key to `labqkeys/<login uid>` (again every 6 h, a fresh `at`), and reads
+the `labq` collection every minute: one document per waiting case, `{kid, epk, iv, ct, at}`, written by NLO Cases with
+each save of a retainer-flow case at *To make* and deleted when the case moves on. The box is NLO Cases' own
+(`Crypto.sealTo` / `openFrom`): ECDH P-256 with an ephemeral key → HKDF-SHA256 (32 zero-byte salt, info = the box's
+label `labq:<case id>`) → AES-256-GCM with the label as AAD; `cryptography` does the same here (cross-checked both ways
+against WebCrypto). Items sealed to another `kid` (an earlier link of this PC) are counted as skipped and left alone -
+NLO Cases re-seals them on its next save. The opened queue is cached in `jobs/tracker_queue.json`; `/api/queue` gives
+it with what this PC has done about each case (the live job started from it: `here`), `/api/tracker` the link's state,
+`/api/tracker/link` (the code) / `unlink` / `refresh`. On **Send**, a case that came from NLO Cases
+(`params.tracker_case`, set by the queue click or by the `?case=` URL from NLO Cases' *Make models*) gets a sealed note
+in NLO Cases' inbox - `{bt:1, v:1, case, patient, models, at, pc}` sealed to the office inbox key read from
+`meta/inbox`, under an id `m` + 40 hex like the lab bridge's - and the case is hidden from the queue here at once
+(`sent`); NLO Cases notes the models on the case (`btModels`) and deletes the queue item. The queue never carries
+anything clinical: patient, chart #, arches, tray kinds, remake / scan on file, dates, who's on it. The rules on NLO
+Cases' side (19 Oct 2026): the robot may read `labq` / `labqkeys`, write its own key entry and add inbox items, nothing
+else; staff write and delete queue items. `cryptography` is in `requirements.txt` for it.
 
 **Scanner exports.** Open-shell or closed-shell (iTero "with base", 3Shape solid) STLs both work: a large flat floor is
 detected and removed before orientation, the skirt reads as gum. The scanner's own **fill-ins** are left out too

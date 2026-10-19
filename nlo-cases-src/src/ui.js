@@ -322,13 +322,13 @@ function enterApp() {
    (S.rulesOld: photos / email updates wait; S.rulesIdx: only the index waits). true = all of them are live. */
 async function rulesCheck() {
   const was = !!S.rulesOld;
-  S.rulesOld = false; S.rulesIdx = false; S.rulesMail = false; S.rulesMsg = false; document.body.classList.remove('phOff');
+  S.rulesOld = false; S.rulesIdx = false; S.rulesMail = false; S.rulesMsg = false; S.rulesLab = false; document.body.classList.remove('phOff');
   if (!B.rulesLevel) return true;
-  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 4;
+  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 5;
   // (S.rulesMail: the front-desk email waits — 8 Oct 2026, noship.js; S.rulesMsg: only read marks following each person
   // to every computer wait — 12 Oct 2026, notes.js — they stay with each browser meanwhile)
-  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; S.rulesMail = lv === 2; S.rulesMsg = lv === 3; document.body.classList.toggle('phOff', lv < 1);
-  if (lv < 4) queueRender('team');
+  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; S.rulesMail = lv === 2; S.rulesMsg = lv === 3; S.rulesLab = lv === 4; document.body.classList.toggle('phOff', lv < 1);
+  if (lv < 5) queueRender('team');
   if (lv >= 3) nsSoon(); // (the front-desk email can go — noship.js)
   // just published: the live updates the older rules refused (lab inbox, mailbox check-ins) start again without signing in again
   if (lv >= 1 && was && S.h) { B.start(S.h); MAILS.state = null; queueRender('team'); }
@@ -363,6 +363,7 @@ async function lockOut(msg) {
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
   labReset(); // (lab orders waiting, the lab PC's setup code — lab.js)
+  tmReset(); // (the Tray Maker's key — traymaker.js)
   { const ts = $('#toasts'); if (ts) ts.innerHTML = ''; } // a toast's Copy chart note / Download PDF is for the case on screen
   // (the IPR Tracker link stays connected on this computer — Amir, 6 Oct 2026; what it read is dropped with S.iprCache above)
   $('#view').innerHTML = '';
@@ -1510,6 +1511,7 @@ function historyHTML(c) {
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : x.via === 'print' ? ', as Formlabs suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
+    else if (x.a === 'bt') t = 'put the models in OrthoFactory' + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : ''); // (traymaker.js)
     else if (x.a === 'print') t = prHistText(x); // (prints.js)
     else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
@@ -1524,7 +1526,7 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'bt' ? 'Tray Maker' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
     // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
     const sk = stkHistHTML(c, x, t);
     return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';

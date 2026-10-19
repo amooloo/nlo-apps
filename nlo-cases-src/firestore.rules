@@ -155,6 +155,40 @@ service cloud.firestore {
     match /meta/rules_20261012 {
       allow get: if isMember();
     }
+    match /meta/rules_20261019 {
+      allow get: if isMember();
+    }
+
+    // ---------- the Tray Maker's queue (19 Oct 2026) ----------
+    // The Tray Maker on the lab PC (the models for retainers, whitening trays and mouthguards) shows the cases waiting
+    // for their models. It never has the office key, so the app writes it a small sealed copy of each such case -
+    // sealed to the Tray Maker's own public key, which it publishes here under its login (the lab PC's robot login,
+    // the same one the lab bridge uses). It can read the queue and its own key entry, and nothing else; when the
+    // models are sent it adds a sealed note to the inbox like the lab bridge does, and the app takes the case out.
+    match /labqkeys/{uid} {
+      function okLabKey() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['pub', 'kid', 'name', 'ver', 'at']) && 'pub' in d && okPub(d)
+          && d.kid is string && d.kid.size() <= 40 && d.name is string && d.name.size() <= 120
+          && (!('ver' in d) || (d.ver is string && d.ver.size() <= 20)) && d.at == request.time;
+      }
+      allow get, list: if isMember() || isBot();
+      allow create, update: if isBot() && uid == request.auth.uid && okLabKey();
+      allow delete: if isOwner();
+    }
+    match /labq/{id} {
+      function okLabQ() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['kid', 'epk', 'iv', 'ct', 'at'])
+          && d.kid is string && d.kid.size() <= 40
+          && d.epk is map && d.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])
+          && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() <= 20000
+          && d.at == request.time;
+      }
+      allow get, list: if isMember() || isBot();
+      allow create, update: if isMember() && okLabQ();
+      allow delete: if isMember() || isBot();
+    }
 
     // ---------- read marks on Messages (12 Oct 2026) ----------
     // Which notes and stickers a person has read (and marked unread again), so a message read on one computer or phone is
