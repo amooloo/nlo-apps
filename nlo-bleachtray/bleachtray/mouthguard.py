@@ -12,7 +12,7 @@ def _arch_angle(xy, c):
 
 def vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch="upper",
                         inset=1.5, min_depth=3.0, max_depth=14.0, palate=6.0, distal=2.5, notch_top=2.5, notch_width=6.0,
-                        labial_notch=True, buccal_notches=True, smooth_mm=6.0, log=None):
+                        labial_notch=True, buccal_notches=True, smooth_mm=6.0, taut=True, log=None):
     """The mouthguard's trim line. Starts from one closed loop round the teeth: `palate` mm onto the palate
     (lingual), `distal` mm behind the last tooth on each side, and on the facial side follows the surface
     down into the vestibule to `inset` mm above the scan's own edge (never less than `min_depth` or more
@@ -221,6 +221,19 @@ def vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_cente
         res["smooth_error"] = str(ex)[:120]
         if log:
             log(f"mouthguard line not smoothed ({str(ex)[:120]})")
+    # --- 8. smooth from every side (the doctor, 10/20/2026: "the lines are not smooth from all angles"): after step 7 the
+    #        palatal stretch is smooth seen from above, but dropped onto the palate it still rides up and down every ruga
+    #        and jogs where the flange narrows - seen from behind it wobbles. Here it is pulled smooth in 3D like a string
+    #        drawn taut over the surface (_taut_palatal); the vestibular stretch, the frenum notches and the tight spots
+    #        behind the last teeth stay as step 7 left them.
+    if taut:
+        try:
+            out, tinfo = _taut_palatal(out, mesh_f, labels, edge_zone, dist, facial_of(out[:, :2])[0], sigma_mm=0.5 * smooth_mm)
+            res["taut"] = tinfo
+        except Exception as ex:  # noqa
+            res["taut_error"] = str(ex)[:120]
+            if log:
+                log(f"mouthguard line not smoothed from behind ({str(ex)[:120]})")
     fb = np.zeros(nb_, bool); fb[deep_bins] = True
     res.update(points=int(len(out)), moved=int(moved.sum()),
                depth_mm=dict(min=round(float(depth[fb].min()), 1), max=round(float(depth[fb].max()), 1), median=round(float(np.median(depth[fb])), 1)),
@@ -290,6 +303,66 @@ def _smooth_on_surface(line, mesh_f, c, facial_of, a_end, behind, taper, smooth_
     if seg.max() > 3.0 * step:
         raise ValueError(f"smoothing left a {seg.max():.1f} mm step - the line is kept as it was")
     return S
+
+
+def _taut_palatal(line, mesh_f, labels, edge_zone, gum_dist, facial, sigma_mm=3.0, iters=8, float_max=0.5, lift=0.05,
+                  step=0.5, feather_mm=4.0, corr_mm=1.0, min_gum=2.0):
+    """The mouthguard line's palatal stretch made smooth in 3D (see vestibular_trimline, step 8). Each round the line is
+    smoothed - 2G - G(G) of a Gaussian over `sigma_mm`, which takes out the wobbles but keeps the arch's own curve (a plain
+    Gaussian would draw the stretch in towards the middle of the palate) - then put back against the surface: a point
+    that went into the model comes back out onto it (the line rides over the rugae instead of dipping between them), none
+    floats more than `float_max` mm above it, and that correction is itself smoothed along the line so a noisy scan's
+    facets do not make it jitter. Pinned (they keep their place): the vestibular stretch (`facial`: it has its own
+    smoothing and the frenum notches) and points on a tooth's faces (behind the last molars where there is no room); the
+    points next to a pinned one move less (no step where free meets pinned). A point never moves onto a tooth, into the
+    scan's edge zone from outside it, or nearer the gum line than `min_gum` mm (or than it already was).
+    Returns (line, info)."""
+    from scipy.ndimage import gaussian_filter1d
+    from trimesh.proximity import ProximityQuery
+    X = np.asarray(line, float).copy()
+    n = len(X)
+    if n < 20:
+        return X, dict(skipped="short line")
+    pq = ProximityQuery(mesh_f)
+    Fa = np.asarray(mesh_f.faces); FN = np.asarray(mesh_f.face_normals)
+    tooth_face = (np.asarray(labels)[Fa] > 0).any(1)
+    edge_face = np.asarray(edge_zone, bool)[Fa].any(1)
+    gd_face = np.asarray(gum_dist, float)[Fa].min(1)
+    _, _, tri = pq.on_surface(X)
+    on_edge = edge_face[tri]
+    g0 = gd_face[tri]
+    pin = np.asarray(facial, bool) | tooth_face[tri]
+    if pin.all():
+        return X, dict(skipped="no palatal stretch")
+    # freedom: 0 on a pinned point, rising (cosine) to 1 `feather_mm` along the line from the nearest one
+    k = np.arange(n); pidx = np.where(pin)[0]
+    if len(pidx):
+        dk = np.abs(k[:, None] - pidx[None, :]).min(1)
+        dk = np.minimum(dk, n - dk) * step
+        w = 0.5 - 0.5 * np.cos(np.pi * np.clip(dk / feather_mm, 0, 1))
+    else:
+        w = np.ones(n)
+    s = sigma_mm / step
+    X0 = X.copy()
+    for _ in range(iters):
+        G = gaussian_filter1d(X, s, axis=0, mode="wrap")
+        G = 2 * G - gaussian_filter1d(G, s, axis=0, mode="wrap")
+        cp, dd, tri = pq.on_surface(G)
+        v = G - cp
+        nv = np.linalg.norm(v, axis=1)
+        inside = (v * FN[tri]).sum(1) < 0
+        corr = np.zeros_like(G)
+        corr[inside] = (cp[inside] - G[inside]) * (1 + lift / np.maximum(nv[inside], 1e-6))[:, None]
+        far = (~inside) & (nv > float_max)
+        corr[far] = -v[far] * (1 - float_max / nv[far])[:, None]
+        Y = G + gaussian_filter1d(corr, corr_mm / step, axis=0, mode="wrap")
+        _, _, t2 = pq.on_surface(Y)
+        ok = ~tooth_face[t2] & ~(edge_face[t2] & ~on_edge) & (gd_face[t2] >= np.minimum(min_gum, g0))
+        X = np.where(ok[:, None], X + w[:, None] * (Y - X), X)
+        on_edge &= edge_face[pq.on_surface(X)[2]]
+    mv = np.linalg.norm(X - X0, axis=1)
+    return X, dict(pinned=int(pin.sum()), moved_mm=dict(median=round(float(np.median(mv[~pin])), 2) if (~pin).any() else 0.0,
+                                                       max=round(float(mv.max()), 2)))
 
 
 def appliance_shields(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.5, chunk_mm=6.0, merge=True, log=None):

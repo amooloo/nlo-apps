@@ -1030,6 +1030,34 @@ def trimline_normals(body, margin_f, rep, log=print):
         return None
 
 
+def _weld_slivers(model, max_len=0.01):
+    """A wall's corner squeezed to a 0.001 mm edge leaves a few zero-area faces that all share that edge - four faces on
+    one edge, so the model reads as "not watertight" (a mouthguard, 10/20/2026). Weld the two ends of every such very
+    short edge, drop the faces that collapse and back-to-back pairs that cancel. Returns the mended copy (None when
+    there was nothing of the kind); the caller keeps it only if it is watertight."""
+    E = np.sort(np.asarray(model.edges), axis=1)
+    uniq, cnt = np.unique(E, axis=0, return_counts=True)
+    bad = uniq[cnt > 2]
+    if not len(bad):
+        return None
+    V = np.asarray(model.vertices)
+    bad = bad[np.linalg.norm(V[bad[:, 0]] - V[bad[:, 1]], axis=1) < max_len]
+    if not len(bad):
+        return None
+    remap = np.arange(len(V))
+    for a, b in bad:
+        ra, rb = remap[a], remap[b]
+        if ra != rb:
+            remap[remap == rb] = ra
+    F = remap[np.asarray(model.faces)]
+    F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 0] != F[:, 2])]
+    _, inv, cnt = np.unique(np.sort(F, axis=1), axis=0, return_inverse=True, return_counts=True)
+    F = F[cnt[np.asarray(inv).ravel()] == 1]
+    out = trimesh.Trimesh(V, F, process=False)
+    out.remove_unreferenced_vertices()
+    return out
+
+
 def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=print):
     """From the finished body (tooth mark included) to the files: the base plate and its engraving,
     loose pieces dropped, the model and the trim line written, the Titan-named pair (and the export
@@ -1056,6 +1084,11 @@ def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path,
     # Split with the corners merged: a zero-volume fin (two triangles back to back, left by the rebuilt
     # base's booleans) hangs on the solid by its corners until then, and made re-based models "not watertight"
     model = trimesh.Trimesh(np.asarray(model.vertices), np.asarray(model.faces), process=True)
+    if not model.is_watertight:
+        welded = _weld_slivers(model)
+        if welded is not None and welded.is_watertight:
+            log(f"[{name}] {len(model.faces) - len(welded.faces)} zero-area sliver faces removed - the model is watertight")
+            model = welded
     parts = model.split(only_watertight=False)
     rep["loose_pieces_dropped"] = 0
     if len(parts) > 1:

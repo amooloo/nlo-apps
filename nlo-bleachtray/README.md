@@ -441,7 +441,24 @@ scallops) and dropped straight down onto the palate, vestibular points by their 
 stay) and moved along the arch's radius onto the vestibular wall; behind the last teeth the two blend into the
 line as it was. A ray that finds the far side of the arch is ignored (the hit must lie within 3 mm of the old
 point along the ray), a point with no hit goes to the surface point nearest its smoothed position, and a line with
-a step over 1.5 mm is kept as it was (the log says so). No reservoirs, no automatic block-out (the whole sulcus under flared crowns would count as
+a step over 1.5 mm is kept as it was (the log says so). **Smooth from every side** (20 Oct 2026, the doctor: "the
+lines are not smooth from all angles"): seen from above the palatal stretch was smooth, but dropped onto the palate
+it still rode up and down every ruga and jogged where the flange narrows - from behind it wobbled. So the palatal
+stretch is then pulled smooth in 3D like a string drawn taut over the surface (`_taut_palatal`, 8 rounds): smoothed
+(2G - G(G) of a Gaussian over half of `mg_smooth`, which takes out the wobbles but keeps the arch's own curve - a plain
+Gaussian drew it in onto the palate), then put back against the surface: a point that went into the model comes out
+onto it (the line rides over the rugae instead of dipping between them), none floats more than 0.5 mm above it, and
+that correction is itself smoothed along the line (a noisy scan's facets would make it jitter). The vestibular
+stretch, the frenum notches and points on a tooth's faces (behind the last molars, no room) keep their place, their
+neighbours move less (no step where free meets pinned), and a point never moves onto a tooth, into the scan's edge
+zone from outside it, or nearer the gum line than 2 mm. On the 6 test mouthguards: the palatal stretch's
+point-to-point height jitter fell 1.4-10x on the five without a palatal appliance (95th percentile of the second
+difference 0.08-0.24 mm before, 0.02-0.10 mm after); points moved 0.2-0.4 mm (median; at most 1.5 mm); the distance
+onto the palate stayed the same (median within 0.2 mm); on the palate the line bridges the valleys between rugae by
+up to 0.5 mm. With a palatal expander the stretch runs over the appliance and stays as it was. All six models
+watertight, one piece. (One of them first came out with four zero-area sliver faces on one 0.001 mm edge at the back
+wall - "not watertight" when read back; `pipeline._weld_slivers` now welds such an edge and keeps the result only if
+the model is then watertight.) No reservoirs, no automatic block-out (the whole sulcus under flared crowns would count as
 one undercut - the real vestibule is what the guard needs), the model still sits on the base by its gum line and
 the body covers the crowns the way a tray body does. The Braces tab shows what is under the shield in orange;
 **Take off** on a mouthguard adds the painted part to the shield instead of removing it (a tube the app missed),
