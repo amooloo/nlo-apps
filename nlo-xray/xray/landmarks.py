@@ -74,37 +74,40 @@ _DEFS = [
     ("Pos", "Soft-tissue pogonion", "soft",
      "Most anterior point of the soft-tissue chin."),
     ("C2lp", "C2 lower border - back corner", "cvm",
-     "Baccetti's C2p: the most posterior point on the lower border of the body of C2 (its back-lower corner)."),
+     "The most posterior point on the lower border of the body of C2 (its back-lower corner)."),
     ("C2d", "C2 lower border - deepest point", "cvm",
-     "Baccetti's C2m: the deepest point on the lower border of the body of C2 - the one farthest from the line "
-     "joining C2p and C2a (the two ends of the lower border). If the border is flat, put it in the middle."),
+     "The deepest point on the lower border of the body of C2: the one farthest from the line joining C2p and "
+     "C2a (the two ends of the lower border). If the border is flat, put it in the middle."),
     ("C2la", "C2 lower border - front corner", "cvm",
-     "Baccetti's C2a: the most anterior point on the lower border of the body of C2 (its front-lower corner)."),
+     "The most anterior point on the lower border of the body of C2 (its front-lower corner)."),
     ("C3up", "C3 upper back corner", "cvm",
-     "Baccetti's C3up: the most superior point of the posterior border of the body of C3 (its back-upper corner)."),
+     "The most superior point of the posterior border of the body of C3 (its back-upper corner)."),
     ("C3ua", "C3 upper front corner", "cvm",
-     "Baccetti's C3ua: the most superior point of the anterior border of the body of C3 (its front-upper corner)."),
+     "The most superior point of the anterior border of the body of C3 (its front-upper corner)."),
     ("C3lp", "C3 lower back corner", "cvm",
-     "Baccetti's C3lp: the most posterior point on the lower border of the body of C3 (its back-lower corner)."),
+     "The most posterior point on the lower border of the body of C3 (its back-lower corner)."),
     ("C3d", "C3 lower border - deepest point", "cvm",
-     "Baccetti's C3m: the deepest point on the lower border of the body of C3 - the one farthest from the line "
-     "joining C3lp and C3la. If the border is flat, put it in the middle."),
+     "The deepest point on the lower border of the body of C3: the one farthest from the line joining C3lp and "
+     "C3la. If the border is flat, put it in the middle."),
     ("C3la", "C3 lower front corner", "cvm",
-     "Baccetti's C3la: the most anterior point on the lower border of the body of C3 (its front-lower corner)."),
+     "The most anterior point on the lower border of the body of C3 (its front-lower corner)."),
     ("C4up", "C4 upper back corner", "cvm",
-     "Baccetti's C4up: the most superior point of the posterior border of the body of C4 (its back-upper corner)."),
+     "The most superior point of the posterior border of the body of C4 (its back-upper corner)."),
     ("C4ua", "C4 upper front corner", "cvm",
-     "Baccetti's C4ua: the most superior point of the anterior border of the body of C4 (its front-upper corner)."),
+     "The most superior point of the anterior border of the body of C4 (its front-upper corner)."),
     ("C4lp", "C4 lower back corner", "cvm",
-     "Baccetti's C4lp: the most posterior point on the lower border of the body of C4 (its back-lower corner)."),
+     "The most posterior point on the lower border of the body of C4 (its back-lower corner)."),
     ("C4d", "C4 lower border - deepest point", "cvm",
-     "Baccetti's C4m: the deepest point on the lower border of the body of C4 - the one farthest from the line "
-     "joining C4lp and C4la. If the border is flat, put it in the middle."),
+     "The deepest point on the lower border of the body of C4: the one farthest from the line joining C4lp and "
+     "C4la. If the border is flat, put it in the middle."),
     ("C4la", "C4 lower front corner", "cvm",
-     "Baccetti's C4la: the most anterior point on the lower border of the body of C4 (its front-lower corner)."),
+     "The most anterior point on the lower border of the body of C4 (its front-lower corner)."),
 ]
 
-LANDMARKS = [dict(code=c, name=n, group=g, definition=d) for c, n, g, d in _DEFS]
+# what the doctor sees: the code, except where Baccetti et al. (2002) name a vertebra point differently
+PAPER_LABEL = {"C2lp": "C2p", "C2d": "C2m", "C2la": "C2a", "C3d": "C3m", "C4d": "C4m"}
+
+LANDMARKS = [dict(code=c, label=PAPER_LABEL.get(c, c), name=n, group=g, definition=d) for c, n, g, d in _DEFS]
 CODES = [lm["code"] for lm in LANDMARKS]
 BY_CODE = {lm["code"]: lm for lm in LANDMARKS}
 GROUP_OF = {lm["code"]: lm["group"] for lm in LANDMARKS}

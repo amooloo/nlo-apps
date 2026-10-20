@@ -144,6 +144,13 @@ def test_full_flow(client):
     r = client.patch(f"/api/cases/{cid}", json={"landmarks": {"A": dict(x=a["x"] + 3, y=a["y"], by="doctor")}}).json()
     assert r["case"]["status"] == "confirmed" and r["case"]["confirmed_at"] >= before
     assert r["case"]["history"][-1]["what"].startswith("A corrected on the confirmed tracing")
+    # the vertebra points go by Baccetti's (2002) names on screen and in the history; the saved codes stay
+    labels = {lm["code"]: lm["label"] for lm in client.get("/api/defs").json()["landmarks"]}
+    assert [labels[c] for c in ("C2lp", "C2d", "C2la", "C3d", "C4d", "C3up", "Go")] == \
+        ["C2p", "C2m", "C2a", "C3m", "C4m", "C3up", "Go"]
+    d = r["case"]["landmarks"]["C2d"]
+    r = client.patch(f"/api/cases/{cid}", json={"landmarks": {"C2d": dict(x=d["x"], y=d["y"] - 2, by="doctor")}}).json()
+    assert "C2d" in r["case"]["landmarks"] and r["case"]["history"][-1]["what"].startswith("C2m corrected")
     # reopening forgets the confirmed judgements (taken again at the next confirm), keeps nothing stale
     r = client.patch(f"/api/cases/{cid}", json={"status": "reopen"}).json()
     assert "confirmed" not in r["case"]["cvm"] and "doctor" not in r["case"]["cvm"]
