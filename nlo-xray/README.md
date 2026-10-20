@@ -55,13 +55,21 @@ Panoramic x-rays are next; this first version reads lateral cephs.
 Angles and ratios need nothing. Millimetre values (Wits, incisors to NA / NB, lips to the E-line, lengths)
 need the size of a pixel at the patient's midline:
 
+- **Every x-ray: the nasion-rod ruler.** The app finds the marks on the nasion rod and takes the pixel size from
+  their spacing - the rod rests on nasion, so that is the size at the midline, magnification included. The marks
+  it used are circled on the x-ray. Settings → Calibration holds the distance between two neighbouring marks:
+  **10 mm** on this office's cephs. That was measured, not assumed: on a 12.8-year-old, 5 mm would make S-N 32 mm
+  and N-Me 54 mm; 10 mm gives 64.9 and 107.2 mm, as iOrtho measured them (65.1, 107.5). A pixel size set by hand
+  with **Ruler** is never replaced. When the rod is not found, the sources below apply.
 - **DICOM**: taken from the file. When the file gives the pixel size at the detector only, it is divided by the
   ceph magnification - the file's own figure when it has one, else Settings → Calibration (1.13, Carestream's
   figure for the CS 8200 ceph arm). The case shows where its number came from.
 - **JPG / PNG / TIFF**: once, on any x-ray, click **Ruler**, click the two ends of a known length (10 mm on the
   nasion-rod ruler), type the length and tick *use for every exported x-ray*. Export the same way every time.
-- **Imported from iOrtho**: iOrtho's own scale (from its S-N length), unless the x-ray already has a pixel size
-  from DICOM or the ruler.
+- **Imported from iOrtho**: iOrtho's own scale (from its S-N length), unless the x-ray already has a pixel size;
+  when the two differ by more than 3 % the import says so.
+- **A check on all of them**: when S-N comes out outside 50-90 mm, the pixel-size badge turns amber and says so
+  (a wrong mark spacing or magnification shows up at once).
 
 ### Cephs already traced in iOrtho
 
@@ -181,6 +189,7 @@ nlo-xray\
   xray\model.py         the landmark network
   xray\train.py         learning rounds, the held-back check, versions, the evening schedule
   xray\iortho.py        importing iOrtho tracings: the report, the dots, registration, naming the dots
+  xray\ruler.py         the nasion-rod ruler: finding its marks, the pixel size
   tools\synth.py        synthetic 'cephs' for tests (no patient data anywhere in the repo)
   tests\iortho_fake.py  a made-up iOrtho export (traced picture + Excel report) built on a synthetic ceph
   tests\                python -m pytest tests
@@ -275,6 +284,18 @@ dot's 0.3 px uncertainty count). MOL is the pair of molar-cusp dots whose midpoi
 plane; PM is the nearest premolar pair (not checkable). On the office's iOrtho ceph all 25 numbers came out
 within 0.01 of iOrtho's. Points that match are stored `by: "import"` (conf 1.0, else 0.4), with the checks in
 `case.import`.
+
+**Nasion-rod ruler** (`xray/ruler.py`). On a copy at most 1600 px on its longest side: a band-pass (Gaussian
+σ 1.2 minus σ 8) keeps dot-sized detail; spots are local maxima above 6 × the robust noise with no other spot
+within 6 px, at sub-pixel centres. Chains are grown from each spot and the next one below (within 12° of
+vertical, 0.05-0.3 mm per pixel for the set spacing): each next mark is looked for where the marks found so far
+put it (2-3 % tolerance), one lost mark between two found ones allowed. A chain counts with at least 4 marks,
+evenly spaced and in one line (residuals under 2.5 %), alike in contrast, with nothing as bright midway between
+them and a plain bar round them; the best one is measured again at full size (the centroid of each mark) and the
+spacing fitted by least squares. On the office's ceph: 4 marks, 113.48 px apart on iOrtho's export - 0.0881 mm
+per pixel against iOrtho's 0.0885; the same x-ray with the rod blanked out, and synthetic cephs without one,
+give no reading. Looked for once per x-ray (new ones on import, older ones when first opened); `case.ruler`
+keeps the marks and the spacing, so a changed mark spacing re-scales without looking again.
 
 **Security.** Content-Security-Policy `default-src 'self'` (+ `data:`/`blob:` images for the report), no inline
 scripts, `X-Frame-Options`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` on the API and images.

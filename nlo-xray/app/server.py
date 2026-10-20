@@ -37,6 +37,7 @@ from xray import geometry as geo  # noqa: E402
 from xray.analysis import DEFAULT_CUTOFFS, DEFAULT_NORMS, MEASURES, analyze  # noqa: E402
 from xray.cvm import DEFAULT_THRESHOLDS, clean_marks  # noqa: E402
 from xray import iortho  # noqa: E402
+from xray import ruler as ruler_mod  # noqa: E402
 from xray.imageio import ImageReadError, is_dicom_bytes, load_png  # noqa: E402
 from xray.landmarks import ANCHORS, CODES, GROUP_OF, public_definitions  # noqa: E402
 from xray.shape import fill_missing, mean_shape, place_from_anchors  # noqa: E402
@@ -55,7 +56,7 @@ DEFAULT_SETTINGS = {
     "norms": {},
     "cutoffs": {},
     "cvm": {"mode": "auto", "thresholds": {}, "tuned": None},
-    "calibration": {"default_mm_per_px": None, "magnification": 1.13},
+    "calibration": {"default_mm_per_px": None, "magnification": 1.13, "ruler_auto": True, "ruler_mm": ruler_mod.MARK_MM},
     "learning": {"nightly": True, "window_start": 19, "window_end": 1, "budget_min": 90},
     "passcode": None,           # {"salt": ..., "hash": ...} when set
 }
@@ -259,6 +260,56 @@ def _required_codes(case):
     return [c for c in CODES if GROUP_OF[c] not in skipped]
 
 
+def _calibration_check(pts, mm):
+    """A pixel size that makes the anterior cranial base implausible (S-N outside 50-90 mm) is flagged, wherever it
+    came from - a wrong ruler spacing or magnification shows up at once."""
+    if not mm or "S" not in pts or "N" not in pts:
+        return None
+    sn = geo.dist(pts["S"], pts["N"]) * mm
+    if 50 <= sn <= 90:
+        return None
+    return f"S-N comes out {sn:.0f} mm (expected 55-80): check the pixel size."
+
+
+HAND_SET = ("set by hand", "ruler on this x-ray")
+
+
+def _ruler_check(case, settings=None):
+    """The nasion-rod ruler: looked for once per x-ray, and its pixel size used unless the pixel size was set by
+    hand; x-rays calibrated from it follow the mark-spacing setting. True when the case changed."""
+    cfg = (settings or load_settings()).get("calibration") or {}
+    if cfg.get("ruler_auto") is False:
+        return False
+    mark = float(cfg.get("ruler_mm") or ruler_mod.MARK_MM)
+    changed = False
+    if "ruler" not in case:
+        try:
+            r = ruler_mod.find_ruler(load_png(STORE.image_path(case["id"])), mark)
+        except Exception:  # noqa - an unreadable image is reported elsewhere
+            r = None
+        case["ruler"] = dict(points=r["points"], spacing_px=r["spacing_px"], n=r["n"]) if r else None
+        changed = True
+    r = case.get("ruler")
+    cal = case.get("calibration") or {}
+    src = str(cal.get("source") or "")
+    if not r or src.startswith(HAND_SET):
+        return changed
+    if r.get("mark_mm") != mark:
+        r["mark_mm"] = mark
+        changed = True
+    mm = round(mark / r["spacing_px"], 6)
+    if src.startswith("nasion-rod ruler") and cal.get("mm_per_px") and abs(cal["mm_per_px"] - mm) < 1e-6:
+        return changed
+    old = cal.get("mm_per_px")
+    note = ""
+    if old and not src.startswith("nasion-rod ruler") and abs(old / mm - 1) > 0.05:
+        note = f"; before: {old:.4f} from {src.split(' (')[0] or 'elsewhere'} ({(old / mm - 1) * 100:+.0f} %)"
+    case["calibration"] = dict(mm_per_px=mm, source=f"nasion-rod ruler: {r['n']} marks {mark:g} mm apart{note}")
+    case.setdefault("history", []).append(dict(t=dt.datetime.now().replace(microsecond=0).isoformat(),
+                                               what=f"pixel size {mm:.4f} mm from the nasion-rod ruler"))
+    return True
+
+
 def _analysis(case, settings=None):
     pts = STORE.points_px(case)
     cal = case.get("calibration") or {}
@@ -266,6 +317,7 @@ def _analysis(case, settings=None):
     a = analyze(pts, cal.get("mm_per_px"), case.get("facing"), (case.get("patient") or {}).get("sex"),
                 effective_settings(settings), cvm_marks=(case.get("cvm") or {}).get("marks"), age=age)
     a["age"] = age
+    a["calibration_check"] = _calibration_check(pts, cal.get("mm_per_px"))
     req = _required_codes(case)
     a["progress"] = dict(placed=sum(1 for c in req if c in pts), total=len(req),
                          reviewed=sum(1 for c in req if (case["landmarks"].get(c) or {}).get("by") == "doctor"))
@@ -316,6 +368,8 @@ async def import_cases(files: list[UploadFile] = File(...)):
             continue
         try:
             case, dup = await run_in_threadpool(STORE.create, data, f.filename or "", settings)
+            if not dup and await run_in_threadpool(_ruler_check, case, settings):
+                STORE.save(case)
             out.append(dict(name=f.filename, id=case["id"], duplicate=dup, case=case))
         except ImageReadError as ex:
             out.append(dict(name=f.filename, error=str(ex)))
@@ -327,6 +381,10 @@ async def import_cases(files: list[UploadFile] = File(...)):
 @app.get("/api/cases/{cid}")
 def get_case(cid: str):
     case = _get(cid)
+    if _ruler_check(case):
+        case, a = _refresh(case)
+        STORE.save(case)
+        return _reply(case, a)
     return _reply(case)
 
 
@@ -567,8 +625,12 @@ def _apply_iortho(case, result, report, confirm=False):
         case["details_confirmed"] = True
     cal = case.get("calibration") or {}
     mm = result.get("mm_per_px")
+    scale_note = None
     if mm and 0.01 < mm < 2 and (not cal.get("mm_per_px") or str(cal.get("source") or "").startswith("office default")):
         case["calibration"] = dict(mm_per_px=round(mm, 5), source="from iOrtho's measurements (its S-N length)")
+    elif mm and cal.get("mm_per_px") and abs(mm / cal["mm_per_px"] - 1) > 0.03:
+        scale_note = (f"iOrtho's millimetres differ from this x-ray's pixel size by {(mm / cal['mm_per_px'] - 1) * 100:+.0f} % "
+                      f"({str(cal.get('source') or '').split(';')[0]}) - check the calibration here or in iOrtho.")
     if not any(GROUP_OF[c] == "cvm" for c in lm):
         case["skipped"] = sorted(set(case.get("skipped") or []) | {"cvm"})
     missing = [c for c in _required_codes(case) if c not in lm]
@@ -579,7 +641,7 @@ def _apply_iortho(case, result, report, confirm=False):
             lm[c] = dict(x=round(x, 2), y=round(y, 2), by="template", conf=None)
     n_ok = sum(1 for r in result["checks"] if r["ok"])
     case["import"] = dict(source="iOrtho", when=now, verified=result["verified"], unverified=result["unverified"],
-                          checks=result["checks"], registration=result["registration"])
+                          checks=result["checks"], registration=result["registration"], scale_note=scale_note)
     case["status"] = "new" if case.get("status") != "confirmed" else case["status"]
     case.setdefault("history", []).append(dict(t=now, what=f"tracing imported from iOrtho: {len(result['verified'])} points "
                                                f"match iOrtho's numbers ({n_ok} of {len(result['checks'])} checks)"))
@@ -599,7 +661,8 @@ def _import_one(case, traced_rgb, report, confirm, reg=None):
     n_ok = sum(1 for r in result["checks"] if r["ok"])
     return dict(id=case["id"], name=case["patient"].get("name") or "", verified=len(result["verified"]),
                 unverified=result["unverified"], checks_ok=n_ok, checks=len(result["checks"]),
-                confirmed=case.get("status") == "confirmed", registration=result["registration"])
+                confirmed=case.get("status") == "confirmed", registration=result["registration"],
+                scale_note=(case.get("import") or {}).get("scale_note"))
 
 
 def _tokens(s):
@@ -699,6 +762,8 @@ def _import_iortho_batch(items, confirm):
                 if case.get("status") == "confirmed":
                     out.append(_left_alone(case, who, [tname, rname]))
                     continue
+                if _ruler_check(case, settings):
+                    STORE.save(case)
                 try:
                     out.append(_import_one(case, trgb, rep, confirm, reg=reg))
                 except iortho.ImportError_ as ex:
@@ -730,6 +795,8 @@ def _import_iortho_batch(items, confirm):
         if dup and case.get("status") == "confirmed":      # never overwrite a tracing the doctor has confirmed
             out.append(_left_alone(case, who, [tname, rname]))
             continue
+        if _ruler_check(case, settings):
+            STORE.save(case)
         try:
             out.append(_import_one(case, trgb, rep, confirm))
         except iortho.ImportError_ as ex:
@@ -775,6 +842,8 @@ async def import_iortho_onto(cid: str, files: list[UploadFile] = File(...), conf
     if not iortho.looks_traced(rgb):
         raise HTTPException(400, "That image has no iOrtho tracing on it (no red landmark dots).")
     img = load_png(STORE.image_path(cid))
+    if await run_in_threadpool(_ruler_check, case):
+        STORE.save(case)
     try:
         reg = await run_in_threadpool(iortho.register, rgb, img)       # the right x-ray? before anything changes
     except iortho.ImportError_ as ex:
@@ -919,6 +988,10 @@ async def put_settings(request: Request):
             cal["default_mm_per_px"] = None if c["default_mm_per_px"] in (None, "") else _num(c["default_mm_per_px"], 0.005, 2.0, "pixel size")
         if "magnification" in c:
             cal["magnification"] = _num(c["magnification"], 1.0, 1.5, "magnification")
+        if "ruler_auto" in c:
+            cal["ruler_auto"] = bool(c["ruler_auto"])
+        if "ruler_mm" in c:
+            cal["ruler_mm"] = _num(c["ruler_mm"], 1.0, 50.0, "ruler mark spacing")
     if "learning" in body:
         c = body["learning"] or {}
         le = s.setdefault("learning", {})
