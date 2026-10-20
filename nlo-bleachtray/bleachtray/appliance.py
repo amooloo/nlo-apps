@@ -855,10 +855,76 @@ def trace_wire(mesh, A, mask, pieces, cs, radial, below, ring_c, forbidden):
     return added, dict(brackets=int(len(C)), added=int(added.sum()), path_mm=round(float(np.linalg.norm(np.diff(pts, axis=0), axis=1).sum()), 1))
 
 
-def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2):
+def near_points(V, pts, radius=0.6, normals=None, vnormals=None, depth=4.5):
+    """Vertices of V within `radius` mm of any of `pts` (a painted stroke given by position: it survives the mesh
+    being rebuilt between passes, where vertex indices do not). With `normals` (the painted surface's, one per
+    point): also whatever stands up to `depth` mm off (or sinks below) the painted surface within `radius` of a
+    point's normal line - the stroke is painted on the smooth rebuilt enamel, and what the detector took off sat
+    up to a bracket's height over it (a lump of gum, a bump of enamel, a bracket with its tie wings: 3.5-4 mm on
+    an iTero scan). `vnormals` (V's own) keeps the far side of a thin front tooth, which faces the other way, out."""
+    V = np.asarray(V, dtype=float)
+    pts = np.asarray(pts if pts is not None else [], dtype=float).reshape(-1, 3)
+    if not len(pts) or not len(V):
+        return np.zeros(len(V), bool)
+    from scipy.spatial import cKDTree
+    tree = cKDTree(pts)
+    d, _ = tree.query(V, distance_upper_bound=radius)
+    hit = np.isfinite(d)
+    N = np.asarray(normals if normals is not None else [], dtype=float).reshape(-1, 3)
+    if len(N) != len(pts):
+        return hit
+    ln = np.linalg.norm(N, axis=1); okn = ln > 1e-9
+    if not okn.any():
+        return hit
+    N = N / np.maximum(ln, 1e-9)[:, None]
+    r_big = float(np.hypot(radius, depth))
+    d2, _ = tree.query(V, distance_upper_bound=r_big)
+    cand = np.where(np.isfinite(d2) & ~hit)[0]
+    if not len(cand):
+        return hit
+    VN = np.asarray(vnormals, dtype=float) if vnormals is not None and len(vnormals) == len(V) else None
+    for s in range(0, len(cand), 4000):          # (in chunks: a big stroke over a dense scan is millions of pairs)
+        cc = cand[s:s + 4000]
+        lists = tree.query_ball_point(V[cc], r_big)
+        cnt = np.fromiter((len(l) for l in lists), dtype=np.int64, count=len(lists))
+        if not cnt.sum():
+            continue
+        ci = np.repeat(np.arange(len(cc)), cnt)
+        pj = np.concatenate([np.asarray(l, dtype=np.int64) for l in lists if len(l)])
+        dv = V[cc[ci]] - pts[pj]
+        along = np.einsum("ij,ij->i", dv, N[pj])
+        lat2 = np.einsum("ij,ij->i", dv, dv) - along * along
+        good = okn[pj] & (np.abs(along) <= depth) & (lat2 <= radius * radius)
+        if VN is not None:
+            good &= np.einsum("ij,ij->i", VN[cc[ci]], N[pj]) > -0.3
+        hit[cc[np.unique(ci[good])]] = True
+    return hit
+
+
+def whole_pieces(A, mask, ex, frac=0.4):
+    """A piece the detector found (a connected part of `mask`) that is mostly (`frac`) under a "Not a bracket" stroke
+    is left whole: a brush 2.5 mm across never covers a lump exactly, and half a piece taken off leaves a step."""
+    ov = mask & ex
+    if not ov.any():
+        return ex
+    from scipy.sparse.csgraph import connected_components
+    idx = np.where(mask)[0]
+    nc, lab = connected_components(A[idx][:, idx], directed=False)
+    tot = np.bincount(lab, minlength=nc)
+    cov = np.bincount(lab, weights=ex[idx].astype(float), minlength=nc)
+    whole = (cov > 0) & (cov >= frac * tot)
+    out = ex.copy()
+    out[idx[whole[lab]]] = True
+    return out
+
+
+def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2, exclude_pts=None, add_pts=None, exclude_normals=None):
     """Detect and remove, then look again: what a bracket leaves behind at its base (a low lip of pad or
     ligature that sat under the first pass's threshold) stands clear of the new smooth enamel and comes
-    off on the second pass. Returns (mesh, info, A, feats) - mesh, adjacency and features all for the same (new) mesh when anything was removed."""
+    off on the second pass. `exclude_pts` (positions in the mesh's frame): painted "Not a bracket" - never taken
+    off, whatever the detector says (`exclude_normals`: the painted surface's normals, so what stood over the smooth
+    rebuilt enamel the stroke was painted on is matched too); `add_pts`: painted "Take off" - always taken off (first pass). Returns
+    (mesh, info, A, feats) - mesh, adjacency and features all for the same (new) mesh when anything was removed."""
     from .features import compute_features
     from .mesh_utils import adjacency
     info = dict(used=False, passes=[])
@@ -867,6 +933,18 @@ def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2):
     for k in range(passes):
         thr = 0.35 if k == 0 else 0.25
         mask, dinfo = detect_appliances(mesh, A, rgb, feats=feats, log=log if k == 0 else None, thr=thr)
+        if k == 0 and add_pts is not None and len(add_pts):
+            add = near_points(mesh.vertices, add_pts)
+            if add.any():
+                mask = mask | add
+                info["painted_take_off"] = int(add.sum())
+        if exclude_pts is not None and len(exclude_pts):
+            ex = whole_pieces(A, mask, near_points(mesh.vertices, exclude_pts, normals=exclude_normals, vnormals=mesh.vertex_normals))
+            if (mask & ex).any():
+                info["not_a_bracket"] = int(info.get("not_a_bracket", 0)) + int((mask & ex).sum())
+                if log and k == 0:      # (the second look finds the same pieces again: said once)
+                    log(f"not a bracket (painted): {int((mask & ex).sum())} vertices the detector had taken for appliance are left as scanned")
+            mask = mask & ~ex
         if not mask.any():
             break
         if k > 0 and log:

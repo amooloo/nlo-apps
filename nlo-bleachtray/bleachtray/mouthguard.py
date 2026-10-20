@@ -12,7 +12,7 @@ def _arch_angle(xy, c):
 
 def vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch="upper",
                         inset=1.5, min_depth=3.0, max_depth=14.0, palate=6.0, distal=2.5, notch_top=2.5, notch_width=6.0,
-                        labial_notch=True, buccal_notches=True, log=None):
+                        labial_notch=True, buccal_notches=True, smooth_mm=6.0, log=None):
     """The mouthguard's trim line. Starts from one closed loop round the teeth: `palate` mm onto the palate
     (lingual), `distal` mm behind the last tooth on each side, and on the facial side follows the surface
     down into the vestibule to `inset` mm above the scan's own edge (never less than `min_depth` or more
@@ -110,6 +110,12 @@ def vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_cente
     z_edge_3 = np.convolve(np.pad(fill(z_edge, oke), 1, mode="edge"), np.array([0.25, 0.5, 0.25]), mode="valid")
     raw_depth = np.clip(z_gum_i - z_edge_3, 0, max_depth + 5)      # how deep the scan goes below the gum line
     depth = np.clip(z_gum_i - (z_edge_s + inset), min_depth, max_depth)
+    # super smooth (the doctor, 10/19/2026: the line was "very jaggety"): the depth below the gum line changes gently
+    # round the arch - a Gaussian over `smooth_mm` of arch (wrapping round), never deeper than the scan allows; the frenum
+    # notches go in after this, rounded by design
+    from scipy.ndimage import gaussian_filter1d
+    allowed = np.clip(z_gum_i - (z_edge_3 + inset), min_depth, max_depth)
+    depth = np.minimum(gaussian_filter1d(depth, max(1.0, smooth_mm / bin_mm), mode="wrap"), np.maximum(allowed, min_depth))
     # --- 4. frena: the sulcus is shallow for a few mm where the lip or cheek is tethered (the labial one
     #        often sits in a broad shallow stretch, so it is judged against a wider neighbourhood)
     cand = []
@@ -203,6 +209,18 @@ def vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_cente
     snap = dmax < 4.0
     out[snap] = closest[snap]
     out = smooth_polyline(out, iters=2)
+    # --- 7. super smooth (the doctor, 10/19/2026: "very jaggety, it needs to be super smooth"): seen from above the palatal
+    #        stretch is one smooth curve (no zig-zag over the rugae and the gum's scallops), seen from the side the
+    #        vestibular stretch rises and falls gently. Palatal points: their plan position smoothed along the line
+    #        (`smooth_mm`), then dropped straight down onto the palate; vestibular points: their height smoothed (a third of
+    #        that - the frenum notches are kept), then moved along the arch's radius onto the vestibular wall at that
+    #        height; behind the last teeth the two blend. A point the surface cannot be found for keeps where it was.
+    try:
+        out = _smooth_on_surface(out, mesh_f, c, facial_of, a_end, behind, taper, smooth_mm)
+    except Exception as ex:  # noqa
+        res["smooth_error"] = str(ex)[:120]
+        if log:
+            log(f"mouthguard line not smoothed ({str(ex)[:120]})")
     fb = np.zeros(nb_, bool); fb[deep_bins] = True
     res.update(points=int(len(out)), moved=int(moved.sum()),
                depth_mm=dict(min=round(float(depth[fb].min()), 1), max=round(float(depth[fb].max()), 1), median=round(float(np.median(depth[fb])), 1)),
@@ -213,6 +231,65 @@ def vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_cente
         log(f"mouthguard line: {dm['min']:.0f}-{dm['max']:.0f} mm into the vestibule (median {dm['median']:.0f}; the scan holds {res['sulcus_captured_mm']:.0f}), "
             f"{palate:.0f} mm onto the palate, {distal:.1f} mm behind the last teeth; frenum notches: {fr}")
     return out, res
+
+
+def _smooth_on_surface(line, mesh_f, c, facial_of, a_end, behind, taper, smooth_mm, step=0.5):
+    """The mouthguard line made smooth and put back on the surface (see vestibular_trimline, step 7)."""
+    from scipy.ndimage import gaussian_filter1d
+    from trimesh.ray.ray_triangle import RayMeshIntersector
+    Q = resample_polyline(np.asarray(line, float), step)
+    n = len(Q)
+    if n < 20:
+        return line
+    fac, ang, _ = facial_of(Q[:, :2])
+    w_fac = fac.astype(float)
+    # behind the last teeth (and `taper` before them) the line turns from the vestibule to the palate: blend to "as is"
+    keep = np.zeros(n)
+    for side in a_end:
+        d = behind(ang, side)
+        keep = np.maximum(keep, np.where(d > 0, 1.0, np.where(d > -taper, (d + taper) / taper, 0.0)))
+    w_fac = gaussian_filter1d(w_fac, 2.0 / step, mode="wrap")          # no hard switch between the two stretches
+    xy_s = gaussian_filter1d(Q[:, :2], smooth_mm / step, axis=0, mode="wrap")
+    z_s = gaussian_filter1d(Q[:, 2], max(1.0, smooth_mm / 3.0) / step, mode="wrap")
+    R = RayMeshIntersector(mesh_f)
+    # palatal: straight down onto the palate at the smoothed plan position (the hit nearest the old height)
+    o_p = np.column_stack([xy_s, Q[:, 2] + 6.0]); d_p = np.tile([0.0, 0.0, -1.0], (n, 1))
+    loc, ir, _ = R.intersects_location(o_p, d_p, multiple_hits=True)
+    P_pal = Q.copy()
+    best_p = np.full(n, np.inf)
+    for p, i in zip(loc, ir):
+        dz = abs(p[2] - Q[i, 2])
+        if dz < best_p[i] and dz < 4.0:
+            best_p[i] = dz; P_pal[i] = p
+    # vestibular: along the radius at the smoothed height, onto the wall (the hit nearest the old radius)
+    u = Q[:, :2] - c; r = np.linalg.norm(u, axis=1); u = u / np.maximum(r, 1e-6)[:, None]
+    o_f = np.column_stack([c + u * (r + 6.0)[:, None], z_s]); d_f = np.column_stack([-u, np.zeros(n)])
+    loc, ir, _ = R.intersects_location(o_f, d_f, multiple_hits=True)
+    P_fac = Q.copy()
+    best = np.full(n, np.inf)
+    for p, i in zip(loc, ir):
+        dr = abs(float((p - o_f[i]) @ d_f[i]) - 6.0)        # along the ray: near where the point was (the ray goes on through
+        if dr < best[i] and dr < 3.0:                        # the model to the far side of the arch, at about the same radius)
+            best[i] = dr; P_fac[i] = p
+    # a point whose ray found nothing near: the surface point nearest its smoothed position (never the old position -
+    # its neighbours moved, and keeping it would leave a spike)
+    from trimesh.proximity import ProximityQuery
+    miss_p = ~np.isfinite(best_p); miss_f = ~np.isfinite(best)
+    if miss_p.any() or miss_f.any():
+        pq = ProximityQuery(mesh_f)
+        if miss_p.any():
+            P_pal[miss_p] = pq.on_surface(np.column_stack([xy_s[miss_p], Q[miss_p, 2]]))[0]
+        if miss_f.any():
+            P_fac[miss_f] = pq.on_surface(np.column_stack([Q[miss_f, :2], z_s[miss_f]]))[0]
+    S = w_fac[:, None] * P_fac + (1.0 - w_fac[:, None]) * P_pal
+    S = keep[:, None] * Q + (1.0 - keep[:, None]) * S
+    S = smooth_polyline(S, iters=2)
+    # never a break: a step longer than 3 sample spacings means a ray landed on another part of the model - the line as
+    # it was is kept then
+    seg = np.linalg.norm(np.diff(np.vstack([S, S[:1]]), axis=0), axis=1)
+    if seg.max() > 3.0 * step:
+        raise ValueError(f"smoothing left a {seg.max():.1f} mm step - the line is kept as it was")
+    return S
 
 
 def appliance_shields(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.5, chunk_mm=6.0, merge=True, log=None):

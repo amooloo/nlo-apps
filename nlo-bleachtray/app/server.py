@@ -345,15 +345,18 @@ def _save_case(job):
                               preset=sc.get("preset"), tag=sc.get("tag"), kind=sc.get("kind"), stage=sc.get("stage"),
                               titan_basename=r.get("titan_basename"), has_report=bool(r), braces_on=bool(sc.get("braces_on")),
                               raw_path=(os.path.relpath(sc["raw_path"], jdir) if sc.get("raw_path") else None),
+                              precut_path=(os.path.relpath(sc["precut_path"], jdir) if sc.get("precut_path") else None),
                               braces=({k: v for k, v in sc["braces"].items() if k != "passes"} if sc.get("braces") else None)))
         fixed = job.get("fixed_labels") or {}
         for path, lab in fixed.items():
             np.savez(os.path.join(jdir, "fixedlabels_" + os.path.basename(path) + ".npz"), labels=np.asarray(lab, dtype=np.int16))
         paint = {os.path.relpath(k, jdir): v for k, v in (job.get("paint") or {}).items()}
-        params = {k: v for k, v in job["params"].items() if k not in ("keep_off_idx", "blockout_idx", "force_on_idx", "shield_idx")}
+        braces_edits = {os.path.relpath(k, jdir): v for k, v in (job.get("braces_edits") or {}).items()}
+        params = {k: v for k, v in job["params"].items() if k not in ("keep_off_idx", "blockout_idx", "force_on_idx", "shield_idx", "noshield_idx")}
         case = dict(id=job["id"], name=job.get("name"), created=job.get("created"), source=job.get("source"), preset=job.get("preset"),
                     filename=job.get("filename"), params=params, scans=scans, review=job.get("review"), order_folder=job.get("order_folder"),
                     sent_at=job.get("sent_at"), learned=job.get("learned"), fixed=[os.path.relpath(k, jdir) for k in fixed], paint=paint,
+                    braces_edits=braces_edits,
                     print_folder=job.get("print_folder"), print_files=job.get("print_files") or [],
                     revisions=job.get("revisions") or {}, order_pieces=job.get("order_pieces") or [], order_note=job.get("order_note"),
                     thinned=bool(job.get("thinned")), saved=time.time(),
@@ -469,6 +472,18 @@ def _job_from_case(jid):
         s = dict(sc); s["path"] = os.path.join(jdir, sc["path"])
         if sc.get("raw_path"):
             s["raw_path"] = os.path.join(jdir, sc["raw_path"])
+        if sc.get("precut_path") and os.path.exists(os.path.join(jdir, sc["precut_path"])):
+            s["precut_path"] = os.path.join(jdir, sc["precut_path"])
+        else:
+            s.pop("precut_path", None)
+            # a case cut before the file was recorded (10/19/2026): the cut file is named after the one it was cut from
+            m = re.match(r"^(.*)_cut\d+$", os.path.splitext(os.path.basename(sc["path"]))[0])
+            if m:
+                for e in (os.path.splitext(sc["path"])[1], ".ply", ".stl"):
+                    cand = os.path.join(jdir, m.group(1) + e)
+                    if os.path.exists(cand):
+                        s["precut_path"] = cand
+                        break
         rp = os.path.join(jdir, f"{sc['name']}_report.json")
         rep = None
         if os.path.exists(rp):
@@ -488,13 +503,14 @@ def _job_from_case(jid):
         if os.path.exists(fp):
             fixed[os.path.join(jdir, rel)] = np.load(fp)["labels"]
     paint = {os.path.join(jdir, k): v for k, v in (case.get("paint") or {}).items()}
+    braces_edits = {os.path.join(jdir, k): v for k, v in (case.get("braces_edits") or {}).items()}
     have_models = all(sc["report"] and os.path.exists((sc["report"].get("outputs") or {}).get("model", "")) for sc in scans) and bool(scans)
     job = dict(id=jid, dir=jdir, scans=scans, name=case.get("name"), params=case.get("params") or {}, status="done" if have_models else "needs_run",
                created=case.get("created") or time.time(), filename=case.get("filename"), preset=case.get("preset"), source=case.get("source"),
                review=case.get("review"), order_folder=case.get("order_folder"), order_error=None, sent_at=case.get("sent_at"), learned=case.get("learned"),
                revisions=case.get("revisions") or {}, order_pieces=case.get("order_pieces") or [], order_note=case.get("order_note"),
                print_folder=case.get("print_folder"), print_files=case.get("print_files") or [],
-               fixed_labels=fixed, paint=paint, thinned=case.get("thinned"), reopened=True, feat_cache={},
+               fixed_labels=fixed, paint=paint, braces_edits=braces_edits, thinned=case.get("thinned"), reopened=True, feat_cache={},
                log=list(case.get("log") or []) + [f"opened from the history ({time.strftime('%m/%d/%Y', time.localtime(case.get('created') or time.time()))}"
                     + (f", sent {time.strftime('%m/%d/%Y %H:%M', time.localtime(case['sent_at']))}" if case.get("sent_at") else "") + ")"])
     if case.get("status") == "error" and case.get("error"):
@@ -646,6 +662,19 @@ def _scan_params(job, scan):
     params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
     pe = (job.get("paint") or {}).get(scan["path"]) or {}
     params["keep_off_idx"] = pe.get("noreservoir") or []; params["blockout_idx"] = pe.get("blockout") or []; params["shield_idx"] = pe.get("shield") or []
+    params["noshield_idx"] = pe.get("noshield") or []
+    # "Not a bracket" painted on the retainer of the same scan is a fact about the scan: the mouthguard's band leaves it
+    # out too (kept by position for the scan as scanned, which is the file the mouthguard is made from)
+    be = (job.get("braces_edits") or {}).get(scan["path"]) or {}
+    if scan.get("preset") == "mouthguard" and be.get("not"):
+        try:
+            from bleachtray.mesh_utils import load_scan
+            from bleachtray.appliance import near_points
+            m = load_scan(scan["path"])
+            hit = np.where(near_points(m.vertices, be["not"], normals=be.get("not_n"), vnormals=m.vertex_normals))[0]
+            params["noshield_idx"] = sorted(set(int(i) for i in params["noshield_idx"]) | set(int(i) for i in hit))
+        except Exception:
+            pass
     params["force_on_idx"] = pe.get("reservoir") or []
     params["adjust"] = _adjust_by_arch(job["params"], job["scans"]).get(scan.get("arch") or "", dict(ADJUST_ZERO))
     params.pop("adjust_by_arch", None)
@@ -728,17 +757,46 @@ def _run(job):
                 entry["shield"] = sorted(set(entry.get("shield", [])) | set(int(i) for i in me["takeoff"]))
                 log(f"painted: {len(entry['shield'])} vertices added to the bracket shield")
                 me.pop("takeoff")
+            # "Not a bracket" strokes (the doctor, 10/19/2026): on a mouthguard they leave the band; on a scan whose braces
+            # the app took off, the take-off is done again from the scan as scanned without them
+            if me.get("notbracket"):
+                nb = sorted(set(int(i) for i in me["notbracket"]))
+                if job["scans"][k0].get("preset") == "mouthguard":
+                    entry = paint.setdefault(path0, {"noreservoir": [], "blockout": []})
+                    entry["noshield"] = sorted(set(entry.get("noshield", [])) | set(nb))
+                    entry["shield"] = sorted(set(entry.get("shield", [])) - set(nb))
+                    log(f"not a bracket: {len(entry['noshield'])} painted vertices kept out of the bracket band")
+                else:
+                    job["progress"] = dict(frac=0.01, label="putting back what was not a bracket", scan=k0, of=len(job["scans"]))
+                    try:
+                        remap = _redo_take_off(job, k0, nb, log=log)
+                    except Exception as ex:  # noqa
+                        remap = None; log(f"not a bracket skipped: {ex}")
+                    if remap is not None:
+                        for key in ("cut", "takeoff"):     # strokes of this Apply on the old file follow it to the new one
+                            idx = np.asarray(me.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
+                            me[key] = [int(i) for i in remap[idx] if i >= 0]
+                me.pop("notbracket")
             if me.get("takeoff"):
                 job["progress"] = dict(frac=0.01, label="taking off the painted parts", scan=k0, of=len(job["scans"]))
+                # kept by position for the scan as scanned, so a later automatic take-off (after "Not a bracket") still
+                # takes these off
+                try:
+                    raw_key = _raw_scan_for(job["scans"][k0]) or job["scans"][k0]["path"]
+                    be = job.setdefault("braces_edits", {}).setdefault(raw_key, {"not": [], "add": []})
+                    be["add"] = be.get("add", []) + _scan_xyz(job["scans"][k0]["path"], me["takeoff"]).round(4).tolist()
+                except Exception as ex:  # noqa
+                    log(f"take off strokes not kept for later: {ex}")
                 try:
                     res = _take_off_braces(job, job["scans"][k0]["path"], log=log, painted=me["takeoff"])
                 except Exception as ex:  # noqa
                     res = None; log(f"take off skipped: {ex}")
                 if res is not None:
-                    _, remap = res
+                    _, remap2 = res
+                    remap = remap2 if remap is None else np.where(remap >= 0, remap2[np.clip(remap, 0, len(remap2) - 1)], -1)
                     for key in ("cut",):      # the cut below works on the new file; the other strokes go through `remap` later
-                        idx = np.asarray(me.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
-                        me[key] = [int(i) for i in remap[idx] if i >= 0]
+                        idx = np.asarray(me.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap2))]
+                        me[key] = [int(i) for i in remap2[idx] if i >= 0]
             # "cut away" strokes: those parts leave the scan file itself (every model from it, every later re-run)
             if me.get("cut"):
                 job["progress"] = dict(frac=0.01, label="cutting away the painted parts of the scan", scan=k0, of=len(job["scans"]))
@@ -929,6 +987,29 @@ def register_watcher_result(ent, work, results, log=print):
     return jid
 
 
+def _remap_entry(pe, remap, skip=()):
+    """A scan file's painted areas carried to its new file by `remap` (old -> new vertex index, -1 = gone): every
+    vertex list, and the block-out outlines (lists of corners, kept while 3 corners survive)."""
+    out = {}
+    for key, vals in (pe or {}).items():
+        if key in skip or not isinstance(vals, list):
+            continue
+        if key == "outlines":
+            outl = []
+            for o in vals:
+                o = np.asarray(o or [], dtype=int); o = o[(o >= 0) & (o < len(remap))]
+                o = [int(i) for i in remap[o] if i >= 0]
+                if len(o) >= 3:
+                    outl.append(o)
+            out[key] = outl
+            continue
+        if vals and not isinstance(vals[0], (int, np.integer)):
+            continue
+        v = np.asarray(vals, dtype=int); v = v[(v >= 0) & (v < len(remap))]
+        out[key] = sorted(set(int(i) for i in remap[v] if i >= 0))
+    return out
+
+
 def _apply_cut(job, k, cut, log=print):
     """Remove the painted vertices from the scan: the scan file is rewritten without them (faces
     touching a cut vertex go, then only the largest connected piece is kept, so a pad or a flap that
@@ -983,13 +1064,10 @@ def _apply_cut(job, k, cut, log=print):
         job["feat_cache"].pop(key, None)
     paint = job.setdefault("paint", {})
     if old_path in paint:
-        pe = paint.pop(old_path); newpe = {}
-        for key, idx in pe.items():
-            idx = np.asarray(idx, dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
-            newpe[key] = sorted(int(i) for i in remap[idx] if i >= 0)
-        paint[new_path] = newpe
+        paint[new_path] = _remap_entry(paint.pop(old_path), remap)     # (outlines too: a ragged list broke the cut)
     for sc in job["scans"]:
         if sc["path"] == old_path:
+            sc.setdefault("precut_path", old_path)     # what "Bring back what was cut" goes back to
             sc["path"] = new_path
     log(f"cut away: {int(gone.sum())} painted vertices, {int((~used).sum() - gone.sum())} more came loose with them; "
         f"the scan is now {len(out.vertices)} vertices ({os.path.basename(new_path)})")
@@ -1014,7 +1092,7 @@ def _raw_scan_for(sc):
     return None
 
 
-def _take_off_braces(job, path, log=print, painted=None):
+def _take_off_braces(job, path, log=print, painted=None, exclude_pts=None, add_pts=None, force=False, exclude_normals=None):
     """A coloured scan with braces on: find brackets, wire and ties and take them off BEFORE anything
     else sees the scan. The cleaned scan is written as a new PLY next to the case (like a cut), every
     model made from the scan points at it from now on, and the patches are recorded (paint bit 4) so the
@@ -1026,8 +1104,15 @@ def _take_off_braces(job, path, log=print, painted=None):
     from scipy.spatial import cKDTree
     done = job.setdefault("braces", {})
     auto = painted is None
-    if auto and (path in done or "_clean" in os.path.basename(path) or not path.lower().endswith(".ply")):
+    if auto and not force and (path in done or "_clean" in os.path.basename(path) or not path.lower().endswith(".ply")):
         return None
+    # painted "Not a bracket" / "Take off" strokes kept for this scan as scanned (positions in the scanner's own
+    # coordinates): an automatic take-off honours them, whenever it runs again
+    be = (job.get("braces_edits") or {}).get(path) or {}
+    if exclude_pts is None:
+        exclude_pts = be.get("not"); exclude_normals = be.get("not_n")
+    if add_pts is None:
+        add_pts = be.get("add")
     raw = load_scan(path)
     rgb = raw.metadata.get("rgb")
     if auto and rgb is None:
@@ -1036,7 +1121,12 @@ def _take_off_braces(job, path, log=print, painted=None):
     A = adjacency(mesh)
     if auto:
         feats = compute_features(mesh, return_aux=True)
-        clean, info, A2, feats2 = take_off_appliances(mesh, A, mesh.metadata["rgb"], feats, log=log)
+        to_rough = lambda P: (trimesh.transform_points(np.asarray(P, float).reshape(-1, 3), T_rough) if P is not None and len(P) else None)
+        ex_n = None
+        if exclude_pts is not None and exclude_normals is not None and len(exclude_normals) == len(exclude_pts):
+            ex_n = np.asarray(exclude_normals, float).reshape(-1, 3) @ np.asarray(T_rough)[:3, :3].T      # (normals turn, never move)
+        clean, info, A2, feats2 = take_off_appliances(mesh, A, mesh.metadata["rgb"], feats, log=log,
+                                                      exclude_pts=to_rough(exclude_pts), add_pts=to_rough(add_pts), exclude_normals=ex_n)
         info = {k: v for k, v in info.items() if k != "passes"} | {"passes": [{kk: vv for kk, vv in p.items()} for p in info.get("passes", [])]}
         if not info.get("used"):
             done[path] = info
@@ -1081,13 +1171,13 @@ def _take_off_braces(job, path, log=print, painted=None):
     entry = paint.setdefault(new_path, {"noreservoir": [], "blockout": []})
     old_entry = paint.pop(path, None)
     if old_entry:   # strokes painted on the earlier file (and its rebuilt enamel): carried over by position
-        for key in ("noreservoir", "blockout", "reservoir", "removed"):
-            idx = np.asarray(old_entry.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
-            kept = set(int(i) for i in remap[idx] if i >= 0)
-            if key == "removed":
-                patched |= kept
+        moved = _remap_entry(old_entry, remap, skip=("large",))
+        patched |= set(moved.pop("removed", []))
+        for key, vals in moved.items():
+            if key == "outlines":
+                entry[key] = (entry.get(key) or []) + vals
             else:
-                entry[key] = sorted(set(entry.get(key, [])) | kept)
+                entry[key] = sorted(set(entry.get(key, [])) | set(vals))
     entry["removed"] = sorted(patched)
     # rebuilt areas bigger than most of a tooth (brackets, wire and ties run together on crowded teeth): red on
     # the Braces tab and named on the case - the enamel there is a guess
@@ -1117,6 +1207,77 @@ def _take_off_braces(job, path, log=print, painted=None):
     else:
         log(f"taken off by hand: {int(pmask.sum())} painted vertices - the scan is now {len(newV)} vertices ({os.path.basename(new_path)})")
     return new_path, remap
+
+
+def _scan_xyz(path, idx):
+    """Positions (the scanner's own coordinates, as the file holds them) of vertices `idx` of the scan file at `path`."""
+    from bleachtray.mesh_utils import load_scan
+    V = np.asarray(load_scan(path).vertices)
+    idx = np.asarray(idx, dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
+    return V[idx]
+
+
+def _redo_take_off(job, k, not_idx, log=print):
+    """'Not a bracket' strokes (the doctor, 10/19/2026) on a scan whose braces the app took off: the take-off is done
+    again from the scan as scanned, leaving the painted areas as they were scanned (the strokes are kept by position
+    for every later take-off of that scan, and saved with the case's lesson). Strokes kept for the current file go
+    with it by position. Returns old -> new vertex index map of the scan file (-1 = gone), or None."""
+    from bleachtray.mesh_utils import load_scan
+    from scipy.spatial import cKDTree
+    sc = job["scans"][k]; cur = sc["path"]
+    raw = _raw_scan_for(sc)
+    if not raw or raw == cur or not os.path.exists(raw):
+        log("not a bracket: the app did not take braces off this scan - nothing to put back (a mouthguard's band is changed instead)")
+        return None
+    mc = load_scan(cur); Vc = np.asarray(mc.vertices)
+    idx = np.asarray(not_idx, dtype=int); idx = idx[(idx >= 0) & (idx < len(Vc))]
+    if not len(idx):
+        return None
+    be = job.setdefault("braces_edits", {}).setdefault(raw, {"not": [], "add": []})
+    # each painted point with the painted surface's normal: the stroke is on the smooth rebuilt enamel, and what the
+    # detector took off stood over it (near_points matches along that line)
+    nn = be.get("not_n") or []
+    nn = list(nn) + [[0.0, 0.0, 0.0]] * max(0, len(be.get("not", [])) - len(nn))
+    be["not"] = be.get("not", []) + Vc[idx].round(4).tolist()
+    be["not_n"] = nn[:len(be["not"]) - len(idx)] + np.asarray(mc.vertex_normals)[idx].round(3).tolist()
+    # a Clean-up cut made after the braces came off: the scan as scanned still has what was cut, so the cut is made
+    # again on the new file (what it took away, by position: the cut file is the cleaned file less those vertices)
+    cut_pts = None
+    pre = sc.get("precut_path")
+    if pre and pre != cur and os.path.exists(pre) and "_clean" in os.path.basename(pre):
+        Vp = np.asarray(load_scan(pre).vertices)
+        cut_pts = Vp[cKDTree(Vc).query(Vp)[0] > 1e-3]
+    # strokes kept for the current file go to the scan as scanned by position (rebuilt enamel has no counterpart there)
+    Vr = np.asarray(load_scan(raw).vertices)
+    d, j = cKDTree(Vr).query(Vc)
+    c2r = np.where(d < 1e-3, j, -1).astype(np.int64)
+    paint = job.setdefault("paint", {})
+    pe = paint.pop(cur, None)
+    if pe:
+        ne = paint.setdefault(raw, {"noreservoir": [], "blockout": []})
+        for key, vals in _remap_entry(pe, c2r, skip=("removed", "large")).items():
+            ne[key] = (ne.get(key) or []) + vals if key == "outlines" else sorted(set(ne.get(key, [])) | set(vals))
+    for s2 in job["scans"]:
+        if s2["path"] == cur and s2.get("preset") != "mouthguard":
+            s2["path"] = raw; s2.pop("braces", None)
+    job.setdefault("braces", {}).pop(raw, None); job["braces"].pop(cur, None)
+    job.setdefault("fixed_labels", {}).pop(cur, None)
+    for key in [key for key in job.get("feat_cache", {}) if (key if isinstance(key, str) else key[0]) in (cur, raw)]:
+        job["feat_cache"].pop(key, None)
+    _take_off_braces(job, raw, log=log, exclude_pts=be["not"], exclude_normals=be.get("not_n"), add_pts=be.get("add") or None, force=True)
+    if cut_pts is not None and len(cut_pts):
+        newp = job["scans"][k]["path"]
+        recut = np.where(cKDTree(cut_pts).query(np.asarray(load_scan(newp).vertices))[0] < 1e-3)[0]
+        for s2 in job["scans"]:
+            if s2["path"] == newp:
+                s2.pop("precut_path", None)          # "Bring back" goes to the new cleaned file from now on
+        if len(recut):
+            _apply_cut(job, k, recut, log=log)
+            log(f"not a bracket: the Clean-up cut made again on the new file ({len(recut)} vertices)")
+    new = job["scans"][k]["path"]
+    d2, j2 = cKDTree(np.asarray(load_scan(new).vertices)).query(Vc)
+    log(f"not a bracket: {len(idx)} painted vertices - braces taken off the scan as scanned again, those areas left as scanned ({os.path.basename(new)})")
+    return np.where(d2 < 1e-3, j2, -1).astype(np.int64)
 
 
 def _apply_mask_edit(job, k=0, edit=None, remap=None):
@@ -1409,7 +1570,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
         # any painted vertex is just a re-run: it must not count as a brush correction
         mes = me if isinstance(me, list) else ([me] if me else [])
-        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "reservoir", "contact", "uncontact"))]
+        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact"))]
         job["mask_edit"] = mes or None
     except Exception:
         job["mask_edit"] = None
@@ -1688,6 +1849,42 @@ def _save_training(job, log=print):
             saved.append(arch)
         except Exception as ex:  # noqa
             log(f"could not save the training example ({ex})")
+    # the braces strokes (Take off / Not a bracket on a retainer, the band's on a mouthguard - the doctor, 10/19/2026) are
+    # the bracket detector's lesson: the scan as scanned and what was painted on it, in the scanner's own coordinates
+    braces_saved = []
+    for raw_p, be in (job.get("braces_edits") or {}).items():
+        if not (be.get("not") or be.get("add")) or not os.path.exists(raw_p):
+            continue
+        sc = next((s for s in job["scans"] if (_raw_scan_for(s) or s["path"]) == raw_p), None) or {}
+        arch = sc.get("arch") or "scan"
+        try:
+            ext = os.path.splitext(raw_p)[1].lower()
+            shutil.copyfile(raw_p, os.path.join(d, f"braces_{arch}{ext}"))
+            json.dump(dict(scan=f"braces_{arch}{ext}", source=sc.get("filename"), sent=meta["sent"], not_a_bracket=be.get("not") or [],
+                           not_a_bracket_normals=be.get("not_n") or [], take_off=be.get("add") or []),
+                      open(os.path.join(d, f"braces_{arch}.json"), "w"))
+            braces_saved.append(arch)
+        except Exception as ex:  # noqa
+            log(f"the braces strokes were not saved for training ({ex})")
+    for sc in job["scans"]:
+        pe = (job.get("paint") or {}).get(sc["path"]) or {}
+        if sc.get("preset") != "mouthguard" or not (pe.get("noshield") or pe.get("shield")):
+            continue
+        arch = sc.get("arch") or "scan"
+        try:
+            ext = os.path.splitext(sc["path"])[1].lower()
+            if not os.path.exists(os.path.join(d, f"braces_{arch}{ext}")):
+                shutil.copyfile(sc["path"], os.path.join(d, f"braces_{arch}{ext}"))
+            jp = os.path.join(d, f"braces_{arch}.json")
+            rec = json.load(open(jp)) if os.path.exists(jp) else dict(scan=f"braces_{arch}{ext}", source=sc.get("filename"), sent=meta["sent"])
+            rec["band_not_a_bracket"] = _scan_xyz(sc["path"], pe.get("noshield") or []).round(4).tolist()
+            rec["band_painted"] = _scan_xyz(sc["path"], pe.get("shield") or []).round(4).tolist()
+            json.dump(rec, open(jp, "w"))
+            braces_saved.append(f"{arch} band")
+        except Exception as ex:  # noqa
+            log(f"the band strokes were not saved for training ({ex})")
+    if braces_saved:
+        log(f"saved for training (bracket detector): {os.path.relpath(d, ROOT)} ({', '.join(braces_saved)})")
     try:
         prev = {}
         cj = os.path.join(d, "case.json")
@@ -1942,6 +2139,46 @@ def _learned_note(job):
     return dict(at=time.time(), corrected=sorted(set(arches)))
 
 
+@app.post("/api/jobs/{jid}/uncut")
+def uncut(jid: str, scan: int = Form(0)):
+    """Clean-up's "Bring back what was cut" (the doctor, 10/19/2026: a cut made by mistake could not be taken back): the
+    scan goes back to the file it was before the first cut, every model made from it is re-made, and what was painted
+    on the cut file (reservoir, block-out, contact dots, tooth labels) goes with it by position."""
+    from bleachtray.mesh_utils import load_scan
+    from scipy.spatial import cKDTree
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    if job.get("status") in ("queued", "running"):
+        raise HTTPException(409, "the case is being made - try again when it is done")
+    if not (0 <= scan < len(job["scans"])):
+        raise HTTPException(400, "no such model")
+    cur = job["scans"][scan]["path"]; before = job["scans"][scan].get("precut_path")
+    if not before or not os.path.exists(before):
+        raise HTTPException(400, "nothing was cut away on this scan")
+    Vc = np.asarray(load_scan(cur).vertices); Vb = np.asarray(load_scan(before).vertices)
+    d, j = cKDTree(Vb).query(Vc)
+    c2b = np.where(d < 1e-3, j, -1).astype(np.int64)
+    paint = job.setdefault("paint", {})
+    pe = paint.pop(cur, None)
+    if pe:
+        paint[before] = _remap_entry(pe, c2b)
+    fixed = job.setdefault("fixed_labels", {})
+    if cur in fixed:
+        lab = np.asarray(fixed.pop(cur)); nl = np.zeros(len(Vb), dtype=lab.dtype); ok = c2b >= 0
+        nl[c2b[ok]] = lab[ok]; fixed[before] = nl
+    idx = []
+    for k, sc in enumerate(job["scans"]):
+        if sc["path"] == cur:
+            sc["path"] = before; sc.pop("precut_path", None); idx.append(k)
+    for key in [key for key in job.get("feat_cache", {}) if (key if isinstance(key, str) else key[0]) in (cur, before)]:
+        job["feat_cache"].pop(key, None)
+    job.setdefault("log", []).append(f"brought back what was cut away: the scan is {os.path.basename(before)} again ({len(Vb)} vertices, {len(Vb) - len(Vc)} more) - re-making " + ", ".join(f"{job['scans'][k].get('arch') or ''} {job['scans'][k].get('tag') or ''}".strip() for k in idx))
+    job["auto_order"] = False; job["rerun_all"] = False; job["rerun_only"] = idx; job["rerun_fast"] = None; job["mask_edit"] = None
+    _enqueue(job)
+    return {"id": jid, "models": len(idx)}
+
+
 @app.post("/api/jobs/{jid}/learn")
 def learn_from(jid: str, patient_first: str = Form(""), patient_last: str = Form("")):
     """'Looks good' without an order: file the case (scan + labels as they stand) for the night-time
@@ -2028,6 +2265,7 @@ def job_status(jid: str):
     paint = job.get("paint") or {}
     out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset"),
                          braces=({k: v for k, v in sc["braces"].items() if k != "passes"} if sc.get("braces") else None), braces_on=bool(sc.get("braces_on")),
+                         cut=bool(sc.get("precut_path")),
                          painted={k: len(v) for k, v in (paint.get(sc["path"]) or {}).items()}) for sc in job["scans"]]
     if job.get("reports"):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]
@@ -2089,9 +2327,17 @@ def seg_mesh(jid: str, scan: int = 0):
     pe = (job.get("paint") or {}).get(sc["path"]) or {}
     flags = np.zeros(len(V), dtype=np.uint8)
     # bit 64 = rebuilt over a large area (most of a tooth, or two teeth: the enamel there is a guess)
-    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed"), (16, "reservoir"), (32, "contact"), (64, "large")):
+    # bit 128 = painted "Not a bracket" (a mouthguard's band leaves it out; a take-off leaves it as scanned)
+    for bit, key in ((1, "noreservoir"), (2, "blockout"), (4, "removed"), (16, "reservoir"), (32, "contact"), (64, "large"), (128, "noshield")):
         idx = np.asarray(pe.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(V))]
         flags[idx] |= bit
+    be = (job.get("braces_edits") or {}).get(_raw_scan_for(sc) or sc["path"]) or {}
+    if be.get("not"):
+        try:
+            from bleachtray.appliance import near_points
+            flags[near_points(np.asarray(raw.vertices), be["not"], normals=be.get("not_n"), vnormals=raw.vertex_normals)] |= 128
+        except Exception:
+            pass
     # bit 8 = under the mouthguard's bracket shield (found + painted)
     if "shield" in st.files and len(st["shield"]) == len(V):
         flags[np.asarray(st["shield"], bool)] |= 8
