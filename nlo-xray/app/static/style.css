@@ -219,6 +219,12 @@ tr.w1 .dev .mk{background:var(--amber-600)} tr.w2 .dev .mk{background:var(--cora
 .vTools label{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#9DB0CC;padding:0 4px}
 .vTools input[type=range]{width:74px;accent-color:var(--mint)}
 .vTools .sep{width:1px;height:20px;background:rgba(255,255,255,.15)}
+.ptTip{position:absolute;left:0;top:0;z-index:4;width:max-content;max-width:290px;background:rgba(17,32,58,.95);color:#E8EEF8;border-radius:11px;padding:8px 12px 9px;font-size:12px;line-height:1.42;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14)}
+.ptTip .tHd{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#fff}
+.ptTip .tHd b{font-family:var(--fd);font-weight:600;letter-spacing:.03em;color:var(--mint)}
+.ptTip .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.ptTip .tDef{margin-top:4px;color:#C9D4E5}
+.ptTip .tSt{margin-top:5px;font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#9DB0CC}
 .vHint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:rgba(17,32,58,.86);color:#fff;font-size:13px;font-weight:600;padding:8px 14px;border-radius:999px;pointer-events:none;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
 .vHint b{color:var(--mint)}
 .vLoading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9DB0CC;font-size:13px}
