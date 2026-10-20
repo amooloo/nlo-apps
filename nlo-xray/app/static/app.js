@@ -264,7 +264,7 @@
       const doubt = (r.unverified || []).length ? ` · to check: ${esc(r.unverified.join(', '))}` : '';
       return `<div class="impRow"><span class="who">${esc(r.name || '(no name)')} ${r.confirmed ? '<span class="pill confirmed">confirmed</span>' : ''}</span>
         <span class="what"><span class="ok">${r.verified} points</span> reproduce iOrtho's numbers (${r.checks_ok} of ${r.checks} checks)${doubt}</span>
-        ${openBtn(r)}${r.scale_note ? `<span class="what wait">${esc(r.scale_note)}</span>` : ''}</div>`;
+        ${openBtn(r)}${r.vertebrae === 'placed' ? '<span class="what wait">Vertebrae placed from your average tracing (iOrtho does not trace them) - check them, then confirm.</span>' : ''}${r.scale_note ? `<span class="what wait">${esc(r.scale_note)}</span>` : ''}</div>`;
     };
     out.innerHTML = impRows.map(row).join('')
       + (impRows.some((r) => !r.error && !r.skipped && !r.confirmed) ? '<p class="hint">Open each one, look the points over and press Confirm tracing - then it is a lesson for the app.</p>' : '');
@@ -741,12 +741,34 @@
     } catch (e) { toast(e.message, true); }
   }
 
+  // the vertebrae of an x-ray that skipped them: placed where the average tracing puts them, then checked one by one
+  async function traceVertebrae() {
+    if (S.case.status === 'confirmed') {
+      if (!await ask('Add the vertebrae?', 'The tracing is reopened while you place C2-C4 (they start where your average tracing puts them). Confirm it again afterwards.', 'Reopen and add')) return;
+      try {
+        applyServer(await api(`/api/cases/${enc(S.case.id)}`, { method: 'PATCH', body: { status: 'reopen' } }), true);
+      } catch (e) { toast(e.message, true); return; }
+    }
+    await setSkip('cvm', false);
+    const lm = S.case.landmarks || {};
+    const first = required().find((c) => S.lm[c].group === 'cvm' && (!lm[c] || lm[c].by !== 'doctor'));
+    if (first) { S.cur = first; S.mode = 'review'; renderAll(); draw(); focusCurrent(); }
+    refreshCases();
+  }
+
+  function vertebraeToCheck() {
+    const lm = (S.case && S.case.landmarks) || {};
+    if ((S.case.skipped || []).includes('cvm')) return 0;
+    return S.order.filter((k) => S.lm[k].group === 'cvm' && lm[k] && lm[k].by === 'template').length;
+  }
+
   function renderSummary() {
     const a = S.analysis;
     const el = $('#summary');
     if (!a || !a.summary.length) { el.innerHTML = '<p class="empty">Appears as the points are placed.</p>'; return; }
+    const guess = vertebraeToCheck();
     el.innerHTML = a.summary.map((s) => `<div class="sitem ${esc(s.level)}"><div class="t">${esc(s.title)}</div>
-      <div class="c">${esc(s.call)}</div><div class="d">${esc(s.detail)}</div></div>`).join('');
+      <div class="c">${esc(s.call)}</div><div class="d">${esc(s.detail)}${s.key === 'cvm' && guess ? ' · only a guess until C2-C4 are checked' : ''}</div></div>`).join('');
   }
 
   // ------------------------------------------------------------------ CVM: pictures, the doctor's picks, three methods
@@ -847,7 +869,11 @@
     const el = $('#cvmBody');
     const a = S.analysis;
     if ((S.case.skipped || []).includes('cvm')) {
-      el.innerHTML = '<p class="empty">Vertebrae skipped for this x-ray.</p>';
+      const fromIortho = S.case.import && S.case.import.source === 'iOrtho';
+      const age = a && a.age;
+      el.innerHTML = `<p class="empty">Vertebrae skipped for this x-ray${fromIortho ? ' - iOrtho does not trace them' : ''}.${age != null && age >= 18 ? ' Adult: no CVM stage needed.' : ''}</p>
+        <div class="traceBtns"><button class="small" id="bVert" type="button">Trace the vertebrae${S.case.status === 'confirmed' ? ' (reopens the tracing)' : ''}</button></div>`;
+      $('#bVert', el).onclick = traceVertebrae;
       return;
     }
     const cv = a && a.cvm;
@@ -858,7 +884,8 @@
     const m = cv.methods || {};
     const changed = Object.entries(cv.judgements).filter(([, v]) => v.mark && v.mark !== v.auto);
     const st = S.status && S.status.learning && S.status.learning.cvm;
-    el.innerHTML = `
+    const guess = vertebraeToCheck();
+    el.innerHTML = `${guess ? `<div class="notes" style="margin:0 0 10px">C2-C4 are still where your average tracing puts them (${guess} of 13 points to check): this stage is only a guess until you check them.</div>` : ''}
       <div class="cvmTop">
         <canvas id="cvmCrop" class="cvmCrop" title="This x-ray's C2-C4 - click to zoom the viewer here"></canvas>
         ${stageSvg(jv)}

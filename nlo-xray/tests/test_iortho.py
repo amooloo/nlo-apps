@@ -11,7 +11,12 @@ from xray import iortho
 
 @pytest.fixture(scope="module")
 def fake():
-    return make(seed=3)
+    return make(seed=3)                       # a 13-year-old
+
+
+@pytest.fixture(scope="module")
+def adult():
+    return make(seed=3, dob="05-10-1990")
 
 
 def test_report_is_read(fake):
@@ -65,11 +70,13 @@ def client(tmp_path, monkeypatch):
     sys.modules.pop("app.server", None)
     srv = importlib.import_module("app.server")
     with TestClient(srv.app) as c:
+        c.srv = srv
         yield c
     sys.modules.pop("app.server", None)
 
 
-def test_api_import_new_case_and_confirm(client, fake):
+def test_api_import_new_case_and_confirm(client, adult):
+    fake = adult
     files = [("files", ("Test_Patient_ceph.png", fake["original"], "image/png")),
              ("files", ("Test_Patient_traced.png", fake["traced"], "image/png")),
              ("files", ("Test_Patient_Cephalometry_Report.xlsx", fake["report"], "application/octet-stream"))]
@@ -78,8 +85,9 @@ def test_api_import_new_case_and_confirm(client, fake):
     res = r["results"][0]
     assert res["verified"] == len(iortho.DOT_CODES) + 1 and res["unverified"] == ["PM"] and not res["confirmed"]
     case = client.get(f"/api/cases/{res['id']}").json()["case"]
-    assert case["patient"]["name"] == "Patient, Test" and case["patient"]["dob"] == "2013-05-10"
-    assert "cvm" in case["skipped"] and case["import"]["source"] == "iOrtho"
+    assert case["patient"]["name"] == "Patient, Test" and case["patient"]["dob"] == "1990-05-10"
+    assert "cvm" in case["skipped"] and case["import"]["source"] == "iOrtho"        # an adult: no vertebrae
+    assert res["vertebrae"] == "skipped (adult)"
     assert case["calibration"]["mm_per_px"] == pytest.approx(0.24, abs=0.002)     # the fake's scale, from iOrtho's S-N
     assert "iOrtho" in case["calibration"]["source"]
     assert case["landmarks"]["S"]["by"] == "import" and case["landmarks"]["PM"]["conf"] < 1
@@ -162,7 +170,8 @@ def test_api_import_onto_the_xray_already_here(client, fake):
     assert "the x-ray itself" in row["error"] and set(row["waiting"]) == {"t.png", "Maya_Rivers_Cephalometry_Report.xlsx"}
 
 
-def test_api_replace_a_confirmed_tracing_only_when_asked(client, fake):
+def test_api_replace_a_confirmed_tracing_only_when_asked(client, adult):
+    fake = adult
     files = [("files", ("Test_Patient_ceph.png", fake["original"], "image/png")),
              ("files", ("Test_Patient_traced.png", fake["traced"], "image/png")),
              ("files", ("Test_Patient_Cephalometry_Report.xlsx", fake["report"], "application/octet-stream"))]
@@ -189,3 +198,49 @@ def test_an_xray_with_a_red_label_is_not_a_traced_image(fake):
     rgb[200:206, 100:106] = (230, 20, 20)
     assert not iortho.looks_traced(rgb)
     assert iortho.looks_traced(fake["traced_rgb"])
+
+
+def test_api_import_child_gets_vertebrae_to_check(client, fake):
+    """iOrtho traces no vertebrae: for a patient under 18 they are placed from the average tracing, to check - and
+    such an x-ray is not confirmed on import (unchecked points are no lesson)."""
+    from xray.landmarks import GROUP_OF
+    files = [("files", ("Test_Patient_ceph.png", fake["original"], "image/png")),
+             ("files", ("Test_Patient_traced.png", fake["traced"], "image/png")),
+             ("files", ("Test_Patient_Cephalometry_Report.xlsx", fake["report"], "application/octet-stream"))]
+    res = client.post("/api/import/iortho", files=files, data={"confirm": "true"}).json()["results"][0]
+    assert res["vertebrae"] == "placed" and not res["confirmed"]
+    got = client.get(f"/api/cases/{res['id']}").json()
+    case = got["case"]
+    vert = [c for c in case["landmarks"] if GROUP_OF[c] == "cvm"]
+    assert "cvm" not in case["skipped"] and len(vert) == 13
+    assert all(case["landmarks"][c]["by"] == "template" for c in vert) and case["status"] == "traced"
+    assert got["analysis"]["cvm"]["stage"]                             # a (rough) stage until they are checked
+    # checked: then it confirms
+    lm = {c: dict(x=case["landmarks"][c]["x"], y=case["landmarks"][c]["y"], by="doctor") for c in vert}
+    client.patch(f"/api/cases/{res['id']}", json={"landmarks": lm})
+    assert client.patch(f"/api/cases/{res['id']}", json={"status": "confirmed"}).json()["case"]["status"] == "confirmed"
+
+
+def test_older_imports_of_children_get_their_vertebrae_when_opened(client, fake):
+    srv = client.srv
+    ids = {}
+    grown_up = make(seed=5, scale=0.9, pad=(30, 50), name="Grown Up", dob="05-10-1990")    # another x-ray
+    for name, f in (("child", fake), ("adult", grown_up)):
+        files = [("files", (f"{name}_ceph.png", f["original"], "image/png")),
+                 ("files", (f"{name}_traced.png", f["traced"], "image/png")),
+                 ("files", (f"{name}_Cephalometry_Report.xlsx", f["report"], "application/octet-stream"))]
+        ids[name] = client.post("/api/import/iortho", files=files, data={"confirm": "false"}).json()["results"][0]["id"]
+    for cid in ids.values():                       # as an import made before 1.5.0: vertebrae skipped, no record
+        client.patch(f"/api/cases/{cid}", json={"skipped": ["cvm"]})
+        case = srv.STORE.get(cid)
+        case["import"].pop("vertebrae", None)
+        srv.STORE.save(case)
+    child = client.get(f"/api/cases/{ids['child']}").json()["case"]
+    assert "cvm" not in child["skipped"] and child["import"]["vertebrae"] == "placed"
+    assert child["landmarks"]["C3ua"]["by"] == "template"
+    assert any("vertebrae placed" in h["what"] for h in child["history"])
+    grown = client.get(f"/api/cases/{ids['adult']}").json()["case"]
+    assert "cvm" in grown["skipped"] and grown["import"]["vertebrae"] == "skipped (adult)"
+    # done once: skipping them again on purpose is respected
+    client.patch(f"/api/cases/{ids['child']}", json={"skipped": ["cvm"]})
+    assert "cvm" in client.get(f"/api/cases/{ids['child']}").json()["case"]["skipped"]
