@@ -593,6 +593,100 @@
       <div class="c">${esc(s.call)}</div><div class="d">${esc(s.detail)}</div></div>`).join('');
   }
 
+  // ------------------------------------------------------------------ CVM: pictures, the doctor's picks, three methods
+  // Simple schematic shapes drawn here (front of the vertebra to the right).
+  function bodyPath(shape, concave, x, y, s = 1) {
+    const [w, h] = ({ trapezoid: [28, 18], rect_h: [28, 15], square: [22, 22], rect_v: [17, 27] }[shape] || [24, 20]).map((v) => v * s);
+    const x0 = x - w / 2, x1 = x + w / 2, top = y - h / 2, bot = y + h / 2;
+    const frontTop = shape === 'trapezoid' ? top + h * 0.45 : top;      // trapezoid: tapering from back to front
+    const dip = concave ? Math.min(5 * s, h * 0.3) : 0;
+    const bottom = concave ? `Q ${x} ${bot - 2 * dip} ${x0} ${bot}` : `L ${x0} ${bot}`;
+    return `M ${x0} ${top} L ${x1} ${frontTop} L ${x1} ${bot} ${bottom} Z`;
+  }
+  function c2Path(concave, x, y, s = 1) {
+    const k = (dx, dy) => `${x + dx * s} ${y + dy * s}`;
+    const bottom = concave ? `Q ${k(0, 7)} ${k(-9, 14)}` : `L ${k(-9, 14)}`;
+    return `M ${k(-9, 14)} L ${k(-10, -5)} Q ${k(-10, -16)} ${k(-4, -16)} Q ${k(0, -16)} ${k(2, -10)} L ${k(11, 9)} Q ${k(13, 14)} ${k(8, 14)} ${bottom} Z`;
+  }
+  const pic = (d, vb = '0 0 40 36') => `<svg viewBox="${vb}" aria-hidden="true"><path d="${d}"/></svg>`;
+  const SHAPE_LABEL = { trapezoid: 'Trapezoid', rect_h: 'Rect. horizontal', square: 'Square', rect_v: 'Rect. vertical' };
+  const SHAPE_NAME = { trapezoid: 'trapezoid', rect_h: 'rectangular horizontal', square: 'square', rect_v: 'rectangular vertical' };
+
+  function stageSvg(jv, cls = 'stageSvg') {
+    const c2 = c2Path(jv.C2 === 'concave', 30, 22, 1);
+    const c3 = bodyPath(jv.C3shape || 'trapezoid', jv.C3 === 'concave', 30, 58, 1);
+    const c4 = bodyPath(jv.C4shape || 'trapezoid', jv.C4 === 'concave', 30, 92, 1);
+    return `<svg class="${cls}" viewBox="0 0 60 112" aria-hidden="true"><path d="${c2}"/><path d="${c3}"/><path d="${c4}"/></svg>`;
+  }
+
+  function timelineSvg(stage) {
+    // Baccetti 2005: where each stage sits relative to the peak in mandibular growth
+    const X = { CS1: 40, CS2: 90, CS3: 140, CS4: 190, CS5: 240, CS6: 290 };
+    let s = '<svg class="tl" viewBox="0 0 320 80" role="img" aria-label="Stage relative to the peak in mandibular growth">';
+    s += '<rect x="140" y="16" width="50" height="42" rx="2" fill="#DCE0E4"/><text x="165" y="41" text-anchor="middle" class="tlPeak">PEAK</text>';
+    s += '<line x1="12" y1="58" x2="308" y2="58" stroke="#33404F" stroke-width="1.5"/>';
+    for (const [k, x] of Object.entries(X)) {
+      const on = k === stage;
+      s += `<line x1="${x}" y1="16" x2="${x}" y2="58" stroke="${on ? '#EE4F3A' : '#969FAB'}" stroke-width="${on ? 3 : 1}"/>`;
+      s += `<text x="${x}" y="11" text-anchor="middle" class="${on ? 'tlOn' : 'tlStage'}">${k}</text>`;
+    }
+    for (const [x, t] of [[40, '−2 y'], [90, '−1 y'], [165, '≈ 1 y'], [240, '+1 y'], [290, '+2 y']]) {
+      s += `<text x="${x}" y="73" text-anchor="middle" class="tlAxis">${t}</text>`;
+    }
+    return s + '</svg>';
+  }
+
+  function hfBlock(hf) {
+    if (!hf) return '';
+    return `<div class="meth"><div class="mHd"><b>Hassel &amp; Farman</b> <span>CVMI ${hf.cvmi} · ${esc(hf.name)}</span></div>
+      <div class="hfTrack"><div class="hfSeg" style="left:${hf.lo}%;width:${Math.max(2, hf.hi - hf.lo)}%"></div></div>
+      <div class="hfScale"><span>0 %</span><span>adolescent growth still to come</span><span>100 %</span></div>
+      <div class="mTxt">${esc(hf.text)}</div></div>`;
+  }
+
+  function mitoBlock(mi) {
+    if (!mi) return '<div class="meth"><div class="mHd"><b>Mito</b> <span>trace the C3 and C4 bodies</span></div></div>';
+    let cmp = '<span class="mTxt">Add the birth date (Details) to compare it with the age.</span>';
+    if (mi.age != null) {
+      const d = mi.diff;
+      const word = Math.abs(d) < 0.5 ? 'in line with the age' : d > 0 ? `${d.toFixed(1)} y ahead of the age` : `${(-d).toFixed(1)} y behind the age`;
+      cmp = `<span class="mTxt">Age at the x-ray ${mi.age.toFixed(1)} y: the vertebrae are ${word}.</span>`;
+    }
+    return `<div class="meth"><div class="mHd"><b>Mito</b> <span>cervical vertebral bone age</span></div>
+      <div class="mBig">${mi.bone_age.toFixed(1)} y</div>${cmp}
+      ${mi.note ? `<div class="mNote">${esc(mi.note)}</div>` : ''}</div>`;
+  }
+
+  function pickRow(level, cv) {
+    const j = cv.judgements;
+    const conc = j[level] || {};
+    const shapeK = `${level}shape`;
+    const shp = j[shapeK] || {};
+    const shapeNow = shp.value || 'trapezoid';
+    const f = (cv.features || []).find((x) => x.level === level) || {};
+    const btn = (k, v, svg, label, tip, jj) => {
+      const cls = ['pick'];
+      if (jj.value === v) cls.push('on');
+      if (jj.auto === v) cls.push('auto');
+      if (jj.mark === v) cls.push('mark');
+      return `<button type="button" class="${cls.join(' ')}" data-k="${k}" data-v="${v}" title="${esc(tip)}">${svg}<span>${label}</span></button>`;
+    };
+    const ctip = f.concavity_pct != null ? `The lower border dips ${f.concavity_pct}% of its length${f.concavity_mm != null ? ` (${f.concavity_mm} mm)` : ''}; concave from ${cv.thresholds.concavity_pct}%.` : 'Not traced.';
+    const isC2 = level === 'C2';
+    const flatPic = isC2 ? pic(c2Path(false, 20, 19, 0.95)) : pic(bodyPath(shapeNow, false, 20, 18, 0.95));
+    const concPic = isC2 ? pic(c2Path(true, 20, 19, 0.95)) : pic(bodyPath(shapeNow, true, 20, 18, 0.95));
+    let html = `<div class="pRow"><div class="pLvl">${level}</div><div class="pGrp"><div class="pLbl">Lower border</div><div class="pBtns">`
+      + btn(level, 'flat', flatPic, 'Flat', ctip, conc) + btn(level, 'concave', concPic, 'Concave', ctip, conc) + '</div></div>';
+    if (!isC2) {
+      const stip = f.height_width != null ? `Height / width ${f.height_width}, front / back height ${f.front_back}. Trapezoid below ${cv.thresholds.trapezoid_ratio} front/back; square from ${cv.thresholds.square_low} to ${cv.thresholds.square_high} height/width.` : 'Not traced.';
+      const cc = conc.value === 'concave';
+      html += `<div class="pGrp"><div class="pLbl">Body</div><div class="pBtns">`
+        + ['trapezoid', 'rect_h', 'square', 'rect_v'].map((v) => btn(shapeK, v, pic(bodyPath(v, v !== 'trapezoid' && cc, 20, 18, 0.95)), SHAPE_LABEL[v], stip, shp)).join('')
+        + '</div></div>';
+    }
+    return html + '</div>';
+  }
+
   function renderCvm() {
     const el = $('#cvmBody');
     const a = S.analysis;
@@ -601,41 +695,104 @@
       return;
     }
     const cv = a && a.cvm;
-    if (!cv) { el.innerHTML = '<p class="empty">Trace C2-C4 to stage CVM.</p>'; return; }
-    const doc = (S.case.cvm || {}).doctor;
-    const rows = (cv.features || []).map((f) => `<tr><td><b>${esc(f.level)}</b></td>
-      <td>${f.concave == null ? '<span class="no">-</span>' : f.concave ? '<span class="yes">concave</span>' : '<span class="no">flat</span>'}
-      ${f.concavity_pct != null ? `<span class="no"> ${f.concavity_pct}%${f.concavity_mm != null ? ` (${f.concavity_mm} mm)` : ''}</span>` : ''}</td>
-      <td>${f.shape ? esc(f.shape) : f.level === 'C2' ? '' : '<span class="no">-</span>'}${f.height_width != null ? `<span class="no"> h/w ${f.height_width}</span>` : ''}</td></tr>`).join('');
-    const opts = ['', 'CS1', 'CS2', 'CS3', 'CS4', 'CS5', 'CS6'].map((o) => `<option value="${o}"${(doc || '') === o ? ' selected' : ''}>${o ? o : 'Same as the app'}</option>`).join('');
-    const age = a.age != null ? ` · ${a.age} y` : '';
-    const shown = doc || cv.stage;
-    el.innerHTML = `<div class="cvmHead"><div class="cvmStage">${esc(shown || '-')}</div><div class="cvmTiming">${doc && doc !== cv.stage ? `Your call (the app reads ${esc(cv.stage || '-')})` : (cv.stage ? 'Read from the tracing' : '')}${esc(age)}</div></div>
-      <div class="cvmTiming" style="margin-top:4px">${esc(timingFor(shown) || cv.timing || '')}</div>
-      <table class="ft"><tr><th></th><th>Lower border</th><th>Body</th></tr>${rows}</table>
-      ${cv.notes && cv.notes.length ? `<div class="notes">${cv.notes.map(esc).join('<br>')}</div>` : ''}
-      <div class="callRow"><label for="cvmCall">Your call</label><select id="cvmCall">${opts}</select></div>
-      <div class="tuned" id="cvmTuned"></div>`;
-    $('#cvmCall').onchange = async (e) => {
-      try {
-        await flushSave();
-        const r = await api(`/api/cases/${enc(S.case.id)}`, { method: 'PATCH', body: { cvm_doctor: e.target.value || null } });
-        applyServer(r, false);
-      } catch (err) { toast(err.message, true); }
-    };
+    if (!cv || !cv.judgements) { el.innerHTML = '<p class="empty">Trace C2-C4 to stage CVM.</p>'; return; }
+    const jv = {};
+    for (const [k, v] of Object.entries(cv.judgements)) jv[k] = v.value;
+    const m = cv.methods || {};
+    const changed = Object.entries(cv.judgements).filter(([, v]) => v.mark && v.mark !== v.auto);
     const st = S.status && S.status.learning && S.status.learning.cvm;
-    $('#cvmTuned').textContent = st && st.message ? st.message : 'Your calls on confirmed x-rays tune the thresholds to your eye once there are 8.';
+    el.innerHTML = `
+      <div class="cvmTop">
+        <canvas id="cvmCrop" class="cvmCrop" title="This x-ray's C2-C4 - click to zoom the viewer here"></canvas>
+        ${stageSvg(jv)}
+        <div class="cvmRes">
+          <div class="cvmStage">${esc(cv.stage || '-')}</div>
+          <div class="cvmBy">${cv.overridden ? (cv.auto_stage && cv.auto_stage !== cv.stage ? `with your picks (the tracing reads ${esc(cv.auto_stage)})` : 'with your picks') : 'read from the tracing'}${a.age != null ? ` · ${a.age} y` : ''}</div>
+          <div class="cvmTiming">${esc(cv.timing || '')}</div>
+        </div>
+      </div>
+      ${cv.stage ? `<div class="meth"><div class="mHd"><b>Baccetti</b> <span>peak in mandibular growth</span></div>${timelineSvg(cv.stage)}</div>` : ''}
+      ${hfBlock(m.hassel_farman)}
+      ${mitoBlock(m.mito)}
+      ${cv.notes && cv.notes.length ? `<div class="notes">${cv.notes.map(esc).join('<br>')}</div>` : ''}
+      <div class="pHead">What it is based on <span>click a picture to change it · your picks say "you"</span></div>
+      ${['C2', 'C3', 'C4'].map((l) => pickRow(l, cv)).join('')}
+      ${changed.length ? `<div class="pFoot">Your picks: ${changed.map(([k, v]) => `${k.replace('shape', ' body')} ${esc(SHAPE_NAME[v.mark] || v.mark)}`).join(', ')} · <button type="button" class="linkBtn" id="cvmReset">back to the app's reading</button></div>` : ''}
+      <div class="tuned">${esc(st && st.message ? st.message : 'Your picks on confirmed x-rays tune the app\'s flat / concave and shape readings to your eye once there are 8.')}</div>`;
+    for (const b of $$('.pick', el)) b.onclick = () => setCvmMark(b.dataset.k, b.dataset.v);
+    const r = $('#cvmReset', el);
+    if (r) r.onclick = () => setCvmMark(null, null);
+    const crop = $('#cvmCrop', el);
+    crop.onclick = zoomToVertebrae;
+    drawCvmCrop();
   }
 
-  const TIMING = {
-    CS1: 'Pre-pubertal: the peak in mandibular growth is on average about 2 years away.',
-    CS2: 'Pre-pubertal: the peak in mandibular growth is on average about 1 year away.',
-    CS3: 'Pubertal: the peak in mandibular growth is expected during the coming year.',
-    CS4: 'Pubertal: the peak in mandibular growth happened within the last 1-2 years.',
-    CS5: 'Post-pubertal: the peak ended at least 1 year ago.',
-    CS6: 'Post-pubertal: the peak ended at least 2 years ago.',
-  };
-  const timingFor = (s) => TIMING[s] || '';
+  async function setCvmMark(k, v) {
+    let body;
+    if (k === null) body = { cvm_marks: null };
+    else {
+      const jj = (S.analysis.cvm.judgements || {})[k] || {};
+      body = { cvm_marks: { [k]: v === jj.auto ? null : v } };   // the app's own reading: no override needed
+    }
+    try {
+      await flushSave();
+      const r = await api(`/api/cases/${enc(S.case.id)}`, { method: 'PATCH', body });
+      applyServer(r, false);
+      refreshCases();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  function vertebraBox() {
+    const lm = (S.case && S.case.landmarks) || {};
+    const codes = S.order.filter((k) => S.lm[k].group === 'cvm' && lm[k]);
+    if (codes.length < 3) return null;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const k of codes) { const v = lm[k]; x0 = Math.min(x0, v.x); y0 = Math.min(y0, v.y); x1 = Math.max(x1, v.x); y1 = Math.max(y1, v.y); }
+    const w = x1 - x0, h = y1 - y0, pad = Math.max(w, h) * 0.15;
+    return { x0: x0 - pad, y0: y0 - h * 0.45 - pad, x1: x1 + pad, y1: y1 + pad };   // C2's body runs above its border
+  }
+
+  function drawCvmCrop() {
+    const c = $('#cvmCrop');
+    if (!c || !S.case) return;
+    const box = vertebraBox();
+    if (!box || !S.filtered) { c.hidden = !box; return; }
+    c.hidden = false;
+    const dpr = window.devicePixelRatio || 1;
+    const W = c.clientWidth || 96, H = c.clientHeight || 128;
+    c.width = Math.round(W * dpr);
+    c.height = Math.round(H * dpr);
+    const g = c.getContext('2d');
+    const s = Math.min(W / (box.x1 - box.x0), H / (box.y1 - box.y0));
+    const ox = (W - (box.x1 - box.x0) * s) / 2 - box.x0 * s, oy = (H - (box.y1 - box.y0) * s) / 2 - box.y0 * s;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#0b1424';
+    g.fillRect(0, 0, W, H);
+    g.save();
+    g.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(S.filtered, 0, 0);
+    g.restore();
+    const lm = S.case.landmarks || {};
+    g.strokeStyle = 'rgba(199,166,255,.95)';
+    g.lineWidth = 1.2;
+    for (const o of S.defs.outlines) {
+      const pts = o.map((k) => lm[k]);
+      if (pts.some((v) => !v)) continue;
+      g.beginPath();
+      pts.forEach((v, i) => { const X = ox + v.x * s, Y = oy + v.y * s; if (i) g.lineTo(X, Y); else g.moveTo(X, Y); });
+      g.stroke();
+    }
+  }
+
+  function zoomToVertebrae() {
+    const box = vertebraBox();
+    if (!box) return;
+    const r = cv.getBoundingClientRect();
+    const s = Math.min(r.width / (box.x1 - box.x0), r.height / (box.y1 - box.y0)) * 0.8;
+    S.view = { scale: s, tx: r.width / 2 - (box.x0 + box.x1) / 2 * s, ty: r.height / 2 - (box.y0 + box.y1) / 2 * s };
+    draw();
+  }
 
   function renderMeasures() {
     const a = S.analysis;
@@ -688,6 +845,7 @@
     x.drawImage(S.img, 0, 0);
     S.filtered = c;
     draw();
+    drawCvmCrop();
   }
 
   function fit() {
@@ -1065,8 +1223,10 @@
   async function deleteCase() {
     if (!await ask('Delete this x-ray?', `${(S.case.patient || {}).name || 'This x-ray'} - the image and its tracing go to the app's deleted folder (cases\\_deleted on this PC).`, 'Delete')) return;
     try {
-      await api(`/api/cases/${enc(S.case.id)}`, { method: 'DELETE' });
+      const gone = S.case.id;
+      await api(`/api/cases/${enc(gone)}`, { method: 'DELETE' });
       S.pending = {};
+      S.cases = S.cases.filter((c) => c.id !== gone);      // its thumbnail is gone too
       showWelcome();
       await refreshCases();
       refreshStatus();
@@ -1085,7 +1245,9 @@
     paintScene(off.getContext('2d'), { scale, tx: 0, ty: 0 }, 1, { print: true, k: Math.max(1, off.width / 650) });
     const img = off.toDataURL('image/jpeg', 0.9);
     const sum = a.summary.map((s) => `<div class="sitem ${esc(s.level)}"><div class="t">${esc(s.title)}</div><div class="c">${esc(s.call)}</div><div class="d">${esc(s.detail)}</div></div>`).join('');
-    const doc = (c.cvm || {}).doctor;
+    const cvp = a.cvm && a.cvm.stage && !(c.skipped || []).includes('cvm') ? a.cvm : null;
+    const jv = {};
+    if (cvp) for (const [k, v] of Object.entries(cvp.judgements || {})) jv[k] = v.value;
     const row = (m) => `<tr><td>${esc(m.label)}</td><td class="v">${esc(fmtVal(m))}</td><td class="nm">${m.norm ? `${m.norm.mean}±${m.norm.sd}` : ''}</td></tr>`;
     const have = a.measurements.filter((m) => m.value != null);
     const side = (m) => m.group === 'Lengths' || m.group === 'Soft tissue';
@@ -1095,7 +1257,7 @@
       <div class="phead"><div><h1>Cephalometric analysis</h1><div class="pmeta">${esc(p.name || '')}${p.chart ? ' · #' + esc(p.chart) : ''}</div></div>
         <div class="pmeta" style="text-align:right">${c.taken ? `X-ray ${esc(fmtDate(c.taken))}` : 'X-ray date not set'}${a.age != null ? ` · age ${a.age}` : ''}${p.sex ? ' · ' + (p.sex === 'F' ? 'female' : 'male') : ''}<br>${c.status === 'confirmed' ? 'Tracing confirmed' : 'Tracing NOT confirmed'} · printed ${esc(fmtDate(new Date().toISOString().slice(0, 10)))}</div></div>
       <div class="pgrid"><div><img class="trace" src="${img}" alt=""><table class="mt" style="margin-top:8px">${rows}</table></div>
-        <div><div class="sum">${sum}</div>${doc && a.cvm && doc !== a.cvm.stage ? `<p class="pmeta" style="margin-top:6px">CVM: doctor's call ${esc(doc)} (traced reading ${esc(a.cvm.stage || '-')})</p>` : ''}
+        <div><div class="sum">${sum}</div>${cvp ? `<div class="pcvm">${stageSvg(jv)}${timelineSvg(cvp.stage)}</div>${cvp.overridden ? '<p class="pmeta">CVM read with the doctor\'s picks.</p>' : ''}` : ''}
         ${lengths ? `<table class="mt" style="margin-top:10px">${lengths}</table>` : ''}</div></div>
       <div class="pfoot">Next Level Orthodontics · NLO X-Ray Reader · ${esc(calText() || 'not calibrated: millimetre values omitted')}. A tracing aid - the clinical judgement is the doctor's.</div>`;
     setTimeout(() => window.print(), 60);
@@ -1187,12 +1349,12 @@
       const c = s.cvm || {}, dt = S.defs.default_cvm, th = { ...dt, ...(c.thresholds || {}) };
       const tuned = c.tuned;
       const f = (k, l, step) => `<div><label class="f" for="cv_${k}">${l}</label><input class="in" id="cv_${k}" data-th="${k}" type="number" step="${step}" value="${th[k]}"><p class="hint">default ${dt[k]}</p></div>`;
-      body.innerHTML = `<p>The stage follows Baccetti, Franchi &amp; McNamara (2005): which lower borders of C2-C4 are concave, and the shape of the C3 and C4 bodies. Two measured judgements decide it, each with a threshold:</p>
+      body.innerHTML = `<p>Three methods read the same tracing. <b>Baccetti, Franchi &amp; McNamara (2005)</b> (CS1-CS6, timing of the peak in mandibular growth) and <b>Hassel &amp; Farman (1995)</b> (CVMI 1-6, share of adolescent growth still to come) both rest on which lower borders of C2-C4 are concave and the shape of the C3 and C4 bodies; <b>Mito et al. (2002)</b> turns the C3 and C4 proportions into a cervical vertebral bone age (derived for girls). The app measures the two judgements below; a click on a picture in the Growth panel overrules it for that x-ray.</p>
         <label class="f">Thresholds in use</label>
-        <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin:6px 0"><input type="radio" name="cvmMode" value="auto" ${c.mode !== 'manual' && c.mode !== 'defaults' ? 'checked' : ''}> Tuned to my own CVM calls (once there are 8, and only if it agrees with me more often than the defaults)</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin:6px 0"><input type="radio" name="cvmMode" value="auto" ${c.mode !== 'manual' && c.mode !== 'defaults' ? 'checked' : ''}> Tuned to my own picks on confirmed x-rays (once there are 8, and only if it then agrees with me more often than the defaults)</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin:6px 0"><input type="radio" name="cvmMode" value="defaults" ${c.mode === 'defaults' ? 'checked' : ''}> The defaults</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin:6px 0"><input type="radio" name="cvmMode" value="manual" ${c.mode === 'manual' ? 'checked' : ''}> The values below</label>
-        <p class="hint">${tuned ? esc(tuned.message || '') : 'Not tuned yet - your calls are collected as you confirm tracings.'}</p>
+        <p class="hint">${tuned ? esc(tuned.message || '') : 'Not tuned yet - your picks are collected as you confirm tracings.'}</p>
         <div class="row2">${f('concavity_pct', 'Concave when the border dips at least (% of its length)', 0.5)}${f('trapezoid_ratio', 'Trapezoid when front height / back height is below', 0.01)}</div>
         <div class="row2">${f('square_low', 'Square from height / width', 0.01)}${f('square_high', '... to (above: rectangular vertical)', 0.01)}</div>`;
       foot.innerHTML = '<button class="primary" id="cvSave" type="button">Save</button>';

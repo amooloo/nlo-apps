@@ -93,19 +93,40 @@ def test_full_flow(client):
     client.patch(f"/api/cases/{cid}", json={"skipped": []})
     r = client.post(f"/api/cases/{cid}/fill").json()
     assert r["case"]["landmarks"]["Prn"]["by"] == "template"
-    # confirm: all points become the doctor's, CVM stage recorded as his call
+    # the CVM panel: three methods, and the doctor's picks win
+    cv = r["analysis"]["cvm"]
+    assert set(cv["methods"]) == {"baccetti", "hassel_farman", "mito"}
+    assert cv["methods"]["mito"]["age"] == pytest.approx(13.8, abs=0.1) or cv["methods"]["mito"]["age"] is None
+    r = client.patch(f"/api/cases/{cid}", json={"cvm_marks": {"C2": "flat", "C3": "flat", "C4": "flat"}}).json()
+    assert r["analysis"]["cvm"]["stage"] == "CS1" and r["analysis"]["cvm"]["overridden"]
+    assert r["case"]["cvm"]["marks"] == {"C2": "flat", "C3": "flat", "C4": "flat"}
+    r = client.patch(f"/api/cases/{cid}", json={"cvm_marks": {"C3": None, "bogus": "x"}}).json()
+    assert r["case"]["cvm"]["marks"] == {"C2": "flat", "C4": "flat"}
+    # confirm: all points become the doctor's; the CVM judgements and stage as shown are recorded
     r = client.patch(f"/api/cases/{cid}", json={"status": "confirmed"}).json()
     assert r["case"]["status"] == "confirmed" and r["case"]["confirmed_at"]
     assert all(v["by"] == "doctor" for v in r["case"]["landmarks"].values())
-    assert r["case"]["cvm"]["doctor"] == r["analysis"]["cvm"]["stage"] and r["case"]["cvm"]["agreed"]
+    cvc = r["case"]["cvm"]
+    assert cvc["doctor"] == r["analysis"]["cvm"]["stage"] == "CS1"
+    assert cvc["confirmed"]["C2"] == "flat" and cvc["confirmed"]["C4"] == "flat" and "C3shape" in cvc["confirmed"]
     rows = client.get("/api/cases").json()
     assert rows[0]["status"] == "confirmed" and rows[0]["name"] == "Doe, Jane"
     assert client.get("/api/cases?q=doe").json() and not client.get("/api/cases?q=zzz").json()
     st = client.get("/api/status").json()
     assert st["confirmed"] == 1 and st["model"] is None
-    # a doctor's CVM override
-    r = client.patch(f"/api/cases/{cid}", json={"cvm_doctor": "CS4"}).json()
-    assert r["case"]["cvm"]["doctor"] == "CS4"
+    # a pick changed after confirming updates the lesson; back to the app's reading clears the picks
+    before = r["case"]["confirmed_at"]
+    r = client.patch(f"/api/cases/{cid}", json={"cvm_marks": {"C2": "concave"}}).json()
+    assert r["case"]["cvm"]["doctor"] == r["analysis"]["cvm"]["stage"] != "CS1"
+    assert r["case"]["cvm"]["confirmed"]["C2"] == "concave"
+    assert r["case"]["confirmed_at"] >= before
+    r = client.patch(f"/api/cases/{cid}", json={"cvm_marks": None}).json()
+    assert r["case"]["cvm"]["marks"] == {} and not r["analysis"]["cvm"]["overridden"]
+    # reopening forgets the confirmed judgements (taken again at the next confirm), keeps nothing stale
+    r = client.patch(f"/api/cases/{cid}", json={"status": "reopen"}).json()
+    assert "confirmed" not in r["case"]["cvm"] and "doctor" not in r["case"]["cvm"]
+    r = client.patch(f"/api/cases/{cid}", json={"status": "confirmed"}).json()
+    assert r["case"]["cvm"]["doctor"] == r["analysis"]["cvm"]["stage"]
     # delete -> moved aside, not erased
     assert client.delete(f"/api/cases/{cid}").status_code == 200
     assert client.get(f"/api/cases/{cid}").status_code == 404

@@ -301,17 +301,26 @@ def summarize(rows, sex=None, settings=None, cvm=None):
                           level="ok" if all(c == "within norms" for _, c, _ in lips) else "info",
                           detail=" · ".join(e for _, _, e in lips), borderline=False))
 
-    # --- growth (CVM) ---
+    # --- growth (CVM): Baccetti, Hassel & Farman, Mito ---
     if cvm and cvm.get("stage"):
-        items.append(dict(key="cvm", title="Growth (CVM)", call=cvm["stage_label"], level="info",
-                          detail=cvm.get("timing", ""), borderline=bool(cvm.get("borderline"))))
+        m = cvm.get("methods") or {}
+        hf, mi = m.get("hassel_farman"), m.get("mito")
+        call = cvm["stage"] + (f" · CVMI {hf['cvmi']} {hf['name']}" if hf else "")
+        parts = [f"Baccetti: {cvm.get('timing', '')}"]
+        if hf:
+            parts.append(f"Hassel & Farman: {hf['text']}")
+        if mi:
+            age = f" (age {mi['age']:.1f} y, {mi['diff']:+.1f} y)" if mi.get("age") is not None else ""
+            parts.append(f"Mito: cervical vertebral bone age {mi['bone_age']:.1f} y{age}")
+        items.append(dict(key="cvm", title="Growth (CVM)", call=call, level="info", detail=" · ".join(parts),
+                          borderline=bool(cvm.get("borderline"))))
     return items
 
 
-def analyze(landmarks, mm_per_px=None, facing=None, sex=None, settings=None):
-    """Everything the case view shows: measurements, CVM and the summary."""
+def analyze(landmarks, mm_per_px=None, facing=None, sex=None, settings=None, cvm_marks=None, age=None):
+    """Everything the case view shows: measurements, CVM (three methods) and the summary."""
     pts = {k: v for k, v in (landmarks or {}).items() if v is not None}
     facing = facing or g.facing_of(pts) or "right"
     rows = measure(pts, mm_per_px, facing, sex, settings)
-    cvm = cvm_stage(g.to_canonical(pts, facing), mm_per_px, (settings or {}).get("cvm"))
+    cvm = cvm_stage(g.to_canonical(pts, facing), mm_per_px, (settings or {}).get("cvm"), cvm_marks, age, sex)
     return dict(facing=facing, measurements=rows, cvm=cvm, summary=summarize(rows, sex, settings, cvm))

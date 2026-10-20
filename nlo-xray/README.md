@@ -30,12 +30,24 @@ Panoramic x-rays are next; this first version reads lateral cephs.
 4. **Read it.** The *Summary* gives the skeletal class (ANB and Wits; when they disagree it says *Borderline* and
    which says what), the vertical pattern (FMA and SN-GoGn), the jaws, the incisors, the lips to the E-line and
    the CVM stage with what it means for growth timing. *Measurements* lists every value against its norm: amber
-   more than 1 SD off, coral more than 2 SD. *Growth (CVM)* shows what the stage is based on: which lower borders
-   of C2-C4 are concave (and how deep) and the shape of the C3 and C4 bodies.
-5. **Confirm tracing.** It becomes a lesson for the app. Confirming also records the CVM stage shown as your
-   call - if you see it differently, pick your stage under *Your call* first. **Print** gives a one-page report
-   (tracing, summary, measurements). A confirmed tracing can still be corrected by dragging a point (the app
-   learns the correction); **Reopen** walks through it again.
+   more than 1 SD off, coral more than 2 SD.
+   **Growth (CVM)** reads the vertebrae three ways, the way the CVM phone apps do - but from the tracing:
+   - **Baccetti et al. (2005)**: CS1-CS6 and where the patient sits relative to the peak in mandibular growth
+     (a timeline with the stage marked);
+   - **Hassel & Farman (1995)**: CVMI 1-6 (Initiation ... Completion) and the share of adolescent growth still to
+     come (80-100 %, 65-85 %, 25-65 %, 10-25 %, 5-10 %, little or none);
+   - **Mito et al. (2002)**: the cervical vertebral bone age from the C3 and C4 proportions, next to the age at
+     the x-ray (the formula was derived for girls; the app says so for boys).
+   Below them are the five things the stages rest on, as pictures: the lower border of C2, C3 and C4 (flat or
+   concave) and the C3 and C4 bodies (trapezoid, rectangular horizontal, square, rectangular vertical), with the
+   app's reading highlighted. **Click a picture to overrule it** for this x-ray - it is marked *you*, every
+   method follows it, and *back to the app's reading* undoes it. The small picture of this x-ray's C2-C4 (with
+   the tracing) zooms the viewer onto the vertebrae when clicked.
+5. **Confirm tracing.** It becomes a lesson for the app, and the five CVM judgements as shown (your picks and
+   the readings you let stand) become lessons for its flat / concave and shape readings. **Print** gives a
+   one-page report (tracing, summary with all three CVM methods, the stage drawing and timeline,
+   measurements). A confirmed tracing can still be corrected by dragging a point or clicking a CVM picture (the
+   app learns the correction); **Reopen** walks through it again.
 
 ### Calibration (millimetres)
 
@@ -62,10 +74,10 @@ need the size of a pixel at the patient's midline:
   there is under 4 mm; every later one only if it beats the network in use on the same held-back x-rays.
   Settings → Learning shows the average error, the share of points within 2 mm, the error of every point, and
   **Go back to the previous network** (the last three are kept).
-- **Your CVM eye.** Your stage calls on confirmed tracings (including the ones you accepted) tune the two CVM
-  thresholds - how deep a border must dip to count as concave, and where a body turns trapezoid / square /
-  vertical - but only once there are 8 calls and only if the tuned thresholds agree with you more often than
-  the defaults when each x-ray is left out in turn.
+- **Your CVM eye.** The flat / concave and shape judgements on confirmed tracings (your picks and the readings
+  you let stand) tune the CVM thresholds - how deep a border must dip to count as concave, and where a body
+  turns trapezoid / square / vertical - but only once there are 8 such x-rays and only if the tuned thresholds
+  agree with you more often than the defaults when each x-ray is left out in turn.
 - **A faster start:** trace a batch of old cephs from your records. Every one you confirm counts.
 
 It is a tracing aid: it shows its tracing so every point and every call can be checked, and the clinical
@@ -127,7 +139,7 @@ nlo-xray\
   app\static\           the page (index.html, app.js, style.css), fonts, logo - all served locally
   xray\landmarks.py     the 37 landmarks, their definitions, tracing order and the textbook template
   xray\analysis.py      measurements, norms, the summary calls
-  xray\cvm.py           CVM stage (Baccetti 2005) and the tuning of its thresholds
+  xray\cvm.py           CVM: Baccetti (2005), Hassel & Farman (1995), Mito (2002), the doctor's picks, tuning
   xray\imageio.py       DICOM / JPG / PNG / TIFF reading, pixel size, names and dates
   xray\store.py         one folder per x-ray under cases\
   xray\shape.py         the average tracing (Procrustes), anchors -> all points, filling in points
@@ -160,14 +172,21 @@ U1-SN 103±6, U1-NA 22±5° / 4±2 mm, L1-NB 25±5° / 4±2 mm, IMPA 90±5, inte
 lower lip −2±2. Summary calls: Class II when ANB > 4°, Class III when < 0°; Wits Class II/III more than 2 mm
 from its norm; high angle FMA > 30° or SN-GoGn > 37°, low angle FMA < 20° or SN-GoGn < 27°.
 
-**CVM** (Baccetti, Franchi & McNamara 2005). A lower border is concave when its deepest point lies at least
-6 % of the border's length above the line joining its corners (≈1 mm on a 15 mm body). A C3/C4 body is
-trapezoid when front height / back height < 0.80, else height / width < 0.90 rectangular horizontal,
-0.90-1.10 square, > 1.10 rectangular vertical. CS1 no concavities; CS2 C2; CS3 C2+C3; CS4 all three with
-rectangular-horizontal bodies; CS5 at least one square; CS6 at least one rectangular vertical. A call within
-1.5 % / 0.04 of a threshold is marked *close to a threshold*; inconsistent tracings (C3 concave with C2 flat, ...)
-are flagged. Tuning: grid search over the four thresholds, accepted only when leave-one-out agreement with the
-doctor's calls beats the defaults' agreement.
+**CVM** (`xray/cvm.py`). The five judgements: a lower border is concave when its deepest point lies at least
+6 % of the border's length above the line joining its corners (≈1 mm on a 15 mm body); a C3/C4 body is
+trapezoid when front height / back height < 0.80 (heights from each upper corner to the line through the lower
+corners), else height / width < 0.90 rectangular horizontal, 0.90-1.10 square, > 1.10 rectangular vertical. The
+doctor's picks (`case.cvm.marks`) replace any of them. *Baccetti, Franchi & McNamara (2005)*: CS1 no
+concavities; CS2 C2; CS3 C2+C3; CS4 all three with rectangular-horizontal bodies; CS5 at least one square; CS6 at
+least one rectangular vertical. *Hassel & Farman (1995)*: CVMI 1 Initiation (80-100 % of adolescent growth to
+come), 2 Acceleration (65-85 %), 3 Transition (25-65 %), 4 Deceleration (10-25 %), 5 Maturation (5-10 %),
+6 Completion (little or none) - read from the same judgements, so the CVMI number steps with the CS number.
+*Mito, Sato & Mitani (2002)*: cervical vertebral bone age = −0.20 + 6.20 × AH3/AP3 + 5.90 × AH4/AP4 + 4.74 × AH4/PH4
+(AH / PH front / back height as above, AP the front-to-back depth at mid-height), compared with the age at the
+x-ray; derived for Japanese girls, flagged for boys. A judgement within 1.5 % / 0.04 of its threshold is marked
+*close to a threshold*; inconsistent tracings (C3 concave with C2 flat, ...) are flagged. On confirming, the
+five judgements as shown are stored (`case.cvm.confirmed`, with the stage in `case.cvm.doctor`); tuning searches
+each threshold on them and is used only when leave-one-out agreement with the doctor beats the defaults'.
 
 **The network** (`xray/model.py`). The x-ray is mirrored to face right when needed, fitted into 512 × 512, a
 stride-2 stem and a 5-level U-Net (16-96 channels, GroupNorm) score every cell of a 256 × 256 grid per landmark;
