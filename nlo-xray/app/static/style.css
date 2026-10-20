@@ -317,3 +317,19 @@ pre.log{background:var(--navy-900);color:#C9D4E5;font-size:11px;padding:10px 12p
   #view{grid-template-columns:320px minmax(0,1fr)}
   #side{width:220px}
 }
+
+/* where a point goes: a diagram and close-ups of this office's confirmed x-rays */
+.whereRow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.wherePic{margin:0;border:1px solid var(--grey-200);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column;min-width:0}
+.wherePic .pic{cursor:zoom-in;display:block;width:100%;aspect-ratio:1;background:#F7F8F9}
+.wherePic canvas.pic{background:#0b1424}
+.wherePic svg{display:block;width:100%;height:100%}
+.wherePic figcaption{font-size:10.5px;color:var(--grey-600);padding:4px 7px;display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:25px;line-height:1.25}
+.wherePic figcaption button{padding:0 5px;font-size:14px;line-height:1;color:var(--navy-600)}
+.wherePic figcaption button:disabled{opacity:.3;cursor:default}
+.wherePic .noEx{display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-size:11px;color:var(--grey-500);aspect-ratio:1;background:#F7F8F9}
+#dlgPic{max-width:min(620px,96vw)}
+#dlgPic .picBig svg,#dlgPic .picBig canvas{display:block;width:min(520px,84vw);height:auto;aspect-ratio:1;margin:0 auto;border-radius:12px;background:#F7F8F9}
+#dlgPic .picBig canvas{background:#0b1424}
+#dlgPic .picDef{font-size:12.5px;color:var(--grey-700);margin:12px 4px 4px;line-height:1.5}
+#dlgPic .picNav{display:flex;justify-content:center;gap:8px;margin:6px 0 4px}
