@@ -577,9 +577,13 @@ only inside the walls, so the line is never cut and nothing is filled in under i
 under (one cut - an earlier try that cut twice and joined the pieces left zero-thickness slivers where both copies of
 the scan met). In the notches the rounding closed, the skirt falls steeply from the scan's edge (`HUG_SKIRT_SLOPE`,
 2 mm down per mm out): a bevel to the floor, never a ledge. `hug_walls=False` puts the old outline cut back; the report's `walls` gives the floor
-area against the outline's. On ten scans (uppers and lowers, 3Shape, iTero, Medit, Primescan exports) the flat area
-low on the model's sides went from 100-200 mm² to under 20 (mostly the patient's own buccal shelf), the trim line
-untouched (same distance to the model at every point), every model one watertight piece.
+area against the outline's. Checked on ten scans (uppers and lowers, PLY and STL exports, one from an iTero, retainer
+and whitening lines) and a mouthguard: the flat area low on the model's sides went from 110-455 mm² (5 on the iTero
+scan, which already reached the floor) to 1-16 (what is left is the patient's own anatomy, like the buccal shelf), the
+trim line untouched (the same distance to the model at every point), every body one watertight piece with no
+non-manifold edges (the old cut's bodies, saved and read back, had 100-300 from zero-thickness slivers the shelf union
+left; the pipeline's clean-up removed them later). The newly bared base plate is all inside the arch, where the plate
+always shows.
 
 **NLO Cases link** (`app/tracker.py`, 19 Oct 2026). NLO Cases keeps every case sealed with its office key, which this
 PC never has, so the flow is: this app makes a P-256 key pair once (`jobs/tracker.dat`, DPAPI-protected on Windows,
