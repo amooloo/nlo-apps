@@ -73,13 +73,13 @@ def test_full_flow(client):
     r = client.post(f"/api/cases/{cid}/anchors", json={c: pts[c] for c in ("S", "N", "Me")})
     body = r.json()
     lm = body["case"]["landmarks"]
-    assert len(lm) == 37 and lm["S"]["by"] == "doctor" and lm["A"]["by"] == "template"
+    assert len(lm) == 38 and lm["S"]["by"] == "doctor" and lm["A"]["by"] == "template"
     assert body["case"]["status"] == "traced"
     assert body["case"]["facing"] == facing
     # move the real points in (as the doctor would)
     r = client.patch(f"/api/cases/{cid}", json={"landmarks": {c: {"x": v[0], "y": v[1], "by": "doctor"} for c, v in pts.items()}})
     a = r.json()["analysis"]
-    assert a["progress"]["reviewed"] == 37
+    assert a["progress"]["reviewed"] == a["progress"]["total"] == 38
     by = {m["key"]: m for m in a["measurements"]}
     assert by["ANB"]["value"] is not None and by["Wits"]["note"] == "needs calibration"
     # calibrate (0.24 mm per pixel in the synthetic cephs)
@@ -89,7 +89,7 @@ def test_full_flow(client):
     assert client.patch(f"/api/cases/{cid}", json={"calibration": {"mm_per_px": 9}}).status_code == 400
     # skip soft tissue -> those points go, progress shrinks; switch back on -> filled in
     r = client.patch(f"/api/cases/{cid}", json={"skipped": ["soft"]}).json()
-    assert "Prn" not in r["case"]["landmarks"] and r["analysis"]["progress"]["total"] == 32
+    assert "Prn" not in r["case"]["landmarks"] and r["analysis"]["progress"]["total"] == 33
     client.patch(f"/api/cases/{cid}", json={"skipped": []})
     r = client.post(f"/api/cases/{cid}/fill").json()
     assert r["case"]["landmarks"]["Prn"]["by"] == "template"

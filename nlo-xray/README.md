@@ -137,7 +137,7 @@ nlo-xray\
   run_app.py            starts the web app (port 8766; --lan for the office network)
   app\server.py         FastAPI: cases, landmarks, analysis, learning, settings, passcode, security headers
   app\static\           the page (index.html, app.js, style.css), fonts, logo - all served locally
-  xray\landmarks.py     the 37 landmarks, their definitions, tracing order and the textbook template
+  xray\landmarks.py     the 38 landmarks, their definitions, tracing order and the textbook template
   xray\analysis.py      measurements, norms, the summary calls
   xray\cvm.py           CVM: Baccetti (2005), Hassel & Farman (1995), Mito (2002), the doctor's picks, tuning
   xray\imageio.py       DICOM / JPG / PNG / TIFF reading, pixel size, names and dates
@@ -154,17 +154,27 @@ Data (git-ignored): `cases\<id>\case.json` + `original.*` + `image.png` + `thumb
 `models\prev_*.pt`, `models\status.json`, `models\train.log`, `settings.json`, `sessions.json`.
 `NLO_XRAY_DATA` puts all of it in another folder.
 
-**Landmarks (37), in tracing order.** Cranial base: S, N, Or, Po, Ar. Maxilla: PNS, ANS, A. Teeth: U1A (upper
+**Landmarks (38), in tracing order.** Cranial base: S, N, Or, Po, Ar. Maxilla: PNS, ANS, A. Teeth: U1A (upper
 incisor apex), U1T (tip), L1T, L1A, MOL (first-molar occlusal contact), PM (first-premolar contact).
-Mandible: B, Pog, Gn, Me, Go. Soft tissue: Prn, Sn, Ls, Li, Pos. Vertebrae: C2 lower border (back corner,
+Mandible: B, Pog, Gn, Me, Go, MPt (the lower-border point: where a line from menton touches the lower border in
+front of the angle - added 20 Oct 2026; an x-ray traced before it gets it placed from the other points when
+opened). Soft tissue: Prn, Sn, Ls, Li, Pos. Vertebrae: C2 lower border (back corner,
 deepest point, front corner), C3 and C4 (upper back, upper front, lower back, lower deepest point, lower front).
 The template (starting positions) is built from textbook norms for a ~12-year-old.
 
 **Measurements** (all in a frame where the face looks to +X and up is +Y, so facing left or right gives the same
 numbers). SNA, SNB, ANB (= SNA - SNB). Wits: A and B projected onto the functional occlusal plane (MOL→PM), AO - BO.
-SN-FH; FMA (Po-Or to Go-Me); SN-GoGn (Steiner); palatal (ANS-PNS) to Go-Me; gonial angle Ar-Go-Me; Jarabak
-S-Go / N-Me; lower face height ANS-Me / N-Me. U1-SN; U1-NA and L1-NB in degrees (signed, + = tipped ahead of the
-line) and mm (to the incisal tip, + = ahead); IMPA (L1 to Go-Me); interincisal angle. Upper / lower lip to the
+SN-FH; FMA (Po-Or to the mandibular plane); SN-GoGn (Steiner); palatal (ANS-PNS) to the mandibular plane;
+gonial angle Ar-Go-Me; Jarabak S-Go / N-Me; lower face height ANS-Me / N-Me measured perpendicular to FH (Wylie).
+U1-SN; U1-NA and L1-NB in degrees (signed, + = tipped ahead of the line) and mm (to the incisal tip, + = ahead);
+IMPA (L1 to the mandibular plane); interincisal angle. The mandibular plane for FMA, IMPA and PP-MP is the
+tangent to the lower border through menton (Me-MPt, Tweed / Downs); a tracing without MPt uses Go-Me and says
+so. Checked 20 Oct 2026 against iOrtho (iCeph) on one of the office's cephs, using iOrtho's own landmark
+positions: SNA, SNB, ANB, FMA, SN-GoGn, gonial angle, lower face height %, U1-SN, U1-NA (° and mm), L1-NB
+(° and mm), IMPA, interincisal angle, both lips to the E-line and the S-N / N-Me / ANS-Me lengths all agree
+within 0.05 (° / mm / %). Wits differs by design: this app projects A and B onto the functional occlusal plane
+(molar to premolar contacts, Jacobson's original); iOrtho uses the plane through the molar and incisor overlaps
+(0.2 mm apart on that ceph). Upper / lower lip to the
 E-line (Prn-Pos, + = ahead). Lengths S-N, ANS-PNS, Go-Me, Ar-Go, N-Me, ANS-Me, S-Go.
 Default norms (mean ± SD; Settings → Norms changes them): SNA 82±3, SNB 80±3, ANB 2±2, Wits −1±2 (male) /
 0±2 (female), SN-FH 7±3, FMA 25±5, SN-GoGn 32±5, PP-MP 25±5, gonial 130±7, Jarabak 61.5±2 %, LAFH 55±2 %,

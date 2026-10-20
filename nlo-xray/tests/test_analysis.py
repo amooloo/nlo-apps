@@ -125,3 +125,37 @@ def test_vertical_calls():
     assert "High angle" in v["call"]
     assert by_key(a["measurements"])["FMA"]["value"] > 30
     assert math.isfinite(by_key(a["measurements"])["Jarabak"]["value"])
+
+
+def test_mandibular_plane_is_the_tangent_through_menton():
+    """FMA, IMPA and PP-MP use menton to the lower-border point (Tweed); Go-Me only when that point is missing."""
+    pts = template_px()
+    base = by_key(measure(pts, mm_per_px=MM))
+    # the template's lower-border point lies on Go-Me: same numbers
+    no_mpt = dict(pts)
+    del no_mpt["MPt"]
+    fallback = by_key(measure(no_mpt, mm_per_px=MM))
+    for k in ("FMA", "IMPA", "PP_MP"):
+        assert base[k]["value"] == pytest.approx(fallback[k]["value"], abs=0.15), k
+        assert "Go-Me used" in fallback[k]["desc"] and "Go-Me used" not in base[k]["desc"]
+    # drop the lower-border point 2 mm below Go-Me (an antegonial notch): the plane flattens - FMA and
+    # PP-MP fall, IMPA rises - while SN-GoGn (Steiner, Go-Gn) does not move
+    x, y = pts["MPt"]
+    pts["MPt"] = (x, y + 20)
+    moved = by_key(measure(pts, mm_per_px=MM))
+    assert moved["FMA"]["value"] < base["FMA"]["value"] - 1
+    assert moved["PP_MP"]["value"] < base["PP_MP"]["value"] - 1
+    assert moved["IMPA"]["value"] > base["IMPA"]["value"] + 1
+    assert moved["SN_GoGn"]["value"] == base["SN_GoGn"]["value"]
+
+
+def test_lower_face_height_is_measured_perpendicular_to_fh():
+    # FH level; N at the top, ANS 50 mm and Me 110 mm below it, Me well forward of N
+    pts = {"Po": (0, 0), "Or": (800, 0), "N": (1000, -300), "ANS": (1050, 200), "Me": (1400, 800)}
+    rows = by_key(measure(pts, mm_per_px=MM))
+    assert rows["LAFH"]["value"] == pytest.approx(100 * 600 / 1100, abs=0.06)       # vertical heights only
+    del pts["Po"]
+    rows = by_key(measure(pts, mm_per_px=MM))
+    straight = 100 * math.hypot(350, 600) / math.hypot(400, 1100)
+    assert rows["LAFH"]["value"] == pytest.approx(straight, abs=0.06)
+    assert "Straight distances" in rows["LAFH"]["desc"]
