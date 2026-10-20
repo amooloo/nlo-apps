@@ -59,6 +59,35 @@ need the size of a pixel at the patient's midline:
   figure for the CS 8200 ceph arm). The case shows where its number came from.
 - **JPG / PNG / TIFF**: once, on any x-ray, click **Ruler**, click the two ends of a known length (10 mm on the
   nasion-rod ruler), type the length and tick *use for every exported x-ray*. Export the same way every time.
+- **Imported from iOrtho**: iOrtho's own scale (from its S-N length), unless the x-ray already has a pixel size
+  from DICOM or the ruler.
+
+### Cephs already traced in iOrtho
+
+An iOrtho tracing can be brought in instead of tracing the ceph again - the quickest way to the 15 confirmed
+tracings the app needs before it learns.
+
+1. **Have three files per patient**: the **original ceph** (the same DICOM / JPG that went into iOrtho, without
+   the tracing), **iOrtho's traced image** (with the red landmark dots) and **iOrtho's Excel report** (.xlsx;
+   the PDF is not read).
+2. **Import from iOrtho** (sidebar) and drop the three files together - or drop them anywhere on the page.
+   Several patients at once works when the file names carry the patient's name (iOrtho's report is
+   `First_Last_Cephalometry_Report.xlsx`; a DICOM original carries the name inside). For an x-ray that is already
+   here, open it and click *Import iOrtho's tracing* in the Tracing card, then drop the traced image and the report.
+3. What happens, all on this PC: the app finds the original x-ray inside iOrtho's picture (scale and position,
+   to a fraction of a pixel; a picture of another x-ray is refused), finds iOrtho's red dots, and works out which
+   dot is which landmark by **reproducing iOrtho's own numbers** from the report: SNA, SNB, SN-PP, U1-SN, U1-NA,
+   L1-NB, interincisal, PP-FH, SN-GoGn, Y-axis, facial angle, FMA, MP-SN, IMPA, saddle and gonial angles, the
+   incisors to NA / NB in mm, Po-NB, N-Me, both lips to the E-line, Sn-H and the occlusal plane to FH and SN. A
+   point is *verified* when every number it takes part in matches. The first-premolar contact (PM) is in none of
+   iOrtho's numbers - check it. The name, birth date, sex and x-ray date come from the report (the DICOM's own
+   details are kept when there are any).
+4. iOrtho does not trace the vertebrae, so an imported x-ray has **Skip vertebrae** ticked. For a growing patient
+   untick it and place the vertebra points - they are what the CVM stage reads.
+5. Open each one, walk through the points (**Enter** where right - imported points say *From iOrtho*) and
+   **Confirm tracing**. *Confirm them right away* in the import window confirms on import instead: only for
+   tracings already checked in iOrtho, and only when everything but PM matched. Importing an x-ray that is
+   already confirmed here leaves it as it is.
 
 ## How it learns
 
@@ -78,7 +107,8 @@ need the size of a pixel at the patient's midline:
   you let stand) tune the CVM thresholds - how deep a border must dip to count as concave, and where a body
   turns trapezoid / square / vertical - but only once there are 8 such x-rays and only if the tuned thresholds
   agree with you more often than the defaults when each x-ray is left out in turn.
-- **A faster start:** trace a batch of old cephs from your records. Every one you confirm counts.
+- **A faster start:** import cephs already traced in iOrtho, or trace a batch of old cephs from your records.
+  Every one you confirm counts.
 
 It is a tracing aid: it shows its tracing so every point and every call can be checked, and the clinical
 judgement stays the doctor's.
@@ -145,7 +175,9 @@ nlo-xray\
   xray\shape.py         the average tracing (Procrustes), anchors -> all points, filling in points
   xray\model.py         the landmark network
   xray\train.py         learning rounds, the held-back check, versions, the evening schedule
+  xray\iortho.py        importing iOrtho tracings: the report, the dots, registration, naming the dots
   tools\synth.py        synthetic 'cephs' for tests (no patient data anywhere in the repo)
+  tests\iortho_fake.py  a made-up iOrtho export (traced picture + Excel report) built on a synthetic ceph
   tests\                python -m pytest tests
   setup.ps1             one-line install / update;  install.bat, start_app.bat, uninstall_autostart.bat
 ```
@@ -217,6 +249,25 @@ different from ImagerPixelSpacing; otherwise ImagerPixelSpacing ÷ EstimatedRadi
 ÷ the office magnification setting. MONOCHROME1 is inverted; windowing from the file when present, else the
 0.5-99.5 % range. JPEG-compressed DICOM is read through pylibjpeg. Images over 4096 px are scaled down.
 
+**iOrtho import** (`xray/iortho.py`). *Report*: openpyxl reads the "Patient Info" sheet and every value on
+every sheet (names normalised: case, spaces, full-width brackets). *Registration* (traced = s × original + t):
+iOrtho's drawing is masked out (anything coloured or pure white, grown 2 px); masked normalised cross-correlation
+(Padfield 2012, via FFT) over 44 scales from 0.5 to 2.2 × the fit-inside scale on 200-px copies, then 9 finer
+scales on 360-px copies; then the 30 most textured patches of the original (9 × 9 grid) are found in the traced
+image at full size (sub-pixel peaks), and scale and shift are fitted by least squares with outliers dropped -
+twice, wide then narrow. The two images must then agree (the better of the Pearson and rank correlations
+≥ 0.85; the same x-ray scores ~0.99, another patient's under 0.8). On made-up exports at 0.6-1.3 × and on crops
+the scale comes out within 0.0002 and the shift within 0.1 px. *Dots*: pure-red pixels; a single dot's centre is
+the centre of its redness (smoothed edges included); touching or overlapping dots are split by circles of the
+dots' own radius voted for by the outline and fitted to it. *Naming*: our average tracing is fitted to the dot
+cloud (trimmed ICP, both facings); each landmark gets up to 5 dots within 13 mm as candidates, and a depth-first
+search assigns them in tracing order, pruning any assignment that breaks one of iOrtho's numbers (the 25 above,
+mm through iOrtho's S-N length; tolerance 0.3-0.5 ° / mm, widened when a short line on a small picture makes a
+dot's 0.3 px uncertainty count). MOL is the pair of molar-cusp dots whose midpoint reproduces iOrtho's occlusal
+plane; PM is the nearest premolar pair (not checkable). On the office's iOrtho ceph all 25 numbers came out
+within 0.01 of iOrtho's. Points that match are stored `by: "import"` (conf 1.0, else 0.4), with the checks in
+`case.import`.
+
 **Security.** Content-Security-Policy `default-src 'self'` (+ `data:`/`blob:` images for the report), no inline
 scripts, `X-Frame-Options`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` on the API and images.
 Passcode: PBKDF2-SHA256 (120,000 rounds) with a salt in `settings.json`; signed-in browsers get a random
@@ -225,4 +276,6 @@ Passcode: PBKDF2-SHA256 (120,000 rounds) with a salt in `settings.json`; signed-
 **API** (all under `/api`): `GET hello`, `POST login`, `GET defs`, `GET status`, `GET cases?q=`,
 `POST cases` (files), `GET|PATCH|DELETE cases/{id}`, `GET cases/{id}/image|thumb`, `POST cases/{id}/anchors`
 (S, N, Me → all points), `POST cases/{id}/auto` (the network), `POST cases/{id}/fill`, `GET model`,
-`POST model/train|stop|rollback`, `GET|PUT settings`, `POST settings/passcode`.
+`POST model/train|stop|rollback`, `GET|PUT settings`, `POST settings/passcode`, `POST import/iortho` (files:
+original x-rays, iOrtho's traced images and reports for one or more patients; `confirm`), `POST cases/{id}/iortho`
+(iOrtho's traced image + report for that x-ray).

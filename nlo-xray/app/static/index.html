@@ -17,7 +17,8 @@
     </div>
     <div class="sideNew">
       <label class="newBtn" for="fileIn">+ New x-ray</label>
-      <input type="file" id="fileIn" multiple accept=".dcm,.dicom,.jpg,.jpeg,.png,.tif,.tiff,.bmp,application/dicom,image/*" hidden>
+      <input type="file" id="fileIn" multiple accept=".dcm,.dicom,.jpg,.jpeg,.png,.tif,.tiff,.bmp,.xlsx,application/dicom,image/*" hidden>
+      <button class="importBtn" id="importBtn" type="button">Import from iOrtho</button>
     </div>
     <div class="sideSearch"><input id="search" type="search" placeholder="Find a patient or date" autocomplete="off"></div>
     <div class="navLbl">X-rays <span id="caseCount"></span></div>
@@ -128,6 +129,18 @@
       <button class="primary" id="detailsSave" value="save" type="submit">Save</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="dlgImport" class="wide">
+  <div class="dHd"><h3>Import from iOrtho</h3><button class="x" id="impClose" type="button" aria-label="Close">×</button></div>
+  <div class="dBd">
+    <p id="impLead"></p>
+    <div class="drop" id="impDrop" role="button" tabindex="0"><b>Drop the files here</b>or click to choose</div>
+    <input type="file" id="impIn" multiple hidden accept=".dcm,.dicom,.jpg,.jpeg,.png,.tif,.tiff,.bmp,.xlsx,application/dicom,image/*">
+    <label class="ckRow"><input type="checkbox" id="impConfirm"> Confirm them right away - only for tracings you checked in iOrtho</label>
+    <p class="hint">iOrtho's points are found on its traced image, laid onto the original x-ray, and kept only where they reproduce iOrtho's own numbers (SNA, SNB, U1-SN, FMA, IMPA, the lips to the E-line and more). iOrtho does not trace the vertebrae: they are skipped on an imported x-ray (untick <i>Skip vertebrae</i> to trace them). Nothing leaves this PC.</p>
+    <div id="impOut"></div>
+  </div>
 </dialog>
 
 <dialog id="dlgCal">

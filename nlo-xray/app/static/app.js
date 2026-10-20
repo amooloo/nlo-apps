@@ -168,6 +168,11 @@
   async function importFiles(files) {
     files = [...files].filter((f) => f && f.size);
     if (!files.length) return;
+    if (files.some((f) => /\.xlsx?$/i.test(f.name))) {        // iOrtho's report among them: an iOrtho import
+      openImport(null);
+      runImport(files);
+      return;
+    }
     const fd = new FormData();
     for (const f of files) fd.append('files', f, f.name);
     toast(`Reading ${files.length} file${files.length > 1 ? 's' : ''}…`, false, 20000);
@@ -183,6 +188,57 @@
       if (ok[0].duplicate && ok.length === 1) toast(`${ok[0].name} was already here - opened it.`);
       await openCase(ok[0].id, { fresh: !ok[0].duplicate });
     }
+  }
+
+  // ------------------------------------------------------------------ importing iOrtho tracings
+  let impCase = null;          // null: new x-rays; a case id: iOrtho's tracing for that x-ray
+  function openImport(caseId) {
+    impCase = caseId;
+    $('#impLead').innerHTML = caseId
+      ? 'Drop <b>iOrtho\'s traced image</b> (the one with the dots) and <b>iOrtho\'s Excel report</b> (.xlsx) for this x-ray. iOrtho\'s points replace the ones placed here.'
+      : 'For each patient drop three files together: the <b>original ceph</b> (DICOM or JPG, without the tracing), <b>iOrtho\'s traced image</b> (with the dots) and <b>iOrtho\'s Excel report</b> (.xlsx). Several patients at once is fine when the files are named after the patient.';
+    $('#impOut').innerHTML = '';
+    if (!$('#dlgImport').open) $('#dlgImport').showModal();
+  }
+
+  async function runImport(files) {
+    files = [...files].filter((f) => f && f.size);
+    if (!files.length) return;
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f, f.name);
+    fd.append('confirm', $('#impConfirm').checked ? 'true' : 'false');
+    const out = $('#impOut');
+    out.innerHTML = '<p class="empty"><span class="spin"></span>Reading the files and laying iOrtho\'s tracing onto the x-ray - a few seconds a patient…</p>';
+    let results = [], errors = [];
+    try {
+      if (impCase) {
+        await flushSave();
+        const r = await api(`/api/cases/${enc(impCase)}/iortho`, { method: 'POST', body: fd });
+        results = [r.result];
+        if (S.case && S.case.id === impCase) { applyServer(r, true); S.undo = []; startTracing(); }
+      } else {
+        const r = await api('/api/import/iortho', { method: 'POST', body: fd });
+        results = r.results || [];
+        errors = r.errors || [];
+      }
+    } catch (e) {
+      out.innerHTML = `<div class="notes">${esc(e.message)}</div>`;
+      return;
+    }
+    const openBtn = (r) => (impCase || !r.id ? '' : `<button class="small" type="button" data-open="${esc(r.id)}">Open</button>`);
+    const row = (r) => {
+      if (r.skipped) return `<div class="impRow"><span class="who">${esc(r.name || '')} <span class="pill confirmed">confirmed</span></span><span class="what">${esc(r.skipped)}</span>${openBtn(r)}</div>`;
+      if (r.error) return `<div class="impRow"><span class="who">${esc(r.name || '')}</span><span class="what err">${esc(r.error)}${r.id && !impCase ? ' The x-ray itself was added - it can be traced here.' : ''}</span>${openBtn(r)}</div>`;
+      const doubt = (r.unverified || []).length ? ` · to check: ${esc(r.unverified.join(', '))}` : '';
+      return `<div class="impRow"><span class="who">${esc(r.name || '(no name)')} ${r.confirmed ? '<span class="pill confirmed">confirmed</span>' : ''}</span>
+        <span class="what"><span class="ok">${r.verified} points</span> reproduce iOrtho's numbers (${r.checks_ok} of ${r.checks} checks)${doubt}</span>
+        ${openBtn(r)}</div>`;
+    };
+    out.innerHTML = results.map(row).join('') + errors.map((e) => row({ name: e.name, error: e.error })).join('')
+      + (results.some((r) => !r.error && !r.skipped && !r.confirmed) ? '<p class="hint">Open each one, check the points (Enter if right) and confirm it - then it is a lesson for the app.</p>' : '');
+    for (const b of $$('button[data-open]', out)) b.onclick = () => { $('#dlgImport').close(); openCase(b.dataset.open).catch((e) => toast(e.message, true)); };
+    refreshCases();
+    refreshStatus();
   }
 
   // ------------------------------------------------------------------ open a case
@@ -512,6 +568,7 @@
         <div class="cue">Click it on the x-ray (${S.anchorIdx + 1} of 3: S, N, Me). The other points then appear roughly in place.</div></div>${minimap(code)}</div>
         <div class="traceBtns">${S.anchorIdx ? '<button class="small" id="bBack" type="button">◀ Back</button>' : ''}
         ${hasModel ? '<button class="small" id="bAuto" type="button">Let the app place them</button>' : ''}</div>
+        <p class="hint">Traced it in iOrtho already? <button class="linkBtn" id="bIortho" type="button">Import iOrtho's tracing</button></p>
         <div class="keys">Scroll to zoom · drag to move around · <span class="kbd">Backspace</span> back</div>`;
       hint = `Click <b>${esc(d.name)}</b> (${S.anchorIdx + 1} of 3)`;
     } else if (S.mode === 'review' && S.cur) {
@@ -520,7 +577,11 @@
       let cue = '';
       if (!v) cue = '<div class="cue warn">Not placed yet - click where it belongs.</div>';
       else if (v.by === 'doctor') cue = '<div class="cue">Checked. Click elsewhere to move it, or Enter for the next point.</div>';
-      else if (v.by === 'model') {
+      else if (v.by === 'import') {
+        cue = v.conf != null && v.conf < 1
+          ? '<div class="cue warn">From iOrtho, but none of iOrtho\'s numbers pins this one down - check it.</div>'
+          : '<div class="cue">From iOrtho - it reproduces iOrtho\'s own numbers. Enter if right, or click where it belongs.</div>';
+      } else if (v.by === 'model') {
         const pct = v.conf != null ? Math.round(v.conf * 100) : null;
         cue = (v.conf != null && v.conf < 0.5)
           ? `<div class="cue warn">The app is unsure here (${pct}%). Click where it belongs, or Enter if it is right.</div>`
@@ -554,7 +615,8 @@
         ${S.case.status === 'confirmed' ? '' : `<div class="skipRow"><label><input type="checkbox" id="skSoft" ${skipSoft ? 'checked' : ''}> Skip soft tissue</label>
         <label><input type="checkbox" id="skCvm" ${skipCvm ? 'checked' : ''}> Skip vertebrae (adult)</label></div>
         <div class="traceBtns">${hasModel ? '<button class="small" id="bAuto" type="button">Place with the app</button>' : ''}
-        <button class="small" id="bRestart" type="button">Start over from S, N, Me</button></div>`}
+        <button class="small" id="bRestart" type="button">Start over from S, N, Me</button></div>
+        <p class="hint">Traced it in iOrtho? <button class="linkBtn" id="bIortho" type="button">Import iOrtho's tracing</button></p>`}
         <div class="keys"><span class="kbd">Enter</span> right, next · <span class="kbd">Backspace</span> back · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">F</span> fit · scroll to zoom · drag a point to move it</div>`;
     }
     body.innerHTML = html;
@@ -565,6 +627,7 @@
     on('#bAuto', autoTrace);
     on('#bRestart', restartTracing);
     on('#bConfirm2', confirmTracing);
+    on('#bIortho', () => openImport(S.case.id));
     for (const g of $$('.gchip', body)) {
       g.onclick = () => {
         const grp = S.defs.groups.find((x) => x.id === g.dataset.group);
@@ -990,7 +1053,7 @@
         c2.lineWidth = 2;
         c2.beginPath(); c2.arc(x, y, 9, 0, Math.PI * 2); c2.stroke();
       }
-      if (!opts.print && v.by === 'model' && v.conf != null && v.conf < 0.5) {
+      if (!opts.print && (v.by === 'model' || v.by === 'import') && v.conf != null && v.conf < 0.5) {
         c2.strokeStyle = '#F6AF24';
         c2.lineWidth = 2;
         c2.setLineDash([3, 2]);
@@ -1027,6 +1090,7 @@
     if (!v) return 'not placed yet';
     if (v.by === 'doctor') return 'checked';
     if (v.by === 'model') return `placed by the app${v.conf != null ? ` · ${Math.round(v.conf * 100)}% sure` : ''}`;
+    if (v.by === 'import') return v.conf != null && v.conf < 1 ? 'from iOrtho · check it' : 'from iOrtho · matches its numbers';
     return 'from the average tracing · check it';
   }
 
@@ -1471,11 +1535,30 @@
     window.addEventListener('dragenter', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { dragDepth++; document.body.classList.add('dragging'); } });
     window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('dragging'); });
     window.addEventListener('dragover', (e) => e.preventDefault());
-    window.addEventListener('drop', (e) => { e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging'); if (e.dataTransfer?.files?.length) importFiles(e.dataTransfer.files); });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+      if (!e.dataTransfer?.files?.length) return;
+      if ($('#dlgImport').open) runImport(e.dataTransfer.files);           // dropped on the import window
+      else if (!document.querySelector('dialog[open]')) importFiles(e.dataTransfer.files);
+    });
     let qTimer = 0;
     $('#search').oninput = (e) => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = e.target.value; renderCases(); }, 120); };
     $('#caseList').onclick = (e) => { const b = e.target.closest('.case'); if (b) openCase(b.dataset.id).catch((err) => toast(err.message, true)); };
     $('#openSettings').onclick = () => openSettings();
+    $('#importBtn').onclick = () => openImport(null);
+    $('#impClose').onclick = () => $('#dlgImport').close();
+    $('#impDrop').onclick = () => $('#impIn').click();
+    $('#impDrop').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') $('#impIn').click(); };
+    $('#impIn').onchange = (e) => { runImport(e.target.files); e.target.value = ''; };
+    $('#impDrop').addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); $('#impDrop').classList.add('over'); });
+    $('#impDrop').addEventListener('dragleave', () => $('#impDrop').classList.remove('over'));
+    $('#impDrop').addEventListener('drop', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      $('#impDrop').classList.remove('over');
+      if (e.dataTransfer?.files?.length) runImport(e.dataTransfer.files);
+    });
     $('#setClose').onclick = () => $('#dlgSettings').close();
     $('#setTabs').onclick = (e) => { const b = e.target.closest('button[data-tab]'); if (b) { S.setTab = b.dataset.tab; renderSettings(); } };
     $('#detailsBtn').onclick = () => openDetails(false);
