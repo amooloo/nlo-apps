@@ -78,6 +78,7 @@ class Case:
         self.lock = threading.RLock()
         self.vol = None
         self.scan = None            # (v, f) in the scan file's own coordinates
+        self.scan_col = None        # its colours (PLY), for telling teeth from gum
         self.P = self.N = self.teeth = self.fit = None
         self.arch = None
         self.ctx = None
@@ -251,22 +252,30 @@ def _load_cbct(c):
             lv["source"] = lv["source"] + " + your usual adjustment"
     c.state["levels"] = lv
     c.log(f"levels ({lv['source']}): bone {lv['bone']:.0f}, teeth {lv['dense']:.0f}, enamel {lv['enamel']:.0f}")
-    c.state["dentition"] = volume.find_dentition(vol, lv)
+    sh, sp = vol.shape, vol.spacing
+    c.log(f"CBCT {machine or '(machine not named)'}: {sh[2]} x {sh[1]} x {sh[0]} voxels of {min(sp):.2f} mm")
+    c.state["dentition"] = d = volume.find_dentition(vol, lv)
+    if d:
+        c.log("crowns found: " + ", ".join(f"{a} {d[a]['n']} mm3 of enamel" + (f" (bite plane tilted {d[a]['tilt_deg']:.0f} deg)" if d[a].get("tilt_deg") is not None else "")
+                                          for a in ("upper", "lower") if d.get(a)))
     _surfaces(c)
 
 
 def _surfaces(c):
     vol, lv = c.vol, c.state["levels"]
-    c.log("building the bone surface")
-    pts, faces, _n = volume.surface(vol, lv["bone"], step_mm=0.5, max_faces=500_000)
-    _store_mesh(c, "bone", pts, faces)
-    c.log("building the teeth surface")
     dent = c.state.get("dentition")
-    bb = None
+    bb = bb_bone = None
     if dent and (dent.get("upper") or dent.get("lower")):
         los = [np.array(dent[a]["lo"]) for a in ("upper", "lower") if dent.get(a)]
         his = [np.array(dent[a]["hi"]) for a in ("upper", "lower") if dent.get(a)]
-        bb = volume.bbox_mm_to_index(vol, np.min(los, axis=0) - 12, np.max(his, axis=0) + 12)
+        lo, hi = np.min(los, axis=0), np.max(his, axis=0)
+        bb = volume.bbox_mm_to_index(vol, lo - 12, hi + 12)
+        # the jaws, not the whole field of view (spine, skull base): around the crowns, up past the zygoma
+        bb_bone = volume.bbox_mm_to_index(vol, lo - np.array([28, 28, 35]), hi + np.array([28, 28, 38]))
+    c.log("building the bone surface")
+    pts, faces, _n = volume.surface(vol, lv["bone"], step_mm=0.5, bbox=bb_bone, max_faces=500_000)
+    _store_mesh(c, "bone", pts, faces)
+    c.log("building the teeth surface")
     pts, faces, _n = volume.surface(vol, lv["dense"], step_mm=0.35, bbox=bb, max_faces=500_000)
     _store_mesh(c, "teeth", pts, faces)
 
@@ -279,8 +288,9 @@ def _store_mesh(c, name, V, F, extra=None):
 
 
 def _load_scan_file(c):
-    v, f, _col = meshio.load_scan(os.path.join(c.dir, c.state["scan_file"]))
+    v, f, col = meshio.load_scan(os.path.join(c.dir, c.state["scan_file"]))
     c.scan = (v, f)
+    c.scan_col = col
     c.P = c.N = c.teeth = c.fit = None
     c.arch = None
     c.ctx = None
@@ -301,14 +311,17 @@ def _match(c, mode="auto", **kw):
         priors = lessons.priors_for(c.state.get("scanner"), arch)
         if priors:
             c.log(f"trying {len(priors)} starting pose(s) learned from earlier {c.state.get('scanner')} scans first")
-        res = register.auto_register(c.vol, lv, v, f, arch, priors=priors, progress=c.log, target=c.target)
+        res = register.auto_register(c.vol, lv, v, f, arch, priors=priors, progress=c.log, target=c.target, colors=c.scan_col)
     elif mode == "refine":
-        res = register.refine(c.vol, lv, v, f, arch, c.T, target=c.target, nsign=(c.state.get("registration") or {}).get("normal_sign", 1.0))
+        res = register.refine(c.vol, lv, v, f, arch, c.T, target=c.target, nsign=(c.state.get("registration") or {}).get("normal_sign", 1.0),
+                              colors=c.scan_col)
         res["normal_sign"] = (c.state.get("registration") or {}).get("normal_sign", 1.0)
     else:
         raise ValueError(mode)
     c.state["registration"] = dict(T=np.asarray(res["T"]).tolist(), method=res.get("method"), stats=res.get("stats"),
-                                   normal_sign=res.get("normal_sign", 1.0), when=time.time())
+                                   normal_sign=res.get("normal_sign", 1.0), crowns=res.get("crowns"), when=time.time())
+    if res.get("dentition"):
+        c.state["dentition"] = res["dentition"]          # the crowns as this match found them (slices centre on them)
     _apply_match(c)
 
 
@@ -338,7 +351,8 @@ def _apply_match(c, quiet=False):
             c.target = None
     c.teeth = register.tooth_labels(c.vol, lv, v, vn, T)
     c.fit = register.fit_map(c.target[0], v, vn, T) if c.target else np.full(len(v), np.nan)
-    reg["summary"] = register.summary(c.fit, c.teeth)
+    occl = c.target[1]["occlusal"] if c.target else ([0, 0, -1.0] if (c.state.get("arch") or "upper") == "upper" else [0, 0, 1.0])
+    reg["summary"] = register.summary(c.fit, c.teeth, register.crown_mask(v, f, c.scan_col, T, occl))
     if not quiet:
         c.log("match: " + reg["summary"]["text"])
     c.mesh_cache.pop("scan", None)
@@ -613,10 +627,18 @@ def do_register(cid: str, body: dict = Body(...)):
         c.state["registration"] = dict(T=T2.tolist(), method="3 points", stats=dict(point_residuals=res.round(2).tolist()),
                                        normal_sign=(c.state.get("registration") or {}).get("normal_sign", 1.0), when=time.time())
         _apply_match(c)
-        # then let the surfaces settle it
-        r = register.refine(c.vol, c.state["levels"], c.scan[0], c.scan[1], c.state.get("arch") or "upper", c.T, target=c.target,
-                            nsign=c.state["registration"]["normal_sign"])
-        c.state["registration"].update(T=np.asarray(r["T"]).tolist(), method="3 points + surface", stats=r["stats"])
+        # then let the surfaces settle it - with the scan's surface facing either way (scan files differ), and
+        # only if that fits better than the three points alone
+        best = None
+        for ns in (1.0, -1.0):
+            r = register.refine(c.vol, c.state["levels"], c.scan[0], c.scan[1], c.state.get("arch") or "upper", T2, target=c.target,
+                                nsign=ns, colors=c.scan_col)
+            q = r["quality"]["within_10"] + r["quality"]["within_05"]
+            if best is None or q > best[0]:
+                best = (q, r, ns)
+        q, r, ns = best
+        if q > 0.3:
+            c.state["registration"].update(T=np.asarray(r["T"]).tolist(), method="3 points + surface", stats=r["stats"], normal_sign=ns)
         _apply_match(c)
     elif mode == "nudge":
         T = c.T
@@ -666,6 +688,7 @@ def set_levels(cid: str, body: dict = Body(...)):
 
     def job(c):
         ensure_loaded_vol(c)
+        c.state["dentition"] = volume.find_dentition(c.vol, lv)
         _surfaces(c)
         c.target = None
         if c.scan is not None and c.T is not None:

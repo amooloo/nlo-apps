@@ -22,7 +22,13 @@ def run(d, flip_normals=False):
     tgt, _info = register.cbct_target(vol, lv, arch)
     fit = register.fit_map(tgt, v, vn, T)
     teeth = register.tooth_labels(vol, lv, v, vn, T)
-    sm = register.summary(fit, teeth)
+    sm = register.summary(fit, teeth, register.crown_mask(v, f, None, T, _info["occlusal"]))
+    # a match 4 mm and 8 degrees off must not pass
+    Tw = register.make_T(register.rodrigues(np.radians([0, 8, 0])), [0, 4.0, 0]) @ T
+    smw = register.summary(register.fit_map(tgt, v, vn, Tw), register.tooth_labels(vol, lv, v, vn, Tw),
+                           register.crown_mask(v, f, None, Tw, _info["occlusal"]))
+    print(f"  4 mm / 8 deg off: {smw['text']} ({smw['level']})")
+    assert sm["level"] == "good" and smw["level"] == "poor", (sm, smw)
     print(f"  {'flipped normals' if flip_normals else 'normal'}: method {res['method']} tried {res['tried']} in {time.time() - t:.1f}s;"
           f" true error mean {err.mean():.3f} max {err.max():.3f} mm; teeth {teeth.mean() * 100:.0f}% of vertices; {sm['text']} ({sm['level']})")
     return err.mean()

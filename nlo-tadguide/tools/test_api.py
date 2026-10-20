@@ -35,6 +35,25 @@ def main(d):
         assert b.status_code == 200 and len(b.content) > 1000, m
     png = cl.get(f"/api/cases/{cid}/slice.png?view=coronal")
     assert png.status_code == 200 and png.content[:4] == b"\x89PNG"
+    # the way out of a wrong match: knock it 6 mm / 15 degrees off, then 3 points clicked ~0.5 mm off
+    import app.server as s0
+    from tadguide import register as reg
+    c0 = s0.CASES[cid]
+    Tt = np.array(json.load(open(os.path.join(d, "truth.json")))["scan_to_cbct"])
+    Tbad = reg.make_T(reg.rodrigues(np.radians([6, 15, 4])), [6.0, -3.0, 2.0]) @ Tt
+    c0.state["registration"]["T"] = Tbad.tolist()
+    v0 = c0.scan[0]
+    ax = np.argsort(v0[:, 0])
+    picks = v0[[ax[len(ax) // 50], ax[-len(ax) // 50], np.argmin(v0[:, 1])]]          # far apart on the arch
+    off = np.array([60.0, 0, 0])
+    rng = np.random.default_rng(1)
+    st = cl.post(f"/api/cases/{cid}/register", json=dict(mode="landmarks", scan=(reg.apply(Tbad, picks) + off).tolist(),
+                                                         cbct=(reg.apply(Tt, picks) + rng.normal(0, 0.3, (3, 3))).tolist(),
+                                                         scan_offset=off.tolist())).json()
+    T3 = np.array(st["registration"]["T"])
+    e3 = np.linalg.norm(reg.apply(T3, v0) - reg.apply(Tt, v0), axis=1).mean()
+    print("3 points:", st["registration"]["method"], f"true error {e3:.3f} mm |", st["registration"]["summary"]["text"])
+    assert e3 < 0.3 and st["registration"]["summary"]["level"] == "good", e3
     st = cl.post(f"/api/cases/{cid}/accept").json()
     print("accepted; arch bounds", {k: [round(x, 1) for x in v] for k, v in st["arch_info"]["bounds"].items()})
     cl.post(f"/api/cases/{cid}/suggest", json=dict(site="buccal", sides=["R", "L"]))
