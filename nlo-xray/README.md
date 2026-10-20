@@ -98,8 +98,13 @@ tracings the app needs before it learns.
    point is *verified* when every number it takes part in matches. The first-premolar contact (PM) is in none of
    iOrtho's numbers - check it. The name, birth date, sex and x-ray date come from the report (the DICOM's own
    details are kept when there are any).
-4. iOrtho does not trace the vertebrae, so an imported x-ray has **Skip vertebrae** ticked. For a growing patient
-   untick it and place the vertebra points - they are what the CVM stage reads.
+4. iOrtho does not trace the vertebrae. For a patient **under 18** at the x-ray (or of unknown age) C2-C4 are
+   placed where your average tracing puts them, to check in the walk-through like any other point - they are what
+   the CVM stage reads, and until they are checked the Growth card and the Summary say the stage is only a guess.
+   Such an x-ray is not confirmed on import (unchecked points are no lesson). For an adult the vertebrae are
+   skipped. X-rays imported before version 1.5.0 skipped them for everyone: an unconfirmed one of a patient under
+   18 gets them the first time it is opened; on a confirmed one, **Trace the vertebrae** in the Growth card
+   reopens the tracing and starts at C2.
 5. Open each one, walk through the points (**Enter** where right - imported points say *From iOrtho*) and
    **Confirm tracing**. *Confirm them right away* in the import window confirms on import instead: only for
    tracings already checked in iOrtho, and only when everything but PM matched. Importing an x-ray that is

@@ -10,7 +10,7 @@ from xray import iortho
 from xray.iortho import DOT_CODES
 
 
-def make(seed=0, scale=0.83, pad=(40, 25), facing_left=False, name="Test Patient"):
+def make(seed=0, scale=0.83, pad=(40, 25), facing_left=False, name="Test Patient", dob="05-10-2013"):
     from synth import render
     rng = np.random.default_rng(seed)
     a, pts, facing, _ = render(rng)
@@ -76,7 +76,7 @@ def make(seed=0, scale=0.83, pad=(40, 25), facing_left=False, name="Test Patient
     ws.title = "Patient Info"
     ws.append(["Patient Info"])
     ws.append(["Name", "Gender", "Analysis Standard", "Date of Birth", "X-ray Filming Date"])
-    ws.append([name, "Female", "Caucasian Norms", "05-10-2013", "10-15-2026"])
+    ws.append([name, "Female", "Caucasian Norms", dob, "10-15-2026"])
     ws2 = wb.create_sheet("Steiner")
     ws2.append(["Steiner"])
     for row in rows:

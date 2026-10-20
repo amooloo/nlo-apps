@@ -381,7 +381,9 @@ async def import_cases(files: list[UploadFile] = File(...)):
 @app.get("/api/cases/{cid}")
 def get_case(cid: str):
     case = _get(cid)
-    if _ruler_check(case):
+    changed = _ruler_check(case)
+    changed = _vertebrae_for_import(case) or changed
+    if changed:
         case, a = _refresh(case)
         STORE.save(case)
         return _reply(case, a)
@@ -596,6 +598,37 @@ def _from_anchors(cid, body):
 
 # ----------------------------------------------------------------------------- importing iOrtho tracings
 
+ADULT_AGE = 18.0        # from this age at the x-ray an imported x-ray skips the vertebrae (no CVM stage needed)
+
+
+def _vertebrae_for_import(case):
+    """X-rays imported from iOrtho before 1.5.0 skipped the vertebrae for everyone. For a patient under 18 whose
+    tracing is not confirmed they are placed from the average tracing (to check), the first time it is opened."""
+    imp = case.get("import")
+    if not imp or "vertebrae" in imp:
+        return False
+    lm = case.setdefault("landmarks", {})
+    if case.get("status") == "confirmed" or "cvm" not in (case.get("skipped") or []) or \
+            any(GROUP_OF.get(c) == "cvm" for c in lm):
+        imp["vertebrae"] = "kept"
+        return True
+    age = age_years((case.get("patient") or {}).get("dob"), case.get("taken"))
+    if age is not None and age >= ADULT_AGE:
+        imp["vertebrae"] = "skipped (adult)"
+        return True
+    case["skipped"] = [g for g in case["skipped"] if g != "cvm"]
+    known = {c: (v["x"], v["y"]) for c, v in lm.items()}
+    missing = [c for c in _required_codes(case) if c not in known]
+    shape, _ = current_shape()
+    for c, (x, y) in fill_missing(known, missing, shape).items():
+        lm[c] = dict(x=round(x, 2), y=round(y, 2), by="template", conf=None)
+    imp["vertebrae"] = "placed"
+    case.setdefault("history", []).append(dict(t=dt.datetime.now().replace(microsecond=0).isoformat(),
+                                               what="vertebrae placed from the average tracing (iOrtho does not "
+                                                    "trace them) - to check"))
+    return True
+
+
 def _last_first(name):
     """iOrtho writes 'First Last'; the case list uses 'Last, First'."""
     parts = [w for w in str(name or "").replace(",", " ").split() if w]
@@ -631,8 +664,14 @@ def _apply_iortho(case, result, report, confirm=False):
     elif mm and cal.get("mm_per_px") and abs(mm / cal["mm_per_px"] - 1) > 0.03:
         scale_note = (f"iOrtho's millimetres differ from this x-ray's pixel size by {(mm / cal['mm_per_px'] - 1) * 100:+.0f} % "
                       f"({str(cal.get('source') or '').split(';')[0]}) - check the calibration here or in iOrtho.")
-    if not any(GROUP_OF[c] == "cvm" for c in lm):
-        case["skipped"] = sorted(set(case.get("skipped") or []) | {"cvm"})
+    vertebrae = None
+    if not any(GROUP_OF[c] == "cvm" for c in lm):            # iOrtho traces no vertebrae
+        age = age_years(p.get("dob"), case.get("taken"))
+        if age is not None and age >= ADULT_AGE:            # an adult: no CVM stage needed
+            case["skipped"] = sorted(set(case.get("skipped") or []) | {"cvm"})
+            vertebrae = "skipped (adult)"
+        elif "cvm" not in (case.get("skipped") or []):
+            vertebrae = "placed"                            # from the average tracing below, to check
     missing = [c for c in _required_codes(case) if c not in lm]
     if missing:                                # anything iOrtho did not give: from the average tracing
         shape, _ = current_shape()
@@ -641,14 +680,17 @@ def _apply_iortho(case, result, report, confirm=False):
             lm[c] = dict(x=round(x, 2), y=round(y, 2), by="template", conf=None)
     n_ok = sum(1 for r in result["checks"] if r["ok"])
     case["import"] = dict(source="iOrtho", when=now, verified=result["verified"], unverified=result["unverified"],
-                          checks=result["checks"], registration=result["registration"], scale_note=scale_note)
+                          checks=result["checks"], registration=result["registration"], scale_note=scale_note,
+                          vertebrae=vertebrae or "kept")
     case["status"] = "new" if case.get("status") != "confirmed" else case["status"]
     case.setdefault("history", []).append(dict(t=now, what=f"tracing imported from iOrtho: {len(result['verified'])} points "
                                                f"match iOrtho's numbers ({n_ok} of {len(result['checks'])} checks)"))
     case, a = _refresh(case)
     STORE.save(case)
     real_doubt = [c for c in result["unverified"] if c != "PM"]
-    if confirm and not real_doubt and case.get("status") != "confirmed":
+    # points from the average tracing (the vertebrae of a growing patient) must be checked before it is a lesson
+    templated = [c for c in _required_codes(case) if (case["landmarks"].get(c) or {}).get("by") == "template"]
+    if confirm and not real_doubt and not templated and case.get("status") != "confirmed":
         out = _patch_case(case["id"], {"status": "confirmed"})
         return out["case"], out["analysis"]
     return case, a
@@ -662,7 +704,8 @@ def _import_one(case, traced_rgb, report, confirm, reg=None):
     return dict(id=case["id"], name=case["patient"].get("name") or "", verified=len(result["verified"]),
                 unverified=result["unverified"], checks_ok=n_ok, checks=len(result["checks"]),
                 confirmed=case.get("status") == "confirmed", registration=result["registration"],
-                scale_note=(case.get("import") or {}).get("scale_note"))
+                scale_note=(case.get("import") or {}).get("scale_note"),
+                vertebrae=(case.get("import") or {}).get("vertebrae"))
 
 
 def _tokens(s):
