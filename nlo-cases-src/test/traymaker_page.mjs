@@ -45,7 +45,7 @@ try {
   console.log('settings state:', (await page.evaluate("document.querySelector('#tracker_state').textContent")).slice(0, 120));
   // the member seals a case to the published key
   let keys = []; await env.withSecurityRulesDisabled(async c => { (await getDocs(collection(c.firestore(), 'labqkeys'))).forEach(d => keys.push({ id: d.id, ...d.data() })); });
-  const body = { v: 1, case: 'case1', patient: 'Isabella Pope', chart: '123', type: 'retainer', arches: ['Upper'], retKinds: ['TT’s', 'WT’s'], remake: '', scanOnFile: false, dueDate: '2026-10-22', deliveryDate: '', stage: 'print', createdAt: '', assignee: 'Gwen', by: 'Owner' };
+  const body = { v: 1, case: 'case1', patient: 'Jane Testpatient', chart: '123', type: 'retainer', arches: ['Upper'], retKinds: ['TT’s', 'WT’s'], remake: '', scanOnFile: false, dueDate: '2026-10-22', deliveryDate: '', stage: 'print', createdAt: '', assignee: 'Gwen', by: 'Owner' };
   const box = await sealTo(keys[0].pub, TE.encode(JSON.stringify(body)), 'labq:case1');
   await setDoc(doc(env.authenticatedContext('gwen').firestore(), 'labq/case1'), { kid: keys[0].kid, epk: box.epk, iv: box.iv, ct: box.ct, at: serverTimestamp() });
   await fetch(U + '/api/tracker/refresh', { method: 'POST' }); await new Promise(r => setTimeout(r, 2500));

@@ -665,9 +665,13 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             if "error" not in mg_info:
                 gum_line_f = margin_f.copy()     # the model still sits on the base by its gum line, and the body covers the crowns by it
                 margin_f = mg_line
+            else:
+                rep.setdefault("warnings", []).append(f"the mouthguard line could not be made ({mg_info.get('error')}) - this guard is trimmed at the gum line like a tray: check it before sending")
             rep["mouthguard"] = mg_info
         except Exception as ex:  # noqa
             log(f"[{name}] mouthguard line failed ({ex}) - using the gum line")
+            rep["mouthguard"] = dict(error=str(ex)[:160])
+            rep.setdefault("warnings", []).append("the mouthguard line could not be made - this guard is trimmed at the gum line like a tray: check it before sending")
     if P.get("distal_round", 0.0) > 0 and len(info) >= 4 and not MG:
         try:
             margin_f, dround = round_distal(margin_f, mesh_f, labels, info, edge_zone=edge_zone, radius=float(P["distal_round"]),
@@ -862,6 +866,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         except Exception as ex:  # noqa
             log(f"[{name}] bracket shields skipped: {ex}")
             rep["shields"] = dict(error=str(ex))
+            rep.setdefault("warnings", []).append("the block-out over the brackets could not be made - check the guard before sending")
     extras_status = []
     # the walls stand under the scan's own edge (no shelf out to the outline), never closer to the trim line or to any
     # tooth than hug_rim: the region inside the line (and, for a mouthguard, the gum line the body also covers) and every
@@ -882,7 +887,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                     parts.append(pg.buffer(rim, join_style=1))
             # ... and the teeth themselves, seen from above: a crown that leans out past its gum line (proclined upper
             # incisors, 1-3 mm) stands outside the line's region - walls at the line plus a rim shaved those crowns flat
-            # (Zayden D.'s centrals, 10/19/2026). Every tooth point, on a 0.4 mm grid, plus the rim
+            # (a patient's upper centrals, 10/19/2026). Every tooth point, on a 0.4 mm grid, plus the rim
             import shapely
             from .solid import footprint
             tv = np.asarray(mesh_f.vertices)[np.asarray(labels) > 0][:, :2]

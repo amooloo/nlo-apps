@@ -1,7 +1,7 @@
 """Engrave the patient name and the tray type into the model, on the flat strip of the Trimlign base
 plate that lies inside the arch (in front of the raised table, z = 1.0): two lines of capitals.
 
-    KARLEY POST
+    JANE DOE
     WHITENING
 
 The strip is y = -13.9 .. -8.0 on the base (between the raised table and the slot). Width is limited by
@@ -120,8 +120,11 @@ def engrave_model(model, params, outline=None, depth=0.4, log=print):
     try:
         width = free_width(outline, BAND_Y0, BAND_Y1) - 1.0
         if width < 8.0:
-            log(f"engraving skipped: only {width:.1f} mm free inside the arch")
-            return model, dict(placed=None, label=None, error=f"only {width:.1f} mm free inside the arch")
+            if params.get("mouthguard"):     # its palatal flange covers the strip on every upper: the tooth mark names it
+                log("no name on the base: the mouthguard covers the strip inside the arch (the tooth mark names the model)")
+                return model, dict(placed=None, label=None, error="the mouthguard covers the base's text strip - the tooth mark names it")
+            log(f"engraving skipped: only {max(width, 0.0):.1f} mm free inside the arch")
+            return model, dict(placed=None, label=None, error=f"only {max(width, 0.0):.1f} mm free inside the arch")
         rows = _label_rows(params, width)
         solids, placed = [], []
         wmax = 0.0
@@ -152,7 +155,7 @@ def engrave_model(model, params, outline=None, depth=0.4, log=print):
 
 
 def mark_text(params, mode="initials"):
-    """The mark's words: 'initials' -> "SP W", 'last' -> "POSADA W", 'full' -> "SERGIO POSADA"."""
+    """The mark's words: 'initials' -> "JD W", 'last' -> "DOE W", 'full' -> "JANE DOE"."""
     first, last = (params.get("patient_first") or "").strip(), (params.get("patient_last") or "").strip()
     ttype = tray_type(params)
     letter = {"WHITENING": "W", "RETAINER": "R", "MOUTHGUARD": "G"}.get(ttype, "M")

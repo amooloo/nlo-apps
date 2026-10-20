@@ -158,11 +158,19 @@ def _preform_in(folder):
     return out
 
 
+def _is_preform_exe(path):
+    return os.path.basename(str(path or "")).lower() in ("preform.exe", "preformlauncher.exe")
+
+
 def _find_preform(cfg=None):
     """PreForm.exe on this PC: the path from the settings, else the usual install folders, else the
     registry's App Paths entry. None when there is none (the app then says so instead of guessing)."""
     cfg = cfg if cfg is not None else _read_cfg()
     typed = (cfg.get("preform") or "").strip().strip('"')
+    # only PreForm itself is ever started from here: the setting can be typed from any office PC, and a path to any
+    # other program would have the lab PC run it on Open in PreForm
+    if typed and os.name == "nt" and not os.path.isdir(typed) and not _is_preform_exe(typed):
+        typed = ""
     cands = [typed] if typed else []
     if typed and os.path.isdir(typed):      # the install folder was typed, not the exe: look inside it
         cands += _preform_in(typed)
@@ -197,9 +205,9 @@ def _open_in_preform(job, log=print):
         return False, "PreForm was not found on the PC that runs the app - type its path under Settings (PreForm)"
     # the copies in the print folder (filed by patient) are what PreForm sees, so a file saved from
     # there lands next to them; a case without a patient name opens its working files instead
-    stls = [f for f in (job.get("print_files") or []) if os.path.isfile(f)]
-    if len(stls) != len(job["scans"]):
-        stls = _write_prints(job, log=log)
+    # always fresh copies (and the current base): copies kept from before a fix printed the model as it was
+    _rebase(job, log=log)
+    stls = _write_prints(job, log=log)
     where = job.get("print_folder") if stls else None
     if not stls:
         for sc in job["scans"]:
@@ -228,7 +236,10 @@ async def save_settings(scanner_folder: str = Form(None), preform: str = Form(No
     if scanner_folder is not None:
         cfg["scanner_folder"] = scanner_folder.strip()
     if preform is not None:
-        cfg["preform"] = "" if preform.strip().lower() in ("", "auto") else preform.strip()   # "auto" clears a typed path (an empty field does not reach here)
+        typed = preform.strip().strip('"')
+        if typed.lower() not in ("", "auto") and os.name == "nt" and not os.path.isdir(typed) and not _is_preform_exe(typed):
+            raise HTTPException(400, "that is not PreForm - type the path of PreForm.exe (or its folder), or auto")
+        cfg["preform"] = "" if typed.lower() in ("", "auto") else typed   # "auto" clears a typed path (an empty field does not reach here)
     if preform_on_send is not None:
         cfg["preform_on_send"] = preform_on_send.strip().lower() in ("1", "true", "yes", "on")
     if print_root is not None:
@@ -287,14 +298,20 @@ def scanner_recent(days: int = 14):
 
 
 @app.post("/api/scanner/make")
-async def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), params: str = Form("{}")):
+def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), params: str = Form("{}")):     # (not async: the copy from a
+    # scanner PC's share must not stall every other request while it runs)
     """Make a case from scans still in the scanner's folder (copied into the job, originals untouched)."""
     import shutil
     from bleachtray.watch import parse_name
     folders = [f.strip() for f in site_config()["scanner_folder"].split(";") if f.strip()]
     plist = [p for p in json.loads(paths) if p][:2]
     for p in plist:
-        ok = any(os.path.abspath(p).startswith(os.path.abspath(f)) for f in folders)
+        def _under(path, folder):
+            try:
+                return os.path.commonpath([os.path.abspath(path), os.path.abspath(folder)]) == os.path.abspath(folder)
+            except ValueError:          # another drive
+                return False
+        ok = any(_under(p, f) for f in folders) and p.lower().endswith(('.stl', '.ply'))      # (a folder's name as a prefix is not enough: C:\\scans is not C:\\scans2)
         if not ok or not os.path.isfile(p):
             raise HTTPException(400, f"not a scan in the scanner folder: {p}")
     jid = uuid.uuid4().hex[:10]
@@ -305,6 +322,8 @@ async def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), 
         pr.update(json.loads(params or "{}"))
     except Exception:
         pass
+    for k in ("adjust", "adjust_by_arch", "mark_by_arch"):       # a new case starts on the automatic placement
+        pr.pop(k, None)
     scans = []
     for k, p in enumerate(plist):
         fn = os.path.basename(p)
@@ -334,6 +353,19 @@ KEEP_OUTPUT_DAYS = float(os.environ.get("NLO_KEEP_OUTPUT_DAYS", 30))
 HISTORY = {}      # id -> case summary (from case.json), for every case on disk
 
 
+_CASE_LOCK = threading.Lock()
+
+
+def _write_json_atomic(path, obj):
+    """case.json written whole or not at all (a kill or power cut mid-write left a torn file, and the case vanished
+    from Past cases): to a temp file next to it, then swapped in."""
+    tmp = f"{path}.{threading.get_ident()}.tmp"
+    with _CASE_LOCK:
+        with open(tmp, "w") as f:
+            json.dump(obj, f, indent=1, default=float)
+        os.replace(tmp, path)
+
+
 def _save_case(job):
     """Write jobs/<id>/case.json: everything needed to list, reopen and re-make this case."""
     try:
@@ -356,13 +388,12 @@ def _save_case(job):
         case = dict(id=job["id"], name=job.get("name"), created=job.get("created"), source=job.get("source"), preset=job.get("preset"),
                     filename=job.get("filename"), params=params, scans=scans, review=job.get("review"), order_folder=job.get("order_folder"),
                     sent_at=job.get("sent_at"), learned=job.get("learned"), fixed=[os.path.relpath(k, jdir) for k in fixed], paint=paint,
-                    braces_edits=braces_edits,
+                    braces_edits=braces_edits, tracker_told_how=job.get("tracker_told_how") or [],
                     print_folder=job.get("print_folder"), print_files=job.get("print_files") or [],
                     revisions=job.get("revisions") or {}, order_pieces=job.get("order_pieces") or [], order_note=job.get("order_note"),
-                    thinned=bool(job.get("thinned")), saved=time.time(),
+                    thinned=bool(job.get("thinned")), saved=time.time(), restarts=job.get("restarts"),
                     status=job.get("status"), error=job.get("error"), log=list(job.get("log") or [])[-400:])
-        with open(os.path.join(jdir, "case.json"), "w") as f:
-            json.dump(case, f, indent=1, default=float)
+        _write_json_atomic(os.path.join(jdir, "case.json"), case)
         HISTORY[job["id"]] = _summary(case)
     except Exception as ex:  # noqa
         job.setdefault("log", []).append(f"case not saved to the history ({ex})")
@@ -373,7 +404,8 @@ def _summary(case):
     return dict(id=case["id"], name=case.get("name"), patient=f"{p.get('patient_first', '')} {p.get('patient_last', '')}".strip(),
                 created=case.get("created"), review=case.get("review"), sent_at=case.get("sent_at"), thinned=case.get("thinned"), backfilled=case.get("backfilled"),
                 models=[f"{sc.get('arch') or '?'} {sc.get('tag') or ''}".strip() for sc in case.get("scans", [])],
-                filename=case.get("filename"), fixed=len(case.get("fixed") or []), source=case.get("source"))
+                filename=case.get("filename"), fixed=len(case.get("fixed") or []), source=case.get("source"),
+                status=case.get("status"), restarts=case.get("restarts"))
 
 
 def _backfill_case(d):
@@ -510,7 +542,8 @@ def _job_from_case(jid):
                review=case.get("review"), order_folder=case.get("order_folder"), order_error=None, sent_at=case.get("sent_at"), learned=case.get("learned"),
                revisions=case.get("revisions") or {}, order_pieces=case.get("order_pieces") or [], order_note=case.get("order_note"),
                print_folder=case.get("print_folder"), print_files=case.get("print_files") or [],
-               fixed_labels=fixed, paint=paint, braces_edits=braces_edits, thinned=case.get("thinned"), reopened=True, feat_cache={},
+               fixed_labels=fixed, paint=paint, braces_edits=braces_edits, tracker_told_how=list(case.get("tracker_told_how") or []),
+               thinned=case.get("thinned"), reopened=True, feat_cache={},
                log=list(case.get("log") or []) + [f"opened from the history ({time.strftime('%m/%d/%Y', time.localtime(case.get('created') or time.time()))}"
                     + (f", sent {time.strftime('%m/%d/%Y %H:%M', time.localtime(case['sent_at']))}" if case.get("sent_at") else "") + ")"])
     if case.get("status") == "error" and case.get("error"):
@@ -529,8 +562,8 @@ def _thin_old_cases(log=print):
     for jid, h in list(HISTORY.items()):
         if h.get("thinned") or (h.get("sent_at") or h.get("created") or time.time()) > cutoff:
             continue
-        if jid in JOBS and JOBS[jid].get("status") in ("queued", "running"):
-            continue
+        if jid in JOBS:
+            continue                  # on the live list (being made, checked, or reopened from Past cases)
         jdir = os.path.join(JOBS_DIR, jid)
         try:
             case = json.load(open(os.path.join(jdir, "case.json")))
@@ -538,7 +571,7 @@ def _thin_old_cases(log=print):
                 if fn.endswith(("_model.stl", "_body_only.stl", "_body_plain.stl", "_blockout.stl", "_mark.stl")) or "_scan_with_reservoirs" in fn or any(sc.get("titan_basename") and fn.startswith(sc["titan_basename"]) for sc in case["scans"]):
                     os.remove(os.path.join(jdir, fn))
             case["thinned"] = True
-            json.dump(case, open(os.path.join(jdir, "case.json"), "w"), indent=1, default=float)
+            _write_json_atomic(os.path.join(jdir, "case.json"), case)
             HISTORY[jid] = _summary(case)
             JOBS.pop(jid, None)           # out of the live list; reopening from the history re-makes it
             n += 1
@@ -572,7 +605,9 @@ def _worker():
             with QLOCK:
                 job["in_queue"] = False
             try:
-                _run(job)
+                from bleachtray.watch import RUN_SLOTS
+                with RUN_SLOTS:          # (shared with the drop-folder watcher: one scan made at a time on the lab PC)
+                    _run(job)
             except Exception:  # noqa
                 traceback.print_exc()
         WORK_Q.task_done()
@@ -587,7 +622,7 @@ def _ahead(job):
     if job.get("status") not in ("queued",):
         return 0
     t = job.get("queued_at", 0)
-    return sum(1 for j in JOBS.values() if j is not job and (j.get("status") == "running" or (j.get("status") == "queued" and j.get("queued_at", 0) < t)))
+    return sum(1 for j in list(JOBS.values()) if j is not job and (j.get("status") == "running" or (j.get("status") == "queued" and j.get("queued_at", 0) < t)))
 
 
 def _norm_adjust(a):
@@ -688,6 +723,7 @@ def _run(job):
     job["status"] = "running"
     job["log"] = job.get("log") or []
     job["started"] = time.time()
+    job.pop("error", None)                    # (a failure from an earlier run is not this run's)
     full = job.pop("rerun_all", False)
     mes = job.pop("mask_edit", None)
     mes = [] if not mes else (mes if isinstance(mes, list) else [mes])    # one entry per scan file painted on (upper and lower in one Apply)
@@ -869,10 +905,10 @@ def _run(job):
                 except Exception as ex:  # noqa
                     log(f"[{scan['name']}] could not be moved on the base ({ex}); re-made instead")
                     rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
-                                  label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
+                                  label_override=override, log=log, progress=progress, feat_cache=job.setdefault("feat_cache", {}))
             else:
                 rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
-                              label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
+                              label_override=override, log=log, progress=progress, feat_cache=job.setdefault("feat_cache", {}))
             scan["arch"] = rep["arch"]; scan["report"] = rep
         reports = [sc["report"] for sc in job["scans"] if sc.get("report")]
         job["report"] = reports[0]
@@ -886,6 +922,7 @@ def _run(job):
             job["order_folder"] = None; job["order_error"] = None; job["learned"] = None
         job["status"] = "queued" if job.get("in_queue") else "done"
         job["thinned"] = False
+        job.pop("restarts", None)              # made: a later restart while it is re-made counts from zero again
         _save_case(job)
     except Exception as ex:  # noqa
         job["status"] = "error"
@@ -1169,7 +1206,10 @@ def _take_off_braces(job, path, log=print, painted=None, exclude_pts=None, add_p
     remap = np.where(d2 < 1e-3, j2, -1).astype(np.int64)
     paint = job.setdefault("paint", {})
     entry = paint.setdefault(new_path, {"noreservoir": [], "blockout": []})
-    old_entry = paint.pop(path, None)
+    # a mouthguard made from this very file keeps its painted areas and tooth fixes (its band strokes, Not a bracket):
+    # they used to move to the cleaned file with the retainer, and the guard lost them
+    mg_here = any(sc["path"] == path and sc.get("preset") == "mouthguard" for sc in job["scans"])
+    old_entry = None if mg_here else paint.pop(path, None)
     if old_entry:   # strokes painted on the earlier file (and its rebuilt enamel): carried over by position
         moved = _remap_entry(old_entry, remap, skip=("large",))
         patched |= set(moved.pop("removed", []))
@@ -1196,7 +1236,7 @@ def _take_off_braces(job, path, log=print, painted=None, exclude_pts=None, add_p
             if sc.get("preset") == "mouthguard":
                 continue          # worn over the braces: its model keeps them (under shields), from the scan as scanned
             sc["path"] = new_path; sc.setdefault("raw_path", path); sc["braces"] = info
-    if job.get("fixed_labels", {}).pop(path, None) is not None:
+    if not mg_here and job.get("fixed_labels", {}).pop(path, None) is not None:
         log("the brush fixes saved for this scan were dropped: the teeth are found again on the rebuilt enamel")
     for key in [key for key in job.get("feat_cache", {}) if (key if isinstance(key, str) else key[0]) == path]:
         job["feat_cache"].pop(key, None)
@@ -1247,16 +1287,8 @@ def _redo_take_off(job, k, not_idx, log=print):
     if pre and pre != cur and os.path.exists(pre) and "_clean" in os.path.basename(pre):
         Vp = np.asarray(load_scan(pre).vertices)
         cut_pts = Vp[cKDTree(Vc).query(Vp)[0] > 1e-3]
-    # strokes kept for the current file go to the scan as scanned by position (rebuilt enamel has no counterpart there)
-    Vr = np.asarray(load_scan(raw).vertices)
-    d, j = cKDTree(Vr).query(Vc)
-    c2r = np.where(d < 1e-3, j, -1).astype(np.int64)
     paint = job.setdefault("paint", {})
-    pe = paint.pop(cur, None)
-    if pe:
-        ne = paint.setdefault(raw, {"noreservoir": [], "blockout": []})
-        for key, vals in _remap_entry(pe, c2r, skip=("removed", "large")).items():
-            ne[key] = (ne.get(key) or []) + vals if key == "outlines" else sorted(set(ne.get(key, [])) | set(vals))
+    pe = paint.pop(cur, None)          # the retainer's own strokes: carried to its new file below, by position
     for s2 in job["scans"]:
         if s2["path"] == cur and s2.get("preset") != "mouthguard":
             s2["path"] = raw; s2.pop("braces", None)
@@ -1276,6 +1308,11 @@ def _redo_take_off(job, k, not_idx, log=print):
             log(f"not a bracket: the Clean-up cut made again on the new file ({len(recut)} vertices)")
     new = job["scans"][k]["path"]
     d2, j2 = cKDTree(np.asarray(load_scan(new).vertices)).query(Vc)
+    if pe:
+        c2n = np.where(d2 < 1e-3, j2, -1).astype(np.int64)
+        ne = paint.setdefault(new, {"noreservoir": [], "blockout": []})
+        for key, vals in _remap_entry(pe, c2n, skip=("removed", "large")).items():
+            ne[key] = (ne.get(key) or []) + vals if key == "outlines" else sorted(set(ne.get(key, [])) | set(vals))
     log(f"not a bracket: {len(idx)} painted vertices - braces taken off the scan as scanned again, those areas left as scanned ({os.path.basename(new)})")
     return np.where(d2 < 1e-3, j2, -1).astype(np.int64)
 
@@ -1293,17 +1330,26 @@ def _apply_mask_edit(job, k=0, edit=None, remap=None):
     labels = st["labels"]
     add = np.array(edit.get("add", []), dtype=int)
     rem = np.array(edit.get("remove", []), dtype=int)
+    raw = load_scan(scan["path"])
+    nV = len(raw.vertices)
+    known = np.ones(nV, bool)
     if remap is not None and len(remap) == len(labels):
         kept = remap >= 0
-        newlab = np.zeros(int(remap.max()) + 1, dtype=labels.dtype); newlab[remap[kept]] = labels[kept]; labels = newlab
+        # sized to the new file: a take-off in the same Apply adds the rebuilt enamel's vertices at its end (the label
+        # array sized by the remap was too short for them and the run failed)
+        newlab = np.zeros(nV, dtype=labels.dtype); newlab[remap[kept]] = labels[kept]; labels = newlab
+        known = np.zeros(nV, bool); known[remap[kept]] = True
         add = remap[add[(add >= 0) & (add < len(remap))]]; add = add[add >= 0]
         rem = remap[rem[(rem >= 0) & (rem < len(remap))]]; rem = rem[rem >= 0]
+    elif len(labels) != nV:
+        lab2 = np.zeros(nV, dtype=labels.dtype); m_ = min(nV, len(labels)); lab2[:m_] = labels[:m_]; labels = lab2
+        known = np.zeros(nV, bool); known[:m_] = True
+    add = add[(add >= 0) & (add < nV)]; rem = rem[(rem >= 0) & (rem < nV)]
     mask = labels > 0
     if len(add):
         mask[add] = True
     if len(rem):
         mask[rem] = False
-    raw = load_scan(scan["path"])
     mesh, _ = rough_orient(raw)
     cache = job.setdefault("feat_cache", {})
     feats = cache.get(scan["path"])
@@ -1312,6 +1358,14 @@ def _apply_mask_edit(job, k=0, edit=None, remap=None):
         feats = compute_features(mesh, return_aux=True)
         cache[scan["path"]] = feats
     p_tooth, p_ip, aux = predict_tooth_prob(mesh, MODELS, feats=feats)
+    if not known.all():                  # vertices the earlier labels never saw (rebuilt enamel): the model decides
+        from bleachtray.segment import tooth_threshold
+        unk = ~known
+        mask[unk] = np.asarray(p_tooth)[unk] > tooth_threshold(MODELS)
+        if len(add):
+            mask[add] = True
+        if len(rem):
+            mask[rem] = False
     A = aux["A"]
     mask = clean_mask(mask, A)
     arch = scan.get("arch") or job["params"].get("arch") or detect_arch(mesh, os.path.basename(scan["path"]))
@@ -1335,6 +1389,33 @@ def index():
         return f.read()
 
 
+def _build_info():
+    """This copy of the app: a hash of its program files (the same for the same code on every PC) and the time of the
+    newest one (the update sets each file's time to its commit). Shown in Settings -> Office; /api/version."""
+    import hashlib
+    h = hashlib.sha1(); newest = 0.0
+    rels = ["app/server.py", "app/tracker.py", "app/static/index.html", "run_app.py", "update.ps1"] + [f"bleachtray/{m}.py" for m in (
+        "appliance", "basebuild", "blockout", "colour", "engrave", "features", "interprox", "learn", "mesh_utils", "mouthguard",
+        "orderfolder", "orient", "pipeline", "printfolder", "register", "reservoir", "segment", "server_presets", "solid", "watch")]
+    for rel in rels:
+        fp = os.path.join(ROOT, *rel.split("/"))
+        try:
+            with open(fp, "rb") as fh:
+                h.update(rel.encode() + b"\0" + fh.read().replace(b"\r\n", b"\n"))
+            newest = max(newest, os.path.getmtime(fp))
+        except OSError:
+            continue
+    return dict(build=h.hexdigest()[:10], newest=time.strftime("%m/%d/%Y %H:%M", time.localtime(newest)) if newest else "?")
+
+
+BUILD = _build_info()
+
+
+@app.get("/api/version")
+def version():
+    return BUILD
+
+
 @app.get("/api/presets")
 def presets():
     return {"defaults": DEFAULTS, "presets": PRESETS, "site": site_config()}
@@ -1353,9 +1434,11 @@ from typing import List
 
 
 def _trim_caches():
-    """Feature caches are big: keep them only for the few most recent cases."""
-    for old in sorted(JOBS.values(), key=lambda j: -j["created"])[4:]:
-        old.pop("feat_cache", None)
+    """Feature caches are big: keep them only for the few most recent cases (never a case waiting or being made: its
+    run reads the cache between models - dropping it under a running case failed that run)."""
+    for old in sorted(list(JOBS.values()), key=lambda j: -j["created"])[4:]:
+        if old.get("status") not in ("queued", "running"):
+            old.pop("feat_cache", None)
 
 
 def _open_case_for(first, last, arch, max_age=45 * 60):
@@ -1364,7 +1447,7 @@ def _open_case_for(first, last, arch, max_age=45 * 60):
     if not (first and last and arch):
         return None
     key = (first.strip().lower(), last.strip().lower())
-    for j in sorted(JOBS.values(), key=lambda j: -j["created"]):
+    for j in sorted(list(JOBS.values()), key=lambda j: -j["created"]):
         if time.time() - j["created"] > max_age or j.get("review") in ("sent", "discarded") or j.get("status") == "error":
             continue
         pf, pl = (j["params"].get("patient_first") or "").strip().lower(), (j["params"].get("patient_last") or "").strip().lower()
@@ -1443,10 +1526,15 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
         p0.update(json.loads(params or "{}"))
     except Exception:
         pass
+    # a new case starts on the automatic placement and mark: the page's maps belong to the case on screen (another
+    # patient's shift and turn used to be built into the new case)
+    for k in ("adjust", "adjust_by_arch", "mark_by_arch"):
+        p0.pop(k, None)
     try:
         arch_list = json.loads(arches or "[]")
     except Exception:
         arch_list = []
+    arch_list = [a if a in ("upper", "lower") else None for a in (arch_list if isinstance(arch_list, list) else [])]
     try:
         makes_list = json.loads(makes) if makes else None
     except Exception:
@@ -1497,6 +1585,10 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
         if (single or one_case) and (p0.get("patient_first") or p0.get("patient_last")):
             first, last = p0.get("patient_first", ""), p0.get("patient_last", "")
         p["patient_first"], p["patient_last"] = first, last
+        # the queue case picked on the page ties this case to NLO Cases only when it is this patient's (a pick left on
+        # the page used to tie other patients' cases to it - and a drop of several patients, every one of them)
+        if p.get("tracker_case") and not (single and _tracker_item_fits(p["tracker_case"], first, last)):
+            p.pop("tracker_case", None)
         # a lone arch of a patient who already has an unsent case: join it
         if len(case) == 1 and case[0][2]:
             other = _open_case_for(first, last, case[0][2])
@@ -1570,10 +1662,16 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
         # any painted vertex is just a re-run: it must not count as a brush correction
         mes = me if isinstance(me, list) else ([me] if me else [])
-        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact"))]
-        job["mask_edit"] = mes or None
+        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "outlines"))]
     except Exception:
-        job["mask_edit"] = None
+        mes = []
+    # strokes are vertex numbers of the scan file as the page showed it: while the case is waiting or being made, the
+    # file can change under them (a cut, a take-off) and a second Apply used to replace the first one's strokes
+    busy = job.get("status") in ("queued", "running")
+    if mes and busy:
+        raise HTTPException(409, "the case is being made - your strokes are kept on screen: click Apply again when it is done")
+    if not busy:                       # (a case waiting in line keeps the strokes it was queued with)
+        job["mask_edit"] = mes or None
     # only the models a change touches are re-made: a retainer-line change leaves the whitening trays
     # alone (and the other way round); a change to the base, marks or anything shared re-makes them all
     try:
@@ -1585,6 +1683,9 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     for k in IDENTITY_KEYS:
         if k in new and not (str(new[k]).strip() if new[k] is not None else ""):
             new.pop(k)
+    # the NLO Cases case a case is tied to is set when it is made (or matched by name), never by a re-run: the page's
+    # queue pick belongs to whatever was picked last, and an empty one used to wipe the tie
+    new.pop("tracker_case", None)
     old = job["params"]
     # ... and a case keeps the patient it was made for: the page's name fields are a shared card that may
     # still show the previous patient, and a re-run must never rename (and re-engrave) a case from them.
@@ -1626,8 +1727,8 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     # scan as scanned on this re-run - everything is re-made from it
     undo = any(not sc.get("braces_on") and not job["params"].get("remove_appliances") and _raw_scan_for(sc) not in (None, sc["path"]) for sc in job["scans"])
     fast = set()
-    if shared_changed or undo or not job.get("reports"):
-        only = None                                   # everything
+    if shared_changed or undo or not job.get("reports") or job.get("status") == "error":
+        only = None                                   # everything (a case whose last run failed is made again whole)
     else:
         only = set()
         # a brush edit is on a scan file: the models made from it are re-made, an arch not painted on is left alone
@@ -1642,13 +1743,13 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
                 fast.add(k)
         if not only:
             only = None if not job.get("reports") else set()   # nothing changed: nothing to do
+    if only is not None and not only:
+        return {"id": jid, "nothing": True}          # (before anything is set: a case waiting in line keeps its own run)
     job["auto_order"] = False
     job["rerun_all"] = only is None
     job["rerun_only"] = sorted(only) if only else None
     job["rerun_fast"] = sorted(fast) if fast else None
     job["thinned"] = False
-    if only is not None and not only:
-        return {"id": jid, "nothing": True}
     if only:
         label = lambda k: f"{job['scans'][k].get('arch') or ''} {job['scans'][k].get('tag') or ''}".strip()
         remade = sorted(only - fast)
@@ -1718,7 +1819,7 @@ def _learn_loop():
             pass
         try:
             h = time.localtime().tm_hour
-            busy = any(j.get("status") in ("queued", "running") for j in JOBS.values())
+            busy = any(j.get("status") in ("queued", "running") for j in list(JOBS.values()))
             st = _learn_status()
             fresh = time.time() - float(st.get("finished") or 0) < 20 * 3600
             if 1 <= h < 5 and not busy and st.get("new_since_last") and not fresh and not st["running"]:
@@ -1742,6 +1843,15 @@ def _restore_recent(days=2):
             if job["status"] == "done":
                 job["log"] = []; job.pop("reopened", None)
                 JOBS[jid] = job
+            elif h.get("status") in ("queued", "running") and int(h.get("restarts") or 0) < 2:
+                # a case the app was making, or had in line, when it stopped (an update, a restart of the PC): it used
+                # to drop off the list until someone found it in Past cases - it is made now. Twice at most: a case
+                # that stops the app every time it is made must not keep stopping it
+                job["restarts"] = int(h.get("restarts") or 0) + 1
+                job["log"] = ["the app was restarted before this case was finished - making it now"]
+                job.pop("reopened", None); job["rerun_all"] = True; job["auto_order"] = False
+                JOBS[jid] = job
+                _enqueue(job)
         except Exception:
             pass
 
@@ -1758,7 +1868,7 @@ def learn_status():
 
 @app.post("/api/learn/run")
 def learn_run():
-    busy = any(j.get("status") in ("queued", "running") for j in JOBS.values())
+    busy = any(j.get("status") in ("queued", "running") for j in list(JOBS.values()))
     if busy:
         raise HTTPException(409, "a case is being processed - try again when the list is quiet")
     started = _start_learning(force=True)
@@ -1773,7 +1883,7 @@ def list_jobs():
     return [{k: v for k, v in j.items() if k in ("id", "name", "status", "created", "filename", "preset", "review", "source")}
             | dict(ahead=_ahead(j), arches=sorted({sc.get("arch") for sc in j["scans"] if sc.get("arch")}), models=len(j["scans"]),
                    progress=(j.get("progress") if j.get("status") == "running" else None), tracker_case=(j.get("params") or {}).get("tracker_case") or "")
-            for j in sorted(JOBS.values(), key=lambda j: -j["created"])
+            for j in sorted(list(JOBS.values()), key=lambda j: -j["created"])
             if j.get("review") not in ("sent", "discarded") or j.get("status") in ("queued", "running")]
 
 
@@ -1931,9 +2041,28 @@ def approve(jid: str, request: Request, patient_first: str = Form(""), patient_l
     return _review_view(job)
 
 
+def _tracker_item_fits(case_id, first, last):
+    """The NLO Cases queue case `case_id` is this patient's: the same name (letters only, any case), or one a slip of the
+    keyboard away with the same last name. True when the queue cannot be read (the pick stands, as before)."""
+    import difflib
+    try:
+        items = TRACKER.queue()
+    except Exception:
+        return True
+    it = next((x for x in items if x.get("case") == case_id), None)
+    if it is None:
+        return not items
+    norm = lambda t: re.sub(r"[^a-z]", "", (t or "").lower())
+    words = (it.get("patient") or "").split()
+    me, nm = norm(f"{first}{last}"), norm("".join(words))
+    if not me:
+        return True
+    return nm == me or (bool(words) and norm(words[-1]) == norm(last) and difflib.SequenceMatcher(None, nm, me).ratio() >= 0.85)
+
+
 def _match_tracker(job):
     """A case made here without clicking it in the NLO Cases queue (the scan was dropped straight on the page): the
-    queue's case for the same patient - the same name, or one a slip of the keyboard away (Anablle / Annabelle) when
+    queue's case for the same patient - the same name, or one a slip of the keyboard away (Jonh / John) when
     the last name, the arch and what is made agree too - and, when the patient has more than one waiting, the one
     for what is made here. None unless exactly one fits (a sibling's case is never taken by a near name: a near
     name must be the only case close to it)."""
@@ -1947,14 +2076,23 @@ def _match_tracker(job):
     tags = {sc.get("tag") for sc in job.get("scans") or []}
     arches = {sc.get("arch") for sc in job.get("scans") or [] if sc.get("arch")}
     exact, near = [], []
+    my_first = norm(first)
     for it in TRACKER.queue():
+        here = (it.get("here") or {}).get("job")
+        if here and here != job.get("id"):
+            continue                    # already being made in another case here
         words = (it.get("patient") or "").split()
         nm = norm("".join(words))
         if not nm:
             continue
         if nm == me:
             exact.append(it)
-        elif words and norm(words[-1]) == my_last and difflib.SequenceMatcher(None, nm, me).ratio() >= 0.85 \
+            continue
+        # a slip of the keyboard, never a sibling: a short first name (Mia / Max, Ava / Eva, Liam / Lia) must match
+        # exactly; a longer one may differ by a letter or two (Gabrielle / Gabriele reads 0.94)
+        their_first = norm("".join(words[:-1]))
+        first_ok = (their_first == my_first) or (min(len(their_first), len(my_first)) >= 5 and difflib.SequenceMatcher(None, their_first, my_first).ratio() >= 0.85)
+        if words and norm(words[-1]) == my_last and first_ok and difflib.SequenceMatcher(None, nm, me).ratio() >= 0.85 \
                 and set(it.get("make") or []) & tags and (not it.get("arches") or not arches or set(it["arches"]) & arches):
             near.append(it)
     cands = exact or near
@@ -2030,9 +2168,8 @@ def file_prints(jid: str):
     if not job:
         raise HTTPException(404)
     job.setdefault("log", [])
-    files = [f for f in (job.get("print_files") or []) if os.path.isfile(f)]
-    if len(files) != len(job["scans"]):
-        files = _write_prints(job, log=lambda m: job["log"].append(m))
+    _rebase(job, log=lambda m: job["log"].append(m))
+    files = _write_prints(job, log=lambda m: job["log"].append(m))      # always fresh copies (a fix since the last copy)
     if not files:
         raise HTTPException(400, job.get("print_error") or "no finished model to file")
     _tell_tracker(job, how="printer")          # opened in PreForm on another PC: on its way to the printer
@@ -2073,7 +2210,7 @@ def tracker_queue():
     """The cases waiting for models, with what this PC has done about each: the live job started from it
     (status / review) when there is one."""
     here = {}
-    for j in JOBS.values():
+    for j in list(JOBS.values()):
         cid = (j.get("params") or {}).get("tracker_case")
         if cid and (cid not in here or j["created"] > here[cid]["created"]):
             here[cid] = dict(job=j["id"], status=j.get("status"), review=j.get("review"), created=j["created"])
@@ -2223,7 +2360,7 @@ def history(q: str = "", limit: int = 60):
     """Past cases (every case on disk), newest first, filtered by a bit of the name / patient / file / date."""
     words = [w for w in (q or "").lower().split() if w]
     out = []
-    for h in sorted(HISTORY.values(), key=lambda h: -(h.get("created") or 0)):
+    for h in sorted(list(HISTORY.values()), key=lambda h: -(h.get("created") or 0)):
         hay = " ".join(str(x) for x in (h.get("name"), h.get("patient"), h.get("filename"), time.strftime("%m/%d/%Y %Y-%m-%d", time.localtime(h.get("created") or 0)), " ".join(h.get("models") or []))).lower()
         if all(w in hay for w in words):
             out.append(dict(h, live=h["id"] in JOBS))
@@ -2276,7 +2413,7 @@ def job_status(jid: str):
 @app.get("/api/jobs/{jid}/file/{kind}")
 def job_file(jid: str, kind: str, scan: int = 0):
     job = JOBS.get(jid)
-    if not job or job.get("status") != "done":
+    if not job or job.get("status") != "done" or not (0 <= scan < len(job["scans"])):
         raise HTTPException(404)
     name = job["scans"][scan]["name"]
     files = {
@@ -2308,7 +2445,7 @@ def seg_mesh(jid: str, scan: int = 0):
     """Binary blob of the rough-oriented scan with labels + displacement, for the brush view.
     Layout: uint32 nV, uint32 nF, float32 V[nV*3], uint32 F[nF*3], uint16 labels[nV], float32 disp[nV], uint8 paint[nV][, uint8 rgb[nV*3]]"""
     job = JOBS.get(jid)
-    if not job or job.get("status") != "done":
+    if not job or job.get("status") != "done" or not (0 <= scan < len(job["scans"])):
         raise HTTPException(404)
     from bleachtray.mesh_utils import load_scan
     from bleachtray.orient import rough_orient
@@ -2352,7 +2489,7 @@ def seg_mesh(jid: str, scan: int = 0):
 @app.get("/api/jobs/{jid}/trimline.json")
 def trimline_json(jid: str, scan: int = 0):
     job = JOBS.get(jid)
-    if not job or job.get("status") != "done":
+    if not job or job.get("status") != "done" or not (0 <= scan < len(job["scans"])):
         raise HTTPException(404)
     st = np.load(os.path.join(job["dir"], f"{job['scans'][scan]['name']}_state.npz"))
     pts = np.round(st["margin"], 3)

@@ -1,5 +1,5 @@
 // A case made in the Tray Maker without clicking it in the To make list is still tied to its NLO Cases case by name (a slip
-// like Anablle / Annabelle too, when the last name, the arch and what is made agree), and Send to Trimlign / the print files
+// like Julianna / Juliana too, when the last name, the arch and what is made agree), and Send to Trimlign / the print files
 // send the note with how = orthofactory / printer - NLO Cases then moves the case to Printing (traymaker.js tmSync).
 // Run: NO_PROXY=localhost,127.0.0.1 TM_UPPER=<upper scan> TM_LOWER=<lower scan> npx firebase emulators:exec --only
 // firestore,auth --project demo-nlo-cases "node test/traymaker_match.mjs"   (TM_DIR=<the Tray Maker folder with its base>)
@@ -35,18 +35,18 @@ const newJob = async (file, arch, make, first, last) => { const fd = new FormDat
 try {
   const r = await (await post('/api/tracker/link', new URLSearchParams({ code }))).json(); console.log('linked:', r.linked);
   let keys = []; await env.withSecurityRulesDisabled(async c => { (await getDocs(collection(c.firestore(), 'labqkeys'))).forEach(d => keys.push({ id: d.id, ...d.data() })); });
-  const items = [{ v: 1, case: 'caseMG', patient: 'Annabelle McLeod', type: 'mouthguard', arches: ['Upper'], retKinds: [], stage: 'print' },
-                 { v: 1, case: 'caseTT', patient: 'Zayden Defeo', type: 'retainer', arches: ['Lower'], retKinds: ['TT’s'], stage: 'print' }];
+  const items = [{ v: 1, case: 'caseMG', patient: 'Juliana Testpatient', type: 'mouthguard', arches: ['Upper'], retKinds: [], stage: 'print' },
+                 { v: 1, case: 'caseTT', patient: 'Oliver Example', type: 'retainer', arches: ['Lower'], retKinds: ['TT’s'], stage: 'print' }];
   for (const b of items) { const box = await sealTo(keys[0].pub, TE.encode(JSON.stringify(b)), 'labq:' + b.case); await setDoc(doc(env.authenticatedContext('gwen').firestore(), 'labq/' + b.case), { kid: keys[0].kid, epk: box.epk, iv: box.iv, ct: box.ct, at: serverTimestamp() }); }
   await post('/api/tracker/refresh', new URLSearchParams()); await new Promise(r => setTimeout(r, 2500));
   console.log('queue:', (await (await fetch(U + '/api/queue')).json()).items.map(i => i.patient + ' ' + i.make.join('+')));
-  const jA = await newJob(process.env.TM_UPPER, 'upper', 'MG', 'Anablle', 'McLeod');          // a typo, mouthguard upper
-  const jB = await newJob(process.env.TM_LOWER, 'lower', 'TT', 'Zayden', 'Defeo');            // the exact name
-  const jC = await newJob(process.env.TM_LOWER, 'lower', 'TT', 'Zayden', 'Smith');            // another patient
-  for (const [n, id] of [['Anablle McLeod', jA], ['Zayden Defeo', jB], ['Zayden Smith', jC]]) { const j = await (await fetch(U + '/api/jobs/' + id)).json(); console.log(n, '-> tracker_case', JSON.stringify((j.params || {}).tracker_case || ''), '|', (j.log || []).filter(l => /NLO Cases/.test(l)).join(' / ')); }
+  const jA = await newJob(process.env.TM_UPPER, 'upper', 'MG', 'Julianna', 'Testpatient');          // a typo, mouthguard upper
+  const jB = await newJob(process.env.TM_LOWER, 'lower', 'TT', 'Oliver', 'Example');            // the exact name
+  const jC = await newJob(process.env.TM_LOWER, 'lower', 'TT', 'Oliver', 'Sample');            // another patient
+  for (const [n, id] of [['Julianna Testpatient', jA], ['Oliver Example', jB], ['Oliver Sample', jC]]) { const j = await (await fetch(U + '/api/jobs/' + id)).json(); console.log(n, '-> tracker_case', JSON.stringify((j.params || {}).tracker_case || ''), '|', (j.log || []).filter(l => /NLO Cases/.test(l)).join(' / ')); }
   for (const id of [jA, jB]) console.log('run', id, (await wait(id)).status);
-  const s1 = await (await post('/api/jobs/' + jB + '/approve', new URLSearchParams())).json(); console.log('Zayden sent:', s1.review);
-  const s2 = await post('/api/jobs/' + jA + '/prints', new URLSearchParams()); console.log('Annabelle print files:', s2.status);
+  const s1 = await (await post('/api/jobs/' + jB + '/approve', new URLSearchParams())).json(); console.log('Oliver sent:', s1.review);
+  const s2 = await post('/api/jobs/' + jA + '/prints', new URLSearchParams()); console.log('Juliana print files:', s2.status);
   await post('/api/jobs/' + jA + '/prints', new URLSearchParams());   // again: told once
   for (const id of [jA, jB]) { const j = await (await fetch(U + '/api/jobs/' + id)).json(); console.log(id, 'log:', (j.log || []).filter(l => /NLO Cases/.test(l))); }
   let notes = []; await env.withSecurityRulesDisabled(async c => { (await getDocs(collection(c.firestore(), 'inbox'))).forEach(d => notes.push({ id: d.id, ...d.data() })); });

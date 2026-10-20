@@ -651,7 +651,7 @@
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
         <div class="hint" id="scanfolder_hint"></div>
       </div>
-      <div class="scard wide"><div class="sLab">Print folder (finished models) <span class="info" title="Every sent case's printable models are filed here, one folder per patient (Last, First) and one file per model named by date, patient, arch and type - e.g. Wood, Charles\2026-10-18_Wood_Charles_Upper_WT.stl. PreForm opens them from here. The trim line for the Trimlign goes to the OrthoFactory folder above, as before.">i</span></div>
+      <div class="scard wide"><div class="sLab">Print folder (finished models) <span class="info" title="Every sent case's printable models are filed here, one folder per patient (Last, First) and one file per model named by date, patient, arch and type - e.g. Doe, Jane\2026-10-18_Doe_Jane_Upper_WT.stl. PreForm opens them from here. The trim line for the Trimlign goes to the OrthoFactory folder above, as before.">i</span></div>
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="printroot" placeholder="next to Titan's folder: ...\3D printing\Models"><button class="small" id="printroot_save">Save</button></div>
         <div class="hint" id="printroot_hint"></div>
       </div>
@@ -662,6 +662,7 @@
         <div class="hint" style="margin-top:6px"><b>Other PCs:</b> any PC with PreForm can open the models on its own screen - the button says <i>Open in PreForm on this PC</i> there. Once per PC, Win+R and run: <a href="#" id="pfsetup2">copy the line</a>. The first click asks "Open NLO Tray Maker?" - tick <i>Always allow</i>.</div>
       </div>
     </div>
+    <div class="hint" id="appversion" style="margin:14px 0 0 2px"></div>
    </div>
   </div>
 </div>
@@ -684,7 +685,7 @@
     box.innerHTML = '<b>The app did not start in this browser.</b> ' +
       (errs.length ? 'Error: ' + errs.join(' | ') : 'No error was reported — the browser may be too old for this page.') +
       '<br>Try the latest Chrome or Edge. If that does not help, take a screenshot of this message for Dr. Akhavan. ' +
-      'The drop folder (S:\\clinical\\3D printing\\BleachTray) still works regardless.';
+      'The drop folder (3D printing\\BleachTray on the office share) still works regardless.';
   }, 4000);
 })();
 </script>
@@ -850,11 +851,28 @@ $('#file').onchange = e => setFiles([...e.target.files], true);
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList.remove('over'); });
 window.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer && e.dataTransfer.files.length) setFiles([...e.dataTransfer.files], true); });
 const isTitan = fn => /^(\d{6,}[ _-]+)?.+?[ _]+-[ _]+\d+[ _]+-[ _]+(Maxilla|Mandible)/i.test(fn.replace(/\.(stl|pts)$/i, ''));
-const nameOf = fn => { const m = fn.replace(/\.(stl|ply)$/i,'').replace(/^(dr|mr|mrs|ms|miss|prof)\.?[ _-]+/i, '').match(/^([A-Za-z][A-Za-z'\-]*)[_ -]+([A-Za-z][A-Za-z'\-]*)/); return m ? [m[1], m[2]] : null; };
-// an iTero export: "<order number>_<export type>_<u|l>.ply" (328336123_lprofile_occlusion_u.ply) - no patient name
+// the patient's name from the scanner's file name ("<name>_<YYYYMMDD>_<HH-MM-SS>_<arch>"): every word before the date -
+// the last word is the last name (with a particle before it: De La Cruz), the rest the first name, middle initial
+// included (Maria B Lopez -> Maria B / Lopez: the first two words alone once made a patient "<first> B"); any alphabet
+// (José Núñez). The same rule as the server's parse_name (bleachtray/watch.py)
+const NAME_PARTICLES = new Set(['de', 'del', 'della', 'la', 'le', 'van', 'von', 'der', 'den', 'da', 'di', 'du', 'dos', 'das', 'st', 'mac', 'bin', 'ibn', 'al', 'el']);
+const nameOf = fn => {
+  const stem = fn.replace(/\.(stl|ply)$/i, '').replace(/^(dr|mr|mrs|ms|miss|prof)\.?[ _-]+/i, '');
+  const d = stem.match(/[ _-]+(?:19|20)\d{6}(?:[ _-]|$)/);
+  if (d && d.index > 0) {
+    const words = stem.slice(0, d.index).replace(/^[ _-]+|[ _-]+$/g, '').split(/[ _]+/).filter(w => /^\p{L}[\p{L}'.\-]*$/u.test(w));
+    if (words.length >= 2) { let k = words.length - 1; while (k > 1 && NAME_PARTICLES.has(words[k - 1].toLowerCase().replace(/\.$/, ''))) k--; return [words.slice(0, k).join(' '), words.slice(k).join(' ')]; }
+  }
+  const m = stem.match(/^(\p{L}[\p{L}'\-]*)[_ -]+(\p{L}[\p{L}'\-]*)/u); return m ? [m[1], m[2]] : null;
+};
+// an iTero export: "<order number>_<export type>_<u|l>.ply" (123456789_lprofile_occlusion_u.ply) - no patient name
 // in it; the order number is what ties its upper to its lower
 const iteroOf = fn => { const m = fn.replace(/\.(stl|ply)$/i, '').match(/^(\d{5,})(?:[ _-].*)?[ _-]([ul])$/i); return m ? { order: m[1], arch: /u/i.test(m[2]) ? 'upper' : 'lower' } : null; };
-const archOf = fn => /upper|maxil/i.test(fn) ? 'upper' : (/lower|mandib/i.test(fn) ? 'lower' : ((iteroOf(fn) || {}).arch || ''));
+// the arch as a word of its own, the last one in the name (a patient called Flowers or Upperman is not an arch); the
+// loose match inside a word only when there is none (the server's parse_name does the same)
+const archOf = fn => { const st = fn.replace(/\.(stl|ply)$/i, ''); const w = [...st.matchAll(/(?:^|[ _\-.])(upper|maxilla|maxillary|lower|mandible|mandibular)(?=$|[ _\-.(])/ig)].map(m => m[1]);
+  const a = w.length ? w[w.length - 1] : ((st.match(/upper|maxil|lower|mandib/ig) || []).pop() || '');
+  return a ? (/^(upper|maxil)/i.test(a) ? 'upper' : 'lower') : ((iteroOf(fn) || {}).arch || ''); };
 // whose scan the file is, as far as its name tells: the patient's name, or the iTero order number; null when it tells neither
 const patientOf = fn => { const m = nameOf(fn); if (m) return (m[0] + ' ' + m[1]).toLowerCase(); const it = iteroOf(fn); return it ? '#' + it.order : null; };
 async function fileTitan(titanFiles){
@@ -911,6 +929,7 @@ function pickQueue(cid){
   QUEUE.picked = cid; renderQueue(); trackerHint();
   $('#filehint').scrollIntoView({ block: 'nearest' }); $('#drop').classList.add('pulse'); setTimeout(() => $('#drop').classList.remove('pulse'), 1600);
 }
+const NOCACHE = { cache: 'no-store' };   // the case's files are rewritten at the same URL on every re-run: never the browser's copy
 async function refreshQueue(){
   try { const r = await (await fetch('/api/queue', NOCACHE)).json(); QUEUE.items = r.items || []; QUEUE.state = r.state || null; }
   catch (e) { QUEUE.state = QUEUE.state || null; }
@@ -1066,7 +1085,8 @@ function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bl
   if (!localStorage.getItem('nlo.bleachtray.settings.v5')) { o.blockout = '0'; localStorage.setItem('nlo.bleachtray.settings.v5', '1'); }
   // the whitening tray's line went from the gum line to 1 mm onto the gum (the bur is ~1 mm wide: the doctor, 10/19/2026); a saved 0 from before is the old default, not a choice - once
   if (!localStorage.getItem('nlo.bleachtray.settings.v6')) { if (o.tl_off === '0') o.tl_off = '1'; localStorage.setItem('nlo.bleachtray.settings.v6', '1'); }
-  SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
+  SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {}
+  try { if (localStorage.getItem('nlo.bleachtray.settings')) saveSettings(); } catch (e) {} }     // the migrations above are kept (they used to live in memory only)
 function summarizeSettings(){
   const bits = [];
   const diff = (id) => { const a = $('#' + id).value, b = SETTING_DEFAULTS[id]; return (a !== '' && b !== '' && !isNaN(+a) && !isNaN(+b)) ? +a !== +b : a !== b; };
@@ -1110,7 +1130,10 @@ function showSetTab(t){
 document.querySelectorAll('.setTabs button').forEach(b => b.onclick = () => showSetTab(b.dataset.settab));
 $('#learnline').style.cursor = 'pointer'; $('#learnline').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); showSetTab('office'); };
 updatePatientLine();
-$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); showSetTab('model'); };
+$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); showSetTab('model'); showVersion(); };
+// which build of the app this PC runs (a hash of its program files and the date of the newest one): the way to tell
+// whether the update reached the lab PC
+async function showVersion(){ try { const v = await (await fetch('/api/version')).json(); $('#appversion').textContent = `App version: ${v.build} · files of ${v.newest}`; } catch (e) { /* an older server has no version */ } }
 $('#setApply').onclick = async () => {
   if (!currentJob) return;
   saveSettings(); $('#settings').classList.remove('on'); requestRender();
@@ -1259,17 +1282,22 @@ async function refreshJobs(){
     : st(j);
   const ar = j => (j.arches || []).map(a => a === 'upper' ? 'U' : 'L').join('+');
   $('#jobs').innerHTML = jobs.map(j => `<div class="job ${j.id===currentJob?'active':''}" data-id="${j.id}"><span class="nm">${j.name}${ar(j) ? ` <span class="hint" style="display:inline;margin:0">${ar(j)}</span>` : ''}</span><span class="pill ${st(j)}">${lab(j)}</span></div>`).join('') || '<div class="hint">None yet.</div>';
-  document.querySelectorAll('.job').forEach(e => e.onclick = () => selectJob(e.dataset.id));
+  $('#jobs').querySelectorAll('.job[data-id]').forEach(e => e.onclick = () => selectJob(e.dataset.id));
 }
-let pollTimer = null;
+let pollTimer = null, selTok = 0;     // selTok: which selection is current - a poll started for an earlier one stops itself
 async function selectJob(id){
+  if (!id) return;                         // (a row without a case id is never a case to open)
+  $('#rerunbox').style.display = 'none';   // "Run again with these settings" belongs to the scan just dropped, never to an opened case
   if (id !== currentJob) { pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null; forgetEdits(); if (typeof stopPlacing === 'function') stopPlacing(); }   // a pending move and unapplied strokes belong to the case they were made on
   currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
   clearInterval(pollTimer);
+  const myTok = ++selTok; let myTimer = null;
   // keeps watching the open case: a lower dropped by someone else joins it and shows up when done
   let shown = '';
   const tick = async () => {
-    const j = await (await fetch('/api/jobs/'+id)).json();
+    if (myTok !== selTok) { if (myTimer) clearInterval(myTimer); return; }
+    let j; try { j = await (await fetch('/api/jobs/'+id)).json(); } catch (e) { return; }     // (a blip: the next tick tries again)
+    if (myTok !== selTok) { if (myTimer) clearInterval(myTimer); return; }     // another case was opened meanwhile
     $('#log').textContent = (j.log||[]).join('\n') + (j.error ? '\nERROR: '+j.error : ''); curJobName = j.name || id;
     const sig = `${j.status}|${(j.reports||[]).length}|${j.review||''}`;
     if (j.status === 'running' || j.status === 'queued') { renderProgress(j); if (shown !== sig) refreshJobs(); shown = sig; return; }
@@ -1280,9 +1308,9 @@ async function selectJob(id){
       const p = j.params || {}; if (!pending.length) { $('#pfirst').value = p.patient_first || ''; $('#plast').value = p.patient_last || ''; } updatePatientLine();
       try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); }
     }
-    if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; const box = $('#review'); box.className = 'review discarded'; box.innerHTML = '<b>Processing failed.</b> Open the processing log below and send Dr. Akhavan the last lines; "Run again with these settings" starts the case over.'; $('#dl').innerHTML = ''; $('#rerunbox').style.display = 'block'; }
+    if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; const box = $('#review'); box.className = 'review discarded'; box.innerHTML = '<b>Processing failed.</b> Open the processing log below and send Dr. Akhavan the last lines. <button class="small" id="remakebtn">Make it again</button>'; $('#dl').innerHTML = ''; $('#remakebtn').onclick = async () => { $('#remakebtn').disabled = true; $('#remakebtn').textContent = 'Starting…'; const fd = new FormData(); fd.append('edits', '{}'); fd.append('params', '{}'); const rs = await fetch(`/api/jobs/${id}/rerun`, { method: 'POST', body: fd }).catch(() => null); if (!rs || !rs.ok) { showErr('Could not start it again — reopen the case from the list.'); $('#remakebtn').disabled = false; $('#remakebtn').textContent = 'Make it again'; return; } shown = ''; refreshJobs(); }; }
   };
-  await tick(); pollTimer = setInterval(tick, 1500);
+  myTimer = pollTimer = setInterval(tick, 1500); await tick();
 }
 
 // ---------- progress while a case is being processed ----------
@@ -1381,7 +1409,7 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
     const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Send or Save as lesson.'); if (t) showTab(t); return true; } return false; };
-    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() })).json(); refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800); if (r.order_error) showErr(r.order_error); else { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
+    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const rs = await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() }); const r = await rs.json().catch(() => ({})); if (!rs.ok || !r.review) { $('#sendbtn').disabled = false; $('#sendbtn').textContent = 'Send to Trimlign'; showErr('Not sent: ' + (r.detail || rs.status) + ' — the case is not ready (still being made, or no longer open). Open it again from the list.'); refreshJobs(); return; } refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800); if (r.order_error) showErr(r.order_error); else if (r.review === 'sent') { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
     const ll = box.querySelector('#learnlink');
     if (ll) ll.onclick = async ev => {
       ev.preventDefault(); if (unapplied()) return; ll.textContent = 'Saving…';
@@ -1467,7 +1495,6 @@ function askMouthguard(id, btn){
     $('#dl').innerHTML = ''; refreshJobs(); selectJob(id);
   };
 }
-const NOCACHE = { cache: 'no-store' };   // the case's files are rewritten at the same URL on every re-run: never the browser's copy
 async function fetchOk(url){ const r = await fetch(url, NOCACHE); if (!r.ok) throw new Error(`not available right now (${r.status}) - the case is probably being rebuilt; it reloads when done`); return r; }
 async function loadResult(id, j){
   // a click on a scan button while the case is being re-run must not try to read half-written files
@@ -2113,12 +2140,18 @@ async function bringBackCut(){
   edits.cut.clear(); forgetEdits(); $('#dl').innerHTML = ''; selectJob(currentJob);
 }
 async function applyAndRerun(){
-  if (!currentJob) return;
-  const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', JSON.stringify(params()));
-  const resp = await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); const r = await resp.json().catch(() => ({}));
+  if (!currentJob) { showErr('No case is open — click the case in the list on the left, then Apply again.'); return; }
+  const btn = $('#rerun'); if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+  let resp, r = {};
+  try {
+    const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', '{}');
+    resp = await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); r = await resp.json().catch(() => ({}));
+  } catch (e) { showErr('Could not reach the app on the lab PC — check it is running, then Apply again.'); return; }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Apply & re-run'; } }
   if (!resp.ok) { showErr('Could not re-run: ' + (r.detail || resp.status) + (resp.status === 404 ? ' — the case is not open any more; pick it from the list or Past cases and try again' : '')); return; }
-  if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
-  forgetEdits(); $('#dl').innerHTML = ''; selectJob(currentJob);
+  if (r.nothing) { showErr('Nothing to apply — paint something first (the models already match).', 6000); return; }
+  forgetEdits(); paintColors(); paintResColors(); updateFixCount(); $('#dl').innerHTML = ''; selectJob(currentJob);
 }
 async function refreshLearn(){
   let st; try { st = await (await fetch('/api/learn')).json(); } catch (e) { return; }
@@ -2140,7 +2173,7 @@ $('#learnnow').onclick = async () => {
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
 window.__view = { camera, controls, requestRender, project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
-  stroke3d: (mode, pts) => { stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } const before = Object.values(edits).reduce((a, e) => a + e.size, 0); finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
+  stroke3d: (mode, pts) => { const before = Object.values(edits).reduce((a, e) => a + e.size, 0); stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
   placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot, arch: curArch, map: adjustMap(), pending: JSON.parse(JSON.stringify(pendingAdj)), marks: markMap() }), archGroup: () => archGroup,
   editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }), allEdits, refreshQueue, tracker: () => TRACKER, queue: () => QUEUE, renderQueue,
