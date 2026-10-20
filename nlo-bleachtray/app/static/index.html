@@ -471,13 +471,13 @@
 
     <h4 class="setSec">Trim line</h4>
     <div class="setGrid">
-      <div class="scard"><div class="sLab">Whitening tray line <span class="info" title="Where the tray edge is cut. At the gum line (scalloped) is the usual for whitening trays.">i</span></div>
+      <div class="scard"><div class="sLab">Whitening tray line <span class="info" title="Where the tray edge is cut. The bur that cuts it is about 1 mm wide and runs centred on the line, so a line right at the gum line cuts into the tray over the teeth: 1 mm onto the gum (the default) leaves room for the bur and for finishing with scissors.">i</span></div>
         <div class="sPic" data-img="trimline_whitening"><svg viewBox="0 0 120 72">
           <path d="M26 46 Q60 36 98 46 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <path d="M40 10 C48 6 56 10 58 18 L60 40 C58 46 42 46 40 40 Z M62 10 C70 6 78 10 80 18 L82 40 C80 46 64 46 62 40 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
           <path d="M28 44 Q44 36 50 42 Q60 50 70 42 Q76 36 96 44" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
         </svg></div>
-        <select id="tl_off"><option value="0">At the gum line (scalloped)</option><option value="0.5">0.5 mm onto the gum</option><option value="1">1 mm onto the gum</option><option value="1.5">1.5 mm onto the gum</option></select>
+        <select id="tl_off"><option value="0">At the gum line (scalloped)</option><option value="0.5">0.5 mm onto the gum</option><option value="1" selected>1 mm onto the gum (room for the bur)</option><option value="1.5">1.5 mm onto the gum</option></select>
       </div>
       <div class="scard"><div class="sLab">Retainer line (mm onto the gum) <span class="info" title="Thermoformed retainers are cut a little onto the gum for strength and retention. 1.25 mm matches the aligner line.">i</span></div>
         <div class="sPic" data-img="trimline_retainer"><svg viewBox="0 0 120 72">
@@ -1063,11 +1063,14 @@ function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('nlo.bl
   else if (o.blockout != null) o.blockout = SETTING_MIGRATE.blockout(String(o.blockout));
   // ... and off again by default (the doctor marks the areas that matter; the global fill is rare) - once
   if (!localStorage.getItem('nlo.bleachtray.settings.v5')) { o.blockout = '0'; localStorage.setItem('nlo.bleachtray.settings.v5', '1'); }
+  // the whitening tray's line went from the gum line to 1 mm onto the gum (the bur is ~1 mm wide: the doctor, 10/19/2026); a saved 0 from before is the old default, not a choice - once
+  if (!localStorage.getItem('nlo.bleachtray.settings.v6')) { if (o.tl_off === '0') o.tl_off = '1'; localStorage.setItem('nlo.bleachtray.settings.v6', '1'); }
   SETTING_IDS.forEach(id => { if (o[id] != null) $('#' + id).value = o[id]; }); } catch (e) {} }
 function summarizeSettings(){
   const bits = [];
   const diff = (id) => { const a = $('#' + id).value, b = SETTING_DEFAULTS[id]; return (a !== '' && b !== '' && !isNaN(+a) && !isNaN(+b)) ? +a !== +b : a !== b; };
   if (diff('res_n') || diff('res_h')) bits.push(`reservoirs ${$('#res_n').value}-${$('#res_n').value} · ${$('#res_h').value} mm`);
+  if (diff('tl_off')) bits.push(+$('#tl_off').value ? `whitening line ${$('#tl_off').value} mm` : 'whitening line at the gum');
   if (diff('tt_off')) bits.push(`retainer line ${$('#tt_off').value} mm`);
   if (diff('res_sb') || diff('rec_lee')) bits.push(`gum distance ${$('#res_sb').value} mm, root leeway ${$('#rec_lee').value} mm`);
   if (diff('rec_auto')) bits.push($('#rec_auto').value === '1' ? 'finds exposed roots' : 'no root detection');

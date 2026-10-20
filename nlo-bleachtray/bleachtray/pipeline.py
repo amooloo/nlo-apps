@@ -26,10 +26,12 @@ DEFAULTS = dict(
     blockout_proud=0.0,    # mm: where a PAINTED block-out's wall stands relative to the tooth's contour seen from above - 0 flush with it, > 0 that much further out, < 0 that much of the undercut left for grip
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
-    trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
+    trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line; whitening trays 1 (the bur is ~1 mm wide), retainers 1.25, 2-3 = "high" aligner line
     bridge_radius=3.0,     # straight bridges across papillae narrower than ~2x this
     trimline_smooth=4,
     scan_band=0.0,         # >0: keep real scan only this far beyond the gum line and fill the rest with a synthetic skirt (off: validated look)
+    hug_walls=True,        # the walls drop straight down under the scan's edge instead of the body reaching the outline over a flat shelf (the doctor, 10/19/2026)
+    hug_rim=0.5,           # mm: ... but never closer than this to the trim line, seen from above (the line is never cut)
     periphery_smooth=True, # smooth the scan surface beyond 2 mm from the gum line (ragged cheek/lip tissue)
     mouthguard=False,      # sports mouthguard: brackets stay under a smooth shield, the line runs into the vestibule with frenum notches, a flange onto the palate
     mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_clearance=1.0, mg_band_smooth=1.25,
@@ -854,8 +856,30 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             log(f"[{name}] bracket shields skipped: {ex}")
             rep["shields"] = dict(error=str(ex))
     extras_status = []
+    # the walls stand under the scan's own edge (no shelf out to the outline), never closer to the trim line than hug_rim:
+    # the region inside the line (and, for a mouthguard, the gum line the body also covers) plus that rim
+    hug_keep = None
+    if P.get("hug_walls", True):
+        try:
+            from shapely.geometry import Polygon as _Poly
+            from shapely.validation import make_valid as _valid
+            from .solid import _biggest
+            rim = float(P.get("hug_rim", 0.5))
+            lines = [margin_f] + ([gum_line_f] if gum_line_f is not None else [])
+            parts = []
+            for ln in lines:
+                pg = _Poly(np.asarray(ln)[:, :2])
+                pg = pg if pg.is_valid else _biggest(_valid(pg))
+                if pg is not None:
+                    parts.append(pg.buffer(rim, join_style=1))
+            if parts:
+                hug_keep = parts[0]
+                for pg in parts[1:]:
+                    hug_keep = hug_keep.union(pg)
+        except Exception as ex:  # noqa
+            log(f"[{name}] walls under the scan's edge skipped: {ex}")
     body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status,
-                                   extra_after=after_solids)
+                                   extra_after=after_solids, hug=hug_keep is not None, hug_keep=hug_keep, info=rep)
     rep["body_method"] = body_method
     if fill_at is not None and (len(extras_status) <= fill_at or extras_status[fill_at] != "merged"):
         # a fill that is not part of the model must not be shown as if it were

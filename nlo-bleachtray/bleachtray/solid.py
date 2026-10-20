@@ -8,6 +8,7 @@ from shapely.geometry import Polygon, MultiPolygon, Point
 from shapely.ops import unary_union
 
 ASSET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+HUG_SKIRT_SLOPE = 2.0     # mm down per mm out: the skirt beyond the scan's edge when the walls hug the scan (~63 deg)
 
 
 def horseshoe_outline(margin_xy, facial_offset=4.5, lingual_offset=4.0):
@@ -367,15 +368,80 @@ def outline_prism(outline, z0, z1):
     return m3.Manifold.extrude(cs, z1 - z0).translate([0, 0, z0])
 
 
+def _biggest(g):
+    """The largest polygon of a (multi)polygon / geometry collection, or None."""
+    if g is None or g.is_empty:
+        return None
+    if isinstance(g, Polygon):
+        return g
+    polys = [p for p in getattr(g, "geoms", []) if isinstance(p, Polygon)]
+    return max(polys, key=lambda p: p.area) if polys else None
+
+
+def hug_region(surface, outline, inset=0.5, close_r=1.5, open_r=1.5):
+    """Where the model's walls stand (the doctor, 10/19/2026: "get rid of all the shelves around the model").
+    The outline sits 3 mm beyond the trim line seen from above, but the scanned gum below the line runs almost
+    straight down - its edge is typically ~1 mm out from the line and 4-5 mm below it - so a body cut at the
+    outline reached out over a flat shelf, filled in, wherever the scanner stopped above the floor: a ledge
+    round the whole model. This is the scan's own edge seen from above, pulled in `inset` (the cut runs through
+    scanned gum, not along its ragged rim) and rounded off (notches narrower than 2 x `close_r` closed, slivers
+    and corners narrower than 2 x `open_r` rounded), inside the outline: the walls drop straight down under the
+    scanned gum to the floor, Titan's look. (build_body adds the trim line's own surroundings back, so the line is
+    never cut.) Returns (region, info) or (outline, None) when the scan's edge cannot be used."""
+    from shapely.validation import make_valid
+    loops = boundary_loops(surface)
+    if not loops or len(loops[0]) < 20:
+        return outline, None
+    E = Polygon(surface.vertices[loops[0]][:, :2])
+    E = _biggest(E if E.is_valid else make_valid(E))
+    if E is None or E.area < 0.3 * outline.area:
+        return outline, None
+    W = E.buffer(-inset, join_style=1)
+    W = W.buffer(close_r, join_style=1).buffer(-close_r, join_style=1)
+    W = _biggest(W.intersection(outline))
+    if W is not None:
+        W = _biggest(W.buffer(-open_r, join_style=1).buffer(open_r, join_style=1))
+    if W is None:
+        return outline, None
+    W = W.simplify(0.05)
+    if not W.is_valid:
+        W = _biggest(make_valid(W))
+    if W is None or W.area < 0.3 * outline.area:
+        return outline, None
+    return W, dict(outline_mm2=round(float(outline.area)), walls_mm2=round(float(W.area)), scan_edge_mm2=round(float(E.area)))
+
+
 def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=False, scan_region=None, extra_solids=None, extras_status=None,
-               extra_after=None):
+               extra_after=None, hug_keep=None, hug=False, info=None):
     """Printable solid horseshoe: clip the surface (to `scan_region` if given, else loosely to the
     outline), close it below the floor, union a smooth synthetic skirt out to the outline, then cut
-    with the outline prism so walls and floor are exact. Returns (trimesh body, method)."""
+    with the outline prism so walls and floor are exact. With `hug` the walls stand under the scan's own
+    edge (hug_region) and the skirt falls steeply from it, instead of a shelf out to the outline; round the
+    trim line (`hug_keep`: the line's region plus a rim) the scan is kept as scanned with its own edge dropped
+    straight down, so the line is never cut and no step is filled in under it. Returns (trimesh body, method)."""
     loose = outline.buffer(overhang, join_style=1)
     region = scan_region.intersection(loose) if scan_region is not None else loose
     surf = clip_surface(mesh_final, region, z_floor - 0.5)
     surf = repair_boundary(surf, log=log)
+    walls, keep_zone = outline, None
+    if hug and scan_region is None and hug_keep is not None:      # (never without the trim line's surroundings: they keep the line from being cut)
+        try:
+            walls, hinfo = hug_region(surf, outline)
+            if walls is not outline:
+                keep_zone = _biggest(hug_keep.intersection(outline))
+                if keep_zone is None:
+                    walls, hinfo = outline, None
+            if hinfo:
+                hinfo["walls_mm2"] = round(float(walls.union(keep_zone).area))
+                log(f"walls under the scan's edge: {hinfo['walls_mm2']} mm2 of floor (the outline would be {hinfo['outline_mm2']})")
+            if info is not None:
+                info["walls"] = hinfo or dict(skipped="the scan's edge could not be used - walls at the outline")
+        except Exception as ex:  # noqa
+            walls, keep_zone = outline, None
+            log(f"walls under the scan's edge skipped: {ex}")
+            if info is not None:
+                info["walls"] = dict(error=str(ex)[:200])
+    hugging = walls is not outline
     raw_solid = solidify(surf, z_floor - 3.0, outline=None, snap=False)
     man = to_manifold(raw_solid)
     if man is None:
@@ -392,22 +458,6 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
                 log("body: solid repaired with meshfix")
         except Exception as ex:  # noqa
             log(f"meshfix failed: {ex}")
-    # gingiva shelf filling the outline wherever the scan stopped short (distal to the last molars,
-    # facial of the incisors): a separate manifold heightfield unioned in
-    if man is not None and shelf:
-        try:
-            sh = shelf_solid(surf, outline, z_floor - 3.0, z_floor)
-            msh = to_manifold(sh)
-            if msh is not None:
-                u = man + msh
-                if u.status() == m3.Error.NoError:
-                    man = u
-                else:
-                    log("shelf union failed; continuing without shelf")
-            else:
-                log("shelf not manifold; continuing without shelf")
-        except Exception as ex:  # noqa
-            log(f"shelf skipped: {ex}")
     # block-out fills, bracket shields and the like: unioned in before the outline cut
     status = extras_status if extras_status is not None else []
     for i, ex in enumerate(extra_solids or []):
@@ -425,12 +475,33 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
                 log(f"extra solid {i + 1} union failed; skipped")
         except Exception as ex2:  # noqa
             log(f"extra solid {i + 1} skipped: {ex2}")
+    # gingiva shelf filling the outline wherever the scan stopped short (distal to the last molars,
+    # facial of the incisors): a separate manifold heightfield unioned in
+    if man is not None and shelf:
+        try:
+            # walls under the scan's edge: the skirt is made only inside them, so it shows only in the notches their
+            # rounding closed - falling steeply from the edge there, a bevel down to the floor, never a ledge - and not
+            # at all round the trim line, where the scan keeps its own edge dropped straight down
+            sh = shelf_solid(surf, walls if hugging else outline, z_floor - 3.0, z_floor, slope=HUG_SKIRT_SLOPE if hugging else 0.12)
+            msh = to_manifold(sh)
+            if msh is not None:
+                u = man + msh
+                if u.status() == m3.Error.NoError:
+                    man = u
+                else:
+                    log("shelf union failed; continuing without shelf")
+            else:
+                log("shelf not manifold; continuing without shelf")
+        except Exception as ex:  # noqa
+            log(f"shelf skipped: {ex}")
     if man is None:
         log("body: could not make a manifold solid; falling back to tight clip + skirt (no boolean)")
         surf = clip_surface(mesh_final, outline, z_floor)
         body = solidify(surf, z_floor, outline=None, snap=False)
         return body, "skirt-only"
-    prism = outline_prism(outline, z_floor, z_floor + 80.0)
+    # the cut: the walls under the scan's edge plus the trim line's surroundings (the line is never cut, and there the
+    # scan keeps its own edge, dropped straight down - no skirt was made there); the outline without hugging
+    prism = outline_prism(walls.union(keep_zone) if hugging else outline, z_floor, z_floor + 80.0)
     cut = man ^ prism
     if cut.status() != m3.Error.NoError or cut.volume() < 100:
         log("body: prism intersection failed; using uncut solid")
