@@ -7,6 +7,8 @@ from loading or sending anything to anywhere but this PC.
 """
 import asyncio
 import base64
+import io
+import re
 import datetime as dt
 import hashlib
 import hmac
@@ -23,7 +25,7 @@ for _ext, _mt in ((".js", "application/javascript"), (".mjs", "application/javas
                   (".png", "image/png"), (".svg", "image/svg+xml")):
     mimetypes.add_type(_mt, _ext)   # Windows registries sometimes map .js to text/plain
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile  # noqa: E402
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.concurrency import run_in_threadpool  # noqa: E402
@@ -34,7 +36,8 @@ from xray import __version__  # noqa: E402
 from xray import geometry as geo  # noqa: E402
 from xray.analysis import DEFAULT_CUTOFFS, DEFAULT_NORMS, MEASURES, analyze  # noqa: E402
 from xray.cvm import DEFAULT_THRESHOLDS, clean_marks  # noqa: E402
-from xray.imageio import ImageReadError, load_png  # noqa: E402
+from xray import iortho  # noqa: E402
+from xray.imageio import ImageReadError, is_dicom_bytes, load_png  # noqa: E402
 from xray.landmarks import ANCHORS, CODES, GROUP_OF, public_definitions  # noqa: E402
 from xray.shape import fill_missing, mean_shape, place_from_anchors  # noqa: E402
 from xray.store import Store, age_years  # noqa: E402
@@ -385,7 +388,7 @@ def _patch_case(cid, body):
             x, y = float(v["x"]), float(v["y"])
             if not (-50 <= x <= case["image"]["w"] + 50 and -50 <= y <= case["image"]["h"] + 50):
                 continue
-            lm[code] = dict(x=round(x, 2), y=round(y, 2), by=v.get("by") if v.get("by") in ("doctor", "model", "template") else "doctor",
+            lm[code] = dict(x=round(x, 2), y=round(y, 2), by=v.get("by") if v.get("by") in ("doctor", "model", "template", "import") else "doctor",
                             conf=v.get("conf"))
             changed += 1
         if changed and case.get("status") == "confirmed":
@@ -528,6 +531,193 @@ def _from_anchors(cid, body):
     case, a = _refresh(case)
     STORE.save(case)
     return _reply(case, a)
+
+
+# ----------------------------------------------------------------------------- importing iOrtho tracings
+
+def _last_first(name):
+    """iOrtho writes 'First Last'; the case list uses 'Last, First'."""
+    parts = [w for w in str(name or "").replace(",", " ").split() if w]
+    if len(parts) >= 2:
+        return f"{parts[-1].title()}, {' '.join(w.title() for w in parts[:-1])}"
+    return " ".join(w.title() for w in parts)
+
+
+def _apply_iortho(case, result, report, confirm=False):
+    """iOrtho's points onto a case: verified ones marked as such, the vertebrae (iOrtho has none) skipped."""
+    now = dt.datetime.now().replace(microsecond=0).isoformat()
+    lm = case.setdefault("landmarks", {})
+    for c, (x, y) in result["points"].items():
+        lm[c] = dict(x=round(x, 2), y=round(y, 2), by="import", conf=1.0 if c in result["verified"] else 0.4)
+    p = case.setdefault("patient", {})
+    rp = report.get("patient") or {}
+    from_file = (case.get("source") or {}).get("format") != "dicom"
+    if rp.get("name") and (from_file or not p.get("name")):
+        p["name"] = _last_first(rp["name"])
+    if rp.get("dob") and not p.get("dob"):
+        p["dob"] = rp["dob"]
+    if rp.get("sex") in ("M", "F") and not p.get("sex"):
+        p["sex"] = rp["sex"]
+    if rp.get("taken") and not case.get("taken"):
+        case["taken"] = rp["taken"]
+    if p.get("name"):
+        case["details_confirmed"] = True
+    cal = case.get("calibration") or {}
+    mm = result.get("mm_per_px")
+    if mm and 0.01 < mm < 2 and (not cal.get("mm_per_px") or str(cal.get("source") or "").startswith("office default")):
+        case["calibration"] = dict(mm_per_px=round(mm, 5), source="from iOrtho's measurements (its S-N length)")
+    if not any(GROUP_OF[c] == "cvm" for c in lm):
+        case["skipped"] = sorted(set(case.get("skipped") or []) | {"cvm"})
+    missing = [c for c in _required_codes(case) if c not in lm]
+    if missing:                                # anything iOrtho did not give: from the average tracing
+        shape, _ = current_shape()
+        known = {c: (v["x"], v["y"]) for c, v in lm.items()}
+        for c, (x, y) in fill_missing(known, missing, shape).items():
+            lm[c] = dict(x=round(x, 2), y=round(y, 2), by="template", conf=None)
+    n_ok = sum(1 for r in result["checks"] if r["ok"])
+    case["import"] = dict(source="iOrtho", when=now, verified=result["verified"], unverified=result["unverified"],
+                          checks=result["checks"], registration=result["registration"])
+    case["status"] = "new" if case.get("status") != "confirmed" else case["status"]
+    case.setdefault("history", []).append(dict(t=now, what=f"tracing imported from iOrtho: {len(result['verified'])} points "
+                                               f"match iOrtho's numbers ({n_ok} of {len(result['checks'])} checks)"))
+    case, a = _refresh(case)
+    STORE.save(case)
+    real_doubt = [c for c in result["unverified"] if c != "PM"]
+    if confirm and not real_doubt and case.get("status") != "confirmed":
+        out = _patch_case(case["id"], {"status": "confirmed"})
+        return out["case"], out["analysis"]
+    return case, a
+
+
+def _import_one(case, traced_rgb, report, confirm):
+    img = load_png(STORE.image_path(case["id"]))
+    result = iortho.import_tracing(img, traced_rgb, report)
+    case, a = _apply_iortho(case, result, report, confirm)
+    n_ok = sum(1 for r in result["checks"] if r["ok"])
+    return dict(id=case["id"], name=case["patient"].get("name") or "", verified=len(result["verified"]),
+                unverified=result["unverified"], checks_ok=n_ok, checks=len(result["checks"]),
+                confirmed=case.get("status") == "confirmed", registration=result["registration"])
+
+
+def _tokens(s):
+    return {w for w in re.split(r"[^a-z]+", str(s or "").lower()) if len(w) >= 2} - {
+        "cephalometry", "report", "ceph", "cephalometric", "lateral", "lat", "traced", "tracing", "image", "export",
+        "iortho", "icep", "iceph", "png", "jpg", "jpeg", "dcm", "xlsx", "the", "and"}
+
+
+def _import_iortho_batch(items, confirm):
+    """items: [(filename, bytes)]. One or more patients: per patient the original x-ray, iOrtho's traced image and
+    iOrtho's Excel report. Files are grouped by the patient's name when there is more than one patient."""
+    reports, originals, traced, errors, other_reports = [], [], [], [], []
+    for name, data in items:
+        low = (name or "").lower()
+        if low.endswith((".xlsx", ".xlsm")):
+            try:
+                reports.append((name, iortho.read_report(data)))
+            except iortho.ImportError_ as ex:
+                errors.append(dict(name=name, error=str(ex)))
+        elif low.endswith((".pdf", ".xls", ".csv", ".txt", ".doc", ".docx")):
+            other_reports.append(name)            # iOrtho's PDF next to its Excel report: not needed
+        elif is_dicom_bytes(data) or low.endswith((".dcm", ".dicom")):
+            originals.append((name, data, None))
+        else:
+            try:
+                rgb = iortho.load_rgb(data)
+            except iortho.ImportError_ as ex:
+                errors.append(dict(name=name, error=str(ex)))
+                continue
+            (traced if iortho.looks_traced(rgb) else originals).append((name, data, rgb))
+    if not reports:
+        raise HTTPException(400, "No iOrtho Excel report (.xlsx) among the files" + (
+            " - the PDF report cannot be read; export the Excel one from iOrtho too." if other_reports else "."))
+    groups = []
+    if len(reports) == 1:
+        groups.append((reports[0], originals, traced))
+    else:
+        for rname, rep in reports:
+            want = _tokens(rep["patient"].get("name")) or _tokens(rname)
+            def mine(fname, data):
+                t = _tokens(fname)
+                if is_dicom_bytes(data):
+                    try:
+                        import pydicom
+                        ds = pydicom.dcmread(io.BytesIO(data), stop_before_pixels=True, force=True)
+                        t |= _tokens(str(getattr(ds, "PatientName", "")))
+                    except Exception:  # noqa
+                        pass
+                return len(t & want) >= min(2, len(want))
+            groups.append(((rname, rep), [o for o in originals if mine(o[0], o[1])], [x for x in traced if mine(x[0], x[1])]))
+    out = []
+    settings = load_settings()
+    for (rname, rep), origs, trs in groups:
+        who = _last_first(rep["patient"].get("name")) or rname
+        if len(origs) != 1 or len(trs) != 1:
+            what = []
+            if len(origs) != 1:
+                what.append("the original x-ray" if not origs else f"{len(origs)} possible original x-rays")
+            if len(trs) != 1:
+                what.append("iOrtho's traced image" if not trs else f"{len(trs)} possible traced images")
+            out.append(dict(name=who, error="Could not find " + " and ".join(what) + " for this report. "
+                            "Drop one patient's three files at a time, or name the files after the patient."))
+            continue
+        oname, odata, _ = origs[0]
+        tname, tdata, trgb = trs[0]
+        try:
+            case, dup = STORE.create(odata, oname, settings)
+        except ImageReadError as ex:
+            out.append(dict(name=who, error=f"{oname}: {ex}"))
+            continue
+        if dup and case.get("status") == "confirmed":      # never overwrite a tracing the doctor has confirmed
+            out.append(dict(name=case["patient"].get("name") or who, id=case["id"], confirmed=True,
+                            skipped="Already here and confirmed - left as it is."))
+            continue
+        try:
+            out.append(_import_one(case, trgb, rep, confirm))
+        except iortho.ImportError_ as ex:
+            out.append(dict(name=who, id=case["id"], error=str(ex)))
+    return dict(results=out, errors=errors)
+
+
+@app.post("/api/import/iortho")
+async def import_iortho(files: list[UploadFile] = File(...), confirm: bool = Form(False)):
+    items = []
+    for f in files:
+        data = await f.read()
+        if len(data) > MAX_UPLOAD:
+            raise HTTPException(400, f"{f.filename}: file too large.")
+        items.append((f.filename or "", data))
+    return await run_in_threadpool(_import_iortho_batch, items, confirm)
+
+
+@app.post("/api/cases/{cid}/iortho")
+async def import_iortho_onto(cid: str, files: list[UploadFile] = File(...), confirm: bool = Form(False)):
+    """iOrtho's tracing for an x-ray that is already here: the traced image and the Excel report."""
+    case = _get(cid)
+    if case.get("status") == "confirmed":
+        raise HTTPException(409, "This tracing is confirmed. Reopen it first if iOrtho's tracing should replace it.")
+    rep, rgb = None, None
+    for f in files:
+        data = await f.read()
+        low = (f.filename or "").lower()
+        if low.endswith((".xlsx", ".xlsm")):
+            try:
+                rep = iortho.read_report(data)
+            except iortho.ImportError_ as ex:
+                raise HTTPException(400, str(ex))
+        else:
+            try:
+                rgb = iortho.load_rgb(data)
+            except iortho.ImportError_ as ex:
+                raise HTTPException(400, str(ex))
+    if rep is None or rgb is None:
+        raise HTTPException(400, "Drop iOrtho's traced image and its Excel report (.xlsx) together.")
+    if not iortho.looks_traced(rgb):
+        raise HTTPException(400, "That image has no iOrtho tracing on it (no red landmark dots).")
+    try:
+        res = await run_in_threadpool(_import_one, case, rgb, rep, confirm)
+    except iortho.ImportError_ as ex:
+        raise HTTPException(400, str(ex))
+    return dict(result=res, **_reply(STORE.get(cid)))
 
 
 @app.post("/api/cases/{cid}/fill")
