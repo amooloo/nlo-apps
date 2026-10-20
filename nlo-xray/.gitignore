@@ -1,0 +1,9 @@
+# Patient x-rays, tracings and anything learned from them stay on the office PC - never in this repo.
+cases/
+models/
+settings.json
+sessions.json
+*.tmp
+__pycache__/
+*.pyc
+.pytest_cache/

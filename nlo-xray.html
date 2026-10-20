@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>NLO X-Ray Reader</title>
+<script>
+// Clicking "X-Ray Reader" on the home page goes straight to the app running on the office PC.
+// This page itself (the instructions) is shown only when opened with ?help.
+(function () {
+  window.NLO_XR = { DEFAULT_PC: "lab", key: "nlo.xray.pc.v1", port: 8766 };
+  var name = "";
+  // ?pc=NAME sets the PC for this browser and goes there
+  var m = /[?&]pc=([^&]+)/.exec(location.search);
+  if (m) {
+    name = decodeURIComponent(m[1]).trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
+    try { if (name) localStorage.setItem(NLO_XR.key, name); } catch (e) {}
+  }
+  if (!name) { try { name = localStorage.getItem(NLO_XR.key) || ""; } catch (e) {} }
+  name = name || NLO_XR.DEFAULT_PC;
+  if (!/[?&]help\b/.test(location.search) && name) location.replace("http://" + name + ":" + NLO_XR.port + "/");
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root { --navy:#1B2F4C; --blue:#1D3EA9; --coral:#FA624D; --mint:#64F4C9; --page:#F2F3F4; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--page); color:var(--navy); min-height:100vh; }
+header { background:var(--navy); color:#fff; padding:36px 24px 30px; text-align:center; }
+header h1 { font-size:1.4rem; font-weight:800; letter-spacing:.3px; }
+header p { opacity:.75; font-size:.9rem; margin-top:8px; max-width:640px; margin-left:auto; margin-right:auto; line-height:1.5; }
+main { max-width:760px; margin:36px auto 60px; padding:0 20px; }
+.card { background:#fff; border-radius:14px; padding:22px 24px; box-shadow:0 1px 2px rgba(27,47,76,.06), 0 6px 20px rgba(27,47,76,.06); margin-bottom:18px; }
+.card h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:2px; color:var(--blue); margin-bottom:12px; font-weight:700; }
+p, li { font-size:.95rem; line-height:1.6; }
+ol, ul { padding-left:24px; margin-top:6px; }
+li { margin:8px 0; }
+code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.85em; background:#eef1f6; padding:2px 7px; border-radius:5px; }
+code.block { display:block; white-space:normal; word-break:break-all; margin-top:6px; padding:8px 10px; font-size:.78em; }
+.btn { display:inline-block; background:var(--blue); color:#fff; text-decoration:none; font-weight:700; padding:12px 18px; border-radius:10px; margin:8px 8px 0 0; font-size:.9rem; }
+.btn.alt { background:#fff; color:var(--blue); border:2px solid var(--blue); }
+.pill { display:inline-block; background:#E6F9F2; color:#0B7C61; font-weight:700; font-size:.72rem; padding:4px 10px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+.muted { color:#5b6b80; font-size:.88rem; }
+.step { display:flex; gap:14px; align-items:flex-start; margin:12px 0; }
+.num { flex:0 0 30px; height:30px; border-radius:50%; background:var(--blue); color:#fff; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:.9rem; margin-top:2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NLO X-Ray Reader</h1>
+  <p>Traces lateral cephs, measures them, and shows the skeletal class, vertical pattern and CVM stage. It learns from every tracing you confirm. Everything stays on the office PC.</p>
+</header>
+<main>
+
+  <div class="card">
+    <h2>Everyday use <span class="pill">a few minutes a ceph</span></h2>
+    <div class="step"><div class="num">1</div><p>Export the ceph from the imaging software - <b>DICOM</b> is best (it carries the patient, the date and the pixel size); a JPG / PNG / TIFF works too. Drop it on the <b>X-Ray Reader</b> page (home page → X-Ray Reader) and check the name, x-ray date, birth date and sex.</p></div>
+    <div class="step"><div class="num">2</div><p>Click <b>Sella</b>, <b>Nasion</b> and <b>Menton</b>. Every other point appears roughly in place, and the app walks you through them one by one: click where the point belongs, or press <b>Enter</b> when it is right. (Once the app has learned - after about 15 confirmed tracings - it places all the points itself.)</p></div>
+    <div class="step"><div class="num">3</div><p>The measurements, skeletal class, vertical pattern and CVM stage update as you go. <b>Confirm tracing</b> files it as a lesson; <b>Print</b> gives a one-page report.</p></div>
+    <a class="btn" id="openapp" href="#">Open the X-Ray Reader</a>
+    <p class="muted" id="pc-line" style="margin-top:10px"></p>
+  </div>
+
+  <div class="card">
+    <h2>Install or update <span class="pill">one line, on the PC that runs it</span></h2>
+    <p>On the PC that should run the app (it has to be on, also in the evening when it learns): <b>Win + R</b>, paste this line, Enter. It installs Python if needed, the app and its components, starts it at sign-in, and opens it. The same line updates it later - the x-rays, tracings and settings are kept.</p>
+    <code class="block">powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-xray/setup.ps1' -UseBasicParsing).Content"</code>
+    <p class="muted" style="margin-top:8px">It ends with the PC's name. If that is not <b id="defpc"></b>, use "Use a different PC" below once in each browser, or change <code>DEFAULT_PC</code> in <code>nlo-xray.html</code>.</p>
+  </div>
+
+  <div class="card">
+    <h2>Private by design</h2>
+    <ul>
+      <li>The x-rays, tracings and the trained network stay in the app folder on that PC (<code>C:\NLO\nlo-xray</code>). Nothing is uploaded anywhere.</li>
+      <li>The app makes no internet connections, and its page cannot load or send anything outside the office network.</li>
+      <li>It learns only from tracings confirmed in this office - no outside data, no pre-trained models.</li>
+      <li>An optional office passcode (Settings → Passcode) keeps it to staff computers if guests share the Wi-Fi.</li>
+    </ul>
+    <a class="btn alt" href="https://github.com/amooloo/nlo-apps/tree/main/nlo-xray">Technical details &amp; code</a>
+  </div>
+</main>
+<script>
+(function () {
+  var key = NLO_XR.key, name = "";
+  try { name = localStorage.getItem(key) || ""; } catch (e) {}
+  name = name || NLO_XR.DEFAULT_PC;
+  document.getElementById("defpc").textContent = NLO_XR.DEFAULT_PC;
+  var btn = document.getElementById("openapp"), line = document.getElementById("pc-line");
+  function render() {
+    btn.href = "http://" + name + ":" + NLO_XR.port + "/";
+    btn.target = "_blank";
+    line.innerHTML = 'The app runs on the PC named <b>' + name + '</b> (it has to be on, with the "NLO X-Ray Reader" window open). ' +
+      '<a href="#" id="chg">Use a different PC in this browser</a>' +
+      (name !== NLO_XR.DEFAULT_PC ? ' &nbsp;·&nbsp; <a href="#" id="rst">back to ' + NLO_XR.DEFAULT_PC + '</a>' : '');
+    document.getElementById("chg").onclick = function (ev) { ev.preventDefault(); ask(); };
+    var r = document.getElementById("rst");
+    if (r) r.onclick = function (ev) { ev.preventDefault(); name = NLO_XR.DEFAULT_PC; try { localStorage.removeItem(key); } catch (e) {} render(); };
+  }
+  function ask() {
+    var v = prompt("Computer name of the PC that runs the app (its window prints it as http://NAME:8766):", name || "");
+    if (v === null) return;
+    v = v.trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
+    if (!v) return;
+    name = v;
+    try { localStorage.setItem(key, name); } catch (e) {}
+    render();
+  }
+  render();
+})();
+</script>
+<script src="nlo-home.js" defer></script>
+</body>
+</html>

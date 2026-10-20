@@ -1,0 +1,2 @@
+# keep the Windows line endings of the .bat files exactly as committed (also in GitHub zip downloads)
+*.bat -text

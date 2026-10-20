@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>NLO X-Ray Reader</title>
+<link rel="icon" type="image/png" href="/static/img/icon.png">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="sideTop">
+      <img src="/static/img/logo-white.png" alt="Next Level Orthodontics">
+      <div class="appTag">X-Ray Reader</div>
+    </div>
+    <div class="sideNew">
+      <label class="newBtn" for="fileIn">+ New x-ray</label>
+      <input type="file" id="fileIn" multiple accept=".dcm,.dicom,.jpg,.jpeg,.png,.tif,.tiff,.bmp,application/dicom,image/*" hidden>
+    </div>
+    <div class="sideSearch"><input id="search" type="search" placeholder="Find a patient or date" autocomplete="off"></div>
+    <div class="navLbl">X-rays <span id="caseCount"></span></div>
+    <nav id="caseList" class="caseList" aria-label="X-rays"></nav>
+    <div class="sideFoot">
+      <div id="learnLine" class="learnLine"></div>
+      <button id="openSettings" class="footLink" type="button">Settings &amp; learning</button>
+      <a class="footLink" href="https://amooloo.github.io/nlo-apps/" target="_blank" rel="noopener noreferrer">NLO Apps home</a>
+      <div class="privacyLine"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a3.5 3.5 0 0 0-3.5 3.5V6H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-.5V4.5A3.5 3.5 0 0 0 8 1Zm-2 5V4.5a2 2 0 1 1 4 0V6Z"/></svg>Stays on this PC</div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <section id="welcome">
+      <h1>X-Ray Reader</h1>
+      <p class="lead">Drop a lateral ceph to trace it, measure it, and see the skeletal class, vertical pattern and CVM stage. Every tracing you confirm teaches the app to place the points itself.</p>
+      <div class="drop" id="dropZone" role="button" tabindex="0">
+        <b>Drop a ceph here</b>
+        DICOM from the imaging software, or a JPG / PNG / TIFF export. Several at once is fine. Or click to choose.
+      </div>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><h4>Check the details</h4><p>Name, x-ray date, birth date and sex come from a DICOM file; for an exported picture, type them.</p></div>
+        <div class="step"><div class="n">2</div><h4>Trace</h4><p id="welcomeTrace">Click Sella, Nasion and Menton. The other points appear roughly in place: click where each one belongs, or press Enter when it is right.</p></div>
+        <div class="step"><div class="n">3</div><h4>Confirm</h4><p>Measurements, class and CVM update as you go. Confirming makes the tracing a lesson for the app.</p></div>
+      </div>
+      <div class="privacyCard"><b>Private by design</b>The x-rays, tracings and the trained model stay in the app folder on this PC. The app makes no internet connections, and the page cannot load or send anything outside the office network.</div>
+    </section>
+
+    <section id="caseView" hidden>
+      <header class="topBar">
+        <div class="tTitle"><h2 id="pName"></h2><div class="sub" id="pSub"></div></div>
+        <span class="pill" id="pStatus"></span>
+        <div class="topBtns">
+          <button class="small" id="detailsBtn" type="button">Details</button>
+          <button class="small" id="printBtn" type="button">Print</button>
+          <button class="primary" id="confirmBtn" type="button">Confirm tracing</button>
+          <button class="small" id="reopenBtn" type="button" hidden>Reopen</button>
+          <button class="small danger" id="deleteBtn" type="button" title="Delete this x-ray">Delete</button>
+        </div>
+      </header>
+      <div id="view">
+        <div class="leftCol" id="leftCol">
+          <div class="card" id="traceCard">
+            <div class="cardHd"><h3>Tracing</h3><span class="sub" id="traceSub"></span></div>
+            <div class="cardBd" id="traceBody"></div>
+          </div>
+          <div class="card" id="summaryCard">
+            <div class="cardHd"><h3>Summary</h3><span class="sub" id="ageSub"></span></div>
+            <div class="cardBd"><div class="sum" id="summary"></div></div>
+          </div>
+          <div class="card" id="cvmCard">
+            <div class="cardHd"><h3 class="fold" data-fold="cvmCard">Growth (CVM)</h3></div>
+            <div class="cardBd" id="cvmBody"></div>
+          </div>
+          <div class="card" id="measCard">
+            <div class="cardHd"><h3 class="fold" data-fold="measCard">Measurements</h3><span class="sub" id="measSub"></span></div>
+            <div class="cardBd"><table class="mt" id="measTable"></table></div>
+          </div>
+        </div>
+        <div class="viewerWrap" id="viewer">
+          <canvas id="cv"></canvas>
+          <div class="vTools" id="vTools">
+            <button type="button" id="tFit" title="Fit the x-ray (F)">Fit</button>
+            <button type="button" id="tOut" title="Zoom out (-)">−</button>
+            <button type="button" id="tIn" title="Zoom in (+)">+</button>
+            <span class="sep"></span>
+            <label title="Brightness">☀<input type="range" id="tBright" min="40" max="200" value="100"></label>
+            <label title="Contrast">◐<input type="range" id="tContrast" min="40" max="300" value="100"></label>
+            <button type="button" id="tInvert" title="Invert (I)">Inv</button>
+            <span class="sep"></span>
+            <button type="button" id="tLabels" class="on" title="Point names (L)">Aa</button>
+            <button type="button" id="tLines" class="on" title="Tracing lines (T)">Lines</button>
+            <button type="button" id="tFollow" class="on" title="Zoom to each point while checking">Follow</button>
+            <button type="button" id="tRuler" title="Calibrate with a ruler on the x-ray">Ruler</button>
+          </div>
+          <div class="vCal" id="vCal"></div>
+          <div class="vHint" id="vHint" hidden></div>
+          <div class="vLoading" id="vLoading" hidden>Loading the x-ray…</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlgDetails">
+  <form method="dialog" id="detailsForm">
+    <div class="dHd"><h3 id="detailsTitle">X-ray details</h3><button class="x" value="cancel" type="submit" aria-label="Close">×</button></div>
+    <div class="dBd">
+      <img id="detailsThumb" class="thumbPrev" alt="">
+      <label class="f" for="dName">Patient</label>
+      <input class="in" id="dName" autocomplete="off" placeholder="Last, First">
+      <div class="row2">
+        <div><label class="f" for="dTaken">X-ray date</label><input class="in" id="dTaken" type="date"></div>
+        <div><label class="f" for="dChart">Chart # (optional)</label><input class="in" id="dChart" autocomplete="off"></div>
+      </div>
+      <div class="row2">
+        <div><label class="f" for="dDob">Date of birth</label><input class="in" id="dDob" type="date"></div>
+        <div><label class="f" for="dSex">Sex</label><select class="in" id="dSex"><option value="">—</option><option value="F">Female</option><option value="M">Male</option></select></div>
+      </div>
+      <p class="hint">Birth date gives the age at the x-ray (next to the CVM stage); sex picks the Wits norm.</p>
+      <label class="f">Pixel size</label>
+      <div id="dCal" class="hint" style="margin-top:0"></div>
+    </div>
+    <div class="dFt">
+      <button class="small" value="cancel" type="submit">Cancel</button>
+      <button class="primary" id="detailsSave" value="save" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgCal">
+  <form method="dialog">
+    <div class="dHd"><h3>Calibrate</h3></div>
+    <div class="dBd">
+      <p>How long is the distance you marked, in millimetres? (Use the ruler on the nasion rod, or any marked length.)</p>
+      <label class="f" for="calMm">Length (mm)</label>
+      <input class="in" id="calMm" type="number" step="0.1" min="1" value="10">
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12.5px"><input type="checkbox" id="calDefault"> Also use for every exported (JPG / PNG) x-ray from now on</label>
+      <p class="hint" id="calInfo"></p>
+    </div>
+    <div class="dFt"><button class="small" value="cancel" type="submit">Cancel</button><button class="primary" value="ok" type="submit">Calibrate</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgPass">
+  <form method="dialog" id="passForm">
+    <div class="dHd"><h3>Office passcode</h3></div>
+    <div class="dBd"><p>This app is protected with an office passcode. Type it once on this computer.</p>
+      <input class="in" id="passIn" type="password" autocomplete="current-password" style="margin-top:10px">
+      <p class="hint" id="passErr"></p></div>
+    <div class="dFt"><button class="primary" value="ok" type="submit">Open</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgAsk">
+  <form method="dialog">
+    <div class="dHd"><h3 id="askTitle"></h3></div>
+    <div class="dBd"><p id="askText"></p></div>
+    <div class="dFt"><button class="small" value="no" type="submit">Cancel</button><button class="primary" id="askYes" value="yes" type="submit">OK</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgSettings" class="wide">
+  <div class="dHd"><h3>Settings &amp; learning</h3><button class="x" id="setClose" type="button" aria-label="Close">×</button></div>
+  <div class="tabs" id="setTabs">
+    <button type="button" data-tab="learn" class="on">Learning</button>
+    <button type="button" data-tab="norms">Norms</button>
+    <button type="button" data-tab="cvm">CVM</button>
+    <button type="button" data-tab="cal">Calibration</button>
+    <button type="button" data-tab="access">Passcode</button>
+    <button type="button" data-tab="privacy">Privacy</button>
+  </div>
+  <div class="dBd" id="setBody" style="min-height:320px"></div>
+  <div class="dFt" id="setFoot"></div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="printArea"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
