@@ -102,6 +102,7 @@
   async function boot() {
     try {
       const h = await (await fetch('/api/hello')).json();
+      $('#verLine').textContent = `Version ${h.version}`;
       if (h.passcode && !h.signed_in) await askPasscode();
     } catch (e) { /* the api() calls below report it */ }
     S.defs = await api('/api/defs');
@@ -112,10 +113,15 @@
     const m = /case=([\w-]+)/.exec(location.hash);
     if (m) openCase(m[1]).catch(() => showWelcome());
     setInterval(refreshStatus, 20000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshStatus(); });
   }
+
+  // the build this page was loaded with; when the PC's app is updated, open pages offer a reload
+  const PAGE_BUILD = (document.querySelector('meta[name="build"]') || {}).content || '';
 
   async function refreshStatus() {
     try { S.status = await api('/api/status'); } catch (e) { return; }
+    if (PAGE_BUILD && S.status.build && S.status.build !== PAGE_BUILD) $('#updBar').hidden = false;
     renderLearnLine();
     const wt = $('#welcomeTrace');
     if (wt && S.status.model) wt.textContent = 'The app places the points itself. Click where any point really belongs, or press Enter when it is right.';
@@ -132,10 +138,10 @@
     const rows = S.cases.filter((c) => !q || c.name.toLowerCase().includes(q) || (c.taken || '').includes(q) || fmtDate(c.taken).includes(q));
     $('#caseCount').textContent = S.cases.length ? `(${S.cases.length})` : '';
     $('#caseList').innerHTML = rows.map((c) => `
-      <button class="case${S.case && S.case.id === c.id ? ' active' : ''}" data-id="${esc(c.id)}" type="button">
+      <button class="case${S.case && S.case.id === c.id ? ' active' : ''}" data-id="${esc(c.id)}" type="button" title="${esc(c.name)}">
         <img src="/api/cases/${enc(c.id)}/thumb" alt="" loading="lazy">
-        <span class="meta"><span class="nm">${esc(c.name)}</span>
-        <span class="sub">${esc(fmtDate(c.taken) || 'no date')}${c.age != null ? ' · ' + c.age + ' y' : ''}${c.stage ? ' · ' + esc(c.stage) : ''}<span class="pill ${esc(c.status)}">${statusWord(c.status)}</span></span></span>
+        <span class="meta"><span class="nmRow"><span class="nm">${esc(c.name)}</span><span class="pill ${esc(c.status)}">${statusWord(c.status)}</span></span>
+        <span class="sub">${esc(fmtDate(c.taken) || 'no date')}${c.age != null ? ' · ' + c.age + ' y' : ''}${c.stage ? ' · ' + esc(c.stage) : ''}</span></span>
       </button>`).join('') || `<div class="empty" style="color:#8EA0BE;padding:8px 12px">${S.cases.length ? 'Nothing matches.' : 'No x-rays yet.'}</div>`;
   }
 
@@ -1548,6 +1554,7 @@
     $('#caseList').onclick = (e) => { const b = e.target.closest('.case'); if (b) openCase(b.dataset.id).catch((err) => toast(err.message, true)); };
     $('#openSettings').onclick = () => openSettings();
     $('#importBtn').onclick = () => openImport(null);
+    $('#updReload').onclick = () => { flushSave().catch(() => {}).finally(() => location.reload()); };   // edits saved first
     $('#impClose').onclick = () => $('#dlgImport').close();
     $('#impDrop').onclick = () => $('#impIn').click();
     $('#impDrop').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') $('#impIn').click(); };

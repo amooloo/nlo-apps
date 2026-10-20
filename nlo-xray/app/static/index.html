@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<meta name="build" content="">
 <title>NLO X-Ray Reader</title>
 <link rel="icon" type="image/png" href="/static/img/icon.png">
 <link rel="stylesheet" href="/static/style.css">
@@ -24,10 +25,12 @@
     <div class="navLbl">X-rays <span id="caseCount"></span></div>
     <nav id="caseList" class="caseList" aria-label="X-rays"></nav>
     <div class="sideFoot">
+      <div class="updBar" id="updBar" hidden><span>The app was updated.</span><button type="button" id="updReload">Reload</button></div>
       <div id="learnLine" class="learnLine"></div>
       <button id="openSettings" class="footLink" type="button">Settings &amp; learning</button>
       <a class="footLink" href="https://amooloo.github.io/nlo-apps/" target="_blank" rel="noopener noreferrer">NLO Apps home</a>
       <div class="privacyLine"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a3.5 3.5 0 0 0-3.5 3.5V6H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-.5V4.5A3.5 3.5 0 0 0 8 1Zm-2 5V4.5a2 2 0 1 1 4 0V6Z"/></svg>Stays on this PC</div>
+      <div class="verLine" id="verLine"></div>
     </div>
   </aside>
 
