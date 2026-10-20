@@ -1,0 +1,481 @@
+"""TAD sites: placing a screw from one click, checking it against the CBCT, and finding good sites by itself.
+
+A TAD here is: head (where it meets the gum, on the scan surface), direction (unit, into bone), threaded length,
+diameter and collar (the smooth transmucosal part). Checks along it, from Dr. A's TAD course notes:
+    root clearance       < 0.5 mm stop, < 1.0 caution, 1.2-1.6 mm is what the literature calls safe
+    cortical thickness   < 0.5 mm do not insert; 0.5-1.5 no pre-drill; 1.5-2.5 perforate the cortex;
+                         > 2.5 perforate + pilot ~3 mm
+    soft tissue          > 3 mm: it is fine not to seat the collar all the way
+    bone along the thread, sinus / nasal floor (bicortical is the goal on the palate), lower buccal distal to the
+    5s (his rule: no TADs at L5/6 or L6/7)
+"Root" here is image evidence, not a diagnosis: dense tissue (dentin-level) deeper than the cortical plate. The
+cross-sections in the app are what to trust.
+"""
+import numpy as np
+from scipy import ndimage as ndi
+
+from . import volume as V
+
+SITES = {
+    # site: label, arches, default apical depth of the entry (mm from the occlusal plane), tilt toward apical (deg),
+    #       size (diameter, thread length, collar), the gaps (contacts) it goes between by default
+    "buccal":  dict(label="Buccal, between roots", arches=("upper", "lower"), a={"upper": 11.0, "lower": 10.0},
+                    alpha={"upper": 25.0, "lower": 15.0}, size={"upper": (1.6, 8.0, 1.5), "lower": (1.6, 8.0, 1.5)},
+                    gaps={"upper": (3, 4, 5, 6), "lower": (3, 4)}),
+    "palatal": dict(label="Palatal, between roots", arches=("upper",), a={"upper": 9.0}, alpha={"upper": 30.0},
+                    size={"upper": (1.6, 10.0, 2.0)}, gaps={"upper": (5, 6)}),
+    "izc":     dict(label="Infrazygomatic crest", arches=("upper",), a={"upper": 14.0}, alpha={"upper": 65.0},
+                    size={"upper": (2.0, 12.0, 3.0)}, gaps={"upper": (6,)}),
+    "shelf":   dict(label="Buccal shelf", arches=("lower",), a={"lower": 9.0}, alpha={"lower": 75.0},
+                    size={"lower": (2.0, 10.0, 2.0)}, gaps={"lower": (6,)}),
+    "palate":  dict(label="Palate (paramedian)", arches=("upper",), a={"upper": 0.0}, alpha={"upper": 0.0},
+                    size={"upper": (2.0, 8.0, 1.0)}, gaps={"upper": (4,)}),
+}
+
+SIZES = [(1.4, 6), (1.4, 8), (1.6, 6), (1.6, 8), (1.6, 10), (1.8, 8), (1.8, 10), (2.0, 8), (2.0, 10), (2.0, 12), (1.5, 11), (1.5, 13)]
+
+
+def unit(v):
+    v = np.asarray(v, float)
+    return v / (np.linalg.norm(v) + 1e-12)
+
+
+class Context:
+    """Per case: the volume and levels, the matched scan (mm), the arch, a ray caster on the scan."""
+
+    def __init__(self, vol, levels, P, F, N, arch_obj, teeth=None):
+        self.vol, self.lv, self.P, self.F, self.N, self.arch = vol, levels, P, F, N, arch_obj
+        self.teeth = teeth
+        self._ray = None
+        self._roi = {}
+
+    # -- rays against the scan
+    def ray(self, origins, dirs):
+        """First hit of each ray on the scan surface: (points (n,3) NaN where none, hit face normals)."""
+        import trimesh
+        if self._ray is None:
+            m = trimesh.Trimesh(self.P, self.F, process=False)
+            try:
+                from trimesh.ray.ray_triangle import RayMeshIntersector
+                self._ray = RayMeshIntersector(m)
+            except Exception:
+                self._ray = m.ray
+            self._mesh = m
+        origins = np.atleast_2d(origins).astype(float)
+        dirs = np.atleast_2d(dirs).astype(float)
+        locs, ray_idx, tri_idx = self._ray.intersects_location(origins, dirs, multiple_hits=True)
+        out = np.full((len(origins), 3), np.nan)
+        nrm = np.full((len(origins), 3), np.nan)
+        if len(locs):
+            d = np.einsum("ij,ij->i", locs - origins[ray_idx], dirs[ray_idx])
+            order = np.lexsort((d, ray_idx))
+            seen = set()
+            fn = self._mesh.face_normals
+            for k in order:
+                r = ray_idx[k]
+                if r in seen or d[k] < 0:
+                    continue
+                seen.add(r)
+                out[r] = locs[k]
+                nrm[r] = fn[tri_idx[k]]
+        return out, nrm
+
+    # -- arch-frame entry points
+    def entries(self, site, s_list, a_list):
+        """Where a site's screw meets the gum, for arc lengths s and apical depths a (one ray each, batched)."""
+        A = self.arch
+        O, D = [], []
+        for s, a in zip(s_list, a_list):
+            p, tan, buc = A.at(s)
+            down = -A.n
+            if site in ("buccal", "izc", "shelf"):
+                O.append(p + buc * 25.0 + down * a); D.append(-buc)
+            else:                                           # palatal: from inside the arch outward
+                O.append(p - buc * 13.0 + down * a); D.append(buc)
+        hit, _n = self.ray(np.array(O), np.array(D))
+        return hit
+
+    def entry(self, site, side, s, a):
+        h = self.entries(site, [s], [a])[0]
+        return h if np.isfinite(h[0]) else None
+
+    def palate_entry(self, u, w):
+        """Palate site at plane coordinates (lateral u, anterior w): a ray from the occlusal side up into the vault."""
+        A = self.arch
+        o = A.from_plane(u, w, 6.0)
+        hit, nrm = self.ray(o, -A.n)
+        if not np.isfinite(hit[0, 0]):
+            return None, None
+        n = nrm[0] if np.dot(nrm[0], A.n) > 0 else -nrm[0]     # facing the mouth
+        return hit[0], n
+
+    def direction(self, site, s, alpha, beta, surf_n=None):
+        A = self.arch
+        if site == "palate":
+            d = -unit(surf_n) if surf_n is not None else -A.n
+            d = unit(np.cos(np.radians(alpha)) * d + np.sin(np.radians(alpha)) * A.L * (1 if s >= 0 else -1))
+            return unit(np.cos(np.radians(beta)) * d + np.sin(np.radians(beta)) * A.A)
+        _p, tan, buc = A.at(s)
+        inward = -buc if site in ("buccal", "izc", "shelf") else buc
+        d = np.cos(np.radians(alpha)) * inward + np.sin(np.radians(alpha)) * (-A.n)
+        d = np.cos(np.radians(beta)) * unit(d) + np.sin(np.radians(beta)) * tan * (1 if s >= 0 else -1)
+        return unit(d)
+
+    # -- the CBCT around a site
+    def roi(self, center, half=15.0, step=None):
+        """Resampled cube around `center` with the masks the checks need (cached by rounded centre)."""
+        key = tuple(np.round(np.asarray(center) / 6.0).astype(int))
+        if key in self._roi:
+            return self._roi[key]
+        step = step or max(0.25, min(self.vol.spacing))
+        c = np.round(np.asarray(center) / 6.0) * 6.0
+        ax = np.arange(-half, half + 1e-6, step)
+        n = len(ax)
+        gx, gy, gz = np.meshgrid(ax, ax, ax, indexing="ij")
+        pts = np.column_stack([gx.ravel(), gy.ravel(), gz.ravel()]) + c
+        I = V.sample(self.vol, pts).reshape(n, n, n).astype(np.float32)
+        lv = self.lv
+        bone_in = lv["soft"] + 0.5 * (lv["bone"] - lv["soft"])
+        bone = I >= bone_in
+        bone = ndi.binary_closing(bone, iterations=1)
+        depth = ndi.distance_transform_edt(bone, sampling=step)
+        metal = I >= lv["metal"]
+        if metal.any():
+            metal = ndi.binary_dilation(metal, iterations=max(1, int(1.0 / step)))
+        # Roots. Dentin is often no brighter than cortical bone in a CBCT, so two kinds of evidence:
+        #  - bright: above half way from the bone level to the dense level, deeper than the cortical plate
+        #    (depth from the OUTER bone surface, PDL / canals / marrow filled in, so roots are not eroded),
+        #    grown back out to the root wall;
+        #  - ridge: a local bright ridge (0.35 mm smoothed image minus a 2 mm background) - the root wall around
+        #    the darker canal and PDL - also deeper than the cortical plate.
+        # A piece counts as root when it reaches a crown of the matched scan (dentin is continuous from crown to
+        # apex), or when it is long and thin like a root (>= 5 mm3, longest axis >= 2.5 x the next).
+        Is = ndi.gaussian_filter(I, 0.35 / step)
+        r1 = max(1, int(round(1.0 / step)))
+        envelope = ndi.binary_fill_holes(ndi.binary_closing(bone, iterations=r1))
+        depth_out = ndi.distance_transform_edt(envelope, sampling=step)
+        root_thr = lv["bone"] + 0.5 * (lv["dense"] - lv["bone"])
+        bright = (Is >= root_thr) & ~metal
+        core = bright & (depth_out >= 1.5)
+        grown = ndi.binary_dilation(core, iterations=max(1, int(round(0.8 / step))), mask=bright)
+        ridge = ((Is - ndi.gaussian_filter(I, 2.0 / step)) > 0.08 * (lv["dense"] - lv["soft"])) & (Is >= lv["bone"]) & (depth_out >= 1.5) & ~metal
+        cand = grown | ridge
+        seeds = np.zeros(I.shape, bool)
+        if self.teeth is not None and self.teeth.any():
+            tp = self.P[self.teeth] - self.N[self.teeth] * 0.8
+            f = np.round((tp - c - ax[0]) / step).astype(int)
+            ok = np.all((f >= 0) & (f < n), axis=1)
+            f = f[ok]
+            seeds[f[:, 0], f[:, 1], f[:, 2]] = True
+            seeds = ndi.binary_dilation(seeds, iterations=max(1, int(round(2.5 / step))))
+        lab, nl = ndi.label(cand)
+        rootlike = np.zeros(I.shape, bool)
+        if nl:
+            idx = np.arange(1, nl + 1)
+            sz = ndi.sum(cand, lab, idx) * step ** 3
+            touch = ndi.maximum(seeds, lab, idx) if seeds.any() else np.zeros(nl, bool)
+            keep = np.zeros(nl + 1, bool)
+            objs = ndi.find_objects(lab)
+            for k in range(nl):
+                if touch[k] and sz[k] >= 4.0:
+                    keep[k + 1] = True
+                    continue
+                if sz[k] < 5.0:
+                    continue
+                zz = np.argwhere(lab[objs[k]] == k + 1).astype(float)
+                if len(zz) > 20000:
+                    zz = zz[:: len(zz) // 20000 + 1]
+                ev = np.sort(np.linalg.eigvalsh(np.cov(zz.T)))[::-1]
+                keep[k + 1] = ev[0] >= 2.5 ** 2 * max(ev[1], 1e-6)      # variance ratio = (length ratio)^2
+            rootlike = keep[lab] & cand
+        droot = ndi.distance_transform_edt(~rootlike, sampling=step) if rootlike.any() else np.full(I.shape, 99.0, np.float32)
+        r = dict(c=c, ax=ax, step=step, I=I, depth=depth.astype(np.float32), droot=droot.astype(np.float32), bone_in=bone_in,
+                 root=rootlike)
+        if len(self._roi) > 12:
+            self._roi.clear()
+        self._roi[key] = r
+        return r
+
+    def _roi_sample(self, roi, field, pts):
+        f = (np.asarray(pts) - roi["c"] - roi["ax"][0]) / roi["step"]
+        return ndi.map_coordinates(roi[field], [f[:, 0], f[:, 1], f[:, 2]], order=1, mode="nearest")
+
+    # -- one screw
+    def measure(self, tad, roi=None):
+        """Checks along one TAD. tad: dict(head, dir, length, diameter, collar, site, arch, side)."""
+        H = np.asarray(tad["head"], float)
+        d = unit(tad["dir"])
+        L, D, c = float(tad["length"]), float(tad["diameter"]), float(tad.get("collar", 1.5))
+        roi = roi or self.roi(H + d * (c + L) / 2)
+        lv = self.lv
+        step = 0.15
+        t = np.arange(0.0, c + L + 1e-6, step)
+        pts = H + t[:, None] * d
+        I = self._roi_sample(roi, "I", pts)
+        droot = self._roi_sample(roi, "droot", pts)
+        # a ring at the screw radius as well: the thread's outer edge
+        e1 = unit(np.cross(d, [1, 0, 0] if abs(d[0]) < 0.9 else [0, 1, 0]))
+        e2 = np.cross(d, e1)
+        ring = []
+        for ang in np.linspace(0, 2 * np.pi, 8, endpoint=False):
+            off = (np.cos(ang) * e1 + np.sin(ang) * e2) * (D / 2)
+            ring.append(self._roi_sample(roi, "droot", pts + off))
+        droot_edge = np.min(np.vstack(ring), axis=0)
+        bone_in = roi["bone_in"]
+        cort = 0.5 * (lv["bone"] + lv["dense"])
+        inb = I >= bone_in
+        k_bone = int(np.argmax(inb)) if inb.any() else len(t)
+        soft = float(t[k_bone]) if k_bone < len(t) else float(c + L)
+        # cortical plate: the first run above the cortical level within 3 mm of the bone surface (the edge itself
+        # is blurred over ~1 voxel, so the run starts where the level is first reached, not at the surface)
+        # Thickness = width at half height of the cortical peak (outer edge: half way from soft tissue to the
+        # peak; inner edge: half way from the peak down to the cancellous bone behind it).
+        cortical = 0.0
+        if k_bone < len(t):
+            k_end = min(len(t), k_bone + int(3.0 / step))
+            seg = I[max(0, k_bone - int(1.0 / step)):k_end]
+            off = max(0, k_bone - int(1.0 / step))
+            kp = off + int(np.argmax(seg))
+            pk = float(I[kp])
+            deep = I[min(len(t) - 1, kp + int(1.5 / step)):min(len(t), kp + int(4.5 / step))]
+            base_in = float(np.median(deep)) if len(deep) >= 3 else bone_in
+            base_in = min(base_in, pk)
+            if pk - base_in >= 0.12 * (lv["dense"] - lv["soft"]) and pk >= lv["bone"]:
+                half_out = lv["soft"] + 0.5 * (pk - lv["soft"])
+                half_in = base_in + 0.5 * (pk - base_in)
+                a_ = kp
+                while a_ > 0 and I[a_ - 1] >= half_out:
+                    a_ -= 1
+                b_ = kp
+                while b_ < len(t) - 1 and I[b_ + 1] >= half_in:
+                    b_ += 1
+                cortical = float((b_ - a_ + 1) * step)
+            else:
+                cortical = 0.3 if pk >= bone_in else 0.0     # no distinct plate: thin or missing
+        thread = t >= c
+        in_bone = float(np.mean(inb[thread])) if thread.any() else 0.0
+        # air along the thread (sinus, nasal cavity); for the palate, reaching the nasal floor = bicortical
+        air = I <= lv["air"]
+        air_len = float(np.sum(air & thread) * step)
+        tip_air = bool(air[-max(1, int(1.5 / step)):].any())
+        clearance = float(np.min(np.minimum(droot, droot_edge + D / 2)[thread | (t >= max(0.0, soft))] - D / 2)) if len(t) else 9.9
+        m = dict(root_clearance=round(clearance, 2), cortical=round(cortical, 2), soft_tissue=round(soft, 2),
+                 bone_fraction=round(in_bone, 2), bone_in_thread=round(in_bone * L, 1), air_len=round(air_len, 2), tip_air=tip_air)
+        status, notes = judge(tad, m)
+        m["status"], m["notes"] = status, notes
+        m["profile"] = dict(t=t[::2].round(2).tolist(), I=I[::2].round(0).tolist())
+        return m
+
+    # -- placing
+    def place(self, site, side, s, a, alpha, beta, size, u_w=None):
+        """A TAD at arch coordinates; None when the gum cannot be reached there."""
+        if site == "palate":
+            u, w = u_w
+            H, n = self.palate_entry(u, w)
+            if H is None:
+                return None
+            d = self.direction("palate", u, alpha, beta, surf_n=n)
+            s_val = float(u)
+        else:
+            H = self.entry(site, side, s, a)
+            if H is None:
+                return None
+            d = self.direction(site, s, alpha, beta)
+            s_val = float(s)
+        D, L, c = size
+        tad = dict(site=site, arch=self.arch.arch, side=side, head=H.tolist(), dir=d.tolist(), diameter=D, length=L, collar=c,
+                   s=s_val, a=float(a), alpha=float(alpha), beta=float(beta), uw=list(u_w) if u_w is not None else None)
+        tad["label"] = self.label(tad)
+        return tad
+
+    def label(self, tad):
+        A = self.arch
+        site = tad["site"]
+        if site == "palate":
+            return f"Palate {'L' if tad['s'] >= 0 else 'R'} {abs(tad['s']):.1f} mm from midline"
+        q, n = A.tooth_at(tad["s"])
+        s_c = tad["s"]
+        # between n and n+1 when near a boundary
+        side = "L" if s_c >= 0 else "R"
+        b = A.bounds.get(side) or []
+        txt = f"{q}{n}"
+        if b:
+            a_ = abs(s_c)
+            k = int(np.argmin([abs(a_ - x) for x in b]))
+            if abs(a_ - b[k]) < 2.2 and k >= 1:
+                txt = f"{q} {k + A.shift[side]}/{k + 1 + A.shift[side]}"
+        return f"{txt} {SITES[site]['label'].split(',')[0].lower()}"
+
+    def optimize(self, site, side, s0, a0, alpha0, beta0, size, ds=2.0, da=2.0, dal=10.0, dbe=10.0, u_w=None):
+        """Best nearby placement: maximise root clearance and bone along the thread, respecting the rules."""
+        best = None
+        if site == "palate":
+            u0, w0 = u_w
+            grid = [(u0 + du, w0 + dw, alpha0 + dl, beta0 + db) for du in np.arange(-1.5, 1.51, 0.75) for dw in np.arange(-3, 3.01, 1.0)
+                    for dl in (-8, 0, 8) for db in (-8, 0, 8)]
+            for u, w, al, be in grid:
+                tad = self.place(site, side, 0, 0, al, be, size, u_w=(u, w))
+                if tad is None:
+                    continue
+                m = self.measure(tad)
+                sc = score(tad, m, alpha0, beta0)
+                if best is None or sc > best[0]:
+                    best = (sc, tad, m)
+        else:
+            S = np.arange(-ds, ds + 1e-6, 0.5)
+            Aa = np.arange(-da, da + 1e-6, 0.75)
+            keys = [(dsv, dav) for dsv in S for dav in Aa]
+            hits = self.entries(site, [s0 + k[0] for k in keys], [max(0.0, a0 + k[1]) for k in keys])
+            entries = {k: h for k, h in zip(keys, hits) if np.isfinite(h[0])}
+            if not entries:
+                return None
+            roi = self.roi(np.mean(list(entries.values()), axis=0))
+            for (dsv, dav), H in entries.items():
+                for dl in np.arange(-dal, dal + 1e-6, dal / 2 if dal else 1):
+                    for db in np.arange(-dbe, dbe + 1e-6, dbe / 2 if dbe else 1):
+                        d = self.direction(site, s0 + dsv, alpha0 + dl, beta0 + db)
+                        D, L, c = size
+                        tad = dict(site=site, arch=self.arch.arch, side=side, head=H.tolist(), dir=d.tolist(), diameter=D, length=L,
+                                   collar=c, s=float(s0 + dsv), a=float(max(0.0, a0 + dav)), alpha=float(alpha0 + dl), beta=float(beta0 + db))
+                        m = self.measure(tad, roi=roi)
+                        sc = score(tad, m, alpha0, beta0)
+                        if best is None or sc > best[0]:
+                            best = (sc, tad, m)
+        if best is None:
+            return None
+        sc, tad, m = best
+        tad["label"] = self.label(tad)
+        tad["metrics"] = self.measure(tad)
+        tad["score"] = round(float(sc), 3)
+        return tad
+
+    def suggest(self, site, sides=("R", "L"), prefs=None, top=None):
+        """Ranked sites for one site type on the given sides: one per gap, each optimised."""
+        A = self.arch
+        sd = SITES[site]
+        if A.arch not in sd["arches"]:
+            return []
+        p = dict(prefs or {})
+        a0 = p.get("a", sd["a"][A.arch])
+        al0 = p.get("alpha", sd["alpha"][A.arch])
+        be0 = p.get("beta", 0.0)
+        size = tuple(p.get("size", sd["size"][A.arch]))
+        out = []
+        for side in sides:
+            if site == "palate":
+                s_gap = A.gap(side, 4) or (A.gap(side, 3) or 18.0)
+                pt, _t, _b = A.at(s_gap)
+                w = float(A.to_plane(pt)[1])
+                u = 3.5 if side == "L" else -3.5
+                tad = self.optimize(site, side, 0, 0, al0, be0, size, u_w=(u, w))
+                if tad:
+                    tad["gap"] = None
+                    out.append(tad)
+                continue
+            for g in sd["gaps"][A.arch]:
+                s_gap = A.gap(side, g)
+                if s_gap is None:
+                    continue
+                if site == "shelf":                      # posterior half of the second molar (from the 6/7 contact)
+                    s_n = A.gap(side, 7)
+                    s_gap = s_gap + 0.7 * (s_n - s_gap) if s_n is not None else s_gap + (7.0 if side == "L" else -7.0)
+                tad = self.optimize(site, side, s_gap, a0, al0, be0, size)
+                if tad:
+                    tad["gap"] = g
+                    out.append(tad)
+        out.sort(key=lambda t: -t["score"])
+        return out[:top] if top else out
+
+
+def score(tad, m, alpha0, beta0):
+    clr = min(m["root_clearance"], 2.5)
+    sc = 2.0 * clr + 2.0 * m["bone_fraction"]
+    if tad["site"] != "palate":
+        sc -= 2.0 * m["air_len"]
+    else:
+        sc += 0.6 if m["tip_air"] else 0.0         # bicortical
+        sc += 0.15 * min(m["bone_in_thread"], 8)
+    if m["cortical"] < 0.5:
+        sc -= 1.5
+    elif m["cortical"] > 2.5:
+        sc -= 0.4
+    if m["soft_tissue"] > 3.0:
+        sc -= 0.5 * (m["soft_tissue"] - 3.0)
+    sc -= 0.012 * abs(tad["alpha"] - alpha0) + 0.012 * abs(tad["beta"] - beta0)
+    return sc
+
+
+def judge(tad, m):
+    notes = []
+    status = "ok"
+
+    def worse(s):
+        nonlocal status
+        order = ["ok", "caution", "stop"]
+        if order.index(s) > order.index(status):
+            status = s
+    c = m["root_clearance"]
+    if c < 0.5:
+        worse("stop"); notes.append(f"Dense structure (likely a root) {max(c, 0):.1f} mm from the thread - too close.")
+    elif c < 1.0:
+        worse("caution"); notes.append(f"Root clearance {c:.1f} mm - under 1 mm; aim for 1.2-1.6 mm.")
+    elif c < 1.2:
+        notes.append(f"Root clearance {c:.1f} mm.")
+    ct = m["cortical"]
+    if ct < 0.5:
+        worse("caution"); notes.append("No distinct cortical plate at the entry (thin, or blurred in this CBCT) - check the slices; "
+                                       "your protocol: under 0.5 mm, do not insert.")
+    elif ct <= 1.5:
+        notes.append(f"Cortical bone {ct:.1f} mm along the screw: no pre-drilling needed.")
+    elif ct <= 2.5:
+        notes.append(f"Cortical bone {ct:.1f} mm along the screw: perforate the cortex first.")
+    else:
+        notes.append(f"Cortical bone {ct:.1f} mm along the screw: perforate the cortex + pilot hole ~3 mm into cancellous.")
+    if m["soft_tissue"] > 3.0:
+        notes.append(f"Soft tissue {m['soft_tissue']:.1f} mm (> 3 mm): fine not to seat the collar all the way; consider a longer collar.")
+    if m["bone_fraction"] < 0.75:
+        worse("caution"); notes.append(f"Only {m['bone_in_thread']:.1f} mm of the thread is in bone.")
+    if tad["site"] == "palate":
+        if m["tip_air"]:
+            notes.append("Bicortical: the tip reaches the nasal floor.")
+        if m["air_len"] > 2.0:
+            worse("caution"); notes.append(f"{m['air_len']:.1f} mm of the thread is in the nasal cavity - shorter screw?")
+    elif m["air_len"] > 0.5:
+        worse("caution" if m["air_len"] < 2.0 else "stop"); notes.append(f"The thread enters the sinus / nasal cavity by {m['air_len']:.1f} mm.")
+    if tad["site"] == "buccal" and tad["arch"] == "lower":
+        lab = tad.get("label", "")
+        if any(x in lab for x in ("5/6", "6/7")):
+            worse("caution"); notes.append("Your rule: no lower buccal TADs at 5/6 or 6/7 (bone too thick) - check.")
+    if tad["arch"] == "lower" and tad["site"] in ("shelf", "buccal"):
+        notes.append("Check the mandibular canal / mental foramen on the slices.")
+    return status, notes
+
+
+def cylinder_mesh(tad, segments=24):
+    """A simple screw stand-in (thread + collar + head) for display and export: vertices, faces."""
+    H = np.asarray(tad["head"], float)
+    d = unit(tad["dir"])
+    D, L, c = float(tad["diameter"]), float(tad["length"]), float(tad.get("collar", 1.5))
+    e1 = unit(np.cross(d, [1, 0, 0] if abs(d[0]) < 0.9 else [0, 1, 0]))
+    e2 = np.cross(d, e1)
+    rings = [(-1.6, D * 0.75 + 0.6), (0.0, D * 0.75 + 0.6), (0.0, D / 2 + 0.15), (c, D / 2 + 0.15), (c, D / 2),
+             (c + L - D * 0.6, D / 2), (c + L, 0.25)]
+    ang = np.linspace(0, 2 * np.pi, segments, endpoint=False)
+    V_ = []
+    for t, r in rings:
+        for a in ang:
+            V_.append(H + d * t + r * (np.cos(a) * e1 + np.sin(a) * e2))
+    V_ = np.array(V_)
+    F_ = []
+    n = segments
+    for k in range(len(rings) - 1):
+        for j in range(n):
+            a0, a1 = k * n + j, k * n + (j + 1) % n
+            b0, b1 = (k + 1) * n + j, (k + 1) * n + (j + 1) % n
+            F_ += [[a0, b0, a1], [a1, b0, b1]]
+    top = len(V_)
+    V_ = np.vstack([V_, H - d * 1.6, H + d * (c + L)])
+    for j in range(n):
+        F_.append([top, j, (j + 1) % n][::-1])
+        F_.append([top + 1, (len(rings) - 1) * n + (j + 1) % n, (len(rings) - 1) * n + j][::-1])
+    return V_, np.array(F_)
