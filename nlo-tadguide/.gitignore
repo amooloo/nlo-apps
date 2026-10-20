@@ -1,0 +1,9 @@
+# private / local-only: patient CBCTs and scans, case work, this PC's settings and what it learned
+jobs/
+training/*
+!training/README.md
+settings.json
+samples/
+out/
+__pycache__/
+*.pyc

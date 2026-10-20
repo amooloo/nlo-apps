@@ -1,0 +1,15 @@
+numpy>=1.26
+scipy>=1.11
+trimesh>=4.4
+networkx
+rtree
+scikit-image>=0.22
+pydicom>=3.0
+pylibjpeg>=2.0
+pylibjpeg-libjpeg>=2.1
+pylibjpeg-openjpeg>=2.3
+pylibjpeg-rle>=2.0
+fastapi
+uvicorn
+python-multipart
+fast-simplification

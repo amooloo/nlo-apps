@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NLO TAD Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* NLO apps design system (same tokens as Tray Maker and the other NLO apps) */
+  :root{
+    --navy-900:#11203A; --navy:#1B2F4C; --navy-700:#294169; --navy-600:#385686; --navy-500:#5471A0; --navy-100:#E8ECF2;
+    --blue-700:#16318C; --blue:#1D3EA9; --blue-500:#2E52C9; --blue-200:#BCC8EE; --blue-100:#E5EAF8;
+    --coral-700:#D8412E; --coral-600:#EE4F3A; --coral:#FA624D; --coral-200:#FFC8BF; --coral-100:#FFE7E1;
+    --mint-700:#1F9E7E; --mint-600:#34C49E; --mint:#64F4C9; --mint-200:#C0FBEC; --mint-100:#E2FBF4;
+    --amber-700:#C2820A; --amber-600:#E29A14; --amber:#F6AF24; --amber-200:#FCE2A6; --amber-100:#FEF2D7;
+    --grey-50:#F7F8F9; --grey-100:#ECEEF0; --grey-200:#DCE0E4; --grey-300:#C3C9D0; --grey-400:#969FAB; --grey-500:#6B7685; --grey-600:#4C5868; --grey-700:#33404F;
+    --off:#F2F3F4; --card:#FFFFFF;
+    --fd:'Oswald',system-ui,sans-serif; --fb:'Montserrat',system-ui,-apple-system,sans-serif;
+    --sh-xs:0 1px 2px rgba(17,32,58,.07); --sh-sm:0 2px 6px rgba(17,32,58,.08); --sh-md:0 8px 24px rgba(17,32,58,.10); --sh-lg:0 18px 48px rgba(17,32,58,.15);
+    --r-sm:8px; --r:14px; --r-lg:22px; --ease:cubic-bezier(.4,0,.2,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--fb);background:var(--off);color:var(--grey-700);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select,textarea{font:inherit;color:var(--grey-700)}
+  a{color:var(--blue)}
+  :focus-visible{outline:2px solid var(--blue-500);outline-offset:2px;border-radius:4px}
+
+  #app{display:flex;min-height:100vh}
+  #side{width:248px;flex:none;background:var(--navy);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+  .sideTop{padding:26px 22px 18px;border-bottom:1px solid rgba(255,255,255,.07)}
+  .sideTop img{width:126px;height:auto;display:block}
+  .appTag{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--mint);margin-top:12px}
+  @media screen{ html.nlo-home-on .sideTop{padding-top:var(--nlo-home-drop)} }
+  .nav{padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+  .navLbl{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7E92B5;padding:14px 12px 6px;display:flex;align-items:center;gap:6px}
+  .navFold{cursor:pointer;user-select:none} .navFold:hover{color:#fff} .navFold .caret{font-size:11px;transition:transform .15s} .navFold.closed .caret{transform:rotate(-90deg)}
+  .navFold.closed + .sidebox{display:none}
+  .job{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:10px;color:#C9D4E5;font-weight:600;font-size:13px;text-align:left;cursor:pointer;transition:background .14s var(--ease)}
+  .job:hover{background:rgba(255,255,255,.06);color:#fff}
+  .job.active{background:rgba(100,244,201,.12);color:var(--mint)}
+  .job .nm{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .job .sub{display:block;color:#7E92B5;font-size:11px;font-weight:500;margin-top:1px}
+  .pill{margin-left:auto;flex:none;display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:2px 8px;white-space:nowrap}
+  .pill.busy{background:var(--blue-500)} .pill.done{background:var(--mint);color:var(--navy-900)} .pill.err{background:var(--coral-600)} .pill.review{background:var(--amber);color:var(--navy-900)}
+  .sidebox{padding:4px 12px 8px}
+  .sideFoot{margin-top:auto;padding:16px 20px 22px;border-top:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px}
+  .syncLine{display:flex;align-items:flex-start;gap:7px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-family:var(--fd);font-weight:500;color:#9DB0CC;line-height:1.35}
+  .sdot{width:8px;height:8px;border-radius:50%;background:var(--mint);flex:none;margin-top:3px}
+  .sideFoot a{color:#DCE4EE;font-size:12.5px;font-weight:600;text-decoration:none}
+  .sideFoot a:hover{color:#fff}
+
+  #main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh}
+  .topBar{display:flex;align-items:center;gap:14px;padding:18px 28px 12px;flex:none;flex-wrap:wrap}
+  .topBar h2{font-family:var(--fd);font-weight:600;font-size:24px;letter-spacing:.02em;text-transform:uppercase;color:var(--navy);white-space:nowrap}
+  .topBar .sub{font-size:12.5px;color:var(--grey-500)}
+  #view{position:relative;padding:4px 28px 22px;flex:1;min-height:0;display:grid;grid-template-columns:390px minmax(0,1fr);gap:18px}
+  .leftCol{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:2px}
+  .card{background:#fff;border-radius:var(--r);box-shadow:var(--sh-xs);border:1px solid var(--grey-100)}
+  .cardHd{display:flex;align-items:center;gap:10px;padding:14px 18px 8px}
+  .cardHd h3{font-family:var(--fd);font-weight:600;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--navy)}
+  .cardHd .sub{font-size:12px;color:var(--grey-500);margin-left:auto}
+  .cardBd{padding:4px 18px 16px}
+  label.f{display:block;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500);margin:12px 0 5px}
+  select,input[type=text],input[type=number]{width:100%;padding:8px 11px;border:1.5px solid var(--grey-200);border-radius:10px;background:#fff;outline:none;min-height:38px}
+  select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .hint{font-size:11.5px;color:var(--grey-500);margin-top:5px;line-height:1.45}
+  button.small,button.primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:6px 14px;border-radius:999px;font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;line-height:1.1;white-space:nowrap;background:#fff;border:1.5px solid var(--grey-300);color:var(--navy);transition:background .14s var(--ease),transform .14s var(--ease)}
+  button.small:hover{background:var(--grey-100)}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.primary:hover{background:var(--blue-700)}
+  button.mint{background:var(--mint);border-color:var(--mint);color:var(--navy-900)}
+  button.danger{color:var(--coral-700);border-color:var(--coral-200)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button:active{transform:scale(.985)}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .seg{display:inline-flex;flex-wrap:wrap;border:1.5px solid var(--grey-200);border-radius:16px;overflow:hidden;background:#fff}
+  .seg button{border:0;border-radius:0;min-height:30px;padding:4px 12px;font-weight:600;font-size:12px;color:var(--grey-600)}
+  .seg button.on{background:var(--navy);color:#fff}
+
+  .drop{border:2px dashed var(--grey-300);border-radius:var(--r);padding:18px 16px;text-align:center;color:var(--grey-500);cursor:pointer;transition:.15s var(--ease);background:var(--grey-50);font-size:12.5px}
+  .drop b{display:block;font-family:var(--fd);font-weight:600;font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--navy);margin-bottom:3px}
+  .drop:hover{border-color:var(--navy-500)} .drop.over{border-color:var(--mint-600);background:var(--mint-100);color:var(--mint-700)}
+  .picked{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:12.5px;padding:8px 10px;border:1.5px solid var(--grey-200);border-radius:10px;background:var(--grey-50)}
+  .picked .ic{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex:none}
+  .picked .ic.ct{background:var(--navy-100);color:var(--navy)} .picked .ic.sc{background:var(--coral-100);color:var(--coral-700)}
+  .picked .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--navy)}
+  .picked .x{color:var(--grey-400);font-size:17px;cursor:pointer} .picked .x:hover{color:var(--coral-700)}
+
+  /* steps */
+  .steps{display:flex;gap:6px;margin:2px 0 4px}
+  .step{flex:1;display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:10px;background:var(--grey-50);border:1.5px solid var(--grey-100);font-weight:700;font-size:12px;color:var(--grey-500);cursor:pointer}
+  .step .n{width:20px;height:20px;border-radius:50%;background:var(--grey-200);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none}
+  .step.on{border-color:var(--blue);color:var(--navy);background:var(--blue-100)} .step.on .n{background:var(--blue)}
+  .step.ok .n{background:var(--mint-700)} .step.off{opacity:.55;cursor:not-allowed}
+  .panel{display:none} .panel.on{display:block}
+  .status{padding:11px 13px;border-radius:12px;font-size:13px;line-height:1.5;margin-top:10px}
+  .status.good{background:var(--mint-100);color:var(--mint-700)} .status.check{background:var(--amber-100);color:var(--amber-700)} .status.poor{background:var(--coral-100);color:var(--coral-700)}
+  .status.work{background:var(--blue-100);color:var(--blue-700)} .status.info{background:var(--grey-100);color:var(--grey-600)}
+  .status b{color:var(--navy)}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--grey-500);margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  details.adv{margin-top:12px;border-top:1px solid var(--grey-100);padding-top:8px}
+  details.adv summary{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);cursor:pointer;user-select:none}
+  .nudge{display:grid;grid-template-columns:84px repeat(4,1fr);gap:4px;align-items:center;margin-top:6px;font-size:12px}
+  .nudge span{font-weight:600;color:var(--grey-600)}
+  .nudge button{min-height:28px;padding:2px 3px;border:1.5px solid var(--grey-200);border-radius:8px;background:#fff;font-weight:600;font-size:11px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nudge button:hover{background:var(--grey-100)}
+  .tadc .nudge{grid-template-columns:66px repeat(4,1fr);gap:3px}
+  .tadc .nudge button{white-space:normal;line-height:1.1;padding:2px 1px;font-size:10.5px}
+
+  .tadc{border:1.5px solid var(--grey-200);border-radius:12px;padding:10px 12px;margin-top:9px;background:#fff;cursor:pointer}
+  .tadc.sel{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+  .tadc .hd{display:flex;align-items:center;gap:8px}
+  .tadc .hd b{font-size:13px;color:var(--navy)}
+  .chip{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;border-radius:99px;padding:2px 8px;text-transform:uppercase;letter-spacing:.04em}
+  .chip.ok{background:var(--mint-100);color:var(--mint-700)} .chip.caution{background:var(--amber-100);color:var(--amber-700)} .chip.stop{background:var(--coral-100);color:var(--coral-700)}
+  .mets{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:7px}
+  .mets div{background:var(--grey-50);border-radius:8px;padding:4px 6px;text-align:center}
+  .mets b{display:block;font-size:13px;color:var(--navy)} .mets small{font-size:9.5px;color:var(--grey-500);text-transform:uppercase;letter-spacing:.04em}
+  .notes{margin:7px 0 0 16px;font-size:11.8px;color:var(--grey-600)}
+  .notes li{margin:2px 0}
+  .tadc .tools{display:none;margin-top:8px} .tadc.sel .tools{display:block}
+
+  /* viewer */
+  section.viewer{position:relative;min-height:0;background:var(--grey-50);border-radius:var(--r);border:1px solid var(--grey-100);box-shadow:var(--sh-xs);overflow:hidden;display:flex;flex-direction:column}
+  .toolbar{position:relative;z-index:3;display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 10px;background:rgba(255,255,255,.92);border-bottom:1px solid var(--grey-100)}
+  .tog{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--grey-600);padding:4px 9px;border-radius:999px;border:1.5px solid var(--grey-200);background:#fff;cursor:pointer;user-select:none}
+  .tog input{accent-color:var(--blue)}
+  .views{margin-left:auto;display:flex;gap:4px}
+  .views button{font-size:11.5px;font-weight:700;color:var(--navy);padding:4px 9px;border-radius:8px;border:1.5px solid var(--grey-200);background:#fff}
+  .stage3d{position:relative;flex:1;min-height:280px}
+  canvas#c{position:absolute;inset:0;width:100% !important;height:100% !important;display:block}
+  .hintbar{position:absolute;left:12px;bottom:12px;z-index:2;max-width:70%;background:rgba(27,47,76,.88);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:10px;display:none}
+  .hintbar.on{display:block}
+  .busyveil{position:absolute;inset:0;z-index:4;display:none;align-items:center;justify-content:center;background:rgba(247,248,249,.6)}
+  .busyveil.on{display:flex}
+  .busybox{background:#fff;border-radius:14px;box-shadow:var(--sh-md);padding:16px 20px;min-width:260px;max-width:420px;font-size:13px;color:var(--navy)}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite;margin-right:7px;vertical-align:-1px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .slices{flex:none;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px;background:#fff;border-top:1px solid var(--grey-100)}
+  .slices figure{position:relative;background:#111;border-radius:10px;overflow:hidden;aspect-ratio:1/1}
+  .slices img{width:100%;height:100%;object-fit:contain;display:block}
+  .slices figcaption{position:absolute;left:8px;top:6px;font-size:11px;font-weight:700;color:#DCE4EE;text-shadow:0 1px 2px #000;letter-spacing:.03em}
+  .slices .ctrl{position:absolute;right:6px;bottom:6px;display:flex;gap:3px}
+  .slices .ctrl button{background:rgba(255,255,255,.18);color:#fff;border-radius:6px;width:22px;height:22px;font-weight:700;font-size:13px;line-height:1}
+  .log{font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:10px;padding:10px;max-height:150px;overflow:auto;white-space:pre-wrap;color:var(--grey-600);margin-top:6px}
+  .modalBg{display:none;position:fixed;inset:0;z-index:60;background:rgba(27,47,76,.42);align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+  .modalBg.on{display:flex}
+  .modal{background:#fff;border-radius:18px;padding:22px 26px 20px;width:min(560px,92vw);max-height:90vh;overflow:auto;box-shadow:var(--sh-lg)}
+  .modal h3{font-family:var(--fd);font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:0 0 6px}
+  #fatal{display:none;position:absolute;left:12px;right:12px;top:56px;z-index:5;background:var(--coral-100);color:var(--coral-700);border-radius:12px;padding:12px 14px;font-size:13px}
+  .sugg{border:1.5px solid var(--grey-200);border-radius:12px;padding:9px 11px;margin-top:8px;background:var(--grey-50)}
+  .sugg .hd{display:flex;align-items:center;gap:8px}
+  .sugg .hd b{font-size:12.5px;color:var(--navy)}
+  .sugg button{margin-left:auto}
+  .kv{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--grey-600);margin-top:4px}
+  .kv b{color:var(--navy)}
+  @media (max-width:1100px){
+    #app{display:block} #side{width:auto;height:auto;position:static} #main{height:auto}
+    #view{grid-template-columns:1fr;padding:4px 14px 18px} .stage3d{min-height:60vh}
+    .sideFoot{display:none}
+  }
+  @media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="sideTop"><img src="/static/logo-white.png" alt="Next Level Orthodontics"><div class="appTag">TAD Guide</div></div>
+    <div class="nav">
+      <div class="navLbl">Cases</div>
+      <div id="cases"></div>
+    </div>
+    <div class="nav">
+      <div class="navLbl navFold closed" id="donefold" title="Show / hide">Finished <span class="caret">&#9662;</span><span id="donecount" style="margin-left:auto;letter-spacing:0;text-transform:none"></span></div>
+      <div class="sidebox" id="donelist"></div>
+    </div>
+    <div class="sideFoot">
+      <div class="syncLine" id="learnline" title="What the app has learned from your finished cases"><span class="sdot"></span><span>Learning: …</span></div>
+      <div class="syncLine"><span class="sdot"></span><span>Runs on this PC · nothing leaves the office</span></div>
+      <a href="#" id="opensettings">Settings</a>
+      <a href="https://amooloo.github.io/nlo-apps/nlo-tadguide.html?help" target="_blank" rel="noopener">How to use ↗</a>
+    </div>
+  </aside>
+  <div id="main">
+    <div class="topBar"><h2>TAD Guide</h2><span class="sub">CBCT + intraoral scan → TAD plan → printable surgical guide. Everything stays on this PC.</span></div>
+    <main id="view">
+      <div class="leftCol">
+        <!-- NEW CASE -->
+        <div class="card" id="newcard">
+          <div class="cardHd"><h3>New case</h3><button class="small" id="newtoggle" style="margin-left:auto;display:none">+ New case</button></div>
+          <div class="cardBd" id="newbody">
+            <div class="drop" id="drop"><b>Drop the CBCT and the scan here</b>the CBCT export folder (or its .zip) from CS Imaging, and the patient's STL / PLY scan of the arch the TADs go in - together or one after the other. Or click to choose.</div>
+            <div class="btns" style="margin-top:8px"><button class="small" id="pickfolder">Choose CBCT folder…</button><button class="small" id="pickfiles">Choose files…</button></div>
+            <input type="file" id="folderin" webkitdirectory directory multiple style="display:none">
+            <input type="file" id="filesin" multiple style="display:none">
+            <div id="pickedlist"></div>
+            <details class="adv"><summary>CBCT folder on the office share</summary>
+              <div class="hint">For a big export: paste the folder's path instead of dropping it, as the PC that runs the app sees it (a mapped drive like S:\… or \\server\share\…). Read where it is, not copied.</div>
+              <input type="text" id="cbctpath" placeholder="S:\…\CBCT export folder" style="margin-top:6px">
+            </details>
+            <div class="row" style="margin-top:4px">
+              <div><label class="f">Arch</label><select id="archsel"><option value="">From the scan's name</option><option value="upper">Upper</option><option value="lower">Lower</option></select></div>
+              <div><label class="f">Patient (optional)</label><input type="text" id="pname" placeholder="from the CBCT"></div>
+            </div>
+            <div class="btns"><button class="primary" id="start" disabled>Start</button><span class="hint" id="newhint" style="margin:6px 0 0"></span></div>
+          </div>
+        </div>
+        <!-- OPEN CASE -->
+        <div class="card" id="casecard" style="display:none">
+          <div class="cardHd"><h3 id="casetitle">Case</h3><span class="sub" id="casesub"></span></div>
+          <div class="cardBd">
+            <div class="steps">
+              <div class="step on" data-step="match"><span class="n">1</span>Match</div>
+              <div class="step" data-step="plan"><span class="n">2</span>TADs</div>
+              <div class="step" data-step="guide"><span class="n">3</span>Guide</div>
+            </div>
+            <!-- 1 MATCH -->
+            <div class="panel on" id="p_match">
+              <div class="status work" id="matchstatus">Working…</div>
+              <div class="legend" id="fitlegend"><span><i style="background:#2FB57F"></i>≤ 0.2 mm</span><span><i style="background:#E7C33A"></i>≤ 0.5</span><span><i style="background:#F08A3C"></i>≤ 1</span><span><i style="background:#E04A3F"></i>&gt; 1 mm</span><span>scan on the CBCT teeth</span></div>
+              <div class="hint" id="matchhelp">Check the slices under the 3D view: the coral line (the scan) should hug the CBCT crowns. Shift-click the model to look somewhere else.</div>
+              <div class="btns"><button class="primary" id="accept">Looks right</button><button class="small" id="rematch">Match again</button><button class="small" id="lmstart">Match by 3 points</button></div>
+              <div id="lmbox" style="display:none" class="status info"></div>
+              <div id="needscan" style="display:none" class="status check">The CBCT is in. Drop the patient's scan (STL / PLY) anywhere on the page to match it.</div>
+              <details class="adv"><summary>Fine adjust</summary>
+                <div class="hint">Moves the scan on the CBCT; the fit colours and slices update. Then <b>Let the surfaces settle it</b>.</div>
+                <div class="nudge"><span>Left / right</span><button data-n="d0" data-v="-0.25">◀ ¼</button><button data-n="d0" data-v="0.25">¼ ▶</button><button data-n="d0" data-v="-1">◀ 1</button><button data-n="d0" data-v="1">1 ▶</button></div>
+                <div class="nudge"><span>Back / front</span><button data-n="d1" data-v="0.25">front ¼</button><button data-n="d1" data-v="-0.25">back ¼</button><button data-n="d1" data-v="1">front 1</button><button data-n="d1" data-v="-1">back 1</button></div>
+                <div class="nudge"><span>Up / down</span><button data-n="d2" data-v="0.25">up ¼</button><button data-n="d2" data-v="-0.25">down ¼</button><button data-n="d2" data-v="1">up 1</button><button data-n="d2" data-v="-1">down 1</button></div>
+                <div class="nudge"><span>Turn</span><button data-n="r2" data-v="-1">↺ 1°</button><button data-n="r2" data-v="1">1° ↻</button><button data-n="r0" data-v="-1">tip ↑</button><button data-n="r0" data-v="1">tip ↓</button></div>
+                <div class="btns"><button class="small" id="refine">Let the surfaces settle it</button></div>
+              </details>
+              <details class="adv" id="levelsbox"><summary>CBCT levels</summary>
+                <div class="hint">Where bone and teeth start in this CBCT's grey values. They set the 3D surfaces, the match target and the root check. The app remembers what you set for this CBCT machine.</div>
+                <div class="row"><div><label class="f">Bone</label><input type="number" id="lvbone" step="10"></div><div><label class="f">Teeth</label><input type="number" id="lvdense" step="10"></div></div>
+                <div class="btns"><button class="small" id="lvapply">Apply</button><span class="hint" id="lvsrc"></span></div>
+              </details>
+            </div>
+            <!-- 2 TADS -->
+            <div class="panel" id="p_plan">
+              <div class="row" style="grid-template-columns:1fr auto">
+                <div><label class="f">Site</label><select id="site"></select></div>
+                <div><label class="f">Sides</label><div class="seg" id="sides"><button data-s="R" class="on">Right</button><button data-s="L" class="on">Left</button></div></div>
+              </div>
+              <div class="btns"><button class="primary" id="findsites">Find sites</button><button class="small" id="clickplace">Place by clicking</button></div>
+              <div class="hint" id="planhint">Find sites checks every gap between the roots for this site and ranks them. Or click <b>Place by clicking</b> and click the gum where you want it - the angle comes from the site's settings (and what you usually do).</div>
+              <div id="suggs"></div>
+              <div id="tadlist"></div>
+              <details class="adv"><summary>Tooth numbers</summary>
+                <div class="hint">Numbers come from the contacts between the crowns. If a side is off by one tooth (a missing premolar, a retained baby tooth), shift it.</div>
+                <div class="nudge" style="grid-template-columns:96px 1fr 1fr"><span>Right side</span><button data-sh="R" data-v="-1">− 1</button><button data-sh="R" data-v="1">+ 1</button></div>
+                <div class="nudge" style="grid-template-columns:96px 1fr 1fr"><span>Left side</span><button data-sh="L" data-v="-1">− 1</button><button data-sh="L" data-v="1">+ 1</button></div>
+              </details>
+              <div class="btns"><button class="small" id="togguide">Next: the guide →</button></div>
+            </div>
+            <!-- 3 GUIDE -->
+            <div class="panel" id="p_guide">
+              <div class="hint">Tooth-borne, undercuts blocked out so it seats, a sleeve over each TAD. The fit settings start from what your last guides needed (fit reports below).</div>
+              <div class="row3">
+                <div><label class="f" title="Space between guide and enamel">Fit gap</label><input type="number" step="0.01" id="g_gap_teeth"></div>
+                <div><label class="f" title="Space over the gum">Gum relief</label><input type="number" step="0.05" id="g_gap_gum"></div>
+                <div><label class="f">Shell</label><input type="number" step="0.1" id="g_thickness"></div>
+                <div><label class="f" title="Passes the TAD (a tomas-pin's collar is 2.8 mm wide) - and the driver tip, if it is to go down the sleeve: measure the tip and add 0.2 mm">Sleeve hole</label><input type="number" step="0.05" id="g_hole"></div>
+                <div><label class="f">Sleeve height</label><input type="number" step="0.5" id="g_sleeve_height"></div>
+                <div><label class="f" title="Space between the sleeve and the gum">Off the gum</label><input type="number" step="0.1" id="g_tissue_gap"></div>
+              </div>
+              <div class="hint">All in mm. Teeth covered each side of a TAD: <select id="g_teeth_each_side" style="width:auto;min-height:28px;padding:2px 8px"><option>1</option><option selected>2</option><option>3</option></select></div>
+              <div class="btns"><button class="primary" id="makeguide">Make the guide</button></div>
+              <div id="guideout"></div>
+              <div id="finishbox" style="margin-top:12px"></div>
+            </div>
+            <details class="adv"><summary>Log</summary><div class="log" id="log"></div></details>
+            <div class="btns" style="margin-top:12px"><button class="small danger" id="discard">Delete case</button></div>
+          </div>
+        </div>
+      </div>
+      <section class="viewer">
+        <div class="toolbar">
+          <label class="tog"><input type="checkbox" id="l_bone" checked> Bone</label>
+          <label class="tog"><input type="checkbox" id="l_teeth"> CBCT teeth</label>
+          <label class="tog"><input type="checkbox" id="l_scan" checked> Scan</label>
+          <label class="tog"><input type="checkbox" id="l_fit" checked> Fit colours</label>
+          <label class="tog"><input type="checkbox" id="l_tads" checked> TADs</label>
+          <label class="tog"><input type="checkbox" id="l_guide" checked> Guide</label>
+          <div class="views"><button data-v="front">Front</button><button data-v="right">Right</button><button data-v="left">Left</button><button data-v="occl">Occlusal</button><button data-v="back">Back</button></div>
+        </div>
+        <div class="stage3d"><canvas id="c"></canvas>
+          <div class="hintbar" id="hintbar"></div>
+          <div class="busyveil" id="veil"><div class="busybox"><span class="spin"></span><span id="veiltext">Working…</span></div></div>
+          <div id="fatal"></div>
+        </div>
+        <div class="slices" id="slices">
+          <figure><img id="s0" alt=""><figcaption id="c0">Axial</figcaption><div class="ctrl"><button data-z="0" data-d="-1" title="Zoom out">−</button><button data-z="0" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s1" alt=""><figcaption id="c1">Coronal</figcaption><div class="ctrl"><button data-z="1" data-d="-1">−</button><button data-z="1" data-d="1">+</button></div></figure>
+          <figure><img id="s2" alt=""><figcaption id="c2">Sagittal</figcaption><div class="ctrl"><button data-z="2" data-d="-1">−</button><button data-z="2" data-d="1">+</button></div></figure>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="modalBg" id="setmodal">
+  <div class="modal">
+    <h3>Settings</h3>
+    <label class="f">Keep patient files (days)</label>
+    <input type="number" id="keepdays" min="1" max="365">
+    <div class="hint">CBCTs, scans and guides of a case are deleted this many days after it was last worked on. What the app learns (numbers only) is kept.</div>
+    <label class="f">PreForm</label>
+    <input type="text" id="preformpath" placeholder="found by itself when installed in the usual place">
+    <div class="hint" id="preformhint"></div>
+    <label class="f">What it has learned</label>
+    <div class="hint" id="learnlines">…</div>
+    <div class="btns"><button class="primary" id="setsave">Save</button><button class="small" id="setclose">Close</button></div>
+    <div class="hint" id="appversion" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<script src="https://amooloo.github.io/nlo-apps/nlo-home.js" defer></script>
+<script>
+(function () {
+  var errs = [];
+  window.addEventListener('error', function (e) { errs.push(e.message || String(e)); }, true);
+  window.addEventListener('unhandledrejection', function (e) { errs.push(String(e.reason && e.reason.message || e.reason)); });
+  setTimeout(function () {
+    if (window.__appReady) return;
+    var box = document.getElementById('fatal');
+    box.style.display = 'block';
+    box.textContent = 'The app did not start in this browser. ' + (errs.length ? 'Error: ' + errs.join(' | ') : '') + ' Try the latest Chrome or Edge.';
+  }, 5000);
+})();
+</script>
+<script type="importmap">
+{ "imports": { "three": "/static/vendor/three/three.module.js", "three/addons/": "/static/vendor/three/addons/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (v, d = 1) => (v === null || v === undefined || Number.isNaN(v)) ? '–' : Number(v).toFixed(d);
+const fmtRoot = (v) => (v === null || v === undefined) ? '–' : (v >= 20 ? 'none near' : Number(v).toFixed(1));
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let msg = r.statusText;
+    try { const j = await r.json(); msg = j.detail || msg; } catch (e) { try { msg = await r.text(); } catch (e2) {} }
+    throw new Error(msg);
+  }
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('json') ? r.json() : r;
+}
+const post = (path, body) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+function toast(msg, bad) {
+  const h = $('hintbar');
+  h.textContent = msg; h.classList.add('on');
+  h.style.background = bad ? 'rgba(216,65,46,.92)' : 'rgba(27,47,76,.88)';
+  clearTimeout(toast.t); toast.t = setTimeout(() => { if (!state.mode) h.classList.remove('on'); }, bad ? 7000 : 3500);
+}
+
+// ---------------------------------------------------------------- 3D
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xF2F4F6);
+const camera = new THREE.PerspectiveCamera(30, 1, 1, 5000);
+camera.up.set(0, 0, 1);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a96a8, 1.15));
+const key = new THREE.DirectionalLight(0xffffff, 1.35); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.5); scene.add(fill);
+const objs = {};
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(r.height, 1);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas.parentElement);
+function loop() {
+  controls.update();
+  key.position.copy(camera.position).add(new THREE.Vector3(0, 0, 60));
+  fill.position.copy(camera.position).multiplyScalar(-1);
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+resize(); loop();
+window.__tg = { scene, camera, controls, objs, renderer, get state() { return state; } };
+
+function parseMesh(buf) {
+  const dv = new DataView(buf);
+  const nv = dv.getUint32(0, true), nf = dv.getUint32(4, true), ne = dv.getUint32(8, true);
+  const pos = new Float32Array(buf, 12, nv * 3);
+  const idx = new Uint32Array(buf, 12 + nv * 12, nf * 3);
+  const extra = ne ? new Float32Array(buf, 12 + nv * 12 + nf * 12, nv) : null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeVertexNormals();
+  g.computeBoundingBox(); g.computeBoundingSphere();
+  return { g, extra };
+}
+const MATS = {
+  bone: () => new THREE.MeshStandardMaterial({ color: 0xE8E1D2, roughness: 0.8, metalness: 0, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }),
+  teeth: () => new THREE.MeshStandardMaterial({ color: 0xF5F1E6, roughness: 0.55, metalness: 0, transparent: true, opacity: 0.85, side: THREE.DoubleSide }),
+  scan: () => new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.6, metalness: 0, side: THREE.DoubleSide }),
+  tads: () => new THREE.MeshStandardMaterial({ color: 0xF2C14E, roughness: 0.3, metalness: 0.7, emissive: 0x3a2a00 }),
+  guide: () => new THREE.MeshStandardMaterial({ color: 0x5A96FF, roughness: 0.4, metalness: 0, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
+};
+function fitColors(g, extra, on) {
+  const n = g.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    let r = 0.93, gg = 0.84, b = 0.83;                              // gum / no CBCT tooth: soft pink-grey
+    const d = extra ? Math.abs(extra[i]) : 99;
+    if (on && d < 50) {
+      if (d <= 0.2) { r = 0.18; gg = 0.71; b = 0.5; }
+      else if (d <= 0.5) { r = 0.91; gg = 0.76; b = 0.23; }
+      else if (d <= 1.0) { r = 0.94; gg = 0.54; b = 0.24; }
+      else { r = 0.88; gg = 0.29; b = 0.25; }
+    } else if (extra && d < 50) { r = 0.97; gg = 0.96; b = 0.93; }    // tooth, colours off: white
+    col[i * 3] = r; col[i * 3 + 1] = gg; col[i * 3 + 2] = b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+}
+async function loadMesh(name) {
+  if (!state.id) return;
+  const r = await fetch(`/api/cases/${state.id}/mesh/${name}?t=${Date.now()}`);
+  if (!r.ok) { setObj(name, null); return; }
+  const { g, extra } = parseMesh(await r.arrayBuffer());
+  if (name === 'scan') { g.userData.extra = extra; fitColors(g, extra, $('l_fit').checked); }
+  const m = new THREE.Mesh(g, MATS[name]());
+  if (name === 'bone') m.renderOrder = 5;
+  if (name === 'guide') m.renderOrder = 6;
+  setObj(name, m);
+}
+function setObj(name, m) {
+  if (objs[name]) { scene.remove(objs[name]); objs[name].geometry.dispose(); }
+  objs[name] = m;
+  if (m) { scene.add(m); m.visible = layerOn(name); }
+}
+function layerOn(name) { const el = $('l_' + name); return el ? el.checked : true; }
+['bone', 'teeth', 'scan', 'tads', 'guide'].forEach((n) => $('l_' + n).addEventListener('change', () => { if (objs[n]) objs[n].visible = layerOn(n); }));
+$('l_fit').addEventListener('change', () => { const o = objs.scan; if (o) { fitColors(o.geometry, o.geometry.userData.extra, $('l_fit').checked); } });
+
+function frameOn(view) {
+  const o = objs.scan || objs.teeth || objs.bone;
+  if (!o) return;
+  const box = new THREE.Box3().setFromObject(o);
+  const c = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3()).length();
+  const upper = (state.c && state.c.arch) !== 'lower';
+  // camera.up stays +z (superior); the occlusal view looks straight at the biting surfaces, nudged so the
+  // front teeth are at the top of the screen
+  const dirs = { front: [0, -1, 0], back: [0, 1, 0], right: [-1, 0, 0], left: [1, 0, 0], occl: [0, upper ? -0.15 : 0.15, upper ? -1 : 1] };
+  const d = new THREE.Vector3(...(dirs[view] || [0.4, -1, upper ? -0.35 : 0.35])).normalize();
+  const dist = size / (2 * Math.tan((camera.fov * Math.PI / 180) / 2)) * 0.95;
+  camera.position.copy(c).addScaledVector(d, dist);
+  controls.target.copy(c);
+  camera.near = Math.max(0.5, dist / 100); camera.far = dist * 20; camera.updateProjectionMatrix();
+  controls.update();
+}
+document.querySelectorAll('.views button').forEach((b) => b.addEventListener('click', () => frameOn(b.dataset.v)));
+
+// picking
+const ray = new THREE.Raycaster();
+function pick(ev, names) {
+  const r = canvas.getBoundingClientRect();
+  const p = new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(p, camera);
+  const list = names.map((n) => objs[n]).filter((o) => o && o.visible);
+  const hits = ray.intersectObjects(list, false);
+  return hits.length ? hits[0] : null;
+}
+let downAt = null;
+canvas.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  onClick(e);
+});
+
+// ---------------------------------------------------------------- app state
+const state = { id: null, c: null, step: 'match', sel: null, mode: null, lm: { scan: [], cbct: [] }, files: [], rel: [], zoom: [20, 20, 20], tzoom: [11, 11, 11], center: null, info: null, polling: false, shown: {}, framed: false };
+
+async function boot() {
+  try { state.info = await api('/api/version'); } catch (e) {}
+  const site = $('site');
+  for (const [k, v] of Object.entries(state.info?.sites || {})) {
+    const o = document.createElement('option'); o.value = k; o.textContent = v.label + (v.arches.length === 1 ? ` (${v.arches[0]})` : ''); site.appendChild(o);
+  }
+  $('appversion').textContent = `NLO TAD Guide ${state.info?.version || ''} · running on ${state.info?.host || 'this PC'}`;
+  await refreshCases();
+  refreshLearn();
+  const m = /[?#&]case=([\w-]+)/.exec(location.href);
+  if (m) openCase(m[1]);
+  window.__appReady = true;
+  setInterval(refreshCases, 8000);
+}
+
+async function refreshLearn() {
+  try {
+    const l = await api('/api/learn');
+    $('learnline').lastElementChild.textContent = l.lessons ? `Learned from ${l.lessons} case${l.lessons > 1 ? 's' : ''}${l.feedback ? `, ${l.feedback} fit report${l.feedback > 1 ? 's' : ''}` : ''}` : 'Learns from each finished case';
+    $('learnlines').innerHTML = l.lines.length ? l.lines.map(esc).join('<br>') : 'Nothing yet - every finished case teaches it your usual sites, angles, sizes and the guide fit.';
+  } catch (e) {}
+}
+
+async function refreshCases() {
+  let d;
+  try { d = await api('/api/cases'); } catch (e) { return; }
+  const act = d.cases.filter((c) => !c.done), done = d.cases.filter((c) => c.done);
+  const row = (c) => {
+    const pill = c.busy ? '<span class="pill busy">working</span>' : c.error ? '<span class="pill err">stopped</span>' : c.done ? '<span class="pill done">done</span>' : c.guide ? '<span class="pill done">guide</span>' : c.stage === 'match' ? '<span class="pill review">check</span>' : '';
+    const dt = new Date((c.created || 0) * 1000);
+    return `<div class="job${c.id === state.id ? ' active' : ''}" data-id="${esc(c.id)}"><span class="nm">${esc(c.patient || 'Unnamed')}<span class="sub">${esc(c.arch || '')} · ${dt.toLocaleDateString()} · ${c.tads} TAD${c.tads === 1 ? '' : 's'}</span></span>${pill}</div>`;
+  };
+  $('cases').innerHTML = act.length ? act.map(row).join('') : '<div class="hint" style="color:#7E92B5;padding:4px 12px">No open cases.</div>';
+  $('donelist').innerHTML = done.map(row).join('') || '<div class="hint" style="color:#7E92B5">None yet.</div>';
+  $('donecount').textContent = done.length ? String(done.length) : '';
+  document.querySelectorAll('.job').forEach((el) => el.addEventListener('click', () => openCase(el.dataset.id)));
+}
+$('donefold').addEventListener('click', () => $('donefold').classList.toggle('closed'));
+
+// ---------------------------------------------------------------- new case: files
+const SCAN_RE = /\.(stl|ply|obj)$/i;
+function addFiles(list, relList) {
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i];
+    const rel = (relList && relList[i]) || f.webkitRelativePath || f.name;
+    state.files.push(f); state.rel.push(rel);
+  }
+  showPicked();
+}
+function showPicked() {
+  const scans = state.files.filter((f) => SCAN_RE.test(f.name));
+  const cb = state.files.filter((f) => !SCAN_RE.test(f.name));
+  let h = '';
+  if (cb.length) {
+    const top = state.rel.find((r, i) => !SCAN_RE.test(state.files[i].name)) || '';
+    const folder = top.includes('/') ? top.split('/')[0] : (cb.length === 1 ? cb[0].name : 'files');
+    const mb = cb.reduce((s, f) => s + f.size, 0) / 1e6;
+    h += `<div class="picked"><span class="ic ct">CT</span><span class="fn">${esc(folder)} — ${cb.length} file${cb.length > 1 ? 's' : ''}, ${mb.toFixed(0)} MB</span><span class="x" data-x="ct">×</span></div>`;
+  }
+  for (const s of scans) h += `<div class="picked"><span class="ic sc">IO</span><span class="fn">${esc(s.name)}</span><span class="x" data-x="${esc(s.name)}">×</span></div>`;
+  $('pickedlist').innerHTML = h;
+  $('pickedlist').querySelectorAll('.x').forEach((x) => x.addEventListener('click', () => {
+    const k = x.dataset.x;
+    const keep = state.files.map((f, i) => [f, state.rel[i]]).filter(([f]) => k === 'ct' ? SCAN_RE.test(f.name) : f.name !== k);
+    state.files = keep.map((p) => p[0]); state.rel = keep.map((p) => p[1]); showPicked();
+  }));
+  const okCt = cb.length || $('cbctpath').value.trim();
+  $('start').disabled = !okCt;
+  $('newhint').textContent = !okCt ? 'Add the CBCT.' : !scans.length ? 'No scan yet - it can be added after.' : '';
+  if (scans.length && !$('archsel').value) {
+    const n = scans[0].name.toLowerCase();
+    if (/(upper|maxill|_u\.|_u_)/.test(n)) $('archsel').value = 'upper';
+    else if (/(lower|mandib|_l\.|_l_)/.test(n)) $('archsel').value = 'lower';
+  }
+}
+$('cbctpath').addEventListener('input', showPicked);
+$('pickfolder').addEventListener('click', () => $('folderin').click());
+$('pickfiles').addEventListener('click', () => $('filesin').click());
+$('drop').addEventListener('click', () => $('filesin').click());
+$('folderin').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+$('filesin').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+
+async function readEntries(entry, path, outF, outR) {
+  if (entry.isFile) {
+    await new Promise((res) => entry.file((f) => { outF.push(f); outR.push(path + f.name); res(); }, () => res()));
+  } else if (entry.isDirectory) {
+    const rd = entry.createReader();
+    let batch;
+    do {
+      batch = await new Promise((res) => rd.readEntries(res, () => res([])));
+      for (const e of batch) await readEntries(e, path + entry.name + '/', outF, outR);
+    } while (batch.length);
+  }
+}
+async function filesFromDrop(dt) {
+  const outF = [], outR = [];
+  const items = dt.items ? [...dt.items] : [];
+  const entries = items.map((it) => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+  if (entries.length) { for (const e of entries) await readEntries(e, '', outF, outR); }
+  else for (const f of dt.files) { outF.push(f); outR.push(f.name); }
+  return [outF, outR];
+}
+['dragenter', 'dragover'].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); if (ev === 'dragleave' && e.relatedTarget) return; $('drop').classList.remove('over'); }));
+document.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  const [f, r] = await filesFromDrop(e.dataTransfer);
+  // a scan dropped on an open case that is waiting for one goes straight in
+  const scans = f.filter((x) => SCAN_RE.test(x.name));
+  if (state.c && scans.length === 1 && f.length === 1 && (state.c.stage === 'need_scan' || !state.c.scan_file)) { await uploadScan(scans[0]); return; }
+  addFiles(f, r);
+  $('newcard').scrollIntoView({ behavior: 'smooth' });
+});
+
+$('start').addEventListener('click', async () => {
+  const fd = new FormData();
+  state.files.forEach((f, i) => fd.append('files', f, f.name));
+  fd.append('relpaths', JSON.stringify(state.rel));
+  fd.append('arch', $('archsel').value);
+  fd.append('cbct_path', $('cbctpath').value.trim());
+  fd.append('patient', $('pname').value.trim());
+  $('start').disabled = true; $('newhint').textContent = 'Sending the files to the app…';
+  try {
+    const st = await api('/api/cases', { method: 'POST', body: fd });
+    state.files = []; state.rel = []; showPicked(); $('pname').value = ''; $('cbctpath').value = ''; $('archsel').value = '';
+    $('newhint').textContent = '';
+    await refreshCases();
+    openCase(st.id);
+  } catch (e) { toast(e.message, true); $('start').disabled = false; $('newhint').textContent = ''; }
+});
+async function uploadScan(file) {
+  const fd = new FormData(); fd.append('file', file, file.name);
+  try { setCase(await api(`/api/cases/${state.id}/scan`, { method: 'POST', body: fd })); poll(); } catch (e) { toast(e.message, true); }
+}
+
+// ---------------------------------------------------------------- open case
+async function openCase(id) {
+  if (state.id !== id) {
+    ['bone', 'teeth', 'scan', 'tads', 'guide'].forEach((n) => setObj(n, null));
+    state.shown = {}; state.framed = false; state.sel = null; state.center = null; state.mode = null; state.lm = { scan: [], cbct: [] };
+  }
+  state.id = id;
+  history.replaceState(null, '', `#case=${id}`);
+  let st;
+  try { st = await api(`/api/cases/${id}`); } catch (e) { toast(e.message, true); return; }
+  setCase(st);
+  $('casecard').style.display = '';
+  if (!state.files.length) showNew(false);
+  refreshCases();
+  if (st.busy) poll();
+}
+
+function showNew(open) {
+  $('newbody').style.display = open ? '' : 'none';
+  $('newtoggle').style.display = open ? 'none' : '';
+  $('newcard').querySelector('h3').style.display = open ? '' : 'none';
+}
+$('newtoggle').addEventListener('click', () => showNew(true));
+function setCase(st) {
+  const prev = state.c;
+  state.c = st;
+  $('casetitle').textContent = st.patient || 'Unnamed patient';
+  $('casesub').textContent = [st.arch, st.study_date ? `CBCT ${st.study_date.replace(/(\d{4})(\d{2})(\d{2})/, '$2/$3/$1')}` : '', st.scanner].filter(Boolean).join(' · ');
+  $('log').textContent = (st.log || []).join('\n');
+  $('log').scrollTop = 1e6;
+  $('veil').classList.toggle('on', !!st.busy);
+  $('veiltext').textContent = st.progress || 'Working…';
+  // meshes that changed: each mesh has a key; when it differs from what is shown, (re)load it
+  if (!st.busy) {
+    const lvKey = st.levels ? `${st.levels.bone}/${st.levels.dense}` : '';
+    const want = {
+      bone: st.cbct_meta ? 'b' + lvKey : null,
+      teeth: st.cbct_meta ? 't' + lvKey : null,
+      scan: st.scan_file ? JSON.stringify(st.registration?.T || null) + lvKey + (st.scan_name || '') : null,
+      tads: JSON.stringify((st.tads || []).map((t) => [t.head, t.dir, t.length, t.diameter, t.collar])),
+      guide: st.guide?.when ? String(st.guide.when) : null,
+    };
+    for (const [n, k] of Object.entries(want)) {
+      if (state.shown[n] !== k) { state.shown[n] = k; queueMesh(n, k); }
+    }
+  }
+  renderSteps();
+  renderMatch();
+  renderPlan();
+  renderGuide();
+  updateSlices();
+}
+const meshJobs = {};
+function queueMesh(name, k) {
+  if (k === null) { setObj(name, null); return; }
+  const job = meshJobs[name] || (meshJobs[name] = { running: false, next: null });
+  job.next = k;
+  if (job.running) return;
+  (async () => {
+    job.running = true;
+    while (job.next !== null) {
+      const want = job.next; job.next = null;
+      const caseId = state.id;
+      try { await loadMesh(name); } catch (e) {}
+      if (caseId !== state.id) break;
+    }
+    job.running = false;
+    if (!state.framed && (objs.scan || objs.bone)) { frameOn('front'); state.framed = !!objs.scan; }
+  })();
+}
+async function poll() {
+  if (state.polling) return;
+  state.polling = true;
+  try {
+    while (state.id) {
+      await new Promise((r) => setTimeout(r, 700));
+      const st = await api(`/api/cases/${state.id}`);
+      setCase(st);
+      if (!st.busy) { refreshCases(); if (st.error) toast(st.error, true); break; }
+    }
+  } catch (e) { toast(e.message, true); }
+  state.polling = false;
+}
+
+// ---------------------------------------------------------------- steps
+function renderSteps() {
+  const st = state.c;
+  const canPlan = !!st.match_accepted, canGuide = canPlan && (st.tads || []).length > 0;
+  if (!canPlan && state.step !== 'match') state.step = 'match';
+  if (state.autoStep !== st.stage) {
+    state.autoStep = st.stage;
+    if (st.stage === 'plan' && state.step === 'match') state.step = 'plan';
+    if ((st.stage === 'guide' || st.stage === 'done') && canGuide) state.step = 'guide';
+  }
+  document.querySelectorAll('.step').forEach((el) => {
+    const s = el.dataset.step;
+    el.classList.toggle('on', s === state.step);
+    el.classList.toggle('off', (s === 'plan' && !canPlan) || (s === 'guide' && !canGuide));
+    el.classList.toggle('ok', (s === 'match' && canPlan) || (s === 'plan' && canGuide) || (s === 'guide' && !!st.guide?.files));
+  });
+  ['match', 'plan', 'guide'].forEach((s) => $('p_' + s).classList.toggle('on', s === state.step));
+}
+document.querySelectorAll('.step').forEach((el) => el.addEventListener('click', () => {
+  if (el.classList.contains('off')) return;
+  state.step = el.dataset.step; setMode(null); renderSteps(); updateSlices();
+}));
+
+// ---------------------------------------------------------------- 1 match
+function renderMatch() {
+  const st = state.c;
+  const reg = st.registration, sm = reg?.summary;
+  const ms = $('matchstatus');
+  $('needscan').style.display = (!st.busy && !st.scan_file && st.cbct_meta) ? '' : 'none';
+  if (st.busy) { ms.className = 'status work'; ms.innerHTML = `<span class="spin"></span>${esc(st.progress || 'Working…')}`; }
+  else if (st.error && !reg) { ms.className = 'status poor'; ms.textContent = st.error; }
+  else if (!reg) { ms.className = 'status info'; ms.textContent = st.scan_file ? 'Not matched yet.' : 'Waiting for the scan.'; }
+  else {
+    const lvl = sm?.level || 'check';
+    const word = lvl === 'good' ? 'The scan sits on the CBCT.' : lvl === 'check' ? 'Matched - check it.' : 'The match looks wrong.';
+    ms.className = 'status ' + lvl;
+    ms.innerHTML = `<b>${word}</b> ${esc(sm?.text || '')}${st.match_accepted ? ' · <b>accepted</b>' : ''}<br><span class="hint" style="color:inherit">How: ${esc(reg.method || '')}${reg.stats?.point_residuals ? ' · point errors ' + reg.stats.point_residuals.map((x) => fmt(x, 1)).join(', ') + ' mm' : ''}</span>`;
+  }
+  $('accept').disabled = !reg || st.busy;
+  $('accept').textContent = st.match_accepted ? 'Accepted ✓' : 'Looks right';
+  $('rematch').disabled = !st.scan_file || st.busy;
+  $('lmstart').disabled = !st.scan_file || st.busy || !objs.teeth;
+  if (st.levels) {
+    if (document.activeElement !== $('lvbone')) $('lvbone').value = Math.round(st.levels.bone);
+    if (document.activeElement !== $('lvdense')) $('lvdense').value = Math.round(st.levels.dense);
+    $('lvsrc').textContent = 'from: ' + (st.levels.source || 'auto');
+  }
+  if (st.cbct_meta?.warning) $('matchhelp').innerHTML = `<b>CBCT note:</b> ${esc(st.cbct_meta.warning)}`;
+}
+$('accept').addEventListener('click', async () => {
+  try { setCase(await post(`/api/cases/${state.id}/accept`)); state.step = 'plan'; renderSteps(); updateSlices(); } catch (e) { toast(e.message, true); }
+});
+$('rematch').addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/register`, { mode: 'auto' })); poll(); } catch (e) { toast(e.message, true); } });
+$('refine').addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/register`, { mode: 'refine' })); poll(); } catch (e) { toast(e.message, true); } });
+document.querySelectorAll('[data-n]').forEach((b) => b.addEventListener('click', async () => {
+  const k = b.dataset.n, v = parseFloat(b.dataset.v);
+  const d = [0, 0, 0], r = [0, 0, 0];
+  if (k[0] === 'd') d[+k[1]] = k === 'd1' ? -v : v; else r[+k[1]] = v;    // front = -y in patient space
+  try { setCase(await post(`/api/cases/${state.id}/register`, { mode: 'nudge', d, r })); } catch (e) { toast(e.message, true); }
+}));
+$('lvapply').addEventListener('click', async () => {
+  try { setCase(await post(`/api/cases/${state.id}/levels`, { bone: +$('lvbone').value, dense: +$('lvdense').value })); poll(); } catch (e) { toast(e.message, true); }
+});
+
+// 3-point matching
+let lmOffset = null;
+$('lmstart').addEventListener('click', () => setMode(state.mode === 'lm' ? null : 'lm'));
+function setMode(m) {
+  state.mode = m;
+  $('clickplace').classList.toggle('mint', m === 'place');
+  $('lmstart').classList.toggle('mint', m === 'lm');
+  const hb = $('hintbar');
+  const sc = objs.scan;
+  if (m === 'lm') {
+    state.lm = { scan: [], cbct: [] };
+    $('l_teeth').checked = true; if (objs.teeth) objs.teeth.visible = true;
+    $('l_bone').checked = false; if (objs.bone) objs.bone.visible = false;
+    if (sc) {
+      const box = new THREE.Box3().setFromObject(sc);
+      lmOffset = new THREE.Vector3((box.max.x - box.min.x) + 20, 0, 0);
+      sc.position.copy(lmOffset);
+    }
+    frameOn('front');
+    hb.classList.add('on'); hb.style.background = 'rgba(27,47,76,.88)';
+    renderLm();
+  } else {
+    if (sc) sc.position.set(0, 0, 0);
+    lmOffset = null;
+    $('lmbox').style.display = 'none';
+    if (m === 'place') { hb.textContent = 'Click the gum where the TAD goes. Esc to stop.'; hb.classList.add('on'); hb.style.background = 'rgba(27,47,76,.88)'; }
+    else hb.classList.remove('on');
+  }
+}
+function renderLm() {
+  const n = state.lm.scan.length, k = state.lm.cbct.length;
+  const next = n === k ? 'Click a spot on the <b>scan</b> (right) - a cusp tip or incisal corner' : 'Now click the <b>same spot on the CBCT teeth</b> (left)';
+  $('hintbar').innerHTML = `${next}. Pairs: ${Math.min(n, k)}${n >= 3 && n === k ? ' — enough, click Match' : ' (3 or more)'}.`;
+  $('lmbox').style.display = '';
+  $('lmbox').innerHTML = `Pairs picked: <b>${Math.min(n, k)}</b>. Use teeth far apart (a molar each side and an incisor).<div class="btns"><button class="primary small" id="lmgo" ${n >= 3 && n === k ? '' : 'disabled'}>Match with these points</button><button class="small" id="lmundo">Undo last</button><button class="small" id="lmcancel">Cancel</button></div>`;
+  $('lmgo').onclick = async () => {
+    const off = lmOffset ? [lmOffset.x, lmOffset.y, lmOffset.z] : [0, 0, 0];
+    try { const st = await post(`/api/cases/${state.id}/register`, { mode: 'landmarks', scan: state.lm.scan, cbct: state.lm.cbct, scan_offset: off }); setMode(null); clearMarkers(); setCase(st); } catch (e) { toast(e.message, true); }
+  };
+  $('lmundo').onclick = () => { if (state.lm.scan.length > state.lm.cbct.length) state.lm.scan.pop(); else state.lm.cbct.pop(); drawMarkers(); renderLm(); };
+  $('lmcancel').onclick = () => { setMode(null); clearMarkers(); };
+}
+const markers = new THREE.Group(); scene.add(markers);
+function clearMarkers() { while (markers.children.length) markers.remove(markers.children[0]); }
+function drawMarkers() {
+  clearMarkers();
+  const add = (p, col, k) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 12), new THREE.MeshBasicMaterial({ color: col })); m.position.set(...p); markers.add(m); };
+  state.lm.scan.forEach((p, i) => add(p, 0xFA624D, i));
+  state.lm.cbct.forEach((p, i) => add(p, 0x1D3EA9, i));
+}
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.mode) { setMode(null); clearMarkers(); } });
+
+// ---------------------------------------------------------------- clicks on the model
+async function onClick(e) {
+  if (!state.c) return;
+  if (state.mode === 'lm') {
+    const wantScan = state.lm.scan.length === state.lm.cbct.length;
+    const h = pick(e, wantScan ? ['scan'] : ['teeth', 'bone']);
+    if (!h) return;
+    const p = [h.point.x, h.point.y, h.point.z];
+    (wantScan ? state.lm.scan : state.lm.cbct).push(p);
+    drawMarkers(); renderLm();
+    return;
+  }
+  if (state.mode === 'place') {
+    const h = pick(e, ['scan']);
+    if (!h) { toast('Click on the scan (the gum).'); return; }
+    try {
+      const st = await post(`/api/cases/${state.id}/tads`, { site: $('site').value, point: [h.point.x, h.point.y, h.point.z] });
+      state.sel = st.tads[st.tads.length - 1].id;
+      setMode(null); setCase(st);
+    } catch (err) { toast(err.message, true); }
+    return;
+  }
+  if (e.shiftKey || state.step === 'match') {
+    const h = pick(e, ['scan', 'teeth', 'bone']);
+    if (h) { state.center = [h.point.x, h.point.y, h.point.z]; if (state.step !== 'match') state.sel = null; renderPlan(); updateSlices(); }
+    return;
+  }
+  // select a TAD by clicking near it
+  const tl = state.c.tads || [];
+  const h = pick(e, ['tads', 'scan']);
+  if (h && tl.length) {
+    let best = null;
+    for (const t of tl) { const d = Math.hypot(t.head[0] - h.point.x, t.head[1] - h.point.y, t.head[2] - h.point.z); if (!best || d < best[0]) best = [d, t.id]; }
+    if (best && best[0] < 6) { state.sel = best[1]; renderPlan(); updateSlices(); }
+  }
+}
+
+// ---------------------------------------------------------------- 2 TADs
+let sides = new Set(['R', 'L']);
+document.querySelectorAll('#sides button').forEach((b) => b.addEventListener('click', () => {
+  if (sides.has(b.dataset.s) && sides.size > 1) sides.delete(b.dataset.s); else sides.add(b.dataset.s);
+  document.querySelectorAll('#sides button').forEach((x) => x.classList.toggle('on', sides.has(x.dataset.s)));
+}));
+$('findsites').addEventListener('click', async () => {
+  try { setCase(await post(`/api/cases/${state.id}/suggest`, { site: $('site').value, sides: [...sides] })); poll(); } catch (e) { toast(e.message, true); }
+});
+$('clickplace').addEventListener('click', () => setMode(state.mode === 'place' ? null : 'place'));
+$('togguide').addEventListener('click', () => { if (!(state.c.tads || []).length) { toast('Place a TAD first.'); return; } state.step = 'guide'; renderSteps(); });
+document.querySelectorAll('[data-sh]').forEach((b) => b.addEventListener('click', async () => {
+  try { setCase(await post(`/api/cases/${state.id}/arch`, { side: b.dataset.sh, delta: +b.dataset.v })); } catch (e) { toast(e.message, true); }
+}));
+
+// the TAD's name: the kit product (tomas-pin SD 08, MSE TAD 1.8 x 11) or its size
+function tadName(t, short) { const k = (state.info?.kit || []).find((q) => q.id === t.product); return k ? (short && k.short || k.name) : `${t.diameter} × ${t.length}${short ? '' : ' mm'}`; }
+// the size list: Dr. A's kit (tomas-pins, the Great Lakes MSE TADs) grouped by product, then other sizes
+function sizeOptions(x) {
+  const groups = [];
+  for (const k of state.info?.kit || []) { let g = groups.find((q) => q.name === k.group); if (!g) groups.push(g = { name: k.group, items: [] }); g.items.push(k); }
+  let h = groups.map((g) => `<optgroup label="${esc(g.name)}">${g.items.map((k) => `<option value="k:${esc(k.id)}" ${x.product === k.id ? 'selected' : ''}>${esc(k.name)}</option>`).join('')}</optgroup>`).join('');
+  h += `<optgroup label="Other sizes">${(state.info?.sizes || []).map(([d, l]) => `<option value="s:${d}x${l}" ${!x.product && d === x.diameter && l === x.length ? 'selected' : ''}>${d} × ${l} mm</option>`).join('')}</optgroup>`;
+  if (!x.product && !(state.info?.sizes || []).some(([d, l]) => d === x.diameter && l === x.length)) h += `<option value="s:${x.diameter}x${x.length}" selected>${x.diameter} × ${x.length} mm</option>`;
+  return h;
+}
+function metHtml(m) {
+  return `<div class="mets"><div><b>${fmtRoot(m.root_clearance)}</b><small>root mm</small></div><div><b>${fmt(m.cortical)}</b><small>cortex mm</small></div><div><b>${fmt(m.soft_tissue)}</b><small>tissue mm</small></div><div><b>${fmt(m.bone_in_thread)}</b><small>in bone mm</small></div></div>`;
+}
+function renderPlan() {
+  const st = state.c;
+  if (!st) return;
+  const sg = st.suggestions;
+  const siteSel = $('site');
+  const arch = st.arch || 'upper';
+  [...siteSel.options].forEach((o) => { const s = state.info?.sites?.[o.value]; o.disabled = s && !s.arches.includes(arch); });
+  if (siteSel.selectedOptions[0]?.disabled) siteSel.value = 'buccal';
+  // suggestions
+  let h = '';
+  if (sg && sg.items) {
+    const used = new Set((st.tads || []).map((t) => t.label));
+    h += `<div class="hint" style="margin-top:10px"><b>${sg.items.length} site${sg.items.length === 1 ? '' : 's'}</b> found for ${esc(state.info?.sites?.[sg.site]?.label?.toLowerCase() || sg.site)}, best first:</div>`;
+    for (const s of sg.items.slice(0, 8)) {
+      const m = s.metrics;
+      h += `<div class="sugg"><div class="hd"><b>${esc(s.label)}</b><span class="chip ${m.status}">${m.status}</span><span class="hint" style="margin:0;white-space:nowrap">${esc(tadName(s, true))}</span><button class="small" data-use="${esc(s.id)}" ${used.has(s.label) ? 'disabled' : ''}>${used.has(s.label) ? 'Placed' : 'Use'}</button></div>
+        <div class="kv"><span>root <b>${fmtRoot(m.root_clearance)}</b></span><span>cortex <b>${fmt(m.cortical)}</b></span><span>tissue <b>${fmt(m.soft_tissue)}</b></span><span>tilt <b>${fmt(s.alpha, 0)}°</b></span></div></div>`;
+    }
+  }
+  $('suggs').innerHTML = h;
+  $('suggs').querySelectorAll('[data-use]').forEach((b) => b.addEventListener('click', async () => {
+    try { const st2 = await post(`/api/cases/${state.id}/tads`, { suggestion: b.dataset.use }); state.sel = st2.tads[st2.tads.length - 1].id; setCase(st2); } catch (e) { toast(e.message, true); }
+  }));
+  // placed TADs
+  const tl = st.tads || [];
+  let t = '';
+  if (tl.length) t += `<label class="f" style="margin-top:14px">Placed (${tl.length})</label>`;
+  for (const x of tl) {
+    const m = x.metrics || {};
+    const sizes = sizeOptions(x);
+    t += `<div class="tadc${x.id === state.sel ? ' sel' : ''}" data-t="${esc(x.id)}">
+      <div class="hd"><b>${esc(x.label)}</b><span class="chip ${m.status || ''}">${esc(m.status || '')}</span><span class="hint" style="margin:0 0 0 auto">${esc(tadName(x))} · ${fmt(x.alpha, 0)}°</span></div>
+      ${metHtml(m)}
+      <ul class="notes">${(m.notes || []).map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
+      <div class="tools">
+        <div class="row" style="grid-template-columns:1fr auto;align-items:end"><div><label class="f">TAD</label><select data-size>${sizes}</select></div><div><label class="f">Collar</label><input type="number" step="0.5" min="0" max="5" value="${x.collar ?? 2}" data-collar style="width:74px"></div></div>
+        <div class="nudge"><span>Along the arch</span><button data-e="ds" data-v="-0.5">mesial ½</button><button data-e="ds" data-v="0.5">distal ½</button><button data-e="ds" data-v="-1.5">mesial 1½</button><button data-e="ds" data-v="1.5">distal 1½</button></div>
+        <div class="nudge"><span>Height</span><button data-e="da" data-v="1">apical 1</button><button data-e="da" data-v="-1">occlusal 1</button><button data-e="da" data-v="0.5">apical ½</button><button data-e="da" data-v="-0.5">occlusal ½</button></div>
+        <div class="nudge"><span>Tilt (apical)</span><button data-e="dalpha" data-v="5">more 5°</button><button data-e="dalpha" data-v="-5">less 5°</button><button data-e="dbeta" data-v="-5">mesial 5°</button><button data-e="dbeta" data-v="5">distal 5°</button></div>
+        <div class="nudge"><span>Depth</span><button data-e="depth" data-v="0.5">deeper ½</button><button data-e="depth" data-v="-0.5">out ½</button><span></span><span></span></div>
+        <div class="btns"><button class="small" data-opt>Fine-tune here</button><button class="small danger" data-del>Remove</button></div>
+      </div></div>`;
+  }
+  $('tadlist').innerHTML = t;
+  $('tadlist').querySelectorAll('.tadc').forEach((el) => {
+    const id = el.dataset.t;
+    el.addEventListener('click', (e) => { if (e.target.closest('.tools')) return; state.sel = state.sel === id ? null : id; renderPlan(); updateSlices(); });
+    el.querySelectorAll('[data-e]').forEach((b) => b.addEventListener('click', () => editTad(id, { [b.dataset.e]: +b.dataset.v })));
+    el.querySelector('[data-size]')?.addEventListener('change', (e) => {
+      const v = e.target.value, tt = tl.find((q) => q.id === id);
+      if (v.startsWith('k:')) editTad(id, { product: v.slice(2) });
+      else { const [d, l] = v.slice(2).split('x').map(Number); editTad(id, { size: [d, l, tt.collar ?? 2] }); }
+    });
+    el.querySelector('[data-collar]')?.addEventListener('change', (e) => { const tt = tl.find((q) => q.id === id); editTad(id, { size: [tt.diameter, tt.length, +e.target.value] }); });
+    el.querySelector('[data-opt]')?.addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/tads/${id}/optimize`)); toast('Moved to the best spot within 1.5 mm and 8°.'); } catch (e) { toast(e.message, true); } });
+    el.querySelector('[data-del]')?.addEventListener('click', async () => { if (!confirm('Remove this TAD?')) return; try { setCase(await api(`/api/cases/${state.id}/tads/${id}`, { method: 'DELETE' })); if (state.sel === id) state.sel = null; } catch (e) { toast(e.message, true); } });
+  });
+}
+async function editTad(id, body) {
+  try { setCase(await api(`/api/cases/${state.id}/tads/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })); } catch (e) { toast(e.message, true); }
+}
+
+// ---------------------------------------------------------------- 3 guide
+const GKEYS = ['gap_teeth', 'gap_gum', 'thickness', 'hole', 'sleeve_height', 'tissue_gap'];
+async function fillGuideDefaults(force) {
+  if (state.gdef && !force) return;
+  try { state.gdef = await api('/api/guide/defaults'); } catch (e) { return; }
+  const p = state.c?.guide?.params || state.gdef;
+  GKEYS.forEach((k) => { $('g_' + k).value = p[k]; });
+  $('g_teeth_each_side').value = String(p.teeth_each_side ?? 2);
+}
+function renderGuide() {
+  const st = state.c;
+  if (!st) return;
+  fillGuideDefaults();
+  const g = st.guide;
+  let h = '';
+  if (st.busy && st.stage === 'guide_building') h = `<div class="status work"><span class="spin"></span>${esc(st.progress || 'Making the guide…')}</div>`;
+  else if (g?.files) {
+    const i = g.info || {};
+    const holesOk = (i.holes || []).every((x) => x.clear);
+    const lvl = (i.watertight && (i.pieces === 1 || (i.split && i.pieces === 2)) && holesOk && !i.hidden_sleeves) ? 'good' : 'check';
+    const stop = (g.params.tissue_gap + g.params.sleeve_height);
+    h += `<div class="status ${lvl}"><b>${lvl === 'good' ? 'Guide ready.' : 'Guide made - check it.'}</b> ${fmt(i.volume_ml, 1)} mL · ${i.watertight ? 'watertight' : 'not watertight'} · ${i.split ? 'two guides, one per side' : (i.pieces === 1 ? 'one piece' : i.pieces + ' pieces')} · holes ${holesOk ? 'clear' : 'blocked'}
+      ${i.split ? `<br>One guide per side: with a straight seat a sleeve would sit under a crown bulge or bracket, so each side seats at its own angle (${(i.per_side || []).map((q) => (q.side === 'R' ? 'right ' : 'left ') + fmt(q.tilt_deg, 0) + '°').join(', ')}).` : ''}
+      ${i.tilt_deg && !i.split ? `<br>Seats at a ${fmt(i.tilt_deg, 0)}° angle toward the TAD side (straight on, a sleeve would sit under a crown bulge).` : ''}
+      ${i.hidden_sleeves ? `<br><b>${i.hidden_sleeves} sleeve${i.hidden_sleeves > 1 ? 's' : ''} sit under a crown bulge</b> - the guide may not seat over it.` : ''}
+      ${i.warning ? `<br>${esc(i.warning)}` : ''}
+      <br><b>Driver stop:</b> the sleeve top is ${fmt(stop, 1)} mm above the seated TAD head.</div>
+      ${st.guide_stale ? '<div class="status check">A TAD changed after this guide was made - make it again.</div>' : ''}
+      <div class="btns"><a href="/api/cases/${state.id}/file/guide" download><button class="primary small">Guide STL</button></a><a href="/api/cases/${state.id}/file/tads" download><button class="small">TADs STL</button></a><a href="/api/cases/${state.id}/file/report" target="_blank"><button class="small">Plan / print</button></a><button class="small" id="preform">Open in PreForm</button></div>
+      <div class="hint">The STLs line up with the original scan file. Print in Formlabs Surgical Guide resin (not the model resin).</div>`;
+  }
+  $('guideout').innerHTML = h;
+  $('preform')?.addEventListener('click', async () => { try { await post(`/api/cases/${state.id}/preform`); toast('Opening in PreForm…'); } catch (e) { toast(e.message, true); } });
+  // finish + fit report
+  let f = '';
+  if (g?.files && !st.done) f = `<div class="status info">Done with this case? <b>Save &amp; finish</b> keeps what it can learn from it (sites, angles, sizes, match, guide settings - numbers only).<div class="btns"><button class="mint small" id="finish">Save &amp; finish</button></div></div>`;
+  if (st.lesson_id || st.done) {
+    const fb = st.lesson_feedback || {};
+    const b = (k, v, t) => `<button class="small${fb[k] === v ? ' mint' : ''}" data-fb="${k}:${v}">${t}</button>`;
+    f += `<div class="status info"><b>After the print:</b> how did it fit? The next guides adjust to it.
+      <div class="nudge" style="grid-template-columns:96px 1fr 1fr 1fr"><span>On the teeth</span>${b('fit', 'tight', 'Tight')}${b('fit', 'good', 'Good')}${b('fit', 'loose', 'Loose')}</div>
+      <div class="nudge" style="grid-template-columns:96px 1fr 1fr 1fr"><span>Driver in sleeve</span>${b('sleeve', 'tight', 'Tight')}${b('sleeve', 'good', 'Good')}${b('sleeve', 'loose', 'Loose')}</div>
+      ${st.done ? '<div class="btns"><button class="small" id="reopen">Reopen</button></div>' : ''}</div>`;
+  }
+  $('finishbox').innerHTML = f;
+  $('finish')?.addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/finish`)); refreshCases(); refreshLearn(); toast('Saved - it learned from this case.'); } catch (e) { toast(e.message, true); } });
+  $('reopen')?.addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/reopen`)); refreshCases(); } catch (e) { toast(e.message, true); } });
+  document.querySelectorAll('[data-fb]').forEach((b) => b.addEventListener('click', async () => {
+    const [k, v] = b.dataset.fb.split(':');
+    try { setCase(await post(`/api/cases/${state.id}/feedback`, { [k]: v })); refreshLearn(); state.gdef = null; toast('Thanks - the next guide takes it into account.'); } catch (e) { toast(e.message, true); }
+  }));
+  $('makeguide').disabled = !!st.busy || !(st.tads || []).length;
+}
+$('makeguide').addEventListener('click', async () => {
+  const params = {};
+  GKEYS.forEach((k) => { const v = parseFloat($('g_' + k).value); if (!Number.isNaN(v)) params[k] = v; });
+  params.teeth_each_side = parseInt($('g_teeth_each_side').value, 10);
+  try { setCase(await post(`/api/cases/${state.id}/guide`, { params })); poll(); } catch (e) { toast(e.message, true); }
+});
+$('discard').addEventListener('click', async () => {
+  if (!confirm('Delete this case and its CBCT, scan and guide from this PC? (What it learned stays.)')) return;
+  try { await post(`/api/cases/${state.id}/discard`); state.id = null; state.c = null; state.shown = {}; state.framed = false; $('casecard').style.display = 'none'; showNew(true); ['bone', 'teeth', 'scan', 'tads', 'guide'].forEach((n) => setObj(n, null)); history.replaceState(null, '', '#'); refreshCases(); } catch (e) { toast(e.message, true); }
+});
+
+// ---------------------------------------------------------------- slices
+document.querySelectorAll('.slices .ctrl button').forEach((b) => b.addEventListener('click', () => {
+  const z = state.sel ? state.tzoom : state.zoom;
+  const k = +b.dataset.z; z[k] = Math.max(5, Math.min(50, z[k] * (+b.dataset.d > 0 ? 0.75 : 1.33))); updateSlices();
+}));
+let sliceTimer = null;
+function updateSlices() {
+  clearTimeout(sliceTimer);
+  sliceTimer = setTimeout(_updateSlices, 60);
+}
+function _updateSlices() {
+  const st = state.c;
+  if (!st || !st.cbct_meta || st.busy) return;
+  const t = (st.tads || []).find((x) => x.id === state.sel);
+  const stamp = Date.now();
+  const views = t ? [['tad_md', 'Along the TAD · neighbouring roots'], ['tad_bl', 'Along the TAD · from the side'], ['tad_x', 'Across the TAD']] : [['axial', 'Axial'], ['coronal', 'Coronal'], ['sagittal', 'Sagittal']];
+  views.forEach(([v, cap], i) => {
+    const half = (t ? state.tzoom : state.zoom)[i];
+    const px = Math.max(0.06, Math.min(0.3, (2 * half) / 360));
+    let q = `view=${v}&half=${half.toFixed(1)}&px=${px.toFixed(3)}&t=${stamp}`;
+    if (t) q += `&tad=${t.id}`;
+    else if (state.center) q += `&x=${state.center[0]}&y=${state.center[1]}&z=${state.center[2]}`;
+    $('s' + i).src = `/api/cases/${state.id}/slice.png?${q}`;
+    $('c' + i).textContent = cap;
+  });
+}
+
+// ---------------------------------------------------------------- settings
+$('opensettings').addEventListener('click', async (e) => {
+  e.preventDefault();
+  try {
+    const s = await api('/api/settings');
+    $('keepdays').value = s.keep_days; $('preformpath').value = s.preform || '';
+    $('preformhint').textContent = s.preform_found ? 'Found: ' + s.preform_found : 'Not found on this PC.';
+  } catch (er) {}
+  refreshLearn();
+  $('setmodal').classList.add('on');
+});
+$('setclose').addEventListener('click', () => $('setmodal').classList.remove('on'));
+$('setsave').addEventListener('click', async () => {
+  try { await post('/api/settings', { keep_days: +$('keepdays').value, preform: $('preformpath').value }); $('setmodal').classList.remove('on'); toast('Saved.'); } catch (e) { toast(e.message, true); }
+});
+
+boot();
+</script>
+</body>
+</html>
