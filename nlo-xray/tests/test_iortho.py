@@ -116,7 +116,9 @@ def test_api_import_reports_missing_files(client, fake):
     pdf = ("files", ("Test_Patient_Cephalometry_Report.pdf", b"%PDF-1.4 made up", "application/pdf"))
     r = client.post("/api/import/iortho", files=[("files", ("Test_Patient.xlsx", fake["report"], "application/octet-stream")),
                                                   pdf]).json()
-    assert "Could not find the original x-ray and iOrtho's traced image" in r["results"][0]["error"]
+    row = r["results"][0]
+    assert "Still needed: iOrtho's traced image" in row["error"] and "the x-ray itself" in row["error"]
+    assert row["waiting"] == ["Test_Patient.xlsx"]          # kept by the page for the next drop
     assert not r["errors"]                                   # the PDF next to the Excel report is simply not needed
     r = client.post("/api/import/iortho", files=[("files", ("a.png", fake["original"], "image/png")), pdf])
     assert r.status_code == 400 and "export the Excel one" in r.json()["detail"]
@@ -136,3 +138,54 @@ def test_api_import_two_patients_at_once(client, fake):
     assert set(got) == {"Patient, Test", "Rivers, Maya"}
     assert all(x["verified"] == len(iortho.DOT_CODES) + 1 for x in got.values())
     assert got["Patient, Test"]["id"] != got["Rivers, Maya"]["id"]
+
+
+def test_api_import_onto_the_xray_already_here(client, fake):
+    """Only iOrtho's two files: the x-ray already in the app (same patient, same picture) is used."""
+    other = make(seed=5, scale=0.9, pad=(30, 50), name="Maya Rivers")
+    cid = client.post("/api/cases", files=[("files", ("ceph.png", fake["original"], "image/png"))]).json()[0]["id"]
+    client.patch(f"/api/cases/{cid}", json={"patient": {"name": "Test Patient"}, "details_confirmed": True})
+    oid = client.post("/api/cases", files=[("files", ("x.png", other["original"], "image/png"))]).json()[0]["id"]
+    client.patch(f"/api/cases/{oid}", json={"patient": {"name": "Test Patient"}, "details_confirmed": True})  # same name, other x-ray
+    two = [("files", ("traced.png", fake["traced"], "image/png")),
+           ("files", ("Test_Patient_Cephalometry_Report.xlsx", fake["report"], "application/octet-stream"))]
+    r = client.post("/api/import/iortho", files=two, data={"confirm": "false"}).json()
+    row = r["results"][0]
+    assert row["id"] == cid and row["verified"] == len(iortho.DOT_CODES) + 1, row
+    assert len(client.get("/api/cases").json()) == 2                   # nothing new added
+    assert client.get(f"/api/cases/{oid}").json()["case"]["landmarks"] == {}
+    # not in the app at all: asked for, and the two files are kept for the next drop
+    r = client.post("/api/import/iortho", files=[("files", ("t.png", other["traced"], "image/png")),
+                                                 ("files", ("Maya_Rivers_Cephalometry_Report.xlsx", other["report"],
+                                                            "application/octet-stream"))]).json()
+    row = r["results"][0]
+    assert "the x-ray itself" in row["error"] and set(row["waiting"]) == {"t.png", "Maya_Rivers_Cephalometry_Report.xlsx"}
+
+
+def test_api_replace_a_confirmed_tracing_only_when_asked(client, fake):
+    files = [("files", ("Test_Patient_ceph.png", fake["original"], "image/png")),
+             ("files", ("Test_Patient_traced.png", fake["traced"], "image/png")),
+             ("files", ("Test_Patient_Cephalometry_Report.xlsx", fake["report"], "application/octet-stream"))]
+    cid = client.post("/api/import/iortho", files=files, data={"confirm": "true"}).json()["results"][0]["id"]
+    client.patch(f"/api/cases/{cid}", json={"landmarks": {"A": dict(x=500, y=500, by="doctor")}})
+    r = client.post("/api/import/iortho", files=files[1:], data={"confirm": "true"}).json()["results"][0]
+    assert r["skipped"] and r["replaceable"] and set(r["files"]) == {"Test_Patient_traced.png", "Test_Patient_Cephalometry_Report.xlsx"}
+    assert client.get(f"/api/cases/{cid}").json()["case"]["landmarks"]["A"]["x"] == 500
+    r = client.post(f"/api/cases/{cid}/iortho", files=files[1:], data={"confirm": "true", "replace": "true"})
+    assert r.status_code == 200, r.text
+    case = r.json()["case"]
+    assert case["status"] == "confirmed" and case["landmarks"]["A"]["x"] != 500
+    assert any("replaced with iOrtho" in h["what"] for h in case["history"])
+    # the wrong picture never reopens a confirmed tracing
+    other = make(seed=8)
+    bad = client.post(f"/api/cases/{cid}/iortho", files=[("files", ("t.png", other["traced"], "image/png")), files[2]],
+                      data={"replace": "true"})
+    assert bad.status_code == 400 and client.get(f"/api/cases/{cid}").json()["case"]["status"] == "confirmed"
+
+
+def test_an_xray_with_a_red_label_is_not_a_traced_image(fake):
+    rgb = np.stack([fake["original_gray"]] * 3, -1).copy()
+    rgb[40:90, 40:300] = (230, 20, 20)                      # a red label or ruler mark from the x-ray software
+    rgb[200:206, 100:106] = (230, 20, 20)
+    assert not iortho.looks_traced(rgb)
+    assert iortho.looks_traced(fake["traced_rgb"])

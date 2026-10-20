@@ -198,59 +198,105 @@
 
   // ------------------------------------------------------------------ importing iOrtho tracings
   let impCase = null;          // null: new x-rays; a case id: iOrtho's tracing for that x-ray
+  let impWaiting = [];         // files of a set that is not complete yet: sent again with the next drop
+  let impFiles = [];           // the files of the last import (for "Replace it with iOrtho's tracing")
+  let impRows = [];            // what the last import said, row by row
   function openImport(caseId) {
     impCase = caseId;
+    impWaiting = []; impFiles = []; impRows = [];
     $('#impLead').innerHTML = caseId
       ? 'Drop <b>iOrtho\'s traced image</b> (the one with the dots) and <b>iOrtho\'s Excel report</b> (.xlsx) for this x-ray. iOrtho\'s points replace the ones placed here.'
-      : 'For each patient drop three files together: the <b>original ceph</b> (DICOM or JPG, without the tracing), <b>iOrtho\'s traced image</b> (with the dots) and <b>iOrtho\'s Excel report</b> (.xlsx). Several patients at once is fine when the files are named after the patient.';
+      : 'For each patient: the <b>x-ray itself</b> (DICOM or JPG, without the tracing - not needed when the x-ray is already in the app), <b>iOrtho\'s traced image</b> (with the dots) and <b>iOrtho\'s Excel report</b> (.xlsx). Together or one after another; several patients at once is fine when the files are named after the patient.';
     $('#impOut').innerHTML = '';
     if (!$('#dlgImport').open) $('#dlgImport').showModal();
   }
 
-  async function runImport(files) {
-    files = [...files].filter((f) => f && f.size);
-    if (!files.length) return;
+  const fileKey = (f) => `${f.name}|${f.size}`;
+
+  async function runImport(dropped) {
+    dropped = [...dropped].filter((f) => f && f.size);
+    if (!dropped.length) return;
+    const seen = new Set(dropped.map(fileKey));
+    const files = [...dropped, ...impWaiting.filter((f) => !seen.has(fileKey(f)))];
+    impWaiting = [];
     const fd = new FormData();
     for (const f of files) fd.append('files', f, f.name);
     fd.append('confirm', $('#impConfirm').checked ? 'true' : 'false');
     const out = $('#impOut');
     out.innerHTML = '<p class="empty"><span class="spin"></span>Reading the files and laying iOrtho\'s tracing onto the x-ray - a few seconds a patient…</p>';
-    let results = [], errors = [];
     try {
       if (impCase) {
         await flushSave();
         const r = await api(`/api/cases/${enc(impCase)}/iortho`, { method: 'POST', body: fd });
-        results = [r.result];
+        impRows = [r.result];
         if (S.case && S.case.id === impCase) { applyServer(r, true); S.undo = []; startTracing(); }
       } else {
         const r = await api('/api/import/iortho', { method: 'POST', body: fd });
-        results = r.results || [];
-        errors = r.errors || [];
+        impRows = [...(r.results || []), ...(r.errors || []).map((e) => ({ name: e.name, error: e.error }))];
       }
     } catch (e) {
-      out.innerHTML = `<div class="notes">${esc(e.message)}</div>`;
+      const partial = /Excel report|together/.test(e.message);      // a file still to come: keep what is here
+      if (partial) impWaiting = files;
+      out.innerHTML = `<div class="notes">${esc(e.message)}${partial ? ` ${files.length > 1 ? 'The files dropped so far are' : `<b>${esc(files[0].name)}</b> is`} kept - drop the rest.` : ''}</div>`;
       return;
     }
+    impFiles = files;
+    const waiting = new Set(impRows.flatMap((r) => r.waiting || []));
+    impWaiting = files.filter((f) => waiting.has(f.name));
+    renderImport();
+    refreshCases();
+    refreshStatus();
+  }
+
+  function renderImport() {
+    const out = $('#impOut');
     const openBtn = (r) => (impCase || !r.id ? '' : `<button class="small" type="button" data-open="${esc(r.id)}">Open</button>`);
-    const row = (r) => {
-      if (r.skipped) return `<div class="impRow"><span class="who">${esc(r.name || '')} <span class="pill confirmed">confirmed</span></span><span class="what">${esc(r.skipped)}</span>${openBtn(r)}</div>`;
-      if (r.error) return `<div class="impRow"><span class="who">${esc(r.name || '')}</span><span class="what err">${esc(r.error)}${r.id && !impCase ? ' The x-ray itself was added - it can be traced here.' : ''}</span>${openBtn(r)}</div>`;
+    const row = (r, i) => {
+      if (r.skipped) {
+        return `<div class="impRow"><span class="who">${esc(r.name || '')} <span class="pill confirmed">confirmed</span></span>
+          <span class="what">${esc(r.skipped)}${r.replaceable ? ` <button class="linkBtn" type="button" data-replace="${i}">Replace it with iOrtho's tracing</button>` : ''}</span>${openBtn(r)}</div>`;
+      }
+      if (r.error) {
+        return `<div class="impRow"><span class="who">${esc(r.name || '')}</span><span class="what ${r.waiting ? 'wait' : 'err'}">${esc(r.error)}${r.id && !impCase ? ' The x-ray itself was added - it can be traced here.' : ''}</span>${openBtn(r)}</div>`;
+      }
       const doubt = (r.unverified || []).length ? ` · to check: ${esc(r.unverified.join(', '))}` : '';
       return `<div class="impRow"><span class="who">${esc(r.name || '(no name)')} ${r.confirmed ? '<span class="pill confirmed">confirmed</span>' : ''}</span>
         <span class="what"><span class="ok">${r.verified} points</span> reproduce iOrtho's numbers (${r.checks_ok} of ${r.checks} checks)${doubt}</span>
         ${openBtn(r)}</div>`;
     };
-    out.innerHTML = results.map(row).join('') + errors.map((e) => row({ name: e.name, error: e.error })).join('')
-      + (results.some((r) => !r.error && !r.skipped && !r.confirmed) ? '<p class="hint">Open each one, check the points (Enter if right) and confirm it - then it is a lesson for the app.</p>' : '');
+    out.innerHTML = impRows.map(row).join('')
+      + (impRows.some((r) => !r.error && !r.skipped && !r.confirmed) ? '<p class="hint">Open each one, look the points over and press Confirm tracing - then it is a lesson for the app.</p>' : '');
     for (const b of $$('button[data-open]', out)) b.onclick = () => { $('#dlgImport').close(); openCase(b.dataset.open).catch((e) => toast(e.message, true)); };
-    refreshCases();
-    refreshStatus();
+    for (const b of $$('button[data-replace]', out)) b.onclick = () => replaceWithIortho(+b.dataset.replace, b);
+  }
+
+  async function replaceWithIortho(i, btn) {
+    const r = impRows[i];
+    const files = impFiles.filter((f) => (r.files || []).includes(f.name));
+    if (files.length < 2) { toast('Drop iOrtho\'s files again to replace it.', true); return; }
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f, f.name);
+    fd.append('confirm', $('#impConfirm').checked ? 'true' : 'false');
+    fd.append('replace', 'true');
+    btn.disabled = true;
+    btn.textContent = 'Replacing…';
+    try {
+      if (S.case && S.case.id === r.id) await flushSave();
+      const res = await api(`/api/cases/${enc(r.id)}/iortho`, { method: 'POST', body: fd });
+      impRows[i] = res.result;
+      if (S.case && S.case.id === r.id) { applyServer(res, true); S.undo = []; startTracing(); }
+      refreshCases();
+      refreshStatus();
+    } catch (e) { toast(e.message, true); }
+    renderImport();
   }
 
   // ------------------------------------------------------------------ open a case
   async function openCase(id, { fresh = false } = {}) {
     await flushSave();
     S.filled = false;
+    S.toldLearn = false;
+    S.correcting = false;
     const r = await api(`/api/cases/${enc(id)}`);
     S.case = r.case;
     S.analysis = r.analysis;
@@ -312,6 +358,7 @@
 
   function startTracing() {
     S.walkAll = false;
+    S.correcting = false;
     const c = S.case;
     const n = Object.keys(c.landmarks || {}).length;
     if (c.status === 'confirmed') { S.mode = 'done'; S.cur = null; }
@@ -398,6 +445,10 @@
     lm[code] = { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, by, conf: null };
     S.pending[code] = lm[code];
     scheduleSave();
+    if (S.case.status === 'confirmed' && !S.toldLearn) {
+      S.toldLearn = true;
+      toast('Saved. The tracing stays confirmed, and the app learns from the correction.', false, 6000);
+    }
     if (advance) {
       S.cur = S.walkAll ? nextInOrder(code) : nextUnreviewed(code);
       if (!S.cur) { S.mode = 'done'; S.walkAll = false; fit(); } else focusCurrent();
@@ -407,9 +458,16 @@
   }
 
   function acceptCurrent() {
+    if (S.correcting) { endCorrecting(); return; }
     if (S.mode !== 'review' || !S.cur) return;
     const v = S.case.landmarks[S.cur];
     if (!v) return;
+    if (v.by === 'doctor') {                     // already checked: on to the next point, nothing to save
+      S.cur = S.walkAll ? nextInOrder(S.cur) : nextUnreviewed(S.cur);
+      if (!S.cur) { S.mode = 'done'; S.walkAll = false; fit(); } else focusCurrent();
+      renderTrace(); draw();
+      return;
+    }
     setPoint(S.cur, v.x, v.y, { advance: true });
   }
 
@@ -418,6 +476,7 @@
       if (S.anchorIdx > 0) { S.anchorIdx--; delete S.anchorPts[S.defs.anchors[S.anchorIdx]]; renderTrace(); draw(); }
       return;
     }
+    if (S.case.status === 'confirmed') { if (S.correcting) endCorrecting(); return; }
     const req = required();
     if (S.mode === 'done' && !S.cur) { S.cur = req[req.length - 1]; S.mode = 'review'; }
     else if (S.cur) { const i = req.indexOf(S.cur); S.cur = req[Math.max(0, i - 1)]; }
@@ -426,7 +485,13 @@
 
   function selectPoint(code) {
     S.cur = code;
-    if (S.case.status !== 'confirmed') S.mode = 'review';
+    S.correcting = S.case.status === 'confirmed';     // a confirmed tracing: the next click moves this point, then done
+    S.mode = 'review';
+    renderTrace(); draw();
+  }
+
+  function endCorrecting() {                          // back to the confirmed tracing; the view stays where it is
+    S.mode = 'done'; S.cur = null; S.correcting = false;
     renderTrace(); draw();
   }
 
@@ -582,6 +647,7 @@
       const v = lm[S.cur];
       let cue = '';
       if (!v) cue = '<div class="cue warn">Not placed yet - click where it belongs.</div>';
+      else if (S.correcting) cue = '<div class="cue">Click where it belongs to correct it - saved at once, and the app learns from it. Esc to leave it as it is.</div>';
       else if (v.by === 'doctor') cue = '<div class="cue">Checked. Click elsewhere to move it, or Enter for the next point.</div>';
       else if (v.by === 'import') {
         cue = v.conf != null && v.conf < 1
@@ -595,13 +661,13 @@
       } else cue = '<div class="cue">Placed from the average tracing. Click where it belongs, or Enter if it is right.</div>';
       html = `<div class="traceNow"><div><div class="code">${esc(S.cur)}</div><div class="lname">${esc(d.name)}</div>
         <div class="def">${esc(d.definition)}</div>${cue}</div>${minimap(S.cur)}</div>
-        <div class="traceBtns"><button class="small" id="bBack" type="button">◀ Back</button>
-        <button class="primary" id="bOk" type="button">Looks right ▶</button></div>`;
-      hint = `Click where <b>${esc(d.name)}</b> belongs, or press Enter if it is right`;
+        <div class="traceBtns">${S.correcting ? '<button class="small" id="bDone" type="button">Leave it as it is</button>' : `<button class="small" id="bBack" type="button">◀ Back</button>
+        <button class="primary" id="bOk" type="button">Looks right ▶</button>`}</div>`;
+      hint = S.correcting ? `Click where <b>${esc(d.name)}</b> belongs - Esc to leave it` : `Click where <b>${esc(d.name)}</b> belongs, or press Enter if it is right`;
     } else if (S.case.status === 'confirmed') {
       const when = S.case.confirmed_at ? fmtDate(S.case.confirmed_at.slice(0, 10)) : '';
       html = `<div class="doneNote">Confirmed ${esc(when)}. This tracing is a lesson for the app${S.case.cvm && S.case.cvm.doctor ? `, with CVM ${esc(S.case.cvm.doctor)} as your call` : ''}.</div>
-        <p class="hint">Dragging a point still corrects it (the app learns the correction).</p>`;
+        <p class="hint">To correct a point, click it and then click where it belongs (or drag it). It is saved at once: the tracing stays confirmed and the app learns from the correction.</p>`;
     } else {
       html = `<div class="doneNote">All points checked. Confirm the tracing to file it as a lesson.</div>
         <div class="traceBtns"><button class="primary" id="bConfirm2" type="button">Confirm tracing</button></div>
@@ -623,7 +689,9 @@
         <div class="traceBtns">${hasModel ? '<button class="small" id="bAuto" type="button">Place with the app</button>' : ''}
         <button class="small" id="bRestart" type="button">Start over from S, N, Me</button></div>
         <p class="hint">Traced it in iOrtho? <button class="linkBtn" id="bIortho" type="button">Import iOrtho's tracing</button></p>`}
-        <div class="keys"><span class="kbd">Enter</span> right, next · <span class="kbd">Backspace</span> back · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">F</span> fit · scroll to zoom · drag a point to move it</div>`;
+        <div class="keys">${S.case.status === 'confirmed'
+          ? 'Click a point, then where it belongs · <span class="kbd">Esc</span> leave it · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">F</span> fit · scroll to zoom'
+          : '<span class="kbd">Enter</span> right, next · <span class="kbd">Backspace</span> back · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">F</span> fit · scroll to zoom · drag a point to move it'}</div>`;
     }
     body.innerHTML = html;
     setHint(hint);
@@ -633,6 +701,7 @@
     on('#bAuto', autoTrace);
     on('#bRestart', restartTracing);
     on('#bConfirm2', confirmTracing);
+    on('#bDone', endCorrecting);
     on('#bIortho', () => openImport(S.case.id));
     for (const g of $$('.gchip', body)) {
       g.onclick = () => {
@@ -1201,7 +1270,8 @@
       if (p.pan && p.moved) return;
       if (p.drag && p.moved) {
         setPoint(p.drag, p.ix, p.iy, { old: p.old });
-        selectPoint(p.drag);
+        if (S.case.status === 'confirmed') endCorrecting();
+        else selectPoint(p.drag);
         return;
       }
       if (e.type === 'pointercancel') return;
@@ -1224,6 +1294,9 @@
       S.anchorIdx++;
       if (S.anchorIdx >= S.defs.anchors.length) placeFromAnchors();
       else { renderTrace(); draw(); }
+    } else if (S.mode === 'review' && S.cur && S.correcting) {
+      setPoint(S.cur, ix, iy);
+      endCorrecting();
     } else if (S.mode === 'review' && S.cur) {
       setPoint(S.cur, ix, iy, { advance: true });
     } else if (S.mode === 'ruler') {
@@ -1605,7 +1678,10 @@
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === 'Enter') { e.preventDefault(); acceptCurrent(); }
     else if (k === 'Backspace') { e.preventDefault(); goBack(); }
-    else if (k === 'Escape') { if (S.mode === 'ruler') endRuler(); }
+    else if (k === 'Escape') {
+      if (S.mode === 'ruler') endRuler();
+      else if (S.correcting) endCorrecting();
+    }
     else if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown') {
       e.preventDefault();
       const step = e.shiftKey ? 5 : 1;
