@@ -41,7 +41,7 @@ from xray.cvm import DEFAULT_THRESHOLDS, clean_marks  # noqa: E402
 from xray import iortho  # noqa: E402
 from xray import ruler as ruler_mod  # noqa: E402
 from xray.imageio import ImageReadError, is_dicom_bytes, load_png  # noqa: E402
-from xray.landmarks import ANCHORS, CODES, GROUP_OF, codes_in_group, public_definitions  # noqa: E402
+from xray.landmarks import ANCHORS, CODES, GROUP_OF, PAPER_LABEL, codes_in_group, public_definitions  # noqa: E402
 from xray.shape import fill_missing, mean_shape, place_from_anchors  # noqa: E402
 from xray.store import Store, age_years  # noqa: E402
 from xray.train import MIN_CASES, Nightly, Trainer  # noqa: E402
@@ -457,7 +457,7 @@ def _patch_case(cid, body):
             changed += 1
         if changed and case.get("status") == "confirmed":
             case["confirmed_at"] = dt.datetime.now().replace(microsecond=0).isoformat()   # learn from the edit
-            hist.append(f"{', '.join(list(body['landmarks'])[:6])} corrected on the confirmed tracing (a new lesson)")
+            hist.append(f"{', '.join(PAPER_LABEL.get(c, c) for c in list(body['landmarks'])[:6])} corrected on the confirmed tracing (a new lesson)")
     if "skipped" in body:
         sk = [g for g in (body["skipped"] or []) if g in ("soft", "cvm")]
         case["skipped"] = sk

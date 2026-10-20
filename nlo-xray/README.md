@@ -27,9 +27,10 @@ Panoramic x-rays are next; this first version reads lateral cephs.
      point, the arrow keys nudge the current one, **Ctrl Z** undoes, **F** fits the x-ray, the mouse wheel zooms,
      dragging empty space moves around. The group chips (Cranial base, Maxilla, ...) jump to that group.
    - **Where each point goes, in pictures**: under each point's description the Tracing card shows a drawing
-     and close-ups. For the vertebrae the drawing is C2-C4 with all 13 points named, the one to place
-     highlighted, and for a lower-border point the line joining the two lower corners (the deepest point is the
-     one farthest above it); for the other points, the region of the textbook tracing with its points named.
+     and close-ups. For the vertebrae the drawing is C2-C4 laid out like Figure 2 of Baccetti, Franchi &
+     McNamara (2002) - the same 13 points with the paper's names (C2p, C2m, C2a, C3up, C3ua, C3lp, C3m, C3la, ...)
+     and the line joining the two lower corners of each body with the deepest point measured from it - the one
+     to place highlighted; for the other points, the region of the textbook tracing with its points named.
      The close-ups are from this office's own confirmed x-rays (newest first, never the x-ray being traced, no
      names or dates; turned to face the same way): the point ringed, the points round it marked - for a
      vertebra point all of C2-C4. Click either to see it large (every point named). They stay on this PC like
@@ -247,10 +248,11 @@ lower lip −2±2. Summary calls: Class II when ANB > 4°, Class III when < 0°;
 from its norm; high angle FMA > 30° or SN-GoGn > 37°, low angle FMA < 20° or SN-GoGn < 27°.
 
 **CVM** (`xray/cvm.py`). The 13 vertebra points are the landmarks of Baccetti, Franchi & McNamara (2002, *Angle
-Orthod* 72:316): on C2 the most posterior, deepest and most anterior points of the lower border of the body (their
-C2p, C2m, C2a - here C2lp, C2d, C2la); on C3 and C4 the most superior points of the posterior and anterior
-borders (C3up, C3ua) and the most posterior, deepest and most anterior points of the lower border (C3lp, C3m, C3la
-- here C3d for C3m; the same on C4). The concavity is their C2Conc / C3Conc / C4Conc: the distance of the deepest
+Orthod* 72:316): on C2 the most posterior, deepest and most anterior points of the lower border of the body (C2p,
+C2m, C2a); on C3 and C4 the most superior points of the posterior and anterior borders (C3up, C3ua) and the most
+posterior, deepest and most anterior points of the lower border (C3lp, C3m, C3la; the same on C4). The screen
+and report use the paper's names; the saved tracings keep the app's older codes for five of them (C2lp, C2d,
+C2la, C3d, C4d = C2p, C2m, C2a, C3m, C4m), so nothing already traced changes. The concavity is their C2Conc / C3Conc / C4Conc: the distance of the deepest
 point from the line joining the two ends of the lower border. The paper judged a concavity present by eye; the
 6 % cut below is the app's own (tuned to the doctor's picks, below). The five judgements: a lower border is concave when its deepest point lies at least
 6 % of the border's length above the line joining its corners (≈1 mm on a 15 mm body); a C3/C4 body is

@@ -19,6 +19,7 @@
     return `${sign}${v}${m.unit === '°' ? '°' : ' ' + m.unit}`;
   };
   const statusWord = (s) => ({ new: 'to trace', traced: 'to confirm', confirmed: 'confirmed' }[s] || s);
+  const lab = (c) => (S.lm[c] && S.lm[c].label) || c;      // a point's name on screen (Baccetti's for the vertebrae)
   const GROUP_COLORS = { cranial: '#8FB4FF', maxilla: '#64F4C9', mandible: '#FF8C7A', teeth: '#F6C453', soft: '#FF9BD2', cvm: '#C7A6FF' };
   const LINE_COLORS = { SN: '#8FB4FF', FH: '#64F4C9', NA: '#F6AF24', NB: '#F6AF24', MP: '#FF8C7A', PP: '#64F4C9', U1: '#FFFFFF',
     L1: '#FFFFFF', 'E-line': '#FF9BD2', FOP: '#9DD9FF', Ramus: '#B8C2D3' };
@@ -624,16 +625,18 @@
   }
 
   // ------------------------------------------------------------------ where a point goes: a diagram and close-ups
-  // C2-C4 drawn facing right (the front of the neck to the right) in a 200 x 200 box
+  // C2-C4 laid out as in Fig. 2 of Baccetti, Franchi & McNamara (2002), facing right (the front of the neck to the
+  // right), in a 200 x 325 box: C2 one tapering outline (body and dens), C3 and C4 nearly rectangular; each lower
+  // border with the line joining its two ends and the deepest point's distance from it (C2Conc, C3Conc, C4Conc)
   const VERT_PTS = {
-    C2lp: [52, 70], C2d: [96, 59], C2la: [142, 68],
-    C3up: [52, 82], C3ua: [140, 80], C3lp: [52, 124], C3d: [96, 114], C3la: [142, 122],
-    C4up: [52, 136], C4ua: [140, 134], C4lp: [52, 178], C4d: [96, 168], C4la: [142, 176],
+    C2lp: [50, 102], C2d: [92, 92], C2la: [138, 102],
+    C3up: [55, 138], C3ua: [135, 141], C3lp: [58, 203], C3d: [99, 191], C3la: [142, 203],
+    C4up: [61, 239], C4ua: [142, 242], C4lp: [65, 306], C4d: [104, 293], C4la: [145, 306],
   };
   const VERT_SHAPES = [
-    'M 52 70 L 50 40 Q 58 32 78 30 L 84 10 Q 96 2 108 10 L 114 30 Q 132 32 140 40 L 142 68 Q 96 48 52 70 Z',
-    'M 52 82 L 140 80 L 142 122 Q 96 104 52 124 Z',
-    'M 52 136 L 140 134 L 142 176 Q 96 158 52 178 Z',
+    'M 50 102 C 44 84 36 48 36 26 C 36 10 44 4 54 5 C 64 6 72 12 78 22 L 138 102 Q 90 82 50 102 Z',
+    'M 55 138 L 132 140 Q 136 141 136 145 L 142 203 Q 98 179 58 203 Z',
+    'M 61 239 L 139 241 Q 143 242 143 246 L 145 306 Q 103 280 65 306 Z',
   ];
   const VERT_LOWER = { C2: ['C2lp', 'C2d', 'C2la'], C3: ['C3lp', 'C3d', 'C3la'], C4: ['C4lp', 'C4d', 'C4la'] };
 
@@ -645,35 +648,41 @@
 
   function vertebraeDiagram(code) {
     const left = S.case && S.case.facing === 'left';
-    let s = '<svg viewBox="0 0 200 200" aria-hidden="true">';
+    let s = '<svg class="tall" viewBox="0 0 200 325" aria-hidden="true">';
     s += `<g${left ? ' transform="translate(200,0) scale(-1,1)"' : ''}>`;
-    for (const d of VERT_SHAPES) s += `<path d="${d}" fill="#E8ECF2" stroke="#969FAB" stroke-width="1.2"/>`;
-    const lower = VERT_LOWER[code.slice(0, 2)];
-    if (lower && /^(C2|C3l|C3d|C4l|C4d)/.test(code)) {
-      // the line joining the two lower corners: the deepest point is the one farthest above it
-      const [a, d, b] = lower.map((c) => VERT_PTS[c]);
+    for (const d of VERT_SHAPES) s += `<path d="${d}" fill="#E8ECF2" stroke="#7E8796" stroke-width="1.4"/>`;
+    for (const [v, [ca, cd, cb]] of Object.entries(VERT_LOWER)) {
+      // the line joining the two ends of the lower border, and the deepest point's distance from it
+      const a = VERT_PTS[ca], d = VERT_PTS[cd], b = VERT_PTS[cb];
       const t = ((d[0] - a[0]) * (b[0] - a[0]) + (d[1] - a[1]) * (b[1] - a[1])) / ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2);
       const f = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
-      s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#C2820A" stroke-width="1" stroke-dasharray="3 2"/>`;
-      s += `<line x1="${d[0]}" y1="${d[1]}" x2="${f[0]}" y2="${f[1]}" stroke="#C2820A" stroke-width="1"/>`;
+      const col = code.startsWith(v) ? '#C2820A' : '#9AA3AF';
+      s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}" stroke-width="1.2" stroke-dasharray="2 2.5"/>`;
+      s += `<line x1="${d[0]}" y1="${d[1]}" x2="${f[0].toFixed(1)}" y2="${f[1].toFixed(1)}" stroke="${col}" stroke-width="1.2" stroke-dasharray="2 2.5"/>`;
     }
     s += '</g>';
-    for (const [name, y] of [['C2', 26], ['C3', 100], ['C4', 154]]) {
-      s += `<text x="${left ? 104 : 96}" y="${y}" text-anchor="middle" font-size="11" font-weight="700" fill="#B5BDC7">${name}</text>`;
+    const X = (x) => (left ? 200 - x : x);
+    for (const [name, x, y] of [['C2', 60, 62], ['C3', 99, 168], ['C4', 104, 269]]) {
+      s += `<text x="${X(x)}" y="${y}" text-anchor="middle" font-size="12" font-weight="700" fill="#C3C9D0">${name}</text>`;
     }
     for (const [c, [x0, y]] of Object.entries(VERT_PTS)) {
-      const x = left ? 200 - x0 : x0;
+      const x = X(x0);
       const cur = c === code;
-      if (cur) s += `<circle cx="${x}" cy="${y}" r="7" fill="none" stroke="#FA624D" stroke-width="1.6"/>`;
-      s += `<circle cx="${x}" cy="${y}" r="${cur ? 3.2 : 2.4}" fill="${cur ? '#FA624D' : '#8C6FE0'}"/>`;
-      const deep = /^C\dd$/.test(c);
-      const toLeft = /(lp|up)$/.test(c) !== left;        // back points sit on the left when the face is to the right
-      const lx = deep ? x : (toLeft ? x - 8 : x + 8);
-      const anchor = deep ? 'middle' : (toLeft ? 'end' : 'start');
-      s += `<text x="${lx}" y="${deep ? y + 16 : y + 3}" text-anchor="${anchor}" font-size="${cur ? 10 : 8.5}" font-weight="${cur ? 700 : 500}" fill="${cur ? '#11203A' : '#6B7685'}">${c}</text>`;
+      if (cur) s += `<circle cx="${x}" cy="${y}" r="7.5" fill="none" stroke="#FA624D" stroke-width="1.8"/>`;
+      s += `<circle cx="${x}" cy="${y}" r="${cur ? 3.4 : 2.8}" fill="${cur ? '#FA624D' : '#3E4A5B'}"/>`;
+      // where the paper puts the names: the deepest point's above it, the upper ends above and outside, the lower
+      // ends below and outside
+      const deep = /^C\dd$/.test(c), upper = /u[pa]$/.test(c);
+      const back = /(lp|up)$/.test(c);
+      const outLeft = back !== left;
+      let lx, ly, anchor;
+      if (deep) { lx = x; ly = y - 7; anchor = 'middle'; }
+      else if (upper) { lx = outLeft ? x - 4 : x + 4; ly = y - 4; anchor = outLeft ? 'end' : 'start'; }
+      else { lx = outLeft ? x + 4 : x - 4; ly = y + 13; anchor = outLeft ? 'end' : 'start'; }
+      s += `<text x="${lx}" y="${ly}" text-anchor="${anchor}" font-size="${cur ? 11 : 9.5}" font-weight="${cur ? 700 : 600}" fill="${cur ? '#D8412E' : '#33404F'}">${esc(lab(c))}</text>`;
     }
-    s += `<text x="${left ? 196 : 4}" y="196" font-size="8" fill="#969FAB" text-anchor="${left ? 'end' : 'start'}">back</text>`;
-    s += `<text x="${left ? 4 : 196}" y="196" font-size="8" fill="#969FAB" text-anchor="${left ? 'start' : 'end'}">front (face)</text>`;
+    s += `<text x="${left ? 196 : 4}" y="10" font-size="8" fill="#969FAB" text-anchor="${left ? 'end' : 'start'}">back</text>`;
+    s += `<text x="${left ? 4 : 196}" y="10" font-size="8" fill="#969FAB" text-anchor="${left ? 'start' : 'end'}">front (face)</text>`;
     return s + '</svg>';
   }
 
@@ -702,7 +711,7 @@
       s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${cur ? 3.2 : mine ? 2.6 : 1.8}" fill="${cur ? '#FA624D' : mine ? '#5471A0' : '#B5BDC7'}"/>`;
       if (mine || cur) {
         const lx = x > 160 ? x - 6 : x + 6;
-        s += `<text x="${lx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="${x > 160 ? 'end' : 'start'}" font-size="${cur ? 10 : 8.5}" font-weight="${cur ? 700 : 500}" fill="${cur ? '#11203A' : '#6B7685'}">${c}</text>`;
+        s += `<text x="${lx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="${x > 160 ? 'end' : 'start'}" font-size="${cur ? 10 : 8.5}" font-weight="${cur ? 700 : 500}" fill="${cur ? '#11203A' : '#6B7685'}">${esc(lab(c))}</text>`;
       }
     }
     return s + '</svg>';
@@ -712,8 +721,8 @@
     if (!code || !S.lm[code]) return '';
     const cvm = S.lm[code].group === 'cvm';
     return `<div class="whereRow">
-      <figure class="wherePic"><div class="pic" id="wDiag" title="Click to enlarge">${cvm ? vertebraeDiagram(code) : regionMap(code)}</div>
-        <figcaption><span>${cvm ? 'C2-C4: where each point goes' : 'Where it sits (textbook tracing)'}</span></figcaption></figure>
+      <figure class="wherePic"><div class="pic${cvm ? ' tall' : ''}" id="wDiag" title="Click to enlarge">${cvm ? vertebraeDiagram(code) : regionMap(code)}</div>
+        <figcaption><span>${cvm ? 'C2-C4 as in Baccetti et al. 2002, Fig. 2' : 'Where it sits (textbook tracing)'}</span></figcaption></figure>
       <figure class="wherePic" id="wEx"><div class="noEx">Looking for examples…</div><figcaption><span>On your x-rays</span></figcaption></figure>
     </div>`;
   }
@@ -780,7 +789,7 @@
       if (code2 === focus || !S.lm[code2]) continue;
       g.fillStyle = GROUP_COLORS[S.lm[code2].group];
       g.beginPath(); g.arc(X(x), y * k, (big ? 3 : 2.2) * u, 0, 2 * Math.PI); g.fill();
-      if (big) label(code2, X(x), y * k, false);
+      if (big) label(lab(code2), X(x), y * k, false);
     }
     const f = ex.points[focus];
     if (f) {
@@ -788,13 +797,13 @@
       g.strokeStyle = '#FA624D'; g.lineWidth = 2 * u;
       g.beginPath(); g.arc(fx, fy, (big ? 14 : 9) * u, 0, 2 * Math.PI); g.stroke();
       g.fillStyle = '#FA624D'; g.beginPath(); g.arc(fx, fy, 2.6 * u, 0, 2 * Math.PI); g.fill();
-      label(focus, fx, fy, true);
+      label(lab(focus), fx, fy, true);
     }
   }
 
   function openPic(code, kind) {
     const d = S.lm[code];
-    $('#picTitle').textContent = `${code} · ${d.name}`;
+    $('#picTitle').textContent = `${lab(code)} · ${d.name}`;
     $('#picDef').textContent = d.definition;
     const big = $('#picBig'), nav = $('#picNav');
     nav.innerHTML = '';
@@ -836,7 +845,7 @@
     } else if (S.mode === 'anchors') {
       const code = S.defs.anchors[S.anchorIdx];
       const d = S.lm[code];
-      html = `<div class="traceNow"><div><div class="code">${esc(code)}</div><div class="lname">${esc(d.name)}</div>
+      html = `<div class="traceNow"><div><div class="code">${esc(lab(code))}</div><div class="lname">${esc(d.name)}</div>
         <div class="def">${esc(d.definition)}</div>
         <div class="cue">Click it on the x-ray (${S.anchorIdx + 1} of 3: S, N, Me). The other points then appear roughly in place.</div></div>${minimap(code)}</div>
         <div class="traceBtns">${S.anchorIdx ? '<button class="small" id="bBack" type="button">◀ Back</button>' : ''}
@@ -862,7 +871,7 @@
           ? `<div class="cue warn">The app is unsure here (${pct}%). Click where it belongs, or Enter if it is right.</div>`
           : `<div class="cue">Placed by the app${pct != null ? ` (${pct}% sure)` : ''}. Enter if right, or click where it belongs.</div>`;
       } else cue = '<div class="cue">Placed from the average tracing. Click where it belongs, or Enter if it is right.</div>';
-      html = `<div class="traceNow"><div><div class="code">${esc(S.cur)}</div><div class="lname">${esc(d.name)}</div>
+      html = `<div class="traceNow"><div><div class="code">${esc(lab(S.cur))}</div><div class="lname">${esc(d.name)}</div>
         <div class="def">${esc(d.definition)}</div>${cue}</div>${minimap(S.cur)}</div>
         <div class="traceBtns">${S.correcting ? '<button class="small" id="bDone" type="button">Leave it as it is</button>' : `<button class="small" id="bBack" type="button">◀ Back</button>
         <button class="primary" id="bOk" type="button">Looks right ▶</button>`}</div>
@@ -1389,9 +1398,9 @@
       if (S.labels || isCur || opts.print) {
         c2.lineWidth = 3 * K;
         c2.strokeStyle = 'rgba(11,20,36,.85)';
-        c2.strokeText(code, x + 7 * K, y - 6 * K);
+        c2.strokeText(lab(code), x + 7 * K, y - 6 * K);
         c2.fillStyle = isCur ? '#FFFFFF' : col;
-        c2.fillText(code, x + 7 * K, y - 6 * K);
+        c2.fillText(lab(code), x + 7 * K, y - 6 * K);
       }
     }
     // ruler
@@ -1474,7 +1483,7 @@
       code = S.defs.anchors[S.anchorIdx];
       at = S.hover;
       const d = S.lm[code];
-      html = `<div class="tHd"><span class="dot" style="background:${GROUP_COLORS[d.group]}"></span><b>${esc(code)}</b>${esc(d.name)}</div>`
+      html = `<div class="tHd"><span class="dot" style="background:${GROUP_COLORS[d.group]}"></span><b>${esc(lab(code))}</b>${esc(d.name)}</div>`
         + `<div class="tDef">${esc(d.definition)}</div><div class="tSt">click it · ${S.anchorIdx + 1} of 3</div>`;
     } else if (S.hoverPt && P[S.hoverPt]) { code = S.hoverPt; at = toScreen(P[code].x, P[code].y); }
     // (not shown for the current point otherwise: the Tracing card and the hint already say what it is, and a
@@ -1483,7 +1492,7 @@
     if (!html) {
       const d = S.lm[code];
       const v = (S.case.landmarks || {})[code];
-      html = `<div class="tHd"><span class="dot" style="background:${GROUP_COLORS[d.group]}"></span><b>${esc(code)}</b>${esc(d.name)}</div>`
+      html = `<div class="tHd"><span class="dot" style="background:${GROUP_COLORS[d.group]}"></span><b>${esc(lab(code))}</b>${esc(d.name)}</div>`
         + `<div class="tDef">${esc(d.definition)}</div><div class="tSt">${esc(S.ptr && S.ptr.drag ? 'moving' : tipStatus(v))}</div>`;
     }
     if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
@@ -1606,7 +1615,7 @@
       if (v && Math.hypot(ix - v.x, iy - v.y) > mmToPx(FAR_MM)) {
         if (hit && hit !== S.cur) { selectPoint(hit); focusCurrent(); return; }          // another dot: go to it
         if (S.correcting) { endCorrecting(); return; }                                  // a confirmed tracing: let go
-        toast(`That is far from ${S.cur} - nothing moved. Click near ${S.cur} to move it, or click another dot to go to it.`, false, 4000);
+        toast(`That is far from ${lab(S.cur)} - nothing moved. Click near ${lab(S.cur)} to move it, or click another dot to go to it.`, false, 4000);
         return;
       }
     }
@@ -1712,7 +1721,7 @@
     const lm = S.case.landmarks || {};
     const unchecked = required().filter((c) => lm[c] && lm[c].by !== 'doctor');
     if (unchecked.length && !await ask('Confirm the tracing?',
-      `${unchecked.length} point${unchecked.length > 1 ? 's were' : ' was'} not checked one by one (${unchecked.slice(0, 8).join(', ')}${unchecked.length > 8 ? '…' : ''}). Confirming files every point as right, and the app learns from it.`,
+      `${unchecked.length} point${unchecked.length > 1 ? 's were' : ' was'} not checked one by one (${unchecked.slice(0, 8).map(lab).join(', ')}${unchecked.length > 8 ? '…' : ''}). Confirming files every point as right, and the app learns from it.`,
       'Confirm anyway')) return;
     try {
       const r = await api(`/api/cases/${enc(S.case.id)}`, { method: 'PATCH', body: { status: 'confirmed' } });
@@ -1814,7 +1823,7 @@
         ${st.running ? `<p><b>Learning now:</b> step ${prog.step || 0} of ${prog.steps || '?'}${prog.val_mre != null ? ` · held-out error ${prog.val_mre} mm` : ''}</p>` : ''}
         <p>${esc(st.message || (st.outcome ? '' : 'No learning round has run yet.'))}</p>
         ${m ? `<p class="hint">Trained ${esc(fmtDate((m.trained || '').slice(0, 10)))} on ${m.n_train} x-rays, checked on ${m.n_val} it had not seen. The app only switches to a new network when it does better on those.</p>` : `<p class="hint">After ${st.min_cases} confirmed tracings the app trains a network on this PC; until then the points start from your average tracing.</p>`}
-        ${worst.length ? `<label class="f">Average error by point (unseen x-rays)</label><div class="lmErr">${worst.map(([c, e]) => `<span class="${e > 2.5 ? 'bad' : ''}">${esc(c)} ${e} mm</span>`).join('')}</div>` : ''}
+        ${worst.length ? `<label class="f">Average error by point (unseen x-rays)</label><div class="lmErr">${worst.map(([c, e]) => `<span class="${e > 2.5 ? 'bad' : ''}">${esc(lab(c))} ${e} mm</span>`).join('')}</div>` : ''}
         <label class="f">When it learns</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:12.5px"><input type="checkbox" id="lNightly" ${s.learning.nightly !== false ? 'checked' : ''}> Every evening when there are new confirmed tracings and nobody is using the app</label>
         <div class="row3"><div><label class="f" for="lStart">From (hour)</label><input class="in" id="lStart" type="number" min="0" max="23" value="${s.learning.window_start}"></div>
