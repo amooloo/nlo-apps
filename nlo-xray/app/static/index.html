@@ -83,6 +83,7 @@
         </div>
         <div class="viewerWrap" id="viewer">
           <canvas id="cv"></canvas>
+          <canvas class="loupe" id="loupe" hidden></canvas>
           <div class="vTools" id="vTools">
             <button type="button" id="tFit" title="Fit the x-ray (F)">Fit</button>
             <button type="button" id="tOut" title="Zoom out (-)">−</button>
@@ -96,6 +97,7 @@
             <button type="button" id="tLines" class="on" title="Tracing lines (T)">Lines</button>
             <button type="button" id="tFollow" class="on" title="Zoom to each point while checking">Follow</button>
             <button type="button" id="tTips" class="on" title="Show what each point is when you point at it or move it">Info</button>
+          <button type="button" id="tLoupe" class="on" title="Magnifying glass that follows the mouse (M)">Loupe</button>
             <button type="button" id="tRuler" title="Calibrate with a ruler on the x-ray">Ruler</button>
           </div>
           <div class="ptTip" id="ptTip" hidden></div>

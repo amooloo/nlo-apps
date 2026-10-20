@@ -231,6 +231,8 @@ tr.w1 .dev .mk{background:var(--amber-600)} tr.w2 .dev .mk{background:var(--cora
 /* viewer */
 .viewerWrap{position:relative;min-height:0;min-width:0;background:#0b1424;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh-sm)}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+.loupe{position:absolute;left:0;top:0;width:220px;height:220px;border-radius:50%;pointer-events:none;z-index:3;box-shadow:0 0 0 2px rgba(100,244,201,.85),0 10px 28px rgba(0,0,0,.5)}
+.loupe[hidden]{display:none}
 #cv.panning{cursor:grabbing} #cv.overpt{cursor:grab}
 .vTools{position:absolute;left:12px;top:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:rgba(17,32,58,.78);backdrop-filter:blur(6px);border-radius:12px;padding:6px 8px;color:#DCE4EE;max-width:calc(100% - 24px)}
 .vTools button{min-width:30px;height:28px;padding:0 8px;border-radius:8px;color:#DCE4EE;font-weight:700;font-size:12px}
