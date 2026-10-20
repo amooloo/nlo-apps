@@ -31,7 +31,7 @@
     bright: 100, contrast: 100, invert: false, labels: true, lines: true, follow: true,
     mode: 'idle', anchorIdx: 0, anchorPts: {}, cur: null,
     pending: {}, saveTimer: 0, saving: null, undo: [], ruler: [], prevMode: null,
-    ptr: null, hover: null, space: false, raf: 0, settings: null, setTab: 'learn',
+    ptr: null, hover: null, hoverPt: null, tips: true, space: false, raf: 0, settings: null, setTab: 'learn',
   };
 
   // ------------------------------------------------------------------ server
@@ -706,7 +706,8 @@
       return;
     }
     const cv = a && a.cvm;
-    if (!cv || !cv.judgements) { el.innerHTML = '<p class="empty">Trace C2-C4 to stage CVM.</p>'; return; }
+    const anyVert = S.order.some((k) => S.lm[k].group === 'cvm' && (S.case.landmarks || {})[k]);
+    if (!cv || !cv.judgements || !anyVert) { el.innerHTML = '<p class="empty">Appears once C2-C4 are traced.</p>'; return; }
     const jv = {};
     for (const [k, v] of Object.entries(cv.judgements)) jv[k] = v.value;
     const m = cv.methods || {};
@@ -1019,7 +1020,50 @@
     }
   }
 
-  function paint() { paintScene(ctx, S.view, S.dpr); }
+  function paint() { paintScene(ctx, S.view, S.dpr); updateTip(); }
+
+  // ------------------------------------------------------------------ the pop-up that says what a point is
+  function tipStatus(v) {
+    if (!v) return 'not placed yet';
+    if (v.by === 'doctor') return 'checked';
+    if (v.by === 'model') return `placed by the app${v.conf != null ? ` · ${Math.round(v.conf * 100)}% sure` : ''}`;
+    return 'from the average tracing · check it';
+  }
+
+  function updateTip() {
+    const el = $('#ptTip');
+    if (!el) return;
+    if (!S.tips || !S.case || !S.img || $('#caseView').hidden || document.querySelector('dialog[open]') || (S.ptr && S.ptr.pan && S.ptr.moved)) {
+      el.hidden = true;
+      return;
+    }
+    const P = pointsForDraw();
+    let code = null, at = null, html = '';
+    if (S.ptr && S.ptr.drag && S.ptr.moved) { code = S.ptr.drag; at = toScreen(S.ptr.ix, S.ptr.iy); }
+    else if (S.mode === 'anchors' && S.hover) {
+      code = S.defs.anchors[S.anchorIdx];
+      at = S.hover;
+      const d = S.lm[code];
+      html = `<div class="tHd"><span class="dot" style="background:${GROUP_COLORS[d.group]}"></span><b>${esc(code)}</b>${esc(d.name)}</div>`
+        + `<div class="tDef">${esc(d.definition)}</div><div class="tSt">click it · ${S.anchorIdx + 1} of 3</div>`;
+    } else if (S.hoverPt && P[S.hoverPt]) { code = S.hoverPt; at = toScreen(P[code].x, P[code].y); }
+    else if (S.mode === 'review' && S.cur && P[S.cur]) { code = S.cur; at = toScreen(P[S.cur].x, P[S.cur].y); }
+    if (!code || !at || !S.lm[code]) { el.hidden = true; return; }
+    if (!html) {
+      const d = S.lm[code];
+      const v = (S.case.landmarks || {})[code];
+      html = `<div class="tHd"><span class="dot" style="background:${GROUP_COLORS[d.group]}"></span><b>${esc(code)}</b>${esc(d.name)}</div>`
+        + `<div class="tDef">${esc(d.definition)}</div><div class="tSt">${esc(S.ptr && S.ptr.drag ? 'moving' : tipStatus(v))}</div>`;
+    }
+    if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+    el.hidden = false;
+    const W = cv.clientWidth, H = cv.clientHeight, w = el.offsetWidth, h = el.offsetHeight;
+    let x = at[0] + 18, y = at[1] - h - 16;                      // above and to the right of the point...
+    if (x + w > W - 8) x = at[0] - w - 18;                       // ...or to its left near the right edge
+    if (y < 56) y = at[1] + 20;                                  // ...or below it near the top (the toolbar)
+    el.style.left = `${clamp(x, 8, Math.max(8, W - w - 8))}px`;
+    el.style.top = `${clamp(y, 8, Math.max(8, H - h - 8))}px`;
+  }
 
   function hitPoint(sx, sy) {
     const P = pointsForDraw();
@@ -1057,7 +1101,9 @@
       const p = S.ptr;
       if (!p) {
         S.hover = [sx, sy];
-        cv.classList.toggle('overpt', S.mode !== 'anchors' && S.mode !== 'ruler' && !!hitPoint(sx, sy));
+        const hp = S.mode !== 'anchors' && S.mode !== 'ruler' ? hitPoint(sx, sy) : null;
+        cv.classList.toggle('overpt', !!hp);
+        if (hp !== S.hoverPt || S.mode === 'anchors') { S.hoverPt = hp; updateTip(); }
         if (S.mode === 'ruler' && S.ruler.length === 1) draw();
         return;
       }
@@ -1097,7 +1143,7 @@
     };
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', end);
-    cv.addEventListener('pointerleave', () => { S.hover = null; });
+    cv.addEventListener('pointerleave', () => { S.hover = null; S.hoverPt = null; updateTip(); });
   }
 
   function clickAt(ix, iy) {
@@ -1446,6 +1492,7 @@
     $('#tLabels').onclick = (e) => { S.labels = !S.labels; e.currentTarget.classList.toggle('on', S.labels); draw(); };
     $('#tLines').onclick = (e) => { S.lines = !S.lines; e.currentTarget.classList.toggle('on', S.lines); draw(); };
     $('#tFollow').onclick = (e) => { S.follow = !S.follow; e.currentTarget.classList.toggle('on', S.follow); if (S.follow) focusCurrent(); };
+    $('#tTips').onclick = (e) => { S.tips = !S.tips; e.currentTarget.classList.toggle('on', S.tips); updateTip(); };
     $('#tRuler').onclick = startRuler;
     for (const h of $$('.fold')) h.onclick = () => $('#' + h.dataset.fold).classList.toggle('closed');
     window.addEventListener('keydown', onKey);
