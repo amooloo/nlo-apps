@@ -193,3 +193,31 @@ def test_passcode(client):
     assert other.get("/api/cases").status_code == 200
     client.post("/api/settings/passcode", json={"code": ""})
     assert TestClient(client.srv.app).get("/api/cases").status_code == 200
+
+
+def test_examples_from_confirmed_tracings(client):
+    """Where a point goes, shown on this office's confirmed x-rays: a close-up with the point at its centre."""
+    import base64
+    assert client.get("/api/examples/S").json() == {"examples": [], "total": 0}
+    assert client.get("/api/examples/XX").status_code == 404
+    data, pts, facing = png_bytes(seed=2)
+    cid = client.post("/api/cases", files=[("files", ("a.png", data, "image/png"))]).json()[0]["id"]
+    lm = {k: dict(x=float(v[0]), y=float(v[1]), by="doctor") for k, v in pts.items()}
+    client.patch(f"/api/cases/{cid}", json={"landmarks": lm, "facing": facing,
+                                           "calibration": {"mm_per_px": 0.24, "source": "set by hand"}})
+    assert client.get("/api/examples/S").json()["total"] == 0                  # not confirmed yet
+    client.patch(f"/api/cases/{cid}", json={"status": "confirmed"})
+    r = client.get("/api/examples/S?exclude=other").json()
+    assert r["total"] == 1 and len(r["examples"]) == 1
+    ex = r["examples"][0]
+    assert ex["img"].startswith("data:image/jpeg;base64,") and len(base64.b64decode(ex["img"].split(",", 1)[1])) > 1000
+    assert ex["points"]["S"] == pytest.approx([ex["size"] / 2, ex["size"] / 2], abs=2)
+    assert ex["facing"] == facing
+    cv = client.get("/api/examples/C3d").json()["examples"][0]
+    assert {c for c in cv["points"] if c[:2] in ("C2", "C3", "C4")} == {c for c in pts if c[:2] in ("C2", "C3", "C4")}
+    assert client.get(f"/api/examples/S?exclude={cid}").json()["total"] == 0  # never the x-ray being traced
+    client.patch(f"/api/cases/{cid}", json={"status": "reopen"})
+    client.patch(f"/api/cases/{cid}", json={"skipped": ["cvm"]})
+    client.patch(f"/api/cases/{cid}", json={"status": "confirmed"})
+    assert client.get("/api/examples/C3d").json()["total"] == 0              # vertebrae skipped there
+    assert client.get("/api/examples/S").json()["total"] == 1

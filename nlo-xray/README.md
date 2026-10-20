@@ -26,6 +26,14 @@ Panoramic x-rays are next; this first version reads lateral cephs.
    - Hollow dots are not checked yet, filled dots are. **Drag** any dot to move it. **Backspace** goes back a
      point, the arrow keys nudge the current one, **Ctrl Z** undoes, **F** fits the x-ray, the mouse wheel zooms,
      dragging empty space moves around. The group chips (Cranial base, Maxilla, ...) jump to that group.
+   - **Where each point goes, in pictures**: under each point's description the Tracing card shows a drawing
+     and close-ups. For the vertebrae the drawing is C2-C4 with all 13 points named, the one to place
+     highlighted, and for a lower-border point the line joining the two lower corners (the deepest point is the
+     one farthest above it); for the other points, the region of the textbook tracing with its points named.
+     The close-ups are from this office's own confirmed x-rays (newest first, never the x-ray being traced, no
+     names or dates; turned to face the same way): the point ringed, the points round it marked - for a
+     vertebra point all of C2-C4. Click either to see it large (every point named). They stay on this PC like
+     everything else, and there are more as more tracings are confirmed.
    - **A click moves the current point only near it** (within 2 cm). Farther away, a click on another dot goes to
      that dot, and a click on empty space moves nothing - so clicking away never moves a point by accident.
    - **The loupe** (button *Loupe*, key **M**, on by default): a magnifying glass follows the mouse - about 3 x
@@ -238,7 +246,13 @@ U1-SN 103±6, U1-NA 22±5° / 4±2 mm, L1-NB 25±5° / 4±2 mm, IMPA 90±5, inte
 lower lip −2±2. Summary calls: Class II when ANB > 4°, Class III when < 0°; Wits Class II/III more than 2 mm
 from its norm; high angle FMA > 30° or SN-GoGn > 37°, low angle FMA < 20° or SN-GoGn < 27°.
 
-**CVM** (`xray/cvm.py`). The five judgements: a lower border is concave when its deepest point lies at least
+**CVM** (`xray/cvm.py`). The 13 vertebra points are the landmarks of Baccetti, Franchi & McNamara (2002, *Angle
+Orthod* 72:316): on C2 the most posterior, deepest and most anterior points of the lower border of the body (their
+C2p, C2m, C2a - here C2lp, C2d, C2la); on C3 and C4 the most superior points of the posterior and anterior
+borders (C3up, C3ua) and the most posterior, deepest and most anterior points of the lower border (C3lp, C3m, C3la
+- here C3d for C3m; the same on C4). The concavity is their C2Conc / C3Conc / C4Conc: the distance of the deepest
+point from the line joining the two ends of the lower border. The paper judged a concavity present by eye; the
+6 % cut below is the app's own (tuned to the doctor's picks, below). The five judgements: a lower border is concave when its deepest point lies at least
 6 % of the border's length above the line joining its corners (≈1 mm on a 15 mm body); a C3/C4 body is
 trapezoid when front height / back height < 0.80 (heights from each upper corner to the line through the lower
 corners), else height / width < 0.90 rectangular horizontal, 0.90-1.10 square, > 1.10 rectangular vertical. The
@@ -315,6 +329,7 @@ Passcode: PBKDF2-SHA256 (120,000 rounds) with a salt in `settings.json`; signed-
 **API** (all under `/api`): `GET hello`, `POST login`, `GET defs`, `GET status`, `GET cases?q=`,
 `POST cases` (files), `GET|PATCH|DELETE cases/{id}`, `GET cases/{id}/image|thumb`, `POST cases/{id}/anchors`
 (S, N, Me → all points), `POST cases/{id}/auto` (the network), `POST cases/{id}/fill`, `GET model`,
-`POST model/train|stop|rollback`, `GET|PUT settings`, `POST settings/passcode`, `POST import/iortho` (files:
+`POST model/train|stop|rollback`, `GET|PUT settings`, `POST settings/passcode`, `GET examples/{code}?exclude=`
+(close-ups of confirmed x-rays round a point: JPEG data URL, the points inside, the facing), `POST import/iortho` (files:
 original x-rays, iOrtho's traced images and reports for one or more patients; `confirm`), `POST cases/{id}/iortho`
 (iOrtho's traced image + report for that x-ray; `replace` for a confirmed one).

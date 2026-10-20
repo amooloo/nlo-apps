@@ -25,9 +25,11 @@ for _ext, _mt in ((".js", "application/javascript"), (".mjs", "application/javas
                   (".png", "image/png"), (".svg", "image/svg+xml")):
     mimetypes.add_type(_mt, _ext)   # Windows registries sometimes map .js to text/plain
 
+import numpy as np  # noqa: E402
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
+from PIL import Image  # noqa: E402
 from starlette.concurrency import run_in_threadpool  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,7 +41,7 @@ from xray.cvm import DEFAULT_THRESHOLDS, clean_marks  # noqa: E402
 from xray import iortho  # noqa: E402
 from xray import ruler as ruler_mod  # noqa: E402
 from xray.imageio import ImageReadError, is_dicom_bytes, load_png  # noqa: E402
-from xray.landmarks import ANCHORS, CODES, GROUP_OF, public_definitions  # noqa: E402
+from xray.landmarks import ANCHORS, CODES, GROUP_OF, codes_in_group, public_definitions  # noqa: E402
 from xray.shape import fill_missing, mean_shape, place_from_anchors  # noqa: E402
 from xray.store import Store, age_years  # noqa: E402
 from xray.train import MIN_CASES, Nightly, Trainer  # noqa: E402
@@ -901,6 +903,87 @@ async def import_iortho_onto(cid: str, files: list[UploadFile] = File(...), conf
     except iortho.ImportError_ as ex:
         raise HTTPException(400, str(ex))
     return dict(result=res, **_reply(STORE.get(cid)))
+
+
+# ----------------------------------------------------------------------------- where a point goes: close-ups
+
+EXAMPLE_PX = 480                  # side of an example close-up (shown at about a third of this, larger on click)
+_example_cache = {}               # (case id, confirmed_at, code or "cvm") -> example
+_example_lock = threading.Lock()
+
+
+def _example(case, code):
+    """A close-up of a confirmed x-ray round one landmark (round C2-C4 together for the vertebrae): the picture,
+    contrast-stretched, as a JPEG data URL, and every landmark inside it in picture pixels. No name or date."""
+    pts = STORE.points_px(case)
+    if code not in pts:
+        return None
+    if GROUP_OF[code] == "cvm":
+        cv = [p for c, p in pts.items() if GROUP_OF.get(c) == "cvm"]
+        if len(cv) < len(codes_in_group("cvm")):
+            return None
+        xs, ys = [p[0] for p in cv], [p[1] for p in cv]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        side = max(max(xs) - min(xs), max(ys) - min(ys)) * 1.6
+    else:
+        cx, cy = pts[code]
+        mm = (case.get("calibration") or {}).get("mm_per_px")
+        if mm:
+            side = 34.0 / mm                              # 34 mm across
+        elif "S" in pts and "N" in pts:
+            side = 0.5 * geo.dist(pts["S"], pts["N"])
+        else:
+            side = 0.12 * max(case["image"]["w"], case["image"]["h"])
+    try:
+        img = load_png(STORE.image_path(case["id"]))
+    except Exception:  # noqa
+        return None
+    side = max(32, int(round(side)))
+    x0, y0 = int(round(cx - side / 2)), int(round(cy - side / 2))
+    H, W = img.shape
+    crop = np.zeros((side, side), np.float64)
+    ya, yb, xa, xb = max(0, y0), min(H, y0 + side), max(0, x0), min(W, x0 + side)
+    if ya >= yb or xa >= xb:
+        return None
+    part = img[ya:yb, xa:xb].astype(np.float64)
+    lo, hi = np.percentile(part, [1, 99.5])
+    crop[ya - y0:yb - y0, xa - x0:xb - x0] = np.clip((part - lo) / max(1.0, hi - lo) * 255, 0, 255)
+    im = Image.fromarray(crop.astype(np.uint8)).resize((EXAMPLE_PX, EXAMPLE_PX), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, format="JPEG", quality=86)
+    k = EXAMPLE_PX / side
+    inside = {c: [round((x - x0) * k, 1), round((y - y0) * k, 1)] for c, (x, y) in pts.items()
+              if x0 <= x <= x0 + side and y0 <= y <= y0 + side}
+    return dict(img="data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode(), size=EXAMPLE_PX,
+                points=inside, facing=case.get("facing"))
+
+
+@app.get("/api/examples/{code}")
+def examples(code: str, exclude: str = "", n: int = 3):
+    """Where a point goes, on this office's own confirmed tracings (newest first; never the x-ray being traced)."""
+    if code not in CODES:
+        raise HTTPException(404, "Unknown landmark.")
+    group = GROUP_OF[code]
+    key_code = "cvm" if group == "cvm" else code
+    conf = [c for c in STORE.list() if c.get("status") == "confirmed" and c["id"] != exclude
+            and group not in (c.get("skipped") or []) and code in (c.get("landmarks") or {})]
+    conf.sort(key=lambda c: c.get("confirmed_at") or "", reverse=True)
+    out = []
+    for case in conf:
+        key = (case["id"], case.get("confirmed_at"), key_code)
+        with _example_lock:
+            ex = _example_cache.get(key)
+        if ex is None:
+            ex = _example(case, code) or {}
+            with _example_lock:
+                if len(_example_cache) > 300:
+                    _example_cache.clear()
+                _example_cache[key] = ex
+        if ex:
+            out.append(ex)
+        if len(out) >= max(1, min(n, 6)):
+            break
+    return dict(examples=out, total=len(conf))
 
 
 @app.post("/api/cases/{cid}/fill")

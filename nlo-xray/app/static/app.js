@@ -623,6 +623,201 @@
     return s + '</svg>';
   }
 
+  // ------------------------------------------------------------------ where a point goes: a diagram and close-ups
+  // C2-C4 drawn facing right (the front of the neck to the right) in a 200 x 200 box
+  const VERT_PTS = {
+    C2lp: [52, 70], C2d: [96, 59], C2la: [142, 68],
+    C3up: [52, 82], C3ua: [140, 80], C3lp: [52, 124], C3d: [96, 114], C3la: [142, 122],
+    C4up: [52, 136], C4ua: [140, 134], C4lp: [52, 178], C4d: [96, 168], C4la: [142, 176],
+  };
+  const VERT_SHAPES = [
+    'M 52 70 L 50 40 Q 58 32 78 30 L 84 10 Q 96 2 108 10 L 114 30 Q 132 32 140 40 L 142 68 Q 96 48 52 70 Z',
+    'M 52 82 L 140 80 L 142 122 Q 96 104 52 124 Z',
+    'M 52 136 L 140 134 L 142 176 Q 96 158 52 178 Z',
+  ];
+  const VERT_LOWER = { C2: ['C2lp', 'C2d', 'C2la'], C3: ['C3lp', 'C3d', 'C3la'], C4: ['C4lp', 'C4d', 'C4la'] };
+
+  function whereCode() {
+    if (!S.case || !S.defs) return null;
+    if (S.mode === 'anchors') return S.defs.anchors[S.anchorIdx] || null;
+    return S.mode === 'review' ? S.cur : null;
+  }
+
+  function vertebraeDiagram(code) {
+    const left = S.case && S.case.facing === 'left';
+    let s = '<svg viewBox="0 0 200 200" aria-hidden="true">';
+    s += `<g${left ? ' transform="translate(200,0) scale(-1,1)"' : ''}>`;
+    for (const d of VERT_SHAPES) s += `<path d="${d}" fill="#E8ECF2" stroke="#969FAB" stroke-width="1.2"/>`;
+    const lower = VERT_LOWER[code.slice(0, 2)];
+    if (lower && /^(C2|C3l|C3d|C4l|C4d)/.test(code)) {
+      // the line joining the two lower corners: the deepest point is the one farthest above it
+      const [a, d, b] = lower.map((c) => VERT_PTS[c]);
+      const t = ((d[0] - a[0]) * (b[0] - a[0]) + (d[1] - a[1]) * (b[1] - a[1])) / ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2);
+      const f = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+      s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#C2820A" stroke-width="1" stroke-dasharray="3 2"/>`;
+      s += `<line x1="${d[0]}" y1="${d[1]}" x2="${f[0]}" y2="${f[1]}" stroke="#C2820A" stroke-width="1"/>`;
+    }
+    s += '</g>';
+    for (const [name, y] of [['C2', 26], ['C3', 100], ['C4', 154]]) {
+      s += `<text x="${left ? 104 : 96}" y="${y}" text-anchor="middle" font-size="11" font-weight="700" fill="#B5BDC7">${name}</text>`;
+    }
+    for (const [c, [x0, y]] of Object.entries(VERT_PTS)) {
+      const x = left ? 200 - x0 : x0;
+      const cur = c === code;
+      if (cur) s += `<circle cx="${x}" cy="${y}" r="7" fill="none" stroke="#FA624D" stroke-width="1.6"/>`;
+      s += `<circle cx="${x}" cy="${y}" r="${cur ? 3.2 : 2.4}" fill="${cur ? '#FA624D' : '#8C6FE0'}"/>`;
+      const deep = /^C\dd$/.test(c);
+      const toLeft = /(lp|up)$/.test(c) !== left;        // back points sit on the left when the face is to the right
+      const lx = deep ? x : (toLeft ? x - 8 : x + 8);
+      const anchor = deep ? 'middle' : (toLeft ? 'end' : 'start');
+      s += `<text x="${lx}" y="${deep ? y + 16 : y + 3}" text-anchor="${anchor}" font-size="${cur ? 10 : 8.5}" font-weight="${cur ? 700 : 500}" fill="${cur ? '#11203A' : '#6B7685'}">${c}</text>`;
+    }
+    s += `<text x="${left ? 196 : 4}" y="196" font-size="8" fill="#969FAB" text-anchor="${left ? 'end' : 'start'}">back</text>`;
+    s += `<text x="${left ? 4 : 196}" y="196" font-size="8" fill="#969FAB" text-anchor="${left ? 'start' : 'end'}">front (face)</text>`;
+    return s + '</svg>';
+  }
+
+  // the other points: the region of the point's group, zoomed from the textbook tracing, its points named
+  function regionMap(code) {
+    const T = S.defs.template;
+    const grp = S.defs.groups.find((g) => g.codes.includes(code));
+    const codes = grp ? grp.codes : [code];
+    const left = S.case && S.case.facing === 'left';
+    const P0 = (c) => [left ? -T[c][0] : T[c][0], -T[c][1]];
+    const xs = codes.map((c) => P0(c)[0]), ys = codes.map((c) => P0(c)[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const half = Math.max(24, (Math.max(...xs) - Math.min(...xs)) / 2 + 14, (Math.max(...ys) - Math.min(...ys)) / 2 + 14);
+    const k = 100 / half;
+    const P = (c) => { const [x, y] = P0(c); return [100 + (x - cx) * k, 100 + (y - cy) * k]; };
+    let s = '<svg viewBox="0 0 200 200" aria-hidden="true">';
+    for (const l of S.defs.lines) {
+      const a = P(l.a), b = P(l.b);
+      s += `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="#C3C9D0" stroke-width="1"/>`;
+    }
+    for (const c of S.order) {
+      const [x, y] = P(c);
+      if (x < -4 || x > 204 || y < -4 || y > 204) continue;
+      const cur = c === code, mine = codes.includes(c);
+      if (cur) s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="none" stroke="#FA624D" stroke-width="1.6"/>`;
+      s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${cur ? 3.2 : mine ? 2.6 : 1.8}" fill="${cur ? '#FA624D' : mine ? '#5471A0' : '#B5BDC7'}"/>`;
+      if (mine || cur) {
+        const lx = x > 160 ? x - 6 : x + 6;
+        s += `<text x="${lx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="${x > 160 ? 'end' : 'start'}" font-size="${cur ? 10 : 8.5}" font-weight="${cur ? 700 : 500}" fill="${cur ? '#11203A' : '#6B7685'}">${c}</text>`;
+      }
+    }
+    return s + '</svg>';
+  }
+
+  function whereStrip(code) {
+    if (!code || !S.lm[code]) return '';
+    const cvm = S.lm[code].group === 'cvm';
+    return `<div class="whereRow">
+      <figure class="wherePic"><div class="pic" id="wDiag" title="Click to enlarge">${cvm ? vertebraeDiagram(code) : regionMap(code)}</div>
+        <figcaption><span>${cvm ? 'C2-C4: where each point goes' : 'Where it sits (textbook tracing)'}</span></figcaption></figure>
+      <figure class="wherePic" id="wEx"><div class="noEx">Looking for examples…</div><figcaption><span>On your x-rays</span></figcaption></figure>
+    </div>`;
+  }
+
+  const EX = {};                  // close-ups from confirmed tracings, per x-ray being traced and point: {list, total, i}
+  const exKey = (code) => `${S.case.id}|${S.lm[code].group === 'cvm' ? 'cvm' : code}`;
+
+  async function fillWhere(code) {
+    $('#wDiag').onclick = () => openPic(code, 'diagram');
+    const key = exKey(code);
+    if (!EX[key]) {
+      EX[key] = { loading: true, list: [], total: 0, i: 0 };
+      try {
+        const r = await api(`/api/examples/${enc(code)}?exclude=${enc(S.case.id)}&n=3`);
+        EX[key] = { list: r.examples || [], total: r.total || 0, i: 0 };
+      } catch (e) { EX[key] = { list: [], total: 0, i: 0 }; }
+    } else if (EX[key].loading) return;      // drawn when it arrives
+    if (whereCode() === code) showExample(code);
+  }
+
+  function showExample(code) {
+    const box = $('#wEx');
+    if (!box) return;
+    const e = EX[exKey(code)];
+    if (!e || !e.list.length) {
+      box.innerHTML = `<div class="noEx">${e && e.total ? 'No close-up of this point yet.' : 'Close-ups from your own confirmed x-rays appear here as you confirm tracings.'}</div><figcaption><span>On your x-rays</span></figcaption>`;
+      return;
+    }
+    const n = e.list.length;
+    box.innerHTML = `<canvas class="pic" title="Click to enlarge"></canvas><figcaption><span>On your x-rays · ${e.i + 1} of ${n}</span>
+      <span><button type="button" data-d="-1" ${n < 2 ? 'disabled' : ''} aria-label="Previous">‹</button><button type="button" data-d="1" ${n < 2 ? 'disabled' : ''} aria-label="Next">›</button></span></figcaption>`;
+    const c = $('canvas', box);
+    const dpr = window.devicePixelRatio || 1;
+    const css = c.clientWidth || 160;
+    c.width = c.height = Math.round(css * dpr);
+    drawExample(c, e.list[e.i], code, false);
+    c.onclick = () => openPic(code, 'photo');
+    for (const b of $$('button[data-d]', box)) b.onclick = () => { e.i = (e.i + n + Number(b.dataset.d)) % n; showExample(code); };
+  }
+
+  function drawExample(c, ex, focus, big) {
+    if (!ex._img) { ex._img = new Image(); ex._img.src = ex.img; }
+    const img = ex._img;
+    if (!img.complete) { img.onload = () => drawExample(c, ex, focus, big); return; }
+    const W = c.width, k = W / ex.size, u = window.devicePixelRatio || 1;
+    const mirror = !!(ex.facing && S.case.facing && ex.facing !== S.case.facing);   // turned to face like this x-ray
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, W, W);
+    g.save();
+    if (mirror) { g.translate(W, 0); g.scale(-1, 1); }
+    g.drawImage(img, 0, 0, W, W);
+    g.restore();
+    const X = (x) => (mirror ? W - x * k : x * k);
+    const label = (t, x, y, bold) => {
+      g.font = `${bold ? 700 : 600} ${(big ? (bold ? 13 : 11) : (bold ? 11 : 9)) * u}px Montserrat, system-ui, sans-serif`;
+      const w = g.measureText(t).width;
+      const lx = x + 10 * u + w > W ? x - 10 * u - w : x + 10 * u;
+      const ly = Math.max(12 * u, y - 8 * u);
+      g.lineWidth = 3 * u; g.strokeStyle = 'rgba(11,20,36,.85)'; g.strokeText(t, lx, ly);
+      g.fillStyle = '#fff'; g.fillText(t, lx, ly);
+    };
+    for (const [code2, [x, y]] of Object.entries(ex.points)) {
+      if (code2 === focus || !S.lm[code2]) continue;
+      g.fillStyle = GROUP_COLORS[S.lm[code2].group];
+      g.beginPath(); g.arc(X(x), y * k, (big ? 3 : 2.2) * u, 0, 2 * Math.PI); g.fill();
+      if (big) label(code2, X(x), y * k, false);
+    }
+    const f = ex.points[focus];
+    if (f) {
+      const fx = X(f[0]), fy = f[1] * k;
+      g.strokeStyle = '#FA624D'; g.lineWidth = 2 * u;
+      g.beginPath(); g.arc(fx, fy, (big ? 14 : 9) * u, 0, 2 * Math.PI); g.stroke();
+      g.fillStyle = '#FA624D'; g.beginPath(); g.arc(fx, fy, 2.6 * u, 0, 2 * Math.PI); g.fill();
+      label(focus, fx, fy, true);
+    }
+  }
+
+  function openPic(code, kind) {
+    const d = S.lm[code];
+    $('#picTitle').textContent = `${code} · ${d.name}`;
+    $('#picDef').textContent = d.definition;
+    const big = $('#picBig'), nav = $('#picNav');
+    nav.innerHTML = '';
+    const dlg = $('#dlgPic');
+    if (kind === 'diagram') {
+      big.innerHTML = d.group === 'cvm' ? vertebraeDiagram(code) : regionMap(code);
+      if (!dlg.open) dlg.showModal();
+      return;
+    }
+    const e = EX[exKey(code)];
+    if (!e || !e.list.length) return;
+    big.innerHTML = '<canvas></canvas>';
+    if (!dlg.open) dlg.showModal();
+    const c = $('canvas', big);
+    const dpr = window.devicePixelRatio || 1;
+    c.width = c.height = Math.round((c.clientWidth || 520) * dpr);
+    drawExample(c, e.list[e.i], code, true);
+    const n = e.list.length;
+    nav.innerHTML = `<span class="hint" style="margin:0">On a confirmed x-ray of this office · ${e.i + 1} of ${n}${e.total > n ? ` (newest ${n} of ${e.total})` : ''}</span>`
+      + (n > 1 ? '<button class="small" type="button" data-d="-1">‹ Previous</button><button class="small" type="button" data-d="1">Next ›</button>' : '');
+    for (const b of $$('button[data-d]', nav)) b.onclick = () => { e.i = (e.i + n + Number(b.dataset.d)) % n; openPic(code, 'photo'); showExample(code); };
+  }
+
   function renderTrace() {
     if (!S.case) return;
     const body = $('#traceBody');
@@ -646,6 +841,7 @@
         <div class="cue">Click it on the x-ray (${S.anchorIdx + 1} of 3: S, N, Me). The other points then appear roughly in place.</div></div>${minimap(code)}</div>
         <div class="traceBtns">${S.anchorIdx ? '<button class="small" id="bBack" type="button">◀ Back</button>' : ''}
         ${hasModel ? '<button class="small" id="bAuto" type="button">Let the app place them</button>' : ''}</div>
+        ${whereStrip(code)}
         <p class="hint">Traced it in iOrtho already? <button class="linkBtn" id="bIortho" type="button">Import iOrtho's tracing</button></p>
         <div class="keys">Scroll to zoom · drag to move around · <span class="kbd">Backspace</span> back</div>`;
       hint = `Click <b>${esc(d.name)}</b> (${S.anchorIdx + 1} of 3)`;
@@ -669,7 +865,8 @@
       html = `<div class="traceNow"><div><div class="code">${esc(S.cur)}</div><div class="lname">${esc(d.name)}</div>
         <div class="def">${esc(d.definition)}</div>${cue}</div>${minimap(S.cur)}</div>
         <div class="traceBtns">${S.correcting ? '<button class="small" id="bDone" type="button">Leave it as it is</button>' : `<button class="small" id="bBack" type="button">◀ Back</button>
-        <button class="primary" id="bOk" type="button">Looks right ▶</button>`}</div>`;
+        <button class="primary" id="bOk" type="button">Looks right ▶</button>`}</div>
+        ${whereStrip(S.cur)}`;
       hint = S.correcting ? `Click where <b>${esc(d.name)}</b> belongs - Esc to leave it` : `Click where <b>${esc(d.name)}</b> belongs, or press Enter if it is right`;
     } else if (S.case.status === 'confirmed') {
       const when = S.case.confirmed_at ? fmtDate(S.case.confirmed_at.slice(0, 10)) : '';
@@ -702,6 +899,8 @@
     }
     body.innerHTML = html;
     setHint(hint);
+    const wc = whereCode();
+    if (wc && $('#wDiag', body)) fillWhere(wc);
     const on = (id, f) => { const el = $(id, body); if (el) el.onclick = f; };
     on('#bBack', goBack);
     on('#bOk', acceptCurrent);
@@ -1752,6 +1951,7 @@
     $('#caseList').onclick = (e) => { const b = e.target.closest('.case'); if (b) openCase(b.dataset.id).catch((err) => toast(err.message, true)); };
     $('#openSettings').onclick = () => openSettings();
     $('#importBtn').onclick = () => openImport(null);
+    $('#picClose').onclick = () => $('#dlgPic').close();
     $('#updReload').onclick = () => { flushSave().catch(() => {}).finally(() => location.reload()); };   // edits saved first
     $('#impClose').onclick = () => $('#dlgImport').close();
     $('#impDrop').onclick = () => $('#impIn').click();
