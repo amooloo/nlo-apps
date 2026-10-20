@@ -59,7 +59,7 @@ def save(case):
         levels_source=(case.get("levels") or {}).get("source"),
         tads=[dict(site=t.get("site"), arch=t.get("arch"), side=t.get("side"), gap=t.get("gap"), label=t.get("label"),
                    a=t.get("a"), alpha=t.get("alpha"), beta=t.get("beta"), diameter=t.get("diameter"), length=t.get("length"),
-                   collar=t.get("collar"), status=(t.get("metrics") or {}).get("status"),
+                   collar=t.get("collar"), product=t.get("product"), status=(t.get("metrics") or {}).get("status"),
                    clearance=(t.get("metrics") or {}).get("root_clearance"), cortical=(t.get("metrics") or {}).get("cortical"),
                    from_suggestion=bool(t.get("from_suggestion")), edited=bool(t.get("edited")), hand=_by_hand(t))
               for t in case.get("tads") or []],
@@ -140,14 +140,17 @@ def site_prefs(site, arch):
     if not rows:
         return None
     med = lambda k: float(np.median([r[k] for r in rows if r.get(k) is not None])) if any(r.get(k) is not None for r in rows) else None
-    sizes = Counter((r.get("diameter"), r.get("length"), r.get("collar")) for r in rows if r.get("diameter"))
+    sizes = Counter((r.get("diameter"), r.get("length"), r.get("collar"), r.get("product")) for r in rows if r.get("diameter"))
     p = dict(n=len(rows))
     for k in ("a", "alpha", "beta"):
         v = med(k)
         if v is not None:
             p[k] = round(v, 2)
     if sizes:
-        p["size"] = list(sizes.most_common(1)[0][0])
+        d, l, c, prod = sizes.most_common(1)[0][0]
+        p["size"] = [d, l, c if c is not None else 2.0]
+        if prod:
+            p["product"] = prod
     return p
 
 
@@ -187,6 +190,11 @@ def guide_params(defaults):
     return {k: (round(v, 3) if isinstance(v, float) else v) for k, v in p.items()}
 
 
+def _name(pid):
+    from .tads import KIT_BY_ID
+    return (KIT_BY_ID.get(pid) or {}).get("name", pid)
+
+
 def status(defaults=None):
     all_ = load_all()
     fb = [d for d in all_ if d.get("feedback")]
@@ -198,7 +206,8 @@ def status(defaults=None):
         for arch in ("upper", "lower"):
             p = site_prefs(site, arch)
             if p:
-                size = f", {p['size'][0]}x{p['size'][1]} mm" if p.get("size") else ""
+                size = (", " + _name(p.get("product")) if p.get("product") else
+                        f", {p['size'][0]}x{p['size'][1]} mm" if p.get("size") else "")
                 lines.append(f"{arch} {site}: {p['n']} TAD{'s' if p['n'] > 1 else ''} set by hand - depth {p.get('a', '-')} mm, "
                              f"tilt {p.get('alpha', '-')} deg{size}" + ("" if p["n"] >= 2 else " (used from the second on)"))
     if defaults is not None:

@@ -366,7 +366,7 @@ def index():
 @app.get("/api/version")
 def version():
     return dict(version=__version__, host=socket.gethostname(), sites={k: dict(label=v["label"], arches=v["arches"]) for k, v in tadmod.SITES.items()},
-                sizes=tadmod.SIZES, guide_defaults=guidemod.DEFAULTS)
+                kit=tadmod.KIT, sizes=tadmod.SIZES, guide_defaults=guidemod.DEFAULTS)
 
 
 def _summary(c):
@@ -703,10 +703,13 @@ def _new_tad_id():
 def _prefs(c, site):
     arch = c.state.get("arch") or "upper"
     sd = tadmod.SITES[site]
-    p = dict(a=sd["a"].get(arch, 10.0), alpha=sd["alpha"].get(arch, 20.0), beta=0.0, size=list(sd["size"].get(arch, (1.6, 8.0, 1.5))))
+    p = dict(a=sd["a"].get(arch, 10.0), alpha=sd["alpha"].get(arch, 20.0), beta=0.0, size=list(sd["size"].get(arch, (1.6, 8.0, 2.0))),
+             product=(sd.get("product") or {}).get(arch))
     learned = lessons.site_prefs(site, arch)
     if learned and learned.get("n", 0) >= 2:
-        p.update({k: v for k, v in learned.items() if k in ("a", "alpha", "beta", "size")})
+        p.update({k: v for k, v in learned.items() if k in ("a", "alpha", "beta", "size", "product")})
+        if "size" in learned and "product" not in learned:
+            p["product"] = tadmod.product_for(p["size"][0], p["size"][1], p.get("product"))
     return p
 
 
@@ -723,9 +726,11 @@ def suggest(cid: str, body: dict = Body(...)):
         if c.ctx is None:
             raise ValueError("Accept the match first.")
         c.log(f"looking for {tadmod.SITES[site]['label'].lower()} sites")
-        res = c.ctx.suggest(site, sides=sides, prefs=_prefs(c, site))
+        pr = _prefs(c, site)
+        res = c.ctx.suggest(site, sides=sides, prefs=pr)
         for r in res:
             r["id"] = _new_tad_id()
+            r["product"] = tadmod.product_for(r["diameter"], r["length"], pr.get("product"))
             r.pop("metrics", None)
             r["metrics"] = c.ctx.measure(r)
         c.state["suggestions"] = dict(site=site, items=res, when=time.time())
@@ -750,10 +755,12 @@ def add_tad(cid: str, body: dict = Body(...)):
         t["hand"] = False             # the app's own choice: not a habit to learn (it would only learn from itself)
     else:
         site = body.get("site", "buccal")
+        if site not in tadmod.SITES:
+            raise HTTPException(400, "unknown site")
         p = np.array(body["point"], float)
         A = c.arch
         pr = _prefs(c, site)
-        size = tuple(body.get("size") or pr["size"])
+        size, product = _size_from(body, tuple(pr["size"]), pr.get("product"))
         if site == "palate":
             q = A.to_plane(p)
             side = "L" if q[0] >= 0 else "R"
@@ -768,6 +775,7 @@ def add_tad(cid: str, body: dict = Body(...)):
             raise HTTPException(400, "Could not reach the gum there along that direction - click a little further from the teeth.")
         t["gap"] = None
         t["hand"] = True
+        t["product"] = product
     t["id"] = _new_tad_id()
     t["metrics"] = c.ctx.measure(t)
     t["label"] = c.ctx.label(t)
@@ -775,6 +783,25 @@ def add_tad(cid: str, body: dict = Body(...)):
     c.state["stage"] = "plan"
     c.save()
     return _state(c)
+
+
+def _size_from(body, size, product):
+    """(diameter, length, collar) and the kit product from a request: {product: id} takes that TAD of the kit,
+    {size: [d, l, collar]} a size (and keeps the product when it is still that size); else what was there."""
+    pid = body.get("product")
+    if pid:
+        k = tadmod.KIT_BY_ID.get(pid)
+        if k is None:
+            raise HTTPException(400, "unknown TAD")
+        return (k["d"], k["l"], k["c"]), pid
+    if body.get("size"):
+        sz = [float(x) for x in body["size"]]
+        if len(sz) == 2:
+            sz.append(float(size[2]))
+        if not (1.0 <= sz[0] <= 3.0 and 4.0 <= sz[1] <= 20.0 and 0.0 <= sz[2] <= 6.0):
+            raise HTTPException(400, "That size is out of range.")
+        size = tuple(sz[:3])
+    return tuple(size), tadmod.product_for(size[0], size[1], product)
 
 
 def _replace_tad(c, tid, t):
@@ -795,7 +822,7 @@ def edit_tad(cid: str, tid: str, body: dict = Body(...)):
     t = next((x for x in c.state.get("tads") or [] if x["id"] == tid), None)
     if t is None:
         raise HTTPException(404, "no such TAD")
-    size = tuple(body.get("size") or (t["diameter"], t["length"], t.get("collar", 1.5)))
+    size, product = _size_from(body, (t["diameter"], t["length"], t.get("collar", 2.0)), t.get("product"))
     al = t["alpha"] + float(body.get("dalpha", 0))
     be = t["beta"] + float(body.get("dbeta", 0))
     if t["site"] == "palate":
@@ -816,6 +843,7 @@ def edit_tad(cid: str, tid: str, body: dict = Body(...)):
     n["from_suggestion"] = t.get("from_suggestion", False)
     n["edited"] = True
     n["hand"] = True                  # he moved, tilted or resized it: how he wants it
+    n["product"] = product
     n["metrics"] = c.ctx.measure(n)
     _replace_tad(c, tid, n)
     c.save()
@@ -840,6 +868,8 @@ def optimize_tad(cid: str, tid: str):
     n["edited"] = True
     n["from_suggestion"] = t.get("from_suggestion", False)
     n["hand"] = False                 # the angles are the fine-tune's now, not his (until he changes it again)
+    n["product"] = t.get("product")
+    n["metrics"]["status"], n["metrics"]["notes"] = tadmod.judge(n, n["metrics"])     # with the product's own notes
     _replace_tad(c, tid, n)
     c.save()
     return _state(c)
@@ -952,7 +982,7 @@ def _report(c):
                 pass
         notes = "".join(f"<li>{html.escape(n)}</li>" for n in m.get("notes") or [])
         rows.append(f"""<section class="tad"><h2>{html.escape(t.get('label',''))} <span class="st {m.get('status','')}">{html.escape(m.get('status',''))}</span></h2>
-<p><b>{t['diameter']} x {t['length']} mm</b>, collar {t.get('collar',1.5)} mm &middot; tilt {t.get('alpha',0):.0f}&deg; apical, {t.get('beta',0):.0f}&deg; mesiodistal</p>
+<p><b>{html.escape(tadmod.product_name(t))}</b>{'' if not t.get('product') else f" ({t['diameter']} x {t['length']} mm)"}, collar {t.get('collar',2.0)} mm &middot; tilt {t.get('alpha',0):.0f}&deg; apical, {t.get('beta',0):.0f}&deg; mesiodistal</p>
 <table><tr><td>Root clearance</td><td>{('none near' if (m.get('root_clearance') or 0) >= 20 else str(m.get('root_clearance','-')) + ' mm')}</td><td>Cortical bone (along the screw)</td><td>{m.get('cortical','-')} mm</td></tr>
 <tr><td>Soft tissue</td><td>{m.get('soft_tissue','-')} mm</td><td>Thread in bone</td><td>{m.get('bone_in_thread','-')} mm</td></tr></table>
 <ul>{notes}</ul><div class="imgs">{''.join(imgs)}</div></section>""")

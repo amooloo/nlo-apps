@@ -111,6 +111,8 @@
   .nudge span{font-weight:600;color:var(--grey-600)}
   .nudge button{min-height:28px;padding:2px 3px;border:1.5px solid var(--grey-200);border-radius:8px;background:#fff;font-weight:600;font-size:11px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .nudge button:hover{background:var(--grey-100)}
+  .tadc .nudge{grid-template-columns:66px repeat(4,1fr);gap:3px}
+  .tadc .nudge button{white-space:normal;line-height:1.1;padding:2px 1px;font-size:10.5px}
 
   .tadc{border:1.5px solid var(--grey-200);border-radius:12px;padding:10px 12px;margin-top:9px;background:#fff;cursor:pointer}
   .tadc.sel{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
@@ -265,7 +267,7 @@
                 <div><label class="f" title="Space between guide and enamel">Fit gap</label><input type="number" step="0.01" id="g_gap_teeth"></div>
                 <div><label class="f" title="Space over the gum">Gum relief</label><input type="number" step="0.05" id="g_gap_gum"></div>
                 <div><label class="f">Shell</label><input type="number" step="0.1" id="g_thickness"></div>
-                <div><label class="f" title="Passes the TAD head and the driver tip">Sleeve hole</label><input type="number" step="0.05" id="g_hole"></div>
+                <div><label class="f" title="Passes the TAD (a tomas-pin's collar is 2.8 mm wide) - and the driver tip, if it is to go down the sleeve: measure the tip and add 0.2 mm">Sleeve hole</label><input type="number" step="0.05" id="g_hole"></div>
                 <div><label class="f">Sleeve height</label><input type="number" step="0.5" id="g_sleeve_height"></div>
                 <div><label class="f" title="Space between the sleeve and the gum">Off the gum</label><input type="number" step="0.1" id="g_tissue_gap"></div>
               </div>
@@ -878,6 +880,17 @@ document.querySelectorAll('[data-sh]').forEach((b) => b.addEventListener('click'
   try { setCase(await post(`/api/cases/${state.id}/arch`, { side: b.dataset.sh, delta: +b.dataset.v })); } catch (e) { toast(e.message, true); }
 }));
 
+// the TAD's name: the kit product (tomas-pin SD 08, MSE TAD 1.8 x 11) or its size
+function tadName(t, short) { const k = (state.info?.kit || []).find((q) => q.id === t.product); return k ? (short && k.short || k.name) : `${t.diameter} × ${t.length}${short ? '' : ' mm'}`; }
+// the size list: Dr. A's kit (tomas-pins, the Great Lakes MSE TADs) grouped by product, then other sizes
+function sizeOptions(x) {
+  const groups = [];
+  for (const k of state.info?.kit || []) { let g = groups.find((q) => q.name === k.group); if (!g) groups.push(g = { name: k.group, items: [] }); g.items.push(k); }
+  let h = groups.map((g) => `<optgroup label="${esc(g.name)}">${g.items.map((k) => `<option value="k:${esc(k.id)}" ${x.product === k.id ? 'selected' : ''}>${esc(k.name)}</option>`).join('')}</optgroup>`).join('');
+  h += `<optgroup label="Other sizes">${(state.info?.sizes || []).map(([d, l]) => `<option value="s:${d}x${l}" ${!x.product && d === x.diameter && l === x.length ? 'selected' : ''}>${d} × ${l} mm</option>`).join('')}</optgroup>`;
+  if (!x.product && !(state.info?.sizes || []).some(([d, l]) => d === x.diameter && l === x.length)) h += `<option value="s:${x.diameter}x${x.length}" selected>${x.diameter} × ${x.length} mm</option>`;
+  return h;
+}
 function metHtml(m) {
   return `<div class="mets"><div><b>${fmtRoot(m.root_clearance)}</b><small>root mm</small></div><div><b>${fmt(m.cortical)}</b><small>cortex mm</small></div><div><b>${fmt(m.soft_tissue)}</b><small>tissue mm</small></div><div><b>${fmt(m.bone_in_thread)}</b><small>in bone mm</small></div></div>`;
 }
@@ -896,7 +909,7 @@ function renderPlan() {
     h += `<div class="hint" style="margin-top:10px"><b>${sg.items.length} site${sg.items.length === 1 ? '' : 's'}</b> found for ${esc(state.info?.sites?.[sg.site]?.label?.toLowerCase() || sg.site)}, best first:</div>`;
     for (const s of sg.items.slice(0, 8)) {
       const m = s.metrics;
-      h += `<div class="sugg"><div class="hd"><b>${esc(s.label)}</b><span class="chip ${m.status}">${m.status}</span><span class="hint" style="margin:0">${s.diameter}×${s.length}</span><button class="small" data-use="${esc(s.id)}" ${used.has(s.label) ? 'disabled' : ''}>${used.has(s.label) ? 'Placed' : 'Use'}</button></div>
+      h += `<div class="sugg"><div class="hd"><b>${esc(s.label)}</b><span class="chip ${m.status}">${m.status}</span><span class="hint" style="margin:0;white-space:nowrap">${esc(tadName(s, true))}</span><button class="small" data-use="${esc(s.id)}" ${used.has(s.label) ? 'disabled' : ''}>${used.has(s.label) ? 'Placed' : 'Use'}</button></div>
         <div class="kv"><span>root <b>${fmtRoot(m.root_clearance)}</b></span><span>cortex <b>${fmt(m.cortical)}</b></span><span>tissue <b>${fmt(m.soft_tissue)}</b></span><span>tilt <b>${fmt(s.alpha, 0)}°</b></span></div></div>`;
     }
   }
@@ -910,13 +923,13 @@ function renderPlan() {
   if (tl.length) t += `<label class="f" style="margin-top:14px">Placed (${tl.length})</label>`;
   for (const x of tl) {
     const m = x.metrics || {};
-    const sizes = (state.info?.sizes || []).map(([d, l]) => `<option value="${d}x${l}" ${d === x.diameter && l === x.length ? 'selected' : ''}>${d} × ${l} mm</option>`).join('');
+    const sizes = sizeOptions(x);
     t += `<div class="tadc${x.id === state.sel ? ' sel' : ''}" data-t="${esc(x.id)}">
-      <div class="hd"><b>${esc(x.label)}</b><span class="chip ${m.status || ''}">${esc(m.status || '')}</span><span class="hint" style="margin:0 0 0 auto">${x.diameter}×${x.length} · ${fmt(x.alpha, 0)}°</span></div>
+      <div class="hd"><b>${esc(x.label)}</b><span class="chip ${m.status || ''}">${esc(m.status || '')}</span><span class="hint" style="margin:0 0 0 auto">${esc(tadName(x))} · ${fmt(x.alpha, 0)}°</span></div>
       ${metHtml(m)}
       <ul class="notes">${(m.notes || []).map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
       <div class="tools">
-        <div class="row" style="grid-template-columns:1fr auto;align-items:end"><div><label class="f">Size</label><select data-size>${sizes}</select></div><div><label class="f">Collar</label><input type="number" step="0.5" min="0" max="5" value="${x.collar ?? 1.5}" data-collar style="width:74px"></div></div>
+        <div class="row" style="grid-template-columns:1fr auto;align-items:end"><div><label class="f">TAD</label><select data-size>${sizes}</select></div><div><label class="f">Collar</label><input type="number" step="0.5" min="0" max="5" value="${x.collar ?? 2}" data-collar style="width:74px"></div></div>
         <div class="nudge"><span>Along the arch</span><button data-e="ds" data-v="-0.5">mesial ½</button><button data-e="ds" data-v="0.5">distal ½</button><button data-e="ds" data-v="-1.5">mesial 1½</button><button data-e="ds" data-v="1.5">distal 1½</button></div>
         <div class="nudge"><span>Height</span><button data-e="da" data-v="1">apical 1</button><button data-e="da" data-v="-1">occlusal 1</button><button data-e="da" data-v="0.5">apical ½</button><button data-e="da" data-v="-0.5">occlusal ½</button></div>
         <div class="nudge"><span>Tilt (apical)</span><button data-e="dalpha" data-v="5">more 5°</button><button data-e="dalpha" data-v="-5">less 5°</button><button data-e="dbeta" data-v="-5">mesial 5°</button><button data-e="dbeta" data-v="5">distal 5°</button></div>
@@ -929,7 +942,11 @@ function renderPlan() {
     const id = el.dataset.t;
     el.addEventListener('click', (e) => { if (e.target.closest('.tools')) return; state.sel = state.sel === id ? null : id; renderPlan(); updateSlices(); });
     el.querySelectorAll('[data-e]').forEach((b) => b.addEventListener('click', () => editTad(id, { [b.dataset.e]: +b.dataset.v })));
-    el.querySelector('[data-size]')?.addEventListener('change', (e) => { const [d, l] = e.target.value.split('x').map(Number); const tt = tl.find((q) => q.id === id); editTad(id, { size: [d, l, tt.collar ?? 1.5] }); });
+    el.querySelector('[data-size]')?.addEventListener('change', (e) => {
+      const v = e.target.value, tt = tl.find((q) => q.id === id);
+      if (v.startsWith('k:')) editTad(id, { product: v.slice(2) });
+      else { const [d, l] = v.slice(2).split('x').map(Number); editTad(id, { size: [d, l, tt.collar ?? 2] }); }
+    });
     el.querySelector('[data-collar]')?.addEventListener('change', (e) => { const tt = tl.find((q) => q.id === id); editTad(id, { size: [tt.diameter, tt.length, +e.target.value] }); });
     el.querySelector('[data-opt]')?.addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/tads/${id}/optimize`)); toast('Moved to the best spot within 1.5 mm and 8°.'); } catch (e) { toast(e.message, true); } });
     el.querySelector('[data-del]')?.addEventListener('click', async () => { if (!confirm('Remove this TAD?')) return; try { setCase(await api(`/api/cases/${state.id}/tads/${id}`, { method: 'DELETE' })); if (state.sel === id) state.sel = null; } catch (e) { toast(e.message, true); } });

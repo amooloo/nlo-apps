@@ -29,9 +29,9 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    soft tissue and bone along the thread, and a status (ok / caution / stop).
    **Use** places one; **Place by clicking** puts one where you click on the gum. Click a placed TAD to edit it:
    three slices along and across the screw (the red tint is what the app counted as root), mesial / distal,
-   up / down, tilt, depth, size, **Fine-tune here** (the best spot within 1.5 mm and 8°), **Remove**.
-   Sites: buccal between roots (upper and lower), palatal between roots, infrazygomatic crest, buccal shelf,
-   paramedian palate.
+   up / down, tilt, depth, which TAD (below) and its collar, **Fine-tune here** (the best spot within 1.5 mm
+   and 8°), **Remove**. Sites: buccal between roots (upper and lower), palatal between roots, infrazygomatic
+   crest, buccal shelf, paramedian palate.
 5. **Guide.** **Make the guide** (10-30 s) and look at it in 3D with the TADs. Download the **Guide STL** (in the
    coordinates of the original scan file, so it lines up with the scan in any program), the **TADs STL** to
    check against, and **Plan / print** for the chart (site, size, angles, the numbers, the drilling notes and the
@@ -43,6 +43,24 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
 
 **Delete case** removes a case and its files at once. Finished cases stay in the list until they are deleted
 after the number of days in Settings (30 by default, counted from the last change).
+
+## The TADs in the list
+
+NLO uses Dentaurum **tomas-pins** and the Korean **MSE TADs** from Great Lakes, so those are what the app plans
+with (the TAD card's list, the plan, the lessons):
+
+| TAD | Thread | Collar | Notes | Default for |
+| --- | --- | --- | --- | --- |
+| tomas-pin SD 06 / 08 / 10 | 1.6 × 6 / 8 / 10 mm | 2.0 mm | cross-slot head (0.56 mm / .022), self-drilling; 2.5 mm hexagon for the driver | buccal between roots (SD 08) |
+| tomas-pin EP 06 / 08 / 10 | 1.6 × 6 / 8 / 10 mm | 2.0 mm | mushroom head, for the palate | palatal between roots (EP 10) |
+| MSE Type-2 TAD 1.8 × 9 / 11 / 13 | 1.8 × 9 / 11 / 13 mm | 2.0 mm (assumed) | BioMaterials Korea, sold by Great Lakes (11 and 13 mm); for the MSE | paramedian palate (11) |
+
+The tomas numbers are from Dentaurum's instructions (collar 2.0 mm high, 2.8 mm wide; head 2.3 mm). On a tomas-pin
+with 2 mm or more of cortex, the check adds Dentaurum's own step: pilot with the tomas-drill SD 1.1 (4 mm). The
+MSE TAD's collar is not published: 2.0 mm is assumed - if yours differs, change the collar on the TAD card once
+(the app learns it from there). *Other sizes* in the list are for the infrazygomatic crest (default 2.0 × 12)
+and the buccal shelf (2.0 × 10), which want longer, thicker screws than the kit has. The list is `KIT` in
+`tadguide/tads.py`.
 
 ## What the numbers mean
 
@@ -67,9 +85,11 @@ buccal sites come out caution / stop. The slices are what to trust: they show ex
 - Tooth-borne: covers the crowns from two teeth in front of the first TAD to two behind the last (1-3 in the
   guide box), with the undercuts blocked out along the direction it goes on, so it seats and comes off.
 - Fit: 0.10 mm gap on the teeth, 0.30 mm relief over the gum, 2.2 mm shell.
-- Each TAD gets a sleeve: 3.2 mm hole (passes the TAD head and the driver tip), 1.6 mm wall, 4 mm tall, 0.5 mm
-  off the gum. The sleeve guides the driver; the **driver stop** in the plan says how far the sleeve top is above
-  the seated head, so depth can be checked on the driver.
+- Each TAD gets a sleeve: 3.2 mm hole, 1.6 mm wall, 4 mm tall, 0.5 mm off the gum. 3.2 mm passes the TADs
+  (a tomas-pin's collar is 2.8 mm wide, its head 2.3 mm). For the driver to go down the sleeve as well, measure
+  the tip of the driver you use (tomas applicator / driver, the MSE driver) and set the hole 0.2 mm wider than
+  it - the guide box keeps it for the next guides. Then the sleeve guides the driver, and the **driver stop** in
+  the plan says how far the sleeve top is above the seated head, so depth can be checked on the driver.
 - When TADs on both sides cannot all be reached along one seating direction (brackets, a bulging crown in the
   way), it makes **one guide per side**, each with its own direction; the result line says so.
 - The result line says whether it is watertight, in one piece (or one per side) and every sleeve hole clear,
@@ -82,7 +102,7 @@ buccal sites come out caution / stop. The slices are what to trust: they show ex
 | What | From | Used for |
 | --- | --- | --- |
 | The match (rotation from scan to CBCT) | each accepted case, per scanner and arch | tried first on the next scan from the same scanner - usually the first try is right |
-| TAD habits | the TADs placed by clicking or moved / tilted / resized by hand, per site and arch (a suggestion used as it came is the app's own choice and doesn't count) | from the second one on, the site finder starts from their median depth and tilt and the most used screw size |
+| TAD habits | the TADs placed by clicking or moved / tilted / changed by hand, per site and arch (a suggestion used as it came is the app's own choice and doesn't count) | from the second one on, the site finder starts from their median depth and tilt and the TAD used most (tomas-pin SD 08, say) |
 | Guide fit | the tight / good / loose reports | each *tight* on the teeth adds 0.03 mm to the fit gap, each *loose* takes 0.02 off; driver in sleeve: +0.10 / -0.05 mm on the hole |
 | CBCT levels | only cases where the levels were changed by hand | the median change, per CBCT machine, added to each new scan's own automatic levels |
 

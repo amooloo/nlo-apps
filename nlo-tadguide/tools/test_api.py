@@ -53,8 +53,16 @@ def main(d):
     st = cl.patch(f"/api/cases/{cid}/tads/{tid}", json=dict(ds=0.5, dalpha=5)).json()
     st = cl.post(f"/api/cases/{cid}/tads/{tid}/optimize").json()
     assert [t["hand"] for t in st["tads"]] == [False, False], [t.get("hand") for t in st["tads"]]   # suggestion; fine-tune
+    assert st["tads"][0]["product"] == "tomas-sd-08", st["tads"][0].get("product")             # the kit's buccal default
     st = cl.patch(f"/api/cases/{cid}/tads/{tid}", json=dict(size=[1.6, 10.0, 1.5])).json()     # his change after the fine-tune
     assert [t["hand"] for t in st["tads"]] == [False, True], [t.get("hand") for t in st["tads"]]
+    t1 = st["tads"][1]
+    assert (t1["product"], t1["length"], t1["collar"]) == ("tomas-sd-10", 10.0, 1.5), t1        # same size: still a tomas-pin
+    st = cl.patch(f"/api/cases/{cid}/tads/{tid}", json=dict(product="tomas-ep-08")).json()
+    t1 = st["tads"][1]
+    assert (t1["product"], t1["diameter"], t1["length"], t1["collar"]) == ("tomas-ep-08", 1.6, 8.0, 2.0), t1
+    rep0 = cl.get(f"/api/cases/{cid}/file/report").text
+    assert "tomas-pin SD 08" in rep0 and "tomas-pin EP 08" in rep0
     print("TADs:", [(t["label"], t["metrics"]["status"], t["metrics"]["root_clearance"], t["metrics"]["cortical"]) for t in st["tads"]])
     for v in ("tad_md", "tad_bl", "tad_x"):
         png = cl.get(f"/api/cases/{cid}/slice.png?view={v}&tad={tid}")
@@ -75,6 +83,7 @@ def main(d):
     st = cl.post(f"/api/cases/{cid}/feedback", json=dict(fit="tight", sleeve="good")).json()
     les = next(x for x in s2.lessons.load_all() if x["id"] == st["lesson_id"])
     assert [t["hand"] for t in les["tads"]] == [False, True], les["tads"]       # only his own TAD teaches habits
+    assert [t["product"] for t in les["tads"]] == ["tomas-sd-08", "tomas-ep-08"], les["tads"]
     name = s2.CASES[cid].state["patient"]
     assert les["feedback"]["fit"] == "tight" and name and name.lower() not in json.dumps(les).lower(), name   # no name in it
     print("lesson", st["lesson_id"], "learn:", cl.get("/api/learn").json())

@@ -16,23 +16,59 @@ from scipy import ndimage as ndi
 
 from . import volume as V
 
+# The TADs NLO uses (Dr. A, 10/20/2026): Dentaurum tomas-pins, and the Korean MSE TADs Great Lakes sells (BioMaterials
+# Korea, for the MSE Type-2). Thread diameter d, thread length l and gingival collar c in mm, as the makers give them:
+#   tomas-pin SD / EP (instructions 989-534-00): thread 1.6 mm, 6 / 8 / 10 mm, collar 2.0 mm high (2.8 mm wide);
+#     head 2.3 mm wide - SD with the cross slot (0.56 mm / .022), EP the mushroom head for the palate; driven by a
+#     2.5 mm hexagon. Pilot drill (1.1 mm, 4 mm deep) only where the cortex is 2 mm or more.
+#   MSE Type-2 TAD (Great Lakes 281-004): 1.8 x 11 and 1.8 x 13 mm (BMK also makes 1.8 x 9). The collar is not
+#     published: 2.0 mm is assumed - change it on the TAD card if it differs.
+_KIT_ROWS = [
+    ("tomas-sd-06", "tomas-pin SD 06", "tomas-pin SD (Dentaurum)", 1.6, 6.0, 2.0),
+    ("tomas-sd-08", "tomas-pin SD 08", "tomas-pin SD (Dentaurum)", 1.6, 8.0, 2.0),
+    ("tomas-sd-10", "tomas-pin SD 10", "tomas-pin SD (Dentaurum)", 1.6, 10.0, 2.0),
+    ("tomas-ep-06", "tomas-pin EP 06", "tomas-pin EP, palatal (Dentaurum)", 1.6, 6.0, 2.0),
+    ("tomas-ep-08", "tomas-pin EP 08", "tomas-pin EP, palatal (Dentaurum)", 1.6, 8.0, 2.0),
+    ("tomas-ep-10", "tomas-pin EP 10", "tomas-pin EP, palatal (Dentaurum)", 1.6, 10.0, 2.0),
+    ("mse-09", "MSE TAD 1.8 x 9", "MSE Type-2 TAD (Great Lakes, Korea)", 1.8, 9.0, 2.0),
+    ("mse-11", "MSE TAD 1.8 x 11", "MSE Type-2 TAD (Great Lakes, Korea)", 1.8, 11.0, 2.0),
+    ("mse-13", "MSE TAD 1.8 x 13", "MSE Type-2 TAD (Great Lakes, Korea)", 1.8, 13.0, 2.0),
+]
+KIT = [dict(id=i, name=n, group=g, d=d, l=l, c=c, short=n.replace('tomas-pin ', '').replace('MSE TAD 1.8 x ', 'MSE 1.8×')) for i, n, g, d, l, c in _KIT_ROWS]
+KIT_BY_ID = {k["id"]: k for k in KIT}
+
 SITES = {
     # site: label, arches, default apical depth of the entry (mm from the occlusal plane), tilt toward apical (deg),
-    #       size (diameter, thread length, collar), the gaps (contacts) it goes between by default
+    #       size (diameter, thread length, collar) and the kit product it is, the gaps (contacts) it goes between
     "buccal":  dict(label="Buccal, between roots", arches=("upper", "lower"), a={"upper": 11.0, "lower": 10.0},
-                    alpha={"upper": 25.0, "lower": 15.0}, size={"upper": (1.6, 8.0, 1.5), "lower": (1.6, 8.0, 1.5)},
-                    gaps={"upper": (3, 4, 5, 6), "lower": (3, 4)}),
+                    alpha={"upper": 25.0, "lower": 15.0}, size={"upper": (1.6, 8.0, 2.0), "lower": (1.6, 8.0, 2.0)},
+                    product={"upper": "tomas-sd-08", "lower": "tomas-sd-08"}, gaps={"upper": (3, 4, 5, 6), "lower": (3, 4)}),
     "palatal": dict(label="Palatal, between roots", arches=("upper",), a={"upper": 9.0}, alpha={"upper": 30.0},
-                    size={"upper": (1.6, 10.0, 2.0)}, gaps={"upper": (5, 6)}),
+                    size={"upper": (1.6, 10.0, 2.0)}, product={"upper": "tomas-ep-10"}, gaps={"upper": (5, 6)}),
     "izc":     dict(label="Infrazygomatic crest", arches=("upper",), a={"upper": 14.0}, alpha={"upper": 65.0},
-                    size={"upper": (2.0, 12.0, 3.0)}, gaps={"upper": (6,)}),
+                    size={"upper": (2.0, 12.0, 3.0)}, product={}, gaps={"upper": (6,)}),
     "shelf":   dict(label="Buccal shelf", arches=("lower",), a={"lower": 9.0}, alpha={"lower": 75.0},
-                    size={"lower": (2.0, 10.0, 2.0)}, gaps={"lower": (6,)}),
+                    size={"lower": (2.0, 10.0, 2.0)}, product={}, gaps={"lower": (6,)}),
     "palate":  dict(label="Palate (paramedian)", arches=("upper",), a={"upper": 0.0}, alpha={"upper": 0.0},
-                    size={"upper": (2.0, 8.0, 1.0)}, gaps={"upper": (4,)}),
+                    size={"upper": (1.8, 11.0, 2.0)}, product={"upper": "mse-11"}, gaps={"upper": (4,)}),
 }
 
-SIZES = [(1.4, 6), (1.4, 8), (1.6, 6), (1.6, 8), (1.6, 10), (1.8, 8), (1.8, 10), (2.0, 8), (2.0, 10), (2.0, 12), (1.5, 11), (1.5, 13)]
+# other sizes (not in the kit) - for the infrazygomatic crest and the buccal shelf, which want longer, thicker screws
+SIZES = [(1.4, 6), (1.4, 8), (1.5, 11), (1.5, 13), (1.6, 12), (1.8, 8), (1.8, 10), (2.0, 8), (2.0, 10), (2.0, 12), (2.0, 14)]
+
+
+def product_for(d, l, prefer=None):
+    """The kit product with this thread diameter and length - the preferred one when it fits (tomas SD and EP have
+    the same sizes) - or None for a size that is not in the kit."""
+    fits = lambda k: abs(k["d"] - float(d)) < 1e-6 and abs(k["l"] - float(l)) < 1e-6
+    if prefer in KIT_BY_ID and fits(KIT_BY_ID[prefer]):
+        return prefer
+    return next((k["id"] for k in KIT if fits(k)), None)
+
+
+def product_name(t):
+    k = KIT_BY_ID.get(t.get("product") or "")
+    return k["name"] if k else f"{t.get('diameter')} x {t.get('length')} mm"
 
 
 def unit(v):
@@ -418,7 +454,7 @@ def judge(tad, m):
     if c < 0.5:
         worse("stop"); notes.append(f"Dense structure (likely a root) {max(c, 0):.1f} mm from the thread - too close.")
     elif c < 1.0:
-        worse("caution"); notes.append(f"Root clearance {c:.1f} mm - under 1 mm; aim for 1.2-1.6 mm.")
+        worse("caution"); notes.append(f"Root clearance {c:.2f} mm - under 1 mm; aim for 1.2-1.6 mm.")
     elif c < 1.2:
         notes.append(f"Root clearance {c:.1f} mm.")
     ct = m["cortical"]
@@ -431,6 +467,8 @@ def judge(tad, m):
         notes.append(f"Cortical bone {ct:.1f} mm along the screw: perforate the cortex first.")
     else:
         notes.append(f"Cortical bone {ct:.1f} mm along the screw: perforate the cortex + pilot hole ~3 mm into cancellous.")
+    if str(tad.get("product") or "").startswith("tomas") and ct >= 2.0:
+        notes.append("tomas instructions: cortex 2 mm or more - pilot with the tomas-drill SD 1.1 (4 mm deep, 800 rpm).")
     if m["soft_tissue"] > 3.0:
         notes.append(f"Soft tissue {m['soft_tissue']:.1f} mm (> 3 mm): fine not to seat the collar all the way; consider a longer collar.")
     if m["bone_fraction"] < 0.75:
