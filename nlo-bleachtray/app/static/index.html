@@ -240,6 +240,13 @@
   /* which model of the case is on screen: one icon per model (whitening / retainer / mouthguard, upper / lower); greyed = not in this case */
   .modelTog{position:absolute;bottom:12px;right:12px;z-index:2;display:none;gap:4px;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:14px;padding:5px;box-shadow:var(--sh-sm);backdrop-filter:blur(6px)}
   .modelTog.on{display:flex}
+  /* standard views of the model (the doctor, 10/19/2026): a column at the right edge of the viewer, above the model icons (an open
+     Position / Text box covers it) */
+  .viewPick{position:absolute;right:12px;bottom:86px;z-index:1;display:none;flex-direction:column;gap:3px;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:12px;padding:5px;box-shadow:var(--sh-sm);backdrop-filter:blur(6px)}
+  .viewPick.on{display:flex}
+  .viewPick button{min-width:58px;padding:6px 8px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--grey-600,#4b5563);font-size:12px;font-weight:600;cursor:pointer;text-align:center}
+  .viewPick button:hover{background:var(--grey-100);color:var(--navy)}
+  .viewPick button.on{background:var(--navy);color:#fff}
   .mbtn{position:relative;width:66px;height:56px;border-radius:10px;border:1.5px solid transparent;background:transparent;color:var(--grey-500);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
   .mbtn:hover{background:var(--grey-100);color:var(--navy)}
   .mbtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
@@ -380,6 +387,14 @@
           <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applytext">Apply</button></div>
         </div>
         <div class="modelTog" id="modeltog"></div>
+        <div class="viewPick" id="viewpick" title="Look at the model from a side">
+          <button data-view="top" title="From above (the biting surfaces)">Top</button>
+          <button data-view="front" title="From the front">Front</button>
+          <button data-view="right" title="The patient's right side">Right</button>
+          <button data-view="left" title="The patient's left side">Left</button>
+          <button data-view="back" title="From behind (the tongue / palate side)">Back</button>
+          <button data-view="below" title="From below (the base plate, see-through)">Below</button>
+        </div>
         <div class="stats" id="stats">Drop a scan to begin.</div>
         <div id="fatal"></div>
         <div id="errline"></div>
@@ -1268,7 +1283,7 @@ async function selectJob(id){
 
 // ---------- progress while a case is being processed ----------
 function renderProgress(j){
-  $('#modeltog').classList.remove('on');
+  $('#modeltog').classList.remove('on'); $('#viewpick').classList.remove('on');
   const p = j.progress || { frac: 0, label: 'starting' };
   const pct = Math.round(100 * Math.min(1, p.frac));
   const el = j.started ? Math.max(0, Math.round(Date.now() / 1000 - j.started)) : 0;
@@ -1304,7 +1319,7 @@ window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev
 // the viewer goes blank: no model, no boxes, no case selected (after Discard, or moving a case out of the list)
 function clearViewer(msg){
   clearInterval(pollTimer); currentJob = null;
-  $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Drop a scan to begin.'; $('#modeltog').classList.remove('on');
+  $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Drop a scan to begin.'; $('#modeltog').classList.remove('on'); $('#viewpick').classList.remove('on');
   clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; markMesh = null; pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null;
   forgetEdits(); renderPanel(); syncPanels(); requestRender(); refreshJobs(); searchHistory();
 }
@@ -1425,7 +1440,7 @@ function renderModelToggle(id, j){
     const ghost = k < 0 && t === 'MG' && a === 'upper' && hasUpper && canAsk;   // not made yet: grey, a click asks
     return `<button class="mbtn ${k === scanIdx ? 'on' : ''} ${ghost ? 'ghost' : ''}" data-scan="${k}" ${ghost ? 'data-ask="upper"' : ''} ${k < 0 && !ghost ? 'disabled' : ''} title="${name}${ghost ? ' — not made yet: click to add one' : (k < 0 ? ' — not in this case' : '')}"><span class="ic" style="--m:url(/static/img/ic_${ic}.png)"></span>${t === 'MG' || !t ? `<span class="badge">${a === 'upper' ? 'U' : 'L'}</span>` : ''}</button>`;
   }).join('');
-  box.classList.toggle('on', scans.length > 0);
+  box.classList.toggle('on', scans.length > 0); $('#viewpick').classList.toggle('on', scans.length > 0);
   box.querySelectorAll('.mbtn:not([disabled]):not([data-ask])').forEach(b => b.onclick = () => { if (+b.dataset.scan === scanIdx) return; scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
   box.querySelectorAll('.mbtn[data-ask]').forEach(b => b.onclick = () => askMouthguard(id, b));
 }
@@ -1712,6 +1727,33 @@ function setBaseLook(){ if (baseMat) { baseMat.opacity = underside ? .55 : 1; ba
 function lookUnder(auto){ if (auto) { if (autoFlipped) return; autoFlipped = true; } if (underside) return; underside = true; setBaseLook(); controls.target.set(12, -18, 2); camera.position.set(12, -45, -175); controls.update(); requestRender(); }
 function lookTop(){ underside = false; setBaseLook(); controls.target.set(0, -15, 5); camera.position.set(0, 105, 70); controls.update(); requestRender(); }
 $('#viewUnder').onclick = () => lookUnder(false); $('#viewTop').onclick = lookTop;
+// ---- standard views: Top, Front, Right, Left, Back, Below (the doctor, 10/19/2026), framing whatever the tab shows.
+// The model's frame: +y anterior, z up = the biting surfaces, x across the arch - the patient's right is +x on a lower
+// and -x on an upper (an upper sits teeth-up on its base, turned over about the front-back line)
+function shownBox(){
+  const b = new THREE.Box3();
+  Object.values(groups).forEach(g => { if (g.visible && g.children.length) b.expandByObject(g); });
+  return b.isEmpty() ? null : b;
+}
+function viewFrom(name){
+  const box = shownBox(); if (!box) return;
+  const right = curArch === 'upper' ? -1 : 1;
+  const dirs = { top: [0, -0.02, 1], below: [0, -0.02, -1], front: [0, 1, 0.14], back: [0, -1, 0.14], right: [right, 0, 0.14], left: [-right, 0, 0.14] };
+  const v = new THREE.Vector3(...dirs[name]).normalize(), c = box.getCenter(new THREE.Vector3());
+  // back off just far enough that every corner of the box fits the screen (with a little margin), not the whole bounding sphere
+  const f = v.clone().negate(), rt = new THREE.Vector3().crossVectors(f, camera.up).normalize(), up = new THREE.Vector3().crossVectors(rt, f);
+  const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), pad = 1.12;
+  let d = 0;
+  for (let i = 0; i < 8; i++) {
+    const p = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).sub(c);
+    d = Math.max(d, p.dot(v) + pad * Math.max(Math.abs(p.dot(up)) / t, Math.abs(p.dot(rt)) / (t * camera.aspect)));
+  }
+  if ((name === 'below') !== underside) { underside = name === 'below'; setBaseLook(); }   // from below the plate goes see-through
+  controls.target.copy(c); camera.position.copy(c).addScaledVector(v, d); controls.update(); requestRender();
+  document.querySelectorAll('#viewpick [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === name));
+}
+document.querySelectorAll('#viewpick [data-view]').forEach(b => b.onclick = () => viewFrom(b.dataset.view));
+controls.addEventListener('start', () => document.querySelectorAll('#viewpick [data-view].on').forEach(b => b.classList.remove('on')));   // turned by hand: no view is current
 // ---- dragging the plate (slide) or the ring (turn)
 const pray = new THREE.Raycaster(), ndc = new THREE.Vector2();   // picking for the base handles
 let drag = null;   // { kind: 'move'|'turn', p0, start, c }

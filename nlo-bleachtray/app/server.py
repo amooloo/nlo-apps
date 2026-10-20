@@ -1361,6 +1361,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
             _add_scans(job, path, fn, arch, preset, variants=per_file.get(k), braces_on=per_braces.get(k))
         nm = f"{first} {last}".strip() or (name if single else "") or job["scans"][0]["name"]
         job["name"] = ("".join(c for c in nm if c.isalnum() or c in "-_ ").strip() or "case").replace(" ", "_")
+        _link_tracker(job, log=lambda m: job.setdefault("log", []).append(m))
         JOBS[jid] = job
         _save_case(job)
         ids.append(jid)
@@ -1733,17 +1734,78 @@ def approve(jid: str, request: Request, patient_first: str = Form(""), patient_l
     return _review_view(job)
 
 
-def _tell_tracker(job):
-    """The case came from NLO Cases: a sealed note to its inbox that the models are in OrthoFactory (the case
-    notes it and leaves the queue). Never fails the Send."""
-    cid = (job.get("params") or {}).get("tracker_case") or ""
-    if not cid or not TRACKER.state().get("linked"):
+def _match_tracker(job):
+    """A case made here without clicking it in the NLO Cases queue (the scan was dropped straight on the page): the
+    queue's case for the same patient - the same name, or one a slip of the keyboard away (Anablle / Annabelle) when
+    the last name, the arch and what is made agree too - and, when the patient has more than one waiting, the one
+    for what is made here. None unless exactly one fits (a sibling's case is never taken by a near name: a near
+    name must be the only case close to it)."""
+    import difflib
+    p = job.get("params") or {}
+    first, last = (p.get("patient_first") or "").strip(), (p.get("patient_last") or "").strip()
+    if not (first and last) or not TRACKER.state().get("linked"):
+        return None
+    norm = lambda t: re.sub(r"[^a-z]", "", (t or "").lower())
+    me, my_last = norm(first + last), norm(last)
+    tags = {sc.get("tag") for sc in job.get("scans") or []}
+    arches = {sc.get("arch") for sc in job.get("scans") or [] if sc.get("arch")}
+    exact, near = [], []
+    for it in TRACKER.queue():
+        words = (it.get("patient") or "").split()
+        nm = norm("".join(words))
+        if not nm:
+            continue
+        if nm == me:
+            exact.append(it)
+        elif words and norm(words[-1]) == my_last and difflib.SequenceMatcher(None, nm, me).ratio() >= 0.85 \
+                and set(it.get("make") or []) & tags and (not it.get("arches") or not arches or set(it["arches"]) & arches):
+            near.append(it)
+    cands = exact or near
+    if len(cands) > 1:
+        fit = [it for it in cands if set(it.get("make") or []) & tags]
+        cands = fit if fit else cands
+    return cands[0] if len(cands) == 1 else None
+
+
+def _link_tracker(job, log=None):
+    """Tie the case to its NLO Cases case by name when it was not picked from the queue (see _match_tracker)."""
+    p = job.setdefault("params", {})
+    if p.get("tracker_case"):
+        return p["tracker_case"]
+    try:
+        it = _match_tracker(job)
+    except Exception as ex:  # noqa
+        it = None
+        if log:
+            log(f"NLO Cases queue not searched: {ex}")
+    if not it:
+        return ""
+    p["tracker_case"] = it["case"]
+    if log:
+        log(f"NLO Cases: tied to the case waiting under To make for {it.get('patient') or 'this patient'} ({', '.join(it.get('make') or [])}) - matched by name")
+    return it["case"]
+
+
+def _tell_tracker(job, how="orthofactory"):
+    """The case is in NLO Cases (picked from the queue, or matched by name): a sealed note to its inbox that the models
+    are in OrthoFactory (`how` "orthofactory": Send) or on their way to the printer ("printer": PreForm) - the case notes
+    them and moves on from To make to Printing (the doctor, 10/19/2026). Once per case and kind. Never fails the Send."""
+    if not TRACKER.state().get("linked"):
+        return
+    job.setdefault("log", [])
+    cid = _link_tracker(job, log=lambda m: job["log"].append(m))
+    if not cid:
+        return
+    told = job.setdefault("tracker_told_how", [])
+    if how in told:
         return
     try:
         models = [" ".join(x for x in (sc.get("arch"), sc.get("tag")) if x) for sc in job["scans"]]
-        TRACKER.sent_models(cid, f"{job['params'].get('patient_first', '')} {job['params'].get('patient_last', '')}".strip(), models)
-        job["log"].append(f"NLO Cases told: models for case {cid} are in OrthoFactory ({', '.join(models)})")
+        TRACKER.sent_models(cid, f"{job['params'].get('patient_first', '')} {job['params'].get('patient_last', '')}".strip(), models, how=how)
+        job["log"].append(f"NLO Cases told: models for case {cid} " + ("are in OrthoFactory" if how == "orthofactory" else "went to the printer")
+                          + f" ({', '.join(models)}) - it moves to Printing")
         job["tracker_told"] = time.time()
+        told.append(how)
     except Exception as ex:  # noqa
         job["log"].append(f"NLO Cases not told (the case tracker link): {ex}")
 
@@ -1757,6 +1819,9 @@ def open_preform(jid: str):
     job.setdefault("log", [])
     ok, msg = _open_in_preform(job, log=lambda m: job["log"].append(m))
     job["preform"] = dict(ok=ok, message=msg, when=time.time())
+    if ok:
+        _tell_tracker(job, how="printer")      # on its way to the printer: NLO Cases moves it to Printing
+        _save_case(job)
     return {"ok": ok, "message": msg}
 
 
@@ -1773,6 +1838,8 @@ def file_prints(jid: str):
         files = _write_prints(job, log=lambda m: job["log"].append(m))
     if not files:
         raise HTTPException(400, job.get("print_error") or "no finished model to file")
+    _tell_tracker(job, how="printer")          # opened in PreForm on another PC: on its way to the printer
+    _save_case(job)
     return {"files": _print_files_unc(job), "folder": _to_unc(job.get("print_folder") or "")}
 
 
@@ -1838,6 +1905,7 @@ def resend(jid: str, request: Request):
     _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
     if job.get("review") == "sent":
         job["sent_at"] = time.time()
+        _tell_tracker(job)
     _save_case(job)
     return _review_view(job)
 

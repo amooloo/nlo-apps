@@ -380,8 +380,9 @@ class Tracker:
         return out
 
     # ----- the note back
-    def sent_models(self, case_id, patient, models):
-        """The case's models went to OrthoFactory: a sealed note to NLO Cases' inbox (its case notes it and leaves the queue)."""
+    def sent_models(self, case_id, patient, models, how="orthofactory"):
+        """The case's models went to OrthoFactory (`how` "orthofactory") or to the printer ("printer"): a sealed note to
+        NLO Cases' inbox - its case notes them, moves on from To make to Printing, and leaves the queue."""
         if not self.fs or not case_id:
             return False
         ib = _fields(self.fs.get("meta/inbox"))
@@ -389,7 +390,8 @@ class Tracker:
         if not pub:
             raise RuntimeError("NLO Cases has no inbox key yet (Team & security → Email updates sets one up)")
         mid = "m" + secrets.token_hex(20)
-        payload = dict(bt=1, v=1, case=case_id, patient=patient, models=list(models or []), at=int(time.time() * 1000), pc=self.pc)
+        payload = dict(bt=1, v=1, case=case_id, patient=patient, models=list(models or []), at=int(time.time() * 1000), pc=self.pc,
+                       how=str(how or "")[:20])
         box = seal_to(pub, json.dumps(payload).encode(), "inbox:" + mid)
         w = dict(update=dict(name=self.fs.doc_name("inbox/" + mid),
                              fields=dict(kid=_fv(kid or ""), epk=_fv(box["epk"]), iv=_fv(box["iv"]), ct=_fv(box["ct"]))),

@@ -6,9 +6,11 @@
    delivery dates, who's on it - sealed to the Tray Maker's OWN public key (`labqkeys/<its login>`, which it publishes
    under the lab PC's robot login, the one the lab bridge uses: Team & security → Lab PC). The copy goes with the case's
    own write (same batch / transaction - backend.js) and is deleted the moment the case no longer waits: moved on from
-   To make, models noted, completed, deleted. When the Tray Maker sends the models to OrthoFactory it puts a sealed note
-   in the inbox (to the office inbox key, like the lab bridge's orders); tmSync below notes it on the case (btModels,
-   the same field the Make models button's message sets) and the case leaves the queue with that save.
+   To make, models noted, completed, deleted. When the Tray Maker sends the models to OrthoFactory (or opens them in
+   PreForm for the printer) it puts a sealed note in the inbox (to the office inbox key, like the lab bridge's orders);
+   tmSync below notes it on the case (btModels, the same field the Make models button's message sets) and moves the
+   case on from To make to Printing (Amir, 19 Oct 2026: "when I work on it and send it to the printer or Trimlign, it
+   should write back to the other app and move it to printing"); the case leaves the queue with that save.
    Needs the 19 Oct 2026 rules (`labq`, `labqkeys`); until they're live nothing is written (FB.labqOn). ---------- */
 const TM = { keys: null, keysAt: 0, warned: false };
 /* the Tray Maker's public key: the newest entry in labqkeys (one lab PC; a second would be another entry). Read at most
@@ -55,10 +57,19 @@ async function tmSync(docs, open, closed) {
     if (!c) { if (Date.now() - (d.at || Date.now()) > 7 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
     if (c.btModels && c.btModels.at && c.btModels.at >= at) { await B.inboxDelete(d.id).catch(() => { }); continue; } // noted already
     if (!(await B.inboxClaim(d.id))) continue; // another open app is on it
+    // how: 'orthofactory' (Send to Trimlign) or 'printer' (opened in PreForm); a note from before 19 Oct 2026 has none
+    const how = plainStr(m.how).slice(0, 20) === 'printer' ? 'printer' : 'orthofactory';
+    const log = { a: 'bt', models, how };
     try {
-      await B.mutateCase(c.id, x => { if (x.btModels && x.btModels.at && x.btModels.at >= at) return 'skip'; x.btModels = { at, models, pc: plainStr(m.pc).slice(0, 60) }; }, { a: 'bt', models });
-      const live = S.cases.get(c.id); if (live) { live.btModels = { at, models }; queueRender(); if (S.openId === c.id) renderDrawer(); }
-      toast('Models for ' + ptNameText(c.patient) + ' are in OrthoFactory (Tray Maker) — noted on the case');
+      await B.mutateCase(c.id, x => {
+        delete log.from; delete log.to;            // (the transaction can run this more than once)
+        if (x.btModels && x.btModels.at && x.btModels.at >= at) return 'skip';
+        x.btModels = { at, models, pc: plainStr(m.pc).slice(0, 60), how };
+        // the models are being made: To make -> Printing (only from To make - a case already further on stays where it is)
+        if (liveStage(x) === 'print' && caseStages(x).some(st => st[0] === 'printing')) { log.from = x.stage; log.to = 'printing'; x.stage = 'printing'; }
+      }, log);
+      const live = S.cases.get(c.id); if (live) { live.btModels = { at, models, how }; if (log.to) live.stage = log.to; queueRender(); if (S.openId === c.id) renderDrawer(); }
+      toast('Models for ' + ptNameText(c.patient) + (how === 'printer' ? ' went to the printer' : ' are in OrthoFactory') + ' (Tray Maker) — ' + (log.to ? 'moved to Printing' : 'noted on the case'));
       if (S.openId === c.id && !S.editing) loadHistory(c.id);
     } catch (e) { if (!(e && (e.code === 'skip' || e.code === 'gone'))) { if (window.console) console.warn('tray maker note:', e && e.message); continue; } }
     await B.inboxDelete(d.id).catch(() => { });
