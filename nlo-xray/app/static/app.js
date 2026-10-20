@@ -32,6 +32,8 @@
     mode: 'idle', anchorIdx: 0, anchorPts: {}, cur: null,
     pending: {}, saveTimer: 0, saving: null, undo: [], ruler: [], prevMode: null,
     ptr: null, hover: null, hoverPt: null, tips: true, space: false, raf: 0, settings: null, setTab: 'learn',
+    loupe: (() => { try { return localStorage.getItem('xr.loupe') !== '0'; } catch (e) { return true; } })(),
+    mouse: null,
   };
 
   // ------------------------------------------------------------------ server
@@ -695,8 +697,8 @@
         <button class="small" id="bRestart" type="button">Start over from S, N, Me</button></div>
         <p class="hint">Traced it in iOrtho? <button class="linkBtn" id="bIortho" type="button">Import iOrtho's tracing</button></p>`}
         <div class="keys">${S.case.status === 'confirmed'
-          ? 'Click a point, then where it belongs · <span class="kbd">Esc</span> leave it · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">F</span> fit · scroll to zoom'
-          : '<span class="kbd">Enter</span> right, next · <span class="kbd">Backspace</span> back · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">F</span> fit · scroll to zoom · drag a point to move it'}</div>`;
+          ? 'Click a point, then where it belongs · <span class="kbd">Esc</span> leave it · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">M</span> loupe · <span class="kbd">F</span> fit · scroll to zoom'
+          : '<span class="kbd">Enter</span> right, next · <span class="kbd">Backspace</span> back · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">M</span> loupe · <span class="kbd">F</span> fit · scroll to zoom · drag a point to move it'}</div>`;
     }
     body.innerHTML = html;
     setHint(hint);
@@ -1178,7 +1180,50 @@
     }
   }
 
-  function paint() { paintScene(ctx, S.view, S.dpr); updateTip(); }
+  function paint() { paintScene(ctx, S.view, S.dpr); updateTip(); scheduleLoupe(); }
+
+  // ------------------------------------------------------------------ the magnifying glass that follows the mouse
+  const LOUPE_D = 220;          // its size on screen (px)
+  let loupeRaf = 0;
+  function scheduleLoupe() {
+    if (!loupeRaf) loupeRaf = requestAnimationFrame(() => { loupeRaf = 0; drawLoupe(); });
+  }
+
+  function drawLoupe() {
+    const el = $('#loupe');
+    if (!el) return;
+    const p = S.ptr;
+    if (!S.loupe || !S.case || !S.img || !S.filtered || !S.mouse || $('#caseView').hidden
+        || document.querySelector('dialog[open]') || (p && p.pan && p.moved)) {
+      el.hidden = true;
+      return;
+    }
+    const D = LOUPE_D, dpr = S.dpr || 1;
+    if (el.width !== Math.round(D * dpr)) { el.width = Math.round(D * dpr); el.height = Math.round(D * dpr); }
+    const [sx, sy] = S.mouse;
+    const [ix, iy] = toImage(sx, sy);
+    const z = Math.max(S.view.scale * 1.5, Math.min(S.view.scale * 3, 8));   // about 3x what is on screen
+    const c2 = el.getContext('2d');
+    paintScene(c2, { scale: z, tx: D / 2 - ix * z, ty: D / 2 - iy * z }, dpr, { loupe: true });
+    c2.setTransform(dpr, 0, 0, dpr, 0, 0);                                     // the crosshair: where a click lands
+    c2.strokeStyle = 'rgba(100,244,201,.95)';
+    c2.lineWidth = 1;
+    const c = D / 2;
+    c2.beginPath();
+    c2.moveTo(c - 16, c); c2.lineTo(c - 5, c); c2.moveTo(c + 5, c); c2.lineTo(c + 16, c);
+    c2.moveTo(c, c - 16); c2.lineTo(c, c - 5); c2.moveTo(c, c + 5); c2.lineTo(c, c + 16);
+    c2.stroke();
+    el.style.left = `${sx - D / 2}px`;
+    el.style.top = `${sy - D / 2}px`;
+    el.hidden = false;
+  }
+
+  function toggleLoupe() {
+    S.loupe = !S.loupe;
+    $('#tLoupe').classList.toggle('on', S.loupe);
+    try { localStorage.setItem('xr.loupe', S.loupe ? '1' : '0'); } catch (e) { /* a private window: this page only */ }
+    scheduleLoupe();
+  }
 
   // ------------------------------------------------------------------ the pop-up that says what a point is
   function tipStatus(v) {
@@ -1206,7 +1251,8 @@
       html = `<div class="tHd"><span class="dot" style="background:${GROUP_COLORS[d.group]}"></span><b>${esc(code)}</b>${esc(d.name)}</div>`
         + `<div class="tDef">${esc(d.definition)}</div><div class="tSt">click it · ${S.anchorIdx + 1} of 3</div>`;
     } else if (S.hoverPt && P[S.hoverPt]) { code = S.hoverPt; at = toScreen(P[code].x, P[code].y); }
-    else if (S.mode === 'review' && S.cur && P[S.cur]) { code = S.cur; at = toScreen(P[S.cur].x, P[S.cur].y); }
+    // (not shown for the current point otherwise: the Tracing card and the hint already say what it is, and a
+    // box parked next to it covers the very spot to click)
     if (!code || !at || !S.lm[code]) { el.hidden = true; return; }
     if (!html) {
       const d = S.lm[code];
@@ -1217,9 +1263,18 @@
     if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
     el.hidden = false;
     const W = cv.clientWidth, H = cv.clientHeight, w = el.offsetWidth, h = el.offsetHeight;
-    let x = at[0] + 18, y = at[1] - h - 16;                      // above and to the right of the point...
-    if (x + w > W - 8) x = at[0] - w - 18;                       // ...or to its left near the right edge
-    if (y < 56) y = at[1] + 20;                                  // ...or below it near the top (the toolbar)
+    const loupeOn = S.loupe && S.mouse && !$('#loupe').hidden;
+    let x, y;
+    if (loupeOn) {                                               // beside the magnifying glass, not under it
+      const [mx, my] = S.mouse;
+      x = mx + LOUPE_D / 2 + 12;
+      y = my - h / 2;
+      if (x + w > W - 8) x = mx - LOUPE_D / 2 - 12 - w;
+    } else {
+      x = at[0] + 18; y = at[1] - h - 16;                        // above and to the right of the point...
+      if (x + w > W - 8) x = at[0] - w - 18;                     // ...or to its left near the right edge
+      if (y < 56) y = at[1] + 20;                                // ...or below it near the top (the toolbar)
+    }
     el.style.left = `${clamp(x, 8, Math.max(8, W - w - 8))}px`;
     el.style.top = `${clamp(y, 8, Math.max(8, H - h - 8))}px`;
   }
@@ -1257,6 +1312,8 @@
     cv.addEventListener('pointermove', (e) => {
       const r = cv.getBoundingClientRect();
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
+      S.mouse = [sx, sy];
+      scheduleLoupe();
       const p = S.ptr;
       if (!p) {
         S.hover = [sx, sy];
@@ -1295,19 +1352,38 @@
         return;
       }
       if (e.type === 'pointercancel') return;
-      // a click: while checking points it always places the current one (even on top of another point);
-      // otherwise a click on a point picks it for a closer look
+      // a click: while checking points it places the current one when near it (even on top of another dot);
+      // farther away, a dot is picked instead; otherwise a click on a dot picks it for a closer look
       if (p.drag && S.mode !== 'review') { selectPoint(p.drag); focusCurrent(); return; }
       const [ix, iy] = toImage(p.sx, p.sy);
-      clickAt(ix, iy);
+      clickAt(ix, iy, p.drag);
     };
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', end);
-    cv.addEventListener('pointerleave', () => { S.hover = null; S.hoverPt = null; updateTip(); });
+    cv.addEventListener('pointerleave', () => { S.hover = null; S.hoverPt = null; S.mouse = null; updateTip(); scheduleLoupe(); });
   }
 
-  function clickAt(ix, iy) {
+  const FAR_MM = 20;          // a click farther than this from the point being placed is not a correction of it
+
+  function mmToPx(mm) {
+    const c = S.case.calibration || {};
+    if (c.mm_per_px) return mm / c.mm_per_px;
+    const lm = S.case.landmarks || {};
+    if (lm.S && lm.N) return mm * Math.hypot(lm.S.x - lm.N.x, lm.S.y - lm.N.y) / 68;   // S-N about 68 mm
+    return mm * 10;
+  }
+
+  function clickAt(ix, iy, hit = null) {
     if (ix < 0 || iy < 0 || ix > S.case.image.w || iy > S.case.image.h) return;
+    if (S.mode === 'review' && S.cur) {
+      const v = S.case.landmarks[S.cur];
+      if (v && Math.hypot(ix - v.x, iy - v.y) > mmToPx(FAR_MM)) {
+        if (hit && hit !== S.cur) { selectPoint(hit); focusCurrent(); return; }          // another dot: go to it
+        if (S.correcting) { endCorrecting(); return; }                                  // a confirmed tracing: let go
+        toast(`That is far from ${S.cur} - nothing moved. Click near ${S.cur} to move it, or click another dot to go to it.`, false, 4000);
+        return;
+      }
+    }
     if (S.mode === 'anchors') {
       const code = S.defs.anchors[S.anchorIdx];
       S.anchorPts[code] = [ix, iy];
@@ -1678,6 +1754,8 @@
     $('#tLines').onclick = (e) => { S.lines = !S.lines; e.currentTarget.classList.toggle('on', S.lines); draw(); };
     $('#tFollow').onclick = (e) => { S.follow = !S.follow; e.currentTarget.classList.toggle('on', S.follow); if (S.follow) focusCurrent(); };
     $('#tTips').onclick = (e) => { S.tips = !S.tips; e.currentTarget.classList.toggle('on', S.tips); updateTip(); };
+    $('#tLoupe').classList.toggle('on', S.loupe);
+    $('#tLoupe').onclick = toggleLoupe;
     $('#tRuler').onclick = startRuler;
     for (const h of $$('.fold')) h.onclick = () => $('#' + h.dataset.fold).classList.toggle('closed');
     window.addEventListener('keydown', onKey);
@@ -1712,6 +1790,7 @@
     else if (k === '+' || k === '=') { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); }
     else if (k === '-' || k === '_') { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); }
     else if (k === 'l' || k === 'L') $('#tLabels').click();
+    else if (k === 'm' || k === 'M') toggleLoupe();
     else if (k === 't' || k === 'T') $('#tLines').click();
     else if (k === 'i' || k === 'I') $('#tInvert').click();
   }

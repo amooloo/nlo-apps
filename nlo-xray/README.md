@@ -26,6 +26,11 @@ Panoramic x-rays are next; this first version reads lateral cephs.
    - Hollow dots are not checked yet, filled dots are. **Drag** any dot to move it. **Backspace** goes back a
      point, the arrow keys nudge the current one, **Ctrl Z** undoes, **F** fits the x-ray, the mouse wheel zooms,
      dragging empty space moves around. The group chips (Cranial base, Maxilla, ...) jump to that group.
+   - **A click moves the current point only near it** (within 2 cm). Farther away, a click on another dot goes to
+     that dot, and a click on empty space moves nothing - so clicking away never moves a point by accident.
+   - **The loupe** (button *Loupe*, key **M**, on by default): a magnifying glass follows the mouse - about 3 x
+     what is on screen, dots and lines included, a crosshair where a click lands - so there is less zooming in and
+     out. Pointing at a dot shows what it is (*Info*), beside the loupe.
    - **Skip soft tissue** or **Skip vertebrae (adult)** when they are not needed.
 4. **Read it.** The *Summary* gives the skeletal class (ANB and Wits; when they disagree it says *Borderline* and
    which says what), the vertical pattern (FMA and SN-GoGn), the jaws, the incisors, the lips to the E-line and
