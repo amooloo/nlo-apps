@@ -409,7 +409,7 @@ def smooth_solids(solids, sigma=1.25, spacing=0.2, keep_pts=None, pad=0.8, log=N
 
 
 def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, window_mm=6.0, step_mm=2.0,
-                   reach_mm=2.0, off_band_mm=6.0, smooth=1.25, log=None):
+                   reach_mm=2.0, off_band_mm=6.0, smooth=1.25, uniform=True, uniform_pct=50.0, log=None):
     """One continuous block-out band over brackets, wire and tubes, from the last appliance on one side
     round to the last on the other - not a cap over each bracket with bare tooth between them (the doctor,
     10/19/2026: the mouthguard's block-out must be continuous). A spine runs through the bracket centres
@@ -420,7 +420,11 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
     was; between two brackets it is a smooth ridge at the wire's height bridging the embrasure; the hulls
     overlap, so their union is one band. Appliance more than `off_band_mm` from the spine (an expander's
     arms, a lingual wire) keeps caps of its own. Fewer than 3 pieces round the arch: caps, as before.
-    Returns (list of solids, info)."""
+    `uniform` (the doctor, 10/19/2026: "it looks like giant bubbles that are connected together - thicken the thinner
+    segments"): the brackets' reach round the spine - how far out, up and down each piece goes, the `uniform_pct`
+    percentile over the pieces - is one cross-section swept along the whole spine, with the tooth / gum surface across
+    its height, so the stretches over the wire are as thick and as tall as the caps over the brackets; a bracket bigger
+    than that still gets its own room. Returns (list of solids, info)."""
     import trimesh
     from scipy.spatial import cKDTree
     from .mesh_utils import connected_components
@@ -486,6 +490,25 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
     for _ in range(max(1, int(round(skirt / 0.3)))):
         ring |= (A @ ring.astype(float) > 0)
     surf = ~appliance & ((d_all < reach_mm) | (ring & (d_all < off_band_mm)))
+    prof = None
+    if uniform:
+        # each piece's reach from its spine point: out along the push, up and down (z); a robust size per piece, then
+        # the `uniform_pct` percentile over the pieces is the band's cross-section all the way round
+        rel_all = V - sp[j_all]
+        dn_all = (rel_all * sp_push[j_all]).sum(1); dz_all = rel_all[:, 2]
+        outs, tops, bots = [], [], []
+        for p in pieces:
+            q = p[app_band[p] & (facing[p] > 0.0)]
+            if len(q) < 12:
+                continue
+            outs.append(np.percentile(dn_all[q], 95)); tops.append(np.percentile(dz_all[q], 95)); bots.append(np.percentile(dz_all[q], 5))
+        if len(outs) >= 3:
+            prof = dict(out=float(np.percentile(outs, uniform_pct)) + clearance, top=float(np.percentile(tops, uniform_pct)) + clearance,
+                        bottom=float(np.percentile(bots, 100.0 - uniform_pct)) - clearance)
+            # the band sits on the teeth over its whole height: the cheek-side surface between its top and bottom (a
+            # hair beyond, the skirt) - only what faces out and lies just inside the spine, never the far side of a tooth
+            surf |= (~appliance & (facing > 0.3) & (d_all < off_band_mm + 2.0) & (dz_all >= prof["bottom"] - skirt)
+                     & (dz_all <= prof["top"] + skirt) & (dn_all > -3.0) & (dn_all < prof["out"]))
     a_idx = np.where(app_band)[0]; f_idx = np.where(surf)[0]
     hulls = []
     half = 0.5 * window_mm
@@ -495,6 +518,11 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
         f_sel = f_idx[(s_all[f_idx] >= lo) & (s_all[f_idx] <= hi)]
         k_sel = (s_len >= lo) & (s_len <= hi)
         pts = [V[a_sel] + push[a_sel] * clearance, sp[k_sel] + sp_push[k_sel] * clearance, V[f_sel] - push[f_sel] * 0.15]
+        if prof is not None and k_sel.any():
+            # the cross-section at every spine point in the window: its outer face, top to bottom
+            spk, nk = sp[k_sel], sp_push[k_sel]
+            for dzv in (prof["bottom"], 0.5 * (prof["top"] + prof["bottom"]), prof["top"]):
+                pts.append(spk + nk * prof["out"] + np.array([0.0, 0.0, dzv]))
         pts = np.vstack([p for p in pts if len(p)])
         if len(pts) < 12:
             continue
@@ -535,11 +563,12 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
         solids, uvol = _union(hulls + extra, log=log)
     info = dict(caps=len(hulls) + len(extra), band=True, band_length_mm=round(float(s_len[-1]), 1), brackets_on_band=int(len(S)),
                 separate_caps=len(extra), volume_ml=round((uvol if uvol is not None else vol) / 1000.0, 2), clearance_mm=clearance,
+                uniform=({k: round(v, 2) for k, v in prof.items()} if prof else None),
                 smooth=(sinfo if smooth and smooth > 0 else None))
     if uvol is not None:
         info["union_volume_ml"] = round(uvol / 1000.0, 2)
     if log:
         log(f"brackets and wire under one continuous band: {info['band_length_mm']:.0f} mm round the arch through {len(S)} brackets / tubes, "
-            f"{clearance:.1f} mm clearance ({info['volume_ml']:.2f} mL)" + (f"; {len(extra)} cap{'s' if len(extra) != 1 else ''} over appliance away from the wire (palate / tongue side)" if extra else "")
+            f"{clearance:.1f} mm clearance ({info['volume_ml']:.2f} mL)" + (f", one even cross-section {prof['out']:.1f} mm out, {prof['top'] - prof['bottom']:.1f} mm tall" if prof else "") + (f"; {len(extra)} cap{'s' if len(extra) != 1 else ''} over appliance away from the wire (palate / tongue side)" if extra else "")
             + (f"; rounded off over {2 * sinfo['sigma_mm']:.1f} mm" if sm is not None else (f"; not rounded off ({sinfo.get('error')})" if smooth and smooth > 0 else "")))
     return solids, info

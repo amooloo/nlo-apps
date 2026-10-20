@@ -384,7 +384,16 @@ through the bracket and tube centres round the arch, as the wire does, and along
 2 mm each take the convex hull of the appliance in the window pushed out `mg_clearance` = 1 mm, the spine pushed out
 as far, and the surface within 2 mm of the spine plus a 1 mm skirt round the appliance; the union is one band from
 the last tube on one side to the last on the other, bracket height, bridging every embrasure at the wire's height
-(the crowded iTero upper: 95 mm through 13 brackets / tubes). The windows' flat faces read as blocks (the doctor:
+(the crowded iTero upper: 95 mm through 13 brackets / tubes). **One even thickness** (`uniform`, 19 Oct 2026; the
+doctor: it looked like "giant bubbles that are connected together" - thick over the brackets, thin over the wire):
+each piece's reach from its spine point is measured - how far out along the push, how far up and down (95th / 5th
+percentiles of its cheek-side points) - and the median piece's reach plus the clearance becomes one cross-section,
+swept along the whole spine (its outer face top, middle and bottom at every spine point in each window), with the
+cheek-side tooth / gum surface across its height (facing out, within 3 mm inside the spine, never the far side of a
+tooth) so it sits on the teeth; a bracket bigger than the median still gets its own room. The median, not a higher
+percentile: on a scan with molar bands (5 pieces, 2 of them bands wrapping the crown) the 75th percentile made the
+band 6.5 mm tall, over most of the incisors' faces; the median gives 4.4-4.7 mm, bracket height. The crowded iTero
+upper: 1.9 mm out, 4.4 mm tall, 2.1 mL (1.05 before); the appliance keeps its room (99.6 %). The windows' flat faces read as blocks (the doctor:
 "very blocky"), so the band is **rounded off** (`mouthguard.smooth_solids`): the windows are filled into a 0.2 mm
 voxel grid (column by column - a convex window is one z-interval per column), padded 0.8 mm round the appliance
 (blurring thins whatever is thin - a stretch over a tube and wire lost a quarter of its appliance before the
