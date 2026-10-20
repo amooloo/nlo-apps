@@ -331,13 +331,16 @@ def register(traced_rgb, original):
             break
         s, tx, ty, resid = fit
     sim = _similarity(tg, tmask, og, s, tx, ty)
-    if sim < SAME_XRAY:
+    # the same x-ray: the pictures agree once aligned, and the patches agree with one scale and shift to a fraction of a
+    # pixel (0.1-0.2 px; another patient's x-ray, even a similar one, is off by several pixels or does not fit at all)
+    fits = resid <= max(1.5, 0.002 * max(Ht, Wt)) if resid is not None else sim >= 0.95
+    if sim < SAME_XRAY or not fits:
         raise ImportError_("The traced image does not match this x-ray closely enough. "
                            "Check that the files belong to the same patient and the same x-ray.")
     return dict(s=float(s), tx=float(tx), ty=float(ty), score=round(score, 3), residual_px=resid, similarity=round(sim, 3))
 
 
-SAME_XRAY = 0.85        # rank correlation of the two images once aligned (same x-ray ~0.99; another patient < 0.8)
+SAME_XRAY = 0.85        # correlation of the two images once aligned (the same x-ray ~0.98-0.99)
 
 
 def _similarity(tg, tmask, og, s, tx, ty, work=800):
@@ -733,14 +736,18 @@ def load_rgb(data):
 
 
 def looks_traced(rgb):
-    """True for an image with iOrtho-style tracing (many red dots), False for a plain grey x-ray."""
+    """True for an image with iOrtho's tracing on it (many red landmark dots); False for a plain x-ray, even one with
+    a red mark, ruler or label on it."""
     small = np.asarray(Image.fromarray(rgb).resize((max(1, rgb.shape[1] // 4), max(1, rgb.shape[0] // 4))))
-    return int(red_mask(small).sum()) > 40
+    if int(red_mask(small).sum()) <= 40:
+        return False
+    return len(find_dots(rgb)[0]) >= 10
 
 
-def import_tracing(original_gray, traced_rgb, report):
-    """Everything: register, find and name the dots, and map them onto the original x-ray's pixels."""
-    reg = register(traced_rgb, original_gray)
+def import_tracing(original_gray, traced_rgb, report, reg=None):
+    """Everything: register (unless already done), find and name the dots, and map them onto the original x-ray's
+    pixels."""
+    reg = reg or register(traced_rgb, original_gray)
     dots, _ = find_dots(traced_rgb)
     m = match(dots, report["values"])
     s, tx, ty = reg["s"], reg["tx"], reg["ty"]

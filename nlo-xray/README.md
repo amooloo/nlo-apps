@@ -46,8 +46,9 @@ Panoramic x-rays are next; this first version reads lateral cephs.
 5. **Confirm tracing.** It becomes a lesson for the app, and the five CVM judgements as shown (your picks and
    the readings you let stand) become lessons for its flat / concave and shape readings. **Print** gives a
    one-page report (tracing, summary with all three CVM methods, the stage drawing and timeline,
-   measurements). A confirmed tracing can still be corrected by dragging a point or clicking a CVM picture (the
-   app learns the correction); **Reopen** walks through it again.
+   measurements). **A confirmed tracing can still be corrected**: click a point, then click where it belongs (or
+   drag it) - it is saved at once, the tracing stays confirmed and the app learns from the correction (**Esc**
+   leaves the point as it is). Clicking a CVM picture works the same way. **Reopen** walks through it again.
 
 ### Calibration (millimetres)
 
@@ -69,11 +70,13 @@ tracings the app needs before it learns.
 
 1. **Have three files per patient**: the **original ceph** (the same DICOM / JPG that went into iOrtho, without
    the tracing), **iOrtho's traced image** (with the red landmark dots) and **iOrtho's Excel report** (.xlsx;
-   the PDF is not read).
-2. **Import from iOrtho** (sidebar) and drop the three files together - or drop them anywhere on the page.
-   Several patients at once works when the file names carry the patient's name (iOrtho's report is
-   `First_Last_Cephalometry_Report.xlsx`; a DICOM original carries the name inside). For an x-ray that is already
-   here, open it and click *Import iOrtho's tracing* in the Tracing card, then drop the traced image and the report.
+   the PDF is not read). When the x-ray is already in the app, iOrtho's two files are enough: the app finds it by
+   the patient's name (or birth date and x-ray date) and checks it by laying iOrtho's picture onto it.
+2. **Import from iOrtho** (sidebar) and drop the files - together or one after another (the window keeps what
+   has come until a patient's set is complete), or anywhere on the page. Several patients at once works when the
+   file names carry the patient's name (iOrtho's report is `First_Last_Cephalometry_Report.xlsx`; a DICOM
+   original carries the name inside). For an x-ray that is open, *Import iOrtho's tracing* in the Tracing card
+   does the same for that x-ray.
 3. What happens, all on this PC: the app finds the original x-ray inside iOrtho's picture (scale and position,
    to a fraction of a pixel; a picture of another x-ray is refused), finds iOrtho's red dots, and works out which
    dot is which landmark by **reproducing iOrtho's own numbers** from the report: SNA, SNB, SN-PP, U1-SN, U1-NA,
@@ -87,7 +90,8 @@ tracings the app needs before it learns.
 5. Open each one, walk through the points (**Enter** where right - imported points say *From iOrtho*) and
    **Confirm tracing**. *Confirm them right away* in the import window confirms on import instead: only for
    tracings already checked in iOrtho, and only when everything but PM matched. Importing an x-ray that is
-   already confirmed here leaves it as it is.
+   already confirmed here leaves it as it is, with a link to **replace it with iOrtho's tracing** (for a tracing
+   changed in iOrtho since).
 
 ## How it learns
 
@@ -143,7 +147,8 @@ It puts the app in `C:\NLO\nlo-xray`, installs Python 3.13 for the signed-in use
 administrator needed), installs the components (the first time a few minutes: the learning engine, PyTorch, is
 about 125 MB), sets the app to start minimised at sign-in, adds a firewall rule for the office network when it
 can, starts the app and opens it. It ends with the PC's name. **The same line updates the app later** - the
-x-rays, tracings, networks and settings are kept.
+x-rays, tracings, networks and settings are kept. The version is at the bottom of the sidebar; a page already open
+on another computer shows *The app was updated - Reload* by itself.
 
 The NLO apps home page's **X-Ray Reader** button opens the PC named in `nlo-xray.html` (`DEFAULT_PC`, now `lab`)
 on port 8766. If the app runs elsewhere, change that name, or once per browser open the page with `?help` and
@@ -255,9 +260,12 @@ iOrtho's drawing is masked out (anything coloured or pure white, grown 2 px); ma
 (Padfield 2012, via FFT) over 44 scales from 0.5 to 2.2 × the fit-inside scale on 200-px copies, then 9 finer
 scales on 360-px copies; then the 30 most textured patches of the original (9 × 9 grid) are found in the traced
 image at full size (sub-pixel peaks), and scale and shift are fitted by least squares with outliers dropped -
-twice, wide then narrow. The two images must then agree (the better of the Pearson and rank correlations
-≥ 0.85; the same x-ray scores ~0.99, another patient's under 0.8). On made-up exports at 0.6-1.3 × and on crops
-the scale comes out within 0.0002 and the shift within 0.1 px. *Dots*: pure-red pixels; a single dot's centre is
+twice, wide then narrow. It counts as the same x-ray only when the two images agree once aligned (the better of
+the Pearson and rank correlations ≥ 0.85) and the patches fit one scale and shift to within max(1.5 px, 0.2 % of
+the picture): the same x-ray leaves 0.06-0.15 px (also iOrtho's real export of an office ceph), other patients'
+x-rays several pixels or no fit at all. On made-up exports at 0.6-1.3 × and on crops the scale comes out within
+0.0002 and the shift within 0.1 px. An x-ray already in the app is looked for among the patient's x-rays (name,
+or birth date + x-ray date) and the closest fit is taken. *Dots*: pure-red pixels; a single dot's centre is
 the centre of its redness (smoothed edges included); touching or overlapping dots are split by circles of the
 dots' own radius voted for by the outline and fitted to it. *Naming*: our average tracing is fitted to the dot
 cloud (trimmed ICP, both facings); each landmark gets up to 5 dots within 13 mm as candidates, and a depth-first
@@ -278,4 +286,4 @@ Passcode: PBKDF2-SHA256 (120,000 rounds) with a salt in `settings.json`; signed-
 (S, N, Me → all points), `POST cases/{id}/auto` (the network), `POST cases/{id}/fill`, `GET model`,
 `POST model/train|stop|rollback`, `GET|PUT settings`, `POST settings/passcode`, `POST import/iortho` (files:
 original x-rays, iOrtho's traced images and reports for one or more patients; `confirm`), `POST cases/{id}/iortho`
-(iOrtho's traced image + report for that x-ray).
+(iOrtho's traced image + report for that x-ray; `replace` for a confirmed one).

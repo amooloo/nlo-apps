@@ -138,6 +138,12 @@ def test_full_flow(client):
     assert r["case"]["confirmed_at"] >= before
     r = client.patch(f"/api/cases/{cid}", json={"cvm_marks": None}).json()
     assert r["case"]["cvm"]["marks"] == {} and not r["analysis"]["cvm"]["overridden"]
+    # a point moved on the confirmed tracing: still confirmed, a new lesson, and on record
+    before = r["case"]["confirmed_at"]
+    a = r["case"]["landmarks"]["A"]
+    r = client.patch(f"/api/cases/{cid}", json={"landmarks": {"A": dict(x=a["x"] + 3, y=a["y"], by="doctor")}}).json()
+    assert r["case"]["status"] == "confirmed" and r["case"]["confirmed_at"] >= before
+    assert r["case"]["history"][-1]["what"].startswith("A corrected on the confirmed tracing")
     # reopening forgets the confirmed judgements (taken again at the next confirm), keeps nothing stale
     r = client.patch(f"/api/cases/{cid}", json={"status": "reopen"}).json()
     assert "confirmed" not in r["case"]["cvm"] and "doctor" not in r["case"]["cvm"]
