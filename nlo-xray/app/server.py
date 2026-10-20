@@ -33,7 +33,7 @@ sys.path.insert(0, ROOT)
 from xray import __version__  # noqa: E402
 from xray import geometry as geo  # noqa: E402
 from xray.analysis import DEFAULT_CUTOFFS, DEFAULT_NORMS, MEASURES, analyze  # noqa: E402
-from xray.cvm import DEFAULT_THRESHOLDS  # noqa: E402
+from xray.cvm import DEFAULT_THRESHOLDS, clean_marks  # noqa: E402
 from xray.imageio import ImageReadError, load_png  # noqa: E402
 from xray.landmarks import ANCHORS, CODES, GROUP_OF, public_definitions  # noqa: E402
 from xray.shape import fill_missing, mean_shape, place_from_anchors  # noqa: E402
@@ -257,9 +257,10 @@ def _required_codes(case):
 def _analysis(case, settings=None):
     pts = STORE.points_px(case)
     cal = case.get("calibration") or {}
+    age = age_years((case.get("patient") or {}).get("dob"), case.get("taken"))
     a = analyze(pts, cal.get("mm_per_px"), case.get("facing"), (case.get("patient") or {}).get("sex"),
-                effective_settings(settings))
-    a["age"] = age_years((case.get("patient") or {}).get("dob"), case.get("taken"))
+                effective_settings(settings), cvm_marks=(case.get("cvm") or {}).get("marks"), age=age)
+    a["age"] = age
     req = _required_codes(case)
     a["progress"] = dict(placed=sum(1 for c in req if c in pts), total=len(req),
                          reviewed=sum(1 for c in req if (case["landmarks"].get(c) or {}).get("by") == "doctor"))
@@ -395,12 +396,21 @@ def _patch_case(cid, body):
         for code in list(case.get("landmarks", {})):
             if GROUP_OF.get(code) in sk:
                 case["landmarks"].pop(code, None)
-    if "cvm_doctor" in body:
-        v = body["cvm_doctor"]
+    if "cvm_marks" in body:
         cv = case.setdefault("cvm", {})
-        cv["doctor"] = v if v in [f"CS{i}" for i in range(1, 7)] else None
-        cv["agreed"] = False                          # his own call, not just the stage shown
-        hist.append(f"CVM call {v or 'cleared'}")
+        marks = dict(cv.get("marks") or {})
+        upd = body["cvm_marks"]
+        if upd is None:
+            marks = {}
+            hist.append("CVM back to the app's reading")
+        else:
+            for k, v in upd.items():
+                if v is None:
+                    marks.pop(k, None)
+                elif clean_marks({k: v}):
+                    marks[k] = v
+                    hist.append(f"CVM {k.replace('shape', ' body')}: {v.replace('_', ' ')}")
+        cv["marks"] = marks
     if "notes" in body:
         case["notes"] = str(body["notes"] or "")[:4000]
     if "status" in body:
@@ -420,19 +430,26 @@ def _patch_case(cid, body):
             case["status"] = "new"
             case.pop("confirmed_at", None)
             cv = case.setdefault("cvm", {})
-            if cv.get("agreed"):                      # an accepted stage is taken again at the next confirm
-                cv["doctor"], cv["agreed"] = None, False
+            cv.pop("confirmed", None)                 # taken again at the next confirm
+            cv.pop("doctor", None)
     now = dt.datetime.now().replace(microsecond=0).isoformat()
     case, a = _refresh(case)
     if case.get("status") == "confirmed" and "cvm" not in (case.get("skipped") or []):
+        # what the doctor confirmed: every flat / concave and body-shape judgement as shown (his picks and the
+        # app's readings he let stand) and the stage they give - the lessons for tuning the CVM thresholds.
+        # A confirmed case that is corrected later keeps them up to date.
         cv = case.setdefault("cvm", {})
+        jd = (a.get("cvm") or {}).get("judgements") or {}
+        now_conf = {k: v.get("value") for k, v in jd.items() if v.get("value")}
         stage_now = (a.get("cvm") or {}).get("stage")
-        accepted = body.get("status") == "confirmed" and not cv.get("doctor")
-        if stage_now and (accepted or (cv.get("agreed") and cv.get("doctor") != stage_now)):
-            cv["doctor"] = stage_now                  # confirming accepts the stage shown: it is his call too
-            cv["agreed"] = True                       # (and follows a corrected tracing of the vertebrae)
-            hist.append(f"CVM {stage_now} accepted")
-            case, a = _refresh(case)
+        # only when he confirms or changes the tracing / a pick - never because the thresholds moved since
+        touched = body.get("status") == "confirmed" or "landmarks" in body or "cvm_marks" in body
+        if touched and (now_conf != cv.get("confirmed") or stage_now != cv.get("doctor")):
+            if body.get("status") == "confirmed" and stage_now:
+                hist.append(f"CVM {stage_now} confirmed")
+            cv["confirmed"], cv["doctor"] = now_conf, stage_now
+            if body.get("status") != "confirmed":
+                case["confirmed_at"] = now          # a correction is a new lesson
     for h in hist:
         case.setdefault("history", []).append(dict(t=now, what=h))
     STORE.save(case)

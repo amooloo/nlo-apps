@@ -12,7 +12,8 @@ A new network is used only if it does better than the current one on x-rays it d
 (a fifth of the confirmed tracings, at least 3, held back in turn), and - for the very first one - only
 if its average error is under 4 mm. Otherwise the app keeps what it has (and says so).
 
-The CVM thresholds are tuned to the doctor's own stage calls at the same time (cvm.fit_thresholds).
+The CVM thresholds are tuned to the doctor's own flat / concave and body-shape judgements at the same time
+(cvm.fit_thresholds).
 """
 import datetime as dt
 import glob
@@ -29,7 +30,7 @@ import numpy as np
 import torch
 
 from . import model as M
-from .cvm import fit_thresholds
+from .cvm import features as cvm_features, fit_thresholds
 from .geometry import to_canonical, facing_of, dist
 from .imageio import load_png
 from .landmarks import CODES
@@ -252,16 +253,16 @@ class Trainer:
             cases = self.confirmed_cases()
             st["n_cases"] = len(cases)
             self.log(f"training ({reason}): {len(cases)} confirmed tracings")
-            # --- CVM thresholds from the doctor's own calls
+            # --- CVM thresholds from the doctor's own judgements (flat / concave, body shapes) on confirmed x-rays
             ex = []
             for c in cases:
-                call = (c.get("cvm") or {}).get("doctor")
-                if call:
+                cv = c.get("cvm") or {}
+                if cv.get("confirmed") and "cvm" not in (c.get("skipped") or []):
                     pts = self.store.points_px(c)
-                    ex.append((to_canonical(pts, c.get("facing") or facing_of(pts) or "right"),
-                               (c.get("calibration") or {}).get("mm_per_px"), call))
+                    canon = to_canonical(pts, c.get("facing") or facing_of(pts) or "right")
+                    ex.append((cvm_features(canon, (c.get("calibration") or {}).get("mm_per_px")), cv["confirmed"]))
             fit = fit_thresholds(ex)
-            st["cvm"] = {k: fit[k] for k in ("accepted", "n", "default_agree", "loo_agree", "message")}
+            st["cvm"] = {k: fit[k] for k in ("accepted", "n", "default_agree", "loo_agree", "total", "message")}
             st["cvm"]["thresholds"] = fit["thresholds"]
             self.log("   CVM: " + fit["message"])
             # --- the network
