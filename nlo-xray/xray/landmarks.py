@@ -56,6 +56,9 @@ _DEFS = [
     ("Go", "Gonion", "mandible",
      "The angle of the mandible: where the bisector of the angle between the ramus and the lower border meets "
      "the outline. If the two angles show separately, go midway."),
+    ("MPt", "Lower border point", "mandible",
+     "Where a line from menton just touches the lower border of the mandible, in front of the angle: the back "
+     "end of the mandibular plane used for FMA and IMPA (Tweed, Downs)."),
     ("MOL", "Molar contact", "teeth",
      "Where the mesial cusps of the upper and lower first molars meet: the back end of the functional occlusal plane."),
     ("PM", "Premolar contact", "teeth",
@@ -115,6 +118,7 @@ TEMPLATE = {
     "PNS": (23.0, -42.0), "ANS": (71.0, -41.0), "A": (65.6, -46.7),
     "U1A": (61.0, -46.0), "U1T": (69.5, -69.0), "L1T": (66.5, -67.0), "L1A": (56.6, -85.5),
     "B": (60.1, -76.4), "Pog": (61.5, -89.0), "Gn": (58.5, -96.5), "Me": (55.1, -99.6), "Go": (-6.5, -70.9),
+    "MPt": (2.7, -75.2),
     "MOL": (38.3, -63.8), "PM": (50.2, -65.5),
     "Prn": (95.0, -33.0), "Sn": (84.0, -43.0), "Ls": (84.5, -55.0), "Li": (80.5, -72.0), "Pos": (75.0, -94.0),
     "C2lp": (-37.0, -70.5), "C2d": (-29.5, -69.6), "C2la": (-22.0, -69.5),
@@ -126,7 +130,7 @@ assert set(TEMPLATE) == set(CODES), "every landmark needs a template position"
 
 # Lines drawn over the x-ray (and used by the report), by landmark pair.
 TRACING_LINES = [
-    ("S", "N", "SN"), ("Po", "Or", "FH"), ("N", "A", "NA"), ("N", "B", "NB"), ("Go", "Me", "MP"),
+    ("S", "N", "SN"), ("Po", "Or", "FH"), ("N", "A", "NA"), ("N", "B", "NB"), ("MPt", "Me", "MP"),
     ("ANS", "PNS", "PP"), ("U1A", "U1T", "U1"), ("L1A", "L1T", "L1"), ("Prn", "Pos", "E-line"),
     ("MOL", "PM", "FOP"), ("Ar", "Go", "Ramus"),
 ]

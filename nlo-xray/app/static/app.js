@@ -188,6 +188,7 @@
   // ------------------------------------------------------------------ open a case
   async function openCase(id, { fresh = false } = {}) {
     await flushSave();
+    S.filled = false;
     const r = await api(`/api/cases/${enc(id)}`);
     S.case = r.case;
     S.analysis = r.analysis;
@@ -256,12 +257,22 @@
       if (S.status && S.status.model) { autoTrace(); return; }
       S.mode = 'anchors'; S.anchorIdx = 0; S.anchorPts = {};
     } else {
+      // a point added to the app since this x-ray was traced (or switched back on): place it from the others first
+      const missing = required().filter((k) => !(c.landmarks || {})[k]);
+      if (missing.length && n >= 4 && !S.filled) { S.filled = true; fillMissing(); return; }
       S.cur = nextUnreviewed(null);
       S.mode = S.cur ? 'review' : 'done';
     }
     renderTrace();
     draw();
     focusCurrent();
+  }
+
+  async function fillMissing() {
+    try {
+      applyServer(await api(`/api/cases/${enc(S.case.id)}/fill`, { method: 'POST' }), true);
+    } catch (e) { toast(e.message, true); }
+    startTracing();
   }
 
   async function autoTrace() {
@@ -926,7 +937,7 @@
     if (S.lines || opts.print) {
       c2.lineWidth = 1.3 * K;
       for (const l of S.defs.lines) {
-        const a = P[l.a], b = P[l.b];
+        const a = P[l.a] || (l.name === 'MP' ? P.Go : null), b = P[l.b];   // MP: Go-Me until the lower-border point is placed
         if (!a || !b) continue;
         let [x1, y1] = scr(a), [x2, y2] = scr(b);
         if (LONG.has(l.name)) {

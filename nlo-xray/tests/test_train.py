@@ -62,7 +62,7 @@ def test_accept_predict_and_roll_back(trainer, monkeypatch):
     assert info["version"] == 1 and info["n_val"] == 3 and info["mre"] is not None
     img = np.asarray(Image.open(trainer.store.image_path(trainer.confirmed_cases()[0]["id"])).convert("L"))
     pts, facing = trainer.predict(img)
-    assert len(pts) == 37 and facing in ("left", "right")
+    assert len(pts) == 38 and facing in ("left", "right")
     assert all(0 <= v["conf"] <= 1 for v in pts.values())
     # a second network replaces the first; going back restores it
     trainer._install(dict(trainer.finder.ckpt, version=2))

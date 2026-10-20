@@ -44,17 +44,19 @@ MEASURES = [
     ("SN_FH", "SN to FH", "Skeletal - vertical", DEG, ("S", "N", "Po", "Or"), False,
      "Cant of the cranial base to Frankfort horizontal (Po-Or)."),
     ("FMA", "FMA (FH to MP)", "Skeletal - vertical", DEG, ("Po", "Or", "Go", "Me"), False,
-     "Frankfort horizontal to the mandibular plane (Go-Me)."),
+     "Frankfort horizontal to the mandibular plane: menton to the lower-border point, the tangent to the lower "
+     "border (Tweed)."),
     ("SN_GoGn", "SN to GoGn", "Skeletal - vertical", DEG, ("S", "N", "Go", "Gn"), False,
      "Cranial base to the mandibular plane (Go-Gn), Steiner."),
     ("PP_MP", "Palatal to mandibular plane", "Skeletal - vertical", DEG, ("ANS", "PNS", "Go", "Me"), False,
-     "ANS-PNS to Go-Me."),
+     "ANS-PNS to the mandibular plane (menton to the lower-border point)."),
     ("Gonial", "Gonial angle", "Skeletal - vertical", DEG, ("Ar", "Go", "Me"), False,
      "Angle Ar-Go-Me."),
     ("Jarabak", "Face height ratio (Jarabak)", "Skeletal - vertical", PCT, ("S", "Go", "N", "Me"), False,
      "Posterior face height S-Go over anterior face height N-Me. Lower = more vertical (clockwise) grower."),
     ("LAFH", "Lower face height ratio", "Skeletal - vertical", PCT, ("ANS", "Me", "N"), False,
-     "ANS-Me over N-Me."),
+     "Lower over total anterior face height, ANS-Me / N-Me, both measured perpendicular to Frankfort horizontal "
+     "(Wylie)."),
     ("U1_SN", "U1 to SN", "Teeth", DEG, ("U1A", "U1T", "S", "N"), False,
      "Upper incisor long axis to the SN line (posterior-inferior angle)."),
     ("U1_NA_deg", "U1 to NA (angle)", "Teeth", DEG, ("U1A", "U1T", "N", "A"), False,
@@ -67,7 +69,7 @@ MEASURES = [
     ("L1_NB_mm", "L1 to NB (mm)", "Teeth", MM, ("L1T", "N", "B"), True,
      "Lower incisor tip to the NB line, positive when ahead of it (to the incisal tip)."),
     ("IMPA", "IMPA (L1 to MP)", "Teeth", DEG, ("L1A", "L1T", "Go", "Me"), False,
-     "Lower incisor long axis to the mandibular plane (Go-Me)."),
+     "Lower incisor long axis to the mandibular plane (menton to the lower-border point, Tweed)."),
     ("Interincisal", "Interincisal angle", "Teeth", DEG, ("U1A", "U1T", "L1A", "L1T"), False,
      "Between the upper and lower incisor long axes."),
     ("E_Ls", "Upper lip to E-line", "Soft tissue", MM, ("Ls", "Prn", "Pos"), True,
@@ -82,6 +84,15 @@ MEASURES = [
     ("len_ANSMe", "ANS-Me (lower face height)", "Lengths", MM, ("ANS", "Me"), True, "Lower anterior face height."),
     ("len_SGo", "S-Go (posterior face height)", "Lengths", MM, ("S", "Go"), True, "Posterior face height."),
 ]
+
+
+MP_KEYS = ("FMA", "PP_MP", "IMPA")
+
+
+def _mp(p):
+    """The back end of the mandibular plane: the lower-border point (the tangent to the lower border through
+    menton, Tweed / Downs); gonion on tracings without it (Go-Me)."""
+    return p["MPt"] if "MPt" in p else p["Go"]
 
 
 def _compute(key, p, mm):
@@ -101,16 +112,21 @@ def _compute(key, p, mm):
     if key == "SN_FH":
         return g.line_angle(p["S"], p["N"], p["Po"], p["Or"])
     if key == "FMA":
-        return g.line_angle(p["Po"], p["Or"], p["Go"], p["Me"])
+        return g.line_angle(p["Po"], p["Or"], _mp(p), p["Me"])
     if key == "SN_GoGn":
         return g.line_angle(p["S"], p["N"], p["Go"], p["Gn"])
     if key == "PP_MP":
-        return g.line_angle(p["ANS"], p["PNS"], p["Go"], p["Me"])
+        return g.line_angle(p["ANS"], p["PNS"], _mp(p), p["Me"])
     if key == "Gonial":
         return g.angle_at(p["Ar"], p["Go"], p["Me"])
     if key == "Jarabak":
         return 100.0 * g.dist(p["S"], p["Go"]) / g.dist(p["N"], p["Me"])
     if key == "LAFH":
+        if "Po" in p and "Or" in p:                   # heights perpendicular to FH, as Wylie measured them
+            u = g.unit(g.vec(p["Po"], p["Or"]))
+            n = (-u[1], u[0])
+            h = lambda a, b: abs(float((p[b][0] - p[a][0]) * n[0] + (p[b][1] - p[a][1]) * n[1]))  # noqa: E731
+            return 100.0 * h("ANS", "Me") / h("N", "Me")
         return 100.0 * g.dist(p["ANS"], p["Me"]) / g.dist(p["N"], p["Me"])
     if key == "U1_SN":
         return g.angle_between(g.vec(p["U1T"], p["U1A"]), g.vec(p["S"], p["N"]))
@@ -123,7 +139,7 @@ def _compute(key, p, mm):
     if key == "L1_NB_mm":
         return g.signed_dist_anterior(p["L1T"], p["N"], p["B"]) * k
     if key == "IMPA":
-        return g.angle_between(g.vec(p["L1A"], p["L1T"]), g.vec(p["Me"], p["Go"]))
+        return g.angle_between(g.vec(p["L1A"], p["L1T"]), g.vec(p["Me"], _mp(p)))
     if key == "Interincisal":
         return g.angle_between(g.vec(p["U1T"], p["U1A"]), g.vec(p["L1T"], p["L1A"]))
     if key == "E_Ls":
@@ -188,6 +204,11 @@ def measure(landmarks, mm_per_px=None, facing=None, sex=None, settings=None):
                 row["value"] = round(_compute(key, p, mm_per_px if needs_mm else None), 1)
             except (ValueError, ZeroDivisionError):
                 row["note"] = "points overlap"
+            if key in MP_KEYS and "MPt" not in p and row["value"] is not None:
+                row["desc"] += " Go-Me used here: the lower-border point is not traced."
+                row["note"] = "Go-Me"
+            if key == "LAFH" and not ("Po" in p and "Or" in p) and row["value"] is not None:
+                row["desc"] += " Straight distances here: Frankfort horizontal is not traced."
             if row["value"] is not None and row["norm"] and row["norm"]["sd"] > 0:
                 row["z"] = round((row["value"] - row["norm"]["mean"]) / row["norm"]["sd"], 2)
         out.append(row)
