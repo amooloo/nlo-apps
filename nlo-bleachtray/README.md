@@ -57,6 +57,10 @@ whitening lower, retainer lower, then a mouthguard or plain model when the case 
 ones the case does not have greyed out; click one and every tab shows that model. **Discard** clears the screen
 entirely (model, boxes, case), so the next case can be picked.
 
+**Views** (right edge of the viewer, above the model icons): **Top, Front, Right, Left, Back, Below** turn the model
+to look at it from that side, framed to fill the screen; Right and Left are the patient's sides, and Below shows the
+base plate see-through. Turning the model by hand afterwards works as always.
+
 **Cases** (sidebar) holds only what still needs a decision: processing, or done and not yet sent or discarded. Sending
 or discarding moves the case to Past cases at once; Save as lesson asks whether the case stays or goes.
 
@@ -75,9 +79,14 @@ folder). That one window watches the drop folder *and* serves the app page to th
 
 Retainer, whitening-tray and mouthguard cases are entered in **NLO Cases** first. Once the two are linked, those
 cases wait here under **To make** at the top of the sidebar - patient, arches, what to make, remake / scan on file,
-due date. Click one and drop its scan: the name, arches and tray types are filled in, and when the models are sent to
-OrthoFactory the case in NLO Cases notes "models in OrthoFactory" by itself and leaves the queue (a case started here
-shows *started* in the queue until then). Linking, once: in NLO Cases, **Team & security → Lab PC → New setup code**
+due date. Click one and drop its scan: the name, arches and tray types are filled in, and when the models go out -
+**Send** to OrthoFactory, **Send again**, **Open in PreForm** or the print files - the case in NLO Cases moves from
+*To make* to **Printing** by itself, with "put the models in OrthoFactory" / "sent the models to the printer" in its
+history, and leaves the queue (a case started here shows *started* in the queue until then). A scan dropped straight
+in, without clicking the queue, is tied to its waiting case by the patient's name: the same name, or a near miss of
+it (*Anablle* for *Annabelle*, same last name) when only one waiting case fits, the kind of model breaking a tie;
+the case's log says which one it was tied to. NLO Cases is told once per way out, so Send and then PreForm do not
+log it twice. Linking, once: in NLO Cases, **Team & security → Lab PC → New setup code**
 (or *Set up the lab PC*; it is the lab PC's own login, the same code the NLO Lab Bridge uses), copy the code, and in
 the Tray Maker **Settings → NLO Cases** paste it and click **Link**. A new code made in NLO Cases means pasting it here
 again (and in the Lab Bridge). The link can read the queue and add notes to NLO Cases' inbox, nothing else; the queue
@@ -573,9 +582,16 @@ NLO Cases re-seals them on its next save. The opened queue is cached in `jobs/tr
 it with what this PC has done about each case (the live job started from it: `here`), `/api/tracker` the link's state,
 `/api/tracker/link` (the code) / `unlink` / `refresh`. On **Send**, a case that came from NLO Cases
 (`params.tracker_case`, set by the queue click or by the `?case=` URL from NLO Cases' *Make models*) gets a sealed note
-in NLO Cases' inbox - `{bt:1, v:1, case, patient, models, at, pc}` sealed to the office inbox key read from
+in NLO Cases' inbox - `{bt:1, v:1, case, patient, models, at, pc, how}` sealed to the office inbox key read from
 `meta/inbox`, under an id `m` + 40 hex like the lab bridge's - and the case is hidden from the queue here at once
-(`sent`); NLO Cases notes the models on the case (`btModels`) and deletes the queue item. The queue never carries
+(`sent`); NLO Cases notes the models on the case (`btModels`), moves a case still at *To make* (`print`) to
+*Printing* when its flow has that stage, logs `{a:'bt', models, how, from, to}`, and deletes the queue item. `how` is
+`orthofactory` (Send, Send again) or `printer` (Open in PreForm, print files); `_tell_tracker` sends one note per `how`
+per case (`job.tracker_told_how`). A case not started from the queue is tied to it on creation and again before the
+note (`_match_tracker`): the queue item whose normalised patient name equals the case's, else one with the same last
+name, the whole name at `SequenceMatcher` ratio ≥ 0.85, an overlapping arch and model kind - only when exactly one fits
+(the kind breaks a tie between two cases of the same patient). Tested end to end against the Firestore emulator in
+`nlo-cases-src/test/traymaker_match.mjs`. The queue never carries
 anything clinical: patient, chart #, arches, tray kinds, remake / scan on file, dates, who's on it. The rules on NLO
 Cases' side (19 Oct 2026): the robot may read `labq` / `labqkeys`, write its own key entry and add inbox items, nothing
 else; staff write and delete queue items. `cryptography` is in `requirements.txt` for it.

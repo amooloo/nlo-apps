@@ -1511,7 +1511,7 @@ function historyHTML(c) {
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : x.via === 'print' ? ', as Formlabs suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
-    else if (x.a === 'bt') t = 'put the models in OrthoFactory' + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : ''); // (traymaker.js)
+    else if (x.a === 'bt') t = (x.how === 'printer' ? 'sent the models to the printer' : 'put the models in OrthoFactory') + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : '') + (x.to ? ' and moved it to ' + stageName(x.to) : ''); // (traymaker.js)
     else if (x.a === 'print') t = prHistText(x); // (prints.js)
     else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
