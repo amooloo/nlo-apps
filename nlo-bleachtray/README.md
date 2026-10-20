@@ -23,7 +23,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    nudge the base if needed. Each thing you might fix has its own tab, each with one brush (the ball on the model;
    its size is the slider; hold **Shift** and drag, then **Apply & re-run** - every fix is kept for every model made
    from that scan and every later re-run): **Clean-up** cuts away what is not the arch (tongue, cheek, a flap, the
-   pad behind the last molar - gone from the scan for good); **Segmentation** repaints tooth / gum labels (the white
+   pad behind the last molar - gone from the scan); its **Erase** brush takes a stroke back before Apply, and once a
+   cut is applied **Bring back what was cut** puts the scan back as it was before the first cut (every model from it
+   is made again); **Segmentation** repaints tooth / gum labels (the white
    stone model with each tooth in its own colour) and has the **Contact** dot: Shift-click once where two teeth
    touch and the split between them is put there - for crowded lower incisors, where one colour runs across two
    teeth and the reservoir ends mid-tooth instead of at the contact; click a dot to take it away (an applied dot
@@ -33,7 +35,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    the undercut you mark out (under a pontic, round an implant crown, a black triangle) so the retainer seats - **Outline**
    it: Shift-click corner after corner round the area and click the first dot again to close, the inside is filled
    (or use the **Block out** brush); **Braces** (only
-   for a scan dropped with Braces on, or a mouthguard) takes off a bracket or bit of wire the app missed. **Also make …** in the Check & send box adds the other
+   for a scan dropped with Braces on, or a mouthguard) takes off a bracket or bit of wire the app missed, and its
+   **Not a bracket** brush marks tooth or gum the app took for a bracket (left as scanned on a retainer, left out of
+   a mouthguard's band; blue on the tab, kept with the case and saved with its lesson). **Also make …** in the Check & send box adds the other
    tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
    the tooth split is reused, and Send writes the order with every model. The **mouthguard** (upper only, for now) is
    the fifth icon in the model row at the bottom right: grey while the case has none - a click asks whether to make
@@ -348,7 +352,25 @@ wire or tie the app missed - or anything on a scan dropped without the box - is 
 same cut-and-patch on the next run (no detection, what was painted is the appliance); the scan advances to `_clean2.ply`, `_clean3.ply`…, with the earlier
 rebuilt areas, the painted no-reservoir / block-out strokes and a cut in the same run carried over by
 position; saved brush fixes of tooth labels are dropped for that scan (the teeth are found again on the
-rebuilt enamel). Wire and ties left on at the eval scan make this harder (the wire floats across the
+rebuilt enamel). **Not a bracket brush** (Braces tab, 19 Oct 2026; the doctor: "there should be a paint brush that I
+can use to paint non-bracket areas just like how there is a paint brush to paint brackets"): tooth or gum the
+detector took for appliance is painted - on the smooth rebuilt enamel, where the app took it off - and on Apply
+the take-off is done again from the scan as scanned (`_redo_take_off`) with the painted areas left out of it: the
+strokes are kept by position in the scanner's own coordinates, with the painted surface's normals
+(`job["braces_edits"][scan as scanned] = {not, not_n, add}`, in case.json), and `appliance.near_points` matches the
+scan's vertices within 0.6 mm of a stroke point's normal line and up to 4.5 mm off the painted surface (what was
+taken off stood over the smooth enamel the stroke is on - a lump of gum, a bump of enamel, a bracket's 3.5-4 mm tie
+wings), never a surface facing the other way (the far side of a thin incisor); a piece the detector found that is
+40 % or more under the strokes is left whole (`whole_pieces`: a 2.5 mm brush never covers a lump exactly, and half a
+piece taken off leaves a step). Checked on the crowded iTero upper, painting over a bracket's rebuilt enamel: a
+match by position alone kept 5-370 of a bracket's 1000-2200 vertices (the stroke lies a bracket's height under it),
+so a pad was left with its wings shaved off and patched flat; with the normal lines and whole pieces every bracket
+painted over came back exactly as scanned (1797 of 1797 vertices round it). Take off strokes are kept by position
+too (`add`), so a later take-off from the scan as scanned still takes them off; a Clean-up cut made after the take-off
+is made again on the new file. On a mouthguard the strokes leave the band (`paint.noshield`, paint bit 128), and
+Not a bracket painted on the retainer of the same scan leaves it too. The strokes of a sent case go to
+`training/<patient>/braces_<arch>.ply` + `braces_<arch>.json` (the scan as scanned, the strokes) - the lesson for the
+bracket detector; the tooth labels of a braces scan stay out of the training set as before. Wire and ties left on at the eval scan make this harder (the wire floats across the
 embrasures and hides the gingival enamel) - for a retainer scan, take the wire and ties off first and
 leave the brackets; a mouthguard scan keeps everything (and the mouthguard model keeps the brackets, see below). Checked on 10 arches with braces (3 AlliedStar patients, 2
 iTero; metal brackets, green/purple ties, molar tubes, a palatal expander) and 2 plain iTero arches: the
@@ -411,13 +433,21 @@ notch 6 mm wide to 2.5 mm below the gum line at the frena - the labial one at th
 shallowest stretch of sulcus near the midline, assumed there if the scan does not show it), one buccal notch per
 side when a clear one shows in the canine / premolar region; lingually it runs 6 mm onto the palate (`mg_palate`);
 behind the last tooth on each side it hugs the tooth 2.5 mm back (`mg_distal`), the facial deepening fading out
-over the last 4 mm. No reservoirs, no automatic block-out (the whole sulcus under flared crowns would count as
+over the last 4 mm. **Super smooth** (`mg_smooth`, 6 mm; 19 Oct 2026, the doctor: the line was "very jaggety, it needs
+to be super smooth"): the depth below the gum line is a Gaussian over 6 mm of arch before the notches go in (never
+deeper than the scan allows), and the finished line is smoothed once more on the surface (`_smooth_on_surface`):
+palatal points by their position seen from above (the line no longer zig-zags over the rugae and the gum's
+scallops) and dropped straight down onto the palate, vestibular points by their height (over 2 mm - the notches
+stay) and moved along the arch's radius onto the vestibular wall; behind the last teeth the two blend into the
+line as it was. A ray that finds the far side of the arch is ignored (the hit must lie within 3 mm of the old
+point along the ray), a point with no hit goes to the surface point nearest its smoothed position, and a line with
+a step over 1.5 mm is kept as it was (the log says so). No reservoirs, no automatic block-out (the whole sulcus under flared crowns would count as
 one undercut - the real vestibule is what the guard needs), the model still sits on the base by its gum line and
 the body covers the crowns the way a tray body does. The Braces tab shows what is under the shield in orange;
 **Take off** on a mouthguard adds the painted part to the shield instead of removing it (a tube the app missed),
 and tooth / gum fixes work on the scan as it is. In OrthoFactory the guard is a Template piece, stage 2 (`MG`);
 the base says MOUTHGUARD and the tooth mark is `G`. Settings: `mouthguard`, `mg_inset`, `mg_min_depth`,
-`mg_max_depth`, `mg_palate`, `mg_distal`, `mg_notch_top`, `mg_notch_width`, `mg_clearance`, `mg_band_smooth`. Known limits: the
+`mg_max_depth`, `mg_palate`, `mg_distal`, `mg_notch_top`, `mg_notch_width`, `mg_smooth`, `mg_clearance`, `mg_band_smooth`. Known limits: the
 band is a little fuller over the brackets than between them (a soft bead at each bracket); a 2x4 in the mixed dentition (molar bands + four
 incisor brackets, erupting teeth under the gum) is still hard for the tooth split - the edentulous ridge comes out as
 "tooth" (harmless for a guard) but the anterior palate may too, which pushes the palatal line back: paint it **Gum**
@@ -580,7 +610,9 @@ shelf" filled the gap - but the scanned gum below the line runs almost straight 
 model. Now the walls stand under the scan's own edge (`hug_region` in `solid.py`): the edge seen from above, pulled in
 0.5 mm so the cut runs through scanned gum rather than along its ragged rim, notches under 3 mm closed and corners
 rounded (1.5 mm), inside the outline. The walls drop straight to the floor under the scanned gum, as in Titan's
-models. Round the trim line (the line's region plus `hug_rim`, 0.5 mm, seen from above) the scan is kept as scanned
+models. Round the trim line (the line's region plus `hug_rim`, 0.5 mm, seen from above) **and every tooth** (all
+tooth points on a 0.4 mm grid, plus the same rim; block-out fills and the like the same way, `solid.footprint`) the
+scan is kept as scanned
 with its own edge dropped straight down: the cut is the walls' region together with the line's, and the skirt is made
 only inside the walls, so the line is never cut and nothing is filled in under it where the gum runs straight down or
 under (one cut - an earlier try that cut twice and joined the pieces left zero-thickness slivers where both copies of
@@ -592,7 +624,13 @@ scan, which already reached the floor) to 1-16 (what is left is the patient's ow
 trim line untouched (the same distance to the model at every point), every body one watertight piece with no
 non-manifold edges (the old cut's bodies, saved and read back, had 100-300 from zero-thickness slivers the shelf union
 left; the pipeline's clean-up removed them later). The newly bared base plate is all inside the arch, where the plate
-always shows.
+always shows. **The teeth are in the kept region (19 Oct 2026, evening):** the first version kept only the line's
+region and cut the rest with vertical walls - but a proclined crown leans 1-3 mm out past its own gum line seen
+from above, so the walls shaved the front of it flat (Zayden D.'s upper centrals, on his mouthguard; on 9 of the 10
+scans some tooth points were cut). With every tooth's outline in the kept region no tooth point is cut on any of the
+ten scans or the mouthguard (Zayden's guard: 0 of 39,508), except what an earlier step trims on two scans (the same
+with the old outline cut). Models made with the first version (19 Oct, after the update that removed the shelves)
+should be made again.
 
 **NLO Cases link** (`app/tracker.py`, 19 Oct 2026). NLO Cases keeps every case sealed with its office key, which this
 PC never has, so the flow is: this app makes a P-256 key pair once (`jobs/tracker.dat`, DPAPI-protected on Windows,

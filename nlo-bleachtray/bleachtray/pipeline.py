@@ -34,7 +34,7 @@ DEFAULTS = dict(
     hug_rim=0.5,           # mm: ... but never closer than this to the trim line, seen from above (the line is never cut)
     periphery_smooth=True, # smooth the scan surface beyond 2 mm from the gum line (ragged cheek/lip tissue)
     mouthguard=False,      # sports mouthguard: brackets stay under a smooth shield, the line runs into the vestibule with frenum notches, a flange onto the palate
-    mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_clearance=1.0, mg_band_smooth=1.25,
+    mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_smooth=6.0, mg_clearance=1.0, mg_band_smooth=1.25,
     distal_round=3.0,      # mm: corner radius of the trim line round the last tooth; it never goes past that tooth, dips behind it are lifted, and a tooth the scan cut through gets the line 2 mm short of the edge, over the tooth; 0 = off
     distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
     distal_relief=2.0,     # mm: the model behind the last molar (retromolar pad / tuberosity) is lowered to this far below the trim line so the trimmer reaches the distal surface; 0 = off
@@ -661,7 +661,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             mg_line, mg_info = vestibular_trimline(mesh_f, A, labels, info, margin_f, edge_zone, rc_f, arch=arch,
                                                    inset=float(P.get("mg_inset", 1.5)), min_depth=float(P.get("mg_min_depth", 3.0)), max_depth=float(P.get("mg_max_depth", 14.0)),
                                                    palate=float(P.get("mg_palate", 6.0)), distal=float(P.get("mg_distal", 2.5)), notch_top=float(P.get("mg_notch_top", 2.5)), notch_width=float(P.get("mg_notch_width", 6.0)),
-                                                   log=lambda m: log(f"[{name}] {m}"))
+                                                   smooth_mm=float(P.get("mg_smooth", 6.0)), log=lambda m: log(f"[{name}] {m}"))
             if "error" not in mg_info:
                 gum_line_f = margin_f.copy()     # the model still sits on the base by its gum line, and the body covers the crowns by it
                 margin_f = mg_line
@@ -839,6 +839,13 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if len(sidx):
             mg_appliance = mg_appliance.copy(); mg_appliance[sidx] = True
             log(f"[{name}] bracket shield: {len(sidx)} painted vertices added")
+        # "Not a bracket" (the doctor, 10/19/2026): tooth or gum the detector took for appliance - left out of the band
+        nidx = np.asarray(P.get("noshield_idx") or [], dtype=int)
+        nidx = nidx[(nidx >= 0) & (nidx < len(mg_appliance))]
+        if len(nidx):
+            before = int(mg_appliance.sum())
+            mg_appliance = mg_appliance.copy(); mg_appliance[nidx] = False
+            log(f"[{name}] not a bracket: {before - int(mg_appliance.sum())} of the {len(nidx)} painted vertices left out of the bracket band")
     if MG and mg_appliance is not None and mg_appliance.any() and len(mg_appliance) == len(mesh_f.vertices):
         from .mouthguard import appliance_band
         try:
@@ -856,8 +863,9 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             log(f"[{name}] bracket shields skipped: {ex}")
             rep["shields"] = dict(error=str(ex))
     extras_status = []
-    # the walls stand under the scan's own edge (no shelf out to the outline), never closer to the trim line than hug_rim:
-    # the region inside the line (and, for a mouthguard, the gum line the body also covers) plus that rim
+    # the walls stand under the scan's own edge (no shelf out to the outline), never closer to the trim line or to any
+    # tooth than hug_rim: the region inside the line (and, for a mouthguard, the gum line the body also covers) and every
+    # tooth's outline seen from above, plus that rim
     hug_keep = None
     if P.get("hug_walls", True):
         try:
@@ -872,11 +880,20 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 pg = pg if pg.is_valid else _biggest(_valid(pg))
                 if pg is not None:
                     parts.append(pg.buffer(rim, join_style=1))
+            # ... and the teeth themselves, seen from above: a crown that leans out past its gum line (proclined upper
+            # incisors, 1-3 mm) stands outside the line's region - walls at the line plus a rim shaved those crowns flat
+            # (Zayden D.'s centrals, 10/19/2026). Every tooth point, on a 0.4 mm grid, plus the rim
+            import shapely
+            from .solid import footprint
+            tv = np.asarray(mesh_f.vertices)[np.asarray(labels) > 0][:, :2]
+            if len(tv):
+                parts.append(footprint(tv, rim=rim))
             if parts:
-                hug_keep = parts[0]
-                for pg in parts[1:]:
-                    hug_keep = hug_keep.union(pg)
+                hug_keep = shapely.union_all(parts)
+            if hug_keep is None or len(tv) == 0:
+                hug_keep = None                 # no teeth found: walls at the outline, as before
         except Exception as ex:  # noqa
+            hug_keep = None
             log(f"[{name}] walls under the scan's edge skipped: {ex}")
     body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status,
                                    extra_after=after_solids, hug=hug_keep is not None, hug_keep=hug_keep, info=rep)

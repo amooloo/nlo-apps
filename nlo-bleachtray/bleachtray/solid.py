@@ -378,6 +378,18 @@ def _biggest(g):
     return max(polys, key=lambda p: p.area) if polys else None
 
 
+def footprint(xy, rim=0.5, cell=0.4):
+    """What a set of points covers seen from above: every point on a `cell` mm grid, joined, plus `rim` mm round it
+    (shapely geometry; None for no points)."""
+    import shapely
+    xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+    if not len(xy):
+        return None
+    cells = np.unique(np.floor(xy / cell).astype(np.int64), axis=0)
+    foot = shapely.union_all(shapely.buffer(shapely.points((cells + 0.5) * cell), 0.75 * cell, quad_segs=2))
+    return foot.buffer(rim, join_style=1) if rim > 0 else foot
+
+
 def hug_region(surface, outline, inset=0.5, close_r=1.5, open_r=1.5):
     """Where the model's walls stand (the doctor, 10/19/2026: "get rid of all the shelves around the model").
     The outline sits 3 mm beyond the trim line seen from above, but the scanned gum below the line runs almost
@@ -428,7 +440,15 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
         try:
             walls, hinfo = hug_region(surf, outline)
             if walls is not outline:
-                keep_zone = _biggest(hug_keep.intersection(outline))
+                # the trim line's surroundings and every tooth (with its rim): kept whole, even where a crown leans out past
+                # the outline - not intersected with it (a crown cut by a wall comes out shaved flat)
+                keep_zone = hug_keep if not hug_keep.is_empty else None
+                # block-out fills and the like stand where they stand: whatever they cover is kept whole too
+                xs = [np.asarray(e.vertices)[:, :2] for e in (extra_solids or []) if e is not None and len(e.vertices)]
+                if keep_zone is not None and xs:
+                    fe = footprint(np.vstack(xs), rim=0.3)
+                    if fe is not None:
+                        keep_zone = keep_zone.union(fe)
                 if keep_zone is None:
                     walls, hinfo = outline, None
             if hinfo:
