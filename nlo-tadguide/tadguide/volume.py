@@ -188,10 +188,27 @@ def decimate(pts, faces, max_faces):
         return pts, faces, np.zeros_like(pts)
 
 
-def find_dentition(vol, levels):
+def _plane(p, ref):
+    """Centroid and unit normal (least-spread direction, on ref's side) of a point cloud; ref when the cloud is
+    too small or the fit leans more than 35 degrees from ref (a partial arch does not define a plane)."""
+    c = p.mean(axis=0)
+    if len(p) < 30:
+        return c, ref
+    _w, U = np.linalg.eigh(np.cov((p - c).T))
+    n = U[:, 0]
+    if np.dot(n, ref) < 0:
+        n = -n
+    return c, (n if np.dot(n, ref) > np.cos(np.radians(35)) else ref)
+
+
+def find_dentition(vol, levels, with_points=False):
     """Where the crowns are: the densest cluster of enamel-level voxels (metal excluded), split into upper and
-    lower crowns along the patient's superior axis. Returns dict with 'upper'/'lower': (centroid mm, z-range mm,
-    index bbox), plus 'both' bbox."""
+    lower crowns across the occlusal plane fitted to that enamel - not a horizontal cut, because the head is
+    never level in a CBCT: with the occlusal plane pitched or rolled by 10-20 degrees a horizontal cut puts the
+    molars of one arch with the incisors of the other. Each arch then gets its own plane: 'occlusal' is the unit
+    direction from that arch toward the other (what its crowns face). Returns dict with 'upper'/'lower':
+    centroid, lo/hi (mm, 1st/99th percentile), n, occlusal; plus 'normal' (the superior side of the bite) and
+    'split_z'. with_points: (dict, {'upper': enamel points mm, 'lower': ...})."""
     sp = np.array(vol.spacing)
     f = max(1, int(round(1.0 / sp.min())))                     # ~1 mm blocks
     a = block_mean(vol.data, f) if f > 1 else vol.data.astype(np.float32)
@@ -211,26 +228,49 @@ def find_dentition(vol, levels):
     box = en[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]]
     lab, n = ndi.label(ndi.binary_dilation(box, iterations=1))
     if n == 0:
-        return None
+        return (None, {}) if with_points else None
     sizes = ndi.sum(box, lab, index=np.arange(1, n + 1))
     keep = np.isin(lab, 1 + np.where(sizes >= max(8, 0.01 * sizes.max()))[0]) & box
     kk, jj, ii = np.nonzero(keep)
     idx = np.column_stack([(ii + lo[2]) * f + (f - 1) / 2, (jj + lo[1]) * f + (f - 1) / 2, (kk + lo[0]) * f + (f - 1) / 2])
     pts = vol.index_to_mm(idx)
-    zsup = pts[:, 2]                                              # LPS +z = superior
     from skimage.filters import threshold_otsu
+    sup = np.array([0, 0, 1.0])                                   # LPS +z = superior
+    c0, nrm = _plane(pts, sup)
+    if np.dot(nrm, sup) < 0.5:                                    # more than 60 degrees off: not a bite plane
+        nrm = sup
+    h = (pts - c0) @ nrm
     try:
-        tz = float(threshold_otsu(zsup))
+        th = float(threshold_otsu(h))
     except Exception:
-        tz = float(np.median(zsup))
-    out = dict(split_z=tz, n_voxels=int(len(pts)))
-    for name, sel in (("upper", zsup > tz), ("lower", zsup <= tz)):
+        th = float(np.median(h))
+    up = h > th
+    # each arch its own plane (curve of Spee, a slanted bite): every point goes to the nearer one - only while
+    # the arches stand apart (a CBCT taken on the bite block); with the teeth together the cut across stays
+    for _ in range(4):
+        if up.sum() < 30 or (~up).sum() < 30:
+            break
+        cu, nu = _plane(pts[up], nrm)
+        cl, nl = _plane(pts[~up], nrm)
+        if np.dot(cu - cl, nrm) < 3.0:
+            break
+        new = np.abs((pts - cu) @ nu) < np.abs((pts - cl) @ nl)
+        if (new == up).all():
+            break
+        up = new
+    out = dict(split_z=float(c0[2] + th * nrm[2]), normal=nrm.tolist(), n_voxels=int(len(pts)))
+    groups = {}
+    for name, sel in (("upper", up), ("lower", ~up)):
         p = pts[sel]
         if len(p) < 20:
             out[name] = None
             continue
-        out[name] = dict(centroid=p.mean(axis=0).tolist(), lo=np.percentile(p, 1, axis=0).tolist(), hi=np.percentile(p, 99, axis=0).tolist(), n=int(len(p)))
-    return out
+        _c, na = _plane(p, nrm)
+        occl = -na if name == "upper" else na
+        out[name] = dict(centroid=p.mean(axis=0).tolist(), lo=np.percentile(p, 1, axis=0).tolist(), hi=np.percentile(p, 99, axis=0).tolist(),
+                         n=int(len(p)), occlusal=occl.tolist(), tilt_deg=round(float(np.degrees(np.arccos(min(1.0, abs(na[2]))))), 1))
+        groups[name] = p
+    return (out, groups) if with_points else out
 
 
 def bbox_mm_to_index(vol, lo_mm, hi_mm, margin_mm=0.0):

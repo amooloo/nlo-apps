@@ -16,12 +16,14 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    page - together or one after the other. Check the arch (taken from the file name when it says upper / lower),
    type the patient's name if the CBCT doesn't carry it, **Start**. A big export on the office share can be pasted
    as a path instead (*CBCT folder on the office share*): it is read where it is, not copied.
-3. **Match.** The app finds the teeth in the CBCT and puts the scan on them by itself (10-30 s). The scan's teeth
-   are coloured by how close they lie to the CBCT teeth - green ≤ 0.2 mm, yellow ≤ 0.5, orange ≤ 1, red beyond -
-   and the three slices under the 3D view show the scan's outline in coral on the CBCT (shift-click the model to
-   move the slices there). **Looks right** goes on. If it is off: **Match again**; **Fine adjust** (¼ mm and 1 mm
-   nudges, small turns, then *Let the surfaces settle it*); or **Match by 3 points** - click a cusp tip on the
-   scan, then the same spot on the CBCT teeth, three times, far apart (a molar each side and an incisor).
+3. **Match.** The app finds the crowns in the CBCT and puts the scan's crowns on them by itself (10-30 s). The
+   line above says how much of the scan's crowns lies within 0.5 mm of the CBCT crowns; the scan's teeth are
+   coloured by how close they lie - green ≤ 0.2 mm, yellow ≤ 0.5, orange ≤ 1, red beyond - and the three slices
+   under the 3D view show the scan's outline in coral on the CBCT (shift-click the model to move the slices
+   there). **Looks right** goes on. If it is off (*The match looks wrong*): **Match by 3 points** - the scan
+   moves to the side; click a cusp tip on the scan, then the same spot on the CBCT teeth, three times, far apart
+   (a molar each side and a central incisor) - then **Match with these points**; or **Fine adjust** (¼ mm and
+   1 mm nudges, small turns, then *Let the surfaces settle it*).
    *CBCT levels* (bone / teeth) are set automatically from the scan's own histogram; change them only if the
    teeth outline in the slices is clearly too fat or too thin.
 4. **TADs.** Pick the site and sides, **Find sites**: the gaps that suit the site (for buccal upper: 3/4 back to
@@ -175,11 +177,20 @@ the process runs below normal priority, like Tray Maker.
   refuses 2D images with a plain message. Zips inside the dropped folder are opened (capped at 6 GB unpacked).
 - `tadguide/volume.py` - automatic levels (multi-Otsu on the head; CS 8200 values used only when the scan is
   HU-like), downsampled display volume, marching-cubes surfaces, the dentition finder (enamel-dense clusters).
-- `tadguide/register.py` - the scan's crown band and occlusal axis; 36 starting poses (18 turns × the two ways
-  up) plus the learned ones; normal-compatible, trimmed point-to-plane ICP against the CBCT tooth surface; then
-  the fit map. *good* = ≥ 85 % of the tooth surface within 0.5 mm and median ≤ 0.2 mm; *check* ≥ 60 %.
-  3-point (Kabsch) match + refine as the fallback. Tooth vs gum on the scan: whether the CBCT under the surface
-  is tooth-dense.
+- `tadguide/register.py` - crowns to crowns. On the scan: the crowns by colour (a PLY: teeth pale, gum pink -
+  each scan sets its own split), or the band nearest the occlusal end (STL). In the CBCT: the tooth-level surface
+  only within 3.5 mm of that arch's enamel and nearer to it than to the other arch - no bone for the palate and
+  gum to stick to, no opposing crowns. The crown plane of each side is fitted (the CBCT's per arch, from its
+  enamel - a head pitched or rolled 20° in the CBCT is normal), 96 starting poses (every 15° around it, both ways
+  up, the surface normals both ways) plus the learned ones, normal-compatible trimmed point-to-plane ICP, the
+  best four refined, the winner the one with the most of its crowns on the CBCT crowns. The score shown is that
+  share: points with no CBCT crown near count as off, so a scan resting on the wrong structure cannot score
+  well (*good* ≥ 60 % within 0.5 mm and median ≤ 0.25 mm; *looks wrong* under 45 % within 1 mm). 3-point
+  (Kabsch) match + surface refinement as the fallback. Tooth vs gum for the TAD steps: whether the CBCT under the
+  scan surface is tooth-dense.
+- `volume.find_dentition` - the crowns: the densest cluster of enamel-level voxels (metal out), split into upper
+  and lower across the bite plane fitted to that enamel (not a horizontal cut - with the head tilted that would
+  put the molars of one arch with the incisors of the other); each arch then gets its own plane.
 - `tadguide/arch.py` - the arch curve in the occlusal plane, tooth contacts from dips in the crown height profile
   scaled by average tooth widths, so each spot along the arch has a name (UR 5/6).
 - `tadguide/tads.py` - sites (default depth below the occlusal plane, tilt, screw size, which gaps), placement
@@ -197,8 +208,15 @@ the process runs below normal priority, like Tray Maker.
 
 Tests (`tools/`): `make_phantom.py` builds a synthetic CBCT of both jaws - bone, cortex, teeth with roots,
 sinus and nose, soft tissue, brackets if asked - as a DICOM export (plain or JPEG-lossless), plus a scan of one
-arch (crowns and gum) moved by a known offset. `test_dicom.py` (reader
-cases), `test_register.py`, `test_sites.py`, `test_guide.py`, `test_api.py` (the whole flow through the API)
-run on it. On the phantom the automatic match lands within about 0.1 mm of the truth. It was also run on a
-public, de-identified dental CBCT with brackets (and a scan cut from it). Not yet run on NLO's own CS 8200
-exports and scans - the first real cases are the real test; check the slices.
+arch (crowns, gum and palate) moved by a known offset. `test_dicom.py` (reader cases), `test_register.py`,
+`test_sites.py`, `test_guide.py` and `test_api.py` (the whole flow through the API, the 3-point rescue included)
+run on it, and `test_register_hard.py` with the head tilted up to 25° in the CBCT, coloured and plain scans and
+flipped normals. On the phantom the automatic match lands within about 0.15 mm of the truth; a match knocked
+6 mm / 15° off comes back to that from 3 clicked points. The same with the head tilted 14-20° on a public,
+de-identified dental CBCT with brackets (and a scan cut from it): 0.12-0.19 mm.
+
+The first real case (10/20/2026, CS 8200 + a PLY scan) matched wrongly with the first version, which still scored
+it 95 %. Two weaknesses that cause exactly that are fixed above - the scan's palate and gum could stick to bone,
+and the crowns were split upper / lower by a horizontal cut, which fails with the head tilted (reproduced on the
+phantom: 8-12 mm off before, 0.13 mm after) - and the score no longer looks good on a wrong match. Check the
+slices on the first real cases.

@@ -681,6 +681,7 @@ function setCase(st) {
   updateSlices();
 }
 const meshJobs = {};
+function caseIdOk() { return !!state.id; }
 function queueMesh(name, k) {
   if (k === null) { setObj(name, null); return; }
   const job = meshJobs[name] || (meshJobs[name] = { running: false, next: null });
@@ -696,6 +697,7 @@ function queueMesh(name, k) {
     }
     job.running = false;
     if (!state.framed && (objs.scan || objs.bone)) { frameOn('front'); state.framed = !!objs.scan; }
+    if (state.c && caseIdOk()) renderMatch();
   })();
 }
 async function poll() {
@@ -751,9 +753,12 @@ function renderMatch() {
     ms.innerHTML = `<b>${word}</b> ${esc(sm?.text || '')}${st.match_accepted ? ' · <b>accepted</b>' : ''}<br><span class="hint" style="color:inherit">How: ${esc(reg.method || '')}${reg.stats?.point_residuals ? ' · point errors ' + reg.stats.point_residuals.map((x) => fmt(x, 1)).join(', ') + ' mm' : ''}</span>`;
   }
   $('accept').disabled = !reg || st.busy;
+  // a match that looks wrong: the 3-point match is the way out, so it is the button that stands out
+  const poorMatch = !!reg && (sm?.level === 'poor') && !st.busy;
+  $('accept').classList.toggle('primary', !poorMatch); $('lmstart').classList.toggle('primary', poorMatch);
   $('accept').textContent = st.match_accepted ? 'Accepted ✓' : 'Looks right';
   $('rematch').disabled = !st.scan_file || st.busy;
-  $('lmstart').disabled = !st.scan_file || st.busy || !objs.teeth;
+  $('lmstart').disabled = !st.scan_file || st.busy || !st.cbct_meta;
   if (st.levels) {
     if (document.activeElement !== $('lvbone')) $('lvbone').value = Math.round(st.levels.bone);
     if (document.activeElement !== $('lvdense')) $('lvdense').value = Math.round(st.levels.dense);
@@ -787,7 +792,9 @@ function setMode(m) {
   const sc = objs.scan;
   if (m === 'lm') {
     state.lm = { scan: [], cbct: [] };
-    $('l_teeth').checked = true; if (objs.teeth) objs.teeth.visible = true;
+    $('l_teeth').checked = true;
+    if (objs.teeth) objs.teeth.visible = true;
+    else { toast('Loading the CBCT teeth…'); queueMesh('teeth', state.shown.teeth || 'teeth'); }
     $('l_bone').checked = false; if (objs.bone) objs.bone.visible = false;
     if (sc) {
       const box = new THREE.Box3().setFromObject(sc);
