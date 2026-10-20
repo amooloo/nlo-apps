@@ -14,7 +14,7 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once
    (file names of more than one patient, or more than two files), or files dragged into
    **`S:\clinical\3D printing\BleachTray`**, run with the default (both) without questions - and with any braces left
-   on. An iTero export's upper + lower (`328336123_lprofile_occlusion_u.ply` / `_l.ply`: an order number, no name)
+   on. An iTero export's upper + lower (`123456789_lprofile_occlusion_u.ply` / `_l.ply`: an order number, no name)
    are one patient's: the pop-up asks as for any drop, with the arches filled in from `_u` / `_l` - type the name
    (until 10/19/2026 the two were taken for two patients and ran as a whole day's drop: no questions, braces on).
    Several people can drop at the same time: cases run one after another and the list shows who is waiting.
@@ -88,7 +88,7 @@ due date. Click one and drop its scan: the name, arches and tray types are fille
 *To make* to **Printing** by itself, with "put the models in OrthoFactory" / "sent the models to the printer" in its
 history, and leaves the queue (a case started here shows *started* in the queue until then). A scan dropped straight
 in, without clicking the queue, is tied to its waiting case by the patient's name: the same name, or a near miss of
-it (*Anablle* for *Annabelle*, same last name) when only one waiting case fits, the kind of model breaking a tie;
+it (a first name mistyped, e.g. *Jonh* for *John*, same last name) when only one waiting case fits, the kind of model breaking a tie;
 the case's log says which one it was tied to. NLO Cases is told once per way out, so Send and then PreForm do not
 log it twice. Linking, once: in NLO Cases, **Team & security → Lab PC → New setup code**
 (or *Set up the lab PC*; it is the lab PC's own login, the same code the NLO Lab Bridge uses), copy the code, and in
@@ -140,9 +140,9 @@ Two things leave the app when a case is **sent**:
   per model named by date, patient, arch and type:
 
       O:\clinical\3D printing\Models\
-          Wood, Charles\
-              2026-10-18_Wood_Charles_Upper_WT.stl      WT whitening tray, TT retainer template, MG mouthguard
-              2026-10-18_Wood_Charles_Lower_WT.stl
+          Doe, Jane\
+              2026-10-18_Doe_Jane_Upper_WT.stl      WT whitening tray, TT retainer template, MG mouthguard
+              2026-10-18_Doe_Jane_Lower_WT.stl
 
   Sending the same case again replaces its files; a new case for the same patient on the same day gets `_2`, `_3`.
   The folder defaults to `Models` next to Titan's folder on the office share; Settings → *Print folder* changes it.
@@ -383,7 +383,7 @@ premolar brackets and both molar tubes. With the wider band they come off; over 
 area grows 10-50 % on the braces scans, all of it bracket, tube and wire, and nothing new appears on the 9 plain
 ones. Known limits: clear / ceramic brackets (tooth-coloured) are not found; molar bands and an
 expander's arms are not bumps and stay (a band's outline can stay as a faint ridge once its tube is off); a **stainless-steel crown** is grey and stands proud like a bracket and
-IS taken for one (seen on Dr. Wood's lower, 10/17/2026 - the lingual wall of the crown was cut out and rebuilt), so
+IS taken for one (seen on a lower, 10/17/2026 - the lingual wall of the crown was cut out and rebuilt), so
 for a braces scan with a metal crown leave the box off and paint the brackets with the **Take off** brush instead;
 the enamel under a bracket is a smooth reconstruction, not the scanned surface. That holds for a lone bracket on
 a tooth in line (a patch of 15-30 mm²); on crowded teeth at initial bonding the brackets, wire and ties run
@@ -421,7 +421,7 @@ voxel grid (column by column - a convex window is one z-interval per column), pa
 (blurring thins whatever is thin - a stretch over a tube and wire lost a quarter of its appliance before the
 padding), blurred with a Gaussian of `mg_band_smooth` = 1.25 mm and taken by marching cubes at the level that keeps
 99 % of the appliance inside with at least 0.7 of its clearance - every edge and corner between the windows is
-then round over about 2.5 mm; where 99 % cannot be kept the rounding backs off to 1.0, then 0.75 mm (Lucas Ortiz's
+then round over about 2.5 mm; where 99 % cannot be kept the rounding backs off to 1.0, then 0.75 mm (one patient's
 palatal caps: 1.0). The band is joined to the model after the outline cut: before, the outline's walls cut flat
 faces into it where it stood out past the crowns. Adds 2-3 s and ~70 MB to a case. Appliance more than 6 mm off the spine (an
 expander's arms, a lingual wire) keeps caps of its own (`appliance_shields`, as before); fewer than 3 pieces round
@@ -605,7 +605,7 @@ line and reservoir settings, applied on top of the model type.
 (flap, pocket): then the floor follows the 10th percentile and the dip is lifted to 0.8 mm above the floor, so one bad
 point cannot make the whole model 10 mm taller. **No shelves (19 Oct 2026):** the body used to be cut at the horseshoe
 outline, 3 mm beyond the trim line seen from above, and wherever the scan stopped short of it a nearly flat "gingiva
-shelf" filled the gap - but the scanned gum below the line runs almost straight down (measured on Zayden D.: its edge
+shelf" filled the gap - but the scanned gum below the line runs almost straight down (measured on one upper: its edge
 ~1 mm out from the line and 4-5 mm below it), so every scan that stopped above the floor got a ledge round the
 model. Now the walls stand under the scan's own edge (`hug_region` in `solid.py`): the edge seen from above, pulled in
 0.5 mm so the cut runs through scanned gum rather than along its ragged rim, notches under 3 mm closed and corners
@@ -626,9 +626,9 @@ non-manifold edges (the old cut's bodies, saved and read back, had 100-300 from 
 left; the pipeline's clean-up removed them later). The newly bared base plate is all inside the arch, where the plate
 always shows. **The teeth are in the kept region (19 Oct 2026, evening):** the first version kept only the line's
 region and cut the rest with vertical walls - but a proclined crown leans 1-3 mm out past its own gum line seen
-from above, so the walls shaved the front of it flat (Zayden D.'s upper centrals, on his mouthguard; on 9 of the 10
+from above, so the walls shaved the front of it flat (a patient's upper centrals, on a mouthguard; on 9 of the 10
 scans some tooth points were cut). With every tooth's outline in the kept region no tooth point is cut on any of the
-ten scans or the mouthguard (Zayden's guard: 0 of 39,508), except what an earlier step trims on two scans (the same
+ten scans or the mouthguard (that guard: 0 of 39,508), except what an earlier step trims on two scans (the same
 with the old outline cut). Models made with the first version (19 Oct, after the update that removed the shelves)
 should be made again.
 
@@ -702,6 +702,33 @@ over the one it holds: a case that lands on a folder already holding another sca
 work too: moved/missing teeth are marked 'ignore'), then `python tools/train_eval.py cases.json` (leave-one-case-out
 scores, then the final model to `assets/models.joblib`). Current model: 8 arches from 5 patients; held-out tooth/gum F1
 0.96–0.99 per patient.
+
+**Audit fixes (20 Oct 2026).** A full audit (20 scans of every kind, every endpoint and brush against the running
+app, the page in a browser, five code reviews) led to these behaviour changes:
+- **Apply & re-run sends only the strokes.** A case keeps its own settings, placement and mark; settings reach an open
+  case only through Settings → *Apply to this case*. Strokes sent while the case is waiting or being made are refused
+  with a message (409) and stay on screen; the button shows *Applying…*. Clicking a Past case, a To-make row or a
+  Recent-scans row no longer detaches the open case (it made every later Apply do nothing).
+- **New cases** start on the automatic placement and mark (the page's maps of the case on screen are ignored); the NLO
+  Cases case picked in the queue ties a new case only when it is that patient's (`_tracker_item_fits`), a re-run never
+  changes the tie, and a near name needs a first name of 5+ letters (short ones must match exactly).
+- **Names from file names** (`watch.parse_name`, the page's `nameOf`): every word before the scanner's date - the last
+  word is the last name (with a particle before it: De La Cruz), the rest the first name, middle initial included; any
+  alphabet. The arch is read only from a word of its own (a patient called Flowers is not a lower). `tools/test_names.py`.
+- **Restarts:** a case that was waiting or being made when the app stopped is made again on start-up (twice at most,
+  `restarts` in case.json); case.json is written to a temp file and swapped in; Take off / Not a bracket strokes, the
+  file before a cut and what NLO Cases was told are kept with the case.
+- **Drop folder:** its models carry the patient's name; it takes turns with the page's cases (`watch.RUN_SLOTS`, the
+  same slots as `NLO_WORKERS`); a failed write to its log on the share never stops it; each failure gets its own folder.
+- **PreForm** is the only program the PreForm setting accepts or starts; Open in PreForm and the print files always copy
+  the current models (and base) first.
+- **Learning:** a run flag older than 5 hours is treated as an interrupted run (one killed run used to switch learning
+  off for good).
+- **Mouthguards:** a failed line or bracket band shows a red warning; the base carries no name (the guard covers the
+  strip) and the log says so.
+- **Version:** Settings → Office shows the build (`/api/version`: a hash of the program files and the date of the newest).
+- **Patient names never go in the repo:** the shipped model's `trained_on` holds `baseNN` / `lessonNN` only; README,
+  comments and tests use made-up names.
 
 **Layout.**
 ```

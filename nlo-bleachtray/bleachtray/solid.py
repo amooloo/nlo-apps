@@ -525,6 +525,8 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
     cut = man ^ prism
     if cut.status() != m3.Error.NoError or cut.volume() < 100:
         log("body: prism intersection failed; using uncut solid")
+        if info is not None:
+            info.setdefault("warnings", []).append("the model's outline cut failed: it is the uncut solid (no walls" + (", no bracket band" if extra_after else "") + ") - check it before sending")
         return from_manifold(man), "uncut"
     # solids that must not be cut by the outline's walls (the mouthguard's band over the brackets stands out past
     # the crowns; cut by the walls it had flat faces where it reached them): unioned after the cut
@@ -532,14 +534,21 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
         try:
             mex = to_manifold(ex)
             if mex is None:
-                log(f"solid {i + 1} added after the outline cut is not manifold; skipped"); continue
+                log(f"solid {i + 1} added after the outline cut is not manifold; skipped")
+                if info is not None:
+                    info.setdefault("warnings", []).append("the bracket band could not be joined to the model (not a closed solid) - the guard has no block-out over the brackets: check it before sending")
+                continue
             u = cut + mex
             if u.status() == m3.Error.NoError:
                 cut = u
             else:
                 log(f"solid {i + 1} added after the outline cut: union failed; skipped")
+                if info is not None:
+                    info.setdefault("warnings", []).append("the bracket band could not be joined to the model - the guard has no block-out over the brackets: check it before sending")
         except Exception as ex2:  # noqa
             log(f"solid {i + 1} added after the outline cut skipped: {ex2}")
+            if info is not None:
+                info.setdefault("warnings", []).append("the bracket band could not be joined to the model - check it before sending")
     return largest_piece(from_manifold(cut), log=log), "boolean"
 
 

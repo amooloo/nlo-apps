@@ -131,7 +131,13 @@ def status(root=TRAIN_DIR):
     counts = {k: sum(1 for c in cases if c["kind"] == k) for k in ("base", "corrected", "titan")}
     last = st.get("finished", 0)
     new = [c["name"] for c in cases if c["kind"] != "base" and c["when"] > last]
-    st.update(dict(cases=counts, new_since_last=new, running=st.get("running", False)))
+    running = bool(st.get("running", False))
+    # a run that was killed (the 4-hour limit, a Windows restart in the night, a power cut) never cleared its flag, and
+    # learning stayed off for good with "Retrain now" greyed out: a flag older than any run can last is stale
+    if running and time.time() - float(st.get("started") or 0) > 5 * 3600:
+        running = False
+        st["outcome"] = "interrupted"
+    st.update(dict(cases=counts, new_since_last=new, running=running))
     return _clean(st)
 
 

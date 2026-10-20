@@ -71,7 +71,7 @@ def _start_watcher():
     # the browser app down with it: say so and serve without the watcher
     try:
         os.makedirs(cfg["inbox"], exist_ok=True)
-        logf = open(os.path.join(cfg["inbox"], "bleachtray.log"), "a", encoding="utf-8")
+        open(os.path.join(cfg["inbox"], "bleachtray.log"), "a", encoding="utf-8").close()      # (reachable? the log is opened per line)
     except OSError as ex:
         print(f"  Drop folder {cfg['inbox']} is not reachable from this PC ({ex}) - folder watching is off.")
         print("  Fix the folder in watch_config.json (the office share may be on another drive letter here) and restart the app.")
@@ -79,7 +79,15 @@ def _start_watcher():
 
     def log(msg):
         line = f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S}  {msg}"
-        print(line, flush=True); logf.write(line + "\n"); logf.flush()
+        try:
+            print(line, flush=True)
+        except Exception:  # noqa
+            pass
+        try:                    # the log lives on the share: a moment without it must never stop the watcher
+            with open(os.path.join(cfg["inbox"], "bleachtray.log"), "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception:  # noqa
+            pass
 
     sys.path.insert(0, here)
     from bleachtray.watch import Watcher

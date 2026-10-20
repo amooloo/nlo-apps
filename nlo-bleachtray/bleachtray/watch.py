@@ -10,13 +10,26 @@
 * Each order folder is written into the Titan input folder (Titan_Angled, Template pieces by
   default); scans and outputs are moved to inbox/done/<order>/, failures to inbox/failed/.
 """
-import os, re, sys, time, json, shutil, traceback
+import os, re, sys, time, json, shutil, traceback, threading
 from datetime import datetime
 
-NAME_RE = re.compile(r"^(?P<first>[A-Za-z][A-Za-z'\-]*)[ _\-]+(?P<last>[A-Za-z][A-Za-z'\-]*)")
+# How many scans are made at once in this process: the app's workers and the drop-folder watcher share these slots,
+# so a scan dropped in the folder waits for the case being made on the page (and the other way round) instead of
+# both running at once on the lab PC (NLO_WORKERS=2 allows two)
+RUN_SLOTS = threading.BoundedSemaphore(max(1, int(os.environ.get("NLO_WORKERS", "1") or 1)))
+
+_L = r"[^\W\d_]"                                            # a letter, any alphabet (José, Núñez)
+NAME_RE = re.compile(rf"^(?P<first>{_L}(?:{_L}|['\-])*)[ _\-]+(?P<last>{_L}(?:{_L}|['\-])*)")
+NAME_WORD_RE = re.compile(rf"^{_L}(?:{_L}|['\-.])*$")
+# the scanner writes "<name>_<YYYYMMDD>_<HH-MM-SS>_<arch>": the whole name comes before the date
+DATE_RE = re.compile(r"[ _\-]+(?:19|20)\d{6}(?:[ _\-]|$)")
+# words that belong to the last name that follows them (Juan De La Cruz, Ana Dos Santos, Vincent van Gogh)
+NAME_PARTICLES = {"de", "del", "della", "la", "le", "van", "von", "der", "den", "da", "di", "du", "dos", "das", "st", "mac", "bin", "ibn", "al", "el"}
 TITLE_RE = re.compile(r"^(dr|mr|mrs|ms|miss|prof)\.?[ _\-]+", re.I)
-ARCH_RE = re.compile(r"(upper|maxil|lower|mandib)", re.I)
-# an iTero export: "<order number>_<export type>_<u|l>" (328336123_lprofile_occlusion_u.ply) - no patient name;
+# the arch as a word of its own (a patient called Flowers or Upperman is not an arch): the last one in the name wins
+ARCH_RE = re.compile(r"(?:^|[ _\-.])(upper|maxilla|maxillary|lower|mandible|mandibular)(?=$|[ _\-.(])", re.I)
+ARCH_LOOSE_RE = re.compile(r"(upper|maxil|lower|mandib)", re.I)
+# an iTero export: "<order number>_<export type>_<u|l>" (123456789_lprofile_occlusion_u.ply) - no patient name;
 # the order number ties the upper to the lower
 ITERO_RE = re.compile(r"^(?P<order>\d{5,})(?:[ _\-].*)?[ _\-](?P<arch>[ul])$", re.I)
 # a Titan / OrthoFactory export ("First Last - 0 - Maxilla.stl", also with _ instead of spaces, with or
@@ -37,7 +50,7 @@ def training_dir(root, first, last, max_age_days=45, fuzzy=False):
     """training/<Last, First> - <date>/ : one folder per patient and visit, holding everything that
     teaches the model (scans, labels, Titan exports). Files for the same patient within `max_age_days`
     go to the same folder; a later visit gets a new dated folder. `fuzzy` (used for Titan exports,
-    whose names are typed by hand) tolerates a spelling difference: "Pollenberg" joins "Pellenbarg"."""
+    whose names are typed by hand) tolerates a spelling difference: "Smyth" joins "Smith"."""
     import difflib
     safe = lambda t: "".join(c for c in t if c.isalnum() or c in " -'").strip() or "Unknown"
     base = os.path.join(root, "training")
@@ -88,14 +101,36 @@ DEFAULT_CONFIG = dict(
 )
 
 
+def split_name(words):
+    """[first..., last...] from a patient's name words: the last word is the last name, with any particle before it
+    (De La Cruz); everything before is the first name, middle names and initials included (Maria B Lopez -> Maria B,
+    Lopez: the first two words alone once made a patient "<first> B")."""
+    k = len(words) - 1
+    while k > 1 and words[k - 1].lower().rstrip(".") in NAME_PARTICLES:
+        k -= 1
+    return " ".join(words[:k]), " ".join(words[k:])
+
+
 def parse_name(filename):
     stem = TITLE_RE.sub("", os.path.splitext(os.path.basename(filename))[0])
-    m = NAME_RE.match(stem)
-    first, last = (m.group("first"), m.group("last")) if m else ("Scan", re.sub(r"[^A-Za-z0-9]", "", stem)[:20] or "Unknown")
-    a = ARCH_RE.search(stem)
+    first = last = None
+    d = DATE_RE.search(stem)
+    if d and d.start() > 0:
+        # every word of the name before the scanner's date (a number in front of it - an upload's id - is not a name)
+        words = [w for w in re.split(r"[ _]+", stem[:d.start()].strip(" _-")) if NAME_WORD_RE.match(w)]
+        if len(words) >= 2:
+            first, last = split_name(words)
+    if first is None:
+        m = NAME_RE.match(stem)
+        first, last = (m.group("first"), m.group("last")) if m else ("Scan", re.sub(r"[^A-Za-z0-9]", "", stem)[:20] or "Unknown")
+    words = ARCH_RE.findall(stem)
+    a = words[-1] if words else None
+    if a is None:                      # no arch word of its own: the old loose match, inside a word (scan_upperjaw)
+        m_ = ARCH_LOOSE_RE.findall(stem)
+        a = m_[-1] if m_ else None
     arch = None
     if a:
-        arch = "upper" if a.group(1).lower() in ("upper", "maxil") else "lower"
+        arch = "upper" if a.lower().startswith(("upper", "maxil")) else "lower"
     else:
         it = ITERO_RE.match(stem)
         if it:
@@ -168,6 +203,10 @@ class Watcher:
         return out
 
     def process_order(self, ent):
+        with RUN_SLOTS:
+            self._process_order(ent)
+
+    def _process_order(self, ent):
         from .pipeline import process
         from .orderfolder import write_order_folder
         from .server_presets import PRESETS
@@ -183,12 +222,16 @@ class Watcher:
         try:
             for path, arch in ent["files"][:2]:
                 moved = None
-                for vpreset, tag, kind, stage in variants:
+                for vpreset, vtag, kind, stage in variants:      # (vtag: `tag` names the case's folder - a failure is filed under it)
                     p = dict(params); p.update(PRESETS.get(vpreset, {})); p["arch"] = arch; p["stage"] = stage; p["kind"] = kind
-                    name = f"{ent['first']}_{ent['last']}_{arch or 'scan'}_{tag}"
+                    # the patient's name goes on the model (engraving, tooth mark): without it every drop-folder model
+                    # read "NLO"; a file name with no name in it ("Scan ...") stays unnamed
+                    if ent.get("first") and ent["first"] != "Scan":
+                        p["patient_first"], p["patient_last"] = ent["first"], ent["last"]
+                    name = f"{ent['first']}_{ent['last']}_{arch or 'scan'}_{vtag}"
                     rep = process(path, work, name=name, params=p, models=self.models, log=self.log, feat_cache=feat_cache)
                     pieces.append(dict(arch=rep["arch"], stl=rep["outputs"]["model"], pts=rep["outputs"]["trimline"], stage=stage, kind=kind))
-                    results.append((rep, path, dict(preset=vpreset, tag=tag, kind=kind, stage=stage)))
+                    results.append((rep, path, dict(preset=vpreset, tag=vtag, kind=kind, stage=stage)))
                 moved = os.path.join(work, os.path.basename(path))
                 shutil.move(path, moved)
                 results = [(r[0], moved if r[1] == path else r[1], r[2]) for r in results]
@@ -216,12 +259,20 @@ class Watcher:
             if os.path.isdir(work):
                 shutil.move(work, os.path.join(fail, "partial_outputs"))
 
+    def _say(self, msg):
+        try:
+            self.log(msg)
+        except Exception:  # noqa  (the log file on the share is gone for a moment: the watcher carries on)
+            pass
+
     def run_forever(self):
+        # never ends: a failed write to the log on the share (the file server restarting overnight) used to end the
+        # watcher for good, and scans piled up in the drop folder with nothing to show for it
         while True:
             try:
                 self.scan_inbox()
                 for ent in self.ready_orders():
                     self.process_order(ent)
             except Exception as ex:  # noqa
-                self.log(f"watcher error: {ex}")
+                self._say(f"watcher error: {ex}")
             time.sleep(self.cfg["poll"])

@@ -1,8 +1,8 @@
 """The print folder: every finished model, filed by patient, where PreForm opens it from.
 
-    <print root>\\Wood, Charles\\2026-10-18_Wood_Charles_Upper_WT.stl
-                               2026-10-18_Wood_Charles_Lower_WT.stl
-                               2026-10-18_Wood_Charles_Upper_MG.stl
+    <print root>\\Doe, Jane\\2026-10-18_Doe_Jane_Upper_WT.stl
+                               2026-10-18_Doe_Jane_Lower_WT.stl
+                               2026-10-18_Doe_Jane_Upper_MG.stl
 
 One folder per patient (Last, First), one file per model with the date it was made, the arch and
 the type (WT whitening tray, TT retainer template, MG mouthguard). A second set made on the same
