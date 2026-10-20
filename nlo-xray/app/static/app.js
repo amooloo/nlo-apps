@@ -262,7 +262,7 @@
       const doubt = (r.unverified || []).length ? ` · to check: ${esc(r.unverified.join(', '))}` : '';
       return `<div class="impRow"><span class="who">${esc(r.name || '(no name)')} ${r.confirmed ? '<span class="pill confirmed">confirmed</span>' : ''}</span>
         <span class="what"><span class="ok">${r.verified} points</span> reproduce iOrtho's numbers (${r.checks_ok} of ${r.checks} checks)${doubt}</span>
-        ${openBtn(r)}</div>`;
+        ${openBtn(r)}${r.scale_note ? `<span class="what wait">${esc(r.scale_note)}</span>` : ''}</div>`;
     };
     out.innerHTML = impRows.map(row).join('')
       + (impRows.some((r) => !r.error && !r.skipped && !r.confirmed) ? '<p class="hint">Open each one, look the points over and press Confirm tracing - then it is a lesson for the app.</p>' : '');
@@ -561,7 +561,11 @@
 
   function calText() {
     const c = S.case.calibration || {};
-    return c.mm_per_px ? `${(+c.mm_per_px).toFixed(4)} mm per pixel` : '';
+    if (!c.mm_per_px) return '';
+    const src = String(c.source || '');
+    const from = src.startsWith('nasion-rod ruler') ? ' · nasion-rod ruler' : src.startsWith('ruler on this x-ray') ? ' · your ruler'
+      : src.startsWith('from iOrtho') ? ' · from iOrtho' : '';
+    return `${(+c.mm_per_px).toFixed(4)} mm per pixel${from}`;
   }
 
   function renderTop() {
@@ -585,8 +589,9 @@
     $('#confirmBtn').disabled = !(prog && prog.placed === prog.total && prog.total > 0);
     const cal = $('#vCal');
     const t = calText();
-    cal.className = 'vCal' + (t ? '' : ' warn');
-    cal.textContent = t ? t : 'Not calibrated: angles only - use Ruler';
+    const chk = S.analysis && S.analysis.calibration_check;
+    cal.className = 'vCal' + (t && !chk ? '' : ' warn');
+    cal.textContent = chk || (t ? t : 'Not calibrated: angles only - use Ruler');
     cal.title = (c.calibration && c.calibration.source) || 'Millimetre measurements need the pixel size. Use the Ruler on a known length.';
     $('#ageSub').textContent = age != null ? `${age} y at the x-ray` : '';
   }
@@ -1110,6 +1115,21 @@
       }
       c2.globalAlpha = 1;
     }
+    // the nasion-rod ruler the pixel size was measured on: its marks circled
+    const rl = !opts.print && S.lines && S.case && S.case.ruler;
+    if (rl && (rl.points || []).length) {
+      c2.strokeStyle = '#64F4C9';
+      c2.lineWidth = 1.5;
+      const rr = Math.max(7, 0.08 * (rl.spacing_px || 0) * view.scale);    // a little bigger than the mark at any zoom
+      for (const [rx, ry] of rl.points) {
+        const [x, y] = scr({ x: rx, y: ry });
+        c2.beginPath(); c2.arc(x, y, rr, 0, Math.PI * 2); c2.stroke();
+      }
+      const [lx, ly] = scr({ x: rl.points[0][0], y: rl.points[0][1] });
+      c2.font = '600 11px Montserrat, system-ui, sans-serif';
+      c2.fillStyle = '#64F4C9';
+      c2.fillText(`marks ${rl.mark_mm || 10} mm apart`, lx + rr + 6, ly + 4);
+    }
     // points
     c2.font = `600 ${11 * K}px Montserrat, system-ui, sans-serif`;
     for (const code of S.order) {
@@ -1330,7 +1350,7 @@
     const [a, b] = S.ruler;
     const px = Math.hypot(b[0] - a[0], b[1] - a[1]);
     const d = $('#dlgCal');
-    $('#calInfo').textContent = `${px.toFixed(1)} pixels between the two clicks.`;
+    $('#calInfo').textContent = `${px.toFixed(1)} pixels between the two clicks. Neighbouring marks on the nasion-rod ruler are ${(S.settings && S.settings.calibration && S.settings.calibration.ruler_mm) || 10} mm apart.`;
     $('#calDefault').checked = S.case.source && S.case.source.format !== 'dicom';
     d.returnValue = '';
     d.showModal();
@@ -1568,10 +1588,12 @@
     } else if (S.setTab === 'cal') {
       const c = s.calibration || {};
       body.innerHTML = `<p>Millimetre measurements (Wits, incisor to NA/NB, lips to the E-line, lengths) need the size of a pixel at the patient's midline. Angles and ratios do not.</p>
+        <label class="ckRow"><input type="checkbox" id="caRuler" ${c.ruler_auto !== false ? 'checked' : ''}> Find the nasion-rod ruler on every x-ray and take the pixel size from it</label>
+        <div class="row2" style="margin-top:6px"><div><label class="f" for="caRulerMm">Distance between two neighbouring marks (mm)</label><input class="in" id="caRulerMm" type="number" step="0.5" min="1" max="50" value="${c.ruler_mm ?? 10}"><p class="hint">As the marks show on the x-ray. On this office's cephs they measure 10 mm apart: with 10, S-N and N-Me come out as iOrtho measures them. The rod rests on nasion, so the ruler gives the size at the midline, magnification included. A pixel size set by hand with <b>Ruler</b> is never replaced.</p></div><div></div></div>
         <div class="row2"><div><label class="f" for="caDef">Pixel size for exported x-rays (mm)</label><input class="in" id="caDef" type="number" step="0.0001" value="${c.default_mm_per_px ?? ''}" placeholder="not set"><p class="hint">Used for JPG / PNG / TIFF files, which carry no pixel size. Easiest: on one x-ray click <b>Ruler</b>, mark 10 mm on the nasion-rod ruler and tick "use for every exported x-ray". Export the same way every time.</p></div>
         <div><label class="f" for="caMag">Ceph magnification</label><input class="in" id="caMag" type="number" step="0.001" min="1" max="1.5" value="${c.magnification ?? 1.13}"><p class="hint">For DICOM files that give the pixel size at the detector only. 1.13 is Carestream's figure for the CS 8200 ceph arm. Files that say their own magnification use that.</p></div></div>`;
       foot.innerHTML = '<button class="primary" id="caSave" type="button">Save</button>';
-      $('#caSave').onclick = () => saveSettings({ calibration: { default_mm_per_px: $('#caDef').value === '' ? null : parseFloat($('#caDef').value), magnification: parseFloat($('#caMag').value) } });
+      $('#caSave').onclick = () => saveSettings({ calibration: { default_mm_per_px: $('#caDef').value === '' ? null : parseFloat($('#caDef').value), magnification: parseFloat($('#caMag').value), ruler_auto: $('#caRuler').checked, ruler_mm: parseFloat($('#caRulerMm').value) } });
     } else if (S.setTab === 'access') {
       body.innerHTML = `<p>${s.passcode ? '<b>A passcode is set.</b> Each computer types it once (remembered 30 days).' : 'No passcode: any computer on the office network can open the app.'}</p>
         <p class="hint">Worth setting if patients or guests can join the same Wi-Fi as the office computers. Changing it signs every other computer out.</p>
