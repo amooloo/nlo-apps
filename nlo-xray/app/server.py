@@ -26,7 +26,7 @@ for _ext, _mt in ((".js", "application/javascript"), (".mjs", "application/javas
     mimetypes.add_type(_mt, _ext)   # Windows registries sometimes map .js to text/plain
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
-from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.concurrency import run_in_threadpool  # noqa: E402
 
@@ -198,6 +198,8 @@ async def guard(request: Request, call_next):
     resp.headers["X-Frame-Options"] = "SAMEORIGIN"
     if path.startswith("/api/"):
         resp.headers["Cache-Control"] = "no-store"
+    elif path.startswith("/static/"):
+        resp.headers["Cache-Control"] = "no-cache"          # always ask: after an update the new files are used at once
     return resp
 
 
@@ -224,7 +226,7 @@ async def login(request: Request):
 @app.get("/api/hello")
 def hello(request: Request):
     """Open to everyone: does this browser need the passcode?"""
-    return {"app": "NLO X-Ray Reader", "version": __version__, "passcode": passcode_on(),
+    return {"app": "NLO X-Ray Reader", "version": __version__, "build": BUILD, "passcode": passcode_on(),
             "signed_in": (not passcode_on()) or _session_ok(request)}
 
 
@@ -246,7 +248,7 @@ def defs():
 def status():
     cases = STORE.list()
     st = TRAINER.status()
-    return dict(version=__version__, cases=len(cases), confirmed=sum(1 for c in cases if c.get("status") == "confirmed"),
+    return dict(version=__version__, build=BUILD, cases=len(cases), confirmed=sum(1 for c in cases if c.get("status") == "confirmed"),
                 learning=st, model=st.get("model"), passcode=passcode_on(), min_cases=MIN_CASES)
 
 
@@ -886,9 +888,30 @@ async def set_passcode(request: Request):
 
 # ----------------------------------------------------------------------------- the page
 
+def _build_id():
+    """Changes with every update: the version and the page's own files. Open pages compare it to offer a reload."""
+    h = hashlib.sha1(__version__.encode())
+    for name in ("index.html", "app.js", "style.css"):
+        try:
+            with open(os.path.join(STATIC, name), "rb") as f:
+                h.update(f.read())
+        except OSError:
+            pass
+    return h.hexdigest()[:10]
+
+
+BUILD = _build_id()
+
+
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(STATIC, "index.html"), headers={"Cache-Control": "no-cache"})
+    with open(os.path.join(STATIC, "index.html"), encoding="utf-8") as f:
+        html = f.read()
+    # the page's script and styles under a name that changes with each update, so no browser keeps an old copy
+    html = (html.replace('/static/app.js"', f'/static/app.js?v={BUILD}"')
+                .replace('/static/style.css"', f'/static/style.css?v={BUILD}"')
+                .replace('<meta name="build" content="">', f'<meta name="build" content="{BUILD}">'))
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

@@ -46,6 +46,22 @@ def test_privacy_headers_and_no_outside_references(client):
         assert urls <= {"https://amooloo.github.io/nlo-apps/"}, (name, urls)
 
 
+def test_updates_reach_open_pages(client):
+    """After an update the page asks for its script and styles under new names, and open pages can tell."""
+    from xray import __version__
+    build = client.srv.BUILD
+    page = client.get("/")
+    assert page.headers["cache-control"] == "no-cache"
+    html = page.text
+    assert f'/static/app.js?v={build}"' in html and f'/static/style.css?v={build}"' in html
+    assert f'<meta name="build" content="{build}">' in html
+    js = client.get(f"/static/app.js?v={build}")
+    assert js.status_code == 200 and js.headers["cache-control"] == "no-cache"
+    hello = client.get("/api/hello").json()
+    assert hello["version"] == __version__ and hello["build"] == build
+    assert client.get("/api/status").json()["build"] == build
+
+
 def test_full_flow(client):
     data, pts, facing = png_bytes()
     r = client.post("/api/cases", files=[("files", ("Jane_Doe_ceph_2026-10-15.png", data, "image/png"))])
