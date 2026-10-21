@@ -719,6 +719,7 @@ def _scan_params(job, scan):
             pass
     params["force_on_idx"] = pe.get("reservoir") or []
     params["p1_span_idx"] = pe.get("p1span") or []; params["p1_end_idx"] = pe.get("p1end") or []; params["p1_six_idx"] = pe.get("p1six") or []   # the Phase I tab's dots
+    params["tooth_ids"] = pe.get("tooth_ids") or {}      # the Teeth tab: {label: [position, primary]}
     params["adjust"] = _adjust_by_arch(job["params"], job["scans"]).get(scan.get("arch") or "", dict(ADJUST_ZERO))
     params.pop("adjust_by_arch", None)
     params["mark"] = _mark_by_arch(job["params"]).get(scan.get("arch") or "") or None
@@ -853,8 +854,27 @@ def _run(job):
                         r[ok] = remap2[remap[ok]]; remap = r
             # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
             path = job["scans"][k0]["path"]       # (a take-off / cut gave the scan a new file)
-            if any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six")):
+            if any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
                 entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
+                # the Teeth tab: the number the doctor gave a tooth ({label: [position, primary]}, position 0 = not a
+                # tooth, null = back to the app's count), kept by the tooth's label - the labels are frozen for the
+                # scan from here on (fixed_labels), so a later run cannot renumber them under the doctor's numbers
+                if isinstance(me.get("teeth"), dict):
+                    ids = dict(entry.get("tooth_ids") or {})
+                    for k_, v_ in me["teeth"].items():
+                        if v_ is None:
+                            ids.pop(str(k_), None)
+                        else:
+                            ids[str(k_)] = [int(v_[0]), bool(v_[1])] if isinstance(v_, (list, tuple)) else [int(v_), False]
+                    entry["tooth_ids"] = ids
+                    log(f"teeth numbered by hand: {len(ids)} on this scan")
+                    if path not in fixed and not (me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact")):
+                        try:
+                            st_ = np.load(os.path.join(job["dir"], f"{job['scans'][k0]['name']}_state.npz"))
+                            if remap is None:
+                                fixed[path] = np.asarray(st_["labels"])
+                        except Exception:
+                            pass
                 # block-out outlines (corner vertices, clicked round an undercut): kept as drawn, for the record and
                 # for teaching the automatic block-out where the doctor wants them
                 for o in (me.get("outlines") or []):
@@ -912,8 +932,24 @@ def _run(job):
                 k0, me = edits_by_path[scan["path"]]
                 if me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact"):
                     progress(0.02, "applying your brush fixes")
+                    old_lab = fixed.get(scan["path"])
+                    if old_lab is None:
+                        try:
+                            old_lab = np.asarray(np.load(os.path.join(job["dir"], f"{job['scans'][k0]['name']}_state.npz"))["labels"])
+                        except Exception:
+                            old_lab = None
                     overrides[scan["path"]] = _apply_mask_edit(job, k0, edit=me, remap=remaps.get(scan["path"]))
                     fixed[scan["path"]] = overrides[scan["path"]]
+                    ids = ((job.get("paint") or {}).get(scan["path"]) or {}).get("tooth_ids")
+                    if ids and old_lab is not None and len(old_lab) == len(overrides[scan["path"]]):
+                        new_lab = overrides[scan["path"]]
+                        moved = {}
+                        for k_, v_ in ids.items():
+                            m_ = old_lab == int(k_)
+                            cand = new_lab[m_ & (new_lab > 0)]
+                            if len(cand):
+                                moved[str(int(np.bincount(cand).argmax()))] = v_
+                        job["paint"][scan["path"]]["tooth_ids"] = moved
             override = overrides.get(scan["path"], fixed.get(scan["path"]))
             params = _scan_params(job, scan)
             if k in fast and not full and scan.get("report") and os.path.exists(os.path.join(job["dir"], f"{scan['name']}_body_only.stl")):
@@ -1701,7 +1737,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
         # any painted vertex is just a re-run: it must not count as a brush correction
         mes = me if isinstance(me, list) else ([me] if me else [])
-        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six"))]
+        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth"))]
     except Exception:
         mes = []
     # strokes are vertex numbers of the scan file as the page showed it: while the case is waiting or being made, the
@@ -2534,6 +2570,19 @@ def p1_dots(jid: str, scan: int = 0):
         raise HTTPException(404)
     pe = (job.get("paint") or {}).get(job["scans"][scan]["path"]) or {}
     return {"span": [int(i) for i in pe.get("p1span") or []], "end": [int(i) for i in pe.get("p1end") or []], "six": [int(i) for i in pe.get("p1six") or []]}
+
+
+@app.get("/api/jobs/{jid}/teeth")
+def teeth_of(jid: str, scan: int = 0):
+    """The Teeth tab: every tooth label's number as the case has it (side, position - from the report) and the numbers
+    the doctor gave by hand ({label: [position, primary]})."""
+    job = JOBS.get(jid)
+    if not job or not (0 <= scan < len(job["scans"])):
+        raise HTTPException(404)
+    sc = job["scans"][scan]
+    pe = (job.get("paint") or {}).get(sc["path"]) or {}
+    rep_ = sc.get("report") or {}
+    return {"teeth": rep_.get("teeth") or {}, "ids": pe.get("tooth_ids") or {}, "arch": sc.get("arch")}
 
 
 @app.get("/api/jobs/{jid}/trimline.json")
