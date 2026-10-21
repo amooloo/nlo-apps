@@ -38,7 +38,10 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    stone model with each tooth in its own colour): the **Tooth** brush paints the colour of the tooth the stroke
    starts on - where one colour has run over onto the next tooth, start on the right tooth and paint over the bleed
    and it is that tooth again, a clean split (the doctor, 10/21/2026: "wherever the brush picks from will be the
-   colour that is painted"); started on gum it paints plain tooth for the app to sort - and has the **Contact** dot:
+   colour that is painted"); started on gum - no colour - the stroke is gum, so a stroke from the gum onto a tooth
+   takes the bleed off and a stroke from the tooth onto the gum takes the tooth's colour out over it, with no switching
+   between brushes (the doctor, 10/21/2026: "use the same logic - if you start on gum then your strokes will be no
+   teeth"; **Gum** is still there for a stroke that must be gum whatever it starts on) - and has the **Contact** dot:
    Shift-click once where two teeth touch and the split between them is put there - for crowded lower incisors,
    where one colour runs across two teeth and the reservoir ends mid-tooth instead of at the contact - the view turns
    to look from above when the tool is picked, a dot on gum is refused (teeth with a space between them need none;
