@@ -20,7 +20,7 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    line above says how much of the scan's crowns lies within 0.5 mm of the CBCT crowns; the scan's teeth are
    coloured by how close they lie - green ≤ 0.2 mm, yellow ≤ 0.5, orange ≤ 1, red beyond - and the three slices
    under the 3D view show the scan's outline in coral on the CBCT (shift-click the model to move the slices
-   there). **Looks right** goes on. If it is off (*The match looks wrong*): **Match by 3 points** - the scan
+   there; scroll on a slice to move through it, drag to pan, double-click to come back). **Looks right** goes on. If it is off (*The match looks wrong*): **Match by 3 points** - the scan
    moves to the side; click a cusp tip on the scan, then the same spot on the CBCT teeth, three times, far apart
    (a molar each side and a central incisor) - then **Match with these points**; or **Fine adjust** (¼ mm and
    1 mm nudges, small turns, then *Let the surfaces settle it*).
@@ -32,8 +32,12 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    **Use** places one; **Place by clicking** puts one where you click on the gum. Click a placed TAD to edit it:
    three slices along and across the screw (the red tint is what the app counted as root), mesial / distal,
    up / down, tilt, depth, which TAD (below) and its collar, **Fine-tune here** (the best spot within 1.5 mm
-   and 8°), **Remove**. Sites: buccal between roots (upper and lower), palatal between roots, infrazygomatic
-   crest, buccal shelf, paramedian palate.
+   and 8°), **Remove**. **Undo** (or Ctrl+Z) takes back the last placement, move, fine-tune or removal - and
+   in the Match step the last nudge or re-match. Sites: buccal between roots (upper: 2/3 for anterior intrusion,
+   3/4 to 6/7; lower 3/4, 4/5), palatal between roots, infrazygomatic crest, buccal shelf, paramedian palate.
+   The 3D view shows the scan in natural colours (ivory teeth, pink gum), the CBCT roots in dentin yellow inside
+   the faint bone; **See through** makes the scan and bone faint so the roots show; **Fit colours** is the match
+   check (on while matching, off once accepted).
 5. **Guide.** **Make the guide** (10-30 s) and look at it in 3D with the TADs. Download the **Guide STL** (in the
    coordinates of the original scan file, so it lines up with the scan in any program), the **TADs STL** to
    check against, and **Plan / print** for the chart (site, size, angles, the numbers, the drilling notes and the

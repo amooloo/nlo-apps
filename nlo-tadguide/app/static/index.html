@@ -144,7 +144,8 @@
   .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite;margin-right:7px;vertical-align:-1px}
   @keyframes spin{to{transform:rotate(360deg)}}
   .slices{flex:none;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px;background:#fff;border-top:1px solid var(--grey-100)}
-  .slices figure{position:relative;background:#111;border-radius:10px;overflow:hidden;aspect-ratio:1/1}
+  .slices figure{position:relative;background:#111;border-radius:10px;overflow:hidden;aspect-ratio:1/1;cursor:grab;touch-action:none;user-select:none}
+  .slices figure:active{cursor:grabbing}
   .slices img{width:100%;height:100%;object-fit:contain;display:block}
   .slices figcaption{position:absolute;left:8px;top:6px;font-size:11px;font-weight:700;color:#DCE4EE;text-shadow:0 1px 2px #000;letter-spacing:.03em}
   .slices .ctrl{position:absolute;right:6px;bottom:6px;display:flex;gap:3px}
@@ -225,7 +226,7 @@
             <div class="panel on" id="p_match">
               <div class="status work" id="matchstatus">Working…</div>
               <div class="legend" id="fitlegend"><span><i style="background:#2FB57F"></i>≤ 0.2 mm</span><span><i style="background:#E7C33A"></i>≤ 0.5</span><span><i style="background:#F08A3C"></i>≤ 1</span><span><i style="background:#E04A3F"></i>&gt; 1 mm</span><span>scan on the CBCT teeth</span></div>
-              <div class="hint" id="matchhelp">Check the slices under the 3D view: the coral line (the scan) should hug the CBCT crowns. Shift-click the model to look somewhere else.</div>
+              <div class="hint" id="matchhelp">Check the slices under the 3D view: the coral line (the scan) should hug the CBCT crowns. Scroll on a slice to move through it, drag to pan, double-click to come back; shift-click the model to look somewhere else.</div>
               <div class="btns"><button class="primary" id="accept">Looks right</button><button class="small" id="rematch">Match again</button><button class="small" id="lmstart">Match by 3 points</button></div>
               <div id="lmbox" style="display:none" class="status info"></div>
               <div id="needscan" style="display:none" class="status check">The CBCT is in. Drop the patient's scan (STL / PLY) anywhere on the page to match it.</div>
@@ -235,7 +236,7 @@
                 <div class="nudge"><span>Back / front</span><button data-n="d1" data-v="0.25">front ¼</button><button data-n="d1" data-v="-0.25">back ¼</button><button data-n="d1" data-v="1">front 1</button><button data-n="d1" data-v="-1">back 1</button></div>
                 <div class="nudge"><span>Up / down</span><button data-n="d2" data-v="0.25">up ¼</button><button data-n="d2" data-v="-0.25">down ¼</button><button data-n="d2" data-v="1">up 1</button><button data-n="d2" data-v="-1">down 1</button></div>
                 <div class="nudge"><span>Turn</span><button data-n="r2" data-v="-1">↺ 1°</button><button data-n="r2" data-v="1">1° ↻</button><button data-n="r0" data-v="-1">tip ↑</button><button data-n="r0" data-v="1">tip ↓</button></div>
-                <div class="btns"><button class="small" id="refine">Let the surfaces settle it</button></div>
+                <div class="btns"><button class="small" id="refine">Let the surfaces settle it</button><button class="small undobtn" disabled title="Nothing to undo">↶ Undo</button></div>
               </details>
               <details class="adv" id="levelsbox"><summary>CBCT levels</summary>
                 <div class="hint">Where bone and teeth start in this CBCT's grey values. They set the 3D surfaces, the match target and the root check. The app remembers what you set for this CBCT machine.</div>
@@ -249,7 +250,7 @@
                 <div><label class="f">Site</label><select id="site"></select></div>
                 <div><label class="f">Sides</label><div class="seg" id="sides"><button data-s="R" class="on">Right</button><button data-s="L" class="on">Left</button></div></div>
               </div>
-              <div class="btns"><button class="primary" id="findsites">Find sites</button><button class="small" id="clickplace">Place by clicking</button></div>
+              <div class="btns"><button class="primary" id="findsites">Find sites</button><button class="small" id="clickplace">Place by clicking</button><button class="small undobtn" disabled title="Nothing to undo">↶ Undo</button></div>
               <div class="hint" id="planhint">Find sites checks every gap between the roots for this site and ranks them. Or click <b>Place by clicking</b> and click the gum where you want it - the angle comes from the site's settings (and what you usually do).</div>
               <div id="suggs"></div>
               <div id="tadlist"></div>
@@ -284,9 +285,10 @@
       <section class="viewer">
         <div class="toolbar">
           <label class="tog"><input type="checkbox" id="l_bone" checked> Bone</label>
-          <label class="tog"><input type="checkbox" id="l_teeth"> CBCT teeth</label>
+          <label class="tog"><input type="checkbox" id="l_teeth" checked> Roots (CBCT)</label>
           <label class="tog"><input type="checkbox" id="l_scan" checked> Scan</label>
-          <label class="tog"><input type="checkbox" id="l_fit" checked> Fit colours</label>
+          <label class="tog" title="Scan and bone turned see-through, so the roots show"><input type="checkbox" id="l_xray"> See through</label>
+          <label class="tog" title="Colour the scan's teeth by their distance to the CBCT teeth"><input type="checkbox" id="l_fit"> Fit colours</label>
           <label class="tog"><input type="checkbox" id="l_tads" checked> TADs</label>
           <label class="tog"><input type="checkbox" id="l_guide" checked> Guide</label>
           <div class="views"><button data-v="front">Front</button><button data-v="right">Right</button><button data-v="left">Left</button><button data-v="occl">Occlusal</button><button data-v="back">Back</button></div>
@@ -412,9 +414,9 @@ function parseMesh(buf) {
   return { g, extra };
 }
 const MATS = {
-  bone: () => new THREE.MeshStandardMaterial({ color: 0xE8E1D2, roughness: 0.8, metalness: 0, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }),
-  teeth: () => new THREE.MeshStandardMaterial({ color: 0xF5F1E6, roughness: 0.55, metalness: 0, transparent: true, opacity: 0.85, side: THREE.DoubleSide }),
-  scan: () => new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.6, metalness: 0, side: THREE.DoubleSide }),
+  bone: () => new THREE.MeshStandardMaterial({ color: 0xD8D4CC, roughness: 0.85, metalness: 0, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide }),
+  teeth: () => new THREE.MeshStandardMaterial({ color: 0xEEDCA4, roughness: 0.5, metalness: 0, side: THREE.DoubleSide }),
+  scan: () => new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.55, metalness: 0, side: THREE.DoubleSide, transparent: true, opacity: 1.0 }),
   tads: () => new THREE.MeshStandardMaterial({ color: 0xF2C14E, roughness: 0.3, metalness: 0.7, emissive: 0x3a2a00 }),
   guide: () => new THREE.MeshStandardMaterial({ color: 0x5A96FF, roughness: 0.4, metalness: 0, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
 };
@@ -422,14 +424,14 @@ function fitColors(g, extra, on) {
   const n = g.attributes.position.count;
   const col = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
-    let r = 0.93, gg = 0.84, b = 0.83;                              // gum / no CBCT tooth: soft pink-grey
+    let r = 0.86, gg = 0.52, b = 0.52;                              // gum: gingiva pink
     const d = extra ? Math.abs(extra[i]) : 99;
     if (on && d < 50) {
       if (d <= 0.2) { r = 0.18; gg = 0.71; b = 0.5; }
       else if (d <= 0.5) { r = 0.91; gg = 0.76; b = 0.23; }
       else if (d <= 1.0) { r = 0.94; gg = 0.54; b = 0.24; }
       else { r = 0.88; gg = 0.29; b = 0.25; }
-    } else if (extra && d < 50) { r = 0.97; gg = 0.96; b = 0.93; }    // tooth, colours off: white
+    } else if (extra && d < 50) { r = 0.96; gg = 0.94; b = 0.86; }    // tooth: ivory
     col[i * 3] = r; col[i * 3 + 1] = gg; col[i * 3 + 2] = b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -444,6 +446,7 @@ async function loadMesh(name) {
   if (name === 'bone') m.renderOrder = 5;
   if (name === 'guide') m.renderOrder = 6;
   setObj(name, m);
+  if (name === 'scan' || name === 'bone') applyXray();
 }
 function setObj(name, m) {
   if (objs[name]) { scene.remove(objs[name]); objs[name].geometry.dispose(); }
@@ -453,6 +456,14 @@ function setObj(name, m) {
 function layerOn(name) { const el = $('l_' + name); return el ? el.checked : true; }
 ['bone', 'teeth', 'scan', 'tads', 'guide'].forEach((n) => $('l_' + n).addEventListener('change', () => { if (objs[n]) objs[n].visible = layerOn(n); }));
 $('l_fit').addEventListener('change', () => { const o = objs.scan; if (o) { fitColors(o.geometry, o.geometry.userData.extra, $('l_fit').checked); } });
+// see through: the scan and the bone go faint so the roots (the CBCT teeth) show through the gum
+function applyXray() {
+  const x = $('l_xray').checked;
+  if (objs.scan) { objs.scan.material.opacity = x ? 0.3 : 1.0; objs.scan.material.depthWrite = !x; objs.scan.renderOrder = x ? 4 : 0; }
+  if (objs.bone) objs.bone.material.opacity = x ? 0.1 : 0.28;
+  if (x) { $('l_teeth').checked = true; if (objs.teeth) objs.teeth.visible = true; }
+}
+$('l_xray').addEventListener('change', applyXray);
 
 function frameOn(view) {
   const o = objs.scan || objs.teeth || objs.bone;
@@ -638,6 +649,8 @@ async function openCase(id) {
   history.replaceState(null, '', `#case=${id}`);
   let st;
   try { st = await api(`/api/cases/${id}`); } catch (e) { toast(e.message, true); return; }
+  // fit colours while the match is being checked; natural teeth and gum once it is accepted
+  $('l_fit').checked = !st.match_accepted;
   setCase(st);
   $('casecard').style.display = '';
   if (!state.files.length) showNew(false);
@@ -679,6 +692,7 @@ function setCase(st) {
   renderPlan();
   renderGuide();
   updateSlices();
+  renderUndo();
 }
 const meshJobs = {};
 function caseIdOk() { return !!state.id; }
@@ -767,14 +781,16 @@ function renderMatch() {
   if (st.cbct_meta?.warning) $('matchhelp').innerHTML = `<b>CBCT note:</b> ${esc(st.cbct_meta.warning)}`;
 }
 $('accept').addEventListener('click', async () => {
-  try { setCase(await post(`/api/cases/${state.id}/accept`)); state.step = 'plan'; renderSteps(); updateSlices(); } catch (e) { toast(e.message, true); }
+  try { setCase(await post(`/api/cases/${state.id}/accept`)); state.step = 'plan'; renderSteps(); updateSlices(); setFit(false); } catch (e) { toast(e.message, true); }
 });
-$('rematch').addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/register`, { mode: 'auto' })); poll(); } catch (e) { toast(e.message, true); } });
-$('refine').addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/register`, { mode: 'refine' })); poll(); } catch (e) { toast(e.message, true); } });
+function setFit(on) { $('l_fit').checked = on; const o = objs.scan; if (o) fitColors(o.geometry, o.geometry.userData.extra, on); }
+$('rematch').addEventListener('click', async () => { pushUndo('match again'); setFit(true); try { setCase(await post(`/api/cases/${state.id}/register`, { mode: 'auto' })); poll(); } catch (e) { toast(e.message, true); } });
+$('refine').addEventListener('click', async () => { pushUndo('surface settle'); try { setCase(await post(`/api/cases/${state.id}/register`, { mode: 'refine' })); poll(); } catch (e) { toast(e.message, true); } });
 document.querySelectorAll('[data-n]').forEach((b) => b.addEventListener('click', async () => {
   const k = b.dataset.n, v = parseFloat(b.dataset.v);
   const d = [0, 0, 0], r = [0, 0, 0];
   if (k[0] === 'd') d[+k[1]] = k === 'd1' ? -v : v; else r[+k[1]] = v;    // front = -y in patient space
+  pushUndo('nudge');
   try { setCase(await post(`/api/cases/${state.id}/register`, { mode: 'nudge', d, r })); } catch (e) { toast(e.message, true); }
 }));
 $('lvapply').addEventListener('click', async () => {
@@ -820,6 +836,7 @@ function renderLm() {
   $('lmbox').innerHTML = `Pairs picked: <b>${Math.min(n, k)}</b>. Use teeth far apart (a molar each side and an incisor).<div class="btns"><button class="primary small" id="lmgo" ${n >= 3 && n === k ? '' : 'disabled'}>Match with these points</button><button class="small" id="lmundo">Undo last</button><button class="small" id="lmcancel">Cancel</button></div>`;
   $('lmgo').onclick = async () => {
     const off = lmOffset ? [lmOffset.x, lmOffset.y, lmOffset.z] : [0, 0, 0];
+    pushUndo('3-point match'); setFit(true);
     try { const st = await post(`/api/cases/${state.id}/register`, { mode: 'landmarks', scan: state.lm.scan, cbct: state.lm.cbct, scan_offset: off }); setMode(null); clearMarkers(); setCase(st); } catch (e) { toast(e.message, true); }
   };
   $('lmundo').onclick = () => { if (state.lm.scan.length > state.lm.cbct.length) state.lm.scan.pop(); else state.lm.cbct.pop(); drawMarkers(); renderLm(); };
@@ -850,6 +867,7 @@ async function onClick(e) {
   if (state.mode === 'place') {
     const h = pick(e, ['scan']);
     if (!h) { toast('Click on the scan (the gum).'); return; }
+    pushUndo('place TAD');
     try {
       const st = await post(`/api/cases/${state.id}/tads`, { site: $('site').value, point: [h.point.x, h.point.y, h.point.z] });
       state.sel = st.tads[st.tads.length - 1].id;
@@ -914,7 +932,7 @@ function renderPlan() {
   if (sg && sg.items) {
     const used = new Set((st.tads || []).map((t) => t.label));
     h += `<div class="hint" style="margin-top:10px"><b>${sg.items.length} site${sg.items.length === 1 ? '' : 's'}</b> found for ${esc(state.info?.sites?.[sg.site]?.label?.toLowerCase() || sg.site)}, best first:</div>`;
-    for (const s of sg.items.slice(0, 8)) {
+    for (const s of sg.items.slice(0, 12)) {
       const m = s.metrics;
       h += `<div class="sugg"><div class="hd"><b>${esc(s.label)}</b><span class="chip ${m.status}">${m.status}</span><span class="hint" style="margin:0;white-space:nowrap">${esc(tadName(s, true))}</span><button class="small" data-use="${esc(s.id)}" ${used.has(s.label) ? 'disabled' : ''}>${used.has(s.label) ? 'Placed' : 'Use'}</button></div>
         <div class="kv"><span>root <b>${fmtRoot(m.root_clearance)}</b></span><span>cortex <b>${fmt(m.cortical)}</b></span><span>tissue <b>${fmt(m.soft_tissue)}</b></span><span>tilt <b>${fmt(s.alpha, 0)}°</b></span></div></div>`;
@@ -922,6 +940,7 @@ function renderPlan() {
   }
   $('suggs').innerHTML = h;
   $('suggs').querySelectorAll('[data-use]').forEach((b) => b.addEventListener('click', async () => {
+    pushUndo('place TAD');
     try { const st2 = await post(`/api/cases/${state.id}/tads`, { suggestion: b.dataset.use }); state.sel = st2.tads[st2.tads.length - 1].id; setCase(st2); } catch (e) { toast(e.message, true); }
   }));
   // placed TADs
@@ -955,13 +974,51 @@ function renderPlan() {
       else { const [d, l] = v.slice(2).split('x').map(Number); editTad(id, { size: [d, l, tt.collar ?? 2] }); }
     });
     el.querySelector('[data-collar]')?.addEventListener('change', (e) => { const tt = tl.find((q) => q.id === id); editTad(id, { size: [tt.diameter, tt.length, +e.target.value] }); });
-    el.querySelector('[data-opt]')?.addEventListener('click', async () => { try { setCase(await post(`/api/cases/${state.id}/tads/${id}/optimize`)); toast('Moved to the best spot within 1.5 mm and 8°.'); } catch (e) { toast(e.message, true); } });
-    el.querySelector('[data-del]')?.addEventListener('click', async () => { if (!confirm('Remove this TAD?')) return; try { setCase(await api(`/api/cases/${state.id}/tads/${id}`, { method: 'DELETE' })); if (state.sel === id) state.sel = null; } catch (e) { toast(e.message, true); } });
+    el.querySelector('[data-opt]')?.addEventListener('click', async () => { pushUndo('fine-tune'); try { setCase(await post(`/api/cases/${state.id}/tads/${id}/optimize`)); toast('Moved to the best spot within 1.5 mm and 8°.'); } catch (e) { toast(e.message, true); } });
+    el.querySelector('[data-del]')?.addEventListener('click', async () => { pushUndo('remove TAD'); try { setCase(await api(`/api/cases/${state.id}/tads/${id}`, { method: 'DELETE' })); if (state.sel === id) state.sel = null; } catch (e) { toast(e.message, true); } });
   });
 }
 async function editTad(id, body) {
+  pushUndo('TAD change');
   try { setCase(await api(`/api/cases/${state.id}/tads/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })); } catch (e) { toast(e.message, true); }
 }
+// ---------------------------------------------------------------- undo (TADs and the match), per case
+const undo = { id: null, stack: [] };
+function pushUndo(what) {
+  const st = state.c;
+  if (!st) return;
+  if (undo.id !== state.id) { undo.id = state.id; undo.stack = []; }
+  undo.stack.push({ what, tads: JSON.parse(JSON.stringify(st.tads || [])), T: st.registration?.T ? JSON.parse(JSON.stringify(st.registration.T)) : null,
+                    method: st.registration?.method, nsign: st.registration?.normal_sign, sel: state.sel, accepted: !!st.match_accepted });
+  if (undo.stack.length > 30) undo.stack.shift();
+  renderUndo();
+}
+function renderUndo() {
+  const n = undo.id === state.id ? undo.stack.length : 0;
+  document.querySelectorAll('.undobtn').forEach((b) => { b.disabled = !n; b.title = n ? `Undo: ${undo.stack[n - 1].what}` : 'Nothing to undo'; });
+}
+async function doUndo() {
+  if (undo.id !== state.id || !undo.stack.length || state.c?.busy) return;
+  const u = undo.stack.pop();
+  try {
+    const st = state.c;
+    const tadsNow = JSON.stringify((st.tads || []).map((t) => [t.id, t.head, t.dir, t.length, t.diameter, t.collar, t.product]));
+    const tadsThen = JSON.stringify(u.tads.map((t) => [t.id, t.head, t.dir, t.length, t.diameter, t.collar, t.product]));
+    let st2 = null;
+    if (u.T && JSON.stringify(st.registration?.T) !== JSON.stringify(u.T)) {
+      st2 = await post(`/api/cases/${state.id}/register`, { mode: 'restore', T: u.T, method: u.method, normal_sign: u.nsign });
+      if (u.accepted) st2 = await post(`/api/cases/${state.id}/accept`);
+    }
+    if (tadsNow !== tadsThen) st2 = await post(`/api/cases/${state.id}/tads/restore`, { tads: u.tads });
+    if (st2) { state.sel = u.sel && u.tads.some((t) => t.id === u.sel) ? u.sel : null; setCase(st2); }
+    toast(`Undone: ${u.what}.`);
+  } catch (e) { toast(e.message, true); }
+  renderUndo();
+}
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !/input|textarea|select/i.test(document.activeElement?.tagName || '')) { e.preventDefault(); doUndo(); }
+});
+document.querySelectorAll('.undobtn').forEach((b) => b.addEventListener('click', doUndo));
 
 // ---------------------------------------------------------------- 3 guide
 const GKEYS = ['gap_teeth', 'gap_gum', 'thickness', 'hole', 'sleeve_height', 'tissue_gap'];
@@ -1032,6 +1089,35 @@ document.querySelectorAll('.slices .ctrl button').forEach((b) => b.addEventListe
   const z = state.sel ? state.tzoom : state.zoom;
   const k = +b.dataset.z; z[k] = Math.max(5, Math.min(50, z[k] * (+b.dataset.d > 0 ? 0.75 : 1.33))); updateSlices();
 }));
+// scrolling through the slices: the wheel moves the plane along its normal (0.5 mm a notch, 2 mm with Shift),
+// dragging pans in the plane, a double-click comes back to the centre. Offsets are kept per view and reset when
+// the centre (or the selected TAD) changes.
+state.soff = [0, 0, 0]; state.span = [[0, 0], [0, 0], [0, 0]]; state.sliceKey = '';
+function sliceKeyNow() { return state.sel ? 't:' + state.sel : 'c:' + JSON.stringify(state.center); }
+function resetSliceOffsets() { state.soff = [0, 0, 0]; state.span = [[0, 0], [0, 0], [0, 0]]; }
+document.querySelectorAll('.slices figure').forEach((fig, i) => {
+  fig.addEventListener('wheel', (e) => {
+    if (!state.c || !state.c.cbct_meta) return;
+    e.preventDefault();
+    const step = e.shiftKey ? 2.0 : 0.5;
+    state.soff[i] = Math.max(-60, Math.min(60, state.soff[i] + (e.deltaY > 0 ? step : -step)));
+    updateSlices();
+  }, { passive: false });
+  let drag = null;
+  fig.addEventListener('pointerdown', (e) => { if (e.target.tagName === 'BUTTON') return; drag = { x: e.clientX, y: e.clientY, u: state.span[i][0], v: state.span[i][1], moved: false }; fig.setPointerCapture(e.pointerId); });
+  fig.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const half = (state.sel ? state.tzoom : state.zoom)[i];
+    const mmPerPx = (2 * half) / fig.clientWidth;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.hypot(dx, dy) > 3) drag.moved = true;
+    state.span[i] = [drag.u - dx * mmPerPx, drag.v + dy * mmPerPx];
+    if (drag.moved) updateSlices();
+  });
+  fig.addEventListener('pointerup', () => { drag = null; });
+  fig.addEventListener('pointercancel', () => { drag = null; });
+  fig.addEventListener('dblclick', () => { state.soff[i] = 0; state.span[i] = [0, 0]; updateSlices(); });
+});
 let sliceTimer = null;
 function updateSlices() {
   clearTimeout(sliceTimer);
@@ -1043,14 +1129,18 @@ function _updateSlices() {
   const t = (st.tads || []).find((x) => x.id === state.sel);
   const stamp = Date.now();
   const views = t ? [['tad_md', 'Along the TAD · neighbouring roots'], ['tad_bl', 'Along the TAD · from the side'], ['tad_x', 'Across the TAD']] : [['axial', 'Axial'], ['coronal', 'Coronal'], ['sagittal', 'Sagittal']];
+  const key = sliceKeyNow();
+  if (key !== state.sliceKey) { state.sliceKey = key; resetSliceOffsets(); }
   views.forEach(([v, cap], i) => {
     const half = (t ? state.tzoom : state.zoom)[i];
     const px = Math.max(0.06, Math.min(0.3, (2 * half) / 360));
     let q = `view=${v}&half=${half.toFixed(1)}&px=${px.toFixed(3)}&t=${stamp}`;
     if (t) q += `&tad=${t.id}`;
     else if (state.center) q += `&x=${state.center[0]}&y=${state.center[1]}&z=${state.center[2]}`;
+    const off = state.soff[i], [du, dv] = state.span[i];
+    if (off || du || dv) q += `&off=${off.toFixed(2)}&du=${du.toFixed(2)}&dv=${dv.toFixed(2)}`;
     $('s' + i).src = `/api/cases/${state.id}/slice.png?${q}`;
-    $('c' + i).textContent = cap;
+    $('c' + i).textContent = cap + (off ? ` · ${off > 0 ? '+' : ''}${off.toFixed(1)} mm` : '') + ((du || dv) ? ' · moved' : '');
   });
 }
 

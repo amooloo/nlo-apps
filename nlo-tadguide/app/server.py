@@ -552,7 +552,8 @@ def _tads_mesh(tlist):
 
 @app.get("/api/cases/{cid}/slice.png")
 def slice_png(cid: str, view: str = "axial", x: float = None, y: float = None, z: float = None, tad: str = "", half: float = 15.0,
-              px: float = 0.1, roots: int = 1, guide: int = 1):
+              px: float = 0.1, roots: int = 1, guide: int = 1, off: float = 0.0, du: float = 0.0, dv: float = 0.0):
+    """off: mm along the plane's normal (scrolling through the slices); du / dv: mm along the image's right / up."""
     c = get_case(cid)
     ensure_loaded(c)
     lv = c.state["levels"]
@@ -592,8 +593,37 @@ def slice_png(cid: str, view: str = "axial", x: float = None, y: float = None, z
             x, y, z = a.get("centroid") or c.vol.index_to_mm(np.array(c.vol.shape[::-1]) / 2)
         center = np.array([x, y, z], float)
         e1, e2 = render.anatomical(view)
+    e1, e2 = tadmod.unit(np.asarray(e1, float)), tadmod.unit(np.asarray(e2, float))
+    nrm = np.cross(e1, e2)
+    center = center + nrm * float(np.clip(off, -60, 60)) + e1 * float(np.clip(du, -80, 80)) + e2 * float(np.clip(dv, -80, 80))
+    if roi is not None and (abs(off) > 0 or abs(du) > 0 or abs(dv) > 0) and c.ctx is not None:
+        roi = c.ctx.roi(center)                       # the root tint follows the view
     png = render.plane(c.vol, lv, center, e1, e2, half=half, px=px, scan=scan, guide=gm, tads=tl, roi=roi, sel=tad or None)
     return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/cases/{cid}/tads/restore")
+def restore_tads(cid: str, body: dict = Body(...)):
+    """Undo: put back an earlier list of TADs (as the page kept it). Measured again, so the numbers are live."""
+    c = get_case(cid)
+    ensure_loaded(c)
+    if c.ctx is None:
+        raise HTTPException(409, "Accept the match first.")
+    out = []
+    for t in body.get("tads") or []:
+        if not isinstance(t, dict) or "head" not in t or "dir" not in t:
+            continue
+        t = dict(t)
+        t["id"] = str(t.get("id") or _new_tad_id())[:12]
+        try:
+            t["metrics"] = c.ctx.measure(t)
+        except Exception:
+            continue
+        out.append(t)
+    c.state["tads"] = out
+    c.state["guide_stale"] = bool(c.state.get("guide"))
+    c.save()
+    return _state(c)
 
 
 # ------------------------------------------------------------------ matching
@@ -639,6 +669,14 @@ def do_register(cid: str, body: dict = Body(...)):
         q, r, ns = best
         if q > 0.3:
             c.state["registration"].update(T=np.asarray(r["T"]).tolist(), method="3 points + surface", stats=r["stats"], normal_sign=ns)
+        _apply_match(c)
+    elif mode == "restore":
+        T = np.asarray(body.get("T"), float)
+        if T.shape != (4, 4):
+            raise HTTPException(400, "bad T")
+        reg = c.state.get("registration") or {}
+        c.state["registration"] = dict(reg, T=T.tolist(), method=str(body.get("method") or reg.get("method") or "restored"),
+                                       normal_sign=float(body.get("normal_sign") or reg.get("normal_sign", 1.0)), when=time.time())
         _apply_match(c)
     elif mode == "nudge":
         T = c.T

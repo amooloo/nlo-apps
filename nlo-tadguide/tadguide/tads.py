@@ -42,7 +42,7 @@ SITES = {
     #       size (diameter, thread length, collar) and the kit product it is, the gaps (contacts) it goes between
     "buccal":  dict(label="Buccal, between roots", arches=("upper", "lower"), a={"upper": 11.0, "lower": 10.0},
                     alpha={"upper": 25.0, "lower": 15.0}, size={"upper": (1.6, 8.0, 2.0), "lower": (1.6, 8.0, 2.0)},
-                    product={"upper": "tomas-sd-08", "lower": "tomas-sd-08"}, gaps={"upper": (3, 4, 5, 6), "lower": (3, 4)}),
+                    product={"upper": "tomas-sd-08", "lower": "tomas-sd-08"}, gaps={"upper": (2, 3, 4, 5, 6), "lower": (3, 4)}),
     "palatal": dict(label="Palatal, between roots", arches=("upper",), a={"upper": 9.0}, alpha={"upper": 30.0},
                     size={"upper": (1.6, 10.0, 2.0)}, product={"upper": "tomas-ep-10"}, gaps={"upper": (5, 6)}),
     "izc":     dict(label="Infrazygomatic crest", arches=("upper",), a={"upper": 14.0}, alpha={"upper": 65.0},
