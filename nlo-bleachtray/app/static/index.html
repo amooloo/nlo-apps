@@ -1548,11 +1548,14 @@ async function loadResult(id, j){
     `, notches at ${(mg.frena || []).map(f => `${f.kind} ${f.angle_deg > 0 ? '+' : ''}${Math.round(f.angle_deg)}°${f.found ? '' : ' (assumed)'}`).join(', ') || 'no frenum'}` +
     (sh.band ? ` · brackets and wire under one continuous block-out band (${Math.round(sh.band_length_mm)} mm round the arch, ${sh.clearance_mm} mm clearance) — paint any bracket it missed on the Braces tab`
      : sh.caps ? ` · brackets shielded: ${sh.caps} caps, ${sh.clearance_mm} mm clearance — paint any bracket the shield missed on the Braces tab` : (r.mouthguard ? ' · no brackets found on this scan' : '')) : (mg && mg.error ? `mouthguard line could not be made (${mg.error}) — gum line used` : '');
-  // Phase I: what came out, how, and what the model was changed by
+  // Phase I: what came out, how, and what the model was changed by. The scoop record is one object since the windows
+  // became a trough (vertices, max_mm, depth_below_gum_line_mm); a case made before that carries a list per window
+  const p1ScoopText = sc => Array.isArray(sc) ? (sc.some(s => s.scooped) ? `, model scooped to the contacts (${sc.filter(s => s.scooped).map(s => `${s.teeth} ${s.max_mm} mm`).join(', ')})` : '')
+                          : (sc && sc.vertices ? `, windows scooped to a trough ${sc.depth_below_gum_line_mm} mm below the gum line (up to ${sc.max_mm} mm off)` : '');
   const p1 = r.phase1 || null, p1b = r.phase1_blockout || null;
   const p1Line = p1 && !p1.error ? `Phase I ${p1.method === 'bott' ? (p1.cutout_rejected ? 'block-out (cutouts rejected: ' + p1.bridge_mm + ' mm of flange under them, 5 needed)' : 'block-out') : 'cutouts'}: ` +
     (p1.method === 'bott' ? (p1b && !p1b.error ? `block over ${(p1b.teeth || []).join(', ')}, ${p1b.clearance_mm || 2} mm of room round them${p1b.top_mm ? `, ${p1b.top_mm.min}–${p1b.top_mm.max} mm on top` : ''}${p1b.lift_mm != null && p1b.gap_mm ? ' from the bite' : ' (no bite)'}` : `block not made${p1b && p1b.error ? ` (${p1b.error})` : ''}`)
-                           : (p1.cutout_failed ? 'windows not cut (see the warning)' : `${(p1.teeth || []).concat(p1.spaces || []).join(', ') || 'no teeth'} out${(p1.scoop || []).some(s => s.scooped) ? `, model scooped to the contacts (${(p1.scoop || []).filter(s => s.scooped).map(s => `${s.teeth} ${s.max_mm} mm`).join(', ')})` : ''}`))
+                           : (p1.cutout_failed ? 'windows not cut (see the warning)' : `${(p1.teeth || []).concat(p1.spaces || []).join(', ') || 'no teeth'} out${p1ScoopText(p1.scoop)}`))
     + (p1.uncovered && p1.uncovered.length ? `, nothing over ${p1.uncovered.join(', ')}` : '') + (p1.plate ? ` · palate open behind the Es` : p1.flange_mm ? ` · lingual flange ${p1.flange_mm.min}–${p1.flange_mm.max} mm` : '') : (p1 && p1.error ? `Phase I line could not be made (${p1.error}) — plain retainer line used` : '');
   const extras = [mgLine, p1Line,
                   ap.used && ap.area_mm2 && !mg ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — rebuilt enamel shown grey on the Braces tab` : '',
