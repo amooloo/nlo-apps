@@ -1045,10 +1045,14 @@ function renderSetup(){
         </div>` : ''}
       </div></div>`).join('');
   document.querySelectorAll('[data-arch]').forEach(e => e.onchange = () => { pending[+e.dataset.arch].arch = e.value; if (e.value === 'lower') pending[+e.dataset.arch].mg = false; renderSetup(); });
-  document.querySelectorAll('[data-wt]').forEach(e => e.onchange = () => { pending[+e.dataset.wt].wt = e.checked; setupCount(); });
-  document.querySelectorAll('[data-tt]').forEach(e => e.onchange = () => { pending[+e.dataset.tt].tt = e.checked; setupCount(); });
-  document.querySelectorAll('[data-mg]').forEach(e => e.onchange = () => { pending[+e.dataset.mg].mg = e.checked; setupCount(); });
-  document.querySelectorAll('[data-p1]').forEach(e => e.onchange = () => { pending[+e.dataset.p1].p1 = e.checked; renderSetup(); });
+  // a Phase I retainer is a case of its own: ticking it unticks the whitening tray, the retainer and the mouthguard
+  // on that scan, and ticking any of those unticks Phase I (the doctor, 10/21/2026: "when you choose Phase I, it
+  // should unselect retainer and whitening")
+  const notP1 = i => { const p = pending[i]; if (p.p1) { p.p1 = false; renderSetup(); } else setupCount(); };
+  document.querySelectorAll('[data-wt]').forEach(e => e.onchange = () => { pending[+e.dataset.wt].wt = e.checked; if (e.checked) notP1(+e.dataset.wt); else setupCount(); });
+  document.querySelectorAll('[data-tt]').forEach(e => e.onchange = () => { pending[+e.dataset.tt].tt = e.checked; if (e.checked) notP1(+e.dataset.tt); else setupCount(); });
+  document.querySelectorAll('[data-mg]').forEach(e => e.onchange = () => { pending[+e.dataset.mg].mg = e.checked; if (e.checked) notP1(+e.dataset.mg); else setupCount(); });
+  document.querySelectorAll('[data-p1]').forEach(e => e.onchange = () => { const p = pending[+e.dataset.p1]; p.p1 = e.checked; if (e.checked) { p.wt = false; p.tt = false; p.mg = false; } renderSetup(); });
   document.querySelectorAll('[data-p1m]').forEach(e => e.onchange = () => { pending[+e.dataset.p1m].p1_method = e.value; renderSetup(); });
   document.querySelectorAll('[data-chip]').forEach(e => { const inp = e.querySelector('input'); inp.onchange = () => { const p = pending[+e.dataset.chip], t = e.dataset.tooth;
     p.p1_teeth = inp.checked ? [...new Set([...p.p1_teeth, t])] : p.p1_teeth.filter(x => x !== t); e.classList.toggle('on', inp.checked); e.classList.toggle('off', !inp.checked); }; });
@@ -1395,9 +1399,10 @@ function renderReview(id, j){
   // one more model from a scan already in the case (chose the retainer, now the whitening tray is wanted too)
   const have = new Set((j.scans || []).map(s => `${s.arch}|${s.tag}`));
   const archesIn = [...new Set((j.scans || []).map(s => s.arch).filter(Boolean))];
-  // (the mouthguard: the fifth icon in the model row; a Phase I retainer for the other arch only in a Phase I case - its cutouts / block-out are the case's choice)
+  // (the mouthguard: the fifth icon in the model row; a Phase I case is a case of its own - it offers only the Phase I
+  // retainer for the other arch, never a whitening tray or a retainer, and the others never offer Phase I)
   const isP1 = (j.scans || []).some(s => s.tag === 'P1');
-  const addable = archesIn.flatMap(a => [['WT', 'whitening tray'], ['TT', 'retainer'], ...(isP1 ? [['P1', 'Phase I retainer']] : [])].filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));
+  const addable = archesIn.flatMap(a => (isP1 ? [['P1', 'Phase I retainer']] : [['WT', 'whitening tray'], ['TT', 'retainer']]).filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));
   const addLine = addable.length ? `<div class="hint" style="margin-top:8px">Also make from the scan${archesIn.length > 1 ? 's' : ''} already here: ` +
     addable.map(o => `<button class="small addmodel" data-arch="${o.a}" data-make="${o.t}" style="margin:3px 4px 0 0">+ ${o.lab} ${o.a}</button>`).join('') + `</div>` : '';
   const wireAdd = () => box.querySelectorAll('.addmodel').forEach(b => b.onclick = async () => {
