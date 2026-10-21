@@ -784,7 +784,7 @@ let resMesh = null, resHeat = null;   // the Reservoirs view: its mesh and its h
 const PANELS = {
   clean:  { group: 'seg', title: 'Scan clean-up — cut away what is not the arch', modes: [['cut', 'Cut away', 'Tongue, cheek, a flap, the pad behind the last molar: that part of the scan is deleted before the model is built', 'brush'], ['uncut', 'Erase', 'Painted too much? Paint over it again with this to take the cut stroke back (before Apply)', 'eraser']],
             sets: ['cut'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over what the scanner caught that is not the arch; rotate with the mouse otherwise. <b>Erase</b> takes a stroke back where you paint over it, before Apply. The painted part leaves the scan file itself - every model from it, every later re-run; <b>Bring back what was cut</b> (shown once something has been cut away) puts the scan back as it was before the first cut and re-makes its models.' },
-  seg:    { group: 'seg', title: 'Segmentation — fix tooth / gum labels', modes: [['tooth', 'Tooth', 'This is tooth. Start the stroke on a tooth and it paints that tooth\'s colour: paint over what bled from the neighbour and it is that tooth again', 'brush'], ['gum', 'Gum', 'This is gum', 'eraser'], ['contact', 'Contact', 'Shift-click once where two teeth touch: the split between them is put there (crowded incisors where one colour runs over two teeth). Click a dot again to take it away', 'dot']],
+  seg:    { group: 'seg', title: 'Segmentation — fix tooth / gum labels', modes: [['tooth', 'Tooth', 'Paints what the stroke starts on. Start on a tooth and the stroke is that tooth\'s colour (over the neighbour\'s bleed, or over gum, it is that tooth); start on gum - no colour - and the stroke is gum', 'brush'], ['gum', 'Gum', 'Gum, whatever the stroke starts on', 'eraser'], ['contact', 'Contact', 'Shift-click once where two teeth touch: the split between them is put there (crowded incisors where one colour runs over two teeth). Click a dot again to take it away', 'dot']],
             sets: ['add', 'remove', 'relabel', 'contact', 'uncontact'], hint: 'Each tooth has its own colour, gum is plain. Hold <kbd class="key">Shift</kbd> and drag to repaint; rotate with the mouse otherwise. <b>Tooth</b> paints the colour of the tooth the stroke starts on: where one colour has run over onto the next tooth, start on the right tooth and paint over the bleed - it is that tooth again, with a clean split; started on gum it paints plain tooth, for the app to sort. <b>Contact</b> is a dot, not a brush: the view turns to look from above; Shift-click once where two teeth touch and the split between them is moved there - only where one colour runs across two teeth (crowded lower incisors, where the reservoir ends mid-tooth). Teeth that already have their own colour need no dot, and teeth with a space between them never do - most arches need none, a crowded one two or three. Click a dot to take it away, Backspace takes the last one back, Shift-drag moves one; an applied dot shows pale. The dots are kept with the scan, and a corrected case that is sent or saved as a lesson teaches the model where teeth meet.' },
   res:    { group: 'scan', title: 'Reservoirs — paint or erase', modes: [['reservoir', 'Paint', 'A reservoir here: on a tooth the automatic one skipped (behind the 5s, a tooth set back for recession) or a part it missed. Still 1 mm off the gum line and 0.4 mm off the edge', 'brush'], ['noreservoir', 'Erase', 'No reservoir here (recession, an exposed root, a crown margin) - the reservoir ends at the edge of your stroke, with its 0.6 mm slope on the side you kept', 'eraser']],
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
@@ -2205,6 +2205,7 @@ function syncBrush(){
   const m = modeNow();
   if (tab === 'res') brushCursor.material.color.setHSL(0, m === 'reservoir' ? 0.9 : 0, m === 'reservoir' ? 0.55 : 0.45);
   else if (m === 'tooth' && pickLabel) brushCursor.material.color.setHex(palette[pickLabel % palette.length]);
+  else if (m === 'tooth' && stroke && stroke.mode === 'gum') brushCursor.material.color.setHex(0xd97706);
   else brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'uncut' ? 0x64748b : m === 'blockout' || m === 'outline' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : m === 'notbracket' ? 0x2563eb : m === 'contact' ? 0xeab308 : m === 'p1span' ? 0x16a34a : m === 'p1end' ? 0x7c3aed : m === 'p1six' ? 0x1d4ed8 : 0x1d4ed8);
   brushCursor.scale.setScalar(cursorR());
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
@@ -2244,15 +2245,29 @@ function applyMode(mode, i){
 // of filling a whole area by hand)
 let stroke = null;   // { mode, pts: [THREE.Vector3...], set: Set of vertices, last: Vector3 }
 let pickLabel = 0;   // the Tooth brush: the colour (label) of the tooth the stroke started on, 0 = plain tooth
+// the label a vertex has now, with the edits so far: 0 = gum, -1 = tooth without a colour, else the tooth
+function labelNow(i){
+  const rl = relabelOf.get(i); if (rl !== undefined) return rl;
+  if (edits.remove.has(i)) return 0;
+  if (segLabels[i]) return segLabels[i];
+  return edits.add.has(i) ? -1 : 0;
+}
 const REL = 1000000;   // a picked-colour stroke vertex travels as label * REL + vertex
 let relabelOf = new Map();   // vertex -> picked label, for the colours (rebuilt from edits.relabel)
 function pickAt(ev){
   // the colour of the tooth under the click itself (the vertex nearest the hit) - not the commonest within the brush,
   // which picked the neighbour when a stroke started near a boundary (the doctor, 10/21/2026: "sometimes it starts to
   // paint the other tooth's colour")
-  const h = dotHit(ev); if (!h) return 0;
-  const l = segLabels[h.best]; if (l) return l;
-  const was = relabelOf.get(h.best); return was !== undefined ? was : 0;
+  const h = dotHit(ev); return h ? labelNow(h.best) : 0;
+}
+// the Tooth brush paints what the stroke starts on: a tooth's colour, or gum when the stroke starts on gum (the doctor,
+// 10/21/2026: "when switching back and forth between gum and teeth, use the same logic - if you start on gum (no
+// colour) then your strokes will be no teeth")
+function startStroke(ev){
+  let mode = modeNow(); pickLabel = 0;
+  if (mode === 'tooth') { const l = pickAt(ev); if (l === 0) mode = 'gum'; else if (l > 0) pickLabel = l; }
+  stroke = { mode, pts: [], set: new Set(), last: null };
+  syncBrush();
 }
 function paintBall(p, mode){
   const r2 = brushR * brushR;
@@ -2261,8 +2276,8 @@ function paintBall(p, mode){
 function paintAt(ev){
   if (!brushOn()) return;
   const hit = hitAt(ev); placeCursor(hit); if (!hit) return;
-  const mode = modeNow(), p = hit.point.clone();
-  if (!stroke) stroke = { mode, pts: [], set: new Set(), last: null };
+  if (!stroke) stroke = { mode: modeNow(), pts: [], set: new Set(), last: null };
+  const mode = stroke.mode, p = hit.point.clone();
   if (stroke.last) {   // walk the brush along the path so a fast move leaves no gaps
     const d = stroke.last.distanceTo(p), step = brushR * 0.5;
     for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode);
@@ -2340,7 +2355,7 @@ function closeOutline(){
   if (!filled) showErr('The outline did not enclose anything - make it a little bigger, or add corners where the surface curves.');
 }
 window.addEventListener('keydown', ev => { if (ev.key === 'Escape' && outl) dropOutline(); });
-canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (isDotMode(modeNow())) { dotDown(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } pickLabel = modeNow() === 'tooth' ? pickAt(ev) : 0; if (modeNow() === 'tooth') syncBrush(); painting = true; controls.enabled = false; stroke = null; paintAt(ev); } });
+canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (isDotMode(modeNow())) { dotDown(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } painting = true; controls.enabled = false; startStroke(ev); paintAt(ev); } });
 // hovering: one pick per frame at most (a pick walks every triangle of the scan)
 let hoverEv = null, hoverQueued = false;
 canvas.addEventListener('pointermove', ev => {
@@ -2351,7 +2366,7 @@ canvas.addEventListener('pointermove', ev => {
   if (!hoverQueued) { hoverQueued = true; requestAnimationFrame(() => { hoverQueued = false; if (brushOn() && hoverEv) placeCursor(hitAt(hoverEv)); }); }
 });
 canvas.addEventListener('pointerleave', () => placeCursor(null));
-window.addEventListener('pointerup', () => { if (dotDrag) dotUp(); if (painting) finishStroke(); painting = false; controls.enabled = true; if (pickLabel) { pickLabel = 0; syncBrush(); } });
+window.addEventListener('pointerup', () => { if (dotDrag) dotUp(); if (painting) { finishStroke(); pickLabel = 0; syncBrush(); } painting = false; controls.enabled = true; });
 function updateFixCount(){
   const el = $('#fixcount'); if (!el) return;
   const words = { add: '→ tooth', remove: '→ gum', relabel: 'given a picked tooth\'s colour', cut: 'cut away', noreservoir: 'reservoir erased', reservoir: 'reservoir painted', blockout: 'block out', unblockout: 'block-out cleared', takeoff: 'take off', notbracket: 'not a bracket' };
@@ -2421,7 +2436,7 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
-window.__view = { camera, controls, requestRender, project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
+window.__view = { camera, controls, requestRender, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   stroke3d: (mode, pts) => { const before = Object.values(edits).reduce((a, e) => a + e.size, 0); stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
