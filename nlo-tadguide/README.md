@@ -38,7 +38,8 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    **Use** places one; **Place by clicking** puts one where you click on the gum. Click a placed TAD to edit it:
    three slices along and across the screw (the red tint is what the app counted as root), mesial / distal,
    up / down, tilt, depth, which TAD (below) and its collar, **Fine-tune here** (the best spot within 1.5 mm
-   and 8°), **Remove**. Or move it by hand in 3D with the gizmo on the selected TAD (as in Titan / ClinCheck):
+   and 8°), **Remove**. Or move it by hand in 3D with the gizmo on the selected TAD (as in Titan / ClinCheck;
+   off by default because it crowds the view - **3D gizmo** in the layer bar turns it on, and the page remembers):
    three double arrows - green along the arch (mesial / distal), red up / down (apical / occlusal; for a palate TAD
    forward / back and to the suture / lateral), yellow in / out along the screw - and two arcs on the tip side that
    swing the tip in one plane each (red: apical / occlusal, green: mesial / distal; palate: lateral / medial,
