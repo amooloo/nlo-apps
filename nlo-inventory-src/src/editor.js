@@ -28,17 +28,42 @@ function _canonical(value, list) {
   for (const opt of list) { if (opt.toLowerCase().startsWith(v) || v.startsWith(opt.toLowerCase())) return opt; }
   return '';
 }
-/* photos: a small one for lists (and the drawer) and a big one, both WebP */
+/* photos: a small one for lists (and the drawer) and a big one — WebP where the browser can make it, else JPEG — each made to
+   fit its photo record. Safari (iPhone, iPad, Mac) can't make WebP: asked for one, it handed back a PNG of the whole photo,
+   several times what a photo record holds (Amir, 21 Oct 2026: "says this photo is too big to save....I just took it with my
+   phone"). And a very detailed photo can be too big even as WebP: then it's saved a little softer, then a little smaller,
+   until it fits. */
 const IMG_THUMB_MAX = 800, IMG_FULL_MAX = 1600, IMG_QUALITY = 0.85;   // the grid's photos are big: thumbs as sharp as the old app's (800)
+const IMG_FIT = 900000;   // a photo's base64 at most (a photo record holds 990,000: PIC_MAX)
+let canWebpCache = null;
+function canWebp() {
+  if (canWebpCache == null) { try { const c = document.createElement('canvas'); c.width = c.height = 2; canWebpCache = /^data:image\/webp/.test(c.toDataURL('image/webp', 0.8)); } catch (e) { canWebpCache = false; } }
+  return canWebpCache;
+}
+function encodePhoto(img, w, h, q) {
+  const cvs = document.createElement('canvas'); cvs.width = w; cvs.height = h; const g = cvs.getContext('2d');
+  g.drawImage(img, 0, 0, w, h);
+  if (canWebp()) return cvs.toDataURL('image/webp', q);
+  g.globalCompositeOperation = 'destination-over'; g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);   // a JPEG has no see-through: white behind
+  return cvs.toDataURL('image/jpeg', q);
+}
 function resizeToWebp(srcDataUrl, maxDim, quality) {
   return new Promise(resolve => {
     if (!srcDataUrl) return resolve(null);
     const img = new Image();
     img.onload = () => {
       try {
-        const ratio = Math.min(maxDim / img.width, maxDim / img.height, 1), w = Math.max(1, Math.round(img.width * ratio)), h = Math.max(1, Math.round(img.height * ratio));
-        const cvs = document.createElement('canvas'); cvs.width = w; cvs.height = h; cvs.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(cvs.toDataURL('image/webp', quality));
+        let dim = Math.min(maxDim, Math.max(img.width, img.height)), d = null;
+        for (let pass = 0; pass < 8; pass++) {
+          const ratio = Math.min(dim / img.width, dim / img.height, 1), w = Math.max(1, Math.round(img.width * ratio)), h = Math.max(1, Math.round(img.height * ratio));
+          for (const q of [quality, 0.72, 0.6]) {
+            if (q > quality) continue;
+            d = encodePhoto(img, w, h, q);
+            if (d.length - d.indexOf(',') - 1 <= IMG_FIT) return resolve(d);
+          }
+          dim = Math.max(1, Math.round(dim * 0.8));
+        }
+        resolve(d);
       } catch (e) { resolve(null); }
     };
     img.onerror = () => resolve(null);

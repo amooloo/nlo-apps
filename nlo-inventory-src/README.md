@@ -164,8 +164,15 @@ with the OpenAI key in Settings → AI (`invState/ai.openai`). It asked for `gpt
   (`imgKey`) showed "Add a photo" and no AI button. It now goes by `photoOf()` (`photo.shown`/`shownFull`), the AI gets the
   full-size one, and a new photo saved (or Remove) clears `imgUrl`, `imgFullUrl` and `imgKey`, which `photoOf()` would
   otherwise still put first. The label reader only fills in a photo when the supply really has none.
+- **Every photo saved fits its photo record** (Amir, 21 Oct 2026, on his phone: "says this photo is too big to save....I just
+  took it with my phone"). Safari (iPhone, iPad, Mac) can't make WebP: asked for one, the canvas hands back a PNG — of a
+  1600-px phone photo, several times the 990,000 a photo record holds. `resizeToWebp` (`src/editor.js`) now makes WebP where
+  the browser can (`canWebp()`, asked once) and a JPEG (on white) where it can't, and a photo still over 900,000 (a very
+  detailed one, even as WebP) is made softer (0.85 → 0.72 → 0.6), then 20% smaller, until it fits. For the editor's photo,
+  the AI's photo and the label reader's.
 - Tests: e2e `t_photo_ai` (OpenAI answered by the test: the request's fields and photo, the fallback, the model kept for the
-  visit, every error above, the saved photo).
+  visit, every error above, the saved photo); `t_photo_big` (a 2400×1800 photo of pure noise, as Chrome and as Safari: WebP
+  or JPEG, each under the limit, saved, the AI's photo saved too — the old resizer fails it with "too big to save").
 
 ## The data (Firestore `nlo-cases`; rules: `../nlo-cases-src/firestore.rules`, block "NLO Inventory")
 - `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before;

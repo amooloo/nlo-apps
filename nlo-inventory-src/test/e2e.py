@@ -1220,6 +1220,49 @@ def t_photo_ai(b):
     check('photo AI: no page errors (besides the made-up OpenAI refusals)', not errs2, errs2)
     ctx.close()
 
+# a phone photo at its worst for saving: every pixel different (a real box compresses far better)
+NOISY_PHOTO = """(() => { const w = 2400, h = 1800, c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+  const im = x.createImageData(w, h), d = im.data; let s = 12345;
+  for (let i = 0; i < d.length; i += 4) { s = (Math.imul(s, 1103515245) + 12345) >>> 0; d[i] = s & 255; d[i + 1] = (s >>> 8) & 255; d[i + 2] = (s >>> 16) & 255; d[i + 3] = 255; }
+  x.putImageData(im, 0, 0); return c.toDataURL('image/jpeg', 0.92).split(',')[1]; })()"""
+# Safari (iPhone, iPad, Mac) can't make WebP: asked for one, it hands back a PNG
+SAFARI_CANVAS = """(() => { const t0 = HTMLCanvasElement.prototype.toDataURL;
+  HTMLCanvasElement.prototype.toDataURL = function (t, q) { return t0.call(this, /webp/i.test(String(t || '')) ? 'image/png' : t, q); }; })()"""
+
+@test
+def t_photo_big(b):
+    """Amir, 21 Oct 2026: "it works but now says this photo is too big to save....I just took it with my phone" — every photo
+    saved fits its photo record: WebP where the browser makes it, else JPEG, softer or smaller when it must"""
+    import base64
+    remote_field('invState/ai', 'openai', 'sk-test-PHOTO-0002')
+    for who, safari in [('Chrome', False), ('Safari', True)]:
+        ctx, pg, errs = open_as(b, 'gwen')
+        ctx.route('https://api.openai.com/v1/images/edits', openai_route)
+        if safari: J(pg, SAFARI_CANVAS)
+        photo = base64.b64decode(J(pg, NOISY_PHOTO))
+        J(pg, "go('supplies'); openEditor('ppe-2')"); pg.wait_for_selector('[data-act="edPhoto"]', timeout=10000)
+        with pg.expect_file_chooser() as fc: pg.click('[data-act="edPhoto"]')
+        fc.value.set_files(files=[{'name': 'IMG_0412.JPG', 'mimeType': 'image/jpeg', 'buffer': photo}])
+        pg.wait_for_function("() => S.ui.ed && S.ui.ed.photo.changed && !!S.ui.ed.photo.thumb", timeout=30000)
+        P = J(pg, "(() => { const p = S.ui.ed.photo, n = d => d.length - d.indexOf(',') - 1; return { t: p.thumb.slice(0, 15), f: p.full.slice(0, 15), tn: n(p.thumb), fn: n(p.full) }; })()")
+        kind = 'data:image/jpe' if safari else 'data:image/web'
+        check('big photo (%s): a %d KB phone photo becomes %s photos' % (who, len(photo) // 1024, 'JPEG' if safari else 'WebP'), P['t'].startswith(kind) and P['f'].startswith(kind), P)
+        check('big photo (%s): each small enough to save' % who, P['tn'] <= 990000 and P['fn'] <= 990000, P)
+        click(pg, '[data-act="edSave"]', 2000)
+        it = store('nlo/items/ppe-2'); pics = [get('invPics/' + str(it.get(k, ''))[4:]) for k in ['img', 'imgFull']]
+        check('big photo (%s): saved, no “too big”' % who, all(pics) and 'too big' not in toasts(pg), (it.get('img'), it.get('imgFull'), toasts(pg)))
+        if safari: check('big photo (Safari): kept as JPEG', all(p and p.get('m') == 'image/jpeg' for p in pics), [p and p.get('m') for p in pics])
+        # the photo cleaned up by the AI, then saved (his case)
+        jpg = J(pg, "(() => { const c = document.createElement('canvas'); c.width = 1024; c.height = 1024; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 1024, 1024); x.fillStyle = '#c33'; x.fillRect(300, 250, 420, 520); return c.toDataURL('image/jpeg', 0.95).split(',')[1]; })()")
+        OAI['replies'][:] = [oai_ok(jpg)]; J(pg, "closeModal(true); photoModelOk = null; document.querySelector('#toasts').innerHTML = ''")
+        J(pg, "openEditor('ppe-2')"); pg.wait_for_selector('[data-act="edPhotoAi"]', timeout=10000); pg.click('[data-act="edPhotoAi"]')
+        pg.wait_for_function("() => S.ui.ed && S.ui.ed.photo.ai === true", timeout=20000)
+        click(pg, '[data-act="edSave"]', 2000)
+        it2 = store('nlo/items/ppe-2')
+        check('big photo (%s): the AI’s photo saves too' % who, it2.get('img') != it.get('img') and get('invPics/' + str(it2.get('img', ''))[4:]) is not None and 'too big' not in toasts(pg), (it2.get('img'), toasts(pg)))
+        check('big photo (%s): no page errors' % who, not errs, errs)
+        ctx.close()
+
 @test
 def t_cases(b):
     """gloves set up as cases from Settings; a cart line and an open order made before that are put right"""
