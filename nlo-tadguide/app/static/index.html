@@ -323,6 +323,7 @@
           <label class="tog" title="Colour the scan's teeth by their distance to the CBCT teeth"><input type="checkbox" id="l_fit"> Fit colours</label>
           <label class="tog"><input type="checkbox" id="l_tads" checked> TADs</label>
           <label class="tog"><input type="checkbox" id="l_guide" checked> Guide</label>
+          <label class="tog" title="Arrows and arcs on the selected TAD in 3D (the ones on the slices are always there)"><input type="checkbox" id="l_gizmo"> 3D gizmo</label>
           <div class="views"><button data-v="front">Front</button><button data-v="right">Right</button><button data-v="left">Left</button><button data-v="occl">Occlusal</button><button data-v="back">Back</button></div>
           <div class="mtools"><button id="measbtn" title="Measure: click two points in 3D or on any slice, read the distance in mm">📏 Measure</button><button id="measclear" title="Remove all measurements" style="display:none">Clear</button></div>
         </div>
@@ -540,6 +541,8 @@ function applyXray() {
   if (x) { $('l_teeth').checked = true; if (objs.teeth) objs.teeth.visible = true; }
 }
 $('l_xray').addEventListener('change', applyXray);
+try { $('l_gizmo').checked = localStorage.getItem('tg.gizmo') === '1'; } catch (e) {}
+$('l_gizmo').addEventListener('change', () => { try { localStorage.setItem('tg.gizmo', $('l_gizmo').checked ? '1' : '0'); } catch (e) {} drawHandles(); });
 
 function frameOn(view) {
   const o = objs.scan || objs.teeth || objs.bone;
@@ -1024,7 +1027,7 @@ function renderPlan() {
   // placed TADs
   const tl = st.tads || [];
   let t = '';
-  if (tl.length) t += `<label class="f" style="margin-top:14px">Placed (${tl.length})</label><div class="hint" style="margin:0 0 6px">Click a TAD to select it. In 3D, drag the arrows to slide it (<b style="color:#1E9E6E">green</b> along the arch, <b style="color:#D8412E">red</b> up / down, <b style="color:#b8860b">yellow</b> in / out) and the rings to swing its tip; the orange ball slides it freely along the gum, the blue ball aims it freely. The arrows on the slices and the buttons below do the same in steps.</div>`;
+  if (tl.length) t += `<label class="f" style="margin-top:14px">Placed (${tl.length})</label><div class="hint" style="margin:0 0 6px">Click a TAD to select it. Move it on the slices: drag the arrows at its head (<b style="color:#1E9E6E">green</b> along the arch, <b style="color:#D8412E">red</b> up / down, <b style="color:#b8860b">yellow</b> in / out) or the arc over its tip to swing it; click a head for one step. In 3D the orange ball slides it freely along the gum and the blue ball aims it; <b>3D gizmo</b> in the layer bar adds the same arrows there. The buttons below do the same in steps.</div>`;
   for (const x of tl) {
     const m = x.metrics || {};
     const sizes = sizeOptions(x);
@@ -1084,7 +1087,7 @@ function drawHandles() {
   // the gizmo (Titan / ClinCheck style): arrows to slide the TAD along the gum or along its own axis, rings to
   // swing its tip in one plane each; the axes come from the server with the slice words
   const gz = state.dirs && state.dirs.gizmo && state.dirs.gizmo.tad === t.id ? state.dirs.gizmo : null;
-  if (!gz) return;
+  if (!gz || !$('l_gizmo').checked) return;                                  // off by default: it crowds the 3D view; the slices carry it anyway
   // Arrows (Titan / ClinCheck style): drag the shaft or a head to slide, click a head for one step (½ mm).
   // Green: along the arch, red: up / down (palate: forward / back, to the suture / lateral), yellow: in / out
   // along the screw, standing behind the head so it does not cover the orange ball.
