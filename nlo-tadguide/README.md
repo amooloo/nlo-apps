@@ -22,7 +22,11 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    under the 3D view show the scan's outline in coral on the CBCT (shift-click the model to move the slices
    there; scroll on a slice to move through it, drag to pan, double-click to come back; the picker on each panel
    chooses its view - axial / coronal / sagittal, or with a TAD selected along the TAD (roots / side) and across
-   it; **6 views** shows all six at once, the anatomical ones through the TAD). **Looks right** goes on. If it is off (*The match looks wrong*): **Match by 3 points** - the scan
+   it; **6 views** shows all six at once, the anatomical ones through the TAD). **Measure** (above the 3D
+   view) turns on a ruler: click two points on the model, or two points on any slice, and the distance in mm
+   appears on the line - handy for checking the space around a TAD yourself; Esc stops, **Clear** removes them
+   (slice measurements belong to the view they were made in and go faint when that slice is scrolled away).
+   **Looks right** goes on. If it is off (*The match looks wrong*): **Match by 3 points** - the scan
    moves to the side; click a cusp tip on the scan, then the same spot on the CBCT teeth, three times, far apart
    (a molar each side and a central incisor) - then **Match with these points**; or **Fine adjust** (¼ mm and
    1 mm nudges, small turns, then *Let the surfaces settle it*).
@@ -34,7 +38,9 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    **Use** places one; **Place by clicking** puts one where you click on the gum. Click a placed TAD to edit it:
    three slices along and across the screw (the red tint is what the app counted as root), mesial / distal,
    up / down, tilt, depth, which TAD (below) and its collar, **Fine-tune here** (the best spot within 1.5 mm
-   and 8°), **Remove**. **Undo** (or Ctrl+Z) takes back the last placement, move, fine-tune or removal - and
+   and 8°), **Remove**. Or move it by hand in 3D: drag the orange ball at its head to slide it along the gum
+   (angles kept), the blue ball at its tip to aim it (head kept); a ghost follows the pointer, on release it is
+   re-placed and measured, and the slices follow. **Undo** (or Ctrl+Z) takes back the last placement, move, fine-tune or removal - and
    in the Match step the last nudge or re-match. Sites: buccal between roots (upper: 2/3 for anterior intrusion,
    3/4 to 6/7; lower 3/4, 4/5), palatal between roots, infrazygomatic crest, buccal shelf, paramedian palate.
    The 3D view shows the scan in natural colours (ivory teeth, pink gum), the CBCT roots in dentin yellow inside
@@ -69,6 +75,29 @@ MSE TAD's collar is not published: 2.0 mm is assumed - if yours differs, change 
 (the app learns it from there). *Other sizes* in the list are for the infrazygomatic crest (default 2.0 × 12)
 and the buccal shelf (2.0 × 10), which want longer, thicker screws than the kit has. The list is `KIT` in
 `tadguide/tads.py`.
+
+## Where the sites come from
+
+The site rules come from Dr. A's TAD course notes (the site ranking and success rates, the cortical-bone /
+torque protocol, the soft-tissue rules, the lower 5/6 - 6/7 rule) and, for the placement geometry, from the
+literature:
+
+- **Paramedian palate:** 3 mm (3-6) beside the midpalatal suture, 3-4 mm (up to 6-9) distal to the incisive
+  foramen - whose distal margin lies about at the canine / first-premolar contact line - so at the premolar level,
+  posterior to the third rugae, perpendicular to the occlusal plane; the suture itself is thin and variable, the
+  incisive canal is to be avoided (Ludwig et al., *Anatomical guidelines for miniscrew insertion: palatal sites*,
+  JCO 2011; Wilmes et al., the *T-zone*, JCO). The app searches 3-4 mm paramedian between the 3/4 and 4/5 lines,
+  never within 3 mm of the 3/4 line (the canal zone, a *stop*) and never on the suture (a *caution*).
+- **Buccal between roots:** the "safe zones" - maxilla between the second premolar and first molar, between the
+  premolars and canine / first premolar; mandible between the molars, the premolars and canine / first premolar;
+  the interradicular bone widens apically, 6-11 mm from the alveolar crest, and 1 mm of clearance each side is the
+  minimum (Poggio et al., *Angle Orthod* 2006; the CBCT studies that followed). The app's default depth is 13 mm
+  from the occlusal plane in the upper and 12 in the lower (about 5-6 mm from the crest, around the mucogingival
+  junction) and it searches 2 mm either way; 1.2-1.6 mm clearance is the ideal, under 1 mm a caution, under 0.5 a
+  stop.
+- **Infrazygomatic crest and buccal shelf:** the extra-alveolar sites from the course notes (IZC 60-70 degrees
+  to the occlusal plane at the first-molar level; shelf parallel to the molar roots at the posterior half of the
+  second molar). Their gum is usually beyond the scan, so the entry is estimated from the CBCT.
 
 ## What the numbers mean
 

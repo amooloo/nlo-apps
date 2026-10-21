@@ -3,4 +3,4 @@
 Everything is classical geometry and image processing that runs on the office PC (no AI service, nothing sent
 anywhere). The app learns from Dr. A's finished cases by keeping numbers only (see lessons.py).
 """
-__version__ = "1.3.1"
+__version__ = "1.4.0"

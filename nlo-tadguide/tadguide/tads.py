@@ -40,7 +40,7 @@ KIT_BY_ID = {k["id"]: k for k in KIT}
 SITES = {
     # site: label, arches, default apical depth of the entry (mm from the occlusal plane), tilt toward apical (deg),
     #       size (diameter, thread length, collar) and the kit product it is, the gaps (contacts) it goes between
-    "buccal":  dict(label="Buccal, between roots", arches=("upper", "lower"), a={"upper": 11.0, "lower": 10.0},
+    "buccal":  dict(label="Buccal, between roots", arches=("upper", "lower"), a={"upper": 13.0, "lower": 12.0},
                     alpha={"upper": 25.0, "lower": 15.0}, size={"upper": (1.6, 8.0, 2.0), "lower": (1.6, 8.0, 2.0)},
                     product={"upper": "tomas-sd-08", "lower": "tomas-sd-08"}, gaps={"upper": (2, 3, 4, 5, 6), "lower": (3, 4)}),
     "palatal": dict(label="Palatal, between roots", arches=("upper",), a={"upper": 9.0}, alpha={"upper": 30.0},
@@ -396,6 +396,8 @@ class Context:
                 return None
             d = self.direction("palate", u, alpha, beta, surf_n=n)
             s_val = float(u)
+            w34, _w45 = self.palate_levels()
+            zone = dict(canal=bool(w > w34 - 3.0), suture=bool(abs(u) < 2.5))
         else:
             H = self.entry(site, side, s, a)
             if H is None:
@@ -406,14 +408,40 @@ class Context:
         tad = dict(site=site, arch=self.arch.arch, side=side, head=H.tolist(), dir=d.tolist(), diameter=D, length=L, collar=c,
                    s=s_val, a=float(a), alpha=float(alpha), beta=float(beta), uw=list(u_w) if u_w is not None else None,
                    entry="estimated" if self.entry_is_estimated(H) else "scan")
+        if site == "palate":
+            tad["palate_zone"] = zone
         tad["label"] = self.label(tad)
         return tad
+
+    def palate_levels(self):
+        """Anterior coordinate (w, + = anterior) of the canine / first-premolar and first / second-premolar
+        contact lines, averaged over the sides that have them."""
+        A = self.arch
+        out = []
+        for g in (3, 4):
+            ws = []
+            for side in ("L", "R"):
+                s_ = A.gap(side, g)
+                if s_ is not None:
+                    ws.append(float(A.to_plane(A.at(s_)[0])[1]))
+            out.append(float(np.mean(ws)) if ws else None)
+        w34, w45 = out
+        if w34 is None and w45 is None:
+            w34, w45 = 8.0, 1.0
+        elif w34 is None:
+            w34 = w45 + 7.0
+        elif w45 is None:
+            w45 = w34 - 7.0
+        return w34, w45
 
     def label(self, tad):
         A = self.arch
         site = tad["site"]
         if site == "palate":
-            return f"Palate {'L' if tad['s'] >= 0 else 'R'} {abs(tad['s']):.1f} mm from midline"
+            w34, w45 = self.palate_levels()
+            w = float(A.to_plane(np.asarray(tad["head"], float))[1])
+            lvl = "4/5 level" if w <= w45 + 1.5 else ("3/4 level" if w >= w34 - 1.5 else "premolar level")
+            return f"Palate {'L' if tad['s'] >= 0 else 'R'} {abs(tad['s']):.1f} mm paramedian, {lvl}"
         q, n = A.tooth_at(tad["s"])
         s_c = tad["s"]
         # between n and n+1 when near a boundary
@@ -432,9 +460,12 @@ class Context:
         best = None
         if site == "palate":
             u0, w0 = u_w
-            grid = [(u0 + du, w0 + dw, alpha0 + dl, beta0 + db) for du in np.arange(-1.5, 1.51, 0.75) for dw in np.arange(-3, 3.01, 1.0)
+            w34, _w45 = self.palate_levels()
+            grid = [(u0 + du, w0 + dw, alpha0 + dl, beta0 + db) for du in (-0.5, 0.0, 0.5) for dw in np.arange(-2, 2.01, 1.0)
                     for dl in (-8, 0, 8) for db in (-8, 0, 8)]
             for u, w, al, be in grid:
+                if w > w34 - 3.0 or abs(u) < 2.5:              # the incisive canal zone / the suture: not a site
+                    continue
                 tad = self.place(site, side, 0, 0, al, be, size, u_w=(u, w))
                 if tad is None:
                     continue
@@ -486,11 +517,14 @@ class Context:
         out = []
         for side in sides:
             if site == "palate":
-                s_gap = A.gap(side, 4) or (A.gap(side, 3) or 18.0)
-                pt, _t, _b = A.at(s_gap)
-                w = float(A.to_plane(pt)[1])
+                # Paramedian palate (Ludwig et al. JCO 2011, Wilmes' T-zone): 3 mm (3-6) beside the suture, at the
+                # premolar level - the thickest bone is 3-4 mm distal to the incisive foramen, whose distal margin
+                # lies about at the canine / first-premolar contact line; so between the 3/4 and 4/5 contact
+                # lines, never nearer than 3 mm to the 3/4 line (the incisive canal), never on the suture.
+                w34, w45 = self.palate_levels()
+                w0 = w45 + 1.0                                 # the premolar level, just in front of the 4/5 line
                 u = 3.5 if side == "L" else -3.5
-                tad = self.optimize(site, side, 0, 0, al0, be0, size, u_w=(u, w))
+                tad = self.optimize(site, side, 0, 0, al0, be0, size, u_w=(u, w0))
                 if tad:
                     tad["gap"] = None
                     out.append(tad)
@@ -561,6 +595,12 @@ def judge(tad, m):
     if m["bone_fraction"] < 0.75:
         worse("caution"); notes.append(f"Only {m['bone_in_thread']:.1f} mm of the thread is in bone.")
     if tad["site"] == "palate":
+        pz = tad.get("palate_zone") or {}
+        if pz.get("canal"):
+            worse("stop"); notes.append("Too far forward: within 3 mm of the canine / first-premolar line, the incisive canal zone. "
+                                        "The site is 3-4 mm (up to 6-9) distal to the incisive foramen, at the premolar level.")
+        if pz.get("suture"):
+            worse("caution"); notes.append("On the midpalatal suture: go 3 mm paramedian (the suture's bone is thin and variable).")
         if m["tip_air"]:
             notes.append("Bicortical: the tip reaches the nasal floor.")
         if m["air_len"] > 2.0:
