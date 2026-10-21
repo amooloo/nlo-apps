@@ -48,9 +48,12 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    release it is re-placed and measured, and the slices follow. The selected TAD is drawn bold orange in the slices (the others
    thin and dim), and every slice carries direction words on its four edges in the same vocabulary as the buttons -
    mesial / distal, apical / occlusal, buccal / palatal, deeper / out (for a palate TAD forward / back, to suture /
-   lateral): click an arrow to move the TAD half a millimetre that way (Shift: 1½ mm). Where the screw lies in
-   the picture, two yellow curved arrows sit at its tip and swing it 5° either way in that plane (Shift: 15°) -
-   mesial / distal, apical / occlusal, or for the palate lateral / medial, forward / back. **Mirror to other side**
+   lateral): click an arrow to move the TAD half a millimetre that way (Shift: 1½ mm). The same gizmo as in 3D is
+   drawn on the TAD in every slice, and this is where it is precise: arrows at the head along the picture's axes
+   (the same colours - green along the arch, red up / down, yellow in / out along the screw), and where the screw
+   lies in the picture an arc over its tip that swings it in that plane. Drag an arrow or the arc for a continuous
+   move (¼ mm / 1° steps, the value shown at the pointer), click an arrowhead for one step (½ mm / 5°). The screw
+   turns about the head, which stays on the gum. **Mirror to other side**
    puts the same TAD on the other side - across the midpalatal suture for a palate TAD, across the arch otherwise. **Undo** (or Ctrl+Z) takes back the last placement, move, fine-tune or removal - and
    in the Match step the last nudge or re-match. Sites: buccal between roots (upper: 2/3 for anterior intrusion,
    3/4 to 6/7; lower 3/4, 4/5), palatal between roots, infrazygomatic crest, buccal shelf, paramedian palate.
