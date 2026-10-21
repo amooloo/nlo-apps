@@ -45,7 +45,11 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    3/4 to 6/7; lower 3/4, 4/5), palatal between roots, infrazygomatic crest, buccal shelf, paramedian palate.
    The 3D view shows the scan in natural colours (ivory teeth, pink gum), the CBCT roots in dentin yellow inside
    the faint bone; **See through** makes the scan and bone faint so the roots show; **Fit colours** is the match
-   check (on while matching, off once accepted).
+   check (on while matching, off once accepted). The CBCT always catches part of the other jaw, and its crowns
+   sit right in front of the roots - so everything beyond the bite plane on the other jaw's side (its teeth and
+   bone) is hidden; **Opposing arch** brings it back. (The cut is the bite plane the app fits to the crowns, so
+   with the teeth together the opposing cusps that touch yours may leave a sliver; a CBCT of one jaw only is
+   left whole.)
 5. **Guide.** **Make the guide** (10-30 s) and look at it in 3D with the TADs. Download the **Guide STL** (in the
    coordinates of the original scan file, so it lines up with the scan in any program), the **TADs STL** to
    check against, and **Plan / print** for the chart (site, size, angles, the numbers, the drilling notes and the

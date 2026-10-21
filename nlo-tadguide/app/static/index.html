@@ -302,6 +302,7 @@
         <div class="toolbar">
           <label class="tog"><input type="checkbox" id="l_bone" checked> Bone</label>
           <label class="tog"><input type="checkbox" id="l_teeth" checked> Roots (CBCT)</label>
+          <label class="tog" title="The other jaw as the CBCT caught it - hidden by default so it does not block the view"><input type="checkbox" id="l_other"> Opposing arch</label>
           <label class="tog"><input type="checkbox" id="l_scan" checked> Scan</label>
           <label class="tog" title="Scan and bone turned see-through, so the roots show"><input type="checkbox" id="l_xray"> See through</label>
           <label class="tog" title="Colour the scan's teeth by their distance to the CBCT teeth"><input type="checkbox" id="l_fit"> Fit colours</label>
@@ -468,14 +469,44 @@ async function loadMesh(name) {
   if (!r.ok) { setObj(name, null); return; }
   const { g, extra } = parseMesh(await r.arrayBuffer());
   if (name === 'scan') { g.userData.extra = extra; fitColors(g, extra, $('l_fit').checked); }
-  const m = new THREE.Mesh(g, MATS[name]());
+  let mat = MATS[name]();
+  if ((name === 'bone' || name === 'teeth') && extra && state.c && state.c.arch && splitByArch(g, extra, state.c.arch)) {
+    mat = [mat, MATS[name]()];                                   // group 1 is the opposing arch
+    mat[1].visible = $('l_other').checked;
+  }
+  const m = new THREE.Mesh(g, mat);
   if (name === 'bone') m.renderOrder = 5;
   if (name === 'guide') m.renderOrder = 6;
   setObj(name, m);
   if (name === 'scan' || name === 'bone') applyXray();
 }
+// The CBCT catches part of the other jaw too, and its crowns sit right in front of the roots one wants to see.
+// 'extra' holds each vertex's height above the bite plane (+ towards the upper arch): faces lying wholly
+// beyond it on the other side go to a second draw group, shown only with 'Opposing arch' on.
+function splitByArch(g, extra, arch) {
+  const idx = g.index.array, nf = idx.length / 3, sign = arch === 'lower' ? -1 : 1, margin = 0.5;
+  const other = new Uint8Array(nf); let nOther = 0;
+  for (let i = 0; i < nf; i++) {
+    if (extra[idx[3 * i]] * sign < -margin && extra[idx[3 * i + 1]] * sign < -margin && extra[idx[3 * i + 2]] * sign < -margin) { other[i] = 1; nOther++; }
+  }
+  if (!nOther) return false;
+  const out = new Uint32Array(idx.length); let p = 0, q = (nf - nOther) * 3;
+  for (let i = 0; i < nf; i++) {
+    let d; if (other[i]) { d = q; q += 3; } else { d = p; p += 3; }
+    out[d] = idx[3 * i]; out[d + 1] = idx[3 * i + 1]; out[d + 2] = idx[3 * i + 2];
+  }
+  g.setIndex(new THREE.BufferAttribute(out, 1));
+  g.clearGroups(); g.addGroup(0, (nf - nOther) * 3, 0); g.addGroup((nf - nOther) * 3, nOther * 3, 1);
+  return true;
+}
+const matsOf = (o) => (Array.isArray(o.material) ? o.material : [o.material]);
+function applyOther() {
+  const on = $('l_other').checked;
+  for (const n of ['bone', 'teeth']) { const o = objs[n]; if (o && Array.isArray(o.material)) o.material[1].visible = on; }
+}
+$('l_other').addEventListener('change', applyOther);
 function setObj(name, m) {
-  if (objs[name]) { scene.remove(objs[name]); objs[name].geometry.dispose(); }
+  if (objs[name]) { scene.remove(objs[name]); objs[name].geometry.dispose(); matsOf(objs[name]).forEach((m) => m.dispose()); }
   objs[name] = m;
   if (m) { scene.add(m); m.visible = layerOn(name); }
 }
@@ -486,7 +517,7 @@ $('l_fit').addEventListener('change', () => { const o = objs.scan; if (o) { fitC
 function applyXray() {
   const x = $('l_xray').checked;
   if (objs.scan) { objs.scan.material.opacity = x ? 0.3 : 1.0; objs.scan.material.depthWrite = !x; objs.scan.renderOrder = x ? 4 : 0; }
-  if (objs.bone) objs.bone.material.opacity = x ? 0.1 : 0.28;
+  if (objs.bone) matsOf(objs.bone).forEach((m) => { m.opacity = x ? 0.1 : 0.28; });
   if (x) { $('l_teeth').checked = true; if (objs.teeth) objs.teeth.visible = true; }
 }
 $('l_xray').addEventListener('change', applyXray);
@@ -517,7 +548,7 @@ function pick(ev, names) {
   const p = new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(p, camera);
   const list = names.map((n) => objs[n]).filter((o) => o && o.visible);
-  const hits = ray.intersectObjects(list, false);
+  const hits = ray.intersectObjects(list, false).filter((h) => !(Array.isArray(h.object.material) && h.face && h.object.material[h.face.materialIndex] && !h.object.material[h.face.materialIndex].visible));
   return hits.length ? hits[0] : null;
 }
 let downAt = null;
@@ -703,8 +734,8 @@ function setCase(st) {
   if (!st.busy) {
     const lvKey = st.levels ? `${st.levels.bone}/${st.levels.dense}` : '';
     const want = {
-      bone: st.cbct_meta ? 'b' + lvKey : null,
-      teeth: st.cbct_meta ? 't' + lvKey : null,
+      bone: st.cbct_meta ? 'b' + lvKey + (st.arch || '') : null,      // the arch decides which jaw is 'opposing'
+      teeth: st.cbct_meta ? 't' + lvKey + (st.arch || '') : null,
       scan: st.scan_file ? JSON.stringify(st.registration?.T || null) + lvKey + (st.scan_name || '') : null,
       tads: JSON.stringify((st.tads || []).map((t) => [t.head, t.dir, t.length, t.diameter, t.collar])),
       guide: st.guide?.when ? String(st.guide.when) : null,
