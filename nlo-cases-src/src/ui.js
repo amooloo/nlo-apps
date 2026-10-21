@@ -1511,7 +1511,7 @@ function historyHTML(c) {
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : x.via === 'print' ? ', as Formlabs suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
-    else if (x.a === 'bt') t = (x.how === 'printer' ? 'sent the models to the printer' : 'put the models in OrthoFactory') + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : '') + (x.to ? ' and moved it to ' + stageName(x.to) : ''); // (traymaker.js)
+    else if (x.a === 'bt') t = (x.lab ? 'saw the Tray Maker’s models in OrthoFactory' : x.how === 'printer' ? 'sent the models to the printer' : 'put the models in OrthoFactory') + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : '') + (x.to ? ' and moved it to ' + stageName(x.to) : ''); // (traymaker.js)
     else if (x.a === 'print') t = prHistText(x); // (prints.js)
     else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
@@ -1526,7 +1526,7 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'bt' ? 'Tray Maker' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'bt' ? (x.lab ? 'Lab PC' : 'Tray Maker') : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
     // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
     const sk = stkHistHTML(c, x, t);
     return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';
@@ -2386,10 +2386,10 @@ window.addEventListener('message', async ev => {
   const m = ev.data; if (!m || m.nlo !== 'bleachtray' || !/^http:\/\/[^/]+:8765$/i.test(ev.origin)) return;
   const c = findCase(m.case); if (!c) return;
   if (m.event === 'sent') {
-    const at = Date.now(), models = Array.isArray(m.models) ? m.models.map(x => String(x).slice(0, 20)).slice(0, 8) : [];
-    c.btModels = { at, models }; queueRender(); if (S.openId === c.id) renderDrawer();
-    try { await B.mutateCase(c.id, d => { d.btModels = { at, models }; }, { a: 'edit', fields: ['btModels'] }); toast('Models for ' + ptNameText(c.patient) + ' are in OrthoFactory — noted on the case'); }
-    catch (e) { toast(errText(e), { bad: true }); }
-    if (S.openId === c.id && !S.editing) loadHistory(c.id);
+    // like the Tray Maker's own note (traymaker.js tmNoted): noted and, while the case waits at To make, moved to Printing -
+    // whichever of the two gets here first (this one used to only note it, and the note then looked old: 20 Oct 2026)
+    const models = Array.isArray(m.models) ? m.models.map(x => plainStr(x).slice(0, 20)).filter(Boolean).slice(0, 8) : [];
+    try { const to = await tmNoted(c.id, { at: Date.now(), models, how: 'orthofactory' }); toast('Models for ' + ptNameText(c.patient) + ' are in OrthoFactory — ' + (to ? 'moved to Printing' : 'noted on the case')); }
+    catch (e) { if (!(e && e.code === 'skip')) toast(errText(e), { bad: true }); }
   }
 });

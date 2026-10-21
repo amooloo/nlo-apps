@@ -91,7 +91,8 @@ def next_revision(*letters):
 def new_order_id(when=None):
     """A 9-digit number, unique per second of sending: 100000000 + seconds since 1 Jan 2026. Titan's IDs are
     small whole numbers; ours were yymmddHHMM (2610191015), more than a 32-bit integer holds - no leading
-    zero, and below 2^31 for decades."""
+    zero, and below 2^31 for decades. NLO Cases tells the Tray Maker's orders from Titan's by this length (9 or
+    10 digits: nlo-cases-src/src/lab.js tmKind), so keep it that long."""
     when = when or datetime.now()
     return str(100000000 + int((when - datetime(2026, 1, 1)).total_seconds()))
 

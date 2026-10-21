@@ -10,6 +10,9 @@
    the order it was linked to before, else the name — keeps the progress on the case (sealed with the rest), fills in the set's
    aligner counts from the export when nobody typed them, and offers the matching step with one tap: Dr. A's "suggest, one tap
    to confirm" — nothing moves by itself. An order it can't place waits on Today for someone to pick the case.
+   The Tray Maker's orders (retainers, whitening trays, mouthguards — 20 Oct 2026, tmMatch below) belong to those cases, not to an
+   in-house set: they're never asked about on Today, and the lab PC seeing one moves its case on from To make to Printing when the
+   Tray Maker's own note hasn't (traymaker.js), as Amir asked of a Send to OrthoFactory.
    ===================================================================== */
 const LAB_BOT = 'labbot.'; // the lab PC's robot login (its email starts with this; the email robot's with "mailbot.")
 const LAB_V = 2; // the lab PC's message format this app reads (trim-centric; a newer script's messages wait, a month, for a newer app)
@@ -60,7 +63,70 @@ function labDateOk(c, o) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(c.scanDate || '')) return day >= c.scanDate;
   const t = labOrderedMs(o); return !c.createdAt || !t || t >= c.createdAt - 14 * 864e5;
 }
+/* ---------- the Tray Maker's orders (Amir, 20 Oct 2026: "orders that go from tray maker/bleaching tray to orthofactory gets flagged
+   in case tracker as orders that don't match anyone. These are for retainers and Whitening trays") ----------
+   The Tray Maker (nlo-bleachtray) sends its retainers, whitening trays, mouthguards and Phase I retainers to OrthoFactory as orders
+   shaped exactly like Titan's, so the lab PC reports them with the in-house sets - and only in-house aligner cases were looked
+   at for them, so every one waited on Today. They are told apart by what they hold and by their number:
+   - its pieces (nlo-bleachtray/bleachtray/server_presets.py VARIANTS): whitening tray T…0, retainer A…1, mouthguard T…2, Phase I
+     retainer A…3 - the lab PC sends each piece's number (lv). A mouthguard or a Phase I piece is never Titan's (its templates are
+     T…0 and its aligners run 1, 2, 3 …);
+   - its own order numbers: 9 digits (100000000 + seconds since 2026: orderfolder.new_order_id; until 19 Oct 2026 10 digits,
+     yymmddHHMM). Titan's are the patient's few-digit ID - and so is the Tray Maker's when someone typed the Edge ID in it.
+   Whitening trays or retainers alone, under a few-digit number, could also be a Titan export of templates or a single aligner:
+   those count as the Tray Maker's only when the patient has a retainer / whitening / mouthguard case here. The Tray Maker's own
+   note moves the case to Printing (traymaker.js tmSync); the lab PC seeing the order in OrthoFactory does the same for a case
+   still waiting at To make that the note didn't reach (the Tray Maker not linked yet, or the case entered after the models
+   went out). Nothing about such an order is asked on Today. */
+const TM_NUM = { A: [1, 3], T: [0, 2] }; // the numbers the Tray Maker gives its pieces, by kind
+/* the order's pieces by kind, from the lab PC's levels: { A: [numbers], T: [numbers] }, or null when it didn't send them */
+function tmPieces(o) {
+  const lv = (o && o.lv) || {}; if (!lv.au && !lv.al && !lv.tu && !lv.tl) return null;
+  const nums = s => Array.from(String(s || '')).map((ch, i) => ch === '-' ? -1 : i).filter(i => i >= 0);
+  return { A: nums(lv.au).concat(nums(lv.al)), T: nums(lv.tu).concat(nums(lv.tl)) };
+}
+/* 'yes' the Tray Maker's; 'maybe' (whitening trays and/or retainers alone under a few-digit number: the Tray Maker's when the patient
+   has a retainer case); '' an in-house set's */
+function tmKind(o) {
+  const p = tmPieces(o); if (!p || !(p.A.length + p.T.length)) return '';
+  if (!p.A.every(n => TM_NUM.A.includes(n)) || !p.T.every(n => TM_NUM.T.includes(n))) return '';
+  return p.A.includes(3) || p.T.includes(2) || /^\d{9,10}$/.test(String(o.pid || '')) ? 'yes' : 'maybe';
+}
+/* what the order holds is something the case makes (WT whitening T…0 · TT retainer A…1, or Phase I A…3 · MG mouthguard T…2) */
+function tmFits(c, p) {
+  if (c.type === 'mouthguard') return p.T.includes(2);
+  const r = (c.retKinds || []).join(' '), wt = /\bWT/i.test(r), tt = /\bTT/i.test(r) || !wt;
+  return (wt && p.T.includes(0)) || (tt && (p.A.includes(1) || p.A.includes(3)));
+}
+/* a case the lab PC may move on for this order: still waiting at To make with its models not noted - or noted by the Tray Maker
+   tab's message (Make models) before 20 Oct 2026, which didn't move the case and made the Tray Maker's own note look old, so
+   nothing did: that one when it's this very send (the order exported within a quarter of an hour of it) */
+function tmLabWaits(c, o) {
+  if (!c || c.locked || c.dup || c.status === 'done' || (TYPE[c.type] || {}).flow !== 'retainer' || liveStage(c) !== 'print') return false;
+  const b = c.btModels; if (!b || !b.at) return true;
+  const t = labOrderedMs(o); return !b.how && !!t && Math.abs(b.at - t) < 15 * 60e3;
+}
+/* the Tray Maker's order → { tm: the case waiting for these models, or null when none (or not one for sure) }; null when it is an
+   in-house set's order */
+function tmMatch(o, open, closed) {
+  const tk = tmKind(o); if (!tk) return null;
+  const p = tmPieces(o), name = labPtName(o), named = nameTokens(name).length >= 2;
+  const theirs = c => !!c && !c.dup && (TYPE[c.type] || {}).flow === 'retainer' && named && nameMatches(name, 'full', c.patient) && labDateOk(c, o);
+  const live = open.filter(c => theirs(c) && !c.locked && c.status !== 'done');
+  if (tk === 'maybe') {
+    // an in-house set following this order is Titan's (templates, or one aligner): not the Tray Maker's
+    if (open.some(c => c && c.type === 'nla' && !c.dup && c.status !== 'done' && c.labOrd && c.labOrd.key === o.key)) return null;
+    // the patient's retainer case, open or completed after the order was exported (less two weeks)
+    const t = labOrderedMs(o), past = (closed || []).some(c => theirs(c) && (!t || (c.closedAt || 0) >= t - 14 * 864e5));
+    if (!live.length && !past) return null;
+  }
+  // the one case waiting at To make for what this order holds (two that could be it, or none: nothing moves)
+  const fit = live.filter(c => tmLabWaits(c, o) && tmFits(c, p));
+  return { tm: fit.length === 1 ? fit[0] : null };
+}
 function labMatch(o, open, closed) {
+  // the Tray Maker's retainers, whitening trays and mouthguards (above): their own case, never an in-house set
+  const tm = tmMatch(o, open, closed); if (tm) return tm;
   const mine = c => c && !c.locked && !c.dup && c.type === 'nla' && c.status !== 'done';
   const byKey = open.filter(c => mine(c) && c.labOrd && c.labOrd.key === o.key);
   if (byKey.length === 1) return { c: byKey[0] };
@@ -176,6 +242,8 @@ async function labSync(docs, open, closed, mem) {
   for (const e of entries) {
     if (e.bad || newest.get(e.o.key) !== e) { mark(e); continue; }
     const m = labMatch(e.o, open, closed);
+    // the Tray Maker's (tmMatch): never asked about on Today; the case still waiting for these models at To make moves on
+    if ('tm' in m) { if (m.tm) { if (!todo.has(e.d.id)) todo.set(e.d.id, []); todo.get(e.d.id).push({ e, c: m.tm, tm: true }); } else mark(e); continue; }
     // a case follows this order (or its name says so): applied — even if this computer dismissed the order on Today once
     if (m.c) { if (!todo.has(e.d.id)) todo.set(e.d.id, []); todo.get(e.d.id).push({ e, c: m.c }); continue; }
     const fp = 'lab|' + e.o.key;
@@ -185,8 +253,8 @@ async function labSync(docs, open, closed, mem) {
   // what can be placed is applied by one open app (the one that claims the message); the others leave it to that one
   for (const [id, list] of todo) {
     if (!(await B.inboxClaim(id))) continue;
-    for (const { e, c } of list) {
-      try { await labApply(e.o, c); mark(e); }
+    for (const { e, c, tm } of list) {
+      try { await (tm ? tmLabApply(e.o, c) : labApply(e.o, c)); mark(e); }
       catch (x) { if (x && (x.code === 'skip' || x.code === 'gone')) mark(e); else if (window.console) console.warn('lab progress:', x && x.message); }
     }
   }
@@ -445,7 +513,7 @@ function labAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="labAdmin"><div class="cardHd"><h3>Lab PC</h3><span class="sub">Ortho Factory’s progress on each in-house set</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from Formlabs’ emails about each print, under Email updates — not Ortho Factory.) Orders it can’t place show on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from Formlabs’ emails about each print, under Email updates — not Ortho Factory.) Orders it can’t place show on Today. The Tray Maker’s retainers, whitening trays and mouthguards aren’t asked about: they go to their own cases, which move to Printing once their models are in Ortho Factory.</p>';
   const bots = (st.bots || []).filter(labBot), beats = (st.beats || []).filter(labBeat).sort((a, b) => (b.at || 0) - (a.at || 0));
   if (!bots.length) return head + how + '<button class="btn btn-act btn-sm" data-act="labSetup">' + ic('plus', 15) + 'Set up the lab PC</button></div></div>';
   const box = b => { const late = !b.at || Date.now() - b.at > 20 * 60000;

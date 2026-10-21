@@ -10,7 +10,8 @@
    PreForm for the printer) it puts a sealed note in the inbox (to the office inbox key, like the lab bridge's orders);
    tmSync below notes it on the case (btModels, the same field the Make models button's message sets) and moves the
    case on from To make to Printing (Amir, 19 Oct 2026: "when I work on it and send it to the printer or Trimlign, it
-   should write back to the other app and move it to printing"); the case leaves the queue with that save.
+   should write back to the other app and move it to printing"); the case leaves the queue with that save. The Tray Maker tab's
+   message (Make models) and the lab PC seeing the order in OrthoFactory do the same (tmNoted, 20 Oct 2026) - whichever comes first.
    Needs the 19 Oct 2026 rules (`labq`, `labqkeys`); until they're live nothing is written (FB.labqOn). ---------- */
 const TM = { keys: null, keysAt: 0, warned: false };
 /* the Tray Maker's public key: the newest entry in labqkeys (one lab PC; a second would be another entry). Read at most
@@ -47,33 +48,71 @@ async function tmQueueDoc(id, body, status) {
   const box = await Crypto.sealTo(k.pub, TE.encode(JSON.stringify(tmBody(id, body))), 'labq:' + id);
   return { ref: FB.db.doc('labq/' + id), data: { kid: k.kid, epk: box.epk, iv: box.iv, ct: box.ct, at: FB.ts() } };
 }
-/* the Tray Maker's notes in the inbox: {bt:1, v, case, patient, models:[...], at, pc} - the case notes the models and
+/* ---------- the models went out: noted on the case (btModels) and, while it waits at To make, moved to Printing (Amir, 19 Oct
+   2026: "when I work on it and send it to the printer or Trimlign, it should write back to the other app and move it to
+   printing"). Three things can say so - the Tray Maker's sealed note (tmSync), its tab's message when it was opened from the
+   case's Make models button (ui.js), and the lab PC seeing the order in OrthoFactory (tmLabApply). Whichever gets here first
+   does it. Until 20 Oct 2026 the tab's message noted the models without moving the case, and the note that followed then looked
+   old and was dropped, so a case made from Make models stayed at To make. ---------- */
+/* the same send already noted: the case's models are as new, or were noted the same way within two minutes before (the note and the
+   tab's message about one Send) */
+function tmSame(prev, bt) {
+  if (!prev || !prev.at) return false;
+  return prev.at >= bt.at || (bt.at - prev.at < 120000 && (prev.how || 'orthofactory') === bt.how);
+}
+/* bt: {at, models, how, pc?}; `ok(x)`: whether the case as saved still wants it (default: not the same send). Resolves to the step
+   it moved the case to ('' none); a case that doesn't want it rejects with code 'skip' */
+async function tmNoted(id, bt, log, ok) {
+  log = Object.assign({ a: 'bt', models: bt.models, how: bt.how }, log);
+  ok = ok || (x => !tmSame(x.btModels, bt));
+  await B.mutateCase(id, x => {
+    delete log.from; delete log.to;            // (the transaction can run this more than once)
+    if (!ok(x)) return 'skip';
+    x.btModels = bt;
+    // the models are being made: To make -> Printing (only from To make - a case already further on stays where it is)
+    if (liveStage(x) === 'print' && caseStages(x).some(st => st[0] === 'printing')) { log.from = x.stage; log.to = 'printing'; x.stage = 'printing'; }
+  }, log);
+  const live = S.cases.get(id); if (live) { live.btModels = bt; if (log.to) live.stage = log.to; queueRender(); if (S.openId === id) renderDrawer(); }
+  if (S.openId === id && !S.editing) loadHistory(id);
+  return log.to || '';
+}
+/* the Tray Maker's notes in the inbox: {bt:1, v, case, patient, models:[...], at, pc, how} - the case notes the models and
    leaves the queue; a note for a case that isn't here (deleted, or an older copy of the app) is kept a week, then cleared */
 async function tmSync(docs, open, closed) {
   for (const d of docs) {
     const m = d.mail || {}; const id = plainStr(m.case), at = typeof m.at === 'number' && m.at > 0 ? m.at : (d.at || Date.now());
     const models = Array.isArray(m.models) ? m.models.map(x => plainStr(x).slice(0, 20)).slice(0, 8) : [];
+    // how: 'orthofactory' (Send to Trimlign) or 'printer' (opened in PreForm); a note from before 19 Oct 2026 has none
+    const how = plainStr(m.how).slice(0, 20) === 'printer' ? 'printer' : 'orthofactory', bt = { at, models, pc: plainStr(m.pc).slice(0, 60), how };
     const c = (id && (S.cases.get(id) || (closed || []).find(x => x && x.id === id))) || null;
     if (!c) { if (Date.now() - (d.at || Date.now()) > 7 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
-    if (c.btModels && c.btModels.at && c.btModels.at >= at) { await B.inboxDelete(d.id).catch(() => { }); continue; } // noted already
+    if (tmSame(c.btModels, bt)) { await B.inboxDelete(d.id).catch(() => { }); continue; } // noted already
     if (!(await B.inboxClaim(d.id))) continue; // another open app is on it
-    // how: 'orthofactory' (Send to Trimlign) or 'printer' (opened in PreForm); a note from before 19 Oct 2026 has none
-    const how = plainStr(m.how).slice(0, 20) === 'printer' ? 'printer' : 'orthofactory';
-    const log = { a: 'bt', models, how };
     try {
-      await B.mutateCase(c.id, x => {
-        delete log.from; delete log.to;            // (the transaction can run this more than once)
-        if (x.btModels && x.btModels.at && x.btModels.at >= at) return 'skip';
-        x.btModels = { at, models, pc: plainStr(m.pc).slice(0, 60), how };
-        // the models are being made: To make -> Printing (only from To make - a case already further on stays where it is)
-        if (liveStage(x) === 'print' && caseStages(x).some(st => st[0] === 'printing')) { log.from = x.stage; log.to = 'printing'; x.stage = 'printing'; }
-      }, log);
-      const live = S.cases.get(c.id); if (live) { live.btModels = { at, models, how }; if (log.to) live.stage = log.to; queueRender(); if (S.openId === c.id) renderDrawer(); }
-      toast('Models for ' + ptNameText(c.patient) + (how === 'printer' ? ' went to the printer' : ' are in OrthoFactory') + ' (Tray Maker) — ' + (log.to ? 'moved to Printing' : 'noted on the case'));
-      if (S.openId === c.id && !S.editing) loadHistory(c.id);
+      const to = await tmNoted(c.id, bt);
+      toast('Models for ' + ptNameText(c.patient) + (how === 'printer' ? ' went to the printer' : ' are in OrthoFactory') + ' (Tray Maker) — ' + (to ? 'moved to Printing' : 'noted on the case'));
     } catch (e) { if (!(e && (e.code === 'skip' || e.code === 'gone'))) { if (window.console) console.warn('tray maker note:', e && e.message); continue; } }
     await B.inboxDelete(d.id).catch(() => { });
   }
+}
+/* the lab PC sees the Tray Maker's order in OrthoFactory (lab.js tmMatch) for a case still waiting at To make that neither the note
+   nor the tab's message reached (the Tray Maker not linked yet, or the case entered after the models went out): noted and moved
+   to Printing the same way, once. What's noted is what the order holds ("upper WT"). */
+async function tmLabApply(o, c) {
+  const cur = findCase(c.id); if (!tmLabWaits(cur, o)) return 'skip'; // (moved on, or noted, since the sync began)
+  const bt = { at: o.at || Date.now(), models: tmLabModels(o), pc: o.pc || '', how: 'orthofactory', key: o.key };
+  try {
+    const to = await tmNoted(c.id, bt, { lab: 1, key: o.key }, x => tmLabWaits(Object.assign({}, x, { id: c.id }), o));
+    toast('Models for ' + ptNameText(cur.patient) + ' are in OrthoFactory (lab PC) — ' + (to ? 'moved to Printing' : 'noted on the case'));
+    return 'ok';
+  } catch (e) { if (e && (e.code === 'skip' || e.code === 'gone')) return 'skip'; throw e; }
+}
+/* "upper WT", "lower TT", … from the order's pieces (whitening tray T…0, retainer A…1, mouthguard T…2, Phase I A…3) */
+function tmLabModels(o) {
+  const lv = (o && o.lv) || {}, name = { A1: 'TT', A3: 'P1', T0: 'WT', T2: 'MG' }, out = [];
+  [['au', 'upper', 'A'], ['tu', 'upper', 'T'], ['al', 'lower', 'A'], ['tl', 'lower', 'T']].forEach(([k, arch, kind]) =>
+    Array.from(String(lv[k] || '')).forEach((ch, i) => { if (ch !== '-' && name[kind + i]) out.push(arch + ' ' + name[kind + i]); }));
+  return out.slice(0, 8);
 }
 /* signing out: nothing of this office's stays in the page */
 function tmReset() { TM.keys = null; TM.keysAt = 0; }
