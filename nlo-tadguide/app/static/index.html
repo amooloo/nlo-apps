@@ -344,6 +344,9 @@
     <label class="f">What it has learned</label>
     <div class="hint" id="learnlines">…</div>
     <div class="btns"><button class="primary" id="setsave">Save</button><button class="small" id="setclose">Close</button></div>
+    <label class="f" style="margin-top:14px">Updates</label>
+    <div class="btns" style="margin-top:4px"><button class="small" id="updcheck">Check for updates</button><button class="small" id="updnow" title="Gets the latest version from GitHub and restarts the app (about a minute). Cases, settings and lessons are kept.">Update now</button></div>
+    <div class="hint" id="updhint">The app fetches only its own files from GitHub; patient data never leaves this PC.</div>
     <div class="hint" id="appversion" style="margin-top:12px"></div>
   </div>
 </div>
@@ -1463,6 +1466,30 @@ $('opensettings').addEventListener('click', async (e) => {
   $('setmodal').classList.add('on');
 });
 $('setclose').addEventListener('click', () => $('setmodal').classList.remove('on'));
+$('updcheck').addEventListener('click', async () => {
+  $('updhint').textContent = 'Checking…';
+  try {
+    const r = await api('/api/update/check');
+    $('updhint').textContent = r.newer ? `Version ${r.latest} is available (this PC runs ${r.installed}) - click Update now.` : `Up to date (${r.installed}).`;
+  } catch (e) { $('updhint').textContent = e.message; }
+});
+$('updnow').addEventListener('click', async () => {
+  if (!confirm('Update the app now? It restarts in about a minute; anyone using it from another PC is interrupted. Cases, settings and lessons are kept.')) return;
+  try { await post('/api/update'); } catch (e) { $('updhint').textContent = e.message; return; }
+  $('setmodal').classList.remove('on');
+  $('veil').classList.add('on'); $('veiltext').textContent = 'Updating - the app is restarting. This page comes back by itself.';
+  const was = state.info?.version; let down = false;
+  const tick = async () => {
+    try {
+      const r = await fetch('/api/version?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) throw new Error();
+      const v = (await r.json()).version;
+      if (down || v !== was) { location.reload(); return; }
+    } catch (e) { down = true; }
+    setTimeout(tick, 3000);
+  };
+  setTimeout(tick, 8000);
+});
 $('setsave').addEventListener('click', async () => {
   try { await post('/api/settings', { keep_days: +$('keepdays').value, preform: $('preformpath').value }); $('setmodal').classList.remove('on'); toast('Saved.'); } catch (e) { toast(e.message, true); }
 });

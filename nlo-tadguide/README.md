@@ -189,14 +189,16 @@ The home page card opens the app on the PC named **lab**. To use another PC from
 
 ## Updating
 
-Double-click `update.bat` in the app folder, or press Win + R and run:
+In the app: **Settings → Check for updates → Update now** (on the lab PC, or from any office PC - the lab PC
+does the work). The app restarts in about a minute and the page comes back by itself. Or double-click
+`update.bat` in the app folder (some PCs block .bat files - then it is simply not there), or press Win + R and run:
 
 ```
 powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-tadguide/update.ps1' -UseBasicParsing).Content"
 ```
 
-It downloads the newest version from GitHub, keeps `settings.json`, `jobs\` and `training\`, updates the
-components and restarts the app ("UPDATE DONE"). `uninstall_autostart.bat` stops the start at sign-in.
+All three download the newest version from GitHub (the app's own files only), keep `settings.json`, `jobs\` and
+`training\`, update the components and restart the app ("UPDATE DONE"). `uninstall_autostart.bat` stops the start at sign-in.
 
 **Moving to another PC:** set it up there, then copy `training\` and `settings.json` over. Cases in `jobs\` can
 stay behind (they are deleted after 30 days anyway).
