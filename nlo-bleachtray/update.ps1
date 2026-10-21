@@ -80,7 +80,7 @@ else { Write-Host '       Could not start the app (no start_app.bat and no Pytho
 Remove-Item $t -Recurse -Force -ErrorAction SilentlyContinue
 # the version this folder now is, the way the app works it out (Settings -> Office, /api/version): a hash of the
 # program files. If a file could not be written the figure differs from the one in the release note - run again
-$rels = @('app/server.py', 'app/tracker.py', 'app/static/index.html', 'run_app.py', 'update.ps1') + @('appliance', 'basebuild', 'blockout', 'colour', 'engrave', 'features', 'interprox', 'learn', 'mesh_utils', 'mouthguard', 'orderfolder', 'orient', 'phase1', 'pipeline', 'printfolder', 'register', 'reservoir', 'segment', 'server_presets', 'solid', 'watch' | ForEach-Object { "bleachtray/$_.py" })
+$rels = @('app/server.py', 'app/tracker.py', 'app/static/index.html', 'run_app.py') + @('appliance', 'basebuild', 'blockout', 'colour', 'engrave', 'features', 'interprox', 'learn', 'mesh_utils', 'mouthguard', 'orderfolder', 'orient', 'phase1', 'pipeline', 'printfolder', 'register', 'reservoir', 'segment', 'server_presets', 'solid', 'watch' | ForEach-Object { "bleachtray/$_.py" })
 try {
   $sha = [System.Security.Cryptography.SHA1]::Create()
   $ms = New-Object System.IO.MemoryStream

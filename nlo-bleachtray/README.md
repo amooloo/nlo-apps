@@ -845,6 +845,9 @@ app, the page in a browser, five code reviews) led to these behaviour changes:
 - **Mouthguards:** a failed line or bracket band shows a red warning; the base carries no name (the guard covers the
   strip) and the log says so.
 - **Version:** Settings → Office shows the build (`/api/version`: a hash of the program files and the date of the newest).
+  The updater prints the same figure when it finishes ("App version now: ..."), so a half-written update shows at
+  once. `update.ps1` itself is not in the hash: on the lab PC a .ps1 cannot be written, so it is never in the folder -
+  with it counted, the figure there never matched the release note (10/21/2026).
 - **Patient names never go in the repo:** the shipped model's `trained_on` holds `baseNN` / `lessonNN` only; README,
   comments and tests use made-up names.
 

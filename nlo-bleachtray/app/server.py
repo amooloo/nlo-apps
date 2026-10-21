@@ -1401,7 +1401,9 @@ def _build_info():
     newest one (the update sets each file's time to its commit). Shown in Settings -> Office; /api/version."""
     import hashlib
     h = hashlib.sha1(); newest = 0.0
-    rels = ["app/server.py", "app/tracker.py", "app/static/index.html", "run_app.py", "update.ps1"] + [f"bleachtray/{m}.py" for m in (
+    # (not update.ps1: on the lab PC a .ps1 cannot be written, so it is never in the folder - with it in the list the
+    # figure there never matched the release note, 10/21/2026)
+    rels = ["app/server.py", "app/tracker.py", "app/static/index.html", "run_app.py"] + [f"bleachtray/{m}.py" for m in (
         "appliance", "basebuild", "blockout", "colour", "engrave", "features", "interprox", "learn", "mesh_utils", "mouthguard",
         "orderfolder", "orient", "phase1", "pipeline", "printfolder", "register", "reservoir", "segment", "server_presets", "solid", "watch")]
     for rel in rels:
