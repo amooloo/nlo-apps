@@ -893,7 +893,36 @@ def edit_tad(cid: str, tid: str, body: dict = Body(...)):
     size, product = _size_from(body, (t["diameter"], t["length"], t.get("collar", 2.0)), t.get("product"))
     al = t["alpha"] + float(body.get("dalpha", 0))
     be = t["beta"] + float(body.get("dbeta", 0))
-    if t["site"] == "palate":
+    A = c.arch
+    if body.get("dir") is not None:
+        # aimed by hand in 3D: the head stays, the direction is the given one; the angles are read back from it
+        d = tadmod.unit(np.asarray(body["dir"], float))
+        if t["site"] == "palate":
+            al = float(np.degrees(np.arcsin(np.clip(np.dot(d, A.L * (1 if t["s"] >= 0 else -1)), -1, 1))))
+            be = float(np.degrees(np.arcsin(np.clip(np.dot(d, A.A), -1, 1))))
+        else:
+            _p, tan, buc = A.at(t["s"])
+            inward = -buc if t["site"] in ("buccal", "izc", "shelf") else buc
+            al = float(np.degrees(np.arctan2(np.dot(d, -A.n), max(1e-6, np.dot(d, inward)))))
+            be = float(np.degrees(np.arcsin(np.clip(np.dot(d, tan * (1 if t["s"] >= 0 else -1)), -1, 1))))
+        n = dict(t)
+        n.pop("metrics", None)
+        n["dir"] = d.tolist()
+        n["alpha"], n["beta"] = al, be
+        n["diameter"], n["length"], n["collar"] = size
+        n["head"] = (np.array(t["head"]) - tadmod.unit(t["dir"]) * float(t.get("depth", 0.0))).tolist()   # depth re-applied below
+    elif body.get("point") is not None:
+        # dragged along the gum in 3D: re-placed at that spot with its angles
+        p = np.asarray(body["point"], float)
+        if t["site"] == "palate":
+            q = A.to_plane(p)
+            n = c.ctx.place("palate", "L" if q[0] >= 0 else "R", 0, 0, al, be, size, u_w=(float(q[0]), float(q[1])))
+        else:
+            s_, _off = A.s_of(p[None])
+            s_ = float(s_[0])
+            a_ = float(-np.dot(p - A.O, A.n))
+            n = c.ctx.place(t["site"], "L" if s_ >= 0 else "R", s_, max(0.0, a_), al, be, size)
+    elif t["site"] == "palate":
         u, w = t.get("uw") or (t["s"], 0.0)
         u += float(body.get("du", 0)) + float(body.get("ds", 0))
         w += float(body.get("dw", 0)) + float(body.get("da", 0))
@@ -902,6 +931,8 @@ def edit_tad(cid: str, tid: str, body: dict = Body(...)):
         n = c.ctx.place(t["site"], t["side"], t["s"] + float(body.get("ds", 0)) * (1 if t["s"] >= 0 else -1), max(0.0, t["a"] + float(body.get("da", 0))), al, be, size)
     if n is None:
         raise HTTPException(400, "That move takes the screw off the gum - try a smaller step.")
+    if body.get("dir") is not None:
+        n["label"] = c.ctx.label(n)
     depth = float(t.get("depth", 0.0)) + float(body.get("depth", 0.0))
     if depth:
         dd = tadmod.unit(n["dir"])
