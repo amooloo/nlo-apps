@@ -587,11 +587,18 @@ def slice_png(cid: str, view: str = "axial", x: float = None, y: float = None, z
         if roots and c.ctx is not None:
             roi = c.ctx.roi(center)
     else:
-        if x is None:
-            d = c.state.get("dentition") or {}
-            a = d.get(c.state.get("arch") or "upper") or {}
-            x, y, z = a.get("centroid") or c.vol.index_to_mm(np.array(c.vol.shape[::-1]) / 2)
-        center = np.array([x, y, z], float)
+        t = next((t for t in tl if t.get("id") == tad), None) if tad else None
+        if t is not None:                                   # an anatomical view through the selected TAD
+            H, d = np.array(t["head"]), tadmod.unit(t["dir"])
+            center = H + d * (t.get("collar", 1.5) + t["length"]) / 2
+            if roots and c.ctx is not None:
+                roi = c.ctx.roi(center)
+        else:
+            if x is None:
+                d = c.state.get("dentition") or {}
+                a = d.get(c.state.get("arch") or "upper") or {}
+                x, y, z = a.get("centroid") or c.vol.index_to_mm(np.array(c.vol.shape[::-1]) / 2)
+            center = np.array([x, y, z], float)
         e1, e2 = render.anatomical(view)
     e1, e2 = tadmod.unit(np.asarray(e1, float)), tadmod.unit(np.asarray(e2, float))
     nrm = np.cross(e1, e2)
