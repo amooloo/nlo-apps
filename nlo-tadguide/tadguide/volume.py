@@ -16,6 +16,9 @@ from scipy import ndimage as ndi
 KNOWN = {
     "carestream cs 8200": dict(air=-500.0, bone=700.0, dense=1500.0, enamel=2500.0, metal=4500.0),
 }
+# any export in HU-like units (air about -1000, soft tissue about 0) starts from the same levels: they are what
+# bone, dentin and enamel read in such units, whatever the machine
+HU_PROFILE = dict(air=-500.0, bone=700.0, dense=1500.0, enamel=2500.0, metal=4500.0)
 
 
 def _valid_sample(vol, step=2):
@@ -27,34 +30,51 @@ def _valid_sample(vol, step=2):
 
 
 def auto_levels(vol):
-    """Levels from the histogram: Otsu for air/tissue, the soft-tissue mode, multi-Otsu for bone / teeth,
-    Otsu inside the dense class for enamel. Machines with a known profile start from that profile."""
+    """Levels from the histogram: Otsu for air/tissue, the soft-tissue peak, multi-Otsu for bone / teeth, Otsu
+    inside the dense class for enamel. Machines with a known profile use that profile when the export is in
+    HU-like units.
+
+    Metal first: brackets, bands and wires are a thin tail of huge values (up to 32767 on the CS 8200, with
+    bone at 700 and enamel at 2500). Left in, that tail stretches every histogram Otsu looks at, and the
+    thresholds land one class too high - air at +700, 'bone' at 6500, 'teeth' at 11700 - so the app saw only
+    metal and nothing matched (the first real NLO case, 10/20/2026). So the levels are found on the values
+    below the 99.9th percentile, and metal is the tail above them."""
     from skimage.filters import threshold_otsu, threshold_multiotsu
     s = _valid_sample(vol)
     if s.size > 4_000_000:
         s = s[:: s.size // 4_000_000 + 1]
-    t_air = float(threshold_otsu(s))
-    tissue = s[s > t_air]
-    hist, edges = np.histogram(tissue, bins=512)
+    cap = float(np.percentile(s, 99.9))
+    body = s[s <= cap]
+    # air | soft tissue | hard tissue in one go: a two-class Otsu would split soft from hard (the far, small
+    # mode) and call the soft tissue air
+    t_air, t_hard = (float(x) for x in threshold_multiotsu(body, classes=3))
+    tissue = body[body > t_air]
+    mid = body[(body > t_air) & (body <= t_hard)]
+    hist, edges = np.histogram(mid if mid.size > 1000 else tissue, bins=256)
     soft = float(edges[int(np.argmax(hist))] + (edges[1] - edges[0]) / 2)
     p999 = float(np.percentile(tissue, 99.9))
     p9997 = float(np.percentile(tissue, 99.97))
     above = tissue[tissue > soft + 0.15 * (p999 - soft)]
+    if above.size < 1000:
+        above = tissue[tissue > t_hard]
     bone, dense = (float(x) for x in threshold_multiotsu(np.clip(above, None, p9997), classes=3))
     top = tissue[tissue > dense]
     hi = float(np.percentile(top, 99.0)) if top.size > 100 else dense * 1.5
     enamel = float(threshold_otsu(np.clip(top, None, hi))) if top.size > 100 else dense * 1.4
     enamel = max(enamel, dense + 0.25 * (dense - soft))
-    metal = max(enamel * 1.5, float(np.percentile(tissue, 99.995)))
+    metal = max(enamel * 1.5, float(np.percentile(s, 99.995)))
     lv = dict(air=t_air, soft=soft, bone=bone, dense=dense, enamel=enamel, metal=metal, source="auto")
     key = (" ".join([vol.meta.get("manufacturer", ""), vol.meta.get("model", "")])).lower()
     hu_like = (-250 < soft < 350) and t_air < -200          # the profile is in HU-like units: only then
-    for k, prof in (KNOWN.items() if hu_like else ()):
-        name, model = k.split(" ", 1)
-        if name in key and model.replace("cs ", "") in key.replace("cs ", ""):
-            lv.update(prof)
-            lv["source"] = "profile:" + k
-            break
+    if hu_like:
+        lv.update(HU_PROFILE)
+        lv["source"] = "HU profile"
+        for k, prof in KNOWN.items():
+            name, model = k.split(" ", 1)
+            if name in key and model.replace("cs ", "") in key.replace("cs ", ""):
+                lv.update(prof)
+                lv["source"] = "profile:" + k
+                break
     return {k: (round(v, 1) if isinstance(v, float) else v) for k, v in lv.items()}
 
 
