@@ -709,12 +709,46 @@ def view_dirs(cid: str, tad: str = ""):
                      (-A.n, ("apical", dict(e="da", v=step)), ("occlusal", dict(e="da", v=-step))),
                      (buc, ("buccal", None), (ling, None)),
                      (d, ("deeper", dict(e="depth", v=step)), ("out", dict(e="depth", v=-step)))]
+    # tilting: where the tip goes on the picture for +5 degrees of alpha and of beta
+    tilts = []
+    if t is not None and c.arch is not None:
+        A = c.arch
+        d = tadmod.unit(t["dir"])
+        if t["site"] == "palate":
+            u = (t.get("uw") or (t["s"], 0.0))[0]
+            tilts = [(A.L * (1.0 if u >= 0 else -1.0), ("lateral 5°", dict(e="dalpha", v=5)), ("medial 5°", dict(e="dalpha", v=-5))),
+                     (A.A, ("forward 5°", dict(e="dbeta", v=5)), ("back 5°", dict(e="dbeta", v=-5)))]
+        else:
+            _p, tan, _buc = A.at(t["s"])
+            sgn = 1.0 if t["s"] >= 0 else -1.0
+            tilts = [(-A.n, ("apical 5°", dict(e="dalpha", v=5)), ("occlusal 5°", dict(e="dalpha", v=-5))),
+                     (tan * sgn, ("distal 5°", dict(e="dbeta", v=5)), ("mesial 5°", dict(e="dbeta", v=-5)))]
     out = {}
     for view in ("axial", "coronal", "sagittal", "tad_md", "tad_bl", "tad_x"):
         if view.startswith("tad") and t is None:
             continue
         _c, e1, e2 = _view_frame(c, t, view)
         out[view] = _edge_dirs(e1, e2, named)
+        if tilts:
+            d = tadmod.unit(t["dir"])
+            nrm = np.cross(e1, e2)
+            if abs(float(np.dot(d, nrm))) < 0.35:              # the screw lies in this picture: its tip can be swung here
+                dx, dy = float(np.dot(d, e1)), float(np.dot(d, e2))
+                if abs(dy) >= abs(dx):                           # screw stands upright in the picture: the tip swings left / right
+                    axis, tip_end, pp = "h", ("top" if dy > 0 else "bottom"), e1
+                else:                                            # screw lies across: the tip swings up / down
+                    axis, tip_end, pp = "v", ("right" if dx > 0 else "left"), e2
+                pp = tadmod.unit(pp - np.dot(pp, d) * d)        # the swing direction, in the plane and across the screw
+                best, bi, bsg = 0.0, None, 1.0
+                for i, (m, _pl, _mi) in enumerate(tilts):
+                    mm = m - np.dot(m, d) * d                    # how the tip moves for + of this angle
+                    sc = float(np.dot(mm, pp))
+                    if abs(sc) > best:
+                        best, bi, bsg = abs(sc), i, (1.0 if sc > 0 else -1.0)
+                if bi is not None and best >= 0.5:
+                    _m, pl, mi = tilts[bi]
+                    pos, neg = (pl, mi) if bsg > 0 else (mi, pl)   # pos: tip toward +pp (image right / up)
+                    out[view]["tilt"] = dict(axis=axis, tip=tip_end, pos=dict(label=pos[0], **pos[1]), neg=dict(label=neg[0], **neg[1]))
     return out
 
 
