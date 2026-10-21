@@ -40,7 +40,11 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    up / down, tilt, depth, which TAD (below) and its collar, **Fine-tune here** (the best spot within 1.5 mm
    and 8°), **Remove**. Or move it by hand in 3D: drag the orange ball at its head to slide it along the gum
    (angles kept), the blue ball at its tip to aim it (head kept); a ghost follows the pointer, on release it is
-   re-placed and measured, and the slices follow. **Undo** (or Ctrl+Z) takes back the last placement, move, fine-tune or removal - and
+   re-placed and measured, and the slices follow. The selected TAD is drawn bold orange in the slices (the others
+   thin and dim), and every slice carries direction words on its four edges in the same vocabulary as the buttons -
+   mesial / distal, apical / occlusal, buccal / palatal, deeper / out (for a palate TAD forward / back, to suture /
+   lateral): click an arrow to move the TAD half a millimetre that way (Shift: 1½ mm). **Mirror to other side**
+   puts the same TAD on the other side - across the midpalatal suture for a palate TAD, across the arch otherwise. **Undo** (or Ctrl+Z) takes back the last placement, move, fine-tune or removal - and
    in the Match step the last nudge or re-match. Sites: buccal between roots (upper: 2/3 for anterior intrusion,
    3/4 to 6/7; lower 3/4, 4/5), palatal between roots, infrazygomatic crest, buccal shelf, paramedian palate.
    The 3D view shows the scan in natural colours (ivory teeth, pink gum), the CBCT roots in dentin yellow inside
@@ -91,7 +95,12 @@ literature:
   posterior to the third rugae, perpendicular to the occlusal plane; the suture itself is thin and variable, the
   incisive canal is to be avoided (Ludwig et al., *Anatomical guidelines for miniscrew insertion: palatal sites*,
   JCO 2011; Wilmes et al., the *T-zone*, JCO). The app searches 3-4 mm paramedian between the 3/4 and 4/5 lines,
-  never within 3 mm of the 3/4 line (the canal zone, a *stop*) and never on the suture (a *caution*).
+  never within 3 mm of the 3/4 line (the canal zone, a *stop*) and never on the suture (a *caution*). The suture
+  itself is found in the CBCT, not assumed to be the dental midline: in coronal cuts through the hard palate from
+  behind the canines to the first molars the app takes the axis of mirror symmetry of the palatal bone, moved to
+  the nasal crest where one stands out, and fits a line through them (shown dashed blue in the slices; the TADs
+  panel says how many cuts agreed and how far it sits from the dental midline). Palate distances, the suture
+  caution and *Mirror to other side* all use that line; when it cannot be found the dental midline stands in.
 - **Buccal between roots:** the "safe zones" - maxilla between the second premolar and first molar, between the
   premolars and canine / first premolar; mandible between the molars, the premolars and canine / first premolar;
   the interradicular bone widens apically, 6-11 mm from the alveolar crest, and 1 mm of clearance each side is the
@@ -120,8 +129,10 @@ From the TAD course notes:
 reads well above cortical bone, and a root is what lies at the tooth level deeper than the cortical plate - a
 tight mask that stops at the PDL. On a soft or low-dose scan dentin is no brighter than the cortex; then a
 half-way level and the ridge of the root wall are used and the mask runs a little fat (the lamina dura counts).
-The app picks the first when it finds enough tooth-level tissue under the crowns. Either way the slices are what
-to trust: the red tint is exactly what was counted. Being *in bone* means inside the outer bone envelope - at
+The app picks the first when it finds enough tooth-level tissue under the crowns. A piece counts as root when it
+reaches a crown of the matched scan, or when it is rod-shaped *and* lies within 10 mm of the dental arch - so the
+dense midline bone of the palate (the nasal crest), the mylohyoid ridge or the zygomatic buttress do not pass as
+roots on shape alone. Either way the slices are what to trust: the red tint is exactly what was counted. Being *in bone* means inside the outer bone envelope - at
 0.15 mm the marrow between the trabeculae reads as soft tissue, and would otherwise count as "no bone".
 
 **Where the scan ends** (the vestibule above a buccal site, a palate scanned only in part, the IZC), the gum

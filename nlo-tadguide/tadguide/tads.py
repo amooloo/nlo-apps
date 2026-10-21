@@ -180,10 +180,124 @@ class Context:
         h = self.entries(site, [s], [a])[0]
         return h if np.isfinite(h[0]) else None
 
-    def palate_entry(self, u, w):
-        """Palate site at plane coordinates (lateral u, anterior w): a ray from the occlusal side up into the vault."""
+    # -- the midpalatal suture
+    def palate_suture(self):
+        """The midpalatal suture as a line in the arch plane, u = u0 + k (w - w0), found in the CBCT rather than
+        taken from the dental midline (the teeth can stand off-centre by a few mm). Coronal cuts through the hard
+        palate from behind the canines to the first molars; in each, the axis of mirror symmetry of the palatal
+        bone, moved to the nasal crest (the ridge where the septum stands on the nasal floor) when one stands out
+        within 4 mm of it; then a straight line through those points, outliers dropped. Cached. Only for the
+        upper arch; the result has ok=False when the palate is not in the volume or the points do not line up."""
+        if getattr(self, "_suture", None) is not None:
+            return self._suture
         A = self.arch
-        o = A.from_plane(u, w, 6.0)
+        out = dict(ok=False, u0=0.0, k=0.0, w0=0.0, n=0, rms=None, pts=[])
+        if A.arch != "upper":
+            self._suture = out
+            return out
+        try:
+            w34, w45 = self.palate_levels()
+            ws = np.arange(w45 - 16.0, w34 + 2.01, 1.0)
+            du = 0.3
+            us = np.arange(-16.0, 16.0 + 1e-6, du)
+            hs = np.arange(-1.0, -32.0 - 1e-6, -du)             # up from the occlusal plane into the vault
+            bone_in = self.lv["soft"] + 0.5 * (self.lv["bone"] - self.lv["soft"])
+            pts = []
+            for w in ws:
+                U, Hh = np.meshgrid(us, hs, indexing="ij")
+                P = A.from_plane(U.ravel()[:, None], w, Hh.ravel()[:, None])
+                I = V.sample(self.vol, P).reshape(len(us), len(hs))
+                B = ndi.gaussian_filter(I.astype(np.float32), 1.0) >= bone_in
+                # the palatal plate per column: the first bone run going up (>= 0.9 mm thick), its top side
+                top = np.full(len(us), np.nan)
+                band = np.zeros_like(B)
+                for i in range(len(us)):
+                    col = B[i]
+                    j = 0
+                    while j < len(col):
+                        if col[j]:
+                            k = j
+                            while k < len(col) and (col[k] or (k + 2 < len(col) and col[k + 1] and col[k + 2])):
+                                k += 1
+                            if (k - j) * du >= 0.9:
+                                top[i] = hs[min(k, len(hs) - 1)]
+                                band[i, j:min(k, j + int(12 / du))] = True
+                                break
+                            j = k
+                        j += 1
+                mid = np.abs(us) <= 10.0
+                if band[mid].sum() * du * du < 20.0:
+                    continue
+                # mirror symmetry of the plate within +-9 mm of each candidate axis
+                best, bu = -1.0, None
+                xs = np.arange(du, 9.0 + 1e-6, du)
+                for u0 in np.arange(-5.0, 5.0 + 1e-6, du):
+                    ip = np.round((u0 + xs - us[0]) / du).astype(int)
+                    im = np.round((u0 - xs - us[0]) / du).astype(int)
+                    ok = (ip >= 0) & (ip < len(us)) & (im >= 0) & (im < len(us))
+                    if ok.sum() < 10:
+                        continue
+                    a, b = band[ip[ok]], band[im[ok]]
+                    sc = float((a & b).sum()) / max(float((a | b).sum()), 1.0)
+                    if sc > best:
+                        best, bu = sc, float(u0)
+                if bu is None or best < 0.55:
+                    continue
+                u_s = bu
+                # the nasal crest: the plate's top rising sharply within 4 mm of the symmetry axis
+                sel = np.abs(us - bu) <= 4.0
+                if np.isfinite(top[sel]).sum() >= 8:
+                    t_sel = top[sel]
+                    ref = np.nanmedian(top[np.abs(us - bu) <= 8.0])
+                    j = int(np.nanargmin(t_sel))                 # most superior (h most negative)
+                    if ref - t_sel[j] >= 1.5:
+                        u_s = float(us[sel][j])
+                pts.append((float(w), u_s, best))
+            if len(pts) >= 5:
+                Pw = np.array(pts)
+                w0 = float(np.mean(Pw[:, 0]))
+                keep = np.ones(len(Pw), bool)
+                for _ in range(3):
+                    k, u0 = np.polyfit(Pw[keep, 0] - w0, Pw[keep, 1], 1)
+                    res = Pw[:, 1] - (u0 + k * (Pw[:, 0] - w0))
+                    new = np.abs(res) <= 1.5
+                    if new.sum() < 5 or (new == keep).all():
+                        break
+                    keep = new
+                rms = float(np.sqrt(np.mean(res[keep] ** 2)))
+                out = dict(ok=bool(keep.sum() >= 5 and rms <= 1.0 and abs(np.degrees(np.arctan(k))) <= 8.0), u0=float(u0), k=float(k), w0=w0,
+                           n=int(keep.sum()), rms=round(rms, 2), angle_deg=round(float(np.degrees(np.arctan(k))), 1),
+                           pts=[(round(a, 1), round(b, 2)) for a, b, _c in pts])
+        except Exception:
+            pass
+        self._suture = out
+        return out
+
+    def suture_u(self, w):
+        """Raw plane coordinate u of the suture at anterior coordinate w (0 when the suture was not found)."""
+        S = self.palate_suture()
+        return S["u0"] + S["k"] * (float(w) - S["w0"]) if S["ok"] else 0.0
+
+    def pal_from_point(self, p):
+        """(u, w) of a point in the palate frame: u is the lateral distance from the suture (+ patient left)."""
+        q = self.arch.to_plane(np.asarray(p, float))
+        return float(q[0]) - self.suture_u(q[1]), float(q[1])
+
+    def suture_plane(self):
+        """(point, unit normal) of the vertical plane through the suture line, or None."""
+        S = self.palate_suture()
+        if not S["ok"]:
+            return None
+        A = self.arch
+        p0 = A.from_plane(S["u0"], S["w0"], -10.0)
+        along = unit(A.A + S["k"] * A.L)                        # du/dw = k
+        return p0, unit(np.cross(along, A.n))
+
+    def palate_entry(self, u, w):
+        """Palate site at palate coordinates (lateral u from the suture, anterior w): a ray from the occlusal
+        side up into the vault."""
+        A = self.arch
+        o = A.from_plane(u + self.suture_u(w), w, 6.0)
         hit, nrm = self.ray(o, -A.n)
         if np.isfinite(hit[0, 0]) and 0.0 < float(np.dot(hit[0] - o, -A.n)) < 30.0:
             n = nrm[0] if np.dot(nrm[0], A.n) > 0 else -nrm[0]     # facing the mouth
@@ -282,13 +396,20 @@ class Context:
             idx = np.arange(1, nl + 1)
             sz = ndi.sum(cand, lab, idx) * step ** 3
             touch = ndi.maximum(seeds, lab, idx) if seeds.any() else np.zeros(nl, bool)
+            # Roots live in the alveolar process, i.e. near the dental arch. Dense rod-shaped bone far from it -
+            # the midpalatal ridge and nasal crest, the mylohyoid ridge, the zygomatic buttress - must not pass as
+            # a root on shape alone: beyond 10 mm (in the occlusal plane) from the arch line only a piece that
+            # reaches a crown counts.
+            com = np.asarray(ndi.center_of_mass(cand, lab, idx), float).reshape(-1, 3)
+            _s_, arch_dist = self.arch.s_of(c + ax[0] + com * step)
+            near_arch = np.abs(arch_dist) <= 10.0
             keep = np.zeros(nl + 1, bool)
             objs = ndi.find_objects(lab)
             for k in range(nl):
                 if touch[k] and sz[k] >= 4.0:
                     keep[k + 1] = True
                     continue
-                if sz[k] < 5.0:
+                if sz[k] < 5.0 or not near_arch[k]:
                     continue
                 zz = np.argwhere(lab[objs[k]] == k + 1).astype(float)
                 if len(zz) > 20000:

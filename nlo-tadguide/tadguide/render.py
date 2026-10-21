@@ -44,7 +44,7 @@ def _section(mesh_v, mesh_f, origin, normal):
     return np.stack([a, b], axis=1)
 
 
-def plane(vol, levels, center, e1, e2, half=15.0, px=0.1, scan=None, guide=None, tads=(), roi=None, labels=None, sel=None):
+def plane(vol, levels, center, e1, e2, half=15.0, px=0.1, scan=None, guide=None, tads=(), roi=None, labels=None, sel=None, suture=None):
     """PNG bytes of the plane through `center` spanned by e1 (image right) and e2 (image up)."""
     e1, e2 = unit(e1), unit(e2)
     n = int(round(2 * half / px))
@@ -75,11 +75,29 @@ def plane(vol, levels, center, e1, e2, half=15.0, px=0.1, scan=None, guide=None,
             pa, pb = to_px(a), to_px(b)
             if -5 < pa[0] < n + 5 and -5 < pa[1] < n + 5:
                 dr.line([pa, pb], fill=col, width=w)
+    if suture is not None:                                      # the midpalatal suture plane: a dashed cyan line
+        p0, ns = np.asarray(suture[0], float), unit(suture[1])
+        ell = np.cross(ns, nrm)
+        if np.linalg.norm(ell) > 0.2:
+            ell = unit(ell)
+            g = np.array([np.dot(e1, ns), np.dot(e2, ns)])
+            ab = g * np.dot(p0 - center, ns) / max(np.dot(g, g), 1e-9)
+            x0 = center + ab[0] * e1 + ab[1] * e2
+            a0, a1 = to_px(x0 - ell * half * 2), to_px(x0 + ell * half * 2)
+            L_ = np.hypot(a1[0] - a0[0], a1[1] - a0[1])
+            k = 0.0
+            while k < L_:
+                k2 = min(k + 7, L_)
+                dr.line([(a0[0] + (a1[0] - a0[0]) * k / L_, a0[1] + (a1[1] - a0[1]) * k / L_), (a0[0] + (a1[0] - a0[0]) * k2 / L_, a0[1] + (a1[1] - a0[1]) * k2 / L_)], fill=(80, 220, 255), width=1)
+                k += 12
     for t in tads:
         H = np.asarray(t["head"], float)
         d = unit(t["dir"])
         D, L, c = float(t["diameter"]), float(t["length"]), float(t.get("collar", 1.5))
-        col = (255, 214, 10) if (sel is None or t.get("id") == sel) else (255, 214, 10, 120)
+        # the selected TAD (the one the buttons and handles move) bright and bold, the others thin and dim
+        is_sel = sel is not None and t.get("id") == sel
+        col = (255, 214, 10) if sel is None else ((255, 150, 0) if is_sel else (160, 150, 90))
+        lw = 2 if sel is None else (3 if is_sel else 1)
         dist_axis = abs(np.dot(d, nrm))
         if dist_axis < 0.35:                                   # the screw lies (nearly) in the plane: outline
             side = unit(np.cross(nrm, d))
@@ -88,7 +106,7 @@ def plane(vol, levels, center, e1, e2, half=15.0, px=0.1, scan=None, guide=None,
                 continue
             tip = H + d * (c + L)
             poly = [H + side * D / 2, tip - d * D * 0.6 + side * D / 2, tip, tip - d * D * 0.6 - side * D / 2, H - side * D / 2]
-            dr.line([to_px(p) for p in poly] + [to_px(poly[0])], fill=col, width=2)
+            dr.line([to_px(p) for p in poly] + [to_px(poly[0])], fill=col, width=lw)
             hd = [H + side * (D * 0.75 + 0.6), H - d * 1.6 + side * (D * 0.75 + 0.6), H - d * 1.6 - side * (D * 0.75 + 0.6), H - side * (D * 0.75 + 0.6)]
             dr.line([to_px(p) for p in hd] + [to_px(hd[0])], fill=col, width=1)
             dr.line([to_px(H + d * c + side * D / 2), to_px(H + d * c - side * D / 2)], fill=col, width=1)
@@ -98,7 +116,9 @@ def plane(vol, levels, center, e1, e2, half=15.0, px=0.1, scan=None, guide=None,
                 p = H + d * tt
                 cx, cy = to_px(p)
                 r = (D / 2) / px
-                dr.ellipse([cx - r, cy - r, cx + r, cy + r], outline=col, width=2)
+                dr.ellipse([cx - r, cy - r, cx + r, cy + r], outline=col, width=lw)
+                if is_sel:                                      # a dot in the middle: this is the one
+                    dr.ellipse([cx - 2, cy - 2, cx + 2, cy + 2], fill=col)
     # 5 mm scale bar and corner labels
     sb = 5.0 / px
     dr.line([(10, n - 12), (10 + sb, n - 12)], fill=(255, 255, 255), width=3)

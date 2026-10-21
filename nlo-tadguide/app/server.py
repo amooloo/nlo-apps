@@ -611,6 +611,113 @@ def _tads_mesh(tlist):
 
 # ------------------------------------------------------------------ slices
 
+def _tad_frame(c, t):
+    """(md, bl, d): the screw's own axes - along the arch, across it, and the screw axis."""
+    d = tadmod.unit(t["dir"])
+    if c.arch is not None and t["site"] != "palate":
+        _p, tan, _buc = c.arch.at(t["s"])
+    else:
+        tan = np.cross(d, [0, 0, 1.0]) if abs(d[2]) < 0.9 else np.array([1.0, 0, 0])
+    md = tadmod.unit(tan - np.dot(tan, d) * d)
+    bl = tadmod.unit(np.cross(d, md))
+    return md, bl, d
+
+
+def _view_frame(c, t, view, xyz=(None, None, None)):
+    """Centre, image-right and image-up (unit, mm) of a slice view; through the TAD when one is given."""
+    if t is not None:
+        H, d = np.array(t["head"], float), tadmod.unit(t["dir"])
+        center = H + d * (t.get("collar", 1.5) + t["length"]) / 2
+    else:
+        x, y, z = xyz
+        if x is None:
+            dn = c.state.get("dentition") or {}
+            a = dn.get(c.state.get("arch") or "upper") or {}
+            x, y, z = a.get("centroid") or c.vol.index_to_mm(np.array(c.vol.shape[::-1]) / 2)
+        center = np.array([x, y, z], float)
+    if view.startswith("tad"):
+        md, bl, d = _tad_frame(c, t)
+        if view == "tad_md":           # along the screw, seen from the cheek: neighbouring roots left and right
+            e1, e2 = md, d
+        elif view == "tad_bl":         # along the screw, seen from the side: cortex, depth, sinus
+            e1, e2 = bl, d
+        else:                          # across the screw at mid-thread
+            e1, e2 = md, bl
+    else:
+        e1, e2 = render.anatomical(view)
+    return center, tadmod.unit(np.asarray(e1, float)), tadmod.unit(np.asarray(e2, float))
+
+
+_ANAT_DIRS = [([1.0, 0, 0], ("L", None), ("R", None)), ([0, 1.0, 0], ("P", None), ("A", None)), ([0, 0, 1.0], ("S", None), ("I", None))]
+
+
+def _edge_dirs(e1, e2, named):
+    """What the four edges of a slice mean. named: [(unit vector, (label, action) for +, (label, action) for -)].
+    Each image axis takes the direction it lines up with best (at least 0.5 of it), each pair used once;
+    an axis nothing fits gets the anatomical letter. Returns dict right/left/top/bottom -> {label, e, v}."""
+    out = {}
+    used = set()
+    for axis, (pos, neg) in ((e1, ("right", "left")), (e2, ("top", "bottom"))):
+        best, bi, bsign = 0.0, None, 1.0
+        for i, (v, _pl, _mi) in enumerate(named):
+            if i in used:
+                continue
+            dd = float(np.dot(axis, tadmod.unit(v)))
+            if abs(dd) > best:
+                best, bi, bsign = abs(dd), i, (1.0 if dd >= 0 else -1.0)
+        if bi is None or best < 0.5:
+            dd = [float(np.dot(axis, v)) for v, _a, _b in _ANAT_DIRS]
+            i = int(np.argmax(np.abs(dd)))
+            pl, mi = _ANAT_DIRS[i][1], _ANAT_DIRS[i][2]
+            p_, m_ = (pl, mi) if dd[i] >= 0 else (mi, pl)
+            out[pos], out[neg] = dict(label=p_[0]), dict(label=m_[0])
+            continue
+        used.add(bi)
+        _v, pl, mi = named[bi]
+        p_, m_ = (pl, mi) if bsign > 0 else (mi, pl)
+        out[pos] = dict(label=p_[0], **(p_[1] or {}))
+        out[neg] = dict(label=m_[0], **(m_[1] or {}))
+    return out
+
+
+@app.get("/api/cases/{cid}/dirs")
+def view_dirs(cid: str, tad: str = ""):
+    """Direction words (and the step each arrow makes) for the edges of every slice view - the TAD's own
+    words when one is selected: mesial / distal, apical / occlusal, buccal / palatal, deeper / out; for a palate
+    TAD forward / back and to the suture / lateral. Anatomical letters otherwise."""
+    c = get_case(cid)
+    ensure_loaded(c)
+    tl = c.state.get("tads") or []
+    t = next((x for x in tl if x.get("id") == tad), None) if tad else None
+    named = []
+    if t is not None and c.arch is not None:
+        A = c.arch
+        d = tadmod.unit(t["dir"])
+        step = 0.5
+        if t["site"] == "palate":
+            u = (t.get("uw") or (t["s"], 0.0))[0]
+            to_sut = -A.L if u >= 0 else A.L
+            named = [(A.A, ("forward", dict(e="dw", v=step)), ("back", dict(e="dw", v=-step))),
+                     (to_sut, ("to suture", dict(e="du", v=(-step if u >= 0 else step))), ("lateral", dict(e="du", v=(step if u >= 0 else -step)))),
+                     (d, ("deeper", dict(e="depth", v=step)), ("out", dict(e="depth", v=-step)))]
+        else:
+            _p, tan, buc = A.at(t["s"])
+            sgn = 1.0 if t["s"] >= 0 else -1.0
+            distal = tan * sgn
+            ling = "palatal" if A.arch == "upper" else "lingual"
+            named = [(distal, ("distal", dict(e="ds", v=step)), ("mesial", dict(e="ds", v=-step))),
+                     (-A.n, ("apical", dict(e="da", v=step)), ("occlusal", dict(e="da", v=-step))),
+                     (buc, ("buccal", None), (ling, None)),
+                     (d, ("deeper", dict(e="depth", v=step)), ("out", dict(e="depth", v=-step)))]
+    out = {}
+    for view in ("axial", "coronal", "sagittal", "tad_md", "tad_bl", "tad_x"):
+        if view.startswith("tad") and t is None:
+            continue
+        _c, e1, e2 = _view_frame(c, t, view)
+        out[view] = _edge_dirs(e1, e2, named)
+    return out
+
+
 @app.get("/api/cases/{cid}/slice.png")
 def slice_png(cid: str, view: str = "axial", x: float = None, y: float = None, z: float = None, tad: str = "", half: float = 15.0,
               px: float = 0.1, roots: int = 1, guide: int = 1, off: float = 0.0, du: float = 0.0, dv: float = 0.0):
@@ -626,47 +733,22 @@ def slice_png(cid: str, view: str = "axial", x: float = None, y: float = None, z
         c.guide_mesh = gm = (z_["V"], z_["F"])
     half = float(np.clip(half, 5, 60))
     px = float(np.clip(px, 0.05, 0.5))
-    roi = None
-    if view.startswith("tad"):
-        t = next((t for t in tl if t.get("id") == tad), None)
-        if t is None:
-            raise HTTPException(404, "no such TAD")
-        H, d = np.array(t["head"]), tadmod.unit(t["dir"])
-        center = H + d * (t.get("collar", 1.5) + t["length"]) / 2
-        if c.arch is not None and t["site"] != "palate":
-            _p, tan, buc = c.arch.at(t["s"])
-        else:
-            tan = np.cross(d, [0, 0, 1.0]) if abs(d[2]) < 0.9 else np.array([1.0, 0, 0])
-        md = tadmod.unit(tan - np.dot(tan, d) * d)
-        bl = tadmod.unit(np.cross(d, md))
-        if view == "tad_md":           # along the screw, seen from the cheek: neighbouring roots left and right
-            e1, e2 = md, d
-        elif view == "tad_bl":         # along the screw, seen from the side: cortex, depth, sinus
-            e1, e2 = bl, d
-        else:                          # across the screw at mid-thread
-            e1, e2 = md, bl
-        if roots and c.ctx is not None:
-            roi = c.ctx.roi(center)
-    else:
-        t = next((t for t in tl if t.get("id") == tad), None) if tad else None
-        if t is not None:                                   # an anatomical view through the selected TAD
-            H, d = np.array(t["head"]), tadmod.unit(t["dir"])
-            center = H + d * (t.get("collar", 1.5) + t["length"]) / 2
-            if roots and c.ctx is not None:
-                roi = c.ctx.roi(center)
-        else:
-            if x is None:
-                d = c.state.get("dentition") or {}
-                a = d.get(c.state.get("arch") or "upper") or {}
-                x, y, z = a.get("centroid") or c.vol.index_to_mm(np.array(c.vol.shape[::-1]) / 2)
-            center = np.array([x, y, z], float)
-        e1, e2 = render.anatomical(view)
-    e1, e2 = tadmod.unit(np.asarray(e1, float)), tadmod.unit(np.asarray(e2, float))
+    t = next((t for t in tl if t.get("id") == tad), None) if tad else None
+    if view.startswith("tad") and t is None:
+        raise HTTPException(404, "no such TAD")
+    center, e1, e2 = _view_frame(c, t, view, (x, y, z))
+    roi = c.ctx.roi(center) if (t is not None and roots and c.ctx is not None) else None
     nrm = np.cross(e1, e2)
     center = center + nrm * float(np.clip(off, -60, 60)) + e1 * float(np.clip(du, -80, 80)) + e2 * float(np.clip(dv, -80, 80))
     if roi is not None and (abs(off) > 0 or abs(du) > 0 or abs(dv) > 0) and c.ctx is not None:
         roi = c.ctx.roi(center)                       # the root tint follows the view
-    png = render.plane(c.vol, lv, center, e1, e2, half=half, px=px, scan=scan, guide=gm, tads=tl, roi=roi, sel=tad or None)
+    sut = None
+    if c.ctx is not None and (c.state.get("arch") or "upper") == "upper" and (tl or view != "sagittal"):
+        try:
+            sut = c.ctx.suture_plane()
+        except Exception:
+            sut = None
+    png = render.plane(c.vol, lv, center, e1, e2, half=half, px=px, scan=scan, guide=gm, tads=tl, roi=roi, sel=tad or None, suture=sut)
     return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
@@ -891,7 +973,7 @@ def add_tad(cid: str, body: dict = Body(...)):
         pr = _prefs(c, site)
         size, product = _size_from(body, tuple(pr["size"]), pr.get("product"))
         if site == "palate":
-            q = A.to_plane(p)
+            q = c.ctx.pal_from_point(p)                        # lateral from the suture, anterior
             side = "L" if q[0] >= 0 else "R"
             t = c.ctx.place(site, side, 0, 0, pr["alpha"], pr["beta"], size, u_w=(float(q[0]), float(q[1])))
         else:
@@ -976,7 +1058,7 @@ def edit_tad(cid: str, tid: str, body: dict = Body(...)):
         # dragged along the gum in 3D: re-placed at that spot with its angles
         p = np.asarray(body["point"], float)
         if t["site"] == "palate":
-            q = A.to_plane(p)
+            q = c.ctx.pal_from_point(p)                        # lateral from the suture, anterior
             n = c.ctx.place("palate", "L" if q[0] >= 0 else "R", 0, 0, al, be, size, u_w=(float(q[0]), float(q[1])))
         else:
             s_, _off = A.s_of(p[None])
@@ -1006,6 +1088,50 @@ def edit_tad(cid: str, tid: str, body: dict = Body(...)):
     n["product"] = product
     n["metrics"] = c.ctx.measure(n)
     _replace_tad(c, tid, n)
+    c.save()
+    return _state(c)
+
+
+@app.get("/api/cases/{cid}/suture")
+def suture(cid: str):
+    c = get_case(cid)
+    ensure_loaded(c)
+    if c.ctx is None:
+        return dict(ok=False, reason="Accept the match first.")
+    return c.ctx.palate_suture()
+
+
+@app.post("/api/cases/{cid}/tads/{tid}/mirror")
+def mirror_tad(cid: str, tid: str):
+    """The same TAD on the other side: a palate TAD mirrored across the midpalatal suture (as found in the CBCT),
+    any other across the dental midline of the arch - same distance, height, angles, size; measured afresh."""
+    c = get_case(cid)
+    ensure_loaded(c)
+    if c.ctx is None:
+        raise HTTPException(409, "Accept the match first.")
+    t = next((x for x in c.state.get("tads") or [] if x["id"] == tid), None)
+    if t is None:
+        raise HTTPException(404, "no such TAD")
+    size = (t["diameter"], t["length"], t.get("collar", 2.0))
+    if t["site"] == "palate":
+        u, w = t.get("uw") or (t["s"], 0.0)
+        n = c.ctx.place("palate", "L" if -u >= 0 else "R", 0, 0, t["alpha"], t["beta"], size, u_w=(-float(u), float(w)))
+    else:
+        side = "R" if t.get("side") == "L" else "L"
+        n = c.ctx.place(t["site"], side, -float(t["s"]), float(t.get("a", 0.0)), t["alpha"], t["beta"], size)
+    if n is None:
+        raise HTTPException(400, "The gum on the other side is not in the scan there.")
+    depth = float(t.get("depth", 0.0))
+    if depth:
+        n["head"] = (np.array(n["head"]) + tadmod.unit(n["dir"]) * depth).tolist()
+    n["depth"] = depth
+    n["hand"] = True
+    n["product"] = t.get("product")
+    n["id"] = _new_tad_id()
+    n["label"] = c.ctx.label(n)
+    n["metrics"] = c.ctx.measure(n)
+    c.state.setdefault("tads", []).append(n)
+    c.state["guide_stale"] = bool(c.state.get("guide"))
     c.save()
     return _state(c)
 

@@ -145,6 +145,10 @@
   .mez .mlab{background:rgba(127,227,196,.95);color:#0b2a3a;font-size:11px}
   .mez.dim{opacity:.4}
   .slices.measure figure{cursor:crosshair}
+  .dir{position:absolute;z-index:2;background:rgba(27,47,76,.78);color:#fff;font:700 11px Montserrat,sans-serif;padding:3px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.18);white-space:nowrap;line-height:1.2}
+  .dir.act{cursor:pointer} .dir.act:hover{background:var(--mint);color:var(--navy-900)} .dir.passive{opacity:.6;cursor:default;pointer-events:none}
+  .dir.l{left:6px;top:50%;transform:translateY(-50%)} .dir.r{right:6px;top:50%;transform:translateY(-50%)} .dir.t{top:6px;right:6px} .dir.b{bottom:8px;left:50%;transform:translateX(-50%)}
+  .dir:empty{display:none}
   canvas#c{position:absolute;inset:0;width:100% !important;height:100% !important;display:block}
   .hintbar{position:absolute;left:12px;bottom:12px;z-index:2;max-width:70%;background:rgba(27,47,76,.88);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:10px;display:none}
   .hintbar.on{display:block}
@@ -160,7 +164,7 @@
   .slices figcaption{position:absolute;left:8px;top:6px;font-size:11px;font-weight:700;color:#DCE4EE;text-shadow:0 1px 2px #000;letter-spacing:.03em}
   .slices.six figure.extra{display:block} .slices figure.extra{display:none}
   .slices figcaption{display:flex;align-items:center;gap:6px;right:8px}
-  .slices .vsel{background:rgba(0,0,0,.45);color:#DCE4EE;border:1px solid rgba(255,255,255,.25);border-radius:6px;font:700 11px Montserrat,sans-serif;padding:2px 4px;max-width:70%}
+  .slices .vsel{background:rgba(0,0,0,.45);color:#DCE4EE;border:1px solid rgba(255,255,255,.25);border-radius:6px;font:700 11px Montserrat,sans-serif;padding:2px 4px;max-width:46%}
   .slices .vcap{font-weight:600;opacity:.9;white-space:nowrap}
   .slices .sixbtn{position:absolute;right:14px;top:-26px;background:#fff;border:1px solid var(--grey-200);border-radius:8px;font-size:11px;font-weight:700;padding:3px 8px;color:var(--navy)}
   .slices{position:relative}
@@ -267,6 +271,7 @@
                 <div><label class="f">Sides</label><div class="seg" id="sides"><button data-s="R" class="on">Right</button><button data-s="L" class="on">Left</button></div></div>
               </div>
               <div class="btns"><button class="primary" id="findsites">Find sites</button><button class="small" id="clickplace">Place by clicking</button><button class="small undobtn" disabled title="Nothing to undo">↶ Undo</button></div>
+              <div class="hint" id="sutline" style="display:none"></div>
               <div class="hint" id="planhint">Find sites checks every gap between the roots for this site and ranks them. Or click <b>Place by clicking</b> and click the gum where you want it - the angle comes from the site's settings (and what you usually do).</div>
               <div id="suggs"></div>
               <div id="tadlist"></div>
@@ -318,12 +323,12 @@
           <div id="fatal"></div>
         </div>
         <div class="slices" id="slices">
-          <figure><img id="s0" alt=""><div class="mez" id="m0"></div><figcaption><select id="v0" class="vsel" title="Which view this panel shows"></select><span id="c0" class="vcap"></span></figcaption><div class="ctrl"><button data-z="0" data-d="-1" title="Zoom out">−</button><button data-z="0" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure><img id="s1" alt=""><div class="mez" id="m1"></div><figcaption><select id="v1" class="vsel" title="Which view this panel shows"></select><span id="c1" class="vcap"></span></figcaption><div class="ctrl"><button data-z="1" data-d="-1" title="Zoom out">−</button><button data-z="1" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure><img id="s2" alt=""><div class="mez" id="m2"></div><figcaption><select id="v2" class="vsel" title="Which view this panel shows"></select><span id="c2" class="vcap"></span></figcaption><div class="ctrl"><button data-z="2" data-d="-1" title="Zoom out">−</button><button data-z="2" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure class="extra"><img id="s3" alt=""><div class="mez" id="m3"></div><figcaption><select id="v3" class="vsel" title="Which view this panel shows"></select><span id="c3" class="vcap"></span></figcaption><div class="ctrl"><button data-z="3" data-d="-1" title="Zoom out">−</button><button data-z="3" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure class="extra"><img id="s4" alt=""><div class="mez" id="m4"></div><figcaption><select id="v4" class="vsel" title="Which view this panel shows"></select><span id="c4" class="vcap"></span></figcaption><div class="ctrl"><button data-z="4" data-d="-1" title="Zoom out">−</button><button data-z="4" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure class="extra"><img id="s5" alt=""><div class="mez" id="m5"></div><figcaption><select id="v5" class="vsel" title="Which view this panel shows"></select><span id="c5" class="vcap"></span></figcaption><div class="ctrl"><button data-z="5" data-d="-1" title="Zoom out">−</button><button data-z="5" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s0" alt=""><div class="mez" id="m0"></div><button class="dir l" data-p="0" data-side="left"></button><button class="dir r" data-p="0" data-side="right"></button><button class="dir t" data-p="0" data-side="top"></button><button class="dir b" data-p="0" data-side="bottom"></button><figcaption><select id="v0" class="vsel" title="Which view this panel shows"></select><span id="c0" class="vcap"></span></figcaption><div class="ctrl"><button data-z="0" data-d="-1" title="Zoom out">−</button><button data-z="0" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s1" alt=""><div class="mez" id="m1"></div><button class="dir l" data-p="1" data-side="left"></button><button class="dir r" data-p="1" data-side="right"></button><button class="dir t" data-p="1" data-side="top"></button><button class="dir b" data-p="1" data-side="bottom"></button><figcaption><select id="v1" class="vsel" title="Which view this panel shows"></select><span id="c1" class="vcap"></span></figcaption><div class="ctrl"><button data-z="1" data-d="-1" title="Zoom out">−</button><button data-z="1" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s2" alt=""><div class="mez" id="m2"></div><button class="dir l" data-p="2" data-side="left"></button><button class="dir r" data-p="2" data-side="right"></button><button class="dir t" data-p="2" data-side="top"></button><button class="dir b" data-p="2" data-side="bottom"></button><figcaption><select id="v2" class="vsel" title="Which view this panel shows"></select><span id="c2" class="vcap"></span></figcaption><div class="ctrl"><button data-z="2" data-d="-1" title="Zoom out">−</button><button data-z="2" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s3" alt=""><div class="mez" id="m3"></div><button class="dir l" data-p="3" data-side="left"></button><button class="dir r" data-p="3" data-side="right"></button><button class="dir t" data-p="3" data-side="top"></button><button class="dir b" data-p="3" data-side="bottom"></button><figcaption><select id="v3" class="vsel" title="Which view this panel shows"></select><span id="c3" class="vcap"></span></figcaption><div class="ctrl"><button data-z="3" data-d="-1" title="Zoom out">−</button><button data-z="3" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s4" alt=""><div class="mez" id="m4"></div><button class="dir l" data-p="4" data-side="left"></button><button class="dir r" data-p="4" data-side="right"></button><button class="dir t" data-p="4" data-side="top"></button><button class="dir b" data-p="4" data-side="bottom"></button><figcaption><select id="v4" class="vsel" title="Which view this panel shows"></select><span id="c4" class="vcap"></span></figcaption><div class="ctrl"><button data-z="4" data-d="-1" title="Zoom out">−</button><button data-z="4" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s5" alt=""><div class="mez" id="m5"></div><button class="dir l" data-p="5" data-side="left"></button><button class="dir r" data-p="5" data-side="right"></button><button class="dir t" data-p="5" data-side="top"></button><button class="dir b" data-p="5" data-side="bottom"></button><figcaption><select id="v5" class="vsel" title="Which view this panel shows"></select><span id="c5" class="vcap"></span></figcaption><div class="ctrl"><button data-z="5" data-d="-1" title="Zoom out">−</button><button data-z="5" data-d="1" title="Zoom in">+</button></div></figure>
           <button class="sixbtn" id="sixbtn" title="Three or six views">6 views</button>
         </div>
       </section>
@@ -1012,17 +1017,21 @@ function renderPlan() {
   for (const x of tl) {
     const m = x.metrics || {};
     const sizes = sizeOptions(x);
+    const pal = x.site === 'palate', ss = ((x.uw || [x.s, 0])[0] >= 0) ? 1 : -1;      // palate: + du is patient left; the suture is the other way for a left TAD
     t += `<div class="tadc${x.id === state.sel ? ' sel' : ''}" data-t="${esc(x.id)}">
       <div class="hd"><b>${esc(x.label)}</b><span class="chip ${m.status || ''}">${esc(m.status || '')}</span><span class="hint" style="margin:0 0 0 auto">${esc(tadName(x))} · ${fmt(x.alpha, 0)}°</span></div>
       ${metHtml(m)}
       <ul class="notes">${(m.notes || []).map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
       <div class="tools">
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><div><label class="f">TAD</label><select data-size>${sizes}</select></div><div><label class="f">Collar</label><input type="number" step="0.5" min="0" max="5" value="${x.collar ?? 2}" data-collar style="width:74px"></div></div>
-        <div class="nudge"><span>Along the arch</span><button data-e="ds" data-v="-0.5">mesial ½</button><button data-e="ds" data-v="0.5">distal ½</button><button data-e="ds" data-v="-1.5">mesial 1½</button><button data-e="ds" data-v="1.5">distal 1½</button></div>
+        ${pal ? `<div class="nudge"><span>Side</span><button data-e="du" data-v="${-0.5 * ss}">to suture ½</button><button data-e="du" data-v="${0.5 * ss}">lateral ½</button><button data-e="du" data-v="${-1.5 * ss}">to suture 1½</button><button data-e="du" data-v="${1.5 * ss}">lateral 1½</button></div>
+        <div class="nudge"><span>Front / back</span><button data-e="dw" data-v="1">forward 1</button><button data-e="dw" data-v="-1">back 1</button><button data-e="dw" data-v="0.5">forward ½</button><button data-e="dw" data-v="-0.5">back ½</button></div>
+        <div class="nudge"><span>Tilt</span><button data-e="dalpha" data-v="5">lateral 5°</button><button data-e="dalpha" data-v="-5">medial 5°</button><button data-e="dbeta" data-v="5">forward 5°</button><button data-e="dbeta" data-v="-5">back 5°</button></div>`
+        : `<div class="nudge"><span>Along the arch</span><button data-e="ds" data-v="-0.5">mesial ½</button><button data-e="ds" data-v="0.5">distal ½</button><button data-e="ds" data-v="-1.5">mesial 1½</button><button data-e="ds" data-v="1.5">distal 1½</button></div>
         <div class="nudge"><span>Height</span><button data-e="da" data-v="1">apical 1</button><button data-e="da" data-v="-1">occlusal 1</button><button data-e="da" data-v="0.5">apical ½</button><button data-e="da" data-v="-0.5">occlusal ½</button></div>
-        <div class="nudge"><span>Tilt (apical)</span><button data-e="dalpha" data-v="5">more 5°</button><button data-e="dalpha" data-v="-5">less 5°</button><button data-e="dbeta" data-v="-5">mesial 5°</button><button data-e="dbeta" data-v="5">distal 5°</button></div>
+        <div class="nudge"><span>Tilt (apical)</span><button data-e="dalpha" data-v="5">more 5°</button><button data-e="dalpha" data-v="-5">less 5°</button><button data-e="dbeta" data-v="-5">mesial 5°</button><button data-e="dbeta" data-v="5">distal 5°</button></div>`}
         <div class="nudge"><span>Depth</span><button data-e="depth" data-v="0.5">deeper ½</button><button data-e="depth" data-v="-0.5">out ½</button><span></span><span></span></div>
-        <div class="btns"><button class="small" data-opt>Fine-tune here</button><button class="small danger" data-del>Remove</button></div>
+        <div class="btns"><button class="small" data-opt>Fine-tune here</button><button class="small" data-mirror title="${pal ? 'The same TAD on the other side of the midpalatal suture' : 'The same TAD on the other side of the arch'}">Mirror to other side</button><button class="small danger" data-del>Remove</button></div>
       </div></div>`;
   }
   $('tadlist').innerHTML = t;
@@ -1030,6 +1039,10 @@ function renderPlan() {
     const id = el.dataset.t;
     el.addEventListener('click', (e) => { if (e.target.closest('.tools')) return; state.sel = state.sel === id ? null : id; renderPlan(); updateSlices(); });
     el.querySelectorAll('[data-e]').forEach((b) => b.addEventListener('click', () => editTad(id, { [b.dataset.e]: +b.dataset.v })));
+    el.querySelector('[data-mirror]')?.addEventListener('click', async () => {
+      pushUndo('mirror TAD');
+      try { const st2 = await post(`/api/cases/${state.id}/tads/${id}/mirror`); state.sel = st2.tads[st2.tads.length - 1].id; setCase(st2); toast('Mirrored - the new TAD is selected.'); } catch (e) { toast(e.message, true); }
+    });
     el.querySelector('[data-size]')?.addEventListener('change', (e) => {
       const v = e.target.value, tt = tl.find((q) => q.id === id);
       if (v.startsWith('k:')) editTad(id, { product: v.slice(2) });
@@ -1283,6 +1296,53 @@ document.querySelectorAll('.slices figure').forEach((fig, i) => {
   fig.addEventListener('pointercancel', () => { drag = null; });
   fig.addEventListener('dblclick', () => { if (state.measure) return; state.soff[i] = 0; state.span[i] = [0, 0]; updateSlices(); });
 });
+// direction words on the four edges of every slice, from the server (it knows the frames): the TAD's own
+// words when one is selected - the arrows with a step move it that way (Shift: three steps)
+state.dirs = null; state.dirsKey = '';
+const ARROW = { left: '◀ ', right: '', top: '▲ ', bottom: '▼ ' };
+function applyDirs() {
+  const st = state.c;
+  const t = st && (st.tads || []).find((x) => x.id === state.sel);
+  for (let i = 0; i < 6; i++) {
+    const v = panelView(i, !!t), d = state.dirs && state.dirs[v];
+    document.querySelectorAll(`.dir[data-p="${i}"]`).forEach((b) => {
+      const x = d && d[b.dataset.side];
+      if (!x) { b.textContent = ''; b.className = 'dir ' + b.dataset.side[0]; return; }
+      b.textContent = b.dataset.side === 'right' ? x.label + ' ▶' : ARROW[b.dataset.side] + x.label;
+      b.className = 'dir ' + b.dataset.side[0] + (x.e ? ' act' : ' passive');
+      if (x.e) { b.dataset.e = x.e; b.dataset.v = x.v; b.title = `Move the TAD ${x.label} by ½ mm (Shift: 1½ mm)`; } else { delete b.dataset.e; delete b.dataset.v; b.title = ''; }
+    });
+  }
+}
+document.querySelectorAll('.dir').forEach((b) => b.addEventListener('click', (e) => {
+  if (!b.dataset.e || !state.sel) return;
+  editTad(state.sel, { [b.dataset.e]: +b.dataset.v * (e.shiftKey ? 3 : 1) });
+}));
+async function refreshDirs() {
+  const st = state.c;
+  if (!st || !st.cbct_meta) { state.dirs = null; applyDirs(); return; }
+  const t = (st.tads || []).find((x) => x.id === state.sel);
+  const key = state.id + '|' + (t ? t.id + JSON.stringify([t.head, t.dir, t.s, t.uw]) : '-');
+  if (key === state.dirsKey) { applyDirs(); return; }
+  state.dirsKey = key;
+  try { state.dirs = await api(`/api/cases/${state.id}/dirs${t ? '?tad=' + t.id : ''}`); } catch (e) { state.dirs = null; }
+  if (key === state.dirsKey) applyDirs();
+}
+// the midpalatal suture, as found in the CBCT (upper cases, once the match is accepted)
+state.suture = null; state.sutureKey = '';
+async function refreshSuture() {
+  const st = state.c, el = $('sutline');
+  if (!st || !st.match_accepted || (st.arch || 'upper') !== 'upper') { el.style.display = 'none'; return; }
+  const key = state.id + '|' + JSON.stringify(st.registration?.T || null);
+  if (key !== state.sutureKey) {
+    state.sutureKey = key;
+    try { state.suture = await api(`/api/cases/${state.id}/suture`); } catch (e) { state.suture = null; }
+  }
+  const S = state.suture;
+  el.style.display = '';
+  el.innerHTML = S && S.ok ? `Midpalatal suture found in the CBCT (${S.n} cuts, ±${S.rms} mm, ${Math.abs(S.angle_deg)}° off the dental midline; the dashed blue line in the slices). Palate distances are measured from it; <b>Mirror to other side</b> on a TAD copies it across.`
+    : 'Midpalatal suture not found in this CBCT - palate distances are from the dental midline.';
+}
 let sliceTimer = null;
 function updateSlices() {
   clearTimeout(sliceTimer);
@@ -1335,6 +1395,8 @@ function _updateSlices() {
     $('c' + i).textContent = (off ? `${off > 0 ? '+' : ''}${off.toFixed(1)} mm` : '') + ((du || dv) ? ' moved' : '');
     drawMeasS(i);
   }
+  refreshDirs();
+  refreshSuture();
 }
 
 // ---------------------------------------------------------------- measuring
