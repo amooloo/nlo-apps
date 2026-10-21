@@ -154,7 +154,12 @@ estimated* and the sleeve stands on that estimate - check it on the slices. A sc
 ## The guide
 
 - Tooth-borne: covers the crowns from two teeth in front of the first TAD to two behind the last (1-3 in the
-  guide box), with the undercuts blocked out along the direction it goes on, so it seats and comes off.
+  guide box), with the undercuts blocked out along the direction it goes on, so it seats and comes off. The
+  crowns are covered down to their height of contour (a rigid guide cannot engage the undercut below it), the
+  gum only where a sleeve stands - a corridor from the crowns to each head, never deeper than the head - and the
+  shell ends in a rounded rim about 1.2 mm beyond the covered surface, cut square to the surface. (Earlier
+  versions cut the shell straight down the insertion direction, which on the steep buccal and palatal walls
+  left a serrated edge.)
 - Fit: 0.10 mm gap on the teeth, 0.30 mm relief over the gum, 2.2 mm shell.
 - Each TAD gets a sleeve: 3.2 mm hole, 1.6 mm wall, 4 mm tall, 0.5 mm off the gum. 3.2 mm passes the TADs
   (a tomas-pin's collar is 2.8 mm wide, its head 2.3 mm). For the driver to go down the sleeve as well, measure
