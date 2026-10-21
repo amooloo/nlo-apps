@@ -699,7 +699,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 mesh_f, A, labels, info, margin_f, edge_zone, rc_f, arch=arch, method=("cott" if str(P.get("p1_method") or "cott").lower() in ("cott", "cutt") else "bott"),
                 picks=P.get("p1_teeth"), buccal_mm=float(P["trimline_offset"] or 1.25), plate_mm=float(P.get("p1_plate_mm", 0.0)),
                 apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 1.25)),
-                flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)), log=lambda m: log(f"[{name}] {m}"))
+                flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)),
+                span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, log=lambda m: log(f"[{name}] {m}"))
             rep["phase1"] = p1_info
             for w in p1_info.get("warnings") or []:
                 rep.setdefault("warnings", []).append(f"Phase I retainer: {w}")
@@ -925,6 +926,12 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         from .phase1 import block_outs, pick_teeth, DEFAULT_PICKS
         try:
             sel_b = pick_teeth(info, DEFAULT_PICKS if P.get("p1_teeth") is None else P.get("p1_teeth"), arch)
+            # a side with the doctor's own cutout span (the Phase I tab's dots): the block covers the teeth in the span
+            p1i = rep.get("phase1") or {}
+            if p1i.get("manual_sides"):
+                man = set(p1i["manual_sides"])
+                side_of = lambda t: ("R" if (info[t][0] > 0) == (arch == "lower") else "L")
+                sel_b = sorted({int(t) for t in sel_b if side_of(int(t)) not in man} | {int(t) for t in (p1i.get("span_labels") or []) if int(t) in info})
             opp = None
             if P.get("opposing_scan") and os.path.exists(str(P["opposing_scan"])):
                 try:

@@ -295,7 +295,7 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                     picks=None, buccal_mm=1.25, plate_mm=0.0, apex_shift_mm=0.0, open_round_mm=6.0, cut_palatal_mm=1.25, cut_lingual_mm=1.5, min_bridge=5.0,
                     keep_mm=0.6, notch_round_mm=2.0, crown_mm=4.5, bridge_mm=5.0, flange_inset=1.5, flange_min=4.0, flange_max=10.0,
                     frenum_depth=3.0, frenum_width=6.0, smooth=False, scoop=True, scoop_depth_mm=1.0, scoop_ramp_mm=2.0, window_start_mm=0.5, window_e_frac=0.3,
-                    round_mm=2.5, scallop_mm=1.0, log=None):
+                    round_mm=2.5, scallop_mm=1.0, span_idx=None, end_idx=None, log=None):
     """The Phase I retainer's line. Returns (cut_line, body_line, info, mesh): `cut_line` is what the Trimlign cuts
     (with the C/D cutouts on CUTT); `body_line` is the same outline without them - the model is built round it, so the
     sheet forms over the whole arch as on the first trim (and BOTT cuts along it); `mesh` is the scan the model is
@@ -381,6 +381,51 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                         e_edge=e_lo + frac * (e_hi - e_lo) + 0.3 / r_arch)
     res["window"] = {patient_side(sd, arch): f"{window_start_mm:.1f} mm past the {info[g['tooth_a']][1]}'s distal to "
                      f"{int(round(100 * (window_e_frac if by.get((sd, 5)) else 0.0)))} % into the {'E/5' if by.get((sd, 5)) else '6'}" for sd, g in segs.items()}
+    # the doctor's own dots (the Phase I tab, 10/21/2026: "I can identify the width of the cutouts by 2 clicks - the
+    # mesio-distal span"): two or more dots on a side make the cutout run from the nearest to the farthest of them
+    # round the arch, whatever stands there - no 2, no E needed. One dot alone is not enough and says so.
+    manual = {}
+    si = np.asarray(span_idx if span_idx is not None else [], dtype=int)
+    si = si[(si >= 0) & (si < len(V))]
+    for sd in (-1, 1):
+        d = si[np.sign(V[si, 0] - c[0]) == sd]
+        if len(d) >= 2:
+            a = np.sort(sd * ang_v[d])
+            start, end = float(a[0]), float(a[-1])
+            if end - start < 1.0 / r_arch:
+                res.setdefault("warnings", []).append(f"the two cutout dots on the {'right' if patient_side(sd, arch) == 'R' else 'left'} are on top of each other - the automatic extent used there")
+                continue
+            segs[sd] = dict(start=start, end=end, tooth_a=None, tooth_e=None, e_edge=end + 0.3 / r_arch, manual=True)
+            manual[sd] = int(len(d))
+            d_near, d_far = d[np.argmin(sd * ang_v[d])], d[np.argmax(sd * ang_v[d])]
+            res.setdefault("window", {})[patient_side(sd, arch)] = f"between your dots ({np.linalg.norm(V[d_near, :2] - V[d_far, :2]):.1f} mm apart)"
+        elif len(d) == 1:
+            res.setdefault("warnings", []).append(f"one cutout dot on the {'right' if patient_side(sd, arch) == 'R' else 'left'} - two are needed (the near and the far end of the cutout): the automatic extent used there")
+    if manual:
+        res["manual_sides"] = [patient_side(sd, arch) for sd in manual]
+    # ... and where the retainer ends ("Ends here", one dot per side): nothing is covered behind the dot, the 7 rule
+    # aside - the teeth standing behind it count as uncovered, by both methods
+    end_ang = {}
+    ei = np.asarray(end_idx if end_idx is not None else [], dtype=int)
+    ei = ei[(ei >= 0) & (ei < len(V))]
+    for sd in (-1, 1):
+        d = ei[np.sign(V[ei, 0] - c[0]) == sd]
+        if len(d):
+            end_ang[sd] = float(np.min(sd * ang_v[d]))
+    if end_ang:
+        for t, (sd, p) in info.items():
+            t = int(t)
+            if sd in end_ang and t not in seven and (labels == t).any():
+                if float(np.median(sd * ang_v[labels == t])) > end_ang[sd]:
+                    seven.append(t)
+        seven = sorted(set(seven))
+        if seven:
+            res["uncovered"] = [f"{patient_side(info[t][0], arch)}{info[t][1]}" for t in seven]
+        res["ends_at_dot"] = [patient_side(sd, arch) for sd in end_ang]
+    # the teeth a manual span covers (a block-out over them on BOTT): the crowns whose middle lies in the span
+    if manual:
+        res["span_labels"] = sorted(int(t) for t, (sd, p) in info.items() if sd in manual and (labels == int(t)).any()
+                                    and segs[sd]["start"] <= float(np.median(sd * ang_v[labels == int(t)])) <= segs[sd]["end"])
     # a chosen position with no tooth in it (the C already lost, the canine on its way in): the space it left is cut
     # out too - the gum between the tooth in front of it and the one behind (seen from above, inside the hull of those
     # two crowns, and nearer to them than to any other tooth; the 2's distal wall itself stays covered: keep_mm). Not a
@@ -537,6 +582,8 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                 continue
             t_last = max(ts, key=lambda t: info[t][1])
             a_end = float(np.percentile(sd * ang_v[labels == int(t_last)], 97))
+            if sd in end_ang:
+                a_end = min(a_end, end_ang[sd])
             on_side = np.sign(V[:, 0] - c[0]) == sd
             over_mm = np.clip(sd * ang_v - a_end, 0.0, None) * r_lin_med
             w = np.clip(over_mm / 4.0, 0.0, 1.0)
@@ -576,9 +623,11 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     # the 12-year molars and their gum (all of it: cheek side, tongue side, the pad behind) come out of the line, less
     # keep_mm next to the 6 - by both methods
     chunk7 = np.zeros(len(V), bool)
-    if seven:
+    if seven or end_ang:
         chunk7 = np.isin(labels, seven) | (~tooth & np.isin(near_all, seven))
-        keep6 = tooth & ~np.isin(labels, seven)
+        for sd, a_e in end_ang.items():
+            chunk7 |= (np.sign(V[:, 0] - c[0]) == sd) & (sd * ang_v > a_e)
+        keep6 = tooth & ~chunk7
         if keep6.any():
             chunk7 &= cKDTree(V[keep6]).query(V)[0] > keep_mm
         cut = body & ~chunk7
@@ -604,11 +653,18 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         for sd, g in segs.items():
             on_side = np.sign(V[:, 0] - c[0]) == sd
             ta = g["tooth_a"]
-            d_a = cKDTree(V[labels == ta]).query(V)[0]
             # the segment on the tongue side reaches the window's edge: the gum line (cut_palatal_mm / cut_lingual_mm
             # onto the gum) - on a lower no further than the flange less its bridge
             reach = float(cut_palatal_mm if arch == "upper" else cut_lingual_mm)
             inner = dist <= (reach if arch == "upper" else np.minimum(reach, flange_v - min_bridge))
+            if ta is None:
+                # the doctor's span: the dots are the walls, whatever stands there (a crown is cut at the dot as the
+                # E is at its 30 %); the line lies 0.3 mm beyond each wall on what stays
+                base_ = on_side & (tooth | fac_v | inner)
+                trough |= base_ & (sd * ang_v >= g["start"]) & (sd * ang_v <= g["end"])
+                window |= base_ & (sd * ang_v >= g["start"] - 0.3 / r_arch) & (sd * ang_v <= g["e_edge"])
+                continue
+            d_a = cKDTree(V[labels == ta]).query(V)[0]
             deep = on_side & (sd * ang_v >= g["start"]) & (labels != ta) & (tooth | fac_v | inner)
             # the trough: everything in the segment up to the 2 (keep_mm off its surface) and to the E's cut
             trough |= deep & (sd * ang_v <= g["end"]) & (d_a > keep_mm)
