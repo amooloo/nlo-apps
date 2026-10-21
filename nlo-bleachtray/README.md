@@ -491,37 +491,51 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   pieces, the line is the first trim without windows and the case says to cut the C/Ds by hand or use block-out.
 - **Cutouts (CUTT, the default).** Two lines: the model is built round the *first-trim* outline (the whole arch, so
   the sheet forms over it as on the first trim), and the Trimlign cuts the line *with the windows*. **The window is
-  scooped to a trough** (`scoop_trough`; the doctor, 10/21/2026, after watching the Trimlign's simulator: "the gums in
-  that area need to be scooped out as well, to allow for the passage of the tool head"): the chosen crowns *and* the
-  gum that is theirs - all of it on the cheek side, out to the window's edge on the tongue side - are cut down to a
-  floor 1 mm below the first-trim line on the cheek side of the window (the gum line there), so the tool's head and
-  shank have room inside the window to reach the line round it. The teeth that stay keep their surface; the gum beside
-  the trough keeps its height, the floor easing up to it over 2 mm. Along the 2's distal and the E's mesial a 1 mm
-  ledge stays at the height of their contact with the C / D, and **the line runs on the crown's edge above it, at the
-  contact height** - the retainer ends at the contact the way the hand-cut ones do; the neighbour's wall facing the
-  window below the contact (the part the real C's mesial covers in the mouth) is cut away too, so the retainer seats.
-  Where the neighbour stands apart (the C already gone) the line crosses at the papilla instead. The window's edge on
-  the tongue side hugs the gingival margin (1.25 mm onto the gum); a chosen tooth's label on these scans runs a few
-  mm onto the gum (a C's label was 12 mm across): its crown is what stands within 4.5 mm of its top and within 5.5 mm
-  of the centre of its top (`crown_of`), the rest is gum - and the gum that is "the C's" (nearest it) is judged by its
-  crown, not the spill. A space where a chosen tooth already stood is the gum between its two neighbours - inside their
-  crowns' hull, between them by arch angle - and the first-trim line bridges it along the ridge's crest
+  the same stretch of arch on every case** (the doctor, 10/21/2026: "the cutout starts half a millimeter after the
+  lateral, regardless if there's a tooth there or not - that's the space for the canine - and continues to about a
+  quarter into the crown of the E; that is the extent of the cutout at any given time, regardless of what teeth are
+  there or not"): by angle round the arch's centre, from 0.5 mm past the 2's distal to 30 % of the way into the E's
+  crown (its mesial third; to the 6's mesial when there is no E/5), whatever stands in it - the C, the D, the space a
+  C has left, a 5 half in. The chips on the page do not change it (they say which teeth a block-out covers). **The
+  window is scooped to a trough** (`scoop_trough`; the doctor, after watching the Trimlign's simulator: "the gums in
+  that area need to be scooped out as well, to allow for the passage of the tool head"): everything in the stretch -
+  the crowns, the E's mesial third, the gum, all of it on the cheek side and out to the window's edge on the tongue
+  side - is cut down to a floor 1 mm below the lowest point of the first-trim line on the cheek side of the window
+  (the gum line there), so the tool's head and shank have room inside the window to reach the line round it. The
+  teeth that stay keep their surface (the 2's distal wall and the E's cut face are the trough's walls); the gum beside
+  the trough keeps its height, the floor easing up to it over 2 mm. **The line runs on the rim**: beside the 2 on the
+  kept gum 0.5 mm off it, at the E on the E's own crown 0.3 mm past the cut, on the tongue side along the gum line
+  (1.25 mm onto the palate; 1.5 mm onto the lower's lingual gum). Both lines are traced on the scan as it is and put
+  onto the scooped surface after (its nearest point - the rim): traced on the scooped surface, a contour crossing an
+  edge of the trough's wall (the dropped rim next to the E's kept crown, 9 mm apart in height) sat part-way down the
+  wall and the line dived 5 mm into the trough and back at the E's cut edge. A chosen tooth's label on these scans
+  runs a few mm onto the gum (a C's label was 12 mm across): its crown is what stands within 4.5 mm of its top and
+  within 5.5 mm of the centre of its top (`crown_of`), the rest is gum. A space where a chosen tooth already stood is
+  the gum between its two neighbours, and the first-trim line bridges it along the ridge's crest
   (`edentulous_gaps(ridge_band=1)`). Beside each window no sliver of plate under 2 mm wide is left.
 - **Block-out (BOTT).** No windows: one solid block per side over the run of C/Ds, built into the model in place of
   the putty (`block_outs`) - not shaped to the teeth under it (the doctor: "a solid block, almost like a blob that is
   smoothed out on the top ... don't try to match the anatomy"), with **2 mm of room round the teeth** as the
   mouthguard's band has round the brackets ("clearance on the buccal, on the lingual ... so if the teeth are coming in
-  sideways they're not hitting the tray"). The block is the convex hull of the crowns pushed 2 mm out on every side
-  and lifted on top, together with a ring of gum 1.5 mm beyond that round them (pulled a little into the model so the
-  block sits on it): a smooth mound, wider at its base than anywhere above, so the sheet draws over it and never
-  locks under it; the undercuts under the crowns inside it fill down to the gum as putty does; it stops 0.8 mm short
-  of the 2 and the E. On top it stands as high as the bite allows - over every crown point at most half of the room up
-  to the opposing tooth (less 0.2 mm), at most 2 mm, never under 0.3 mm over the cusps - so with both retainers in
-  the C/Ds are never the only point of contact (the doctor: "as large as possible without really being the only point
-  of contact"). The bite is the case's other arch, as scanned (AlliedStar and iTero export the two in occlusion);
-  without it the top is a flat 0.5 mm and the case says to check the bite; when the opposing teeth still dip into
-  the block's top over the fossae (a tight bite) the case says by how much, to judge on the occlusion before cutting.
-  The blocks show on the page as the block-out.
+  sideways they're not hitting the tray"). The block is the convex hull of the crowns pushed out on every side and
+  lifted on top: the push is the full 2 mm from the top down to 2 mm below each crown's top, then **tapers to nothing
+  at the trim line**, the gum between the cervical and the line taken into the hull - the block's sides run down into
+  the model like putty feathered onto the gum, its foot on the gum right at the line, so there is no shelf and no space
+  under a foot and the sheet's cut edge points apically, not at the cheek (the doctor, 10/21/2026: "edges that are
+  overhanging with a space under them are where the patient's lip gets irritated - a smooth transition apically into
+  the model; the edges of the retainer should not be pointing towards the cheeks or the lips"). Under its footprint
+  the block is filled down to the model (the embrasures, the undercut under a crown's bulge down to the gum, never
+  below the line); it stops 0.8 mm short of the 2 and the E. **The trim line matches the block**: a point of the line
+  that would lie inside the block is put on the block's side (`_line_onto_model`; the case says how many) - "the trim
+  line kind of disappears into the block-out". On top the block stands as high as the bite allows - over every crown
+  point at most half of the room up to the opposing tooth (less 0.2 mm), at most 2 mm, never under 0.3 mm over the
+  cusps - so with both retainers in the C/Ds are never the only point of contact (the doctor: "as large as possible
+  without really being the only point of contact"). The bite is the case's other arch, as scanned (AlliedStar and
+  iTero export the two in occlusion); without it the top is a flat 0.5 mm and the case says to check the bite; when the
+  opposing teeth still dip into the block's top over the fossae (a tight bite) the case says by how much, to judge on
+  the occlusion before cutting. The blocks show on the page as the block-out. A chosen tooth's label that runs onto the
+  gum (a C's label was 12 mm across) is trimmed to its crown before the line is drawn, so the gum line hugs the real
+  cervical: the line sat 2-5 mm below the C/Ds' cervical on one scan, and the block's foot with it.
 - **No sharp turns** (the doctor: "it's not adapted tightly to the teeth, so it doesn't need to be semi-scalloped - only
   the buccal of 2-2 and the buccal of the 6s and E/5s"): both lines are smoothed along their length with a 2.5 mm
   Gaussian everywhere - round the windows' corners, behind the last tooth, on the palate / tongue side - except on the
@@ -542,10 +556,10 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   or more between neighbours counts as a tooth already gone (three of four Phase I cases had one), and a tooth label
   that stands 3 mm or more inside the arch and low (palatal gum beside a 2 the tooth model took for a tooth, on both
   sides of one scan) is made gum again before the count (`drop_ghosts`).
-- Checked on 3 Phase I cases (two AlliedStar, one iTero; 6 arches): every one got its windows round the C/Ds (or the
-  C's space) with the model scooped 2.5-4 mm to the contacts; every model came out watertight. One lower scan holds
-  no tongue-side gum under the C/Ds at all (the flange is the 4 mm minimum): its line carries the warning. The
-  Phase I line takes about 5 s on top of the usual run. Settings:
+- Checked on 3 Phase I cases (two AlliedStar, one iTero; 6 arches): every one got its windows from the 2 to the E's
+  mesial third (or the C's space) with the model scooped to a trough; every model came out watertight, no line
+  doubles back. One lower scan holds no tongue-side gum under the C/Ds at all (the flange is the 4 mm minimum): its
+  line carries the warning. The Phase I line takes about 5 s on top of the usual run. Settings:
   `phase1`, `p1_method` (`cott` / `bott`), `p1_teeth` (`["R3","R4","L3","L4"]`), `p1_plate_mm` (0), `p1_apex_shift`,
   `p1_cut_palatal_mm` (1.25), `p1_flange_max`, `p1_scoop`, `opposing_scan` (BOTT: the other arch's file).
 

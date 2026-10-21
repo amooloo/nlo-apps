@@ -5,7 +5,6 @@ import trimesh
 import manifold3d as m3
 import mapbox_earcut as earcut
 from shapely.geometry import Polygon, MultiPolygon, Point
-from shapely.ops import unary_union
 
 ASSET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 HUG_SKIRT_SLOPE = 2.0     # mm down per mm out: the skirt beyond the scan's edge when the walls hug the scan (~63 deg)

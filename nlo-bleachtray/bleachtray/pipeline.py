@@ -1019,6 +1019,16 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     _watertight_again(body, rep, log=lambda m: log(f"[{name}] {m}"))
     if p1_cut is not None:
         margin_f = p1_cut          # the model is built round the first-trim outline; the Trimlign cuts this one
+    if p1_cap_at is not None:
+        # the line lies on the finished model - where the block-out's foot reaches over it the line goes to the block's
+        # side (the doctor, 10/21/2026: "the trim line kind of disappears into the block-out")
+        try:
+            margin_f, n_up = _line_onto_model(margin_f, body)
+            rep["trimline_lifted_onto_blockout"] = int(n_up)
+            if n_up:
+                log(f"[{name}] trim line: {n_up} points were inside the block-out - moved onto its side")
+        except Exception as ex:  # noqa
+            log(f"[{name}] trim line not lifted onto the block-out: {ex}")
     margin_n = trimline_normals(body, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
     rep["elapsed_s"] = round(time.time() - t0, 2)
@@ -1108,6 +1118,26 @@ def _watertight_again(body, rep, log=print):
         rep["warnings"] = [w for w in (rep.get("warnings") or []) if "watertight" not in w]
         rep["body_volume_ml"] = round(float(body.volume) / 1000.0, 2)
         log("the model is watertight after the repair made for the mark")
+
+
+def _line_onto_model(line, body, step=0.5):
+    """Every line point onto the finished model's surface: a point that lies inside the model (under a block-out's foot
+    built over it) goes to the nearest point of the surface - the block's side right there - so the Trimlign's line
+    never runs through solid. Points moved are counted. The line is then resampled and smoothed."""
+    from trimesh.proximity import ProximityQuery
+    L = np.asarray(line, float).copy()
+    inside = body.contains(L)
+    n_up = int(inside.sum())
+    if n_up:
+        pq = ProximityQuery(body)
+        cp, _, _ = pq.on_surface(L[inside])
+        L[inside] = cp
+        from .segment import resample_polyline, smooth_polyline
+        L = smooth_polyline(resample_polyline(L, step), iters=2)
+        cp, dd, _ = pq.on_surface(L)
+        snap = dd < 1.5
+        L[snap] = cp[snap]
+    return L, n_up
 
 
 def trimline_normals(body, margin_f, rep, log=print):
