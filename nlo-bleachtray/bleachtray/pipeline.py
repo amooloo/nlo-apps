@@ -696,9 +696,9 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rc = np.asarray(aux.get("ring_center", margin[:, :2].mean(0)), float)[:2]
             rc_f = trimesh.transform_points(np.array([[rc[0], rc[1], 0.0]]), T_tilt @ T_ref)[0, :2]
             cut_line, body_line, p1_info, p1_mesh = phase1_trimline(
-                mesh_f, A, labels, info, margin_f, edge_zone, rc_f, arch=arch, method=str(P.get("p1_method") or "cott").lower(),
-                picks=P.get("p1_teeth"), buccal_mm=float(P["trimline_offset"] or 1.25), plate_mm=float(P.get("p1_plate_mm", 5.0)),
-                apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 3.0)),
+                mesh_f, A, labels, info, margin_f, edge_zone, rc_f, arch=arch, method=("cott" if str(P.get("p1_method") or "cott").lower() in ("cott", "cutt") else "bott"),
+                picks=P.get("p1_teeth"), buccal_mm=float(P["trimline_offset"] or 1.25), plate_mm=float(P.get("p1_plate_mm", 0.0)),
+                apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 1.25)),
                 flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)), log=lambda m: log(f"[{name}] {m}"))
             rep["phase1"] = p1_info
             for w in p1_info.get("warnings") or []:
@@ -920,7 +920,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # of contact" - the doctor, 10/20/2026). The bite comes from the case's other arch, its raw scan brought into this
     # model's frame (the scanners export upper and lower in occlusion)
     p1_cap_at = None
-    if P1 and str(P.get("p1_method") or "cott").lower() == "bott":
+    p1_eff = (rep.get("phase1") or {}).get("method") or str(P.get("p1_method") or "cott").lower()   # the cutouts may have been rejected (too little flange)
+    if P1 and p1_eff == "bott":
         from .phase1 import block_outs, pick_teeth, DEFAULT_PICKS
         try:
             sel_b = pick_teeth(info, DEFAULT_PICKS if P.get("p1_teeth") is None else P.get("p1_teeth"), arch)
@@ -932,14 +933,14 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 except Exception as ex:  # noqa
                     log(f"[{name}] the opposing arch could not be read ({ex}) - block-out tops without the bite")
                     opp = None
-            cap, cinfo = block_outs(mesh_f, labels, sel_b, opposing_f=opp, log=lambda m: log(f"[{name}] {m}"))
+            cap, cinfo = block_outs(mesh_f, labels, sel_b, opposing_f=opp, line=(p1_cut if p1_cut is not None else margin_f), log=lambda m: log(f"[{name}] {m}"))
             cinfo["teeth"] = sorted(f"{'R' if (s > 0) == (arch == 'lower') else 'L'}{p}" for t, (s, p) in info.items() if int(t) in sel_b)
             rep["phase1_blockout"] = cinfo
             if cinfo.get("warning"):
                 rep.setdefault("warnings", []).append(f"Phase I block-out: {cinfo['warning']}")
             if cap is not None:
-                p1_cap_at = len(extra_solids)
-                extra_solids.append(cap)
+                p1_cap_at = cap                     # after the outline cut, like the mouthguard's band: the block stands out past the crowns
+                after_solids.append(cap)
                 cap.export(bo_path)                 # shown on the page as the block-out
             else:
                 rep.setdefault("warnings", []).append(f"Phase I block-out not made ({cinfo.get('error')}) - block the C/Ds out by hand")
@@ -989,11 +990,19 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         log(f"[{name}] block-out: the fill could not be joined to the model - nothing blocked out")
         if os.path.exists(bo_path):
             os.remove(bo_path)
-    if p1_cap_at is not None and (len(extras_status) <= p1_cap_at or extras_status[p1_cap_at] != "merged"):
-        rep["phase1_blockout"] = dict(rep.get("phase1_blockout") or {}, error="the caps could not be joined to the model")
-        rep.setdefault("warnings", []).append("Phase I block-out: the caps could not be joined to the model - block the C/Ds out by hand")
-        if os.path.exists(bo_path):
-            os.remove(bo_path)
+    if p1_cap_at is not None:
+        # is the block in the model? points just under its top must lie inside the body
+        try:
+            Vb = np.asarray(p1_cap_at.vertices)
+            top_pts = Vb[np.argsort(Vb[:, 2])[-40:]] - np.array([0.0, 0.0, 0.5])
+            joined = bool(np.mean(body.contains(top_pts)) >= 0.5)
+        except Exception:  # noqa
+            joined = True
+        if not joined:
+            rep["phase1_blockout"] = dict(rep.get("phase1_blockout") or {}, error="the block could not be joined to the model")
+            rep.setdefault("warnings", []).append("Phase I block-out: the block could not be joined to the model - block the C/Ds out by hand")
+            if os.path.exists(bo_path):
+                os.remove(bo_path)
     rep["body_watertight"] = bool(body.is_watertight)
     if not body.is_watertight:
         rep.setdefault("warnings", []).append("the model is not watertight - check it before printing")

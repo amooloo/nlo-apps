@@ -475,8 +475,21 @@ and re-run; a scan that stops at the gum line gives a line 3 mm below it and not
 and **which teeth**. The retainer covers the four incisors and the E/6 segments; the Cs and Ds come out. The app ticks
 **C and D on each side** (positions 3 and 4 from the midline); the chips add a **5** that is partly in or untick a C
 already lost. A ticked position with no tooth in it (the C gone, the canine on its way) is cut out as the space it
-left. It is an Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and the tooth mark is `P`.
-- **Cutouts (COTT, the default).** Two lines: the model is built round the *first-trim* outline (the whole arch, so
+left. **Nothing over the 12-year molars** (the doctor: "we're waiting for teeth to erupt in, I don't want anything
+blocking them"): on a Phase I the retainer ends at the 6's distal wall; a 7 and its gum are left out of the line by
+both methods, and the model is scooped there like a cutout so the bur runs along the foot of the 6's wall. It is an
+Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and the tooth mark is `P`.
+- **The line hugs the gingival margins** everywhere - 1.25 mm onto the gum, as the first trim (the doctor: "it just
+  needs to hug the teeth ... dropping it down into the palate makes the retainer weaker"). **Upper:** the palatal
+  edge follows the gum line along the E/6 segments and round the windows; only the plate behind the incisors stays,
+  open behind the Es - the U runs from the D/E contacts straight out past the back of the scan, corners rounded - and
+  a bridge of plate at least 5 mm wide joins it past each window to the gum line along the Es (`p1_plate_mm` > 0
+  would put arms that wide along the E/6 segments instead). **Lower:** a lingual flange 4-10 mm deep (as deep as the
+  scan goes, 1.5 mm short of its edge), eased round the arch, a notch at the lingual frenum; the window stops 1.5 mm
+  onto the tongue-side gum so a bridge of flange joins the incisors to the back teeth. When the scan holds too little
+  tongue-side gum under the C/Ds for that bridge the case says so; when the windows would still cut the retainer into
+  pieces, the line is the first trim without windows and the case says to cut the C/Ds by hand or use block-out.
+- **Cutouts (CUTT, the default).** Two lines: the model is built round the *first-trim* outline (the whole arch, so
   the sheet forms over it as on the first trim), and the Trimlign cuts the line *with the windows*. Ortho-Automation
   cannot trim a line that climbs over the contacts into the V between the 2 and the C, so the model is **scooped**
   there (`scoop_cutouts`, the doctor's choice of 10/20/2026: "to the contact points"): each side's run of chosen
@@ -484,32 +497,38 @@ left. It is an Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base say
   distal one - and nothing below that height changes, so the retainer ends at the contact the way the hand-cut ones
   do. Within 1 mm of the 2 / E the C/D keeps its own surface up to 0.8 mm over the contact (easing to the cut over
   the next 1 mm), so the sheet bridges the embrasure as it does over the real tooth. Teeth whose neighbours stand
-  more than 4 mm apart are left as they are (the bur reaches between them). The window's palatal edge is one sweep
-  from the 2 to the E: the hull of the chosen crowns seen from above, 3 mm out (the gum's own distance scalloped
-  round every tooth and zig-zagged over the rugae). A chosen tooth's label on these scans runs a few mm onto the
-  gum (a C's label was 15 mm across): its crown is what stands within 4.5 mm of its top, the rest is gum. The 2's
-  distal wall and the E's mesial stay covered (0.6 mm). A space where a chosen tooth already stood is the gum between
-  its two neighbours - inside their crowns' hull, between them by arch angle (not a wedge from the arch centre: that ran
-  to the middle of the palate and the window grew a spur) - and the first-trim line bridges it along the ridge's crest
-  (`edentulous_gaps(ridge_band=1)`: the crowns' hull alone cuts across the arch's corner and took a triangle of palate
-  with it). Beside each window no sliver of plate under 2 mm wide is left (a wedge of plate narrowing to nothing where
-  the window's edge met the 2's gum band made a hairpin in the line). **Upper:** a palate plate behind the incisors,
-  open behind the Es - the U runs from the D/E contacts straight out past the back of the scan, corners rounded (the
-  photos of the office's own); its arms along the E/6 segments are 5 mm wide (never more than a fifth of the palate's
-  width at the apex, never under 4 mm: a child's palate is 30 mm across there and the office's own leave well over half
-  of it open), and a bridge of plate at least 4.5 mm wide always stays between a window and the opening (it joins the front plate to the arms). The plate
-  reaches at least 4 mm from the teeth and the whole of every window, whatever the first-trim line did there.
-  **Lower:** a lingual flange 4-10 mm deep (as deep as the scan
-  goes, 1.5 mm short of its edge), eased round the arch, a notch at the lingual frenum; the cut stops 3 mm short of
-  the flange's edge so a bridge of flange joins the incisors to the back teeth. When the scan holds too little
-  tongue-side gum under the C/Ds for that bridge the case says so; when the windows would still cut the retainer into
-  pieces, the line is the first trim without windows and the case says to cut the C/Ds by hand or use block-out.
-- **Block-out (BOTT).** No windows: smooth caps over the C/Ds are built into the model in place of the putty
-  (`block_outs`): 1 mm off the tooth on its sides, on top as thick as the bite allows - half of (the gap to the
-  opposing teeth less 0.2 mm), at most 2 mm, so with both retainers in the C/Ds are never the only point of contact
-  (the doctor: "as large as possible without really being the only point of contact"). The bite is the case's other
-  arch, as scanned (AlliedStar and iTero export the two in occlusion); without it the top is a flat 0.5 mm and the
-  case says to check the bite. The caps show on the page as the block-out.
+  more than 4 mm apart are left as they are (the bur reaches between them). A chosen tooth's label on these scans
+  runs a few mm onto the gum (a C's label was 12 mm across, its palatal spill as high as its cingulum): its crown is
+  what stands within 4.5 mm of its top and within 5.5 mm of the centre of its top (`crown_of`), the rest is gum - and
+  the gum that is "the C's" (nearest it) is judged by its crown, not the spill. The 2's distal wall and the E's
+  mesial stay covered (0.6 mm). A space where a chosen tooth already stood is the gum between its two neighbours -
+  inside their crowns' hull, between them by arch angle - and the first-trim line bridges it along the ridge's crest
+  (`edentulous_gaps(ridge_band=1)`). Beside each window no sliver of plate under 2 mm wide is left.
+- **Block-out (BOTT).** No windows: one solid block per side over the run of C/Ds, built into the model in place of
+  the putty (`block_outs`) - not shaped to the teeth under it (the doctor: "a solid block, almost like a blob that is
+  smoothed out on the top ... don't try to match the anatomy"), with **2 mm of room round the teeth** as the
+  mouthguard's band has round the brackets ("clearance on the buccal, on the lingual ... so if the teeth are coming in
+  sideways they're not hitting the tray"). The block is the convex hull of the crowns pushed 2 mm out on every side
+  and lifted on top, together with a ring of gum 1.5 mm beyond that round them (pulled a little into the model so the
+  block sits on it): a smooth mound, wider at its base than anywhere above, so the sheet draws over it and never
+  locks under it; the undercuts under the crowns inside it fill down to the gum as putty does; it stops 0.8 mm short
+  of the 2 and the E. On top it stands as high as the bite allows - over every crown point at most half of the room up
+  to the opposing tooth (less 0.2 mm), at most 2 mm, never under 0.3 mm over the cusps - so with both retainers in
+  the C/Ds are never the only point of contact (the doctor: "as large as possible without really being the only point
+  of contact"). The bite is the case's other arch, as scanned (AlliedStar and iTero export the two in occlusion);
+  without it the top is a flat 0.5 mm and the case says to check the bite; when the opposing teeth still dip into
+  the block's top over the fossae (a tight bite) the case says by how much, to judge on the occlusion before cutting.
+  The blocks show on the page as the block-out.
+- **No sharp turns** (the doctor: "it's not adapted tightly to the teeth, so it doesn't need to be semi-scalloped - only
+  the buccal of 2-2 and the buccal of the 6s and E/5s"): both lines are smoothed along their length with a 2.5 mm
+  Gaussian everywhere - round the windows' corners, behind the last tooth, on the palate / tongue side - except on the
+  cheek side of the teeth that stay, where a 1 mm smoothing keeps a gentle scallop (`round_line`; the weight fades over
+  3 mm); the result is put back onto the surface.
+- **The 5 mm rule** (the doctor: "min 5 mm - if below that reject the cutouts and just do block-out"): on a lower the
+  flange left under the windows on the tongue side (what the scan holds below the window's edge, the 10th percentile
+  along the C/Ds) must be 5 mm or more; when it is not, the cutouts are rejected and that arch is made by block-out,
+  and the case says so with the figure. Two of the three test cases' lowers fell to this (0 and 2.3 mm); the iTero
+  case's lower (5.8 mm) kept its cutouts. The upper's bridge of plate past each window is 5 mm by construction.
 - **Tooth numbering on a Phase I.** The teeth are counted from the midline (the width-based renumbering is for the
   permanent dentition: a lower E of 11 mm read as a first molar, and the D behind a C became a "5"), a space of 2.5 mm
   or more between neighbours counts as a tooth already gone (three of four Phase I cases had one), and a tooth label
@@ -518,9 +537,9 @@ left. It is an Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base say
 - Checked on 3 Phase I cases (two AlliedStar, one iTero; 6 arches): every one got its windows round the C/Ds (or the
   C's space) with the model scooped 2.5-4 mm to the contacts; every model came out watertight. One lower scan holds
   no tongue-side gum under the C/Ds at all (the flange is the 4 mm minimum): its line carries the warning. The
-  Phase I line takes about 4 s on top of the usual run. Settings:
-  `phase1`, `p1_method` (`cott` / `bott`), `p1_teeth` (`["R3","R4","L3","L4"]`), `p1_plate_mm`, `p1_apex_shift`,
-  `p1_cut_palatal_mm`, `p1_flange_max`, `p1_scoop`, `opposing_scan` (BOTT: the other arch's file).
+  Phase I line takes about 5 s on top of the usual run. Settings:
+  `phase1`, `p1_method` (`cott` / `bott`), `p1_teeth` (`["R3","R4","L3","L4"]`), `p1_plate_mm` (0), `p1_apex_shift`,
+  `p1_cut_palatal_mm` (1.25), `p1_flange_max`, `p1_scoop`, `opposing_scan` (BOTT: the other arch's file).
 
 **Missing teeth.** A missing premolar or molar used to end the tray at the gap: the gum-line contour closed round
 the teeth in front of it and everything behind was dropped from the line and the model. `edentulous_gaps` finds

@@ -536,7 +536,7 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
             if mex is None:
                 log(f"solid {i + 1} added after the outline cut is not manifold; skipped")
                 if info is not None:
-                    info.setdefault("warnings", []).append("the bracket band could not be joined to the model (not a closed solid) - the guard has no block-out over the brackets: check it before sending")
+                    info.setdefault("warnings", []).append("a block-out could not be joined to the model (not a closed solid) - check the model before sending")
                 continue
             u = cut + mex
             if u.status() == m3.Error.NoError:
@@ -544,11 +544,11 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
             else:
                 log(f"solid {i + 1} added after the outline cut: union failed; skipped")
                 if info is not None:
-                    info.setdefault("warnings", []).append("the bracket band could not be joined to the model - the guard has no block-out over the brackets: check it before sending")
+                    info.setdefault("warnings", []).append("a block-out could not be joined to the model - check it before sending")
         except Exception as ex2:  # noqa
             log(f"solid {i + 1} added after the outline cut skipped: {ex2}")
             if info is not None:
-                info.setdefault("warnings", []).append("the bracket band could not be joined to the model - check it before sending")
+                info.setdefault("warnings", []).append("a block-out could not be joined to the model - check it before sending")
     return largest_piece(from_manifold(cut), log=log), "boolean"
 
 
