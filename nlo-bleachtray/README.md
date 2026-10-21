@@ -486,9 +486,17 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   a bridge of plate at least 5 mm wide joins it past each window to the gum line along the Es (`p1_plate_mm` > 0
   would put arms that wide along the E/6 segments instead). **Lower:** a lingual flange 4-10 mm deep (as deep as the
   scan goes, 1.5 mm short of its edge), eased round the arch, a notch at the lingual frenum; the window stops 1.5 mm
-  onto the tongue-side gum so a bridge of flange joins the incisors to the back teeth. When the scan holds too little
+  onto the tongue-side gum so a bridge of flange joins the incisors to the back teeth. The flange ends with the teeth:
+  behind the last tooth on each side it eases to the gum band over 4 mm of arch, so the line wraps the last molar's
+  distal as the first trim does (one scan held the pad behind a 6 12 mm back, and the flange ran out along it - a lobe
+  of retainer behind the molar, 10/21/2026). When the scan holds too little
   tongue-side gum under the C/Ds for that bridge the case says so; when the windows would still cut the retainer into
   pieces, the line is the first trim without windows and the case says to cut the C/Ds by hand or use block-out.
+  **One piece:** the retainer is the largest connected part of the covered region; a part the scan's edge zone cuts
+  off from the rest (the gum behind a molar on one lower) is left out of both lines and the case says so - built
+  round the main part with a cut line that still went round the stray part (its region closed 2 mm, which bridged
+  the gap), the line hung 12 mm off the model in the air. Both lines are put onto the model's surface whatever the
+  drop under a point (over a scooped 7 the first-trim line hung 5.6 mm in the air with the usual 4 mm snap).
 - **Cutouts (CUTT, the default).** Two lines: the model is built round the *first-trim* outline (the whole arch, so
   the sheet forms over it as on the first trim), and the Trimlign cuts the line *with the windows*. **The window is
   the same stretch of arch on every case** (the doctor, 10/21/2026: "the cutout starts half a millimeter after the

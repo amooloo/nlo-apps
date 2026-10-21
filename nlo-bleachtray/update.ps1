@@ -78,6 +78,24 @@ if (Test-Path $bat) { Start-Process -FilePath $bat -ArgumentList 'autostart' -Wo
 elseif ($py) { Start-Process -FilePath 'powershell' -ArgumentList '-NoExit', '-NoProfile', '-WindowStyle', 'Minimized', '-Command', "& '$py' '$(Join-Path $dst 'run_app.py')' --lan --no-browser" -WorkingDirectory $dst }
 else { Write-Host '       Could not start the app (no start_app.bat and no Python found) - restart the PC.' }
 Remove-Item $t -Recurse -Force -ErrorAction SilentlyContinue
+# the version this folder now is, the way the app works it out (Settings -> Office, /api/version): a hash of the
+# program files. If a file could not be written the figure differs from the one in the release note - run again
+$rels = @('app/server.py', 'app/tracker.py', 'app/static/index.html', 'run_app.py', 'update.ps1') + @('appliance', 'basebuild', 'blockout', 'colour', 'engrave', 'features', 'interprox', 'learn', 'mesh_utils', 'mouthguard', 'orderfolder', 'orient', 'phase1', 'pipeline', 'printfolder', 'register', 'reservoir', 'segment', 'server_presets', 'solid', 'watch' | ForEach-Object { "bleachtray/$_.py" })
+try {
+  $sha = [System.Security.Cryptography.SHA1]::Create()
+  $ms = New-Object System.IO.MemoryStream
+  foreach ($rel in $rels) {
+    $fp = Join-Path $dst ($rel -replace '/', '\')
+    if (-not (Test-Path $fp)) { continue }
+    $bytes = [System.IO.File]::ReadAllBytes($fp)
+    $txt = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes).Replace("`r`n", "`n")
+    $b = [System.Text.Encoding]::GetEncoding(28591).GetBytes($rel + [char]0 + $txt)
+    $ms.Write($b, 0, $b.Length)
+  }
+  $hash = ($sha.ComputeHash($ms.ToArray()) | ForEach-Object { $_.ToString('x2') }) -join ''
+  $build = $hash.Substring(0, 10)
+} catch { $build = '?' }
 Write-Host ''
-Write-Host ' UPDATE DONE. The app is running again (minimised window "NLO Bleach Tray"). You can close this window.'
+Write-Host (' UPDATE DONE. The app is running again (minimised window "NLO Bleach Tray"). App version now: ' + $build)
+Write-Host ' (Settings -> Office on the page shows the same figure after Ctrl+F5; if it does not match the release note, run this again.)'
 Write-Host ''
