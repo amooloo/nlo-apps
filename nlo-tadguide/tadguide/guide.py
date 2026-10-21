@@ -92,7 +92,8 @@ def infinite_cylinder_dist(X, c, a):
 def coverage(P, teeth, tads, arch, params):
     """Which scan vertices the guide covers: teeth around each TAD (auto), plus the gum between those teeth and
     each TAD head so the sleeve has something to stand on."""
-    cov = np.zeros(len(P), bool)
+    cov = np.zeros(len(P), bool)                 # crowns (by the teeth-each-side rule)
+    gum = np.zeros(len(P), bool)                 # what the sleeves stand on: gum corridors, the palate around the heads
     s_all, off = arch.s_of(P)
     W = 8.0                                      # ~ one tooth
     k = params.get("teeth_each_side", 2)
@@ -105,7 +106,7 @@ def coverage(P, teeth, tads, arch, params):
         if t["site"] == "palate":
             # palate screws: all teeth from canine to molars both sides + palate around the heads
             cov |= teeth & (np.abs(s_all) >= 12.0)
-            cov |= np.linalg.norm(P - h, axis=1) <= 7.0
+            gum |= np.linalg.norm(P - h, axis=1) <= 7.0
             continue
         s_h, _ = arch.s_of(h[None])
         s_h = float(s_h[0])
@@ -118,9 +119,9 @@ def coverage(P, teeth, tads, arch, params):
             L2 = float(seg @ seg) or 1.0
             tt = np.clip(((P - h) @ seg) / L2, 0, 1)
             dist = np.linalg.norm(P - (h + tt[:, None] * seg), axis=1)
-            cov |= dist <= 3.2
-        cov |= np.linalg.norm(P - h, axis=1) <= 4.5
-    return cov
+            gum |= dist <= 3.2
+        gum |= np.linalg.norm(P - h, axis=1) <= 4.5
+    return cov, gum
 
 
 def insertion_direction(P, F, tads, n_occ, search=True):
@@ -202,7 +203,17 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
     say(f"insertion direction: {'occlusal' if tilt == 0 else f'tilted {tilt:.0f} deg toward the TADs'}"
         + (f" - {hidden} sleeve spot(s) sit under a crown bulge" if hidden else ""))
     Q = P @ R.T
-    cov = coverage(P, teeth, tads, arch, p)
+    cov_teeth, cov_gum = coverage(P, teeth, tads, arch, p)
+    # gum is covered only down to the TAD heads: the apron needs to reach the sleeve, not the vestibule beyond it
+    # (the scan's fold there is thin and noisy, and the shell would wrap it in fins)
+    zh = [float((R @ np.asarray(t["head"], float))[2]) for t in tads if t["site"] != "palate"]
+    if zh:
+        keep = Q[:, 2] >= min(zh) - 1.5
+        for t in tads:
+            if t["site"] == "palate":
+                keep |= np.linalg.norm(P - np.asarray(t["head"], float), axis=1) <= 7.5
+        cov_gum &= keep
+    cov = cov_teeth | cov_gum
     if cov.sum() < 50:
         raise ValueError("Nothing to rest the guide on near the TADs (no teeth found there).")
     # TADs in the frame
@@ -255,6 +266,17 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
     top_idx = order[last]
     H = np.full(shape[0] * shape[1], -np.inf)
     H[top_cells] = S[top_idx, 2]
+    # Crowns are covered down to their height of contour, not into the undercut below it: a rigid guide cannot
+    # engage the undercut, the block-out there only adds bulk, and ending at the bulge is where a tray's edge
+    # belongs. (The gum the sleeves stand on is kept whatever lies above it.) A vertex is in the undercut when the
+    # scan stands more than 0.6 mm above it in its own column, seen along the insertion direction.
+    cq = np.floor((Q[:, :2] - lo[:2]) / v + 0.5).astype(int)
+    okq = np.all((cq >= 0) & (cq < shape[:2]), axis=1)
+    above = np.full(len(Q), 0.0)
+    above[okq] = H[cq[okq, 0] * shape[1] + cq[okq, 1]] - Q[okq, 2]
+    under = np.isfinite(above) & (above > 0.6)
+    cov = (cov_teeth & ~under) | cov_gum
+    say(f"coverage: {int((cov_teeth & ~under).sum())} crown vertices above the height of contour, {int(cov_gum.sum())} on the gum")
     tooth_face = teeth[Fk].mean(axis=1) >= 0.5
     gapmap = np.full(shape[0] * shape[1], p["gap_gum"])
     gapmap[top_cells] = np.where(tooth_face[tid[top_idx]], p["gap_teeth"], p["gap_gum"])
@@ -299,19 +321,25 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
     vert = np.where(np.isfinite(vert), vert, 1e3).astype(np.float32)
     sdF = (np.sign(sdF) * np.minimum(np.abs(sdF), np.abs(vert))).astype(np.float32)
     del vert
-    # coverage in the plane
-    cm = np.zeros(shape[:2], bool)
-    cij = np.floor((Q[cov][:, :2] - lo[:2]) / v + 0.5).astype(int)
-    okc = np.all((cij >= 0) & (cij < shape[:2]), axis=1)
-    cm[cij[okc, 0], cij[okc, 1]] = True
-    rr = max(1, int(round(1.0 / v)))
-    cm = ndi.binary_closing(cm, iterations=rr * 2)
-    cm = ndi.binary_fill_holes(cm)
-    cm = ndi.gaussian_filter(cm.astype(np.float32), 1.0 / v) > 0.5
-    c2d = (ndi.distance_transform_edt(~cm, sampling=v) - ndi.distance_transform_edt(cm, sampling=v)).astype(np.float32)
+    # coverage in 3D: the shell ends a little beyond the covered part of the scan, cut square to the surface. The
+    # cut used to be the 2D coverage boundary carried straight down the insertion direction; on steep walls
+    # (the palatal and buccal gingival margins) that wall met the shell at a grazing angle and the ragged
+    # projection of the wall made a comb of tall teeth - a serrated edge. A distance to the covered surface
+    # itself gives a rounded rim that follows the surface.
+    cv = np.zeros(shape, bool)
+    cijk = np.floor((Q[cov] - lo) / v + 0.5).astype(int)
+    okv = np.all((cijk >= 0) & (cijk < np.asarray(shape)), axis=1)
+    cv[cijk[okv, 0], cijk[okv, 1], cijk[okv, 2]] = True
+    cv = ndi.binary_closing(cv, iterations=max(1, int(round(0.8 / v))))     # tooth / gum flicker at the margin
+    d_cov = ndi.distance_transform_edt(~cv, sampling=v).astype(np.float32)
     say("shell")
-    phi = np.maximum(-sdF, sdF - p["thickness"])
-    phi = np.maximum(phi, c2d[:, :, None])
+    th = float(p["thickness"])
+    phi = np.maximum(-sdF, sdF - th)
+    # the rim: about 1.2 mm beyond the covered surface at the base, a little more at the top so the whole shell
+    # stays over the covered area (a voxel at the top of the shell is thickness + gap + a vertex spacing from the
+    # nearest covered vertex; the slack keeps the top smooth) - a rounded edge, near enough square to the surface
+    phi = np.maximum(phi, d_cov - (1.0 + 0.8 * (np.clip(sdF, 0.0, th) + 0.3)))
+    del d_cov, cv
     # sleeves, struts, holes (evaluated on the voxel centres)
     gx = lo[0] + np.arange(shape[0]) * v
     gy = lo[1] + np.arange(shape[1]) * v
