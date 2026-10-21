@@ -143,6 +143,30 @@ can be paid with them dollar for dollar, and the office's account pays with them
 - **The balance**: `pts` on the AO vendor's record (`invVendors/ao`: `{bal, exp, at, by}`) — vendors already take Dr. A's
   fields, so no new rules.
 
+## The photo clean-up (5.2.2)
+Amir, 21 Oct 2026: "it seems like photo AI enhancer in the inventory is not working anymore, it was connected to CGPT".
+"Clean it up with AI" (the supply editor, beside its photo) sends the photo to OpenAI's image edits endpoint from the page,
+with the OpenAI key in Settings → AI (`invState/ai.openai`). It asked for `gpt-image-1`, which OpenAI switches off on
+23 Oct 2026 (developers.openai.com/api/docs/deprecations). Since 5.2.2 (`src/ai.js` PHOTO_MODELS, aiGenerateProductPhoto):
+- **The model**: `gpt-image-2.5-sunburst` (OpenAI's pick where editing precision matters: the box stays the same SKU), then
+  `gpt-image-2.5-flare`, then `gpt-image-2`, moving on only when OpenAI turns one down for the account (400/403/404, 5xx);
+  the first that answers is used for the rest of the visit. 1024×1024, quality high, a JPEG back (the type of what comes
+  back is read from its bytes). No DALL-E (it invented a different-looking product; retired May 2026).
+- **The wait**: 2½ minutes (OpenAI: up to 2 minutes a picture; it gave up at 45 s); the button says "up to 2 minutes".
+- **What went wrong, plainly**, and kept on screen 12 s: a key OpenAI refuses (make a new one, Settings → AI), no credit
+  (Billing), a spending limit (Limits), an organization to verify (after each model was tried), a picture its safety filter
+  turns down, OpenAI out of reach — otherwise OpenAI's own words. These skip `errText()`, whose database wording took over
+  any message that said "permission" or "network".
+- **No key, no button** — and Dr. A is told why in the editor ("needs the OpenAI key: Settings → AI"); the others see no
+  change. Settings → AI's card says it covers product photos.
+- **The photo a supply shows is the one the editor works on**: the editor read only `img`, so a supply whose photo is kept
+  as a full-size one only (`imgFull`), at an older photo's address (`imgUrl`/`imgFullUrl`, Cloud Storage) or built in
+  (`imgKey`) showed "Add a photo" and no AI button. It now goes by `photoOf()` (`photo.shown`/`shownFull`), the AI gets the
+  full-size one, and a new photo saved (or Remove) clears `imgUrl`, `imgFullUrl` and `imgKey`, which `photoOf()` would
+  otherwise still put first. The label reader only fills in a photo when the supply really has none.
+- Tests: e2e `t_photo_ai` (OpenAI answered by the test: the request's fields and photo, the fallback, the model kept for the
+  visit, every error above, the saved photo).
+
 ## The data (Firestore `nlo-cases`; rules: `../nlo-cases-src/firestore.rules`, block "NLO Inventory")
 - `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before;
   since 5.2 a supply may carry `aoPts` and the AO vendor `pts` (AO Partner Dollars, above).

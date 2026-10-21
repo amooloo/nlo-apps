@@ -18,7 +18,7 @@ VIEWS.settings = {
       '<div class="inRow" style="margin-top:10px"><input class="inp" id="locNew" placeholder="e.g. Sterilization closet" data-enter="#locAddBtn"><button class="btn btn-sec" id="locAddBtn" data-act="locAdd">Add</button></div><div class="hint">Anyone adding or editing a supply picks from these.</div></div></div>';
     h += caseHelperHTML();
     h += '</div><div>';
-    h += '<div class="card"><div class="cardHd"><h3>AI</h3><span class="sub">packing-slip reading and Ask</span></div><div class="cardBd">' + (owner || S.demo ? aiSettingsHTML() : '<div class="muted small">The AI keys are set by Dr. A. ' + (S.settings.geminiProxyUrl ? 'Reading packing slips goes through the office’s AI service.' : '') + '</div>') + '</div></div>';
+    h += '<div class="card"><div class="cardHd"><h3>AI</h3><span class="sub">packing-slip reading, Ask and product photos</span></div><div class="cardBd">' + (owner || S.demo ? aiSettingsHTML() : '<div class="muted small">The AI keys are set by Dr. A. ' + (S.settings.geminiProxyUrl ? 'Reading packing slips goes through the office’s AI service.' : '') + '</div>') + '</div></div>';
     h += mlSettingsCardHTML(owner) + pushCardHTML(owner) + alertsCardHTML(owner);
     if (isAdmin()) h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Keeping it fast</h3></div><div class="cardBd">' +
       '<div class="kvRow"><span>Packing-slip photos on orders received over a year ago</span><b>' + oldSlipOrders().length + '</b></div>' +

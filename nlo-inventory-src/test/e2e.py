@@ -1104,6 +1104,122 @@ def t_editor(b):
     check('editor: no page errors', not errs, errs)
     ctx.close()
 
+# ---------- the photo clean-up (OpenAI image edits — answered here, nothing leaves the computer) ----------
+OAI = {'replies': [], 'held': []}
+def openai_route(route):
+    rep = OAI['replies'].pop(0) if OAI['replies'] else (500, {'error': {'message': 'no reply set for this test'}})
+    if rep == 'hold': OAI['held'].append(route); return
+    if rep == 'abort': route.abort('failed'); return
+    route.fulfill(status=rep[0], content_type='application/json', headers={'Access-Control-Allow-Origin': '*'}, body=json.dumps(rep[1]))
+def oai_ok(b64): return (200, {'created': 1, 'data': [{'b64_json': b64}], 'output_format': 'jpeg'})
+def oai_err(status, message, code=None, typ='invalid_request_error'): return (status, {'error': {'message': message, 'type': typ, 'code': code, 'param': None}})
+# what the page sent OpenAI, as it built it (the form's fields, the photo's name, type and size, the key)
+OAI_SPY = """(() => { if (window.__oai) return; window.__oai = []; const f0 = window.fetch;
+  window.fetch = function (u, o) {
+    if (String(u).indexOf('https://api.openai.com/') === 0) {
+      const c = { url: String(u), auth: (o && o.headers && o.headers.Authorization) || '', f: {} };
+      if (o && o.body && typeof o.body.forEach === 'function') o.body.forEach((v, k) => { c.f[k] = (v && typeof v === 'object' && 'size' in v) ? { file: v.name || '', type: v.type, size: v.size } : String(v); });
+      window.__oai.push(c);
+    }
+    return f0.apply(this, arguments);
+  }; })()"""
+def photo_ai_try(pg, item, replies):
+    """open a supply's editor, tap "Clean it up with AI" with these OpenAI answers; → (toast, models asked, cleaned up?)"""
+    J(pg, "closeModal(true); photoModelOk = null; window.__oai.length = 0; document.querySelector('#toasts').innerHTML = ''"); pg.wait_for_timeout(120)
+    OAI['replies'][:] = replies
+    J(pg, "openEditor(%s)" % json.dumps(item)); pg.wait_for_selector('[data-act="edPhotoAi"]', timeout=10000)
+    pg.click('[data-act="edPhotoAi"]')
+    pg.wait_for_function("() => S.ui.ed && !S.ui.ed.busy && (S.ui.ed.photo.ai || document.querySelector('#toasts').textContent.length > 0)", timeout=20000)
+    return toasts(pg), J(pg, "window.__oai.map(c => c.f.model)"), J(pg, "S.ui.ed.photo.ai")
+
+@test
+def t_photo_ai(b):
+    KEY = 'sk-test-PHOTO-0001'
+    # no OpenAI key: no AI button — Dr. A is told why, the others see nothing new
+    ctx, pg, errs = open_as(b, 'amir')
+    J(pg, "go('supplies'); openEditor('ppe-1')"); pg.wait_for_function("() => S.ui.ed && S.ui.ed.ai", timeout=10000); pg.wait_for_timeout(200)
+    note = J(pg, "(document.querySelector('#edPhotoNoKey') || {}).textContent || ''")
+    check('photo AI: with no OpenAI key, Dr. A is told why there is no AI button', 'Settings → AI' in note and not J(pg, "!!document.querySelector('[data-act=\"edPhotoAi\"]')"), note)
+    J(pg, "closeModal(true); go('settings')"); pg.wait_for_timeout(250)
+    check('photo AI: Settings → AI says it is for product photos too', 'product photos' in J(pg, "document.querySelector('#view').textContent"))
+    check('photo AI (Dr. A, no key): no page errors', not errs, errs); ctx.close()
+    ctx, pg, errs = open_as(b, 'gwen')
+    J(pg, "go('supplies'); openEditor('ppe-1')"); pg.wait_for_function("() => S.ui.ed && S.ui.ed.ai", timeout=10000); pg.wait_for_timeout(200)
+    check('photo AI: with no key, an assistant sees no button and no note', J(pg, "!document.querySelector('#edPhotoNoKey') && !document.querySelector('[data-act=\"edPhotoAi\"]')"))
+    ctx.close()
+    # the key, as Dr. A sets it in Settings → AI
+    remote_field('invState/ai', 'openai', KEY)
+    ctx, pg, errs = open_as(b, 'gwen')
+    ctx.route('https://api.openai.com/v1/images/edits', openai_route)
+    J(pg, OAI_SPY)
+    jpg = J(pg, "(() => { const c = document.createElement('canvas'); c.width = 320; c.height = 240; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 320, 240); x.fillStyle = '#18a'; x.fillRect(90, 50, 140, 140); return c.toDataURL('image/jpeg', 0.9).split(',')[1]; })()")
+    check('photo AI: no gpt-image-1 left (OpenAI switches it off on 23 Oct 2026)', J(pg, "PHOTO_MODELS") == ['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare', 'gpt-image-2'], J(pg, "PHOTO_MODELS"))
+    # it works: one request, the current model, the supply's own photo; while it works the button says it can take 2 minutes
+    OAI['replies'][:] = ['hold']; OAI['held'][:] = []
+    J(pg, "go('supplies'); openEditor('ppe-1')"); pg.wait_for_selector('[data-act="edPhotoAi"]', timeout=10000)
+    before = J(pg, "S.ui.ed.photo.img")
+    pg.click('[data-act="edPhotoAi"]')
+    t0 = time.time()
+    while not OAI['held'] and time.time() - t0 < 15: pg.wait_for_timeout(100)
+    busy = J(pg, "(document.querySelector('[data-act=\"edPhotoAi\"]') || {}).textContent || ''")
+    check('photo AI: while it works, it says it can take up to 2 minutes', 'up to 2 minutes' in busy and J(pg, "document.querySelector('[data-act=\"edPhotoAi\"]').disabled"), busy)
+    if OAI['held']: OAI['held'].pop(0).fulfill(status=200, content_type='application/json', headers={'Access-Control-Allow-Origin': '*'}, body=json.dumps(oai_ok(jpg)[1]))
+    pg.wait_for_function("() => S.ui.ed && S.ui.ed.photo.ai === true", timeout=15000)
+    c = J(pg, "window.__oai[0]") or {'f': {}}; f = c['f']
+    check('photo AI: one request, to the image edits endpoint', J(pg, "window.__oai.length") == 1 and c.get('url') == 'https://api.openai.com/v1/images/edits', J(pg, "window.__oai.map(c => c.url)"))
+    check('photo AI: asks for GPT Image 2.5 Sunburst', f.get('model') == 'gpt-image-2.5-sunburst', f.get('model'))
+    check('photo AI: square, high quality, a JPEG back', (f.get('size'), f.get('quality'), f.get('output_format')) == ('1024x1024', 'high', 'jpeg'), {k: f.get(k) for k in ['size', 'quality', 'output_format']})
+    img = f.get('image') or {}
+    check('photo AI: sends the supply’s own photo as a picture file', isinstance(img, dict) and img.get('size', 0) > 100 and str(img.get('type', '')).startswith('image/') and str(img.get('file', '')).startswith('product.'), img)
+    check('photo AI: with the key from Settings → AI', c.get('auth') == 'Bearer ' + KEY)
+    check('photo AI: the prompt names the supply and keeps it the same product', 'Gloves Pulse Nitrile' in f.get('prompt', '') and 'SAME SKU' in f.get('prompt', ''), f.get('prompt', '')[:160])
+    check('photo AI: the picture that came back is the new photo (made into the app’s own sizes)', J(pg, "S.ui.ed.photo.thumb.startsWith('data:image/webp') && S.ui.ed.photo.full.startsWith('data:image/webp')") and 'Cleaned up by AI' in J(pg, "document.querySelector('#edPhotoRow').textContent"))
+    click(pg, '[data-act="edSave"]', 1200)
+    it = store('nlo/items/ppe-1')
+    check('photo AI: saved as the supply’s photo, a photo record of its own', str(it.get('img', '')).startswith('pic:') and it.get('img') != before and get('invPics/' + str(it.get('img', ''))[4:]) is not None, (before, it.get('img')))
+    # an account that can't use Sunburst gets the next model, and the next photo goes straight to the one that worked
+    t, ms, ok = photo_ai_try(pg, 'adh-1', [oai_err(404, 'The model `gpt-image-2.5-sunburst` does not exist or you do not have access to it.', 'model_not_found'), oai_ok(png(64, 48))])
+    check('photo AI: no Sunburst on the account → Flare, without anyone being asked', ok and ms == ['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare'], (ms, t))
+    J(pg, "closeModal(true); window.__oai.length = 0"); OAI['replies'][:] = [oai_ok(jpg)]
+    J(pg, "openEditor('ppe-1')"); pg.wait_for_selector('[data-act="edPhotoAi"]', timeout=10000); pg.click('[data-act="edPhotoAi"]')
+    pg.wait_for_function("() => S.ui.ed && S.ui.ed.photo.ai === true", timeout=15000)
+    check('photo AI: the next photo goes straight to the model that worked', J(pg, "window.__oai.map(c => c.f.model)") == ['gpt-image-2.5-flare'], J(pg, "window.__oai.map(c => c.f.model)"))
+    # a supply whose photo is an older photo's address (kept in Cloud Storage by the old app): the editor shows it with the AI
+    # button, the AI gets that photo, and the cleaned-up one saved takes its place (the older address came first before)
+    import base64
+    old_url = 'https://firebasestorage.googleapis.com/v0/b/nlo-inventory.appspot.com/o/items%2Fppe-2.jpg?alt=media&token=t1'
+    ctx.route(re.compile(r'https://firebasestorage\.googleapis\.com/.*'), lambda r: r.fulfill(status=200, body=base64.b64decode(jpg), content_type='image/jpeg', headers={'Access-Control-Allow-Origin': '*'}))
+    J(pg, "closeModal(true)"); remote_field('invItems/ppe-2', 'imgUrl', old_url); pg.wait_for_timeout(800)
+    J(pg, "window.__oai.length = 0"); OAI['replies'][:] = [oai_ok(jpg)]
+    J(pg, "openEditor('ppe-2')"); pg.wait_for_selector('[data-act="edPhotoAi"]', timeout=10000)
+    check('photo AI: a photo kept at an older address shows in the editor, with Change and the AI button', J(pg, "!!document.querySelector('#edPhotoRow img') && /Change/.test(document.querySelector('#edPhotoRow').textContent)"))
+    pg.click('[data-act="edPhotoAi"]'); pg.wait_for_function("() => S.ui.ed && S.ui.ed.photo.ai === true", timeout=15000)
+    img2 = J(pg, "window.__oai[0] && window.__oai[0].f.image") or {}
+    check('photo AI: …the AI gets that photo', isinstance(img2, dict) and img2.get('size', 0) > 100, img2)
+    click(pg, '[data-act="edSave"]', 1200)
+    it2 = store('nlo/items/ppe-2')
+    check('photo AI: …and the cleaned-up photo is the one the supply shows now', str(it2.get('img', '')).startswith('pic:') and 'imgUrl' not in it2 and J(pg, "photoOf(itemById('ppe-2')).startsWith('pic:')"), {k: it2.get(k) for k in ['img', 'imgFull', 'imgUrl']})
+    # what goes wrong is said plainly, and the photo stays as it was
+    t, ms, ok = photo_ai_try(pg, 'adh-1', [oai_err(401, 'Incorrect API key provided: sk-test-****0001.', 'invalid_api_key')])
+    check('photo AI: a key OpenAI refuses → says to put a new key in Settings → AI', not ok and len(ms) == 1 and 'didn’t accept the key' in t and 'Settings → AI' in t, (t, ms))
+    t, ms, ok = photo_ai_try(pg, 'adh-1', [oai_err(429, 'You exceeded your current quota, please check your plan and billing details.', 'credit_balance_exhausted', 'insufficient_quota')])
+    check('photo AI: no credit left → says to add credit (and asks only once)', not ok and len(ms) == 1 and 'out of credit' in t and 'Billing' in t, (t, ms))
+    t, ms, ok = photo_ai_try(pg, 'adh-1', [oai_err(429, 'You have reached your organization spend limit.', 'organization_spend_limit_exceeded', 'insufficient_quota')])
+    check('photo AI: a spending limit → says where to raise it', not ok and len(ms) == 1 and 'spending limit' in t and 'Limits' in t, (t, ms))
+    v = 'Your organization must be verified to use the model `%s`. Please go to: https://platform.openai.com/settings/organization/general and click on Verify Organization.'
+    t, ms, ok = photo_ai_try(pg, 'adh-1', [oai_err(403, v % m) for m in ['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare', 'gpt-image-2']])
+    check('photo AI: an organization to verify → tries each model once, then says how to verify', not ok and ms == ['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare', 'gpt-image-2'] and 'Verify Organization' in t, (t, ms))
+    t, ms, ok = photo_ai_try(pg, 'adh-1', [oai_err(403, "You don't have permission to use this model.", 'model_not_allowed')] * 3)
+    check('photo AI: OpenAI’s own words are shown (not the database’s “said no”)', not ok and 'permission to use this model' in t and 'database' not in t, (t, ms))
+    t, ms, ok = photo_ai_try(pg, 'adh-1', [oai_err(400, 'Your request was rejected by the safety system.', 'moderation_blocked', 'image_generation_user_error')])
+    check('photo AI: a picture OpenAI won’t work on → says so, no other model tried', not ok and len(ms) == 1 and 'another photo' in t, (t, ms))
+    t, ms, ok = photo_ai_try(pg, 'adh-1', ['abort'])
+    check('photo AI: OpenAI out of reach → says so (not the database)', not ok and 'couldn’t be reached' in t and 'database' not in t, (t, ms))
+    check('photo AI: after a failure the photo is unchanged and the button is back', J(pg, "!S.ui.ed.photo.changed && !!document.querySelector('[data-act=\"edPhotoAi\"]') && !document.querySelector('[data-act=\"edPhotoAi\"]').disabled"))
+    errs2 = [e for e in errs if 'api.openai.com' not in e]
+    check('photo AI: no page errors (besides the made-up OpenAI refusals)', not errs2, errs2)
+    ctx.close()
+
 @test
 def t_cases(b):
     """gloves set up as cases from Settings; a cart line and an open order made before that are put right"""

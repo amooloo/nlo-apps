@@ -76,7 +76,9 @@ function openEditor(id, prefill) {
       min: base.min != null && base.min !== '' ? String(base.min) : '', qty: it ? '' : (base.qty != null && base.qty !== '' ? String(base.qty) : '')
     },
     sources: srcs.length ? srcs : [{ vendor: '', sku: '', price: '', src: '', lastDate: '' }],
-    photo: { img: base.img || null, imgFull: base.imgFull || null, thumb: null, full: null, changed: false, ai: false },
+    /* shown/shownFull: the photo the supply shows today, wherever it's kept (img, a full-size one only, an older photo's address,
+       a built-in one) — the editor offers Change, Remove and the AI clean-up for any of them */
+    photo: { img: base.img || null, imgFull: base.imgFull || null, shown: photoOf(base) || null, shownFull: photoOf(base, true) || null, thumb: null, full: null, changed: false, ai: false },
     dirty: !!(prefill && prefill.copyOf), busy: '', ai: null
   };
   if (prefill && prefill.photo) Object.assign(S.ui.ed.photo, prefill.photo);
@@ -88,11 +90,15 @@ function edAiRowHTML() {
   return '<div id="edAiRow">' + (can ? '<div class="aiFill">' + ic('spark', 18) + '<div class="grow"><b>Read a label</b><span>Take a photo of the box or label and the AI fills in what it can.</span></div><button class="btn btn-sec btn-sm" data-act="edLabel"' + (E.busy ? ' disabled' : '') + '>' + (E.busy === 'label' ? 'Reading…' : ic('camera', 15) + 'Scan the label') + '</button></div>' : '') + '</div>';
 }
 function edPhotoHTML() {
-  const E = S.ui.ed, P = E.photo, src = P.thumb || P.img, k = E.ai, canAi = !!(k && resolveOpenAIKey(k.openai, ''));
+  const E = S.ui.ed, P = E.photo, src = P.thumb || P.shown || P.img, k = E.ai, canAi = !!(k && resolveOpenAIKey(k.openai, ''));
+  /* without the OpenAI key the AI button isn't there at all, so Dr. A is told why (Amir, 21 Oct 2026: "photo AI enhancer …
+     is not working anymore"); the others can't set keys, so nothing changes for them */
+  const noKey = !!(src && k && !canAi && !P.ai && isOwnerAccount());
   return '<div id="edPhotoRow" class="photoEd">' + (src ? '<img alt="" data-src="' + esc(src) + '">' : '<span class="ph">' + ic('camera', 22) + '</span>') +
     '<div class="grow"><b>Photo</b><span>' + (src ? (P.ai ? 'Cleaned up by AI — saved with the supply' : P.changed ? 'New photo — saved with the supply' : 'Shown in the list and on labels') : 'A photo helps people find the right box.') + '</span>' +
     '<div class="btnRow" style="margin-top:6px"><button class="btn btn-sec btn-sm" data-act="edPhoto">' + ic('upload', 14) + (src ? 'Change' : 'Add a photo') + '</button>' + (src ? '<button class="btn btn-ghost btn-sm" data-act="edPhotoOff">Remove</button>' : '') +
-    (src && canAi && !P.ai ? '<button class="btn btn-ghost btn-sm" data-act="edPhotoAi"' + (E.busy ? ' disabled' : '') + '>' + ic('spark', 14) + (E.busy === 'photo' ? 'Working… (up to a minute)' : 'Clean it up with AI') + '</button>' : '') + '</div></div></div>';
+    (src && canAi && !P.ai ? '<button class="btn btn-ghost btn-sm" data-act="edPhotoAi"' + (E.busy ? ' disabled' : '') + '>' + ic('spark', 14) + (E.busy === 'photo' ? 'Working… (up to 2 minutes)' : 'Clean it up with AI') + '</button>' : '') + '</div>' +
+    (noKey ? '<div class="hint" id="edPhotoNoKey">“Clean it up with AI” needs the OpenAI key: Settings → AI.</div>' : '') + '</div></div>';
 }
 function renderEditor() {
   const E = S.ui.ed, F = E.f, it = E.id ? itemById(E.id) : null;
@@ -194,11 +200,11 @@ ACT.edPhoto = async () => {
     edKeep(); Object.assign(E.photo, { thumb: r.thumb, full: r.full || r.thumb, changed: true, ai: false }); E.dirty = true; renderEditor();
   } catch (e) { toast(errText(e), { bad: true }); }
 };
-ACT.edPhotoOff = () => { edKeep(); Object.assign(S.ui.ed.photo, { img: null, imgFull: null, thumb: null, full: null, changed: true, ai: false }); S.ui.ed.dirty = true; renderEditor(); };
+ACT.edPhotoOff = () => { edKeep(); Object.assign(S.ui.ed.photo, { img: null, imgFull: null, shown: null, shownFull: null, thumb: null, full: null, changed: true, ai: false }); S.ui.ed.dirty = true; renderEditor(); };
 ACT.edPhotoAi = async () => {
   const E = S.ui.ed, key = resolveOpenAIKey(E.ai && E.ai.openai, ''); if (!key) return toast('The photo clean-up needs the OpenAI key (Settings → AI).', { bad: true });
   edKeep();
-  let src = E.photo.full || E.photo.thumb || E.photo.imgFull || E.photo.img;
+  let src = E.photo.full || E.photo.thumb || E.photo.shownFull || E.photo.shown || E.photo.imgFull || E.photo.img;
   E.busy = 'photo'; renderEditor();
   try {
     if (src && !/^data:/.test(src)) src = await urlToDataUrl(src);
@@ -206,7 +212,7 @@ ACT.edPhotoAi = async () => {
     if (!out || !/^data:image\//.test(out)) throw new Error('The AI didn’t send a picture back. Try again.');
     const r = await makeThumbAndFull(out);
     Object.assign(E.photo, { thumb: r.thumb || out, full: r.full || out, changed: true, ai: true }); E.dirty = true;
-  } catch (e) { toast('Photo clean-up: ' + errText(e), { bad: true }); }
+  } catch (e) { toast('Photo clean-up: ' + (e && e.ai ? e.message : errText(e)), { bad: true, ms: e && e.ai ? 12000 : 0 }); }
   E.busy = ''; if (S.ui.ed === E && $('#edName')) renderEditor();
 };
 /* a saved photo (Cloud Storage, or one just picked) as a data URL, for the AI */
@@ -235,7 +241,7 @@ ACT.edLabel = async () => {
     if (Number(r.pkgsPerCase) > 1 && !F.big) { F.big = true; F.buyUnit = 'case'; F.perBuy = String(Math.round(Number(r.pkgsPerCase))); E.sources.forEach(x => { const p = num(x.price); if (p > 0) x.price = String(round2(p * Number(F.perBuy))); }); got.push('case size'); }
     if (s(r.note)) { F.note = F.note ? F.note + (F.note.includes(s(r.note)) ? '' : ' · ' + s(r.note)) : s(r.note); got.push('notes'); }
     /* the label's photo is a fine first photo */
-    if (!E.photo.thumb && !E.photo.img) { const ph = await makeThumbAndFull(d); if (ph.thumb) Object.assign(E.photo, { thumb: ph.thumb, full: ph.full || ph.thumb, changed: true }); }
+    if (!E.photo.thumb && !E.photo.shown && !E.photo.img) { const ph = await makeThumbAndFull(d); if (ph.thumb) Object.assign(E.photo, { thumb: ph.thumb, full: ph.full || ph.thumb, changed: true }); }
     E.dirty = true; toast(got.length ? 'Filled in: ' + got.join(', ') + '. Check it before saving.' : 'The AI couldn’t read much from that photo.', got.length ? {} : { bad: true });
   } catch (e) { toast('Label: ' + errText(e), { bad: true }); }
   E.busy = ''; if (S.ui.ed === E && $('#edName')) renderEditor();
@@ -276,6 +282,8 @@ ACT.edSave = t => {
           const b = E.photo.full && E.photo.full !== E.photo.thumb ? await B.uploadPhoto(id, dataUrlToBlob(E.photo.full), 'full') : a;
           rec.img = a.url; rec.imgFull = b.url;
         } else { rec.img = E.photo.img || null; rec.imgFull = E.photo.imgFull || null; }
+        /* the new photo (or none) is the one shown: an older photo's address or a built-in one would come first otherwise */
+        rec.imgUrl = null; rec.imgFullUrl = null; rec.imgKey = null;
       } else if (!E.id) { rec.img = E.photo.img || null; rec.imgFull = E.photo.imgFull || null; }
       if (E.id) await saveItem(Object.assign({ id }, rec), false);
       else {

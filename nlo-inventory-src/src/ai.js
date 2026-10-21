@@ -467,59 +467,99 @@ function scoreOrderAgainstScan(order, scannedEntries, slipVendor, slipOrderNumbe
   return { score: score, itemHits: itemHits, numHit: numHit, vendorHit: vendorHit };
 }
 
+/* ---------- the product photo clean-up (OpenAI image edits) ----------
+   Amir, 21 Oct 2026: "photo AI enhancer in the inventory is not working anymore, it was connected to CGPT". It asked OpenAI
+   for gpt-image-1, which OpenAI switches off on 23 Oct 2026 (developers.openai.com/api/docs/deprecations). Now it asks for
+   the current models, in this order: GPT Image 2.5 Sunburst (OpenAI's pick where "editing precision matters most": the box
+   has to stay the same SKU), then Flare, then GPT Image 2 — moving on only when the account can't use one (not offered to
+   it, not verified for it, or it turns down a setting); the first that answers is used for the rest of the visit.
+   No DALL-E: it ignored the photo and invented a different-looking product (and OpenAI retired it in May 2026).
+   OpenAI can take up to 2 minutes on one picture, so it waits 2½ (it gave up at 45 s before).
+   Its errors are said in plain words (a key it refuses, no credit left, a spending limit, an organization to verify) and are
+   shown as they are: the database wording in errText() mustn't take over a message that happens to say "permission". */
+const PHOTO_MODELS = ["gpt-image-2.5-sunburst", "gpt-image-2.5-flare", "gpt-image-2"];
+const PHOTO_WAIT_MS = 150000;
+let photoModelOk = null;
+function aiErr(msg) { var e = new Error(msg); e.ai = true; return e; }
+function photoPrompt(productName) {
+  return "Re-shoot this exact product as a clean commercial catalog photo. " +
+    "CRITICAL: keep the product itself faithful to the source image. " +
+    "Preserve the real shape, proportions, silhouette, materials and color of the actual product. " +
+    "Preserve every brand logo, wordmark, label, sticker, printed graphic, model number and barcode exactly as they appear — do not invent, redesign, retranslate, reword, or stylize any text or logos. " +
+    "Preserve the packaging design (box art, pouch print, bottle label, cap color). " +
+    "Only change: the background (make it pure seamless white #ffffff), the lighting (soft studio fill with a subtle directional highlight), any clutter or reflections from the original scene, and the framing (center the product, three-quarter angle, fully visible, small margin on all sides). " +
+    "Straighten the product, remove shadows onto other objects, and give it a tasteful soft contact shadow on the white background. " +
+    "Deep focus across the product. No background blur. No added props, no extra units, no duplicated packaging, no photo-bashing. " +
+    "The result must be instantly recognizable as the SAME SKU pictured. Product name for context: " + (productName || "dental supply product") + ".";
+}
+/* what an OpenAI error means here: { msg, next } — next = this model is out of reach for the account, try the next one */
+function photoErrorInfo(status, err) {
+  err = err || {};
+  var code = String(err.code || ""), type = String(err.type || ""), msg = String(err.message || "").trim();
+  var all = (code + " " + type + " " + msg).toLowerCase();
+  if (status === 401) return { msg: "OpenAI didn’t accept the key in Settings → AI (it may have been deleted or replaced). Make a new key at platform.openai.com → API keys and put it in Settings → AI." };
+  if (code === "moderation_blocked") return { msg: "OpenAI wouldn’t work on this picture. Try another photo of the product." };
+  if (type === "image_generation_user_error") return { msg: "OpenAI couldn’t use this picture" + (msg ? ": " + msg : ". Try another photo of the product.") };
+  if (/spend_limit|usage_limit|hard_limit|hard limit/.test(all)) return { msg: "The OpenAI account reached its spending limit. Raise it at platform.openai.com → Settings → Limits, then try again." };
+  if (code === "credit_balance_exhausted" || /insufficient_quota|current quota|credit/.test(all)) return { msg: "The OpenAI account is out of credit. Add credit at platform.openai.com → Settings → Billing, then try again." };
+  if (status === 429) return { msg: "OpenAI is busy right now. Wait a minute and try again." };
+  if (status === 403 && /verif/.test(all)) return { msg: "OpenAI wants the organization verified before it makes pictures: platform.openai.com → Settings → General → Verify Organization. Then try again.", next: true, verify: true };
+  if (status === 400 || status === 403 || status === 404) return { msg: "OpenAI said: " + (msg || "error " + status), next: true };
+  if (status >= 500) return { msg: "OpenAI had a problem on its side. Try again in a minute.", next: true };
+  return { msg: "OpenAI said: " + (msg || "error " + status) };
+}
+/* the picture's own type, from its first bytes (what was asked for isn't always what comes back) */
+function b64ImageType(b64) {
+  var s = String(b64 || "");
+  if (s.indexOf("iVBORw0KGgo") === 0) return "image/png";
+  if (s.indexOf("/9j/") === 0) return "image/jpeg";
+  if (s.indexOf("UklGR") === 0) return "image/webp";
+  return "image/jpeg";
+}
 // Generates a studio-quality product photo from a snapshot
 async function aiGenerateProductPhoto(imageDataUrl, productName, apiKey) {
-  if (!apiKey) throw new Error("No API key configured");
+  if (!apiKey) throw aiErr("The photo clean-up needs the OpenAI key (Settings → AI).");
   if (/^AIza/i.test((apiKey || "").trim())) {
-    throw new Error("Photo Studio needs an OpenAI key (starts with sk-), but a Gemini key (AIza...) was provided.");
+    throw aiErr("The photo clean-up needs an OpenAI key (it starts with sk-), but a Gemini key (AIza…) was given.");
   }
-  // Use GPT-4o image generation (images endpoint with DALL-E 3)
-  var t = withTimeout(45000);
-  var resp;
-  try {
-    resp = await fetch("https://api.openai.com/v1/images/edits", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + apiKey },
-      signal: t.signal,
-      body: await (async function() {
-        // the data URL as a file (fetch() of a data: URL is blocked by this page's security rules)
-        var blob = dataUrlToBlob(await ensureJpeg(imageDataUrl));
-        var fd = new FormData();
-        fd.append("image", blob, /png/.test(blob.type) ? "product.png" : "product.jpg");
-        fd.append("prompt",
-          "Re-shoot this exact product as a clean commercial catalog photo. " +
-          "CRITICAL: keep the product itself faithful to the source image. " +
-          "Preserve the real shape, proportions, silhouette, materials and color of the actual product. " +
-          "Preserve every brand logo, wordmark, label, sticker, printed graphic, model number and barcode exactly as they appear — do not invent, redesign, retranslate, reword, or stylize any text or logos. " +
-          "Preserve the packaging design (box art, pouch print, bottle label, cap color). " +
-          "Only change: the background (make it pure seamless white #ffffff), the lighting (soft studio fill with a subtle directional highlight), any clutter or reflections from the original scene, and the framing (center the product, three-quarter angle, fully visible, small margin on all sides). " +
-          "Straighten the product, remove shadows onto other objects, and give it a tasteful soft contact shadow on the white background. " +
-          "Deep focus across the product. No background blur. No added props, no extra units, no duplicated packaging, no photo-bashing. " +
-          "The result must be instantly recognizable as the SAME SKU pictured. Product name for context: " + (productName || "dental supply product") + ".");
-        fd.append("model", "gpt-image-1");
-        fd.append("size", "1024x1024");
-        fd.append("quality", "high");
-        return fd;
-      }())
-    });
-  } catch (e) {
-    if (e && e.name === "AbortError") throw new Error("OpenAI image request timed out after 45s.");
-    if (e instanceof TypeError) throw new Error("Network/CORS error calling OpenAI. Run this app from a local server instead of opening the HTML file directly.");
-    throw e;
-  } finally {
-    t.done();
-  }
-  if (!resp.ok) {
+  // the data URL as a file (fetch() of a data: URL is blocked by this page's security rules)
+  var file = dataUrlToBlob(await ensureJpeg(imageDataUrl));
+  var name = /png/.test(file.type) ? "product.png" : /webp/.test(file.type) ? "product.webp" : "product.jpg";
+  var models = photoModelOk ? [photoModelOk].concat(PHOTO_MODELS.filter(function(m) { return m !== photoModelOk; })) : PHOTO_MODELS.slice();
+  var first = null, verify = null;
+  for (var i = 0; i < models.length; i++) {
+    var fd = new FormData();
+    fd.append("image", file, name);
+    fd.append("prompt", photoPrompt(productName));
+    fd.append("model", models[i]);
+    fd.append("size", "1024x1024");
+    fd.append("quality", "high");
+    fd.append("output_format", "jpeg");
+    var t = withTimeout(PHOTO_WAIT_MS), resp;
+    try {
+      resp = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + apiKey }, signal: t.signal, body: fd });
+    } catch (e) {
+      if (e && e.name === "AbortError") throw aiErr("OpenAI didn’t finish within 2½ minutes. Try again.");
+      if (e instanceof TypeError) throw aiErr("OpenAI couldn’t be reached. Check the internet connection and try again.");
+      throw e;
+    } finally {
+      t.done();
+    }
+    if (resp.ok) {
+      var data = await resp.json().catch(function() { return null; });
+      var b64 = data && data.data && data.data[0] && data.data[0].b64_json;
+      if (!b64) throw aiErr("OpenAI didn’t send a picture back. Try again.");
+      photoModelOk = models[i];
+      return "data:" + b64ImageType(b64) + ";base64," + b64;
+    }
     var errData = await resp.json().catch(function() { return {}; });
-    /* no fallback to DALL-E: it ignores the photo and invents a different-looking product */
-    throw new Error(errData.error?.message || "Image edit failed");
+    var info = photoErrorInfo(resp.status, errData && errData.error);
+    console.warn("[photo clean-up]", models[i], resp.status, errData && errData.error);
+    if (!info.next) throw aiErr(info.msg);
+    if (!first) first = info.msg;
+    if (info.verify && !verify) verify = info.msg;
   }
-  var data = await resp.json();
-  // gpt-image-1 returns b64_json
-  if (data.data?.[0]?.b64_json) {
-    return "data:image/png;base64," + data.data[0].b64_json;
-  }
-  return data.data?.[0]?.url || null;
+  throw aiErr(verify || first || "OpenAI couldn’t make the picture. Try again.");
 }
 
 
