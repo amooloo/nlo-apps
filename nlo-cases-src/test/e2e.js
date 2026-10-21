@@ -213,7 +213,7 @@ async function openByName(p, name) {
   const seenCopy = async () => { for (let i = 0; i < 60; i++) { const d = (await fsDump(['msgSeen'])).find(x => x.name.endsWith('/msgSeen/' + ownerSid)); if (d) return d; await sleep(250); } return null; };
   const unread = p => p.evaluate(() => msgUnread());
   const waitUnread = (p, n) => p.waitForFunction(n => msgUnread() === n, n, { timeout: 15000 }).catch(() => {});
-  check(await owner.evaluate(() => S.rulesLv === 4 && MSYNC.on), 'the newest rules are live: Dr. A’s read marks are kept in his own copy as well');
+  check(await owner.evaluate(() => S.rulesLv >= 4 && MSYNC.on), 'the newest rules are live: Dr. A’s read marks are kept in his own copy as well');
   const sd = await seenCopy();
   check(!!sd && Object.keys(sd.fields).sort().join() === 'at,ct,iv,v' && sd.fields.v.integerValue === '1', 'his copy is in the office database, sealed with the office key (v, iv, ct, at — nothing else)');
   check(!!p1Id && !JSON.stringify(await fsDump(['msgSeen'])).includes(p1Id), '…it doesn’t even say which cases (no case id in the clear)');
@@ -1144,7 +1144,7 @@ async function openByName(p, name) {
   check(await owner.evaluate(() => stageFromSection('marpe', 'Hold (CBCT/Zoom)') === 'records' && stageFromSection('marpe', 'Submitted') === 'submitted' && stageFromSection('marpe', 'Manufacturing') === 'approved'
     && caseFromAsana({ name: 'Test Person - MARPE', section: 'To Submit', notes: '' }, 'Appliance', []).type === 'marpe' && caseFromAsana({ name: 'Test Person - Herbst', section: 'To Submit', notes: '' }, 'Appliance', []).type === 'appliance'), 'Asana import: MARPE tasks in the Appliance project become MARPE cases at the matching step');
   check(await owner.evaluate(() => stageFromSection('marpe', 'Checked into Milestones') === 'milestones' && stageFromSection('retainer', 'Milestones') === 'pickup'
-    && liveStage({ type: 'retainer', stage: 'milestones' }) === 'pickup' && caseStages({ type: 'retainer' }).map(s => s[0]).join(',') === 'print,printing,pickup,checkedin'
+    && liveStage({ type: 'retainer', stage: 'milestones' }) === 'pickup' && caseStages({ type: 'retainer' }).map(s => s[0]).join(',') === 'print,printing,finishing,pickup,checkedin'
     && caseStages({ type: 'nla' }).map(s => s[0]).slice(-2).join(',') === 'pack,checkedin' && caseStages({ type: 'nla', shipToPatient: true }).map(s => s[0]).slice(-3).join(',') === 'pack,shipped,checkedin'
     && caseStages({ type: 'models' }).map(s => s[1]).slice(-1)[0] === 'Ready'),
     'every case but study models ends at Checked into Milestones; a retainer saved at the old Milestones step (before pickup) shows at Front desk pickup; Asana’s sections map to match');
@@ -1615,6 +1615,8 @@ async function openByName(p, name) {
       const mk = o => B.createCase(Object.assign({ comments: [], createdAt: Date.now(), createdBy: meSid(), type: 'nla', initial: 'yes' }, o));
       await mk({ patient: 'Lumen Printwell', chart: '61-0001', stage: 'txp', scanDate: addDays(todayISO(), -6) });
       await mk({ patient: 'Tess Trimbright', chart: '61-0002', stage: 'print', scanDate: addDays(todayISO(), -9), alU: 6, alL: 6, aligners: 12, atTemplates: 'UL' });
+      // whitening trays waiting at To make: the Tray Maker's order for them (below) moves the case to Printing, and isn't asked about on Today
+      await mk({ patient: 'Willa Whitener', chart: '61-0003', type: 'retainer', initial: '', arches: ['Upper', 'Lower'], retKinds: ['WT’s'], stage: 'print', scanDate: addDays(todayISO(), -1) });
     });
     await owner.click('#nav-admin'); await owner.waitForSelector('#labAdmin [data-act=labSetup]', { timeout: 20000 });
     await owner.click('#labAdmin [data-act=labSetup]'); await owner.click('#cbYes');
@@ -1638,10 +1640,12 @@ async function openByName(p, name) {
       const dir = path.join(base, folder); fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, id + '_1_Order.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<OrderData Type="Titan_Angled">\n  <Patient Firstname="' + first + '" Lastname="' + last + '" ID="' + id + '" DueDate="20261020" />\n' + body + '\n</OrderData>\n');
     };
-    const t0 = Date.now(), fL = folderAt(t0 - 2 * 3600e3, 'Lumen Printwell'), fT = folderAt(t0 - 26 * 3600e3, 'Tess Trimbright'), fO = folderAt(t0 - 5 * 3600e3, 'Otto Unplaced');
+    const t0 = Date.now(), fL = folderAt(t0 - 2 * 3600e3, 'Lumen Printwell'), fT = folderAt(t0 - 26 * 3600e3, 'Tess Trimbright'), fO = folderAt(t0 - 5 * 3600e3, 'Otto Unplaced'), fW = folderAt(t0, 'Willa Whitener'); // (sent after her case was entered)
     writeOrder(labData, fL, '91001', 'Lumen', 'Printwell', 'A', Array(10).fill(0), Array(8).fill(0), [['U', 0], ['L', 0]]);
     writeOrder(labData, fT, '91002', 'Tess', 'Trimbright', 'C', [2, 1, 1, 0, 0, 0], [2, 2, 1, 0, 0, 0]);
     writeOrder(finBase, fO, '91003', 'Otto', 'Unplaced', 'A', [1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 0, 0]);
+    // the Tray Maker's order (nlo-bleachtray orderfolder.py): its own 9-digit number, upper and lower whitening trays TU0A / TL0A
+    writeOrder(labData, fW, '125310050', 'Willa', 'Whitener', 'A', [], [], [['U', 0], ['L', 0]]);
     fs.mkdirSync(path.join(labData, 'DreamAlign working folder')); // (not an order)
     const ps = (...a) => { try { return execFileSync('pwsh', ['-NoProfile', '-File', path.join(__dirname, '..', 'lab', 'nlo-lab-bridge.ps1')].concat(a, ['-DataDir', labData, '-AppDir', labApp, '-TestPlain']),
       { env: Object.assign({}, process.env, { NLO_LAB_TEST_PLAIN: '1', NO_PROXY: 'localhost,127.0.0.1', no_proxy: 'localhost,127.0.0.1' }), encoding: 'utf8', timeout: 120000 }); }
@@ -1649,15 +1653,23 @@ async function openByName(p, name) {
     const inst = ps('-Install', '-Code', labCode);
     check(/Encryption check: OK/.test(inst) && /Signed in to NLO Cases: OK/.test(inst), 'the script checks its encryption on this computer and signs in with the setup code (-Install)' + (/Signed in/.test(inst) ? '' : ' — ' + inst.slice(-400)));
     const dry = ps('-DryRun');
-    check(/Orders in .*: 3 \(3 changed/.test(dry) && /91002C\s+Tess Trimbright .* at trimmer 6\/12 .* trimmed 3\/12/.test(dry) && /upper -211000\s+lower -221000/.test(dry), 'a dry run reads the 3 orders (one from the Finished folder), each aligner’s trim step too, and sends nothing');
+    check(/Orders in .*: 4 \(4 changed/.test(dry) && /91002C\s+Tess Trimbright .* at trimmer 6\/12 .* trimmed 3\/12/.test(dry) && /upper -211000\s+lower -221000/.test(dry), 'a dry run reads the 4 orders (one from the Finished folder, one the Tray Maker’s), each aligner’s trim step too, and sends nothing');
     const once = ps('-Once');
-    check(/Sent 3 order updates/.test(once), 'one pass sends the 3 orders, sealed (' + ((once.match(/Sent[^\n]*/) || [once.slice(-300)])[0]) + ')');
+    check(/Sent 4 order updates/.test(once), 'one pass sends the 4 orders, sealed (' + ((once.match(/Sent[^\n]*/) || [once.slice(-300)])[0]) + ')');
     await owner.waitForFunction(() => { const c = n => openCases().find(x => x.patient === n); const a = c('Lumen Printwell'), b = c('Tess Trimbright'); return !!(a && b && a.labOrd && b.labOrd && b.labOrd.a.trimmed === 3); }, null, { timeout: 40000 }).catch(() => {});
     const lp = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Lumen Printwell'); return c && c.labOrd ? { key: c.labOrd.key, alU: c.alU, alL: c.alL, n: c.aligners, at: c.atTemplates, sug: (labSuggest(c) || {}).to } : null; });
     check(lp && lp.key === '91001A' && lp.alU === 10 && lp.alL === 8 && lp.n === 18 && lp.at === 'UL' && lp.sug === 'send', 'the export fills in the counts nobody typed (U 10 · L 8, templates upper & lower) and offers Ready to print (' + JSON.stringify(lp) + ')');
     const tt = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Tess Trimbright'); return c && c.labOrd ? { a: c.labOrd.a, lv: c.labOrd.lv, alU: c.alU, sug: (labSuggest(c) || {}).to } : null; });
     check(tt && tt.a.n === 12 && tt.a.atTrimmer === 6 && tt.a.trimmed === 3 && tt.lv.au === '-211000' && tt.lv.al === '-221000' && tt.alU === 6 && tt.sug === 'trim',
       'a set part-trimmed: every aligner’s trim step comes along (U1 trimmed, U2–3 at the trimmer), the typed counts stay, and the first ones at the trimmer → it offers Trimming');
+    // Amir, 20 Oct 2026: the Tray Maker's retainer / whitening orders were asked about on Today as "didn't match an open in-house case"
+    await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Willa Whitener'); return c && c.stage === 'printing'; }, null, { timeout: 30000 }).catch(() => {});
+    const wl = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Willa Whitener'); return c ? { stage: c.stage, bt: c.btModels, lab: c.labOrd || null } : null; });
+    check(wl && wl.stage === 'printing' && wl.bt && wl.bt.how === 'orthofactory' && JSON.stringify(wl.bt.models) === '["upper WT","lower WT"]' && !wl.lab,
+      'the Tray Maker’s whitening-tray order (its own number, TU0/TL0): the lab PC seeing it in Ortho Factory moves Willa’s case from To make to Printing (' + JSON.stringify(wl) + ')');
+    await openByName(owner, 'Willa Whitener'); await owner.waitForSelector('#histBox .hist:has-text("Lab PC")', { timeout: 20000 });
+    check(/Lab PC saw the Tray Maker’s models in OrthoFactory \(upper WT, lower WT\) and moved it to Printing/.test(await owner.textContent('#histBox')), 'history: “Lab PC saw the Tray Maker’s models in OrthoFactory (upper WT, lower WT) and moved it to Printing”');
+    await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
     await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
     const lCard = '.kc:has-text("Lumen Printwell")', tCard = '.kc:has-text("Tess Trimbright")';
     await owner.waitForSelector(lCard + ' .labGo:has-text("Ready to print")', { timeout: 20000 });
@@ -1677,9 +1689,9 @@ async function openByName(p, name) {
       'history: the Lab PC found the order and filled in the counts; the move says it was the lab PC’s suggestion');
     await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
     await owner.click('#nav-today'); await owner.waitForSelector('#labCard .mlRow:has-text("Otto Unplaced")', { timeout: 20000 });
-    check(/6 of 12 stickers printed/.test(await owner.textContent('#labCard')) && (await owner.locator('#labCard .mlRow').count()) === 1, 'Today: only the order it couldn’t place asks which case it is (Otto Unplaced, read from the Finished folder — 6 of 12 stickers printed)');
+    check(/6 of 12 stickers printed/.test(await owner.textContent('#labCard')) && (await owner.locator('#labCard .mlRow').count()) === 1 && !/Willa|Whitener/.test(await owner.textContent('#labCard')), 'Today: only the order it couldn’t place asks which case it is (Otto Unplaced, read from the Finished folder — 6 of 12 stickers printed); not the Tray Maker’s');
     dump = JSON.stringify(await fsDump());
-    { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Printwell|Trimbright|Unplaced|91001A|91002C|-211000/.exec(plain);
+    { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Printwell|Trimbright|Unplaced|Whitener|91001A|91002C|125310050|-211000/.exec(plain);
       check(!lk, 'no patient name, order # or progress is readable anywhere in the database' + (lk ? ' — found “' + lk[0] + '”' : '')); }
     await owner.click('#labCard [data-act=labSkip]');
     await owner.waitForFunction(async () => !document.querySelector('#labCard') && (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
@@ -1715,7 +1727,7 @@ async function openByName(p, name) {
     const rk = await fetch(`http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/meta/inboxKey`, { headers: { Authorization: 'Bearer ' + lt } });
     check(rd.status === 403 && rk.status === 403, 'the lab PC’s login can’t read the cases or the inbox key (' + rd.status + ', ' + rk.status + ')');
     await owner.click('#nav-admin'); await owner.waitForSelector('#labAdmin .mlBeat:has-text("Lab PC")', { timeout: 20000 });
-    check(/3 orders in Ortho Factory · 4 updates sent today/.test(await owner.textContent('#labAdmin')) && !(await owner.isVisible('#mailAdmin .mlBeat:has-text("Lab PC")')), 'Team & security shows the lab PC’s check-in under Lab PC (not under Email updates)');
+    check(/4 orders in Ortho Factory · 5 updates sent today/.test(await owner.textContent('#labAdmin')) && !(await owner.isVisible('#mailAdmin .mlBeat:has-text("Lab PC")')), 'Team & security shows the lab PC’s check-in under Lab PC (not under Email updates)');
     await owner.click('#labAdmin [data-act=labOff]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("Lab PC turned off")', { timeout: 20000 });
     await owner.waitForSelector('#labAdmin [data-act=labSetup]:has-text("Set up the lab PC")', { timeout: 20000 });
     writeOrder(labData, folderAt(Date.now(), 'Nova Afteroff'), '91009', 'Nova', 'Afteroff', 'A', [0, 0], [0, 0]); // a brand-new order (always tried)
@@ -2138,7 +2150,7 @@ async function openByName(p, name) {
   await putRules(await owner.evaluate(() => navigator.clipboard.readText()));
   await owner.click('#rulesCard [data-act=rulesCheck]'); await owner.waitForSelector('.toast:has-text("up to date")', { timeout: 15000 });
   await owner.waitForSelector('#rulesCard', { state: 'detached', timeout: 10000 });
-  check(await owner.evaluate(() => S.rulesLv === 4 && MSYNC.on && !S.rulesMsg), 'published: read marks are kept in his copy again, without signing in again');
+  check(await owner.evaluate(() => S.rulesLv >= 4 && MSYNC.on && !S.rulesMsg), 'published: read marks are kept in his copy again, without signing in again');
   let carried = false; for (let i = 0; i < 40 && !carried; i++) { carried = await owner.evaluate(async () => { const o = await FB.msgSeenSave(() => null); return !!(o && o.r && o.r['e2eCase/e2eNote'] > 0); }); if (!carried) await sleep(250); }
   check(carried, '…including the one read while they waited: carried into his copy');
 
@@ -2154,7 +2166,7 @@ async function openByName(p, name) {
   await putRules(await owner.evaluate(() => navigator.clipboard.readText()));
   await owner.click('#rulesCard [data-act=rulesCheck]'); await owner.waitForSelector('.toast:has-text("up to date")', { timeout: 15000 });
   await owner.waitForSelector('#rulesCard', { state: 'detached', timeout: 10000 });
-  check(await owner.evaluate(() => S.rulesLv === 4 && MSYNC.on && !S.rulesMail && !/Publish the new security rules first/.test((() => { const was = MAILS.state; MAILS.state = { on: true, beats: [], pub: {} }; const h = nsAdminHTML(); MAILS.state = was; return h; })())), 'published: the card goes, and the front-desk email can be turned on');
+  check(await owner.evaluate(() => S.rulesLv >= 4 && MSYNC.on && !S.rulesMail && !/Publish the new security rules first/.test((() => { const was = MAILS.state; MAILS.state = { on: true, beats: [], pub: {} }; const h = nsAdminHTML(); MAILS.state = was; return h; })())), 'published: the card goes, and the front-desk email can be turned on');
 
   console.log('\n# Older security rules: the set live on 4 Oct (no patient index yet) — everything works; the card hands out the newer ones');
   await putRules(fs.readFileSync(path.join(__dirname, 'rules-1004.rules'), 'utf8'));

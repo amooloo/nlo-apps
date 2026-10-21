@@ -824,7 +824,7 @@ function stageMarks(c) {
   // the case changed after this copy of its history was read (it's being read again): no marks until then, rather than wrong ones —
   // unless it's still at the same step (a note, a sticker, an edit): the marks it had still hold, and stay on screen meanwhile
   if (S.histRev !== c.rev) { const k = S.marksKeep; return k && k.id === c.id && k.stage === c.stage ? k.m : {}; }
-  const moved = x => x && x.to && (x.a === 'stage' || x.a === 'email' || (x.a === 'edit' && (x.fields || []).includes('stage')));
+  const moved = x => x && x.to && (x.a === 'stage' || x.a === 'email' || x.a === 'bt' || (x.a === 'edit' && (x.fields || []).includes('stage'))); // (bt: the Tray Maker's models moved it — traymaker.js)
   const first = L.find(moved), born = L.find(x => x.a === 'create' || x.a === 'import' || x.a === 'restore'), start = first ? first.from : c.stage;
   // (h: the history entry, for a sticker on the step — stickers.js)
   if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '', h: stkHKey(born), born: true };
@@ -833,14 +833,14 @@ function stageMarks(c) {
     if (!moved(x)) return;
     const a = pos(x.from), b = pos(x.to);
     if (a >= 0 && b >= 0 && b < a) { ks.slice(b + 1).forEach(k => { delete out[k]; }); if (out[x.to]) return; } // (a move back)
-    out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '', h: stkHKey(x) };
+    out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.a === 'bt' ? (x.lab ? 'labpc' : 'traymaker') : x.sid || '', h: stkHKey(x) };
   });
   S.marksKeep = { id: c.id, stage: c.stage, m: out };
   return out;
 }
 function stageMarkHTML(m) {
   if (!m || !m.at) return '<span class="stWhen"></span>';
-  const who = m.by === 'email' ? 'lab email' : m.by === 'asana' ? 'Asana' : m.by ? noteWho({ by: m.by }) : '';
+  const who = m.by === 'email' ? 'lab email' : m.by === 'asana' ? 'Asana' : m.by === 'traymaker' ? 'Tray Maker' : m.by === 'labpc' ? 'Lab PC' : m.by ? noteWho({ by: m.by }) : '';
   const day = new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   return '<span class="stWhen" title="' + esc(fmtWhen(m.at) + (who ? ' · ' + who : '')) + '">' + esc(day + (who ? ' · ' + who : '')) + '</span>';
 }
@@ -1511,7 +1511,7 @@ function historyHTML(c) {
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : x.via === 'print' ? ', as Formlabs suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
-    else if (x.a === 'bt') t = (x.how === 'printer' ? 'sent the models to the printer' : 'put the models in OrthoFactory') + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : '') + (x.to ? ' and moved it to ' + stageName(x.to) : ''); // (traymaker.js)
+    else if (x.a === 'bt') t = (x.lab ? 'saw the Tray Maker’s models in OrthoFactory' : x.how === 'printer' ? 'sent the models to the printer' : 'put the models in OrthoFactory') + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : '') + (x.to ? ' and moved it to ' + stageName(x.to) : ''); // (traymaker.js)
     else if (x.a === 'print') t = prHistText(x); // (prints.js)
     else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
@@ -1526,7 +1526,7 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'bt' ? 'Tray Maker' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'bt' ? (x.lab ? 'Lab PC' : 'Tray Maker') : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
     // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
     const sk = stkHistHTML(c, x, t);
     return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';
@@ -2386,10 +2386,13 @@ window.addEventListener('message', async ev => {
   const m = ev.data; if (!m || m.nlo !== 'bleachtray' || !/^http:\/\/[^/]+:8765$/i.test(ev.origin)) return;
   const c = findCase(m.case); if (!c) return;
   if (m.event === 'sent') {
-    const at = Date.now(), models = Array.isArray(m.models) ? m.models.map(x => String(x).slice(0, 20)).slice(0, 8) : [];
-    c.btModels = { at, models }; queueRender(); if (S.openId === c.id) renderDrawer();
-    try { await B.mutateCase(c.id, d => { d.btModels = { at, models }; }, { a: 'edit', fields: ['btModels'] }); toast('Models for ' + ptNameText(c.patient) + ' are in OrthoFactory — noted on the case'); }
-    catch (e) { toast(errText(e), { bad: true }); }
-    if (S.openId === c.id && !S.editing) loadHistory(c.id);
+    // a Tray Maker linked here tells the case itself, with its sealed note (traymaker.js): that note moves it to Printing. This
+    // message used to note the models first, which made the note look old - it was dropped and the case stayed at To make (20 Oct
+    // 2026). Without a link it's only noted (`tab`) - the lab PC seeing the order in OrthoFactory moves the case (lab.js tmMatch)
+    if (await tmKey()) return;
+    const at = Date.now(), models = Array.isArray(m.models) ? m.models.map(x => plainStr(x).slice(0, 20)).filter(Boolean).slice(0, 8) : [];
+    const ok = x => { const b = x.btModels; return !(b && b.at && (b.at >= at || (b.how && !b.tab && at - b.at < 10 * 60e3))); }; // (its note, just before)
+    try { await tmNoted(c.id, { at, models, how: 'orthofactory', tab: 1 }, { tab: 1 }, ok, true); toast('Models for ' + ptNameText(c.patient) + ' are in OrthoFactory — noted on the case'); }
+    catch (e) { if (!(e && (e.code === 'skip' || e.code === 'gone'))) toast(errText(e), { bad: true }); }
   }
 });

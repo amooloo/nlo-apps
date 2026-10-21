@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-f6UnJWl807Ywa9u3lyYDqM6FoZhw7CqnPO0GqIws1ok=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-EACpAGgJHZX8OMx/C8yIl/pczonBFuca2SVqnL3NMSY=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4858,7 +4858,7 @@ function stageMarks(c) {
   // the case changed after this copy of its history was read (it's being read again): no marks until then, rather than wrong ones —
   // unless it's still at the same step (a note, a sticker, an edit): the marks it had still hold, and stay on screen meanwhile
   if (S.histRev !== c.rev) { const k = S.marksKeep; return k && k.id === c.id && k.stage === c.stage ? k.m : {}; }
-  const moved = x => x && x.to && (x.a === 'stage' || x.a === 'email' || (x.a === 'edit' && (x.fields || []).includes('stage')));
+  const moved = x => x && x.to && (x.a === 'stage' || x.a === 'email' || x.a === 'bt' || (x.a === 'edit' && (x.fields || []).includes('stage'))); // (bt: the Tray Maker's models moved it — traymaker.js)
   const first = L.find(moved), born = L.find(x => x.a === 'create' || x.a === 'import' || x.a === 'restore'), start = first ? first.from : c.stage;
   // (h: the history entry, for a sticker on the step — stickers.js)
   if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '', h: stkHKey(born), born: true };
@@ -4867,14 +4867,14 @@ function stageMarks(c) {
     if (!moved(x)) return;
     const a = pos(x.from), b = pos(x.to);
     if (a >= 0 && b >= 0 && b < a) { ks.slice(b + 1).forEach(k => { delete out[k]; }); if (out[x.to]) return; } // (a move back)
-    out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '', h: stkHKey(x) };
+    out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.a === 'bt' ? (x.lab ? 'labpc' : 'traymaker') : x.sid || '', h: stkHKey(x) };
   });
   S.marksKeep = { id: c.id, stage: c.stage, m: out };
   return out;
 }
 function stageMarkHTML(m) {
   if (!m || !m.at) return '<span class="stWhen"></span>';
-  const who = m.by === 'email' ? 'lab email' : m.by === 'asana' ? 'Asana' : m.by ? noteWho({ by: m.by }) : '';
+  const who = m.by === 'email' ? 'lab email' : m.by === 'asana' ? 'Asana' : m.by === 'traymaker' ? 'Tray Maker' : m.by === 'labpc' ? 'Lab PC' : m.by ? noteWho({ by: m.by }) : '';
   const day = new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   return '<span class="stWhen" title="' + esc(fmtWhen(m.at) + (who ? ' · ' + who : '')) + '">' + esc(day + (who ? ' · ' + who : '')) + '</span>';
 }
@@ -5545,7 +5545,7 @@ function historyHTML(c) {
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : x.via === 'print' ? ', as Formlabs suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
-    else if (x.a === 'bt') t = (x.how === 'printer' ? 'sent the models to the printer' : 'put the models in OrthoFactory') + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : '') + (x.to ? ' and moved it to ' + stageName(x.to) : ''); // (traymaker.js)
+    else if (x.a === 'bt') t = (x.lab ? 'saw the Tray Maker’s models in OrthoFactory' : x.how === 'printer' ? 'sent the models to the printer' : 'put the models in OrthoFactory') + (Array.isArray(x.models) && x.models.length ? ' (' + x.models.join(', ') + ')' : '') + (x.to ? ' and moved it to ' + stageName(x.to) : ''); // (traymaker.js)
     else if (x.a === 'print') t = prHistText(x); // (prints.js)
     else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
@@ -5560,7 +5560,7 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'bt' ? 'Tray Maker' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'bt' ? (x.lab ? 'Lab PC' : 'Tray Maker') : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
     // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
     const sk = stkHistHTML(c, x, t);
     return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';
@@ -6420,11 +6420,14 @@ window.addEventListener('message', async ev => {
   const m = ev.data; if (!m || m.nlo !== 'bleachtray' || !/^http:\/\/[^/]+:8765$/i.test(ev.origin)) return;
   const c = findCase(m.case); if (!c) return;
   if (m.event === 'sent') {
-    const at = Date.now(), models = Array.isArray(m.models) ? m.models.map(x => String(x).slice(0, 20)).slice(0, 8) : [];
-    c.btModels = { at, models }; queueRender(); if (S.openId === c.id) renderDrawer();
-    try { await B.mutateCase(c.id, d => { d.btModels = { at, models }; }, { a: 'edit', fields: ['btModels'] }); toast('Models for ' + ptNameText(c.patient) + ' are in OrthoFactory — noted on the case'); }
-    catch (e) { toast(errText(e), { bad: true }); }
-    if (S.openId === c.id && !S.editing) loadHistory(c.id);
+    // a Tray Maker linked here tells the case itself, with its sealed note (traymaker.js): that note moves it to Printing. This
+    // message used to note the models first, which made the note look old - it was dropped and the case stayed at To make (20 Oct
+    // 2026). Without a link it's only noted (`tab`) - the lab PC seeing the order in OrthoFactory moves the case (lab.js tmMatch)
+    if (await tmKey()) return;
+    const at = Date.now(), models = Array.isArray(m.models) ? m.models.map(x => plainStr(x).slice(0, 20)).filter(Boolean).slice(0, 8) : [];
+    const ok = x => { const b = x.btModels; return !(b && b.at && (b.at >= at || (b.how && !b.tab && at - b.at < 10 * 60e3))); }; // (its note, just before)
+    try { await tmNoted(c.id, { at, models, how: 'orthofactory', tab: 1 }, { tab: 1 }, ok, true); toast('Models for ' + ptNameText(c.patient) + ' are in OrthoFactory — noted on the case'); }
+    catch (e) { if (!(e && (e.code === 'skip' || e.code === 'gone'))) toast(errText(e), { bad: true }); }
   }
 });
 
@@ -6847,7 +6850,7 @@ function stkTilt(id) { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.
 function stkHKey(x) { return x && x.rev ? 'h:' + x.rev : x && x.at ? 'h:t' + x.at : ''; }
 /* who did it, when it was a person (not a lab email, the lab PC's readings, the printer's or the Asana import) */
 function stkDoer(x) {
-  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship', 'print'].includes(x.a)) return '';
+  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship', 'print', 'bt'].includes(x.a)) return ''; // (bt: the Tray Maker's, traymaker.js)
   if (x.a === 'lab' && !x.hand && !x.unlink && !x.relink) return '';
   return staff(x.sid) ? x.sid : '';
 }
@@ -8719,8 +8722,8 @@ const ADMIN_ACTS = {
       // (a print starting isn't either: how it ended is — "Formlabs", prints.js)
       const labHand = x => x.a === 'lab' && (x.hand || x.unlink || x.relink);
       box.innerHTML = list.filter(x => x.a !== 'rekey' && x.a !== 'sticker' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length) && !(x.a === 'print' && (x.st === 'run' || x.st === 'pause'))).slice(0, 80).map(x => {
-        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : x.a === 'bt' ? 'Tray Maker' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to', noship: 'emailed the front desk about', print: x.st === 'fail' ? 'reported an aborted print for' : 'finished a print for' }[x.a] || x.a;
+        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : x.a === 'bt' ? (x.lab ? 'Lab PC' : 'Tray Maker') : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : firstName(staffName(x.sid, x.sid));
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to', noship: 'emailed the front desk about', bt: x.lab ? 'found in OrthoFactory the Tray Maker’s models for' : x.how === 'printer' ? 'sent to the printer the models for' : 'put in OrthoFactory the models for', print: x.st === 'fail' ? 'reported an aborted print for' : 'finished a print for' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
@@ -9638,9 +9641,11 @@ async function mailSync() {
         else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
       } catch (e) { if (window.console) console.warn('email update:', e && e.message); if (old) await B.inboxDelete(d.id).catch(() => { }); } // (one item that fails doesn't stop the rest)
     }
-    let labSig = ''; try { labSig = await labSync(labDocs, open, closed, mem); } catch (e) { if (window.console) console.warn('lab progress:', e && e.message); }
-    if (prDocs.length) { try { (await prSync(prDocs, open)).unread.forEach(x => unread.push(x)); } catch (e) { if (window.console) console.warn('prints:', e && e.message); } }
+    // the Tray Maker's notes before the lab PC's orders: a case its note moves on is past To make when the lab PC's report of the
+    // same order is read (lab.js tmMatch), so that one changes nothing more
     if (btDocs.length) { try { await tmSync(btDocs, open, closed); } catch (e) { if (window.console) console.warn('tray maker:', e && e.message); } }
+    let labSig = ''; try { labSig = await labSync(labDocs, openCases(), closed, mem); } catch (e) { if (window.console) console.warn('lab progress:', e && e.message); }
+    if (prDocs.length) { try { (await prSync(prDocs, open)).unread.forEach(x => unread.push(x)); } catch (e) { if (window.console) console.warn('prints:', e && e.message); } }
     const list = Array.from(groups.values()).filter(g => !MAILS.goneFp.has(g.fp)).sort((a, b) => (b.ev.at || 0) - (a.ev.at || 0));
     MAILS.list = list; MAILS.unread = unread;
     const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length + '|' + labSig;
@@ -9937,6 +9942,9 @@ Object.assign(ADMIN_ACTS, {
    the order it was linked to before, else the name — keeps the progress on the case (sealed with the rest), fills in the set's
    aligner counts from the export when nobody typed them, and offers the matching step with one tap: Dr. A's "suggest, one tap
    to confirm" — nothing moves by itself. An order it can't place waits on Today for someone to pick the case.
+   The Tray Maker's orders (retainers, whitening trays, mouthguards — 20 Oct 2026, tmKind / tmMatch below) belong to those cases,
+   not to an in-house set: they're never asked about on Today, and the lab PC seeing one moves its case on from To make to Printing
+   when the Tray Maker's own note hasn't (traymaker.js), as Amir asked of a Send to OrthoFactory.
    ===================================================================== */
 const LAB_BOT = 'labbot.'; // the lab PC's robot login (its email starts with this; the email robot's with "mailbot.")
 const LAB_V = 2; // the lab PC's message format this app reads (trim-centric; a newer script's messages wait, a month, for a newer app)
@@ -9987,7 +9995,79 @@ function labDateOk(c, o) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(c.scanDate || '')) return day >= c.scanDate;
   const t = labOrderedMs(o); return !c.createdAt || !t || t >= c.createdAt - 14 * 864e5;
 }
+/* ---------- the Tray Maker's orders (Amir, 20 Oct 2026: "orders that go from tray maker/bleaching tray to orthofactory gets flagged
+   in case tracker as orders that don't match anyone. These are for retainers and Whitening trays") ----------
+   The Tray Maker (nlo-bleachtray) sends its retainers, whitening trays, mouthguards and Phase I retainers to OrthoFactory as orders
+   shaped exactly like Titan's, so the lab PC reports them with the in-house sets - and only in-house aligner cases were looked
+   at for them, so every one waited on Today. They are told apart by their number and by what they hold:
+   - its own order numbers: 9 digits (100000000 + seconds since 2026: orderfolder.new_order_id; until 19 Oct 2026 10 digits,
+     yymmddHHMM). Titan's are the patient's few-digit ID - and so is the Tray Maker's when someone typed the Edge ID in it;
+   - its pieces (nlo-bleachtray/bleachtray/server_presets.py VARIANTS): whitening tray T…0, retainer A…1, mouthguard T…2, Phase I
+     retainer A…3 - the lab PC sends each piece's number (lv). Only the mouthguard's is never Titan's (its templates are T…0, its
+     aligners run 1, 2, 3 …).
+   So an order holding only those pieces is the Tray Maker's for sure under its own number, or with a mouthguard in it: never put
+   on an in-house set, never asked about on Today, and the one case of the patient waiting at To make for what it holds - exported
+   after that case was last saved - is noted and moved to Printing, as the Tray Maker's own note does (traymaker.js), for when
+   the note didn't come (the Tray Maker not linked yet). The same pieces under a few-digit number could be Titan's templates or a
+   set of one aligner: an in-house set gets them first, as before; one nobody takes is let go without asking when the patient has
+   a retainer / whitening / mouthguard case here, and nothing moves on it. */
+const TM_NUM = { A: [1, 3], T: [0, 2] }; // the numbers the Tray Maker gives its pieces, by kind
+/* the order's pieces by kind, from the lab PC's levels: { A: [numbers], T: [numbers] }, or null when it didn't send them */
+function tmPieces(o) {
+  const lv = (o && o.lv) || {}; if (!lv.au && !lv.al && !lv.tu && !lv.tl) return null;
+  const nums = s => Array.from(String(s || '')).map((ch, i) => ch === '-' ? -1 : i).filter(i => i >= 0);
+  return { A: nums(lv.au).concat(nums(lv.al)), T: nums(lv.tu).concat(nums(lv.tl)) };
+}
+/* 'yes' the Tray Maker's (its own number, or a mouthguard in it); 'maybe' (its pieces under a few-digit number: could be Titan's);
+   '' an in-house set's */
+function tmKind(o) {
+  const p = tmPieces(o); if (!p || !(p.A.length + p.T.length)) return '';
+  if (!p.A.every(n => TM_NUM.A.includes(n)) || !p.T.every(n => TM_NUM.T.includes(n))) return '';
+  return p.T.includes(2) || /^\d{9,10}$/.test(String(o.pid || '')) ? 'yes' : 'maybe';
+}
+/* what the order holds is something the case makes (WT whitening T…0 · TT retainer A…1, or Phase I A…3 · MG mouthguard T…2) */
+function tmFits(c, p) {
+  if (c.type === 'mouthguard') return p.T.includes(2);
+  const r = (c.retKinds || []).join(' '), wt = /\bWT/i.test(r), tt = /\bTT/i.test(r) || !wt;
+  return (wt && p.T.includes(0)) || (tt && (p.A.includes(1) || p.A.includes(3)));
+}
+/* the patient's retainer / whitening / mouthguard case (the full name), scanned on or before the export */
+function tmTheirs(c, o) {
+  const name = labPtName(o);
+  return !!c && !c.dup && (TYPE[c.type] || {}).flow === 'retainer' && nameTokens(name).length >= 2 && nameMatches(name, 'full', c.patient) && labDateOk(c, o);
+}
+/* a case the lab PC may move on for this order: waiting at To make with its models not noted, and not saved since the order was
+   exported (an order from before - one it was moved on by hand from and then put back, or the patient's earlier one before a
+   remake - is not for it); or noted only by the Tray Maker's window (Make models: `tab`, or before 20 Oct 2026 with no `how`),
+   which doesn't move a case, for this very send (exported within a quarter of an hour of it) and nothing saved since. Inside the
+   save there's no updatedAt: what was checked before it holds. */
+function tmLabWaits(c, o) {
+  if (!c || c.locked || c.dup || c.status === 'done' || (TYPE[c.type] || {}).flow !== 'retainer' || liveStage(c) !== 'print') return false;
+  const t = labOrderedMs(o); if (!t) return false;
+  const b = c.btModels, saved = Number(c.updatedAt) || 0;
+  if (!b || !b.at) return !saved || t >= saved - 5 * 60e3; // (5 minutes: the lab PC's clock against the server's)
+  return (b.tab || !b.how) && Math.abs(b.at - t) < 15 * 60e3 && (!saved || saved - b.at < 5 * 60e3);
+}
+/* the Tray Maker's order for sure → { tm: the one case waiting at To make for what it holds, or null (none, or two it could be) } */
+function tmMatch(o, open) {
+  const p = tmPieces(o), fit = open.filter(c => tmTheirs(c, o) && tmLabWaits(c, o) && tmFits(c, p));
+  return { tm: fit.length === 1 ? fit[0] : null };
+}
+/* the patient has a retainer / whitening / mouthguard case: open, or completed after the order was exported (less two weeks) */
+function tmHasCase(o, open, closed) {
+  const t = labOrderedMs(o);
+  return open.some(c => tmTheirs(c, o) && !c.locked && c.status !== 'done') || (closed || []).some(c => tmTheirs(c, o) && (!t || (c.closedAt || 0) >= t - 14 * 864e5));
+}
 function labMatch(o, open, closed) {
+  const tk = tmKind(o);
+  // the Tray Maker's for sure (above): its retainer case's, never an in-house set's
+  if (tk === 'yes') return tmMatch(o, open);
+  const m = labMatchSet(o, open, closed);
+  // its pieces under a few-digit number that no in-house set takes: let go without asking when the patient has a retainer case
+  return tk === 'maybe' && m.none && tmHasCase(o, open, closed) ? { tm: null } : m;
+}
+/* an in-house set's order → { c } its case, { many } the cases it could be, { done } its case is completed, { none } */
+function labMatchSet(o, open, closed) {
   const mine = c => c && !c.locked && !c.dup && c.type === 'nla' && c.status !== 'done';
   const byKey = open.filter(c => mine(c) && c.labOrd && c.labOrd.key === o.key);
   if (byKey.length === 1) return { c: byKey[0] };
@@ -10103,6 +10183,8 @@ async function labSync(docs, open, closed, mem) {
   for (const e of entries) {
     if (e.bad || newest.get(e.o.key) !== e) { mark(e); continue; }
     const m = labMatch(e.o, open, closed);
+    // the Tray Maker's (tmMatch): never asked about on Today; the case still waiting for these models at To make moves on
+    if ('tm' in m) { if (m.tm) { if (!todo.has(e.d.id)) todo.set(e.d.id, []); todo.get(e.d.id).push({ e, c: m.tm, tm: true }); } else mark(e); continue; }
     // a case follows this order (or its name says so): applied — even if this computer dismissed the order on Today once
     if (m.c) { if (!todo.has(e.d.id)) todo.set(e.d.id, []); todo.get(e.d.id).push({ e, c: m.c }); continue; }
     const fp = 'lab|' + e.o.key;
@@ -10112,8 +10194,8 @@ async function labSync(docs, open, closed, mem) {
   // what can be placed is applied by one open app (the one that claims the message); the others leave it to that one
   for (const [id, list] of todo) {
     if (!(await B.inboxClaim(id))) continue;
-    for (const { e, c } of list) {
-      try { await labApply(e.o, c); mark(e); }
+    for (const { e, c, tm } of list) {
+      try { await (tm ? tmLabApply(e.o, c) : labApply(e.o, c)); mark(e); }
       catch (x) { if (x && (x.code === 'skip' || x.code === 'gone')) mark(e); else if (window.console) console.warn('lab progress:', x && x.message); }
     }
   }
@@ -10372,7 +10454,7 @@ function labAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="labAdmin"><div class="cardHd"><h3>Lab PC</h3><span class="sub">Ortho Factory’s progress on each in-house set</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from Formlabs’ emails about each print, under Email updates — not Ortho Factory.) Orders it can’t place show on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap — an in-house set never moves by itself. (3D printing comes from Formlabs’ emails about each print, under Email updates — not Ortho Factory.) Orders it can’t place show on Today. The Tray Maker’s retainers, whitening trays and mouthguards aren’t asked about: they belong to their own cases, which move to Printing once their models are in Ortho Factory.</p>';
   const bots = (st.bots || []).filter(labBot), beats = (st.beats || []).filter(labBeat).sort((a, b) => (b.at || 0) - (a.at || 0));
   if (!bots.length) return head + how + '<button class="btn btn-act btn-sm" data-act="labSetup">' + ic('plus', 15) + 'Set up the lab PC</button></div></div>';
   const box = b => { const late = !b.at || Date.now() - b.at > 20 * 60000;
@@ -10441,7 +10523,8 @@ Object.assign(ADMIN_ACTS, {
    PreForm for the printer) it puts a sealed note in the inbox (to the office inbox key, like the lab bridge's orders);
    tmSync below notes it on the case (btModels, the same field the Make models button's message sets) and moves the
    case on from To make to Printing (Amir, 19 Oct 2026: "when I work on it and send it to the printer or Trimlign, it
-   should write back to the other app and move it to printing"); the case leaves the queue with that save.
+   should write back to the other app and move it to printing"); the case leaves the queue with that save. The
+   lab PC seeing the order in OrthoFactory does the same when the note didn't come (tmNoted, 20 Oct 2026).
    Needs the 19 Oct 2026 rules (`labq`, `labqkeys`); until they're live nothing is written (FB.labqOn). ---------- */
 const TM = { keys: null, keysAt: 0, warned: false };
 /* the Tray Maker's public key: the newest entry in labqkeys (one lab PC; a second would be another entry). Read at most
@@ -10478,33 +10561,69 @@ async function tmQueueDoc(id, body, status) {
   const box = await Crypto.sealTo(k.pub, TE.encode(JSON.stringify(tmBody(id, body))), 'labq:' + id);
   return { ref: FB.db.doc('labq/' + id), data: { kid: k.kid, epk: box.epk, iv: box.iv, ct: box.ct, at: FB.ts() } };
 }
-/* the Tray Maker's notes in the inbox: {bt:1, v, case, patient, models:[...], at, pc} - the case notes the models and
+/* ---------- the models went out: noted on the case (btModels) and, while it waits at To make, moved to Printing (Amir, 19 Oct
+   2026: "when I work on it and send it to the printer or Trimlign, it should write back to the other app and move it to
+   printing"). What moves it: the Tray Maker's sealed note (tmSync - the Tray Maker ties its case to the NLO Cases case by the
+   patient's name before it sends one), or the lab PC seeing the Tray Maker's order in OrthoFactory (tmLabApply - the patient's
+   name, what the order holds, when it was exported). The Tray Maker window's own message (Make models, ui.js) only notes the
+   models (`tab`), and only while no Tray Maker is linked: until 20 Oct 2026 it noted them first, which made the note that came
+   after look old - it was dropped, and a case made from Make models stayed at To make. ---------- */
+/* the note's send is noted already: by a note (not the window's message) as new or newer */
+function tmSame(prev, bt) { return !!(prev && prev.at && prev.how && !prev.tab && prev.at >= bt.at); }
+/* bt: {at, models, how, pc?, tab?, key?}; `ok(x)`: whether the case as saved still wants it (default: not the same send); `stay`:
+   note it without moving the case. Resolves to the step it moved the case to ('' none); a case that doesn't want it rejects
+   with code 'skip' */
+async function tmNoted(id, bt, log, ok, stay) {
+  log = Object.assign({ a: 'bt', models: bt.models, how: bt.how }, log);
+  ok = ok || (x => !tmSame(x.btModels, bt));
+  await B.mutateCase(id, x => {
+    delete log.from; delete log.to;            // (the transaction can run this more than once)
+    if (!ok(x)) return 'skip';
+    x.btModels = bt;
+    // the models are being made: To make -> Printing (only from To make - a case already further on stays where it is)
+    if (!stay && liveStage(x) === 'print' && caseStages(x).some(st => st[0] === 'printing')) { log.from = x.stage; log.to = 'printing'; x.stage = 'printing'; }
+  }, log);
+  const live = S.cases.get(id); if (live) { live.btModels = bt; if (log.to) live.stage = log.to; queueRender(); if (S.openId === id) renderDrawer(); }
+  if (S.openId === id && !S.editing) loadHistory(id);
+  return log.to || '';
+}
+/* the Tray Maker's notes in the inbox: {bt:1, v, case, patient, models:[...], at, pc, how} - the case notes the models and
    leaves the queue; a note for a case that isn't here (deleted, or an older copy of the app) is kept a week, then cleared */
 async function tmSync(docs, open, closed) {
   for (const d of docs) {
     const m = d.mail || {}; const id = plainStr(m.case), at = typeof m.at === 'number' && m.at > 0 ? m.at : (d.at || Date.now());
     const models = Array.isArray(m.models) ? m.models.map(x => plainStr(x).slice(0, 20)).slice(0, 8) : [];
+    // how: 'orthofactory' (Send to Trimlign) or 'printer' (opened in PreForm); a note from before 19 Oct 2026 has none
+    const how = plainStr(m.how).slice(0, 20) === 'printer' ? 'printer' : 'orthofactory', bt = { at, models, pc: plainStr(m.pc).slice(0, 60), how };
     const c = (id && (S.cases.get(id) || (closed || []).find(x => x && x.id === id))) || null;
     if (!c) { if (Date.now() - (d.at || Date.now()) > 7 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
-    if (c.btModels && c.btModels.at && c.btModels.at >= at) { await B.inboxDelete(d.id).catch(() => { }); continue; } // noted already
+    if (tmSame(c.btModels, bt)) { await B.inboxDelete(d.id).catch(() => { }); continue; } // noted already
     if (!(await B.inboxClaim(d.id))) continue; // another open app is on it
-    // how: 'orthofactory' (Send to Trimlign) or 'printer' (opened in PreForm); a note from before 19 Oct 2026 has none
-    const how = plainStr(m.how).slice(0, 20) === 'printer' ? 'printer' : 'orthofactory';
-    const log = { a: 'bt', models, how };
     try {
-      await B.mutateCase(c.id, x => {
-        delete log.from; delete log.to;            // (the transaction can run this more than once)
-        if (x.btModels && x.btModels.at && x.btModels.at >= at) return 'skip';
-        x.btModels = { at, models, pc: plainStr(m.pc).slice(0, 60), how };
-        // the models are being made: To make -> Printing (only from To make - a case already further on stays where it is)
-        if (liveStage(x) === 'print' && caseStages(x).some(st => st[0] === 'printing')) { log.from = x.stage; log.to = 'printing'; x.stage = 'printing'; }
-      }, log);
-      const live = S.cases.get(c.id); if (live) { live.btModels = { at, models, how }; if (log.to) live.stage = log.to; queueRender(); if (S.openId === c.id) renderDrawer(); }
-      toast('Models for ' + ptNameText(c.patient) + (how === 'printer' ? ' went to the printer' : ' are in OrthoFactory') + ' (Tray Maker) — ' + (log.to ? 'moved to Printing' : 'noted on the case'));
-      if (S.openId === c.id && !S.editing) loadHistory(c.id);
+      const to = await tmNoted(c.id, bt);
+      toast('Models for ' + ptNameText(c.patient) + (how === 'printer' ? ' went to the printer' : ' are in OrthoFactory') + ' (Tray Maker) — ' + (to ? 'moved to Printing' : 'noted on the case'));
     } catch (e) { if (!(e && (e.code === 'skip' || e.code === 'gone'))) { if (window.console) console.warn('tray maker note:', e && e.message); continue; } }
     await B.inboxDelete(d.id).catch(() => { });
   }
+}
+/* the lab PC sees the Tray Maker's order in OrthoFactory (lab.js tmMatch) for the case still waiting at To make for it, the note not
+   having reached it (the Tray Maker not linked yet): noted and moved to Printing the same way, once. What's noted is what the
+   order holds ("upper WT"). */
+async function tmLabApply(o, c) {
+  const cur = findCase(c.id); if (!tmLabWaits(cur, o)) return 'skip'; // (moved on, or noted, since the sync began)
+  const bt = { at: o.at || Date.now(), models: tmLabModels(o), pc: o.pc || '', how: 'orthofactory', key: o.key };
+  try {
+    const to = await tmNoted(c.id, bt, { lab: 1, key: o.key }, x => tmLabWaits(Object.assign({}, x, { id: c.id }), o));
+    toast('Models for ' + ptNameText(cur.patient) + ' are in OrthoFactory (lab PC) — ' + (to ? 'moved to Printing' : 'noted on the case'));
+    return 'ok';
+  } catch (e) { if (e && (e.code === 'skip' || e.code === 'gone')) return 'skip'; throw e; }
+}
+/* "upper WT", "lower TT", … from the order's pieces (whitening tray T…0, retainer A…1, mouthguard T…2, Phase I A…3) */
+function tmLabModels(o) {
+  const lv = (o && o.lv) || {}, name = { A1: 'TT', A3: 'P1', T0: 'WT', T2: 'MG' }, out = [];
+  [['au', 'upper', 'A'], ['tu', 'upper', 'T'], ['al', 'lower', 'A'], ['tl', 'lower', 'T']].forEach(([k, arch, kind]) =>
+    Array.from(String(lv[k] || '')).forEach((ch, i) => { if (ch !== '-' && name[kind + i]) out.push(arch + ' ' + name[kind + i]); }));
+  return out.slice(0, 8);
 }
 /* signing out: nothing of this office's stays in the page */
 function tmReset() { TM.keys = null; TM.keysAt = 0; }

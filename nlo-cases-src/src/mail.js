@@ -339,9 +339,11 @@ async function mailSync() {
         else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
       } catch (e) { if (window.console) console.warn('email update:', e && e.message); if (old) await B.inboxDelete(d.id).catch(() => { }); } // (one item that fails doesn't stop the rest)
     }
-    let labSig = ''; try { labSig = await labSync(labDocs, open, closed, mem); } catch (e) { if (window.console) console.warn('lab progress:', e && e.message); }
-    if (prDocs.length) { try { (await prSync(prDocs, open)).unread.forEach(x => unread.push(x)); } catch (e) { if (window.console) console.warn('prints:', e && e.message); } }
+    // the Tray Maker's notes before the lab PC's orders: a case its note moves on is past To make when the lab PC's report of the
+    // same order is read (lab.js tmMatch), so that one changes nothing more
     if (btDocs.length) { try { await tmSync(btDocs, open, closed); } catch (e) { if (window.console) console.warn('tray maker:', e && e.message); } }
+    let labSig = ''; try { labSig = await labSync(labDocs, openCases(), closed, mem); } catch (e) { if (window.console) console.warn('lab progress:', e && e.message); }
+    if (prDocs.length) { try { (await prSync(prDocs, open)).unread.forEach(x => unread.push(x)); } catch (e) { if (window.console) console.warn('prints:', e && e.message); } }
     const list = Array.from(groups.values()).filter(g => !MAILS.goneFp.has(g.fp)).sort((a, b) => (b.ev.at || 0) - (a.ev.at || 0));
     MAILS.list = list; MAILS.unread = unread;
     const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length + '|' + labSig;
