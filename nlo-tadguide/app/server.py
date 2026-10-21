@@ -3,7 +3,7 @@
 Runs on one office PC (run_app.py). Patient files stay in this folder (jobs/), are never sent anywhere, and are
 deleted after the number of days in Settings. What the app learns is numbers only (training/, see lessons.py).
 """
-import os, sys, io, re, json, time, uuid, shutil, threading, queue, traceback, mimetypes, socket, subprocess, html, base64
+import os, sys, io, re, json, time, uuid, shutil, threading, queue, traceback, mimetypes, socket, subprocess, html, base64, struct
 from collections import OrderedDict
 from typing import List, Optional
 
@@ -274,10 +274,10 @@ def _surfaces(c):
         bb_bone = volume.bbox_mm_to_index(vol, lo - np.array([28, 28, 35]), hi + np.array([28, 28, 38]))
     c.log("building the bone surface")
     pts, faces, _n = volume.surface(vol, lv["bone"], step_mm=0.5, bbox=bb_bone, max_faces=500_000)
-    _store_mesh(c, "bone", pts, faces)
+    _store_mesh(c, "bone", pts, faces, volume.bite_height(dent, pts))     # height above the bite: the page can hide the other jaw
     c.log("building the teeth surface")
     pts, faces, _n = volume.surface(vol, lv["dense"], step_mm=0.35, bbox=bb, max_faces=500_000)
-    _store_mesh(c, "teeth", pts, faces)
+    _store_mesh(c, "teeth", pts, faces, volume.bite_height(dent, pts))
 
 
 def _store_mesh(c, name, V, F, extra=None):
@@ -515,6 +515,15 @@ def mesh(cid: str, name: str):
     p = os.path.join(c.dir, "cache", name + ".bin")
     if name in ("bone", "teeth", "guide") and os.path.isfile(p):
         b = open(p, "rb").read()
+        if name in ("bone", "teeth") and len(b) >= 12 and struct.unpack("<III", b[:12])[2] == 0:
+            # a surface from before 1.4.1 has no bite height yet: add it, so the other jaw can be hidden
+            nv, nf, _ = struct.unpack("<III", b[:12])
+            V = np.frombuffer(b, np.float32, nv * 3, 12).reshape(-1, 3)
+            F = np.frombuffer(b, np.uint32, nf * 3, 12 + nv * 12).reshape(-1, 3)
+            h = volume.bite_height(c.state.get("dentition"), V)
+            if h is not None:
+                _store_mesh(c, name, V, F, h)
+                b = c.mesh_cache[name]
         c.mesh_cache[name] = b
         return Response(b, media_type="application/octet-stream", headers={"Cache-Control": "no-store"})
     if name == "scan":

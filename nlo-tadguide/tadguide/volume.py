@@ -278,7 +278,7 @@ def find_dentition(vol, levels, with_points=False):
         if (new == up).all():
             break
         up = new
-    out = dict(split_z=float(c0[2] + th * nrm[2]), normal=nrm.tolist(), n_voxels=int(len(pts)))
+    out = dict(split_z=float(c0[2] + th * nrm[2]), normal=nrm.tolist(), plane_point=(c0 + th * nrm).tolist(), n_voxels=int(len(pts)))
     groups = {}
     for name, sel in (("upper", up), ("lower", ~up)):
         p = pts[sel]
@@ -291,6 +291,27 @@ def find_dentition(vol, levels, with_points=False):
                          n=int(len(p)), occlusal=occl.tolist(), tilt_deg=round(float(np.degrees(np.arccos(min(1.0, abs(na[2]))))), 1))
         groups[name] = p
     return (out, groups) if with_points else out
+
+
+def bite_height(dent, pts):
+    """Signed height (mm) of points above the bite plane found by find_dentition: positive on the upper arch's
+    side. None when the dentition has no plane (older cases record only the two centroids: their midpoint is
+    used then; a single arch gives no plane)."""
+    if not dent or not dent.get("normal"):
+        return None
+    n = np.asarray(dent["normal"], float)
+    u, l = dent.get("upper"), dent.get("lower")
+    if not (u and l):
+        return None
+    cu, cl = np.asarray(u["centroid"], float), np.asarray(l["centroid"], float)
+    if np.dot(cu - cl, n) < 5.0:
+        # the two crown groups stand less than 5 mm apart: one arch split in two (a CBCT of one jaw only), not a
+        # bite - two arches in occlusion are 7 mm or more apart, centroid to centroid
+        return None
+    p0 = dent.get("plane_point")
+    if p0 is None:
+        p0 = (cu + cl) / 2
+    return ((np.asarray(pts, float) - np.asarray(p0, float)) @ n).astype(np.float32)
 
 
 def bbox_mm_to_index(vol, lo_mm, hi_mm, margin_mm=0.0):
