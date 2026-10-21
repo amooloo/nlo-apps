@@ -20,7 +20,9 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    line above says how much of the scan's crowns lies within 0.5 mm of the CBCT crowns; the scan's teeth are
    coloured by how close they lie - green ≤ 0.2 mm, yellow ≤ 0.5, orange ≤ 1, red beyond - and the three slices
    under the 3D view show the scan's outline in coral on the CBCT (shift-click the model to move the slices
-   there; scroll on a slice to move through it, drag to pan, double-click to come back). **Looks right** goes on. If it is off (*The match looks wrong*): **Match by 3 points** - the scan
+   there; scroll on a slice to move through it, drag to pan, double-click to come back; the picker on each panel
+   chooses its view - axial / coronal / sagittal, or with a TAD selected along the TAD (roots / side) and across
+   it; **6 views** shows all six at once, the anatomical ones through the TAD). **Looks right** goes on. If it is off (*The match looks wrong*): **Match by 3 points** - the scan
    moves to the side; click a cusp tip on the scan, then the same spot on the CBCT teeth, three times, far apart
    (a molar each side and a central incisor) - then **Match with these points**; or **Fine adjust** (¼ mm and
    1 mm nudges, small turns, then *Let the surfaces settle it*).

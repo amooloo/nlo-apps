@@ -148,6 +148,12 @@
   .slices figure:active{cursor:grabbing}
   .slices img{width:100%;height:100%;object-fit:contain;display:block}
   .slices figcaption{position:absolute;left:8px;top:6px;font-size:11px;font-weight:700;color:#DCE4EE;text-shadow:0 1px 2px #000;letter-spacing:.03em}
+  .slices.six figure.extra{display:block} .slices figure.extra{display:none}
+  .slices figcaption{display:flex;align-items:center;gap:6px;right:8px}
+  .slices .vsel{background:rgba(0,0,0,.45);color:#DCE4EE;border:1px solid rgba(255,255,255,.25);border-radius:6px;font:700 11px Montserrat,sans-serif;padding:2px 4px;max-width:70%}
+  .slices .vcap{font-weight:600;opacity:.9;white-space:nowrap}
+  .slices .sixbtn{position:absolute;right:14px;top:-26px;background:#fff;border:1px solid var(--grey-200);border-radius:8px;font-size:11px;font-weight:700;padding:3px 8px;color:var(--navy)}
+  .slices{position:relative}
   .slices .ctrl{position:absolute;right:6px;bottom:6px;display:flex;gap:3px}
   .slices .ctrl button{background:rgba(255,255,255,.18);color:#fff;border-radius:6px;width:22px;height:22px;font-weight:700;font-size:13px;line-height:1}
   .log{font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:10px;padding:10px;max-height:150px;overflow:auto;white-space:pre-wrap;color:var(--grey-600);margin-top:6px}
@@ -299,9 +305,13 @@
           <div id="fatal"></div>
         </div>
         <div class="slices" id="slices">
-          <figure><img id="s0" alt=""><figcaption id="c0">Axial</figcaption><div class="ctrl"><button data-z="0" data-d="-1" title="Zoom out">−</button><button data-z="0" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure><img id="s1" alt=""><figcaption id="c1">Coronal</figcaption><div class="ctrl"><button data-z="1" data-d="-1">−</button><button data-z="1" data-d="1">+</button></div></figure>
-          <figure><img id="s2" alt=""><figcaption id="c2">Sagittal</figcaption><div class="ctrl"><button data-z="2" data-d="-1">−</button><button data-z="2" data-d="1">+</button></div></figure>
+          <figure><img id="s0" alt=""><figcaption><select id="v0" class="vsel" title="Which view this panel shows"></select><span id="c0" class="vcap"></span></figcaption><div class="ctrl"><button data-z="0" data-d="-1" title="Zoom out">−</button><button data-z="0" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s1" alt=""><figcaption><select id="v1" class="vsel" title="Which view this panel shows"></select><span id="c1" class="vcap"></span></figcaption><div class="ctrl"><button data-z="1" data-d="-1" title="Zoom out">−</button><button data-z="1" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s2" alt=""><figcaption><select id="v2" class="vsel" title="Which view this panel shows"></select><span id="c2" class="vcap"></span></figcaption><div class="ctrl"><button data-z="2" data-d="-1" title="Zoom out">−</button><button data-z="2" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s3" alt=""><figcaption><select id="v3" class="vsel" title="Which view this panel shows"></select><span id="c3" class="vcap"></span></figcaption><div class="ctrl"><button data-z="3" data-d="-1" title="Zoom out">−</button><button data-z="3" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s4" alt=""><figcaption><select id="v4" class="vsel" title="Which view this panel shows"></select><span id="c4" class="vcap"></span></figcaption><div class="ctrl"><button data-z="4" data-d="-1" title="Zoom out">−</button><button data-z="4" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s5" alt=""><figcaption><select id="v5" class="vsel" title="Which view this panel shows"></select><span id="c5" class="vcap"></span></figcaption><div class="ctrl"><button data-z="5" data-d="-1" title="Zoom out">−</button><button data-z="5" data-d="1" title="Zoom in">+</button></div></figure>
+          <button class="sixbtn" id="sixbtn" title="Three or six views">6 views</button>
         </div>
       </section>
     </main>
@@ -502,7 +512,7 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 // ---------------------------------------------------------------- app state
-const state = { id: null, c: null, step: 'match', sel: null, mode: null, lm: { scan: [], cbct: [] }, files: [], rel: [], zoom: [20, 20, 20], tzoom: [11, 11, 11], center: null, info: null, polling: false, shown: {}, framed: false };
+const state = { id: null, c: null, step: 'match', sel: null, mode: null, lm: { scan: [], cbct: [] }, files: [], rel: [], zoom: [20, 20, 20, 20, 20, 20], tzoom: [11, 11, 11, 20, 20, 20], center: null, info: null, polling: false, shown: {}, framed: false };
 
 async function boot() {
   try { state.info = await api('/api/version'); } catch (e) {}
@@ -1086,15 +1096,16 @@ $('discard').addEventListener('click', async () => {
 
 // ---------------------------------------------------------------- slices
 document.querySelectorAll('.slices .ctrl button').forEach((b) => b.addEventListener('click', () => {
-  const z = state.sel ? state.tzoom : state.zoom;
+  const hasTad = !!(state.c && (state.c.tads || []).find((x) => x.id === state.sel));
+  const z = panelView(+b.dataset.z, hasTad).startsWith('tad') ? state.tzoom : state.zoom;
   const k = +b.dataset.z; z[k] = Math.max(5, Math.min(50, z[k] * (+b.dataset.d > 0 ? 0.75 : 1.33))); updateSlices();
 }));
 // scrolling through the slices: the wheel moves the plane along its normal (0.5 mm a notch, 2 mm with Shift),
 // dragging pans in the plane, a double-click comes back to the centre. Offsets are kept per view and reset when
 // the centre (or the selected TAD) changes.
-state.soff = [0, 0, 0]; state.span = [[0, 0], [0, 0], [0, 0]]; state.sliceKey = '';
+state.soff = [0, 0, 0, 0, 0, 0]; state.span = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]; state.sliceKey = '';
 function sliceKeyNow() { return state.sel ? 't:' + state.sel : 'c:' + JSON.stringify(state.center); }
-function resetSliceOffsets() { state.soff = [0, 0, 0]; state.span = [[0, 0], [0, 0], [0, 0]]; }
+function resetSliceOffsets() { state.soff = [0, 0, 0, 0, 0, 0]; state.span = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]; }
 document.querySelectorAll('.slices figure').forEach((fig, i) => {
   fig.addEventListener('wheel', (e) => {
     if (!state.c || !state.c.cbct_meta) return;
@@ -1107,7 +1118,8 @@ document.querySelectorAll('.slices figure').forEach((fig, i) => {
   fig.addEventListener('pointerdown', (e) => { if (e.target.tagName === 'BUTTON') return; drag = { x: e.clientX, y: e.clientY, u: state.span[i][0], v: state.span[i][1], moved: false }; fig.setPointerCapture(e.pointerId); });
   fig.addEventListener('pointermove', (e) => {
     if (!drag) return;
-    const half = (state.sel ? state.tzoom : state.zoom)[i];
+    const hasTad = !!(state.c && (state.c.tads || []).find((x) => x.id === state.sel));
+    const half = (panelView(i, hasTad).startsWith('tad') ? state.tzoom : state.zoom)[i];
     const mmPerPx = (2 * half) / fig.clientWidth;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.hypot(dx, dy) > 3) drag.moved = true;
@@ -1123,25 +1135,52 @@ function updateSlices() {
   clearTimeout(sliceTimer);
   sliceTimer = setTimeout(_updateSlices, 60);
 }
+const VIEWS = [['axial', 'Axial'], ['coronal', 'Coronal'], ['sagittal', 'Sagittal'], ['tad_md', 'Along the TAD · roots'], ['tad_bl', 'Along the TAD · side'], ['tad_x', 'Across the TAD']];
+const AUTO_TAD = ['tad_md', 'tad_bl', 'tad_x', 'axial', 'coronal', 'sagittal'];
+const AUTO_PLAIN = ['axial', 'coronal', 'sagittal', 'axial', 'coronal', 'sagittal'];
+state.vsel = ['auto', 'auto', 'auto', 'auto', 'auto', 'auto'];
+try { state.six = localStorage.getItem('tg.six') === '1'; } catch (e) { state.six = false; }
+function panelView(i, hasTad) {
+  const want = state.vsel[i];
+  if (want !== 'auto' && (hasTad || !want.startsWith('tad'))) return want;
+  return (hasTad ? AUTO_TAD : AUTO_PLAIN)[i];
+}
+document.querySelectorAll('.vsel').forEach((sel, i) => {
+  sel.innerHTML = '<option value="auto">Auto</option>' + VIEWS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('');
+  sel.addEventListener('change', () => { state.vsel[i] = sel.value; state.soff[i] = 0; state.span[i] = [0, 0]; updateSlices(); });
+  sel.addEventListener('pointerdown', (e) => e.stopPropagation());
+});
+function applySix() {
+  $('slices').classList.toggle('six', !!state.six);
+  $('sixbtn').textContent = state.six ? '3 views' : '6 views';
+}
+$('sixbtn').addEventListener('click', () => { state.six = !state.six; try { localStorage.setItem('tg.six', state.six ? '1' : '0'); } catch (e) {} applySix(); updateSlices(); });
+applySix();
 function _updateSlices() {
   const st = state.c;
   if (!st || !st.cbct_meta || st.busy) return;
   const t = (st.tads || []).find((x) => x.id === state.sel);
   const stamp = Date.now();
-  const views = t ? [['tad_md', 'Along the TAD · neighbouring roots'], ['tad_bl', 'Along the TAD · from the side'], ['tad_x', 'Across the TAD']] : [['axial', 'Axial'], ['coronal', 'Coronal'], ['sagittal', 'Sagittal']];
   const key = sliceKeyNow();
   if (key !== state.sliceKey) { state.sliceKey = key; resetSliceOffsets(); }
-  views.forEach(([v, cap], i) => {
-    const half = (t ? state.tzoom : state.zoom)[i];
+  for (let i = 0; i < (state.six ? 6 : 3); i++) {
+    const v = panelView(i, !!t);
+    const cap = (VIEWS.find((x) => x[0] === v) || ['', ''])[1];
+    const tadView = v.startsWith('tad');
+    const half = (tadView ? state.tzoom : state.zoom)[i];
     const px = Math.max(0.06, Math.min(0.3, (2 * half) / 360));
     let q = `view=${v}&half=${half.toFixed(1)}&px=${px.toFixed(3)}&t=${stamp}`;
-    if (t) q += `&tad=${t.id}`;
+    if (t) q += `&tad=${t.id}`;                                   // anatomical views centre on the TAD too
     else if (state.center) q += `&x=${state.center[0]}&y=${state.center[1]}&z=${state.center[2]}`;
     const off = state.soff[i], [du, dv] = state.span[i];
     if (off || du || dv) q += `&off=${off.toFixed(2)}&du=${du.toFixed(2)}&dv=${dv.toFixed(2)}`;
     $('s' + i).src = `/api/cases/${state.id}/slice.png?${q}`;
-    $('c' + i).textContent = cap + (off ? ` · ${off > 0 ? '+' : ''}${off.toFixed(1)} mm` : '') + ((du || dv) ? ' · moved' : '');
-  });
+    const sel = $('v' + i);
+    if (sel.value !== state.vsel[i]) sel.value = state.vsel[i];
+    sel.options[0].textContent = 'Auto · ' + cap;
+    [...sel.options].forEach((o) => { if (o.value.startsWith('tad')) o.disabled = !t; });
+    $('c' + i).textContent = (off ? `${off > 0 ? '+' : ''}${off.toFixed(1)} mm` : '') + ((du || dv) ? ' moved' : '');
+  }
 }
 
 // ---------------------------------------------------------------- settings
