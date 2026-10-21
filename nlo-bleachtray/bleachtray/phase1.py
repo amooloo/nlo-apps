@@ -258,92 +258,48 @@ def crown_of(V, labels, teeth, crown_mm=4.5, crown_r_mm=5.5):
     return crown
 
 
-def scoop_cutouts(V, labels, info, sel, c, arch, collar_mm=1.0, ramp_mm=1.0, collar_cap_mm=0.8, below_mm=0.0, wide_mm=4.0,
-                  crown=None):
-    """CUTT on the Trimlign (the doctor, 10/20/2026): the bur cannot get into the V between the 2 and the C (or the D
-    and the E) to cut over the contact, so the model is scooped there - each run of chosen teeth (C-D on a side) is
-    cut down to the height of its contacts with the teeth that stay (the 2 and the E): flat at the mesial contact's
-    height, sloping to the distal one's. Nothing below that height changes (the C stays where the retainer ends at the
-    contact in the mouth). Within collar_mm of the 2 / E the chosen tooth keeps its own surface up to collar_cap_mm
-    over the contact (easing down to the cut over ramp_mm): the sheet bridges the embrasure there as it does over
-    the real C, so the retainer's edge at the contact never sits where the real tooth is - and the bur still gets in
-    (a steep lower C kept whole there stood 2 mm proud). A side whose neighbours stand more than wide_mm away needs no
-    scoop (the bur reaches between them). Returns (new vertices, info)."""
+def scoop_trough(V, labels, trough, keep_mask, floor_z, keep_mm=0.6, ramp_mm=2.0):
+    """CUTT on the Trimlign (the doctor, 10/21/2026: "the gums in that area need to be scooped out as well, to allow
+    for the passage of the tool head"): the whole window region `trough` - the chosen crowns and the gum that is theirs,
+    on the cheek side and out to the window's edge on the tongue side - is cut down to a floor `floor_z` (per vertex),
+    so the Trimlign's head and shank have room to reach the line round the window from inside it. Nothing rises; the
+    teeth that stay keep their surface (their walls facing the trough are the trough's walls); the kept gum beside it
+    (`keep_mask`) keeps its height, the trough's floor easing up to it over ramp_mm from keep_mm off it. Returns (new
+    vertices, how many moved, the deepest cut)."""
     from scipy.spatial import cKDTree
     V = np.asarray(V, float)
-    labels = np.asarray(labels)
     Vn = V.copy()
-    sel = sorted(int(t) for t in sel)
-    selm = np.isin(labels, sel)
-    tooth = labels > 0
-    others = tooth & ~selm
-    d_other = cKDTree(V[others]).query(V)[0] if others.any() else np.full(len(V), np.inf)
-    tv = np.where(tooth)[0]
-    near = labels[tv[cKDTree(V[tv]).query(V)[1]]]
-    by = {(int(s), int(p)): int(t) for t, (s, p) in info.items()}
-    ang = _arch_angle(V[:, :2], c)
-    out = []
-    for side in (-1, 1):
-        pos = sorted(int(info[t][1]) for t in info if int(t) in sel and int(info[t][0]) == side)
-        runs = []
-        for p in pos:
-            if runs and p == runs[-1][-1] + 1:
-                runs[-1].append(p)
-            else:
-                runs.append([p])
-        for run in runs:
-            teeth = [by[(side, p)] for p in run]
-            name = "-".join(f"{patient_side(side, arch)}{p}" for p in run)
-            ends = []
-            for end_p, nb_p in ((run[0], run[0] - 1), (run[-1], run[-1] + 1)):
-                b = by.get((side, nb_p)) if nb_p >= 1 else None
-                ct = _contact(V, labels, by[(side, end_p)], b) if b is not None else None
-                if ct is not None and ct["gap_mm"] > wide_mm:
-                    ct = dict(ct, kind="wide")          # the bur gets in between: no limit from this side
-                ends.append(ct)
-            use = [e for e in ends if e is not None and e["kind"] != "wide"]
-            rec = dict(teeth=name, ends=[None if e is None else dict(kind=e["kind"], gap_mm=e["gap_mm"]) for e in ends])
-            if not use:
-                rec["scooped"] = False
-                out.append(rec)
-                continue
-            # the crowns and the gum next to them (not a label's spill onto the gum, nor gum far from the crown: the
-            # plate beyond the window must still sit on the gum as scanned)
-            if crown is None:
-                R = np.isin(labels, teeth) | (~tooth & np.isin(near, teeth))
-            else:
-                cm = crown & np.isin(labels, teeth)
-                d_cm = cKDTree(V[cm]).query(V)[0] if cm.any() else np.full(len(V), np.inf)
-                R = cm | (np.isin(near, teeth) & (d_cm <= 2.5))
-            idx = np.where(R)[0]
-            if len(use) == 2:
-                a0, a1 = (float(_arch_angle(e["xy"][None], c)[0]) for e in use)
-                t = np.clip((ang[idx] - a0) / (a1 - a0), 0.0, 1.0) if abs(a1 - a0) > 1e-3 else np.zeros(len(idx))
-                floor = use[0]["z"] + t * (use[1]["z"] - use[0]["z"])
-            else:
-                floor = np.full(len(idx), use[0]["z"])
-            floor = floor - below_mm
-            s = np.clip((d_other[idx] - collar_mm) / max(ramp_mm, 1e-6), 0.0, 1.0)
-            w = s * s * (3.0 - 2.0 * s)                   # 0 at the 2 / E, 1 from collar + ramp on
-            allow = floor + collar_cap_mm * (1.0 - w)      # next to the 2 / E: the tooth's own surface, at most cap over the contact
-            drop = np.maximum(V[idx, 2] - allow, 0.0)
-            Vn[idx, 2] -= drop
-            moved = drop > 0.05
-            rec.update(scooped=True, floor_from=[e["kind"] for e in use], vertices=int(moved.sum()),
-                       max_mm=round(float(drop.max()), 1) if len(drop) else 0.0)
-            out.append(rec)
-    return Vn, out
+    idx = np.where(trough)[0]
+    if not len(idx):
+        return Vn, 0, 0.0
+    # the fillet at the trough's foot is against the kept gum only (seen from above): a chosen crown's wall next to a
+    # kept crown drops whole - measured against the 2's crown a C's mesial face stayed up as a wall beside the 2
+    fz = np.asarray(floor_z, float)
+    fz = fz[idx] if fz.shape == (len(V),) else np.full(len(idx), float(fz))
+    target = fz.copy()
+    if keep_mask.any():
+        kv = np.where(keep_mask)[0]
+        d_keep, j = cKDTree(V[kv][:, :2]).query(V[idx, :2])
+        s = np.clip((d_keep - keep_mm) / max(ramp_mm, 1e-6), 0.0, 1.0)
+        w = s * s * (3.0 - 2.0 * s)                   # 0 at the kept gum, 1 from keep + ramp on
+        # the slope: from the kept gum's own height at its edge down to the floor (a chosen crown standing over it is
+        # cut down to the slope, never left as a wall)
+        z_k = V[kv[j], 2]
+        target = fz + (1.0 - w) * np.maximum(z_k - fz, 0.0)
+    drop = np.maximum(V[idx, 2] - target, 0.0)
+    Vn[idx, 2] -= drop
+    return Vn, int((drop > 0.05).sum()), float(drop.max()) if len(drop) else 0.0
 
 
 def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch="upper", method="cott",
                     picks=None, buccal_mm=1.25, plate_mm=0.0, apex_shift_mm=0.0, open_round_mm=6.0, cut_palatal_mm=1.25, cut_lingual_mm=1.5, min_bridge=5.0,
                     keep_mm=0.6, notch_round_mm=2.0, crown_mm=4.5, bridge_mm=5.0, flange_inset=1.5, flange_min=4.0, flange_max=10.0,
-                    frenum_depth=3.0, frenum_width=6.0, smooth=False, scoop=True, collar_mm=1.0, scoop_ramp_mm=1.0,
+                    frenum_depth=3.0, frenum_width=6.0, smooth=False, scoop=True, scoop_depth_mm=1.0, scoop_ramp_mm=2.0, collar_mm=1.0,
                     round_mm=2.5, scallop_mm=1.0, log=None):
     """The Phase I retainer's line. Returns (cut_line, body_line, info, mesh): `cut_line` is what the Trimlign cuts
     (with the C/D cutouts on CUTT); `body_line` is the same outline without them - the model is built round it, so the
     sheet forms over the whole arch as on the first trim (and BOTT cuts along it); `mesh` is the scan the model is
-    built from - on CUTT with the C/Ds scooped down to their contacts (scoop_cutouts), else mesh_f itself. Both lines
+    built from - on CUTT with the windows scooped to a trough (scoop_trough), else mesh_f itself. Both lines
     lie on it. info['error'] when it fails."""
     import shapely
     from shapely.geometry import Polygon, box
@@ -556,12 +512,43 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     # the 12-year molars and their gum (all of it: cheek side, tongue side, the pad behind) come out of the line, less
     # keep_mm next to the 6 - by both methods
     chunk7 = np.zeros(len(V), bool)
+    below = np.zeros(len(V), bool)      # the kept neighbours' walls facing a window, below the contact: cut away too
+    by_pos = {(int(sd), int(p)): int(t) for t, (sd, p) in info.items()}
+    contacts = []
+    wall_contacts = []
+
+    def wall_below(k, chunk_teeth, reach=2.5):
+        """tooth k's wall facing the window (within `reach` of the chosen crowns) below its contact with them - the
+        retainer ends at the contact, as the hand-cut ones do: plastic on the 2's distal below the contact would sit
+        where the real C's mesial is and the retainer would not seat. Apart (a space), below the papilla instead."""
+        cm = (crown | np.isin(labels, seven)) & np.isin(labels, chunk_teeth)
+        if not cm.any() or not (labels == k).any():
+            return np.zeros(len(V), bool), None
+        ct = None
+        for t in chunk_teeth:
+            c_ = _contact(V, labels, k, t)
+            if c_ is not None and (ct is None or c_["gap_mm"] < ct["gap_mm"]):
+                ct = c_
+        if ct is None:
+            return np.zeros(len(V), bool), None
+        d_cm = cKDTree(V[cm]).query(V)[0]
+        mine_k = (labels == k) | (~tooth & (near_all == k))
+        return mine_k & (d_cm <= reach) & (V[:, 2] < ct["z"] - 0.3), ct
     if seven:
         chunk7 = np.isin(labels, seven) | (~tooth & np.isin(near_all, seven))
         keep6 = tooth & ~np.isin(labels, seven)
         if keep6.any():
             chunk7 &= cKDTree(V[keep6]).query(V)[0] > keep_mm
-        cut = body & ~chunk7
+        for t7 in seven:
+            sd, p7 = int(info[t7][0]), int(info[t7][1])
+            k6 = by_pos.get((sd, p7 - 1))
+            if k6 is not None and k6 not in seven:
+                b_, ct = wall_below(k6, [t7])
+                below |= b_
+                if ct is not None:
+                    contacts.append(dict(between=f"{patient_side(sd, arch)}{p7 - 1}/{p7}", kind=ct["kind"], z=round(ct["z"], 1)))
+                    wall_contacts.append((k6, ct))
+        cut = body & ~chunk7 & ~below
         cut = _close(mesh_f, A, cut, notch_round_mm) & body
     if method == "cott" and (sel or space.any()) and arch != "upper":
         # the bridge of flange under the windows must be min_bridge wide (the doctor, 10/20/2026: "min 5 mm - if below
@@ -602,7 +589,29 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         if others.any():
             d_other = cKDTree(V[others]).query(V)[0]
             chunk &= d_other > keep_mm
-        cut = body & ~chunk & ~chunk7
+        # the teeth that stay on either side of each window: their wall facing it, below the contact, is cut away too
+        for sd in (-1, 1):
+            pos = sorted(int(info[t][1]) for t in sel if int(info[t][0]) == sd)
+            if not pos:
+                continue
+            runs = []
+            for p_ in pos:
+                if runs and p_ == runs[-1][-1] + 1:
+                    runs[-1].append(p_)
+                else:
+                    runs.append([p_])
+            for run in runs:
+                teeth_r = [by_pos[(sd, p_)] for p_ in run]
+                for nb in (run[0] - 1, run[-1] + 1):
+                    k = by_pos.get((sd, nb))
+                    if k is None or k in sel or k in seven:
+                        continue
+                    b_, ct = wall_below(k, teeth_r)
+                    below |= b_
+                    if ct is not None:
+                        contacts.append(dict(between=f"{patient_side(sd, arch)}{nb}/{run[0] if nb < run[0] else run[-1]}", kind=ct["kind"], z=round(ct["z"], 1)))
+                        wall_contacts.append((k, ct))
+        cut = body & ~chunk & ~chunk7 & ~below
         cut = _close(mesh_f, A, cut, notch_round_mm) & body
         # ... and no slivers of plate / flange left beside a window (the window's edge meets the 2's gum band at a
         # shallow angle: a wedge of plate narrowing to nothing made a hairpin in the line, 10/20/2026): beyond the
@@ -614,20 +623,43 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     elif method == "cott":
         res.setdefault("warnings", []).append("no teeth chosen for the cutouts - the line is the first trim, without windows")
 
-    # the model: on CUTT the C/Ds scooped down to their contacts so the bur reaches the line (scoop_cutouts); both
+    # the model: on CUTT the windows scooped to a trough so the tool head reaches the line round them (scoop_trough); both
     # lines are traced on that surface (the regions above were found on the scan as it is)
     mesh_out = mesh_f
-    to_scoop = (sel if method == "cott" else []) + seven
-    if to_scoop and scoop:
+    trough = (chunk if method == "cott" and (sel or space.any()) else np.zeros(len(V), bool)) | chunk7
+    if trough.any() and scoop:
         import trimesh
         try:
-            Vs, srep = scoop_cutouts(V, labels, info, to_scoop, c, arch, collar_mm=collar_mm, ramp_mm=scoop_ramp_mm,
-                                     crown=crown | np.isin(labels, seven))
-            res["scoop"] = srep
-            if any(r.get("scooped") for r in srep):
+            # the trough's floor: scoop_depth_mm below the lowest point of the first-trim line on the cheek side of the
+            # window (the gum line there), per side - the window's line never sits below the floor's edge
+            Mf = np.asarray(margin_f, float)
+            m_fac = facial_of(Mf[:, :2])
+            floor_z = np.full(len(V), np.nan)
+            for sd in (-1, 1):
+                tr_s = trough & (np.sign(V[:, 0] - c[0]) == sd)
+                if not tr_s.any():
+                    continue
+                a_lo, a_hi = np.percentile(sd * ang_v[tr_s], [3, 97])
+                sel_m = m_fac & (np.sign(Mf[:, 0] - c[0]) == sd) & (sd * _arch_angle(Mf[:, :2], c) >= a_lo - 0.05) & (sd * _arch_angle(Mf[:, :2], c) <= a_hi + 0.05)
+                z_ref = float(np.percentile(Mf[sel_m, 2], 5)) if sel_m.sum() >= 3 else float(np.percentile(V[tr_s & ~tooth, 2], 5)) if (tr_s & ~tooth).any() else float(V[tr_s, 2].min())
+                floor_z[tr_s] = z_ref - float(scoop_depth_mm)
+            floor_z = np.where(np.isfinite(floor_z), floor_z, V[:, 2])
+            # a ledge at the contact height along each kept neighbour's wall, collar_mm wide: the line runs on the
+            # crown's edge above it (contoured across a wall stretched from the crown straight down to the floor, the
+            # line wandered up and down it)
+            for k, ct in wall_contacts:
+                km = labels == k
+                if km.any():
+                    d_k = cKDTree(V[km]).query(V)[0]
+                    near_k = trough & (d_k <= collar_mm)
+                    floor_z[near_k] = np.maximum(floor_z[near_k], ct["z"] - 0.2)
+            keep_mask = ~tooth & ~trough & ~edge                  # the kept gum beside the trough
+            Vs, n_moved, deepest = scoop_trough(V, labels, trough, keep_mask, floor_z, keep_mm=0.0, ramp_mm=scoop_ramp_mm)
+            res["scoop"] = dict(vertices=n_moved, max_mm=round(deepest, 1), depth_below_gum_line_mm=float(scoop_depth_mm), contacts=contacts)
+            if n_moved:
                 mesh_out = trimesh.Trimesh(Vs, np.asarray(mesh_f.faces), process=False)
         except Exception as ex:  # noqa
-            res.setdefault("warnings", []).append(f"the C/Ds could not be scooped ({str(ex)[:80]}) - the Trimlign may not reach the cutouts: check them")
+            res.setdefault("warnings", []).append(f"the windows could not be scooped ({str(ex)[:80]}) - the Trimlign may not reach the line round them: check")
     lines = {}
     for nm, region in (("body", body), ("cut", cut)):
         loops = _loop(mesh_out, A, region)
@@ -681,11 +713,10 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         tongue = (f"palate plate {res['plate']['plate_mm']} mm, open behind y={res['plate']['u_apex_y']}" if arch == "upper"
                   else f"lingual flange {res['flange_mm']['min']}-{res['flange_mm']['max']} mm")
         log(f"phase I retainer ({'CUTT' if method == 'cott' else method.upper()}): {what}; {tongue}")
-        for r in res.get("scoop") or []:
-            if r.get("scooped"):
-                log(f"phase I: {r['teeth']} scooped down to their contacts ({' / '.join(r['floor_from'])}) - up to {r['max_mm']} mm off, {r['vertices']} vertices")
-            else:
-                log(f"phase I: {r['teeth']} not scooped (the bur reaches between the neighbours)")
+        sc = res.get("scoop")
+        if sc:
+            log(f"phase I: the windows scooped to a trough {sc['depth_below_gum_line_mm']:.0f} mm below the gum line - up to {sc['max_mm']} mm off, "
+                f"{sc['vertices']} vertices; the line crosses at " + ", ".join(f"{q['between']} ({q['kind']}, z {q['z']})" for q in sc.get("contacts", [])))
     return lines["cut"], lines["body"], res, mesh_out
 
 

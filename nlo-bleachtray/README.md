@@ -490,19 +490,22 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   tongue-side gum under the C/Ds for that bridge the case says so; when the windows would still cut the retainer into
   pieces, the line is the first trim without windows and the case says to cut the C/Ds by hand or use block-out.
 - **Cutouts (CUTT, the default).** Two lines: the model is built round the *first-trim* outline (the whole arch, so
-  the sheet forms over it as on the first trim), and the Trimlign cuts the line *with the windows*. Ortho-Automation
-  cannot trim a line that climbs over the contacts into the V between the 2 and the C, so the model is **scooped**
-  there (`scoop_cutouts`, the doctor's choice of 10/20/2026: "to the contact points"): each side's run of chosen
-  teeth is cut down to the height of its contacts with the 2 and the E - flat at the mesial contact, sloping to the
-  distal one - and nothing below that height changes, so the retainer ends at the contact the way the hand-cut ones
-  do. Within 1 mm of the 2 / E the C/D keeps its own surface up to 0.8 mm over the contact (easing to the cut over
-  the next 1 mm), so the sheet bridges the embrasure as it does over the real tooth. Teeth whose neighbours stand
-  more than 4 mm apart are left as they are (the bur reaches between them). A chosen tooth's label on these scans
-  runs a few mm onto the gum (a C's label was 12 mm across, its palatal spill as high as its cingulum): its crown is
-  what stands within 4.5 mm of its top and within 5.5 mm of the centre of its top (`crown_of`), the rest is gum - and
-  the gum that is "the C's" (nearest it) is judged by its crown, not the spill. The 2's distal wall and the E's
-  mesial stay covered (0.6 mm). A space where a chosen tooth already stood is the gum between its two neighbours -
-  inside their crowns' hull, between them by arch angle - and the first-trim line bridges it along the ridge's crest
+  the sheet forms over it as on the first trim), and the Trimlign cuts the line *with the windows*. **The window is
+  scooped to a trough** (`scoop_trough`; the doctor, 10/21/2026, after watching the Trimlign's simulator: "the gums in
+  that area need to be scooped out as well, to allow for the passage of the tool head"): the chosen crowns *and* the
+  gum that is theirs - all of it on the cheek side, out to the window's edge on the tongue side - are cut down to a
+  floor 1 mm below the first-trim line on the cheek side of the window (the gum line there), so the tool's head and
+  shank have room inside the window to reach the line round it. The teeth that stay keep their surface; the gum beside
+  the trough keeps its height, the floor easing up to it over 2 mm. Along the 2's distal and the E's mesial a 1 mm
+  ledge stays at the height of their contact with the C / D, and **the line runs on the crown's edge above it, at the
+  contact height** - the retainer ends at the contact the way the hand-cut ones do; the neighbour's wall facing the
+  window below the contact (the part the real C's mesial covers in the mouth) is cut away too, so the retainer seats.
+  Where the neighbour stands apart (the C already gone) the line crosses at the papilla instead. The window's edge on
+  the tongue side hugs the gingival margin (1.25 mm onto the gum); a chosen tooth's label on these scans runs a few
+  mm onto the gum (a C's label was 12 mm across): its crown is what stands within 4.5 mm of its top and within 5.5 mm
+  of the centre of its top (`crown_of`), the rest is gum - and the gum that is "the C's" (nearest it) is judged by its
+  crown, not the spill. A space where a chosen tooth already stood is the gum between its two neighbours - inside their
+  crowns' hull, between them by arch angle - and the first-trim line bridges it along the ridge's crest
   (`edentulous_gaps(ridge_band=1)`). Beside each window no sliver of plate under 2 mm wide is left.
 - **Block-out (BOTT).** No windows: one solid block per side over the run of C/Ds, built into the model in place of
   the putty (`block_outs`) - not shaped to the teeth under it (the doctor: "a solid block, almost like a blob that is
