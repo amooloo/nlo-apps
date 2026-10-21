@@ -744,6 +744,7 @@ def view_dirs(cid: str, tad: str = ""):
             continue
         _c, e1, e2 = _view_frame(c, t, view)
         out[view] = _edge_dirs(e1, e2, named)
+        out[view]["frame"] = dict(c=np.asarray(_c, float).round(3).tolist(), e1=e1.round(5).tolist(), e2=e2.round(5).tolist())   # for the gizmo drawn on the slice
         if tilts:
             d = tadmod.unit(t["dir"])
             nrm = np.cross(e1, e2)

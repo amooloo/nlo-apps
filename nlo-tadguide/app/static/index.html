@@ -151,8 +151,14 @@
   .dir.act{cursor:pointer} .dir.act:hover{background:var(--mint);color:var(--navy-900)} .dir.passive{opacity:.6;cursor:default;pointer-events:none}
   .dir.l{left:6px;top:50%;transform:translateY(-50%)} .dir.r{right:6px;top:50%;transform:translateY(-50%)} .dir.t{top:6px;right:6px} .dir.b{bottom:8px;left:50%;transform:translateX(-50%)}
   .dir:empty{display:none}
-  .tilt{position:absolute;z-index:2;background:rgba(242,193,78,.9);color:#2a1d00;font:700 11px Montserrat,sans-serif;padding:3px 8px;border-radius:7px;border:1px solid rgba(0,0,0,.15);white-space:nowrap;cursor:pointer;line-height:1.2}
-  .tilt:hover{background:#ffd98a} .tilt:empty{display:none}
+  .sgz{position:absolute;inset:0;pointer-events:none;z-index:1} .sgz svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .sgz .hit{stroke:transparent;stroke-width:16px;fill:none;vector-effect:non-scaling-stroke;pointer-events:stroke;cursor:grab}
+  .sgz .ln{stroke-width:2.5px;fill:none;vector-effect:non-scaling-stroke;pointer-events:none}
+  .sgz .hd{pointer-events:auto;cursor:pointer;stroke:rgba(0,0,0,.35);stroke-width:1px;vector-effect:non-scaling-stroke}
+  .sgz .ghost{stroke:#fff;stroke-width:2px;stroke-dasharray:4 3;vector-effect:non-scaling-stroke;fill:none;pointer-events:none}
+  .sgz .dot{fill:#fff;stroke:#1D3EA9;stroke-width:1.5px;vector-effect:non-scaling-stroke;pointer-events:none}
+  .slices figure.gdrag{cursor:grabbing} .slices figure.gdrag .sgz .hit{cursor:grabbing}
+  .schip{position:absolute;display:none;pointer-events:none;z-index:3;background:#1D3EA9;color:#fff;font:700 11px Montserrat,sans-serif;padding:2px 8px;border-radius:999px;white-space:nowrap} .schip.on{display:block}
   canvas#c{position:absolute;inset:0;width:100% !important;height:100% !important;display:block}
   .hintbar{position:absolute;left:12px;bottom:12px;z-index:2;max-width:70%;background:rgba(27,47,76,.88);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:10px;display:none}
   .hintbar.on{display:block}
@@ -328,12 +334,12 @@
           <div id="fatal"></div>
         </div>
         <div class="slices" id="slices">
-          <figure><img id="s0" alt=""><div class="mez" id="m0"></div><button class="dir l" data-p="0" data-side="left"></button><button class="dir r" data-p="0" data-side="right"></button><button class="dir t" data-p="0" data-side="top"></button><button class="dir b" data-p="0" data-side="bottom"></button><button class="tilt" data-p="0" data-k="neg"></button><button class="tilt" data-p="0" data-k="pos"></button><figcaption><select id="v0" class="vsel" title="Which view this panel shows"></select><span id="c0" class="vcap"></span></figcaption><div class="ctrl"><button data-z="0" data-d="-1" title="Zoom out">−</button><button data-z="0" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure><img id="s1" alt=""><div class="mez" id="m1"></div><button class="dir l" data-p="1" data-side="left"></button><button class="dir r" data-p="1" data-side="right"></button><button class="dir t" data-p="1" data-side="top"></button><button class="dir b" data-p="1" data-side="bottom"></button><button class="tilt" data-p="1" data-k="neg"></button><button class="tilt" data-p="1" data-k="pos"></button><figcaption><select id="v1" class="vsel" title="Which view this panel shows"></select><span id="c1" class="vcap"></span></figcaption><div class="ctrl"><button data-z="1" data-d="-1" title="Zoom out">−</button><button data-z="1" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure><img id="s2" alt=""><div class="mez" id="m2"></div><button class="dir l" data-p="2" data-side="left"></button><button class="dir r" data-p="2" data-side="right"></button><button class="dir t" data-p="2" data-side="top"></button><button class="dir b" data-p="2" data-side="bottom"></button><button class="tilt" data-p="2" data-k="neg"></button><button class="tilt" data-p="2" data-k="pos"></button><figcaption><select id="v2" class="vsel" title="Which view this panel shows"></select><span id="c2" class="vcap"></span></figcaption><div class="ctrl"><button data-z="2" data-d="-1" title="Zoom out">−</button><button data-z="2" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure class="extra"><img id="s3" alt=""><div class="mez" id="m3"></div><button class="dir l" data-p="3" data-side="left"></button><button class="dir r" data-p="3" data-side="right"></button><button class="dir t" data-p="3" data-side="top"></button><button class="dir b" data-p="3" data-side="bottom"></button><button class="tilt" data-p="3" data-k="neg"></button><button class="tilt" data-p="3" data-k="pos"></button><figcaption><select id="v3" class="vsel" title="Which view this panel shows"></select><span id="c3" class="vcap"></span></figcaption><div class="ctrl"><button data-z="3" data-d="-1" title="Zoom out">−</button><button data-z="3" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure class="extra"><img id="s4" alt=""><div class="mez" id="m4"></div><button class="dir l" data-p="4" data-side="left"></button><button class="dir r" data-p="4" data-side="right"></button><button class="dir t" data-p="4" data-side="top"></button><button class="dir b" data-p="4" data-side="bottom"></button><button class="tilt" data-p="4" data-k="neg"></button><button class="tilt" data-p="4" data-k="pos"></button><figcaption><select id="v4" class="vsel" title="Which view this panel shows"></select><span id="c4" class="vcap"></span></figcaption><div class="ctrl"><button data-z="4" data-d="-1" title="Zoom out">−</button><button data-z="4" data-d="1" title="Zoom in">+</button></div></figure>
-          <figure class="extra"><img id="s5" alt=""><div class="mez" id="m5"></div><button class="dir l" data-p="5" data-side="left"></button><button class="dir r" data-p="5" data-side="right"></button><button class="dir t" data-p="5" data-side="top"></button><button class="dir b" data-p="5" data-side="bottom"></button><button class="tilt" data-p="5" data-k="neg"></button><button class="tilt" data-p="5" data-k="pos"></button><figcaption><select id="v5" class="vsel" title="Which view this panel shows"></select><span id="c5" class="vcap"></span></figcaption><div class="ctrl"><button data-z="5" data-d="-1" title="Zoom out">−</button><button data-z="5" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s0" alt=""><div class="mez" id="m0"></div><div class="sgz" id="g0"></div><div class="schip" id="gc0"></div><button class="dir l" data-p="0" data-side="left"></button><button class="dir r" data-p="0" data-side="right"></button><button class="dir t" data-p="0" data-side="top"></button><button class="dir b" data-p="0" data-side="bottom"></button><figcaption><select id="v0" class="vsel" title="Which view this panel shows"></select><span id="c0" class="vcap"></span></figcaption><div class="ctrl"><button data-z="0" data-d="-1" title="Zoom out">−</button><button data-z="0" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s1" alt=""><div class="mez" id="m1"></div><div class="sgz" id="g1"></div><div class="schip" id="gc1"></div><button class="dir l" data-p="1" data-side="left"></button><button class="dir r" data-p="1" data-side="right"></button><button class="dir t" data-p="1" data-side="top"></button><button class="dir b" data-p="1" data-side="bottom"></button><figcaption><select id="v1" class="vsel" title="Which view this panel shows"></select><span id="c1" class="vcap"></span></figcaption><div class="ctrl"><button data-z="1" data-d="-1" title="Zoom out">−</button><button data-z="1" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure><img id="s2" alt=""><div class="mez" id="m2"></div><div class="sgz" id="g2"></div><div class="schip" id="gc2"></div><button class="dir l" data-p="2" data-side="left"></button><button class="dir r" data-p="2" data-side="right"></button><button class="dir t" data-p="2" data-side="top"></button><button class="dir b" data-p="2" data-side="bottom"></button><figcaption><select id="v2" class="vsel" title="Which view this panel shows"></select><span id="c2" class="vcap"></span></figcaption><div class="ctrl"><button data-z="2" data-d="-1" title="Zoom out">−</button><button data-z="2" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s3" alt=""><div class="mez" id="m3"></div><div class="sgz" id="g3"></div><div class="schip" id="gc3"></div><button class="dir l" data-p="3" data-side="left"></button><button class="dir r" data-p="3" data-side="right"></button><button class="dir t" data-p="3" data-side="top"></button><button class="dir b" data-p="3" data-side="bottom"></button><figcaption><select id="v3" class="vsel" title="Which view this panel shows"></select><span id="c3" class="vcap"></span></figcaption><div class="ctrl"><button data-z="3" data-d="-1" title="Zoom out">−</button><button data-z="3" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s4" alt=""><div class="mez" id="m4"></div><div class="sgz" id="g4"></div><div class="schip" id="gc4"></div><button class="dir l" data-p="4" data-side="left"></button><button class="dir r" data-p="4" data-side="right"></button><button class="dir t" data-p="4" data-side="top"></button><button class="dir b" data-p="4" data-side="bottom"></button><figcaption><select id="v4" class="vsel" title="Which view this panel shows"></select><span id="c4" class="vcap"></span></figcaption><div class="ctrl"><button data-z="4" data-d="-1" title="Zoom out">−</button><button data-z="4" data-d="1" title="Zoom in">+</button></div></figure>
+          <figure class="extra"><img id="s5" alt=""><div class="mez" id="m5"></div><div class="sgz" id="g5"></div><div class="schip" id="gc5"></div><button class="dir l" data-p="5" data-side="left"></button><button class="dir r" data-p="5" data-side="right"></button><button class="dir t" data-p="5" data-side="top"></button><button class="dir b" data-p="5" data-side="bottom"></button><figcaption><select id="v5" class="vsel" title="Which view this panel shows"></select><span id="c5" class="vcap"></span></figcaption><div class="ctrl"><button data-z="5" data-d="-1" title="Zoom out">−</button><button data-z="5" data-d="1" title="Zoom in">+</button></div></figure>
           <button class="sixbtn" id="sixbtn" title="Three or six views">6 views</button>
         </div>
       </section>
@@ -1431,29 +1437,135 @@ function applyDirs() {
       b.className = 'dir ' + b.dataset.side[0] + (x.e ? ' act' : ' passive');
       if (x.e) { b.dataset.e = x.e; b.dataset.v = x.v; b.title = `Move the TAD ${x.label} by ½ mm (Shift: 1½ mm)`; } else { delete b.dataset.e; delete b.dataset.v; b.title = ''; }
     });
-    // tilting: two curved arrows at the tip end of the screw, swinging it either way in this picture
-    const tl = d && d.tilt;
-    document.querySelectorAll(`.tilt[data-p="${i}"]`).forEach((b) => {
-      b.removeAttribute('style');
-      if (!tl) { b.textContent = ''; return; }
-      const x = tl[b.dataset.k], neg = b.dataset.k === 'neg';
-      b.textContent = neg ? `⟲ ${x.label}` : `${x.label} ⟳`;
-      b.dataset.e = x.e; b.dataset.v = x.v; b.title = `Swing the tip ${x.label.replace(/ 5°$/, '')} by 5° (Shift: 15°)`;
-      if (tl.axis === 'h') {                                     // tip at the top or bottom: arrows left and right of it
-        b.style[tl.tip === 'top' ? 'top' : 'bottom'] = '34px';
-        b.style[neg ? 'left' : 'right'] = '6px';
-      } else {                                                   // tip at the left or right: arrows above and below it
-        b.style[tl.tip === 'right' ? 'right' : 'left'] = '6px';
-        b.style[neg ? 'bottom' : 'top'] = '34px';
-        b.textContent = neg ? `⟲ ${x.label}` : `⟳ ${x.label}`;
-      }
-    });
+    drawSliceGizmo(i);
   }
 }
-document.querySelectorAll('.tilt').forEach((b) => b.addEventListener('click', (e) => {
-  if (!b.dataset.e || !state.sel) return;
-  editTad(state.sel, { [b.dataset.e]: +b.dataset.v * (e.shiftKey ? 3 : 1) });
-}));
+// ---- the same gizmo drawn on each slice, where it is precise: arrows along the picture's axes that carry a
+// step (mesial / distal, apical / occlusal, deeper / out ...), and when the screw lies in the picture an arc at
+// its tip that swings it in that plane. Drag for ¼ mm / 1° steps (value at the pointer), click a head for ½ mm / 5°.
+const GCOL = { ds: '#2FB57F', dw: '#2FB57F', da: '#FA624D', du: '#FA624D', depth: '#F2C14E', dalpha: '#E0483E', dbeta: '#1E9E6E' };
+let dragS = null;
+function sliceFrame(i) {
+  const st = state.c, t = st && (st.tads || []).find((x) => x.id === state.sel);
+  if (!t || !state.dirs || !state.dirs.gizmo || state.dirs.gizmo.tad !== t.id) return null;     // the frames belong to this TAD's pose
+  const gm = sliceGeom(i), dv = state.dirs[gm.view];
+  if (!dv || !dv.frame) return null;
+  const V3 = THREE.Vector3;
+  const e1 = new V3(...dv.frame.e1), e2 = new V3(...dv.frame.e2), nrm = e1.clone().cross(e2);
+  const C = new V3(...dv.frame.c).addScaledVector(nrm, gm.off).addScaledVector(e1, gm.du).addScaledVector(e2, gm.dv);
+  const proj = (P) => { const q = P.clone().sub(C); return [50 + q.dot(e1) / (2 * gm.half) * 100, 50 - q.dot(e2) / (2 * gm.half) * 100]; };   // percent of the panel
+  return { t, gm, dv, e1, e2, nrm, C, proj };
+}
+function drawSliceGizmo(i) {
+  const box = $('g' + i);
+  const F = sliceFrame(i);
+  if (!F || (i >= 3 && !state.six)) { box.innerHTML = ''; return; }
+  const { t, dv, proj } = F;
+  const H = new THREE.Vector3(...t.head), d = new THREE.Vector3(...t.dir).normalize();
+  const [hx, hy] = proj(H);
+  if (hx < -5 || hx > 105 || hy < -5 || hy > 105) { box.innerHTML = ''; return; }
+  const A = 12, hw = 3.0;                                                    // arrow half-length and head size, in % of the panel
+  let svg = '';
+  const arrow = (axis, plus, minus) => {                                     // axis 'h' (plus = right) or 'v' (plus = up)
+    const col = GCOL[plus.e] || '#888';
+    const p1 = axis === 'h' ? [hx - A, hy] : [hx, hy + A], p2 = axis === 'h' ? [hx + A, hy] : [hx, hy - A];
+    const tri = (p, dir) => axis === 'h' ? `${p[0] + dir * hw},${p[1]} ${p[0]},${p[1] - hw * 0.75} ${p[0]},${p[1] + hw * 0.75}` : `${p[0]},${p[1] - dir * hw} ${p[0] - hw * 0.75},${p[1]} ${p[0] + hw * 0.75},${p[1]}`;
+    svg += `<line class="ln" x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" stroke="${col}"/>`;
+    svg += `<line class="hit" data-g="${axis}" x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}"/>`;
+    svg += `<polygon class="hd" data-g="${axis}" data-step="1" fill="${col}" points="${tri(p2, axis === 'h' ? 1 : 1)}"><title>${plus.label} ½ mm</title></polygon>`;
+    svg += `<polygon class="hd" data-g="${axis}" data-step="-1" fill="${col}" points="${tri(p1, -1)}"><title>${minus.label} ½ mm</title></polygon>`;
+  };
+  if (dv.right && dv.right.e) arrow('h', dv.right, dv.left);
+  if (dv.top && dv.top.e) arrow('v', dv.top, dv.bottom);
+  const tl = dv.tilt;
+  if (tl) {                                                                  // the arc at the tip, around the head
+    const tip = H.clone().addScaledVector(d, (t.collar ?? 2) + t.length);
+    const [tx, ty] = proj(tip);
+    const R = Math.max(Math.hypot(tx - hx, ty - hy), 14) + 3, a0 = Math.atan2(ty - hy, tx - hx), span = Math.PI * 0.22;
+    const col = GCOL[tl.pos.e] || '#E0483E';
+    const pt = (a) => [hx + R * Math.cos(a), hy + R * Math.sin(a)];
+    const [x1, y1] = pt(a0 - span), [x2, y2] = pt(a0 + span);
+    svg += `<path class="ln" d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2}" stroke="${col}"/>`;
+    svg += `<path class="hit" data-g="rot" d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2}"/>`;
+    for (const sgn of [1, -1]) {                                             // heads along the tangent at each end
+      const a = a0 + sgn * span, [px, py] = pt(a), tgx = -Math.sin(a) * sgn, tgy = Math.cos(a) * sgn, nx = Math.cos(a), ny = Math.sin(a);
+      const pts = `${px + tgx * hw},${py + tgy * hw} ${px + nx * hw * 0.75},${py + ny * hw * 0.75} ${px - nx * hw * 0.75},${py - ny * hw * 0.75}`;
+      // the tip moves clockwise on the screen for sgn = +1 (angles grow clockwise with y down)
+      const posSign = (tl.tip === 'top' || tl.tip === 'left') ? 1 : -1;      // which screen sense is 'pos'
+      const which = sgn * posSign > 0 ? tl.pos : tl.neg;
+      svg += `<polygon class="hd" data-g="rot" data-step="${sgn * 5}" fill="${col}" points="${pts}"><title>${which.label}</title></polygon>`;
+    }
+  }
+  svg += `<circle class="dot" cx="${hx}" cy="${hy}" r="3" vector-effect="non-scaling-stroke"/>`;
+  box.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${svg}</svg>`;
+  box.querySelector('.dot').setAttribute('r', '1.1');
+}
+function sliceGizmoDown(i, e) {
+  const el = e.target.closest('[data-g]');
+  if (!el || !state.sel) return false;
+  const F = sliceFrame(i);
+  if (!F) return false;
+  const fig = $('s' + i).parentElement, r = fig.getBoundingClientRect();
+  const H = new THREE.Vector3(...F.t.head), [hx, hy] = F.proj(H);
+  dragS = { i, g: el.dataset.g, step: el.dataset.step ? +el.dataset.step : 0, x0: e.clientX, y0: e.clientY, moved: false, F, r, pid: e.pointerId,
+            mmPerPx: (2 * F.gm.half) / r.width, hpx: [r.left + hx / 100 * r.width, r.top + hy / 100 * r.height], val: 0, fig };
+  fig.setPointerCapture(e.pointerId); fig.classList.add('gdrag');
+  return true;
+}
+function sliceGizmoMove(e) {
+  if (!dragS) return;
+  const D = dragS, { dv } = D.F;
+  if (Math.hypot(e.clientX - D.x0, e.clientY - D.y0) > 4) D.moved = true;
+  if (!D.moved) return;
+  const chip = $('gc' + D.i), svg = $('g' + D.i).querySelector('svg');
+  chip.style.left = (e.clientX - D.r.left + 14) + 'px'; chip.style.top = (e.clientY - D.r.top - 26) + 'px'; chip.classList.add('on');
+  if (D.g === 'h' || D.g === 'v') {
+    const raw = D.g === 'h' ? (e.clientX - D.x0) * D.mmPerPx : -(e.clientY - D.y0) * D.mmPerPx;
+    D.val = Math.max(-12, Math.min(12, Math.round(raw / 0.25) * 0.25));
+    const lab = D.g === 'h' ? (D.val >= 0 ? dv.right : dv.left) : (D.val >= 0 ? dv.top : dv.bottom);
+    chip.textContent = `${lab.label} ${Math.abs(D.val).toFixed(2)} mm`;
+    const px = D.val / D.mmPerPx, tx = D.g === 'h' ? px : 0, ty = D.g === 'v' ? -px : 0;
+    if (svg) svg.style.transform = `translate(${tx}px, ${ty}px)`;
+  } else {
+    const a1 = Math.atan2(D.y0 - D.hpx[1], D.x0 - D.hpx[0]), a2 = Math.atan2(e.clientY - D.hpx[1], e.clientX - D.hpx[0]);
+    let th = a2 - a1; while (th > Math.PI) th -= 2 * Math.PI; while (th < -Math.PI) th += 2 * Math.PI;   // clockwise on screen is +
+    th = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, Math.round(th * 180 / Math.PI) * Math.PI / 180));
+    D.val = th;
+    const tl = dv.tilt, posSign = (tl.tip === 'top' || tl.tip === 'left') ? 1 : -1;
+    chip.textContent = `${(th * posSign >= 0 ? tl.pos : tl.neg).label.replace(/ 5°$/, '')} ${Math.abs(Math.round(th * 180 / Math.PI))}°`;
+    if (svg) { const [hx, hy] = D.F.proj(new THREE.Vector3(...D.F.t.head)); svg.style.transformOrigin = `${hx}% ${hy}%`; svg.style.transform = `rotate(${th}rad)`; }
+  }
+}
+function sliceGizmoUp(apply) {
+  if (!dragS) return;
+  const D = dragS; dragS = null;
+  D.fig.classList.remove('gdrag'); $('gc' + D.i).classList.remove('on');
+  const svg = $('g' + D.i).querySelector('svg'); if (svg) svg.style.transform = '';
+  try { D.fig.releasePointerCapture(D.pid); } catch (e) {}
+  if (!apply) return;
+  const { dv, t, nrm } = D.F;
+  const rotDir = (th) => {                                                   // the screw turned in this picture: about the view normal
+    const d0 = new THREE.Vector3(...t.dir).normalize();
+    return rotAbout(d0, nrm, -th).normalize().toArray();                     // screen-clockwise = negative about the normal (y is down)
+  };
+  if (!D.moved) {
+    if (!D.step) return;
+    if (D.g === 'rot') editTad(t.id, { dir: rotDir(D.step * Math.PI / 180) });
+    else { const lab = D.g === 'h' ? (D.step > 0 ? dv.right : dv.left) : (D.step > 0 ? dv.top : dv.bottom); editTad(t.id, { [lab.e]: lab.v }); }
+    return;
+  }
+  if (D.g === 'rot') { if (Math.abs(D.val) >= Math.PI / 360) editTad(t.id, { dir: rotDir(D.val) }); return; }
+  if (Math.abs(D.val) < 0.25) return;
+  const lab = D.g === 'h' ? (D.val >= 0 ? dv.right : dv.left) : (D.val >= 0 ? dv.top : dv.bottom);
+  editTad(t.id, { [lab.e]: Math.sign(lab.v) * Math.abs(D.val) });
+}
+document.querySelectorAll('.slices figure').forEach((fig, i) => {
+  fig.addEventListener('pointerdown', (e) => { if (e.button === 0 && sliceGizmoDown(i, e)) { e.stopImmediatePropagation(); e.preventDefault(); } }, { capture: true });
+  fig.addEventListener('pointermove', (e) => { if (dragS && dragS.i === i) { e.stopImmediatePropagation(); sliceGizmoMove(e); } }, { capture: true });
+  fig.addEventListener('pointerup', (e) => { if (dragS && dragS.i === i) { e.stopImmediatePropagation(); sliceGizmoUp(true); } }, { capture: true });
+  fig.addEventListener('pointercancel', () => { if (dragS && dragS.i === i) sliceGizmoUp(false); }, { capture: true });
+});
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dragS) sliceGizmoUp(false); });
 document.querySelectorAll('.dir').forEach((b) => b.addEventListener('click', (e) => {
   if (!b.dataset.e || !state.sel) return;
   editTad(state.sel, { [b.dataset.e]: +b.dataset.v * (e.shiftKey ? 3 : 1) });
