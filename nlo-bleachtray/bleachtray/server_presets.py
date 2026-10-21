@@ -9,7 +9,7 @@ PRESETS = {
     "mouthguard": dict(reservoir_height=0.0, reservoir_max_position=0, trimline_offset=0.0, bridge_radius=3.0, blockout=False,
                        mouthguard=True, remove_appliances=False, engrave_type="MOUTHGUARD"),
     # Phase I retainer (mixed dentition, phase1.py): the retainer's 1.25 mm line on the cheek side, a palate plate open
-    # behind the Es (upper) / a deep lingual flange (lower); COTT cuts the C/D chunks out, BOTT blocks them out instead
+    # behind the Es (upper) / a deep lingual flange (lower); CUTT cuts the C/D chunks out, BOTT blocks them out instead
     "phase1": dict(reservoir_height=0.0, reservoir_max_position=0, trimline_offset=1.25, bridge_radius=4.0, blockout=False,
                    phase1=True, p1_method="cott", engrave_type="PHASE I"),
     "phase1_bott": dict(reservoir_height=0.0, reservoir_max_position=0, trimline_offset=1.25, bridge_radius=4.0, blockout=False,

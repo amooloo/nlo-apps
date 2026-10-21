@@ -439,8 +439,8 @@ def _clean_item(b, cid):
     ku = kinds.upper()
     if b.get("type") == "mouthguard":
         make = ["MG"]
-    elif "COTT" in ku or "BOTT" in ku or "PHASE" in ku or "PHASE" in str(b.get("stage") or "").upper():
-        make = ["P1"]            # a Phase I retainer (COTT / BOTT in NLO Cases' retainer kinds)
+    elif "CUTT" in ku or "COTT" in ku or "BOTT" in ku or "PHASE" in ku or "PHASE" in str(b.get("stage") or "").upper():
+        make = ["P1"]            # a Phase I retainer (CUTT / BOTT in NLO Cases' retainer kinds)
     else:
         if "WT" in ku: make.append("WT")
         if "TT" in ku or not make: make.append("TT")
