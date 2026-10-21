@@ -131,11 +131,11 @@ def _loop(mesh, A, covered, iters=4):
     return loops
 
 
-def _tidy(loop, mesh_f, step=0.5):
+def _tidy(loop, mesh_f, step=0.5, snap_mm=4.0):
     from trimesh.proximity import ProximityQuery
     out = smooth_polyline(resample_polyline(np.asarray(loop, float), step), iters=4)
     cp, dd, _ = ProximityQuery(mesh_f).on_surface(out)
-    snap = dd < 4.0
+    snap = dd < snap_mm
     out[snap] = cp[snap]
     return smooth_polyline(out, iters=2)
 
@@ -167,7 +167,7 @@ def hairpins(L, gap_space=1.6, gap_along=6.0):
     return L[bad[:, 0], :2] if len(bad) else np.zeros((0, 2))
 
 
-def round_line(line, mesh_f, V, labels, keep_teeth, c, facial_of, strong_mm=2.5, light_mm=1.0, step=0.5):
+def round_line(line, mesh_f, V, labels, keep_teeth, c, facial_of, strong_mm=2.5, light_mm=1.0, step=0.5, snap_mm=4.0):
     """No sharp turns (the doctor, 10/20/2026: "minimize sharp turns ... it's not adapted tightly to the teeth, so it
     doesn't need to be semi-scalloped - only the buccal of 2-2 and the buccal of the 6s and E/5s"). The line is
     smoothed along its length with a Gaussian of `strong_mm` everywhere - round the windows' corners, behind the last
@@ -183,7 +183,7 @@ def round_line(line, mesh_f, V, labels, keep_teeth, c, facial_of, strong_mm=2.5,
     keep_teeth = [int(t) for t in keep_teeth]
     km = np.isin(labels, keep_teeth)
     if not km.any():
-        return _tidy(_gauss_loop(L, strong_mm, step), mesh_f, step)
+        return _tidy(_gauss_loop(L, strong_mm, step), mesh_f, step, snap_mm=snap_mm)
     kd_keep = cKDTree(V[km]); kd_other = cKDTree(V[(labels > 0) & ~km]) if ((labels > 0) & ~km).any() else None
     d_keep = kd_keep.query(L)[0]
     d_other = kd_other.query(L)[0] if kd_other is not None else np.full(len(L), np.inf)
@@ -207,10 +207,10 @@ def round_line(line, mesh_f, V, labels, keep_teeth, c, facial_of, strong_mm=2.5,
     out = w[:n, None] * Ll[:n] + (1.0 - w[:n, None]) * Ls[:n]
     pq = ProximityQuery(mesh_f)
     cp, dd, _ = pq.on_surface(out)
-    out[dd < 4.0] = cp[dd < 4.0]
+    out[dd < snap_mm] = cp[dd < snap_mm]
     out = _gauss_loop(out, 0.6, step)
     cp, dd, _ = pq.on_surface(out)
-    out[dd < 4.0] = cp[dd < 4.0]
+    out[dd < snap_mm] = cp[dd < snap_mm]
     return out
 
 
@@ -525,7 +525,23 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         ang_b = np.linspace(-np.pi, np.pi, NB + 1)[:-1] + np.pi / NB
         t = np.clip(np.abs(ang_b) / half, 0, 1)
         depth = np.where(t < 1, np.minimum(depth, frenum_depth + (depth - frenum_depth) * (0.5 - 0.5 * np.cos(np.pi * t))), depth)
-        covered |= lin_v & (dist <= depth[bv])
+        # the flange ends with the teeth: behind the last tooth on each side it eases from its depth to the gum band
+        # over 4 mm of arch, so the line wraps the last tooth's distal as the first trim does (on one scan the pad
+        # behind a 6 was scanned 12 mm back and the flange ran out along it - a lobe of retainer behind the molar,
+        # 10/21/2026)
+        depth_v = depth[bv].astype(float)
+        r_lin_med = float(np.nanmedian(r_lin[ok])) if ok.any() else 15.0
+        for sd in (-1, 1):
+            ts = [t for t, (s_, p_) in info.items() if s_ == sd and (labels == int(t)).any()]
+            if not ts:
+                continue
+            t_last = max(ts, key=lambda t: info[t][1])
+            a_end = float(np.percentile(sd * ang_v[labels == int(t_last)], 97))
+            on_side = np.sign(V[:, 0] - c[0]) == sd
+            over_mm = np.clip(sd * ang_v - a_end, 0.0, None) * r_lin_med
+            w = np.clip(over_mm / 4.0, 0.0, 1.0)
+            depth_v = np.where(on_side, depth_v * (1.0 - w) + buccal_mm * w, depth_v)
+        covered |= lin_v & (dist <= depth_v)
         flange_v = np.minimum(depth, avail - flange_inset)[bv]       # what the scan really holds (depth is held to flange_min)
         res["flange_mm"] = dict(min=round(float(depth.min()), 1), median=round(float(np.median(depth)), 1), max=round(float(depth.max()), 1))
     covered &= ~edge | tooth
@@ -538,6 +554,23 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     # no slits: a bare strip narrower than 3 mm between two covered parts (the plate and a gum band) is covered too -
     # the line round it was a hairpin (10/21/2026)
     covered = _close(mesh_f, A, covered, 1.5) & (~edge | tooth)
+    # one piece: the retainer is the largest connected part of that region. On one lower the gum behind the last molar
+    # was cut off from the rest by the scan's edge zone - the model was built round the main part, but the cut line
+    # (its region closed 2 mm, which bridged the gap) went round the stray part too, 12 mm off the model in the air
+    # (10/21/2026). Whatever is not joined to the main part is left out of both lines, and the case says so.
+    from .mesh_utils import connected_components
+    comp = connected_components(covered, A)
+    if comp.max() > 0:
+        sizes = np.bincount(comp[comp >= 0])
+        main = int(np.argmax(sizes))
+        stray = covered & (comp != main)
+        if stray.any():
+            n_big = int((sizes >= 0.05 * sizes[main]).sum()) - 1
+            covered = covered & ~stray
+            if n_big:
+                res.setdefault("warnings", []).append(
+                    f"the outline came out in {n_big + 1} pieces - the {'smaller one is' if n_big == 1 else 'smaller ones are'} left out of the retainer: check the scan")
+            res["outline_pieces_dropped"] = int(stray.sum())
     body = covered.copy()
     cut = body.copy()
     # the 12-year molars and their gum (all of it: cheek side, tongue side, the pad behind) come out of the line, less
@@ -649,13 +682,15 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                     lines["body"] = _tidy(_loop(mesh_f, A, body)[0], mesh_f)
                 lines["cut"] = lines["body"]
                 continue
-            res.setdefault("warnings", []).append(f"the outline came out in {len(loops)} pieces - check the scan")
-        lines[nm] = _tidy(loops[0], mesh_out)
+            res.setdefault("warnings", []).append(f"the {nm} outline came out in {len(loops)} loops - check the scan")
+        # onto the scooped surface whatever the drop under a point (the body line over a scooped 7 hung 5.6 mm in the
+        # air with the usual 4 mm snap; the model is built round it)
+        lines[nm] = _tidy(loops[0], mesh_out, snap_mm=25.0)
     # no sharp turns: the lines rounded, a gentle scallop only on the cheek side of the teeth that stay
     keep_teeth = [int(t) for t in info if int(t) not in sel and int(t) not in seven]
     for nm in list(lines):
         try:
-            lines[nm] = round_line(lines[nm], mesh_out, V, labels, keep_teeth, c, facial_of, strong_mm=round_mm, light_mm=scallop_mm)
+            lines[nm] = round_line(lines[nm], mesh_out, V, labels, keep_teeth, c, facial_of, strong_mm=round_mm, light_mm=scallop_mm, snap_mm=25.0)
         except Exception as ex:  # noqa
             res.setdefault("warnings", []).append(f"the {nm} line was not rounded ({str(ex)[:60]})")
     if smooth:
