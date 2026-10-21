@@ -520,7 +520,7 @@ def cap_distal(loop, mesh, keep_mm=2.5, snap_tol=2.0):
     return out
 
 
-def edentulous_gaps(mesh, labels, info, min_gap=3.0, renumber_gap=5.0, tooth_width=7.0, log=None):
+def edentulous_gaps(mesh, labels, info, min_gap=3.0, renumber_gap=5.0, tooth_width=7.0, ridge_band=None, log=None):
     """Missing posterior teeth. Where two neighbouring teeth on a side have a gap between them (a
     missing premolar or molar), the gum-line contour would close round the teeth in front of the gap
     and drop everything behind it. Returns
@@ -531,7 +531,11 @@ def edentulous_gaps(mesh, labels, info, min_gap=3.0, renumber_gap=5.0, tooth_wid
       * the list of gaps;
       * `info` renumbered so a missing tooth keeps its position (one position per ~`tooth_width` mm
         of gap): the molar behind a missing premolar stays a molar for reservoirs, marks, crown
-        sizes."""
+        sizes.
+    `ridge_band` (mm): the ridge is only the gum within gap/2 + ridge_band of the nearer of the two
+    teeth - a lens between them. Round the arch's corner (a C gone, between a lateral incisor and the
+    D) the two crowns' hull cuts across the corner and takes a triangle of palate with it, and the gum
+    line then bulged 6 mm onto the palate round that (a Phase I scan, 10/20/2026). None: the hull."""
     import shapely
     from scipy.spatial import cKDTree
     from shapely.geometry import MultiPoint
@@ -557,6 +561,9 @@ def edentulous_gaps(mesh, labels, info, min_gap=3.0, renumber_gap=5.0, tooth_wid
             cand = np.where((labels == 0) & (V[:, 0] >= x0) & (V[:, 0] <= x1) & (V[:, 1] >= y0) & (V[:, 1] <= y1))[0]
             if len(cand):
                 cand = cand[shapely.contains_xy(hull, V[cand, 0], V[cand, 1])]
+            if len(cand) and ridge_band is not None:
+                d_near = np.minimum(cKDTree(V[ma][:, :2]).query(V[cand, :2])[0], cKDTree(V[mb][:, :2]).query(V[cand, :2])[0])
+                cand = cand[d_near <= 0.5 * gap + float(ridge_band)]
             n_ridge = 0
             if len(cand):
                 ca, cb = V[ma][:, :2].mean(0), V[mb][:, :2].mean(0)
