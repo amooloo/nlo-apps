@@ -23,7 +23,15 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    nudge the base if needed. Each thing you might fix has its own tab, each with one brush (the ball on the model;
    its size is the slider; hold **Shift** and drag, then **Apply & re-run** - every fix is kept for every model made
    from that scan and every later re-run): **Clean-up** cuts away what is not the arch (tongue, cheek, a flap, the
-   pad behind the last molar - gone from the scan); its **Erase** brush takes a stroke back before Apply, and once a
+   pad behind the last molar - gone from the scan). **The tabs are the steps, in order** (the doctor, 10/21/2026:
+   "there should be a step by step protocol - if the final case looks good, good; if it needs to be done, go through
+   it step by step in an order that makes sense"): Result first - looks right, send it; not right, **Fix it step by
+   step** - 1 Clean-up (it changes the scan, so everything after it is found again), 2 Braces (a scan with them on:
+   off before the teeth are found), 3 Segmentation (which vertices are which tooth), 4 Teeth (their numbers - on
+   the segmentation as it stands), 5 Phase I (its dots, on the numbered teeth), 6 Reservoirs and 7 Block-outs (on the
+   model as it will be made), then Result. The brush box says "Step k of n" with Back / Next; the steps that do not
+   apply to a case are skipped in the count. Edits on every tab are kept and go with one Apply.
+   Its **Erase** brush takes a stroke back before Apply, and once a
    cut is applied **Bring back what was cut** puts the scan back as it was before the first cut (every model from it
    is made again); **Segmentation** repaints tooth / gum labels (the white
    stone model with each tooth in its own colour): the **Tooth** brush paints the colour of the tooth the stroke
@@ -31,8 +39,14 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    and it is that tooth again, a clean split (the doctor, 10/21/2026: "wherever the brush picks from will be the
    colour that is painted"); started on gum it paints plain tooth for the app to sort - and has the **Contact** dot:
    Shift-click once where two teeth touch and the split between them is put there - for crowded lower incisors,
-   where one colour runs across two teeth and the reservoir ends mid-tooth instead of at the contact; click a dot
-   to take it away (an applied dot shows pale, red once marked to go), Shift-drag a dot to move it, applied or not;
+   where one colour runs across two teeth and the reservoir ends mid-tooth instead of at the contact - the view turns
+   to look from above when the tool is picked, a dot on gum is refused (teeth with a space between them need none;
+   most arches need no dot at all, a crowded one two or three), Backspace takes the last dot back, a click on a dot
+   takes it away (an applied dot shows pale, red once marked to go), Shift-drag moves one, applied or not. The Tooth
+   brush picks the colour of the vertex under the click itself (the commonest colour within the brush picked the
+   neighbour when a stroke started near a boundary - "sometimes it starts to paint the other tooth's colour"), the
+   cursor shows the colour being painted, and painting a tooth's own colour (or plain tooth) back over a mistaken
+   pick takes it back;
    **Phase I** (on a Phase I case only) takes the doctor's own dots: **Cutout span** - Shift-click the near and the
    far end of the cutout on a side and it runs between the two dots, mesio-distal, whatever stands there - and
    **Ends here** - one dot per side where the retainer stops, nothing covered behind it - and **6 is here** - Shift-click

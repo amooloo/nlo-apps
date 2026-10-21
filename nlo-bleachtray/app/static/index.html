@@ -222,6 +222,9 @@
   .toolbar .tab:hover{background:var(--grey-100);color:var(--navy)}
   .toolbar .tab.on{background:var(--navy);color:#fff}
   .toolbar .tab.off{opacity:.4;cursor:not-allowed}
+  .toolbar .tab i{display:inline-block;font-style:normal;width:16px;height:16px;line-height:16px;border-radius:50%;background:var(--grey-200);color:var(--navy);font-size:10px;text-align:center;margin-right:6px;vertical-align:1px}
+  .toolbar .tab.on i{background:#fff} .toolbar .tab.done i{background:var(--mint);color:#fff}
+  .stepnav{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap} .stepnav .where{font-size:11.5px;color:var(--grey-500);flex:1;min-width:120px}
   .toolbar label{font-size:12px;color:var(--grey-600);font-weight:600;padding:0 10px 0 4px;display:flex;align-items:center;gap:5px}
   .toolbar label input{accent-color:var(--blue)}
   .brush,.place{position:absolute;top:64px;right:12px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:9px 11px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
@@ -371,13 +374,13 @@
       <section class="viewer">
         <div class="toolbar">
           <span class="tab on" data-tab="result">Result</span>
-          <span class="tab" data-tab="clean" title="Cut away what is not the arch">Clean-up</span>
-          <span class="tab" data-tab="seg" title="Fix tooth / gum labels">Segmentation</span>
-          <span class="tab" data-tab="res" title="Paint or erase reservoirs">Reservoirs</span>
-          <span class="tab" data-tab="block" title="Fill an undercut for thermoforming">Block-outs</span>
-          <span class="tab off" data-tab="braces" title="Only for a scan dropped with Braces on (or a mouthguard)">Braces</span>
-          <span class="tab off" data-tab="p1" title="Only on a Phase I case">Phase I</span>
-          <span class="tab" data-tab="teeth" title="The number of every tooth - click a badge to change it">Teeth</span>
+          <span class="tab" data-tab="clean" title="Step 1 - cut away what is not the arch (changes the scan: everything after is found again)"><i>1</i>Clean-up</span>
+          <span class="tab off" data-tab="braces" title="Only for a scan dropped with Braces on (or a mouthguard)"><i>2</i>Braces</span>
+          <span class="tab" data-tab="seg" title="Step 2 - fix tooth / gum labels, split crowded teeth"><i>2</i>Segmentation</span>
+          <span class="tab" data-tab="teeth" title="Step 3 - the number of every tooth: click a badge to change it"><i>3</i>Teeth</span>
+          <span class="tab off" data-tab="p1" title="Only on a Phase I case"><i>4</i>Phase I</span>
+          <span class="tab" data-tab="res" title="Step 4 - paint or erase reservoirs"><i>4</i>Reservoirs</span>
+          <span class="tab" data-tab="block" title="Step 5 - fill an undercut for thermoforming"><i>5</i>Block-outs</span>
           <label><input type="checkbox" id="showtl" checked> trim line</label>
           <label title="A PLY carries the scanner's colour; off = the white stone-model look"><input type="checkbox" id="showcol"> colour</label>
         </div>
@@ -782,7 +785,7 @@ const PANELS = {
   clean:  { group: 'seg', title: 'Scan clean-up — cut away what is not the arch', modes: [['cut', 'Cut away', 'Tongue, cheek, a flap, the pad behind the last molar: that part of the scan is deleted before the model is built', 'brush'], ['uncut', 'Erase', 'Painted too much? Paint over it again with this to take the cut stroke back (before Apply)', 'eraser']],
             sets: ['cut'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over what the scanner caught that is not the arch; rotate with the mouse otherwise. <b>Erase</b> takes a stroke back where you paint over it, before Apply. The painted part leaves the scan file itself - every model from it, every later re-run; <b>Bring back what was cut</b> (shown once something has been cut away) puts the scan back as it was before the first cut and re-makes its models.' },
   seg:    { group: 'seg', title: 'Segmentation — fix tooth / gum labels', modes: [['tooth', 'Tooth', 'This is tooth. Start the stroke on a tooth and it paints that tooth\'s colour: paint over what bled from the neighbour and it is that tooth again', 'brush'], ['gum', 'Gum', 'This is gum', 'eraser'], ['contact', 'Contact', 'Shift-click once where two teeth touch: the split between them is put there (crowded incisors where one colour runs over two teeth). Click a dot again to take it away', 'dot']],
-            sets: ['add', 'remove', 'relabel', 'contact', 'uncontact'], hint: 'Each tooth has its own colour, gum is plain. Hold <kbd class="key">Shift</kbd> and drag to repaint; rotate with the mouse otherwise. <b>Tooth</b> paints the colour of the tooth the stroke starts on: where one colour has run over onto the next tooth, start on the right tooth and paint over the bleed - it is that tooth again, with a clean split; started on gum it paints plain tooth, for the app to sort. <b>Contact</b> is a dot, not a brush: Shift-click once where two teeth touch and the split between them is moved there - for crowded lower incisors, where one colour runs across two teeth and the reservoir ends mid-tooth. A dot already applied shows pale; click it to take it away. The dots are kept with the scan, and a corrected case that is sent or saved as a lesson teaches the model where teeth meet.' },
+            sets: ['add', 'remove', 'relabel', 'contact', 'uncontact'], hint: 'Each tooth has its own colour, gum is plain. Hold <kbd class="key">Shift</kbd> and drag to repaint; rotate with the mouse otherwise. <b>Tooth</b> paints the colour of the tooth the stroke starts on: where one colour has run over onto the next tooth, start on the right tooth and paint over the bleed - it is that tooth again, with a clean split; started on gum it paints plain tooth, for the app to sort. <b>Contact</b> is a dot, not a brush: the view turns to look from above; Shift-click once where two teeth touch and the split between them is moved there - only where one colour runs across two teeth (crowded lower incisors, where the reservoir ends mid-tooth). Teeth that already have their own colour need no dot, and teeth with a space between them never do - most arches need none, a crowded one two or three. Click a dot to take it away, Backspace takes the last one back, Shift-drag moves one; an applied dot shows pale. The dots are kept with the scan, and a corrected case that is sent or saved as a lesson teaches the model where teeth meet.' },
   res:    { group: 'scan', title: 'Reservoirs — paint or erase', modes: [['reservoir', 'Paint', 'A reservoir here: on a tooth the automatic one skipped (behind the 5s, a tooth set back for recession) or a part it missed. Still 1 mm off the gum line and 0.4 mm off the edge', 'brush'], ['noreservoir', 'Erase', 'No reservoir here (recession, an exposed root, a crown margin) - the reservoir ends at the edge of your stroke, with its 0.6 mm slope on the side you kept', 'eraser']],
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
   block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['outline', 'Outline', 'Click round the undercut, corner by corner (Shift-click): the corners are joined along the surface; click the first dot again to close and everything inside is blocked out. Esc drops an unfinished outline', 'poly'], ['blockout', 'Block out', 'Brush: fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats', 'brush'], ['unblockout', 'Clear', 'Take a painted block-out away here (an applied one shows pale green) - the next Apply re-makes the model without it', 'eraser']],
@@ -831,13 +834,19 @@ function renderPanel(){
     <div class="szrow" ${tab === 'teeth' ? 'style="display:none"' : ''}>Brush <input type="range" id="radius" min="0.5" max="5" step="0.25" value="${brushR}" title="Brush radius"> <b id="rv">${brushR}</b> mm</div>
     <div class="hint phelp ${helpOpen.brush ? 'on' : ''}" id="brushhelptext"><b>${P.title}.</b> ${P.hint} <b>Outline instead of filling:</b> a stroke that comes back onto itself paints everything inside the loop.</div>
     <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button>${tab === 'clean' && curScans[scanIdx] && curScans[scanIdx].cut ? '<button class="small" id="uncut" title="Puts the scan back as it was before the first cut and re-makes its models">Bring back what was cut</button>' : ''}</div>
-    <div class="hint" id="fixcount">No edits.</div>`;
-  box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); });
+    <div class="hint" id="fixcount">No edits.</div>
+    <div class="stepnav"><span class="where" id="stepwhere"></span><button class="small" id="stepback" title="The step before">&larr; Back</button><button class="small" id="stepnext" title="The next step - your edits here are kept and go with the next Apply">Next &rarr;</button></div>`;
+  box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); if (isDotMode(b.dataset.mode)) viewFrom('top'); });
   $('#radius').oninput = () => { brushR = +$('#radius').value; $('#rv').textContent = brushR; brushCursor.scale.setScalar(cursorR()); if (brushCursor.visible) requestRender(); };
   $('#clearfix').onclick = () => { P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'teeth') { toothIds = {}; drawBadges(); } if (tab === 'block') { outlines = []; dropOutline(); } paintColors(); paintResColors(); updateFixCount(); };
   $('#rerun').onclick = applyAndRerun;
   if ($('#uncut')) $('#uncut').onclick = bringBackCut;
   $('#brushhide').onclick = () => { panelOpen.brush = false; syncPanels(); };
+  { const on = stepTabs(), k = on.indexOf(tab);
+    $('#stepwhere').textContent = k >= 0 ? `Step ${k + 1} of ${on.length}` : '';
+    $('#stepback').onclick = () => showTab(k > 0 ? on[k - 1] : 'result');
+    $('#stepnext').textContent = k >= 0 && k < on.length - 1 ? 'Next →' : 'Done → Result';
+    $('#stepnext').onclick = () => showTab(k >= 0 && k < on.length - 1 ? on[k + 1] : 'result'); }
   $('#brushhelp').onclick = () => { helpOpen.brush = !helpOpen.brush; $('#brushhelptext').classList.toggle('on', helpOpen.brush); $('#brushhelp').classList.toggle('on', helpOpen.brush); };
   updateFixCount(); syncPanels();
 }
@@ -867,8 +876,16 @@ function showTab(t){
 }
 document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
 let p1Tab = false;
-function setP1Tab(on){ p1Tab = !!on; const e = document.querySelector('.tab[data-tab="p1"]'); e.classList.toggle('off', !p1Tab); e.title = p1Tab ? 'Where the cutouts go and where the retainer ends' : 'Only on a Phase I case'; if (!p1Tab && tab === 'p1') showTab('seg'); }
-function setBracesTab(on){ bracesTab = !!on; const e = document.querySelector('.tab[data-tab="braces"]'); e.classList.toggle('off', !bracesTab); e.title = bracesTab ? 'Take off a bracket or wire the app missed' : 'Only for a scan dropped with Braces on (or a mouthguard)'; if (!bracesTab && tab === 'braces') showTab('seg'); }
+// the steps of a case, in the order one depends on the next: clean-up changes the scan (everything after it is found
+// again), braces come off before the teeth are found, the teeth before their numbers, the numbers before a Phase I's
+// dots, and reservoirs / block-outs last, on the model as it will be made (the doctor, 10/21/2026: "there should be a
+// step by step protocol - if the final case looks good then good; if it needs to be done, let's go through step by
+// step in an order that makes sense")
+const STEP_ORDER = ['clean', 'braces', 'seg', 'teeth', 'p1', 'res', 'block'];
+const stepTabs = () => STEP_ORDER.filter(t => !document.querySelector(`.tab[data-tab="${t}"]`).classList.contains('off'));
+function renumberSteps(){ const on = stepTabs(); document.querySelectorAll('.toolbar .tab i').forEach(i => { const t = i.parentElement.dataset.tab; const k = on.indexOf(t); i.textContent = k >= 0 ? String(k + 1) : '·'; }); }
+function setP1Tab(on){ p1Tab = !!on; const e = document.querySelector('.tab[data-tab="p1"]'); e.classList.toggle('off', !p1Tab); e.title = p1Tab ? 'Where the cutouts go and where the retainer ends' : 'Only on a Phase I case'; if (!p1Tab && tab === 'p1') showTab('seg'); renumberSteps(); }
+function setBracesTab(on){ bracesTab = !!on; const e = document.querySelector('.tab[data-tab="braces"]'); e.classList.toggle('off', !bracesTab); e.title = bracesTab ? 'Take off a bracket or wire the app missed' : 'Only for a scan dropped with Braces on (or a mouthguard)'; if (!bracesTab && tab === 'braces') showTab('seg'); renumberSteps(); }
 $('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); requestRender(); };
 
 // ---------- file handling ----------
@@ -1461,12 +1478,13 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
     box.innerHTML = `<div class="anim" id="animTrash"></div><b>Discarded</b> — nothing went to the Trimlign.` + closeLine;
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
-    box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
-      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button>${preformBtns()}<button class="small" id="discardbtn">Discard</button></div>` +
+    box.innerHTML = `<b>Check the 3D result${what}.</b> Looks right? Send it. Not right? Go through the steps in order - clean-up, segmentation, tooth numbers, then the rest - and Apply:` +
+      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button>${preformBtns()}<button class="small" id="stepsbtn" title="Step 1: clean-up. Each step keeps your edits; Apply & re-run makes the models with them all">Fix it step by step &rarr;</button><button class="small" id="discardbtn">Discard</button></div>` +
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine +
       // Send files the case for the retraining by itself; this link is for a corrected case that is not going to be sent
       ((j.fixed || []).length && !j.learned ? `<div class="hint" style="margin-top:8px"><a href="#" id="learnlink" title="Keep this brush-corrected case as a lesson for the retraining without sending it anywhere (Send does this on its own)">Save as lesson without sending</a></div>` : '');
     wireAdd();
+    if (box.querySelector('#stepsbtn')) box.querySelector('#stepsbtn').onclick = () => { const on = stepTabs(); showTab(on[0] || 'clean'); };
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
     const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Send or Save as lesson.'); if (t) showTab(t); return true; } return false; };
     $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const rs = await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() }); const r = await rs.json().catch(() => ({})); if (!rs.ok || !r.review) { $('#sendbtn').disabled = false; $('#sendbtn').textContent = 'Send to Trimlign'; showErr('Not sent: ' + (r.detail || rs.status) + ' — the case is not ready (still being made, or no longer open). Open it again from the list.'); refreshJobs(); return; } refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800); if (r.order_error) showErr(r.order_error); else if (r.review === 'sent') { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
@@ -2077,9 +2095,13 @@ function dotUp(){
   } else if (from >= 0) {
     if (mine) edits[kind].delete(from);
     else { if (edits[K.un].has(from)) edits[K.un].delete(from); else edits[K.un].add(from); }
-  } else edits[kind].add(best);
+  } else if (kind === 'contact' && segLabels[best] === 0 && !edits.add.has(best)) {
+    showErr('A contact dot goes where two teeth touch and one colour runs across both - this spot is gum. Teeth with a space between them need no dot.', 7000); return;
+  } else { edits[kind].add(best); lastDots.push([kind, best]); }
   paintColors(); updateFixCount();
 }
+let lastDots = [];   // the dots placed this time, in order - Backspace takes the last one back
+window.addEventListener('keydown', ev => { if ((ev.key === 'Backspace' || ev.key === 'Delete') && isDotMode(modeNow()) && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { while (lastDots.length) { const [k, i] = lastDots.pop(); if (edits[k].has(i)) { edits[k].delete(i); paintColors(); updateFixCount(); ev.preventDefault(); break; } } } });
 // ---------- the Teeth tab: a badge per tooth on a leader line, a picker to give it its number ----------
 let teethInfo = { teeth: {}, ids: {}, arch: null }, toothCent = {}, archCent = [0, 0, 0], pickFor = null;
 const PRIM = ['', 'A', 'B', 'C', 'D', 'E'];
@@ -2156,6 +2178,7 @@ const cursorR = () => isDotMode(modeNow()) ? 0.7 : brushR;   // a dot tool is a 
 function syncBrush(){
   const m = modeNow();
   if (tab === 'res') brushCursor.material.color.setHSL(0, m === 'reservoir' ? 0.9 : 0, m === 'reservoir' ? 0.55 : 0.45);
+  else if (m === 'tooth' && pickLabel) brushCursor.material.color.setHex(palette[pickLabel % palette.length]);
   else brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'uncut' ? 0x64748b : m === 'blockout' || m === 'outline' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : m === 'notbracket' ? 0x2563eb : m === 'contact' ? 0xeab308 : m === 'p1span' ? 0x16a34a : m === 'p1end' ? 0x7c3aed : m === 'p1six' ? 0x1d4ed8 : 0x1d4ed8);
   brushCursor.scale.setScalar(cursorR());
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
@@ -2184,7 +2207,10 @@ function applyMode(mode, i){
   else if (mode === 'blockout'){ edits.blockout.add(i); edits.unblockout.delete(i); }
   else if (mode === 'unblockout'){ edits.unblockout.add(i); edits.blockout.delete(i); }
   else if (mode === 'takeoff'){ edits.takeoff.add(i); edits.notbracket.delete(i); }
-  else if (mode === 'tooth'){ edits.remove.delete(i); edits.cut.delete(i); if (segLabels[i]===0) edits.add.add(i); if (pickLabel && segLabels[i] !== pickLabel) { const was = relabelOf.get(i); if (was !== undefined && was !== pickLabel) edits.relabel.delete(was * REL + i); edits.relabel.add(pickLabel * REL + i); relabelOf.set(i, pickLabel); } }
+  else if (mode === 'tooth'){ edits.remove.delete(i); edits.cut.delete(i); if (segLabels[i]===0) edits.add.add(i);
+    const was = relabelOf.get(i);
+    if (pickLabel && segLabels[i] !== pickLabel) { if (was !== undefined && was !== pickLabel) edits.relabel.delete(was * REL + i); edits.relabel.add(pickLabel * REL + i); relabelOf.set(i, pickLabel); }
+    else if (was !== undefined) { edits.relabel.delete(was * REL + i); relabelOf.delete(i); } }   // its own colour (or plain tooth) painted back over a mistaken pick
   else { edits.add.delete(i); edits.cut.delete(i); if (segLabels[i]!==0) edits.remove.add(i); const was = relabelOf.get(i); if (was !== undefined) { edits.relabel.delete(was * REL + i); relabelOf.delete(i); } }
 }
 // one drag = one stroke: painted without gaps (the brush is walked along the mouse's path), and when the
@@ -2195,12 +2221,12 @@ let pickLabel = 0;   // the Tooth brush: the colour (label) of the tooth the str
 const REL = 1000000;   // a picked-colour stroke vertex travels as label * REL + vertex
 let relabelOf = new Map();   // vertex -> picked label, for the colours (rebuilt from edits.relabel)
 function pickAt(ev){
+  // the colour of the tooth under the click itself (the vertex nearest the hit) - not the commonest within the brush,
+  // which picked the neighbour when a stroke started near a boundary (the doctor, 10/21/2026: "sometimes it starts to
+  // paint the other tooth's colour")
   const h = dotHit(ev); if (!h) return 0;
-  // the colour under the brush: the commonest label among the vertices within the brush
-  const p = h.p, r2 = brushR * brushR, cnt = new Map();
-  for (let i = 0; i < segLabels.length; i++) { const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z; if (dx*dx+dy*dy+dz*dz < r2 && segLabels[i] > 0) cnt.set(segLabels[i], (cnt.get(segLabels[i]) || 0) + 1); }
-  let best = 0, bn = 0; cnt.forEach((n, l) => { if (n > bn) { bn = n; best = l; } });
-  return best;
+  const l = segLabels[h.best]; if (l) return l;
+  const was = relabelOf.get(h.best); return was !== undefined ? was : 0;
 }
 function paintBall(p, mode){
   const r2 = brushR * brushR;
@@ -2288,7 +2314,7 @@ function closeOutline(){
   if (!filled) showErr('The outline did not enclose anything - make it a little bigger, or add corners where the surface curves.');
 }
 window.addEventListener('keydown', ev => { if (ev.key === 'Escape' && outl) dropOutline(); });
-canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (isDotMode(modeNow())) { dotDown(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } pickLabel = modeNow() === 'tooth' ? pickAt(ev) : 0; painting = true; controls.enabled = false; stroke = null; paintAt(ev); } });
+canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (isDotMode(modeNow())) { dotDown(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } pickLabel = modeNow() === 'tooth' ? pickAt(ev) : 0; if (modeNow() === 'tooth') syncBrush(); painting = true; controls.enabled = false; stroke = null; paintAt(ev); } });
 // hovering: one pick per frame at most (a pick walks every triangle of the scan)
 let hoverEv = null, hoverQueued = false;
 canvas.addEventListener('pointermove', ev => {
@@ -2299,7 +2325,7 @@ canvas.addEventListener('pointermove', ev => {
   if (!hoverQueued) { hoverQueued = true; requestAnimationFrame(() => { hoverQueued = false; if (brushOn() && hoverEv) placeCursor(hitAt(hoverEv)); }); }
 });
 canvas.addEventListener('pointerleave', () => placeCursor(null));
-window.addEventListener('pointerup', () => { if (dotDrag) dotUp(); if (painting) finishStroke(); painting = false; controls.enabled = true; });
+window.addEventListener('pointerup', () => { if (dotDrag) dotUp(); if (painting) finishStroke(); painting = false; controls.enabled = true; if (pickLabel) { pickLabel = 0; syncBrush(); } });
 function updateFixCount(){
   const el = $('#fixcount'); if (!el) return;
   const words = { add: '→ tooth', remove: '→ gum', relabel: 'given a picked tooth\'s colour', cut: 'cut away', noreservoir: 'reservoir erased', reservoir: 'reservoir painted', blockout: 'block out', unblockout: 'block-out cleared', takeoff: 'take off', notbracket: 'not a bracket' };
