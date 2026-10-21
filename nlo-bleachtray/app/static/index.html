@@ -226,6 +226,16 @@
   .toolbar label input{accent-color:var(--blue)}
   .brush,.place{position:absolute;top:64px;right:12px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:9px 11px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
   .brush{width:auto;max-width:320px} .place{width:318px}
+  /* the Teeth tab: a badge per tooth on a leader line, a picker when one is clicked */
+  #teethov{position:absolute;inset:0;z-index:1;pointer-events:none;display:none} #teethov.on{display:block}
+  #teethov svg{position:absolute;inset:0;width:100%;height:100%}
+  #teethov svg line{stroke:#334155;stroke-width:1.2;opacity:.75}
+  .tbadge{position:absolute;transform:translate(-50%,-50%);min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:#0f766e;color:#fff;font:700 12px/24px var(--fb);text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer;pointer-events:auto;user-select:none;white-space:nowrap}
+  .tbadge.hand{background:#b45309} .tbadge.none{background:#64748b} .tbadge:hover{outline:2px solid #fff}
+  .tpick{position:absolute;z-index:3;pointer-events:auto;background:#fff;border:1px solid var(--grey-200);border-radius:12px;padding:10px 12px;box-shadow:var(--sh-md, 0 8px 24px rgba(0,0,0,.14));font-size:12px;width:330px}
+  .tpick h5{margin:0 0 6px;font:600 12px var(--fd);color:var(--navy)} .tpick .row{display:flex;gap:4px;margin:4px 0;align-items:center} .tpick .row span{width:52px;color:var(--grey-500)}
+  .tpick button{min-width:26px;height:26px;padding:0 6px;border-radius:7px;border:1.5px solid var(--grey-300);background:var(--grey-50);font-weight:700;cursor:pointer} .tpick button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .tpick .row.x button{min-width:0;padding:0 10px;font-weight:600}
   .textbox{position:absolute;top:64px;right:12px;z-index:2;width:318px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:9px 11px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
   .textbox.on{display:block} .textbox h4{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin:0}
   #textchip{top:104px} .textbox{top:64px} .place.withtext{top:64px}
@@ -367,6 +377,7 @@
           <span class="tab" data-tab="block" title="Fill an undercut for thermoforming">Block-outs</span>
           <span class="tab off" data-tab="braces" title="Only for a scan dropped with Braces on (or a mouthguard)">Braces</span>
           <span class="tab off" data-tab="p1" title="Only on a Phase I case">Phase I</span>
+          <span class="tab" data-tab="teeth" title="The number of every tooth - click a badge to change it">Teeth</span>
           <label><input type="checkbox" id="showtl" checked> trim line</label>
           <label title="A PLY carries the scanner's colour; off = the white stone-model look"><input type="checkbox" id="showcol"> colour</label>
         </div>
@@ -423,6 +434,7 @@
   </div>
 </div>
         <canvas id="c"></canvas>
+        <div id="teethov"><svg></svg></div>
       </section>
 <!-- SETTINGS PANEL (illustrated): opened from the gear at the top right; sits over the whole work area -->
 <div class="settings" id="settings">
@@ -730,7 +742,7 @@ resize();
 // Draw only when something changed (camera moved, a model loaded) - a 60 fps loop would keep the PC's
 // graphics chip busy around the clock for a picture that is not moving.
 let drawQueued = false;
-function requestRender(){ if (drawQueued || document.hidden) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; controls.update(); renderer.render(scene, camera); }); }
+function requestRender(){ if (drawQueued || document.hidden) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; controls.update(); renderer.render(scene, camera); if (typeof placeBadges === 'function') placeBadges(); }); }
 controls.addEventListener('change', requestRender);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
 new ResizeObserver(() => { resize(); requestRender(); }).observe(viewer);
@@ -749,20 +761,21 @@ const EDIT_KEYS = Object.keys(edits);
 let editsByFile = {}, curFile = null, curScans = [];
 const fileKeyOf = sc => sc ? `${sc.filename}|${sc.preset === 'mouthguard' ? 'mg' : 'std'}` : null;
 let outlines = [];   // closed outlines on the current file: lists of corner vertices (sent with the strokes, kept with the case)
-function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].outlines = outlines.map(o => o.slice()); } else delete editsByFile[curFile]; }
-function restoreEdits(key){ const e = editsByFile[key]; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); outlines = e && e.outlines ? e.outlines.map(o => o.slice()) : []; }
-function forgetEdits(){ editsByFile = {}; curFile = null; EDIT_KEYS.forEach(k => edits[k].clear()); if (typeof relabelOf !== 'undefined') relabelOf = new Map(); outlines = []; if (typeof dropOutline === 'function') dropOutline(); }
+function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length || Object.keys(toothIds).length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].teeth = Object.assign({}, toothIds); editsByFile[curFile].outlines = outlines.map(o => o.slice()); } else delete editsByFile[curFile]; }
+function restoreEdits(key){ const e = editsByFile[key]; toothIds = e && e.teeth ? Object.assign({}, e.teeth) : {}; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); outlines = e && e.outlines ? e.outlines.map(o => o.slice()) : []; }
+function forgetEdits(){ editsByFile = {}; curFile = null; toothIds = {}; EDIT_KEYS.forEach(k => edits[k].clear()); if (typeof relabelOf !== 'undefined') relabelOf = new Map(); outlines = []; if (typeof dropOutline === 'function') dropOutline(); }
 // every file's strokes, as the server takes them: one entry per scan file, with the index of a scan made from it
 function allEdits(){
   stashEdits();
   const out = [];
   for (const key in editsByFile) {
     const k = curScans.findIndex(sc => fileKeyOf(sc) === key); if (k < 0) continue;
-    const e = editsByFile[key]; out.push(Object.assign({ scan: k, outlines: (e.outlines || []).map(o => o.slice()) }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
+    const e = editsByFile[key]; out.push(Object.assign({ scan: k, outlines: (e.outlines || []).map(o => o.slice()), teeth: e.teeth && Object.keys(e.teeth).length ? e.teeth : undefined }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
   }
   return out;
 }
-const otherEditCount = () => { stashEdits(); return Object.keys(editsByFile).filter(k => k !== curFile).reduce((a, k) => a + EDIT_KEYS.reduce((b, x) => b + editsByFile[k][x].size, 0), 0); };
+const otherEditCount = () => { stashEdits(); return Object.keys(editsByFile).filter(k => k !== curFile).reduce((a, k) => a + EDIT_KEYS.reduce((b, x) => b + editsByFile[k][x].size, 0) + Object.keys(editsByFile[k].teeth || {}).length, 0); };
+let toothIds = {};   // the Teeth tab: {label: [position, primary]} given by hand this time (null = back to the app's count)
 let resMesh = null, resHeat = null;   // the Reservoirs view: its mesh and its heat colours
 // one brush tab per job: which view it paints on, its modes, what Clear empties, the words
 const PANELS = {
@@ -776,10 +789,12 @@ const PANELS = {
             sets: ['blockout', 'unblockout'], hint: '<b>Outline</b>: Shift-click corner after corner round the undercut and click the first dot again to close it - the inside is blocked out and the outline is kept with the case (it teaches the automatic block-out where you want them). <b>Block out</b> is the brush instead: hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
   p1:     { group: 'seg', title: 'Phase I — where the cutouts go and where the retainer ends', modes: [['p1span', 'Cutout span', 'Shift-click twice on a side - the near end and the far end of the cutout, mesio-distal - and the cutout runs between the two dots, whatever teeth stand there. Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1end', 'Ends here', 'Shift-click once on a side where the retainer ends: nothing is covered behind the dot (instead of the app finding the 12-year molar). Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1six', '6 is here', 'Shift-click on the first molar on a side: that tooth is the 6, the side is counted from it (the tooth in front is the E, anything behind is a 7). For when the app has the 6 as a 7 and cuts it off', 'dot']],
             sets: ['p1span', 'unp1span', 'p1end', 'unp1end', 'p1six', 'unp1six'], hint: '<b>6 is here</b>: Shift-click the first molar on a side when the app has it wrong (a space between the front teeth counted as a tooth gone makes the 6 a "7", and the retainer stops short of it): that tooth is the 6, the side is counted from it. <b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (0.5 mm past the lateral to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
+  teeth:  { group: 'seg', title: 'Teeth — the number of every tooth', modes: [['number', 'Number', 'Click a tooth\'s badge and pick its number (1-8, or A-E for a primary tooth); the other teeth on that side are counted from it. × = not a tooth', 'dot']],
+            sets: [], hint: 'Every tooth carries a badge with the number the app gave it (counted from the midline). Click a badge and pick the right number - <b>Perm</b> 1-8 or <b>Primary</b> A-E - and the rest of that side is counted from it (one more going back, one less going forward), so one click puts a whole side right; <b>× not a tooth</b> makes a label gum again; <b>auto</b> gives the app\'s count back. Badges given by hand show orange. Apply &amp; re-run makes the models with these numbers; they are kept with the scan.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed, keep what is not a bracket', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the band)', 'brush'], ['notbracket', 'Not a bracket', 'Tooth or gum the app took for a bracket: left as scanned on the next run (on a mouthguard it is kept out of the band). Saved with the case, to teach the detector', 'eraser']],
             sets: ['takeoff', 'notbracket'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard band; blue = marked not a bracket. Hold <kbd class="key">Shift</kbd> and drag; rotate with the mouse otherwise. <b>Take off</b> over anything that was missed: on a retainer it comes off and the enamel is rebuilt, on a mouthguard it joins the band. <b>Not a bracket</b> over anything taken for one that is not: on a retainer the braces are taken off the scan as scanned again, leaving those areas as they were scanned; on a mouthguard the band leaves them out. The strokes are kept with the case and saved with its lesson.' },
 };
-const tabMode = { clean: 'cut', seg: 'tooth', res: 'reservoir', block: 'outline', braces: 'takeoff', p1: 'p1span' };
+const tabMode = { clean: 'cut', seg: 'tooth', res: 'reservoir', block: 'outline', braces: 'takeoff', p1: 'p1span', teeth: 'number' };
 const ICONS = {
   brush: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M14 3l7 7-8.5 8.5a3 3 0 0 1-4.2 0L7 17.2a3 3 0 0 1 0-4.2L14 3z"/><path d="M11 16c-2 0-3 1-3.5 3.5S5 21 3 21c1.5-1 2-2 2-3.5S6 14 8 14"/></svg>',
   eraser: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M20 20H9"/><path d="M4.5 15.5l9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8l-7 7H9l-4.5-4.5a2 2 0 0 1 0-2.8z"/><path d="M10 10l5 5"/></svg>',
@@ -813,13 +828,13 @@ function renderPanel(){
   if (!P) { syncPanels(); return; }
   box.innerHTML = `<div class="phead"><div class="seg">${P.modes.map(([m, lab, tip, ic]) => `<button class="${tabMode[tab] === m ? 'on' : ''}" data-mode="${m}" title="${tip}">${ic ? ICONS[ic] : ''}${lab}</button>`).join('')}</div>
       <span class="sp"></span><button class="ibtn ${helpOpen.brush ? 'on' : ''}" id="brushhelp" title="What this tab does">?</button><button class="ibtn" id="brushhide" title="Hide this box - the Brush chip brings it back">&ndash;</button></div>
-    <div class="szrow">Brush <input type="range" id="radius" min="0.5" max="5" step="0.25" value="${brushR}" title="Brush radius"> <b id="rv">${brushR}</b> mm</div>
+    <div class="szrow" ${tab === 'teeth' ? 'style="display:none"' : ''}>Brush <input type="range" id="radius" min="0.5" max="5" step="0.25" value="${brushR}" title="Brush radius"> <b id="rv">${brushR}</b> mm</div>
     <div class="hint phelp ${helpOpen.brush ? 'on' : ''}" id="brushhelptext"><b>${P.title}.</b> ${P.hint} <b>Outline instead of filling:</b> a stroke that comes back onto itself paints everything inside the loop.</div>
     <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button>${tab === 'clean' && curScans[scanIdx] && curScans[scanIdx].cut ? '<button class="small" id="uncut" title="Puts the scan back as it was before the first cut and re-makes its models">Bring back what was cut</button>' : ''}</div>
     <div class="hint" id="fixcount">No edits.</div>`;
   box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); });
   $('#radius').oninput = () => { brushR = +$('#radius').value; $('#rv').textContent = brushR; brushCursor.scale.setScalar(cursorR()); if (brushCursor.visible) requestRender(); };
-  $('#clearfix').onclick = () => { P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'block') { outlines = []; dropOutline(); } paintColors(); paintResColors(); updateFixCount(); };
+  $('#clearfix').onclick = () => { P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'teeth') { toothIds = {}; drawBadges(); } if (tab === 'block') { outlines = []; dropOutline(); } paintColors(); paintResColors(); updateFixCount(); };
   $('#rerun').onclick = applyAndRerun;
   if ($('#uncut')) $('#uncut').onclick = bringBackCut;
   $('#brushhide').onclick = () => { panelOpen.brush = false; syncPanels(); };
@@ -846,6 +861,7 @@ function showTab(t){
   const g = t === 'result' ? 'result' : PANELS[t].group;
   for (const k in groups) groups[k].visible = (k === g);
   document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t));
+  $('#teethov').classList.toggle('on', t === 'teeth'); if (t !== 'teeth') closePick(); else drawBadges();
   renderPanel(); if (segMesh) paintColors();
   syncPanels(); syncBrush(); requestRender();
 }
@@ -1932,6 +1948,13 @@ async function loadSeg(id, k=0){
   segDots = []; if (segPaint) for (let i = 0; i < nV; i++) if (segPaint[i] & 32) segDots.push(i);
   p1Dots = { span: [], end: [], six: [] };
   try { const pd = await (await fetch(`/api/jobs/${id}/p1dots?scan=${k}`)).json(); p1Dots = { span: pd.span || [], end: pd.end || [], six: pd.six || [] }; } catch (e) {}
+  teethInfo = { teeth: {}, ids: {}, arch: null };
+  try { teethInfo = await (await fetch(`/api/jobs/${id}/teeth?scan=${k}`)).json(); } catch (e) {}
+  // each tooth's middle and the arch's centre, for the Teeth tab's badges
+  toothCent = {}; { const acc = {}; for (let i = 0; i < nV; i++) { const l = segLabels[i]; if (!l) continue; const a = acc[l] || (acc[l] = [0, 0, 0, 0]); a[0] += V[i*3]; a[1] += V[i*3+1]; a[2] += V[i*3+2]; a[3]++; }
+    for (const l in acc) { const a = acc[l]; if (a[3] >= 30) toothCent[l] = [a[0]/a[3], a[1]/a[3], a[2]/a[3]]; }
+    const cs = Object.values(toothCent); archCent = cs.length ? [cs.reduce((x, c) => x + c[0], 0) / cs.length, cs.reduce((x, c) => x + c[1], 0) / cs.length, cs.reduce((x, c) => x + c[2], 0) / cs.length] : [0, 0, 0]; }
+  closePick(); drawBadges();
   // vertex adjacency (CSR) for the lasso fill: everything a closed stroke encloses gets painted too
   { const deg = new Uint32Array(nV); for (let k = 0; k < F.length; k++) deg[F[k]] += 2;
     const off = new Uint32Array(nV + 1); for (let i = 0; i < nV; i++) off[i + 1] = off[i] + deg[i];
@@ -1976,10 +1999,10 @@ function paintColors(){
   for (let i=0;i<segLabels.length;i++){
     let lab = segLabels[i]; if (edits.add.has(i)) lab = 99; if (edits.remove.has(i)) lab = 0;
     if (relabelOf.size) { const rl = relabelOf.get(i); if (rl !== undefined) lab = rl; }
-    if (t === 'seg' || t === 'p1') c.setHex(lab === 0 ? 0xe9e4d8 : lab === 99 ? 0x1d4ed8 : palette[lab % palette.length]);
+    if (t === 'seg' || t === 'p1' || t === 'teeth') c.setHex(lab === 0 ? 0xe9e4d8 : lab === 99 ? 0x1d4ed8 : palette[lab % palette.length]);
     else c.setHex(segLabels[i] === 0 ? 0xe9e4d8 : 0xf6f3ec);
     // a coloured scan can show its own colour under the tint (off by default: the stone model reads better)
-    if (segRGB && showCol && lab !== 99) { const w = ((t === 'seg' || t === 'p1') && lab !== 0) ? 0.45 : 0.0; c.setRGB(c.r * w + segRGB[i*3] / 255 * (1 - w), c.g * w + segRGB[i*3+1] / 255 * (1 - w), c.b * w + segRGB[i*3+2] / 255 * (1 - w)); }
+    if (segRGB && showCol && lab !== 99) { const w = ((t === 'seg' || t === 'p1' || t === 'teeth') && lab !== 0) ? 0.45 : 0.0; c.setRGB(c.r * w + segRGB[i*3] / 255 * (1 - w), c.g * w + segRGB[i*3+1] / 255 * (1 - w), c.b * w + segRGB[i*3+2] / 255 * (1 - w)); }
     const pf = segPaint ? segPaint[i] : 0;
     if (t === 'clean') { if (edits.cut.has(i)) c.setHex(0x7f1d1d); }
     else if (t === 'block') { if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (edits.unblockout.has(i)) c.setHex(0xfecaca); else if (pf & 2) c.lerp(teal, 0.45); }
@@ -2057,9 +2080,76 @@ function dotUp(){
   } else edits[kind].add(best);
   paintColors(); updateFixCount();
 }
+// ---------- the Teeth tab: a badge per tooth on a leader line, a picker to give it its number ----------
+let teethInfo = { teeth: {}, ids: {}, arch: null }, toothCent = {}, archCent = [0, 0, 0], pickFor = null;
+const PRIM = ['', 'A', 'B', 'C', 'D', 'E'];
+// what every tooth is called now: the doctor's numbers (this time's over the kept ones), the rest of the side counted
+// from the nearest numbered tooth along the arch, else the app's count
+function toothNumbers(){
+  const base = teethInfo.teeth || {}, out = {};
+  const ids = Object.assign({}, teethInfo.ids || {}); for (const k in toothIds) { if (toothIds[k] === null) delete ids[k]; else ids[k] = toothIds[k]; }
+  for (const sd of [-1, 1]) {
+    const order = Object.keys(base).filter(k => base[k].side === sd && !(ids[k] && ids[k][0] === 0)).sort((a, b) => base[a].position - base[b].position);
+    const fixed = order.filter(k => ids[k]);
+    order.forEach((k, i) => {
+      if (ids[k]) out[k] = { pos: ids[k][0], prim: !!ids[k][1], hand: true };
+      else if (fixed.length) { let bj = -1, bd = 1e9; for (const f of fixed) { const j = order.indexOf(f); if (Math.abs(i - j) < bd) { bd = Math.abs(i - j); bj = j; } } out[k] = { pos: Math.max(1, ids[order[bj]][0] + (i - bj)), prim: false, hand: false }; }
+      else out[k] = { pos: base[k].position, prim: !!base[k].primary, hand: false };
+    });
+  }
+  for (const k in ids) if (ids[k][0] === 0) out[k] = { pos: 0, prim: false, hand: true };
+  return out;
+}
+const sideOf = k => { const b = (teethInfo.teeth || {})[k]; if (!b) return ''; const r = (b.side > 0) === (teethInfo.arch === 'lower'); return r ? 'R' : 'L'; };
+function drawBadges(){
+  const ov = $('#teethov'); const svg = ov.querySelector('svg');
+  ov.querySelectorAll('.tbadge').forEach(e => e.remove()); svg.innerHTML = '';
+  if (tab !== 'teeth' || !segPos) return;
+  const nums = toothNumbers();
+  for (const l in toothCent) {
+    const n = nums[l]; const txt = !n || n.pos === 0 ? '×' : (n.prim ? PRIM[n.pos] || n.pos : String(n.pos));
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line'); ln.dataset.label = l; svg.appendChild(ln);
+    const b = document.createElement('div'); b.className = 'tbadge' + (n && n.hand ? ' hand' : '') + (!n || n.pos === 0 ? ' none' : ''); b.dataset.label = l; b.textContent = txt;
+    b.title = (n && n.pos ? `${sideOf(l)}${txt}` : 'not a tooth') + ' — click to change'; b.onclick = ev => { ev.stopPropagation(); openPick(l, b); }; ov.appendChild(b);
+  }
+  placeBadges();
+}
+const _pv = new THREE.Vector3();
+function toScreen(x, y, z){ _pv.set(x, y, z).project(camera); const r = canvas.getBoundingClientRect(), o = $('#teethov').getBoundingClientRect(); return [(_pv.x + 1) / 2 * r.width + (r.left - o.left), (1 - _pv.y) / 2 * r.height + (r.top - o.top), _pv.z]; }
+function placeBadges(){
+  if (tab !== 'teeth' || !segPos) return;
+  const ov = $('#teethov'); const up = camera.up;
+  ov.querySelectorAll('.tbadge').forEach(b => {
+    const c = toothCent[b.dataset.label]; if (!c) return;
+    // the badge stands 13 mm out from the arch's centre and 5 mm up, on a line from the tooth's middle
+    let dx = c[0] - archCent[0], dy = c[1] - archCent[1]; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    const a = toScreen(c[0], c[1], c[2]); const e = toScreen(c[0] + dx * 13, c[1] + dy * 13, c[2] + 5 * Math.sign(up.z || 1));
+    b.style.left = e[0] + 'px'; b.style.top = e[1] + 'px';
+    const ln = ov.querySelector(`line[data-label="${b.dataset.label}"]`); if (ln) { ln.setAttribute('x1', a[0]); ln.setAttribute('y1', a[1]); ln.setAttribute('x2', e[0]); ln.setAttribute('y2', e[1]); }
+  });
+  if (pickFor) { const b = ov.querySelector(`.tbadge[data-label="${pickFor}"]`); const pk = ov.querySelector('.tpick'); if (b && pk) { pk.style.left = Math.max(4, Math.min(parseFloat(b.style.left) + 16, ov.clientWidth - 345)) + 'px'; pk.style.top = Math.max(4, Math.min(parseFloat(b.style.top) + 16, ov.clientHeight - 150)) + 'px'; } }
+}
+function closePick(){ pickFor = null; const pk = $('#teethov').querySelector('.tpick'); if (pk) pk.remove(); }
+function openPick(l, badge){
+  closePick(); pickFor = l;
+  const nums = toothNumbers(); const cur = nums[l] || { pos: 0, prim: false };
+  const pk = document.createElement('div'); pk.className = 'tpick';
+  pk.innerHTML = `<h5>Select the number — ${sideOf(l) === 'R' ? 'right' : 'left'} side</h5>
+    <div class="row"><span>Perm</span>${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `<button data-pos="${n}" data-prim="0" class="${!cur.prim && cur.pos === n ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <div class="row"><span>Primary</span>${[1, 2, 3, 4, 5].map(n => `<button data-pos="${n}" data-prim="1" class="${cur.prim && cur.pos === n ? 'on' : ''}">${PRIM[n]}</button>`).join('')}</div>
+    <div class="row x"><button data-pos="0" data-prim="0" class="${cur.pos === 0 ? 'on' : ''}">× not a tooth</button><button data-auto="1">auto</button><button data-close="1">close</button></div>`;
+  pk.onclick = ev => ev.stopPropagation();
+  pk.querySelectorAll('button').forEach(bt => bt.onclick = () => {
+    if (bt.dataset.close) { closePick(); return; }
+    if (bt.dataset.auto) toothIds[l] = null; else toothIds[l] = [+bt.dataset.pos, bt.dataset.prim === '1'];
+    closePick(); drawBadges(); updateFixCount();
+  });
+  $('#teethov').appendChild(pk); placeBadges();
+}
+$('#teethov').addEventListener('click', closePick);
 // ---------- brush ----------
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
-const brushMeshNow = () => tab === 'res' ? resMesh : (tab in PANELS ? segMesh : null);
+const brushMeshNow = () => tab === 'res' ? resMesh : (tab in PANELS && tab !== 'teeth' ? segMesh : null);   // (the Teeth tab has badges, no brush)
 const brushOn = () => !!brushMeshNow();
 const modeNow = () => tabMode[tab];
 const cursorR = () => isDotMode(modeNow()) ? 0.7 : brushR;   // a dot tool is a dot, whatever the brush size
@@ -2217,6 +2307,7 @@ function updateFixCount(){
   const dotName = { contact: 'contact dot', p1span: 'cutout-span dot', p1end: 'end dot', p1six: '"6 is here" dot' };
   const dotWord = (k, n) => { const un = k.startsWith('un'); const nm = dotName[un ? k.slice(2) : k]; return `${n} ${nm}${n > 1 ? 's' : ''}${un ? ' taken away' : ''}`; };
   const here = mine.filter(k => edits[k].size).map(k => (k in dotName || k.slice(2) in dotName) ? dotWord(k, edits[k].size) : `${edits[k].size} ${words[k]} (vertices)`);
+  if (tab === 'teeth') { const n = Object.keys(toothIds).length; if (n) here.unshift(`${n} tooth number${n > 1 ? 's' : ''} given`); }
   if (tab === 'block' && outl && outl.pts.length) here.unshift(`outline: ${outl.pts.length} corner${outl.pts.length > 1 ? 's' : ''} - click the first dot to close`);
   else if (tab === 'block' && outlines.length) here.unshift(`${outlines.length} outline${outlines.length > 1 ? 's' : ''}`);
   const other = Object.keys(edits).filter(k => !mine.includes(k)).reduce((a, k) => a + edits[k].size, 0);

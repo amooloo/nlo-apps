@@ -37,7 +37,13 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    far end of the cutout on a side and it runs between the two dots, mesio-distal, whatever stands there - and
    **Ends here** - one dot per side where the retainer stops, nothing covered behind it - and **6 is here** - Shift-click
    the first molar when the app has it as a 7 (a space between the front teeth counted as a tooth gone shifts the
-   count) and the side is counted from it; **Reservoirs** shows the reservoirs in red and you **Paint** more
+   count) and the side is counted from it; **Teeth** shows every tooth's number on a badge at the end of a leader
+   line (the doctor, 10/21/2026, after a clip of another program: "a line drawn from every tooth with a drop-down
+   where you can pick primary and adult tooth"): click a badge, pick **Perm** 1-8 or **Primary** A-E, and the rest
+   of that side is counted from it (one more going back, one less going forward); **× not a tooth** makes a label gum
+   again, **auto** gives the app's count back; badges given by hand show orange, and the numbers are kept with the
+   scan (`tooth_ids`, by label - the labels are frozen for the scan from then on so a later run cannot renumber
+   them underneath; a brush fix in the same Apply carries them onto the new split by majority); **Reservoirs** shows the reservoirs in red and you **Paint** more
    (a tooth behind the 5s, a part a recession set-back took away) or **Erase** them (a recession, a crown margin) -
    always a millimetre off the gum line, feathered at the edge of your stroke, ignored on gum; **Block-outs** fills
    the undercut you mark out (under a pontic, round an implant crown, a black triangle) so the retainer seats - **Outline**

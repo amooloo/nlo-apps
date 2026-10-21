@@ -351,6 +351,61 @@ def detect_arch(mesh, filename=""):
     return "upper" if frac > 0.12 else "lower"
 
 
+def apply_tooth_ids(labels, info, tooth_ids, arch="upper", V_xy=None, x_mid=0.0, log=print):
+    """The Teeth tab's numbers: {label: [position, primary]} - position 0 = not a tooth (its label becomes gum), a
+    tooth given a number keeps it, and the other teeth on that side are counted from the nearest numbered one along
+    the arch (one more per tooth going back, one less going forward), so one click renumbers a side. Returns
+    (labels, info, {label: primary}, [what was said])."""
+    labels = np.asarray(labels).copy()
+    info = {int(t): (int(s), int(p)) for t, (s, p) in info.items()}
+    ids = {}
+    for k, v in (tooth_ids or {}).items():
+        try:
+            k = int(k)
+        except (TypeError, ValueError):
+            continue
+        pos, prim = (int(v[0]), bool(v[1])) if isinstance(v, (list, tuple)) else (int(v), False)
+        if k not in info:
+            # a label the app dropped (a ghost, a bit of gum taken for a tooth) given a number: it is a tooth again, on
+            # the side its vertices stand
+            if pos > 0 and (labels == k).any():
+                xs = np.asarray(V_xy[labels == k, 0]) if V_xy is not None else None
+                sd = int(np.sign(np.mean(xs) - x_mid)) or 1 if xs is not None and len(xs) else 1
+                info[k] = (sd, pos)
+            else:
+                continue
+        ids[k] = (pos, prim)
+    said = []
+    for k, (pos, prim) in list(ids.items()):
+        if pos <= 0:
+            labels[labels == k] = 0
+            said.append(f"label {k} (the app's {info[k][1]}) is not a tooth")
+            info.pop(k); ids.pop(k)
+    primary_of = {}
+    pside = lambda sd: "R" if (sd > 0) == (arch == "lower") else "L"
+    for sd in (-1, 1):
+        side = sorted((p, t) for t, (s, p) in info.items() if s == sd)      # the side's teeth in arch order
+        order = [t for p, t in side]
+        fixed = {t: ids[t][0] for t in order if t in ids}
+        if not fixed:
+            continue
+        for i, t in enumerate(order):
+            if t in fixed:
+                new = fixed[t]
+            else:
+                j = min(((abs(i - order.index(u)), order.index(u)) for u in fixed), key=lambda x: x[0])[1]
+                new = fixed[order[j]] + (i - j)
+            if new != info[t][1]:
+                said.append(f"{pside(sd)}: the app's {info[t][1]} is the {new}" if t in fixed else f"{pside(sd)}: {info[t][1]} -> {new}")
+            info[t] = (sd, max(1, new))
+        for t in order:
+            if t in ids and ids[t][1]:
+                primary_of[t] = True
+    for m in said:
+        log("teeth by hand: " + m)
+    return labels, info, primary_of, said
+
+
 def process(scan_path, out_dir, name=None, params=None, models=None, label_override=None, log=print, progress=None, feat_cache=None):
     """Run the whole pipeline. Returns a dict report. `label_override` lets the UI pass corrected
     per-vertex tooth labels (in the rough-oriented frame) to skip the classifier."""
@@ -510,8 +565,18 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         info, renumbered = number_by_type(mesh, labels, info, arch_hint, log=lambda m: log(f"[{name}] {m}"))
         if renumbered:
             rep["renumbered"] = renumbered
+    # the numbers the doctor gave on the Teeth tab have the last word (the mixed dentition's count from the midline
+    # is thrown by a space counted as a tooth gone, a split molar, an erupting tip; the doctor, 10/21/2026: "the
+    # option to pick the tooth number ... would help with Phase I retainers identifying what's what")
+    primary_of = {}
+    if P.get("tooth_ids"):
+        labels, info, primary_of, said = apply_tooth_ids(labels, info, P["tooth_ids"], arch=arch_hint, V_xy=np.asarray(mesh.vertices)[:, :2],
+                                                         x_mid=float(np.asarray(aux.get("ring_center", center))[0]), log=lambda m: log(f"[{name}] {m}"))
+        if said:
+            rep["teeth_by_hand"] = said
+            mask = labels > 0
     n_teeth = len(info)
-    rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1])) for k, v in info.items()}
+    rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1]), **({"primary": True} if primary_of.get(int(k)) else {})) for k, v in info.items()}
     rep["steps"].append(("segment", round(time.time() - t0, 2)))
     prog(0.42, "trim line and reservoirs")
     log(f"[{name}] teeth: {n_teeth} ({sum(1 for s,_ in info.values() if s<0)} left / {sum(1 for s,_ in info.values() if s>0)} right)")
