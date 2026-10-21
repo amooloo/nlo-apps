@@ -138,6 +138,8 @@
   .mtools{display:flex;gap:4px;margin-left:6px} .mtools button{font-size:11.5px;font-weight:700;color:var(--navy);padding:4px 9px;border-radius:8px;border:1.5px solid var(--grey-200);background:#fff}
   .stage3d.measure canvas{cursor:crosshair}
   .mlabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .dragchip{position:absolute;display:none;pointer-events:none;z-index:3;background:#1D3EA9;color:#fff;font:700 12px Montserrat,sans-serif;padding:3px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  .dragchip.on{display:block}
   .mlab{position:absolute;transform:translate(-50%,-130%);background:rgba(27,47,76,.9);color:#fff;font-size:12px;font-weight:700;padding:2px 7px;border-radius:7px;white-space:nowrap;font-variant-numeric:tabular-nums}
   .mez{position:absolute;inset:0;pointer-events:none} .mez svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
   .mez line{stroke:#7FE3C4;stroke-width:1.5;vector-effect:non-scaling-stroke} .mez line.tmp{stroke-dasharray:4 3}
@@ -320,6 +322,7 @@
         </div>
         <div class="stage3d" id="stage3d"><canvas id="c"></canvas>
           <div class="mlabels" id="mlabels"></div>
+          <div class="dragchip" id="dragchip"></div>
           <div class="hintbar" id="hintbar"></div>
           <div class="busyveil" id="veil"><div class="busybox"><span class="spin"></span><span id="veiltext">Working…</span></div></div>
           <div id="fatal"></div>
@@ -1015,7 +1018,7 @@ function renderPlan() {
   // placed TADs
   const tl = st.tads || [];
   let t = '';
-  if (tl.length) t += `<label class="f" style="margin-top:14px">Placed (${tl.length})</label><div class="hint" style="margin:0 0 6px">Click a TAD to select it. In 3D, drag its <b style="color:#D8412E">orange</b> ball to move it along the gum and its <b style="color:#1D3EA9">blue</b> ball to aim it; the buttons below do the same in steps.</div>`;
+  if (tl.length) t += `<label class="f" style="margin-top:14px">Placed (${tl.length})</label><div class="hint" style="margin:0 0 6px">Click a TAD to select it. In 3D, drag the arrows to slide it (<b style="color:#1E9E6E">green</b> along the arch, <b style="color:#D8412E">red</b> up / down, <b style="color:#b8860b">yellow</b> in / out) and the rings to swing its tip; the orange ball slides it freely along the gum, the blue ball aims it freely. The arrows on the slices and the buttons below do the same in steps.</div>`;
   for (const x of tl) {
     const m = x.metrics || {};
     const sizes = sizeOptions(x);
@@ -1069,9 +1072,66 @@ function drawHandles() {
   const t = (st.tads || []).find((x) => x.id === state.sel);
   if (!t || state.mode) return;
   const H = new THREE.Vector3(...t.head), d = new THREE.Vector3(...t.dir).normalize();
-  const mk = (p, r, col, kind) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, depthTest: false })); m.position.copy(p); m.userData.kind = kind; m.renderOrder = 9; handles.add(m); };
-  mk(H.clone().addScaledVector(d, -1.4), 1.2, 0xFA624D, 'move');
-  mk(H.clone().addScaledVector(d, (t.collar ?? 2) + t.length + 1.2), 1.0, 0x1D3EA9, 'aim');
+  const mk = (p, r, col, kind) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, depthTest: false })); m.position.copy(p); m.userData = { kind, col }; m.renderOrder = 9; handles.add(m); };
+  mk(H.clone().addScaledVector(d, -1.4), 1.0, 0xFA624D, 'move');
+  mk(H.clone().addScaledVector(d, (t.collar ?? 2) + t.length + 1.2), 0.9, 0x1D3EA9, 'aim');
+  // the gizmo (Titan / ClinCheck style): arrows to slide the TAD along the gum or along its own axis, rings to
+  // swing its tip in one plane each; the axes come from the server with the slice words
+  const gz = state.dirs && state.dirs.gizmo && state.dirs.gizmo.tad === t.id ? state.dirs.gizmo : null;
+  if (!gz) return;
+  // Arrows (Titan / ClinCheck style): drag the shaft or a head to slide, click a head for one step (½ mm).
+  // Green: along the arch, red: up / down (palate: forward / back, to the suture / lateral), yellow: in / out
+  // along the screw, standing behind the head so it does not cover the orange ball.
+  const COLS = { 0: 0x2FB57F, 1: 0xFA624D, 2: 0xF2C14E };
+  const mat = (col) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, depthTest: false });
+  const add = (m, ud) => { m.userData = ud; m.renderOrder = 9; handles.add(m); };
+  gz.axes.forEach((ax, i) => {
+    const v = new THREE.Vector3(...ax.v).normalize();
+    const col = COLS[i] ?? 0x888888, L = ax.e === 'depth' ? 5.0 : 7.0;
+    const c0 = ax.e === 'depth' ? H.clone().addScaledVector(d, -L - 4.5) : H.clone();
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 2 * L, 10), mat(col));
+    shaft.position.copy(c0); shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v);
+    add(shaft, { kind: 'axis', ax, v, col });
+    for (const sgn of [1, -1]) {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(1.1, 2.4, 16), mat(col));
+      cone.position.copy(c0).addScaledVector(v, sgn * (L + 1.0));
+      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.clone().multiplyScalar(sgn));
+      add(cone, { kind: 'axis', ax, v, col, step: sgn * 0.5 });
+    }
+  });
+  // Arcs: drag to swing the tip in that plane, click an arrowhead for 5 degrees. Red: apical / occlusal (palate:
+  // lateral / medial), green: mesial / distal (palate: forward / back); they sit around the screw on the tip side.
+  gz.rings.forEach((rg, i) => {
+    const k = new THREE.Vector3(...rg.k).normalize();
+    const col = i === 0 ? 0xE0483E : 0x1E9E6E, R = 6.5 + 2.5 * i, span = Math.PI * 2 / 3;
+    const kd = k.clone().cross(d);                                    // the + direction of the swing
+    const at = (phi) => H.clone().addScaledVector(d, R * Math.cos(phi)).addScaledVector(kd, R * Math.sin(phi));
+    const xh = d.clone().multiplyScalar(Math.cos(-span / 2)).addScaledVector(kd, Math.sin(-span / 2)).normalize();
+    const yh = k.clone().cross(xh).normalize();
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(R, 0.3, 8, 40, span), mat(col));
+    arc.position.copy(H); arc.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xh, yh, k));
+    add(arc, { kind: 'ring', rg, k, col });
+    for (const sgn of [1, -1]) {
+      const phi = sgn * span / 2;
+      const tng = d.clone().multiplyScalar(-Math.sin(phi)).addScaledVector(kd, Math.cos(phi)).multiplyScalar(sgn).normalize();
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(1.0, 2.2, 16), mat(col));
+      cone.position.copy(at(phi)).addScaledVector(tng, 1.0);
+      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tng);
+      add(cone, { kind: 'ring', rg, k, col, step: sgn * 5 });
+    }
+  });
+}
+const rotAbout = (v, k, th) => v.clone().multiplyScalar(Math.cos(th)).add(k.clone().cross(v).multiplyScalar(Math.sin(th))).add(k.clone().multiplyScalar(k.dot(v) * (1 - Math.cos(th))));
+function rayAt(e) {
+  const r = canvas.getBoundingClientRect();
+  const p = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(p, camera);
+  return ray.ray;
+}
+// where the pointer's ray passes closest to a line (H, a): the line's parameter there, or null when parallel
+function lineParam(rr, H, a) {
+  const w0 = rr.origin.clone().sub(H), b = rr.direction.dot(a), dd = rr.direction.dot(w0), e = a.dot(w0), den = 1 - b * b;
+  return den < 1e-4 ? null : (e - b * dd) / den;
 }
 function ghostFor(t, H, d) {
   const len = (t.collar ?? 2) + t.length, r = t.diameter / 2;
@@ -1092,6 +1152,19 @@ function pickHandle(e) {
   const hits = ray.intersectObjects(handles.children, false);
   return hits.length ? hits[0].object : null;
 }
+let hovered = null;
+function hoverHandle(h) {
+  if (hovered === h) return;
+  if (hovered) { hovered.material.color.set(hovered.userData.col); hovered.material.opacity = 0.85; }
+  hovered = h;
+  if (h) { h.material.color.set(0xffffff); h.material.opacity = 1.0; }
+  const hb = $('hintbar');
+  if (h && !drag3) {
+    const u = h.userData;
+    hb.textContent = u.kind === 'axis' ? `Drag: ${u.ax.minus} ◀ ▶ ${u.ax.plus}` : u.kind === 'ring' ? `Drag the ring: swing the tip ${u.rg.minus} / ${u.rg.plus}` : u.kind === 'move' ? 'Drag: slide freely along the gum' : 'Drag: aim the tip freely';
+    hb.style.background = 'rgba(27,47,76,.88)'; hb.classList.add('on');
+  } else if (!h && !drag3 && !state.mode && !state.measure) hb.classList.remove('on');
+}
 canvas.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || drag3) return;
   const h = pickHandle(e);
@@ -1102,21 +1175,54 @@ canvas.addEventListener('pointerdown', (e) => {
   controls.enabled = false;
   const H = new THREE.Vector3(...t.head), d = new THREE.Vector3(...t.dir).normalize();
   const g = ghostFor(t, H, d); scene.add(g);
-  drag3 = { kind: h.userData.kind, t, H, d, ghost: g, len: (t.collar ?? 2) + t.length, changed: false, pid: e.pointerId };
+  const u = h.userData;
+  drag3 = { kind: u.kind, t, H, d, H0: H.clone(), d0: d.clone(), ghost: g, len: (t.collar ?? 2) + t.length, changed: false, pid: e.pointerId, u, delta: 0, theta: 0, x0: e.clientX, y0: e.clientY, moved: false };
+  const rr = rayAt(e);
+  if (u.kind === 'axis') drag3.s0 = lineParam(rr, H, u.v);
+  if (u.kind === 'ring') {
+    const P = new THREE.Vector3();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(u.k, H);
+    drag3.v0 = rr.intersectPlane(plane, P) ? P.sub(H).normalize() : null;
+  }
   canvas.setPointerCapture(e.pointerId);
-  $('hintbar').textContent = h.userData.kind === 'move' ? 'Drag along the gum - release to place. Esc cancels.' : 'Drag to aim the screw - release to set. Esc cancels.';
+  $('hintbar').textContent = u.kind === 'move' ? 'Drag along the gum - release to place. Esc cancels.' : u.kind === 'aim' ? 'Drag to aim the screw - release to set. Esc cancels.'
+    : u.kind === 'axis' ? `${u.ax.minus} ◀ ▶ ${u.ax.plus} - release to apply. Esc cancels.` : `swing the tip ${u.rg.minus} / ${u.rg.plus} - release to apply. Esc cancels.`;
   $('hintbar').classList.add('on');
 }, { capture: true });
 canvas.addEventListener('pointermove', (e) => {
   if (!drag3) {
-    if (handles.children.length && !state.mode) canvas.style.cursor = pickHandle(e) ? 'grab' : '';
+    if (handles.children.length && !state.mode) { const h = pickHandle(e); canvas.style.cursor = h ? 'grab' : ''; hoverHandle(h); }
     return;
   }
   e.stopImmediatePropagation();
+  if (Math.hypot(e.clientX - drag3.x0, e.clientY - drag3.y0) > 4) drag3.moved = true;
+  if (!drag3.moved) return;
+  const chip = $('dragchip'), cr = canvas.getBoundingClientRect();
+  chip.style.left = (e.clientX - cr.left + 16) + 'px'; chip.style.top = (e.clientY - cr.top - 30) + 'px'; chip.classList.add('on');
   if (drag3.kind === 'move') {
     const hit = pick(e, ['scan']);
     if (!hit) return;
     drag3.H = hit.point.clone(); drag3.changed = true;
+    chip.textContent = `${drag3.H.distanceTo(drag3.H0).toFixed(1)} mm along the gum`;
+  } else if (drag3.kind === 'axis') {
+    const rr = rayAt(e), u = drag3.u;
+    const s1 = lineParam(rr, drag3.H0, u.v);
+    if (s1 === null || drag3.s0 === null) return;
+    const delta = Math.round((s1 - drag3.s0) / 0.25) * 0.25;                   // quarter-millimetre steps
+    drag3.delta = Math.max(-12, Math.min(12, delta)); drag3.changed = Math.abs(drag3.delta) >= 0.25;
+    drag3.H = drag3.H0.clone().addScaledVector(u.v, drag3.delta);
+    chip.textContent = `${drag3.delta >= 0 ? u.ax.plus : u.ax.minus} ${Math.abs(drag3.delta).toFixed(2)} mm`;
+  } else if (drag3.kind === 'ring') {
+    const rr = rayAt(e), u = drag3.u;
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(u.k, drag3.H0), P = new THREE.Vector3();
+    if (!drag3.v0 || !rr.intersectPlane(plane, P)) return;
+    const v = P.sub(drag3.H0).normalize();
+    let th = Math.atan2(drag3.v0.clone().cross(v).dot(u.k), drag3.v0.dot(v));
+    th = Math.round(th / (Math.PI / 180)) * (Math.PI / 180);                   // whole degrees
+    th = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, th));
+    drag3.theta = th; drag3.changed = Math.abs(th) >= Math.PI / 360;
+    drag3.d = rotAbout(drag3.d0, u.k, th).normalize();
+    chip.textContent = `${th >= 0 ? u.rg.plus : u.rg.minus} ${Math.abs(Math.round(th * 180 / Math.PI))}°`;
   } else {
     const r = canvas.getBoundingClientRect();
     const p = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
@@ -1129,10 +1235,13 @@ canvas.addEventListener('pointermove', (e) => {
     const nd = P.clone().sub(drag3.H);
     if (nd.length() < 1) return;
     drag3.d = nd.normalize(); drag3.changed = true;
+    chip.textContent = `${Math.round(drag3.d.angleTo(drag3.d0) * 180 / Math.PI)}° from before`;
   }
   poseGhost(drag3.ghost, drag3.H, drag3.d, drag3.len);
-  handles.children[0].position.copy(drag3.H).addScaledVector(drag3.d, -1.4);
-  handles.children[1].position.copy(drag3.H).addScaledVector(drag3.d, drag3.len + 1.2);
+  if (drag3.kind === 'move' || drag3.kind === 'aim') {
+    handles.children[0].position.copy(drag3.H).addScaledVector(drag3.d, -1.4);
+    handles.children[1].position.copy(drag3.H).addScaledVector(drag3.d, drag3.len + 1.2);
+  }
 }, { capture: true });
 function endDrag3(apply) {
   if (!drag3) return;
@@ -1142,8 +1251,16 @@ function endDrag3(apply) {
   scene.remove(dg.ghost); dg.ghost.geometry.dispose();
   $('hintbar').classList.remove('on');
   try { canvas.releasePointerCapture(dg.pid); } catch (e) {}
+  hovered = null;
+  $('dragchip').classList.remove('on');
+  if (apply && !dg.moved && dg.u.step) {                                 // a click on an arrowhead: one step
+    if (dg.kind === 'axis') editTad(dg.t.id, { [dg.u.ax.e]: dg.u.step * (dg.u.ax.sign ?? 1) });
+    else editTad(dg.t.id, { dir: rotAbout(dg.d0, dg.u.k, dg.u.step * Math.PI / 180).normalize().toArray() });
+    return;
+  }
   if (!apply || !dg.changed) { drawHandles(); return; }
   if (dg.kind === 'move') editTad(dg.t.id, { point: [dg.H.x, dg.H.y, dg.H.z] });
+  else if (dg.kind === 'axis') editTad(dg.t.id, { [dg.u.ax.e]: dg.delta * (dg.u.ax.sign ?? 1) });
   else editTad(dg.t.id, { dir: [dg.d.x, dg.d.y, dg.d.z] });
 }
 canvas.addEventListener('pointerup', (e) => { if (drag3) { e.stopImmediatePropagation(); endDrag3(true); } }, { capture: true });
@@ -1349,7 +1466,7 @@ async function refreshDirs() {
   if (key === state.dirsKey) { applyDirs(); return; }
   state.dirsKey = key;
   try { state.dirs = await api(`/api/cases/${state.id}/dirs${t ? '?tad=' + t.id : ''}`); } catch (e) { state.dirs = null; }
-  if (key === state.dirsKey) applyDirs();
+  if (key === state.dirsKey) { applyDirs(); drawHandles(); }
 }
 // the midpalatal suture, as found in the CBCT (upper cases, once the match is accepted)
 state.suture = null; state.sutureKey = '';

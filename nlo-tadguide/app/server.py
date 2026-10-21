@@ -724,6 +724,21 @@ def view_dirs(cid: str, tad: str = ""):
             tilts = [(-A.n, ("apical 5°", dict(e="dalpha", v=5)), ("occlusal 5°", dict(e="dalpha", v=-5))),
                      (tan * sgn, ("distal 5°", dict(e="dbeta", v=5)), ("mesial 5°", dict(e="dbeta", v=-5)))]
     out = {}
+    if tilts:
+        # the 3D gizmo on the selected TAD: three arrows (two along the gum, one along the screw) and two rings
+        # (each swings the tip in one plane); the page drags them and sends point / depth / dir
+        d = tadmod.unit(t["dir"])
+        # each axis: the step key and its sign for a move toward 'plus' (arc length along the arch, not a straight
+        # line, so the number shown while dragging is what the TAD does)
+        axes = [dict(v=tadmod.unit(v).tolist(), plus=pl[0], minus=mi[0], e=pl[1]["e"], sign=(1 if pl[1]["v"] > 0 else -1))
+                for v, pl, mi in named if pl[1] and pl[1]["e"] in ("ds", "da", "dw", "du")]
+        axes.append(dict(v=d.tolist(), plus="deeper", minus="out", e="depth", sign=1))
+        rings = []
+        for m, pl, mi in tilts:
+            k = np.cross(d, m)
+            if np.linalg.norm(k) > 1e-6:
+                rings.append(dict(k=tadmod.unit(k).tolist(), plus=pl[0].replace(" 5°", ""), minus=mi[0].replace(" 5°", "")))
+        out["gizmo"] = dict(tad=t["id"], axes=axes, rings=rings)
     for view in ("axial", "coronal", "sagittal", "tad_md", "tad_bl", "tad_x"):
         if view.startswith("tad") and t is None:
             continue

@@ -38,9 +38,14 @@ and autostart), on port **8767**, next to Tray Maker (8765) and the X-Ray Reader
    **Use** places one; **Place by clicking** puts one where you click on the gum. Click a placed TAD to edit it:
    three slices along and across the screw (the red tint is what the app counted as root), mesial / distal,
    up / down, tilt, depth, which TAD (below) and its collar, **Fine-tune here** (the best spot within 1.5 mm
-   and 8°), **Remove**. Or move it by hand in 3D: drag the orange ball at its head to slide it along the gum
-   (angles kept), the blue ball at its tip to aim it (head kept); a ghost follows the pointer, on release it is
-   re-placed and measured, and the slices follow. The selected TAD is drawn bold orange in the slices (the others
+   and 8°), **Remove**. Or move it by hand in 3D with the gizmo on the selected TAD (as in Titan / ClinCheck):
+   three double arrows - green along the arch (mesial / distal), red up / down (apical / occlusal; for a palate TAD
+   forward / back and to the suture / lateral), yellow in / out along the screw - and two arcs on the tip side that
+   swing the tip in one plane each (red: apical / occlusal, green: mesial / distal; palate: lateral / medial,
+   forward / back). Drag a shaft or an arc for a continuous move (¼ mm and 1° steps, the value shown at the
+   pointer), or click an arrowhead for one step (½ mm, 5°). The orange ball at the head slides it freely along
+   the gum (angles kept), the blue ball at the tip aims it freely (head kept); a ghost follows the pointer, on
+   release it is re-placed and measured, and the slices follow. The selected TAD is drawn bold orange in the slices (the others
    thin and dim), and every slice carries direction words on its four edges in the same vocabulary as the buttons -
    mesial / distal, apical / occlusal, buccal / palatal, deeper / out (for a palate TAD forward / back, to suture /
    lateral): click an arrow to move the TAD half a millimetre that way (Shift: 1½ mm). Where the screw lies in
