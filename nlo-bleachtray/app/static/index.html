@@ -741,7 +741,7 @@ let currentJob = null, tab = 'result';
 const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new THREE.Group() };
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null, segAdj = null;
-const edits = { relabel: new Set(), p1span: new Set(), unp1span: new Set(), p1end: new Set(), unp1end: new Set(), add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), unblockout: new Set(), takeoff: new Set(), notbracket: new Set(), reservoir: new Set(), contact: new Set(), uncontact: new Set() };
+const edits = { relabel: new Set(), p1span: new Set(), unp1span: new Set(), p1end: new Set(), unp1end: new Set(), p1six: new Set(), unp1six: new Set(), add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), unblockout: new Set(), takeoff: new Set(), notbracket: new Set(), reservoir: new Set(), contact: new Set(), uncontact: new Set() };
 // strokes are kept per scan file while the case is open: paint the upper, switch to the lower and paint that
 // too - one Apply sends both. The whitening tray and the retainer of an arch are made from the same file, so
 // they share its strokes (a mouthguard with the braces on is made from the scan as scanned: its own set)
@@ -774,8 +774,8 @@ const PANELS = {
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
   block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['outline', 'Outline', 'Click round the undercut, corner by corner (Shift-click): the corners are joined along the surface; click the first dot again to close and everything inside is blocked out. Esc drops an unfinished outline', 'poly'], ['blockout', 'Block out', 'Brush: fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats', 'brush'], ['unblockout', 'Clear', 'Take a painted block-out away here (an applied one shows pale green) - the next Apply re-makes the model without it', 'eraser']],
             sets: ['blockout', 'unblockout'], hint: '<b>Outline</b>: Shift-click corner after corner round the undercut and click the first dot again to close it - the inside is blocked out and the outline is kept with the case (it teaches the automatic block-out where you want them). <b>Block out</b> is the brush instead: hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
-  p1:     { group: 'seg', title: 'Phase I — where the cutouts go and where the retainer ends', modes: [['p1span', 'Cutout span', 'Shift-click twice on a side - the near end and the far end of the cutout, mesio-distal - and the cutout runs between the two dots, whatever teeth stand there. Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1end', 'Ends here', 'Shift-click once on a side where the retainer ends: nothing is covered behind the dot (instead of the app finding the 12-year molar). Click a dot to take it away, Shift-drag it to move it', 'dot']],
-            sets: ['p1span', 'unp1span', 'p1end', 'unp1end'], hint: '<b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (0.5 mm past the lateral to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
+  p1:     { group: 'seg', title: 'Phase I — where the cutouts go and where the retainer ends', modes: [['p1span', 'Cutout span', 'Shift-click twice on a side - the near end and the far end of the cutout, mesio-distal - and the cutout runs between the two dots, whatever teeth stand there. Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1end', 'Ends here', 'Shift-click once on a side where the retainer ends: nothing is covered behind the dot (instead of the app finding the 12-year molar). Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1six', '6 is here', 'Shift-click on the first molar on a side: that tooth is the 6, the side is counted from it (the tooth in front is the E, anything behind is a 7). For when the app has the 6 as a 7 and cuts it off', 'dot']],
+            sets: ['p1span', 'unp1span', 'p1end', 'unp1end', 'p1six', 'unp1six'], hint: '<b>6 is here</b>: Shift-click the first molar on a side when the app has it wrong (a space between the front teeth counted as a tooth gone makes the 6 a "7", and the retainer stops short of it): that tooth is the 6, the side is counted from it. <b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (0.5 mm past the lateral to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed, keep what is not a bracket', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the band)', 'brush'], ['notbracket', 'Not a bracket', 'Tooth or gum the app took for a bracket: left as scanned on the next run (on a mouthguard it is kept out of the band). Saved with the case, to teach the detector', 'eraser']],
             sets: ['takeoff', 'notbracket'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard band; blue = marked not a bracket. Hold <kbd class="key">Shift</kbd> and drag; rotate with the mouse otherwise. <b>Take off</b> over anything that was missed: on a retainer it comes off and the enamel is rebuilt, on a mouthguard it joins the band. <b>Not a bracket</b> over anything taken for one that is not: on a retainer the braces are taken off the scan as scanned again, leaving those areas as they were scanned; on a mouthguard the band leaves them out. The strokes are kept with the case and saved with its lesson.' },
 };
@@ -828,7 +828,7 @@ function renderPanel(){
 }
 let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out, bit 4 = brackets removed, bit 8 = bracket shield, bit 32 = contact dot)
 let segDots = [];      // the contact dots already applied (vertex indices), from bit 32
-let p1Dots = { span: [], end: [] };   // the Phase I tab's dots already applied (vertex indices), from /p1dots
+let p1Dots = { span: [], end: [], six: [] };   // the Phase I tab's dots already applied (vertex indices), from /p1dots
 let segRGB = null;     // the scanner's own colour per vertex (PLY scans), shown under the labels
 // The brush is a sphere of the chosen radius around the point under the mouse - the cursor shows exactly
 // that: a translucent ball (blue = paint tooth, amber = paint gum) with an outline that stays visible
@@ -1569,7 +1569,7 @@ async function loadResult(id, j){
     (p1.method === 'bott' ? (p1b && !p1b.error ? `block over ${(p1b.teeth || []).join(', ')}, ${p1b.clearance_mm || 2} mm of room round them${p1b.top_mm ? `, ${p1b.top_mm.min}–${p1b.top_mm.max} mm on top` : ''}${p1b.lift_mm != null && p1b.gap_mm ? ' from the bite' : ' (no bite)'}` : `block not made${p1b && p1b.error ? ` (${p1b.error})` : ''}`)
                            : (p1.cutout_failed ? 'windows not cut (see the warning)' : `${(p1.teeth || []).concat(p1.spaces || []).join(', ') || 'no teeth'} out${p1ScoopText(p1.scoop)}`))
     + (p1.uncovered && p1.uncovered.length ? `, nothing over ${p1.uncovered.join(', ')}` : '') + (p1.plate ? ` · palate open behind the Es` : p1.flange_mm ? ` · lingual flange ${p1.flange_mm.min}–${p1.flange_mm.max} mm` : '')
-    + ((p1.manual_sides && p1.manual_sides.length) || (p1.ends_at_dot && p1.ends_at_dot.length) ? ` · your dots: ${[p1.manual_sides && p1.manual_sides.length ? `cutout span on ${p1.manual_sides.join(' and ')}` : '', p1.ends_at_dot && p1.ends_at_dot.length ? `end on ${p1.ends_at_dot.join(' and ')}` : ''].filter(Boolean).join(', ')}` : '') : (p1 && p1.error ? `Phase I line could not be made (${p1.error}) — plain retainer line used` : '');
+    + ((p1.manual_sides && p1.manual_sides.length) || (p1.ends_at_dot && p1.ends_at_dot.length) || (p1.renumbered_by_dot && p1.renumbered_by_dot.length) ? ` · your dots: ${[p1.manual_sides && p1.manual_sides.length ? `cutout span on ${p1.manual_sides.join(' and ')}` : '', p1.ends_at_dot && p1.ends_at_dot.length ? `end on ${p1.ends_at_dot.join(' and ')}` : '', ...(p1.renumbered_by_dot || [])].filter(Boolean).join(', ')}` : '') : (p1 && p1.error ? `Phase I line could not be made (${p1.error}) — plain retainer line used` : '');
   const extras = [mgLine, p1Line,
                   ap.used && ap.area_mm2 && !mg ? `braces taken off: brackets and wire removed (${Math.round(ap.area_mm2)} mm², ${ap.pieces} piece${ap.pieces > 1 ? 's' : ''}) — rebuilt enamel shown grey on the Braces tab` : '',
                   recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
@@ -1930,8 +1930,8 @@ async function loadSeg(id, k=0){
   segRGB = buf.byteLength >= o + nV*3 ? new Uint8Array(buf.slice(o, o+nV*3)) : null;   // the scanner's colour, when the scan is a PLY
   segPos = V;
   segDots = []; if (segPaint) for (let i = 0; i < nV; i++) if (segPaint[i] & 32) segDots.push(i);
-  p1Dots = { span: [], end: [] };
-  try { const pd = await (await fetch(`/api/jobs/${id}/p1dots?scan=${k}`)).json(); p1Dots = { span: pd.span || [], end: pd.end || [] }; } catch (e) {}
+  p1Dots = { span: [], end: [], six: [] };
+  try { const pd = await (await fetch(`/api/jobs/${id}/p1dots?scan=${k}`)).json(); p1Dots = { span: pd.span || [], end: pd.end || [], six: pd.six || [] }; } catch (e) {}
   // vertex adjacency (CSR) for the lasso fill: everything a closed stroke encloses gets painted too
   { const deg = new Uint32Array(nV); for (let k = 0; k < F.length; k++) deg[F[k]] += 2;
     const off = new Uint32Array(nV + 1); for (let i = 0; i < nV; i++) off[i + 1] = off[i] + deg[i];
@@ -1996,12 +1996,14 @@ function paintColors(){
 let dotGroup = null;
 const dotMats = { on: new THREE.MeshBasicMaterial({ color: 0xeab308 }), old: new THREE.MeshBasicMaterial({ color: 0xfef3c7 }), off: new THREE.MeshBasicMaterial({ color: 0xef4444 }),
                   spanOn: new THREE.MeshBasicMaterial({ color: 0x16a34a }), spanOld: new THREE.MeshBasicMaterial({ color: 0xbbf7d0 }),
-                  endOn: new THREE.MeshBasicMaterial({ color: 0x7c3aed }), endOld: new THREE.MeshBasicMaterial({ color: 0xddd6fe }), drag: new THREE.MeshBasicMaterial({ color: 0x0ea5e9 }) };
+                  endOn: new THREE.MeshBasicMaterial({ color: 0x7c3aed }), endOld: new THREE.MeshBasicMaterial({ color: 0xddd6fe }),
+                  sixOn: new THREE.MeshBasicMaterial({ color: 0x1d4ed8 }), sixOld: new THREE.MeshBasicMaterial({ color: 0xbfdbfe }), drag: new THREE.MeshBasicMaterial({ color: 0x0ea5e9 }) };
 const dotGeo = new THREE.SphereGeometry(0.55, 18, 12);
 // the dot kinds: which tab shows them, which sets hold the ones placed / taken away now, which list the applied ones
 const DOT_KINDS = { contact: { tab: 'seg', un: 'uncontact', applied: () => segDots, on: 'on', old: 'old' },
                     p1span: { tab: 'p1', un: 'unp1span', applied: () => p1Dots.span, on: 'spanOn', old: 'spanOld' },
-                    p1end: { tab: 'p1', un: 'unp1end', applied: () => p1Dots.end, on: 'endOn', old: 'endOld' } };
+                    p1end: { tab: 'p1', un: 'unp1end', applied: () => p1Dots.end, on: 'endOn', old: 'endOld' },
+                    p1six: { tab: 'p1', un: 'unp1six', applied: () => p1Dots.six, on: 'sixOn', old: 'sixOld' } };
 function drawDots(){
   if (dotGroup) { groups.seg.remove(dotGroup); dotGroup = null; }
   if (!segPos || !(tab === 'seg' || tab === 'p1')) return;
@@ -2009,10 +2011,10 @@ function drawDots(){
   const put = (i, m, big) => { const b = new THREE.Mesh(dotGeo, m); b.position.set(segPos[i*3], segPos[i*3+1], segPos[i*3+2]); if (big) b.scale.setScalar(1.3); b.renderOrder = 5; dotGroup.add(b); };
   for (const [kind, K] of Object.entries(DOT_KINDS)) {
     if (K.tab !== tab) continue;
-    edits[kind].forEach(i => put(i, dotMats[K.on], kind === 'p1end'));
-    K.applied().forEach(i => put(i, edits[K.un].has(i) ? dotMats.off : dotMats[K.old], kind === 'p1end'));
+    edits[kind].forEach(i => put(i, dotMats[K.on], kind !== 'p1span'));
+    K.applied().forEach(i => put(i, edits[K.un].has(i) ? dotMats.off : dotMats[K.old], kind !== 'p1span'));
   }
-  if (dotDrag && dotDrag.at >= 0) put(dotDrag.at, dotMats.drag, dotDrag.kind === 'p1end');
+  if (dotDrag && dotDrag.at >= 0) put(dotDrag.at, dotMats.drag, dotDrag.kind !== 'p1span');
   groups.seg.add(dotGroup);
 }
 // one click = one dot: the vertex nearest the click; a click on a dot takes it away again (a placed one goes,
@@ -2064,7 +2066,7 @@ const cursorR = () => isDotMode(modeNow()) ? 0.7 : brushR;   // a dot tool is a 
 function syncBrush(){
   const m = modeNow();
   if (tab === 'res') brushCursor.material.color.setHSL(0, m === 'reservoir' ? 0.9 : 0, m === 'reservoir' ? 0.55 : 0.45);
-  else brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'uncut' ? 0x64748b : m === 'blockout' || m === 'outline' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : m === 'notbracket' ? 0x2563eb : m === 'contact' ? 0xeab308 : m === 'p1span' ? 0x16a34a : m === 'p1end' ? 0x7c3aed : 0x1d4ed8);
+  else brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'uncut' ? 0x64748b : m === 'blockout' || m === 'outline' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : m === 'notbracket' ? 0x2563eb : m === 'contact' ? 0xeab308 : m === 'p1span' ? 0x16a34a : m === 'p1end' ? 0x7c3aed : m === 'p1six' ? 0x1d4ed8 : 0x1d4ed8);
   brushCursor.scale.setScalar(cursorR());
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
   if (!brushOn() && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
@@ -2212,7 +2214,7 @@ function updateFixCount(){
   const el = $('#fixcount'); if (!el) return;
   const words = { add: '→ tooth', remove: '→ gum', relabel: 'given a picked tooth\'s colour', cut: 'cut away', noreservoir: 'reservoir erased', reservoir: 'reservoir painted', blockout: 'block out', unblockout: 'block-out cleared', takeoff: 'take off', notbracket: 'not a bracket' };
   const P = PANELS[tab]; const mine = P ? P.sets : [];
-  const dotName = { contact: 'contact dot', p1span: 'cutout-span dot', p1end: 'end dot' };
+  const dotName = { contact: 'contact dot', p1span: 'cutout-span dot', p1end: 'end dot', p1six: '"6 is here" dot' };
   const dotWord = (k, n) => { const un = k.startsWith('un'); const nm = dotName[un ? k.slice(2) : k]; return `${n} ${nm}${n > 1 ? 's' : ''}${un ? ' taken away' : ''}`; };
   const here = mine.filter(k => edits[k].size).map(k => (k in dotName || k.slice(2) in dotName) ? dotWord(k, edits[k].size) : `${edits[k].size} ${words[k]} (vertices)`);
   if (tab === 'block' && outl && outl.pts.length) here.unshift(`outline: ${outl.pts.length} corner${outl.pts.length > 1 ? 's' : ''} - click the first dot to close`);

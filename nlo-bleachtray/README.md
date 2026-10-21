@@ -35,7 +35,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    to take it away (an applied dot shows pale, red once marked to go), Shift-drag a dot to move it, applied or not;
    **Phase I** (on a Phase I case only) takes the doctor's own dots: **Cutout span** - Shift-click the near and the
    far end of the cutout on a side and it runs between the two dots, mesio-distal, whatever stands there - and
-   **Ends here** - one dot per side where the retainer stops, nothing covered behind it; **Reservoirs** shows the reservoirs in red and you **Paint** more
+   **Ends here** - one dot per side where the retainer stops, nothing covered behind it - and **6 is here** - Shift-click
+   the first molar when the app has it as a 7 (a space between the front teeth counted as a tooth gone shifts the
+   count) and the side is counted from it; **Reservoirs** shows the reservoirs in red and you **Paint** more
    (a tooth behind the 5s, a part a recession set-back took away) or **Erase** them (a recession, a crown margin) -
    always a millimetre off the gum line, feathered at the edge of your stroke, ignored on gum; **Block-outs** fills
    the undercut you mark out (under a pontic, round an implant crown, a black triangle) so the retainer seats - **Outline**
@@ -519,8 +521,11 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   arch, the dots its walls (a crown is cut at the dot as the E is at its 30 %), the line 0.3 mm beyond each wall on
   what stays; on block-out the block covers the crowns whose middle lies in the span. One dot alone is not enough
   and the case says so. An **Ends here** dot on a side leaves everything behind it out (the teeth behind it count
-  as uncovered, like the 7s) and ends the flange there. The dots are vertex numbers of the scan file, kept with the
-  case like the painted areas (`p1span`, `p1end`; `/api/jobs/{id}/p1dots`), re-indexed through a cut. **The
+  as uncovered, like the 7s) and ends the flange there. A **6 is here** dot names the first molar on a side: the
+  side's count moves so that tooth is the 6 (the one in front the E, anything behind a 7) - on one upper a space
+  between the 2 and the C counted as a tooth already gone, the 6 became a "7" and the retainer cut it off
+  (10/21/2026). The dots are vertex numbers of the scan file, kept with the case like the painted areas (`p1span`,
+  `p1end`, `p1six`; `/api/jobs/{id}/p1dots`), re-indexed through a cut. **The
   window is scooped to a trough** (`scoop_trough`; the doctor, after watching the Trimlign's simulator: "the gums in
   that area need to be scooped out as well, to allow for the passage of the tool head"): everything in the stretch -
   the crowns, the E's mesial third, the gum, all of it on the cheek side and out to the window's edge on the tongue

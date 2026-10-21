@@ -295,7 +295,7 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                     picks=None, buccal_mm=1.25, plate_mm=0.0, apex_shift_mm=0.0, open_round_mm=6.0, cut_palatal_mm=1.25, cut_lingual_mm=1.5, min_bridge=5.0,
                     keep_mm=0.6, notch_round_mm=2.0, crown_mm=4.5, bridge_mm=5.0, flange_inset=1.5, flange_min=4.0, flange_max=10.0,
                     frenum_depth=3.0, frenum_width=6.0, smooth=False, scoop=True, scoop_depth_mm=1.0, scoop_ramp_mm=2.0, window_start_mm=0.5, window_e_frac=0.3,
-                    round_mm=2.5, scallop_mm=1.0, span_idx=None, end_idx=None, log=None):
+                    round_mm=2.5, scallop_mm=1.0, span_idx=None, end_idx=None, six_idx=None, log=None):
     """The Phase I retainer's line. Returns (cut_line, body_line, info, mesh): `cut_line` is what the Trimlign cuts
     (with the C/D cutouts on CUTT); `body_line` is the same outline without them - the model is built round it, so the
     sheet forms over the whole arch as on the first trim (and BOTT cuts along it); `mesh` is the scan the model is
@@ -309,6 +309,30 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     labels = np.asarray(labels)
     c = np.asarray(ring_center, float)[:2]
     res = dict(method=method, arch=arch)
+    # the doctor's "6 is here" dot (the Phase I tab, 10/21/2026): the tooth under it is the 6 on its side and the side's
+    # count moves with it - a diastema counted as a tooth already gone had made the 6 a "7" and the retainer cut it off
+    info = {int(t): (int(s_), int(p_)) for t, (s_, p_) in info.items()}
+    six = np.asarray(six_idx if six_idx is not None else [], dtype=int)
+    six = six[(six >= 0) & (six < len(V))]
+    if len(six) and info:
+        tv = np.where(labels > 0)[0]
+        kd6 = cKDTree(V[tv]) if len(tv) else None
+        for i in six:
+            t = int(labels[i])
+            if t == 0 and kd6 is not None:
+                d6, j = kd6.query(V[i])
+                t = int(labels[tv[j]]) if d6 <= 3.0 else 0
+            if t not in info:
+                res.setdefault("warnings", []).append("a '6 is here' dot is not on a tooth - ignored")
+                continue
+            sd, p = info[t]
+            shift = 6 - p
+            if shift:
+                for u, (s_, p_) in list(info.items()):
+                    if s_ == sd:
+                        info[u] = (s_, p_ + shift)
+                res.setdefault("renumbered_by_dot", []).append(f"{patient_side(sd, arch)}: the tooth the app had as {p} is the 6")
+        res["positions"] = {int(t): [int(s_), int(p_)] for t, (s_, p_) in info.items()}
     # the chosen teeth's labels run a few mm onto the gum on these scans (a C's label was 12 mm across): for the line
     # their crown is the tooth (crown_of) and the spill is gum - the gum line then hugs the real cervical, where the
     # block-out ends and the trough's floor is measured (10/21/2026: the line sat 2-5 mm below the C/Ds' cervical)

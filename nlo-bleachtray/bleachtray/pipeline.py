@@ -700,8 +700,14 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 picks=P.get("p1_teeth"), buccal_mm=float(P["trimline_offset"] or 1.25), plate_mm=float(P.get("p1_plate_mm", 0.0)),
                 apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 1.25)),
                 flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)),
-                span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, log=lambda m: log(f"[{name}] {m}"))
+                span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, six_idx=P.get("p1_six_idx") or None, log=lambda m: log(f"[{name}] {m}"))
             rep["phase1"] = p1_info
+            if p1_info.get("positions"):
+                # the doctor's "6 is here" dot moved a side's count: the case's teeth follow (the block-out's picks too)
+                info = {int(t): (int(sp[0]), int(sp[1])) for t, sp in p1_info["positions"].items()}
+                rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1])) for k, v in info.items()}
+                for w in p1_info.get("renumbered_by_dot") or []:
+                    log(f"[{name}] Phase I: {w}")
             for w in p1_info.get("warnings") or []:
                 rep.setdefault("warnings", []).append(f"Phase I retainer: {w}")
             if "error" in p1_info:
