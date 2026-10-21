@@ -383,6 +383,58 @@ def version():
                 kit=tadmod.KIT, sizes=tadmod.SIZES, guide_defaults=guidemod.DEFAULTS)
 
 
+# ------------------------------------------------------------------ updating from inside the app
+# On the office PC .bat files are sometimes blocked (antivirus / policy), so the app can run the updater itself:
+# the latest update.ps1 from GitHub (the installed copy if GitHub cannot be reached), in its own console window,
+# which replaces the files, stops this process and starts the app again. Nothing about patients is sent anywhere;
+# the only requests go to GitHub for the app's own files.
+RAW = "https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-tadguide/"
+
+
+def _fetch(url, timeout=12):
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "nlo-tadguide/" + __version__, "Cache-Control": "no-cache"})
+    return urllib.request.urlopen(req, timeout=timeout).read()
+
+
+def _vtuple(v):
+    return tuple(int(x) for x in re.findall(r"\d+", v or "0")[:3])
+
+
+@app.get("/api/update/check")
+def update_check():
+    try:
+        txt = _fetch(RAW + "tadguide/__init__.py").decode("utf-8", "replace")
+        latest = re.search(r'__version__\s*=\s*"([^"]+)"', txt).group(1)
+    except Exception:
+        raise HTTPException(502, "Could not reach GitHub from this PC (is the internet on?).")
+    return dict(installed=__version__, latest=latest, newer=_vtuple(latest) > _vtuple(__version__))
+
+
+@app.post("/api/update")
+def update_now():
+    if os.name != "nt":
+        raise HTTPException(400, "Updating from inside the app works on the Windows office PC.")
+    import tempfile
+    ps1 = os.path.join(tempfile.gettempdir(), "nlo-tadguide-update.ps1")
+    try:
+        data = _fetch(RAW + "update.ps1")
+        if b"NLO TAD Guide" not in data:
+            raise ValueError("unexpected content")
+        open(ps1, "wb").write(data)
+    except Exception:
+        local = os.path.join(ROOT, "update.ps1")
+        if not os.path.isfile(local):
+            raise HTTPException(502, "Could not download the updater (is the internet on?).")
+        shutil.copy(local, ps1)
+    try:
+        flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        subprocess.Popen(["powershell", "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1], cwd=ROOT, close_fds=True, creationflags=flags)
+    except Exception as e:
+        raise HTTPException(500, f"Could not start the updater: {e}")
+    return dict(ok=True, message="Updating - the app restarts in about a minute.")
+
+
 def _summary(c):
     st = c.state
     return dict(id=c.id, patient=st.get("patient") or "", created=st.get("created"), updated=st.get("updated"), stage=st.get("stage"),
