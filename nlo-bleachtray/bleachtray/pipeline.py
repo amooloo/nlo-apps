@@ -389,6 +389,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     appliance = np.zeros(len(mesh.vertices), bool)
     want = bool(P.get("remove_appliances", False))
     MG = bool(P.get("mouthguard"))
+    P1 = bool(P.get("phase1")) and not MG     # Phase I retainer (phase1.py)
     feats_forced = None       # mouthguard: the features that go with the mesh the teeth are found on
     mesh_orig = None          # mouthguard: the scan as it is (brackets on) - the body is built from this one
     if MG:
@@ -483,16 +484,32 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if feat_cache is not None:
             feat_cache[lkey] = labels
     info, cents, center, contact = order_teeth(mesh, labels, aux)
+    if P1:
+        # mixed dentition: a patch of palatal gum beside a 2 taken for a tooth is gum again - counted from the midline
+        # it was the "3", and the cutouts went round the wrong teeth (two Phase I scans, 10/20/2026)
+        from .phase1 import drop_ghosts
+        labels, info, ghosts = drop_ghosts(np.asarray(mesh.vertices), labels, info, aux.get("ring_center", center))
+        if ghosts:
+            mask = labels > 0
+            rep["phase1_not_teeth"] = ghosts
+            log(f"[{name}] Phase I: {len(ghosts)} tooth label(s) standing inside the arch beside the teeth are gum, not teeth - not counted")
     # a missing premolar / molar: carry the trim line across the ridge to the teeth behind, and keep
     # the missing tooth's position so the molar behind it is still treated as a molar
-    ridge_mask, gaps, info = edentulous_gaps(mesh, labels, info, log=lambda m: log(f"[{name}] {m}"))
+    # (Phase I: a space of 2.5 mm or more is a tooth already gone - mostly the C, its canine on the way: counted, so the
+    # D behind it is still the 4 and the space itself can be cut out; three of four Phase I cases had one, 10/20/2026)
+    ridge_mask, gaps, info = edentulous_gaps(mesh, labels, info, min_gap=2.5 if P1 else 3.0, renumber_gap=2.5 if P1 else 5.0,
+                                             ridge_band=1.0 if P1 else None, log=lambda m: log(f"[{name}] {m}"))
     if gaps:
         rep["gaps"] = gaps
     # ... and a tooth missing with the space closed (a lower incisor, an upper lateral): the teeth behind it
     # are numbered by what they are, so the first molar is not a "5" with a reservoir on one side only
-    info, renumbered = number_by_type(mesh, labels, info, arch_hint, log=lambda m: log(f"[{name}] {m}"))
-    if renumbered:
-        rep["renumbered"] = renumbered
+    # (not on a Phase I retainer: the mixed dentition's C/D/E are not the permanent canine and premolars the widths are
+    # for - a lower E of 10-12 mm read as a first molar, and the D behind the C was numbered 5 on one side; there the
+    # count from the midline stands: 1, 2, C, D, E, 6 - plus any real gap edentulous_gaps found)
+    if not P1:
+        info, renumbered = number_by_type(mesh, labels, info, arch_hint, log=lambda m: log(f"[{name}] {m}"))
+        if renumbered:
+            rep["renumbered"] = renumbered
     n_teeth = len(info)
     rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1])) for k, v in info.items()}
     rep["steps"].append(("segment", round(time.time() - t0, 2)))
@@ -672,7 +689,32 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             log(f"[{name}] mouthguard line failed ({ex}) - using the gum line")
             rep["mouthguard"] = dict(error=str(ex)[:160])
             rep.setdefault("warnings", []).append("the mouthguard line could not be made - this guard is trimmed at the gum line like a tray: check it before sending")
-    if P.get("distal_round", 0.0) > 0 and len(info) >= 4 and not MG:
+    p1_cut = None             # Phase I: the line the Trimlign cuts (with the C/D cutouts); margin_f is the outline the model is built round
+    if P1:
+        from .phase1 import phase1_trimline
+        try:
+            rc = np.asarray(aux.get("ring_center", margin[:, :2].mean(0)), float)[:2]
+            rc_f = trimesh.transform_points(np.array([[rc[0], rc[1], 0.0]]), T_tilt @ T_ref)[0, :2]
+            cut_line, body_line, p1_info, p1_mesh = phase1_trimline(
+                mesh_f, A, labels, info, margin_f, edge_zone, rc_f, arch=arch, method=str(P.get("p1_method") or "cott").lower(),
+                picks=P.get("p1_teeth"), buccal_mm=float(P["trimline_offset"] or 1.25), plate_mm=float(P.get("p1_plate_mm", 5.0)),
+                apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 3.0)),
+                flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)), log=lambda m: log(f"[{name}] {m}"))
+            rep["phase1"] = p1_info
+            for w in p1_info.get("warnings") or []:
+                rep.setdefault("warnings", []).append(f"Phase I retainer: {w}")
+            if "error" in p1_info:
+                rep.setdefault("warnings", []).append(f"the Phase I line could not be made ({p1_info['error']}) - this is a plain retainer line: check it before sending")
+            else:
+                margin_f, p1_cut = body_line, cut_line
+                # COTT: the model is the scan with the C/Ds scooped down to their contacts (same vertices, same order -
+                # the labels still apply); both lines lie on it
+                mesh_f = p1_mesh
+        except Exception as ex:  # noqa
+            log(f"[{name}] Phase I line failed ({ex}) - using the retainer line")
+            rep["phase1"] = dict(error=str(ex)[:160])
+            rep.setdefault("warnings", []).append("the Phase I line could not be made - this is a plain retainer line: check it before sending")
+    if P.get("distal_round", 0.0) > 0 and len(info) >= 4 and not MG and not P1:
         try:
             margin_f, dround = round_distal(margin_f, mesh_f, labels, info, edge_zone=edge_zone, radius=float(P["distal_round"]),
                                             log=lambda m: log(f"[{name}] {m}"))
@@ -694,6 +736,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     if MG:
         z_floor = z_low - floor_below        # the vestibular line is meant to be deep where the sulcus is
     low_pts = margin_f[:, 2] < z_floor + 0.8
+    if p1_cut is not None:
+        p1_cut[p1_cut[:, 2] < z_floor + 0.8, 2] = z_floor + 0.8
     if low_pts.any():
         margin_f[low_pts, 2] = z_floor + 0.8
         log(f"[{name}] trim line: {int(low_pts.sum())} points sat {z_floor + 0.8 - z_low:.1f} mm below the rest - lifted to the floor (model height kept)")
@@ -706,6 +750,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     margin_f = trimesh.transform_points(margin_f, T_place)
     if gum_line_f is not None:
         gum_line_f = trimesh.transform_points(gum_line_f, T_place)
+    if p1_cut is not None:
+        p1_cut = trimesh.transform_points(p1_cut, T_place)
     # manual correction of the placement on the base (from the app): rotate about the trimline
     # centroid, then shift. Zero by default; the app's Reset puts it back to the automatic placement.
     pivot = margin_f[:, :2].mean(0)
@@ -719,6 +765,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         margin_f = trimesh.transform_points(margin_f, T_adj)
         if gum_line_f is not None:
             gum_line_f = trimesh.transform_points(gum_line_f, T_adj)
+        if p1_cut is not None:
+            p1_cut = trimesh.transform_points(p1_cut, T_adj)
         log(f"[{name}] manual placement: yaw {adj['yaw_deg']:+.1f} deg, shift x {adj['dx']:+.2f} y {adj['dy']:+.2f} z {adj['dz']:+.2f} mm")
     # the tissue behind the last molar (retromolar pad, tuberosity) is lowered below the trim line so
     # the trimmer can get round the distal surface instead of hitting a wall of gum
@@ -867,6 +915,38 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             log(f"[{name}] bracket shields skipped: {ex}")
             rep["shields"] = dict(error=str(ex))
             rep.setdefault("warnings", []).append("the block-out over the brackets could not be made - check the guard before sending")
+    # Phase I by block-out (BOTT, SOP-LAB-009): the C/Ds under smooth caps built into the model in place of the putty,
+    # as thick on top as the bite allows (phase1.block_outs: "as large as possible without really being the only point
+    # of contact" - the doctor, 10/20/2026). The bite comes from the case's other arch, its raw scan brought into this
+    # model's frame (the scanners export upper and lower in occlusion)
+    p1_cap_at = None
+    if P1 and str(P.get("p1_method") or "cott").lower() == "bott":
+        from .phase1 import block_outs, pick_teeth, DEFAULT_PICKS
+        try:
+            sel_b = pick_teeth(info, DEFAULT_PICKS if P.get("p1_teeth") is None else P.get("p1_teeth"), arch)
+            opp = None
+            if P.get("opposing_scan") and os.path.exists(str(P["opposing_scan"])):
+                try:
+                    opp = load_scan(str(P["opposing_scan"]))
+                    opp.apply_transform(T_total)
+                except Exception as ex:  # noqa
+                    log(f"[{name}] the opposing arch could not be read ({ex}) - block-out tops without the bite")
+                    opp = None
+            cap, cinfo = block_outs(mesh_f, labels, sel_b, opposing_f=opp, log=lambda m: log(f"[{name}] {m}"))
+            cinfo["teeth"] = sorted(f"{'R' if (s > 0) == (arch == 'lower') else 'L'}{p}" for t, (s, p) in info.items() if int(t) in sel_b)
+            rep["phase1_blockout"] = cinfo
+            if cinfo.get("warning"):
+                rep.setdefault("warnings", []).append(f"Phase I block-out: {cinfo['warning']}")
+            if cap is not None:
+                p1_cap_at = len(extra_solids)
+                extra_solids.append(cap)
+                cap.export(bo_path)                 # shown on the page as the block-out
+            else:
+                rep.setdefault("warnings", []).append(f"Phase I block-out not made ({cinfo.get('error')}) - block the C/Ds out by hand")
+        except Exception as ex:  # noqa
+            log(f"[{name}] Phase I block-out failed: {ex}")
+            rep["phase1_blockout"] = dict(error=str(ex)[:160])
+            rep.setdefault("warnings", []).append("the Phase I block-out could not be made - block the C/Ds out by hand")
     extras_status = []
     # the walls stand under the scan's own edge (no shelf out to the outline), never closer to the trim line or to any
     # tooth than hug_rim: the region inside the line (and, for a mouthguard, the gum line the body also covers) and every
@@ -909,6 +989,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         log(f"[{name}] block-out: the fill could not be joined to the model - nothing blocked out")
         if os.path.exists(bo_path):
             os.remove(bo_path)
+    if p1_cap_at is not None and (len(extras_status) <= p1_cap_at or extras_status[p1_cap_at] != "merged"):
+        rep["phase1_blockout"] = dict(rep.get("phase1_blockout") or {}, error="the caps could not be joined to the model")
+        rep.setdefault("warnings", []).append("Phase I block-out: the caps could not be joined to the model - block the C/Ds out by hand")
+        if os.path.exists(bo_path):
+            os.remove(bo_path)
     rep["body_watertight"] = bool(body.is_watertight)
     if not body.is_watertight:
         rep.setdefault("warnings", []).append("the model is not watertight - check it before printing")
@@ -923,6 +1008,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     body = apply_mark(body, P, rep, T_total=T_total, mesh_f=mesh_f, labels=labels, info=info, log=lambda m: log(f"[{name}] {m}"),
                       letters_path=os.path.join(out_dir, f"{name}_mark.stl"))
     _watertight_again(body, rep, log=lambda m: log(f"[{name}] {m}"))
+    if p1_cut is not None:
+        margin_f = p1_cut          # the model is built round the first-trim outline; the Trimlign cuts this one
     margin_n = trimline_normals(body, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
     stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
     rep["elapsed_s"] = round(time.time() - t0, 2)

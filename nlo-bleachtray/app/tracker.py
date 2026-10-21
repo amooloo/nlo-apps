@@ -436,11 +436,14 @@ def _clean_item(b, cid):
     arches = [str(a).lower() for a in (b.get("arches") or []) if str(a).lower() in ("upper", "lower")]
     kinds = " ".join(str(k) for k in (b.get("retKinds") or []))
     make = []
+    ku = kinds.upper()
     if b.get("type") == "mouthguard":
         make = ["MG"]
+    elif "COTT" in ku or "BOTT" in ku or "PHASE" in ku or "PHASE" in str(b.get("stage") or "").upper():
+        make = ["P1"]            # a Phase I retainer (COTT / BOTT in NLO Cases' retainer kinds)
     else:
-        if "WT" in kinds.upper(): make.append("WT")
-        if "TT" in kinds.upper() or not make: make.append("TT")
+        if "WT" in ku: make.append("WT")
+        if "TT" in ku or not make: make.append("TT")
     return dict(patient=s("patient"), chart=s("chart", 40), type=s("type", 20), arches=arches, make=make, kinds=kinds[:60],
                 remake=s("remake", 40), scanOnFile=bool(b.get("scanOnFile")), due=s("dueDate", 20), delivery=s("deliveryDate", 20),
                 assignee=s("assignee", 60), created=s("createdAt", 30), stage=s("stage", 20), by=s("by", 60))

@@ -76,8 +76,9 @@ def _print_root(cfg=None):
 
 
 def _scan_tag(sc):
-    """WT / TT / MG for a model: what the case was set up with, else from its preset or kind."""
-    return sc.get("tag") or ("MG" if sc.get("preset") == "mouthguard" else "TT" if (sc.get("kind") or "T").upper().startswith("A") else "WT")
+    """WT / TT / MG / P1 for a model: what the case was set up with, else from its preset or kind."""
+    return sc.get("tag") or ("MG" if sc.get("preset") == "mouthguard" else "P1" if str(sc.get("preset") or "").startswith("phase1")
+                             else "TT" if (sc.get("kind") or "T").upper().startswith("A") else "WT")
 
 
 def _to_unc(path):
@@ -422,15 +423,16 @@ def _backfill_case(d):
         except Exception:
             continue
         name = fn[: -len("_report.json")]
-        tag = name.rsplit("_", 1)[-1] if name.rsplit("_", 1)[-1] in ("WT", "TT", "MODEL") else None
+        tag = name.rsplit("_", 1)[-1] if name.rsplit("_", 1)[-1] in ("WT", "TT", "MG", "P1", "MODEL") else None
         p = rep.get("params") or {}
         params = params or {k: v for k, v in p.items() if k not in ("keep_off_idx", "blockout_idx", "force_on_idx", "shield_idx")}
         # the scan this model was made from: the one whose name stem matches, else the only one
         stem = name[: -len(tag) - 1] if tag else name
         cand = [sc for sc in scans_on_disk if stem.lower() in sc.lower().replace(" ", "_")] or scans_on_disk
-        kind = p.get("kind") or ("A" if tag == "TT" else "T")
+        kind = p.get("kind") or ("A" if tag in ("TT", "P1") else "T")
+        preset_of = {"TT": "aligner_high", "MG": "mouthguard", "P1": ("phase1_bott" if p.get("p1_method") == "bott" else "phase1")}
         scans.append(dict(path=cand[0], name=name, filename=cand[0].split("_", 1)[-1] if "_" in cand[0] else cand[0], arch=rep.get("arch"),
-                          preset="aligner_high" if tag == "TT" else "bleaching", tag=tag, kind=kind, stage=p.get("stage", 1 if tag == "TT" else 0),
+                          preset=preset_of.get(tag, "bleaching"), tag=tag, kind=kind, stage=p.get("stage", {"TT": 1, "MG": 2, "P1": 3}.get(tag, 0)),
                           titan_basename=rep.get("titan_basename"), has_report=True))
         first_name = first_name or rep.get("name")
     if not scans:
@@ -692,8 +694,13 @@ def _scan_params(job, scan):
     if scan.get("preset"):
         params.update(PRESETS.get(scan["preset"], {}))
     # the page's per-type settings (whitening tray / retainer) sit on top of the preset
-    per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") == "TT" else None) or {}
+    per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") == "TT"
+                else job["params"].get("p1") if scan.get("tag") == "P1" else None) or {}
     params.update({k: v for k, v in per_type.items() if v is not None})
+    if scan.get("tag") == "P1":
+        # Phase I by block-out needs the bite: the case's other arch, as scanned (the scanners export the two in occlusion)
+        other = next((sc for sc in job["scans"] if sc.get("arch") and sc.get("arch") != scan.get("arch") and sc.get("path") != scan.get("path")), None)
+        params["opposing_scan"] = (_raw_scan_for(other) or other["path"]) if other else None
     params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
     pe = (job.get("paint") or {}).get(scan["path"]) or {}
     params["keep_off_idx"] = pe.get("noreservoir") or []; params["blockout_idx"] = pe.get("blockout") or []; params["shield_idx"] = pe.get("shield") or []
@@ -1396,7 +1403,7 @@ def _build_info():
     h = hashlib.sha1(); newest = 0.0
     rels = ["app/server.py", "app/tracker.py", "app/static/index.html", "run_app.py", "update.ps1"] + [f"bleachtray/{m}.py" for m in (
         "appliance", "basebuild", "blockout", "colour", "engrave", "features", "interprox", "learn", "mesh_utils", "mouthguard",
-        "orderfolder", "orient", "pipeline", "printfolder", "register", "reservoir", "segment", "server_presets", "solid", "watch")]
+        "orderfolder", "orient", "phase1", "pipeline", "printfolder", "register", "reservoir", "segment", "server_presets", "solid", "watch")]
     for rel in rels:
         fp = os.path.join(ROOT, *rel.split("/"))
         try:
@@ -1507,7 +1514,7 @@ def _group_uploads(items):
 def _variants_from_makes(makes, preset):
     """Per-file choice from the page ("WT", "TT", both or none) -> variant tuples."""
     wt = "bleaching_3_3" if preset == "bleaching_3_3" else "bleaching"
-    table = {"WT": (wt, "WT", "T", 0), "TT": ("aligner_high", "TT", "A", 1), "MG": ("mouthguard", "MG", "T", 2)}
+    table = {"WT": (wt, "WT", "T", 0), "TT": ("aligner_high", "TT", "A", 1), "MG": ("mouthguard", "MG", "T", 2), "P1": ("phase1", "P1", "A", 3)}
     out = [table[t] for t in (makes or []) if t in table]
     return out or [("plain_model", "MODEL", "T", 0)]
 
@@ -1637,7 +1644,7 @@ async def add_model(jid: str, arch: str = Form(...), make: str = Form(...)):
         raise HTTPException(409, "the case is still being processed - add it when it is done")
     make = (make or "").upper()
     src = next((sc for sc in job["scans"] if sc.get("arch") == arch), None)
-    if src is None or make not in ("WT", "TT", "MG"):
+    if src is None or make not in ("WT", "TT", "MG", "P1"):
         raise HTTPException(400, "no such scan in this case")
     if make == "MG" and arch == "lower":
         raise HTTPException(400, "a mouthguard is made for the upper only")
@@ -1645,7 +1652,7 @@ async def add_model(jid: str, arch: str = Form(...), make: str = Form(...)):
         raise HTTPException(409, f"{make} {arch} is already part of this case")
     variants = _variants_from_makes([make], job.get("preset") or "bleaching")
     _add_scans(job, src["path"], src["filename"], arch, job.get("preset") or "bleaching", variants=variants)
-    job.setdefault("log", []).append(f"{ {'WT': 'whitening tray', 'TT': 'retainer', 'MG': 'mouthguard'}[make] } added for the {arch} from the scan already in the case")
+    job.setdefault("log", []).append(f"{ {'WT': 'whitening tray', 'TT': 'retainer', 'MG': 'mouthguard', 'P1': 'Phase I retainer'}[make] } added for the {arch} from the scan already in the case")
     job["auto_order"] = False
     _save_case(job)                            # the added model is part of the case from now, run or not
     _enqueue(job)
@@ -1699,8 +1706,8 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     volatile = {"adjust", "adjust_by_arch", "mark_by_arch", "tracker_case"}
     def changed(a, b):
         return json.dumps(a, sort_keys=True, default=str) != json.dumps(b, sort_keys=True, default=str)
-    shared_changed = any(changed(old.get(k), v) for k, v in new.items() if k not in ("wt", "tt") and k not in volatile)
-    per_type = {t: changed(old.get(t), new.get(t)) for t in ("wt", "tt") if t in new}
+    shared_changed = any(changed(old.get(k), v) for k, v in new.items() if k not in ("wt", "tt", "p1") and k not in volatile)
+    per_type = {t: changed(old.get(t), new.get(t)) for t in ("wt", "tt", "p1") if t in new}
     # the placement on the base is kept per arch: moving the lower touches the lower's models only, and
     # a turn / shift (same height) moves the finished body instead of re-making it
     old_by = _adjust_by_arch(old, job["scans"])
@@ -1734,7 +1741,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # a brush edit is on a scan file: the models made from it are re-made, an arch not painted on is left alone
         painted_paths = {job["scans"][int(e.get("scan", 0) or 0)]["path"] for e in (me or []) if 0 <= int(e.get("scan", 0) or 0) < len(job["scans"])}
         for k, sc in enumerate(job["scans"]):
-            typed = per_type.get({"WT": "wt", "TT": "tt"}.get(sc.get("tag"), ""), False)
+            typed = per_type.get({"WT": "wt", "TT": "tt", "P1": "p1"}.get(sc.get("tag"), ""), False)
             moved = sc.get("arch") in adj_arches
             brushed = sc["path"] in painted_paths
             if typed or moved or brushed or not sc.get("report"):

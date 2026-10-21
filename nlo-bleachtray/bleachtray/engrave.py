@@ -158,7 +158,7 @@ def mark_text(params, mode="initials"):
     """The mark's words: 'initials' -> "JD W", 'last' -> "DOE W", 'full' -> "JANE DOE"."""
     first, last = (params.get("patient_first") or "").strip(), (params.get("patient_last") or "").strip()
     ttype = tray_type(params)
-    letter = {"WHITENING": "W", "RETAINER": "R", "MOUTHGUARD": "G"}.get(ttype, "M")
+    letter = {"WHITENING": "W", "RETAINER": "R", "MOUTHGUARD": "G", "PHASE I": "P"}.get(ttype, "M")
     if mode == "full" and (first or last):
         return f"{first} {last}".strip().upper()
     if mode == "last" and last:
