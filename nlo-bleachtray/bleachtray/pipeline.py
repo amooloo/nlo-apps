@@ -1097,18 +1097,21 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     _watertight_again(body, rep, log=lambda m: log(f"[{name}] {m}"))
     if p1_cut is not None:
         margin_f = p1_cut          # the model is built round the first-trim outline; the Trimlign cuts this one
-    if p1_cap_at is not None:
-        # the line lies on the finished model - where the block-out's foot reaches over it the line goes to the block's
-        # side (the doctor, 10/21/2026: "the trim line kind of disappears into the block-out")
-        try:
-            margin_f, n_up = _line_onto_model(margin_f, body)
+    # the line lies on the finished model: a point inside it goes to the nearest surface - where a block-out's foot
+    # reaches over the line it goes to the block's side (the doctor, 10/21/2026: "the trim line kind of disappears into
+    # the block-out"), and where the base swallows the scan's low back edge (an upper's U closed across the back of
+    # the scan 2 mm inside the base) it goes onto the base's top
+    try:
+        margin_f, n_up = _line_onto_model(margin_f, body)
+        rep["trimline_moved_onto_model"] = int(n_up)
+        if p1_cap_at is not None:
             rep["trimline_lifted_onto_blockout"] = int(n_up)
-            if n_up:
-                log(f"[{name}] trim line: {n_up} points were inside the block-out - moved onto its side")
-        except Exception as ex:  # noqa
-            log(f"[{name}] trim line not lifted onto the block-out: {ex}")
-    margin_n = trimline_normals(body, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
-    stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
+        if n_up:
+            log(f"[{name}] trim line: {n_up} points were inside the model{' / block-out' if p1_cap_at is not None else ''} or hanging off it - put onto the surface")
+    except Exception as ex:  # noqa
+        log(f"[{name}] trim line not put onto the model: {ex}")
+    stl_path, margin_f, model_out = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
+    margin_n = trimline_normals(model_out, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
     rep["elapsed_s"] = round(time.time() - t0, 2)
     with open(os.path.join(out_dir, f"{name}_report.json"), "w") as f:
         json.dump(rep, f, indent=2)
@@ -1198,25 +1201,55 @@ def _watertight_again(body, rep, log=print):
         log("the model is watertight after the repair made for the mark")
 
 
-def _line_onto_model(line, body, step=0.5):
+def _line_onto_model(line, body, step=0.5, upward=False):
     """Every line point onto the finished model's surface: a point that lies inside the model (under a block-out's foot
     built over it) goes to the nearest point of the surface - the block's side right there - so the Trimlign's line
-    never runs through solid. Points moved are counted. The line is then resampled and smoothed."""
+    never runs through solid. `upward`: a point inside goes straight up to the surface above it instead (a point
+    the base swallowed goes onto the base's top - its nearest surface was the base's back face, and the line
+    zig-zagged between the two); inside is then judged by the crossings of that same upward ray (a thin column of
+    triangles - `contains`, which casts rays in a random direction across the whole model, took 6 GB on a model with
+    its base and the run was killed). A point within 0.05 mm of the surface is left where it is. Points moved are
+    counted. The line is then resampled and smoothed."""
     from trimesh.proximity import ProximityQuery
     L = np.asarray(line, float).copy()
-    inside = body.contains(L)
-    n_up = int(inside.sum())
-    if n_up:
-        pq = ProximityQuery(body)
-        cp, _, _ = pq.on_surface(L[inside])
-        L[inside] = cp
+    pq = ProximityQuery(body)
+    cp0, d0, _ = pq.on_surface(L)
+    off = d0 > 0.05
+    if upward:
+        inside = np.zeros(len(L), bool)
+        target = cp0.copy()
+        idx = np.where(off)[0]
+        if len(idx):
+            o = L[idx].copy(); o[:, 2] += 1e-4
+            loc, ridx, _ = body.ray.intersects_location(o, np.tile([0.0, 0.0, 1.0], (len(idx), 1)), multiple_hits=True)
+            for k in range(len(idx)):
+                hits = loc[ridx == k]
+                above = hits[hits[:, 2] > o[k, 2] + 1e-6] if len(hits) else hits
+                if len(above) % 2 == 1:                       # an odd number of crossings above: inside
+                    up = above[np.argmin(above[:, 2])]
+                    inside[idx[k]] = True
+                    # straight up when the top is near (the base's top over a swallowed back edge); else the nearest
+                    # surface (a point deep inside a wall - the line at a lingual flange's end on one lower)
+                    if up[2] - L[idx[k], 2] <= 3.0 or up[2] - L[idx[k], 2] <= 2.0 * d0[idx[k]]:
+                        target[idx[k]] = up
+    else:
+        inside = body.contains(L) & off
+        target = cp0
+    # ... and a point hanging in the air beside the model (over 0.3 mm off, within 3 mm - the line's own smoothing
+    # carried it past the model's edge at a lingual flange's end, 2 mm out) goes onto the nearest surface too
+    hanging = off & ~inside & (d0 < 3.0)
+    move = inside | hanging
+    # (what is counted and said: the points moved 0.3 mm or more - the rest is the line settling onto the surface)
+    n_up = int((move & (np.where(inside, np.linalg.norm(target - L, axis=1), d0) >= 0.3)).sum())
+    if move.any():
+        L[inside] = target[inside]
+        L[hanging] = cp0[hanging]
         from .segment import resample_polyline, smooth_polyline
         L = smooth_polyline(resample_polyline(L, step), iters=2)
         cp, dd, _ = pq.on_surface(L)
         snap = dd < 1.5
         L[snap] = cp[snap]
     return L, n_up
-
 
 def trimline_normals(body, margin_f, rep, log=print):
     """The body's surface normal at each trim-line point (the page lifts the drawn line a hair along it so
@@ -1305,6 +1338,15 @@ def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path,
             log(f"[{name}] {len(dropped)} loose piece{'s' if len(dropped) > 1 else ''} removed from the model ({', '.join(f'{abs(q.volume) / 1000:.2f} mL' for q in dropped[:4])}{'…' if len(dropped) > 4 else ''})")
     rep["model_faces"] = int(len(model.faces))
     rep["model_bounds"] = np.round(model.bounds, 2).tolist()
+    # the line on the model as it ships, base included: where the base swallows the scan's low back edge (an upper's
+    # U closed across the back of the scan ran 2 mm inside the base, 10/21/2026) the line goes onto the base's top
+    try:
+        margin_f, n_in = _line_onto_model(margin_f, model, upward=True)
+        rep["trimline_moved_onto_model"] = int(rep.get("trimline_moved_onto_model") or 0) + int(n_in)
+        if n_in:
+            log(f"[{name}] trim line: {n_in} points were inside the model with its base or hanging off it - put onto the surface")
+    except Exception as ex:  # noqa
+        log(f"[{name}] trim line not checked against the base: {ex}")
 
     stl_path = os.path.join(out_dir, f"{name}_model.stl")
     pts_path = os.path.join(out_dir, f"{name}_trimline.pts")
@@ -1340,7 +1382,7 @@ def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path,
                 rep["export_error"] = str(ex)
                 log(f"[{name}] export to {exp} failed: {ex}")
     rep["trimline_points"] = int(len(margin_f))
-    return stl_path
+    return stl_path, margin_f, model
 
 
 def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=None):
@@ -1395,8 +1437,14 @@ def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=No
                           letters_path=os.path.join(out_dir, f"{name}_mark.stl"))
         _watertight_again(body, rep, log=lambda m: log(f"[{name}] {m}"))
     prog(0.4, "adding the base and engraving")
-    stl_path = _finish_model(out_dir, name, P, rep, body, margin_f, outline, (rep.get("outputs") or {}).get("scan_with_reservoirs"), log=log)
+    stl_path, margin_f, model_out = _finish_model(out_dir, name, P, rep, body, margin_f, outline, (rep.get("outputs") or {}).get("scan_with_reservoirs"), log=log)
     st["margin"] = margin_f; st["T_adj"] = T_new; st["outline"] = np.asarray(outline.exterior.coords, dtype=float)
+    try:
+        mn = trimline_normals(model_out, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
+        if mn is not None:
+            st["margin_n"] = np.asarray(mn, np.float32)
+    except Exception:
+        pass
     np.savez(st_path, **st)
     rep["elapsed_s"] = round(time.time() - t0, 2)
     rep["steps"] = [("moved on the base" if not from_plain else "moved on the base, marked again", rep["elapsed_s"])]

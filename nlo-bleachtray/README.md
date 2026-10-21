@@ -534,7 +534,7 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   the same stretch of arch on every case** (the doctor, 10/21/2026: "the cutout starts half a millimeter after the
   lateral, regardless if there's a tooth there or not - that's the space for the canine - and continues to about a
   quarter into the crown of the E; that is the extent of the cutout at any given time, regardless of what teeth are
-  there or not"): by angle round the arch's centre, from 0.5 mm past the 2's distal to 30 % of the way into the E's
+  there or not"): by angle round the arch's centre, from the 2's distal face to 30 % of the way into the E's
   crown (its mesial third; to the 6's mesial when there is no E/5), whatever stands in it - the C, the D, the space a
   C has left, a 5 half in. The chips on the page do not change it (they say which teeth a block-out covers). **Or the
   doctor's own dots** (the Phase I tab, 10/21/2026: "I can identify the width of the cutouts by 2 clicks - the
@@ -553,8 +553,12 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   side - is cut down to a floor 1 mm below the lowest point of the first-trim line on the cheek side of the window
   (the gum line there), so the tool's head and shank have room inside the window to reach the line round it. The
   teeth that stay keep their surface (the 2's distal wall and the E's cut face are the trough's walls); the gum beside
-  the trough keeps its height, the floor easing up to it over 2 mm. **The line runs on the rim**: beside the 2 on the
-  kept gum 0.5 mm off it, at the E on the E's own crown 0.3 mm past the cut, on the tongue side along the gum line
+  the trough keeps its height, the floor easing up to it over 2 mm. Nothing stands in the trough beside the 2's wall:
+  the trough runs right up to the 2's own surface, its wall is the 2's distal face down to the floor (a 0.5 mm strip
+  of gum kept at its height beside the 2 - the "half a millimetre after the lateral" - stood as a ledge in the trough
+  under the line, where the bur would crash; the doctor, 10/21/2026: "the trim line does not follow it"), and the
+  same beside the 6 where a 7 is scooped. **The line runs on the rim**: beside the 2 on the 2's distal face at its
+  rim, at the E on the E's own crown 0.3 mm past the cut, on the tongue side along the gum line
   (1.25 mm onto the palate; 1.5 mm onto the lower's lingual gum). Both lines are traced on the scan as it is and put
   onto the scooped surface after (its nearest point - the rim): traced on the scooped surface, a contour crossing an
   edge of the trough's wall (the dropped rim next to the E's kept crown, 9 mm apart in height) sat part-way down the
@@ -591,6 +595,12 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   Gaussian everywhere - round the windows' corners, behind the last tooth, on the palate / tongue side - except on the
   cheek side of the teeth that stay, where a 1 mm smoothing keeps a gentle scallop (`round_line`; the weight fades over
   3 mm); the result is put back onto the surface.
+- **The line on the model as it ships.** Every point of the trim line is checked against the finished model, base
+  included: a point inside it goes onto the surface - where a block-out's foot reaches over the line, to the
+  block's side; where the base swallows the scan's low back edge, straight up onto the base's top (an upper's U
+  closed across the back of the scan ran 2 mm inside the base for 5 mm at the midline, 10/21/2026 - the bur would
+  have driven into the base; moved to the nearest surface instead it zig-zagged between the top and the back
+  face). The case says how many points moved.
 - **No hairpins.** The palate region inside the first-trim line is the line's own lingual pass in its own order
   (sorted by angle from the arch centre it cut chords across the concavity round the D's palatal bulge and left a bare
   strip between the gum band and the plate - the line round that strip was a hairpin on one case, 10/21/2026), and a
