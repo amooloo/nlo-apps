@@ -26,10 +26,16 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    pad behind the last molar - gone from the scan); its **Erase** brush takes a stroke back before Apply, and once a
    cut is applied **Bring back what was cut** puts the scan back as it was before the first cut (every model from it
    is made again); **Segmentation** repaints tooth / gum labels (the white
-   stone model with each tooth in its own colour) and has the **Contact** dot: Shift-click once where two teeth
-   touch and the split between them is put there - for crowded lower incisors, where one colour runs across two
-   teeth and the reservoir ends mid-tooth instead of at the contact; click a dot to take it away (an applied dot
-   shows pale, red once marked to go); **Reservoirs** shows the reservoirs in red and you **Paint** more
+   stone model with each tooth in its own colour): the **Tooth** brush paints the colour of the tooth the stroke
+   starts on - where one colour has run over onto the next tooth, start on the right tooth and paint over the bleed
+   and it is that tooth again, a clean split (the doctor, 10/21/2026: "wherever the brush picks from will be the
+   colour that is painted"); started on gum it paints plain tooth for the app to sort - and has the **Contact** dot:
+   Shift-click once where two teeth touch and the split between them is put there - for crowded lower incisors,
+   where one colour runs across two teeth and the reservoir ends mid-tooth instead of at the contact; click a dot
+   to take it away (an applied dot shows pale, red once marked to go), Shift-drag a dot to move it, applied or not;
+   **Phase I** (on a Phase I case only) takes the doctor's own dots: **Cutout span** - Shift-click the near and the
+   far end of the cutout on a side and it runs between the two dots, mesio-distal, whatever stands there - and
+   **Ends here** - one dot per side where the retainer stops, nothing covered behind it; **Reservoirs** shows the reservoirs in red and you **Paint** more
    (a tooth behind the 5s, a part a recession set-back took away) or **Erase** them (a recession, a crown margin) -
    always a millimetre off the gum line, feathered at the edge of your stroke, ignored on gum; **Block-outs** fills
    the undercut you mark out (under a pontic, round an implant crown, a black triangle) so the retainer seats - **Outline**
@@ -507,7 +513,14 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   quarter into the crown of the E; that is the extent of the cutout at any given time, regardless of what teeth are
   there or not"): by angle round the arch's centre, from 0.5 mm past the 2's distal to 30 % of the way into the E's
   crown (its mesial third; to the 6's mesial when there is no E/5), whatever stands in it - the C, the D, the space a
-  C has left, a 5 half in. The chips on the page do not change it (they say which teeth a block-out covers). **The
+  C has left, a 5 half in. The chips on the page do not change it (they say which teeth a block-out covers). **Or the
+  doctor's own dots** (the Phase I tab, 10/21/2026: "I can identify the width of the cutouts by 2 clicks - the
+  mesio-distal span"): two dots on a side and the cutout runs from the nearest to the farthest of them round the
+  arch, the dots its walls (a crown is cut at the dot as the E is at its 30 %), the line 0.3 mm beyond each wall on
+  what stays; on block-out the block covers the crowns whose middle lies in the span. One dot alone is not enough
+  and the case says so. An **Ends here** dot on a side leaves everything behind it out (the teeth behind it count
+  as uncovered, like the 7s) and ends the flange there. The dots are vertex numbers of the scan file, kept with the
+  case like the painted areas (`p1span`, `p1end`; `/api/jobs/{id}/p1dots`), re-indexed through a cut. **The
   window is scooped to a trough** (`scoop_trough`; the doctor, after watching the Trimlign's simulator: "the gums in
   that area need to be scooped out as well, to allow for the passage of the tool head"): everything in the stretch -
   the crowns, the E's mesial third, the gum, all of it on the cheek side and out to the window's edge on the tongue
