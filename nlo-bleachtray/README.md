@@ -31,7 +31,8 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    the segmentation as it stands), 5 Phase I (its dots, on the numbered teeth), 6 Reservoirs and 7 Block-outs (on the
    model as it will be made), then Result. The brush box says "Step k of n" with Back / Next; the steps that do not
    apply to a case are skipped in the count. Edits on every tab are kept and go with one Apply.
-   Its **Erase** brush takes a stroke back before Apply, and once a
+   **Clear** asks first (click it again within 5 s) and can be undone for 20 s (a mis-click threw away a whole
+   segmentation, 10/21/2026). Its **Erase** brush takes a stroke back before Apply, and once a
    cut is applied **Bring back what was cut** puts the scan back as it was before the first cut (every model from it
    is made again); **Segmentation** repaints tooth / gum labels (the white
    stone model with each tooth in its own colour): the **Tooth** brush paints the colour of the tooth the stroke

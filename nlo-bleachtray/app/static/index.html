@@ -805,6 +805,7 @@ const ICONS = {
   poly: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 5l12 2-2 12-11-3z"/><circle cx="6" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="18" cy="7" r="1.8" fill="currentColor" stroke="none"/><circle cx="16" cy="19" r="1.8" fill="currentColor" stroke="none"/><circle cx="5" cy="16" r="1.8" fill="currentColor" stroke="none"/></svg>',
 };
 let brushR = 1.5, bracesTab = false;   // brush radius (shared by every tab); whether this job's scan has braces on
+let lastCleared = null;                // what Clear threw away last, for Undo (20 s)
 // The two boxes over the viewer stay out of the way: controls only, the explanation behind "?", and "–" folds
 // the box to a chip. Position on the base starts folded (dragging the plate and the ring works without it).
 const panelOpen = { brush: true, place: false, text: false }, helpOpen = { brush: false, place: false, text: false };
@@ -838,7 +839,32 @@ function renderPanel(){
     <div class="stepnav"><span class="where" id="stepwhere"></span><button class="small" id="stepback" title="The step before">&larr; Back</button><button class="small" id="stepnext" title="The next step - your edits here are kept and go with the next Apply">Next &rarr;</button></div>`;
   box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); if (isDotMode(b.dataset.mode)) viewFrom('top'); });
   $('#radius').oninput = () => { brushR = +$('#radius').value; $('#rv').textContent = brushR; brushCursor.scale.setScalar(cursorR()); if (brushCursor.visible) requestRender(); };
-  $('#clearfix').onclick = () => { P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'teeth') { toothIds = {}; drawBadges(); } if (tab === 'block') { outlines = []; dropOutline(); } paintColors(); paintResColors(); updateFixCount(); };
+  // Clear asks first, and can be undone: a mis-click threw away a whole segmentation (the doctor, 10/21/2026: "it
+  // should ask you to confirm if you want to undo everything")
+  $('#clearfix').onclick = () => {
+    const btn = $('#clearfix');
+    const n = P.sets.reduce((a, k) => a + edits[k].size, 0) + (tab === 'teeth' ? Object.keys(toothIds).length : 0) + (tab === 'block' ? outlines.length : 0);
+    if (!n) { btn.textContent = 'Nothing to clear'; setTimeout(() => { btn.textContent = 'Clear'; }, 1500); return; }
+    if (!btn.dataset.armed) {
+      btn.dataset.armed = '1'; btn.textContent = `Clear ${n} edit${n > 1 ? 's' : ''}? click again`; btn.style.color = 'var(--err)';
+      clearTimeout(btn._t); btn._t = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Clear'; btn.style.color = ''; }, 5000);
+      return;
+    }
+    clearTimeout(btn._t); delete btn.dataset.armed; btn.style.color = '';
+    lastCleared = { tab, sets: Object.fromEntries(P.sets.map(k => [k, new Set(edits[k])])), teeth: Object.assign({}, toothIds), outlines: outlines.map(o => o.slice()) };
+    P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'teeth') { toothIds = {}; drawBadges(); } if (tab === 'block') { outlines = []; dropOutline(); } paintColors(); paintResColors(); updateFixCount();
+    btn.textContent = `Undo clear (${n})`; btn.dataset.undo = '1';
+    btn._t = setTimeout(() => { if (btn.dataset.undo) { delete btn.dataset.undo; btn.textContent = 'Clear'; lastCleared = null; } }, 20000);
+    btn.onclick = () => {
+      if (btn.dataset.undo && lastCleared && lastCleared.tab === tab) {
+        for (const k in lastCleared.sets) { edits[k].clear(); lastCleared.sets[k].forEach(i => edits[k].add(i)); }
+        if (tab === 'teeth') { toothIds = Object.assign({}, lastCleared.teeth); drawBadges(); }
+        if (tab === 'block') outlines = lastCleared.outlines.map(o => o.slice());
+        paintColors(); paintResColors(); updateFixCount();
+      }
+      clearTimeout(btn._t); delete btn.dataset.undo; lastCleared = null; renderPanel();
+    };
+  };
   $('#rerun').onclick = applyAndRerun;
   if ($('#uncut')) $('#uncut').onclick = bringBackCut;
   $('#brushhide').onclick = () => { panelOpen.brush = false; syncPanels(); };
