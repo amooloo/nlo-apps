@@ -102,7 +102,8 @@ by what they hold (whitening tray T…0, retainer A…1, mouthguard T…2, Phase
 numbers (9 digits, `new_order_id`) - so they are never asked about on its Today page as "didn't match an open in-house
 case", and a case still waiting at *To make* moves to **Printing** from that as well (20 Oct 2026). Leave **Patient ID
 in Edge** empty unless it is needed: with an Edge ID typed in, whitening trays or retainers alone look like a Titan
-export, and NLO Cases then only goes by whether the patient has a retainer case.
+export - NLO Cases lets an in-house set have it first, doesn't ask about it when the patient has a retainer case, and
+never moves a case from it.
 
 ## It learns from your corrections - by itself
 

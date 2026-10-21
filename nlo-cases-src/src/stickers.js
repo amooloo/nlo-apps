@@ -34,7 +34,7 @@ function stkTilt(id) { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.
 function stkHKey(x) { return x && x.rev ? 'h:' + x.rev : x && x.at ? 'h:t' + x.at : ''; }
 /* who did it, when it was a person (not a lab email, the lab PC's readings, the printer's or the Asana import) */
 function stkDoer(x) {
-  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship', 'print'].includes(x.a)) return '';
+  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship', 'print', 'bt'].includes(x.a)) return ''; // (bt: the Tray Maker's, traymaker.js)
   if (x.a === 'lab' && !x.hand && !x.unlink && !x.relink) return '';
   return staff(x.sid) ? x.sid : '';
 }

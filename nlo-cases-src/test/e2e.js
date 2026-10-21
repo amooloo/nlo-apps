@@ -1640,7 +1640,7 @@ async function openByName(p, name) {
       const dir = path.join(base, folder); fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, id + '_1_Order.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<OrderData Type="Titan_Angled">\n  <Patient Firstname="' + first + '" Lastname="' + last + '" ID="' + id + '" DueDate="20261020" />\n' + body + '\n</OrderData>\n');
     };
-    const t0 = Date.now(), fL = folderAt(t0 - 2 * 3600e3, 'Lumen Printwell'), fT = folderAt(t0 - 26 * 3600e3, 'Tess Trimbright'), fO = folderAt(t0 - 5 * 3600e3, 'Otto Unplaced'), fW = folderAt(t0 - 3600e3, 'Willa Whitener');
+    const t0 = Date.now(), fL = folderAt(t0 - 2 * 3600e3, 'Lumen Printwell'), fT = folderAt(t0 - 26 * 3600e3, 'Tess Trimbright'), fO = folderAt(t0 - 5 * 3600e3, 'Otto Unplaced'), fW = folderAt(t0, 'Willa Whitener'); // (sent after her case was entered)
     writeOrder(labData, fL, '91001', 'Lumen', 'Printwell', 'A', Array(10).fill(0), Array(8).fill(0), [['U', 0], ['L', 0]]);
     writeOrder(labData, fT, '91002', 'Tess', 'Trimbright', 'C', [2, 1, 1, 0, 0, 0], [2, 2, 1, 0, 0, 0]);
     writeOrder(finBase, fO, '91003', 'Otto', 'Unplaced', 'A', [1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 0, 0]);

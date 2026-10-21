@@ -10,8 +10,8 @@
    PreForm for the printer) it puts a sealed note in the inbox (to the office inbox key, like the lab bridge's orders);
    tmSync below notes it on the case (btModels, the same field the Make models button's message sets) and moves the
    case on from To make to Printing (Amir, 19 Oct 2026: "when I work on it and send it to the printer or Trimlign, it
-   should write back to the other app and move it to printing"); the case leaves the queue with that save. The Tray Maker tab's
-   message (Make models) and the lab PC seeing the order in OrthoFactory do the same (tmNoted, 20 Oct 2026) - whichever comes first.
+   should write back to the other app and move it to printing"); the case leaves the queue with that save. The
+   lab PC seeing the order in OrthoFactory does the same when the note didn't come (tmNoted, 20 Oct 2026).
    Needs the 19 Oct 2026 rules (`labq`, `labqkeys`); until they're live nothing is written (FB.labqOn). ---------- */
 const TM = { keys: null, keysAt: 0, warned: false };
 /* the Tray Maker's public key: the newest entry in labqkeys (one lab PC; a second would be another entry). Read at most
@@ -50,19 +50,17 @@ async function tmQueueDoc(id, body, status) {
 }
 /* ---------- the models went out: noted on the case (btModels) and, while it waits at To make, moved to Printing (Amir, 19 Oct
    2026: "when I work on it and send it to the printer or Trimlign, it should write back to the other app and move it to
-   printing"). Three things can say so - the Tray Maker's sealed note (tmSync), its tab's message when it was opened from the
-   case's Make models button (ui.js), and the lab PC seeing the order in OrthoFactory (tmLabApply). Whichever gets here first
-   does it. Until 20 Oct 2026 the tab's message noted the models without moving the case, and the note that followed then looked
-   old and was dropped, so a case made from Make models stayed at To make. ---------- */
-/* the same send already noted: the case's models are as new, or were noted the same way within two minutes before (the note and the
-   tab's message about one Send) */
-function tmSame(prev, bt) {
-  if (!prev || !prev.at) return false;
-  return prev.at >= bt.at || (bt.at - prev.at < 120000 && (prev.how || 'orthofactory') === bt.how);
-}
-/* bt: {at, models, how, pc?}; `ok(x)`: whether the case as saved still wants it (default: not the same send). Resolves to the step
-   it moved the case to ('' none); a case that doesn't want it rejects with code 'skip' */
-async function tmNoted(id, bt, log, ok) {
+   printing"). What moves it: the Tray Maker's sealed note (tmSync - the Tray Maker ties its case to the NLO Cases case by the
+   patient's name before it sends one), or the lab PC seeing the Tray Maker's order in OrthoFactory (tmLabApply - the patient's
+   name, what the order holds, when it was exported). The Tray Maker window's own message (Make models, ui.js) only notes the
+   models (`tab`), and only while no Tray Maker is linked: until 20 Oct 2026 it noted them first, which made the note that came
+   after look old - it was dropped, and a case made from Make models stayed at To make. ---------- */
+/* the note's send is noted already: by a note (not the window's message) as new or newer */
+function tmSame(prev, bt) { return !!(prev && prev.at && prev.how && !prev.tab && prev.at >= bt.at); }
+/* bt: {at, models, how, pc?, tab?, key?}; `ok(x)`: whether the case as saved still wants it (default: not the same send); `stay`:
+   note it without moving the case. Resolves to the step it moved the case to ('' none); a case that doesn't want it rejects
+   with code 'skip' */
+async function tmNoted(id, bt, log, ok, stay) {
   log = Object.assign({ a: 'bt', models: bt.models, how: bt.how }, log);
   ok = ok || (x => !tmSame(x.btModels, bt));
   await B.mutateCase(id, x => {
@@ -70,7 +68,7 @@ async function tmNoted(id, bt, log, ok) {
     if (!ok(x)) return 'skip';
     x.btModels = bt;
     // the models are being made: To make -> Printing (only from To make - a case already further on stays where it is)
-    if (liveStage(x) === 'print' && caseStages(x).some(st => st[0] === 'printing')) { log.from = x.stage; log.to = 'printing'; x.stage = 'printing'; }
+    if (!stay && liveStage(x) === 'print' && caseStages(x).some(st => st[0] === 'printing')) { log.from = x.stage; log.to = 'printing'; x.stage = 'printing'; }
   }, log);
   const live = S.cases.get(id); if (live) { live.btModels = bt; if (log.to) live.stage = log.to; queueRender(); if (S.openId === id) renderDrawer(); }
   if (S.openId === id && !S.editing) loadHistory(id);
@@ -95,9 +93,9 @@ async function tmSync(docs, open, closed) {
     await B.inboxDelete(d.id).catch(() => { });
   }
 }
-/* the lab PC sees the Tray Maker's order in OrthoFactory (lab.js tmMatch) for a case still waiting at To make that neither the note
-   nor the tab's message reached (the Tray Maker not linked yet, or the case entered after the models went out): noted and moved
-   to Printing the same way, once. What's noted is what the order holds ("upper WT"). */
+/* the lab PC sees the Tray Maker's order in OrthoFactory (lab.js tmMatch) for the case still waiting at To make for it, the note not
+   having reached it (the Tray Maker not linked yet): noted and moved to Printing the same way, once. What's noted is what the
+   order holds ("upper WT"). */
 async function tmLabApply(o, c) {
   const cur = findCase(c.id); if (!tmLabWaits(cur, o)) return 'skip'; // (moved on, or noted, since the sync began)
   const bt = { at: o.at || Date.now(), models: tmLabModels(o), pc: o.pc || '', how: 'orthofactory', key: o.key };
