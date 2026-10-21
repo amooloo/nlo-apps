@@ -117,10 +117,15 @@ class Context:
         return out, nrm
 
     # -- arch-frame entry points
-    def entries(self, site, s_list, a_list):
-        """Where a site's screw meets the gum, for arc lengths s and apical depths a (one ray each, batched)."""
+    def entries(self, site, s_list, a_list, allow_estimate=True):
+        """Where a site's screw meets the gum, for arc lengths s and apical depths a (one ray each, batched).
+        The scan is the gum surface where it reaches; a hit on the wrong side of the arch (the ray passed over
+        the scan's edge and met the far side) is thrown out. Where the scan ends - the vestibule above a
+        buccal site, a palate scanned only in part - the gum is estimated from the CBCT: the bone surface
+        along the same ray plus the soft-tissue thickness measured where the scan does reach (2 mm when it
+        never does); the TAD then carries entry='estimated' and the plan says so."""
         A = self.arch
-        O, D = [], []
+        O, D, P, B = [], [], [], []
         for s, a in zip(s_list, a_list):
             p, tan, buc = A.at(s)
             down = -A.n
@@ -128,8 +133,48 @@ class Context:
                 O.append(p + buc * 25.0 + down * a); D.append(-buc)
             else:                                           # palatal: from inside the arch outward
                 O.append(p - buc * 13.0 + down * a); D.append(buc)
-        hit, _n = self.ray(np.array(O), np.array(D))
+            P.append(p); B.append(buc)
+        O, D, P, B = (np.array(x) for x in (O, D, P, B))
+        hit, _n = self.ray(O, D)
+        self._entry_est = getattr(self, "_entry_est", {})
+        for k in range(len(hit)):
+            if not np.isfinite(hit[k, 0]):
+                continue
+            proj = float(np.dot(hit[k] - P[k], B[k]))
+            good = (0.0 < proj < 14.0) if site in ("buccal", "izc", "shelf") else (-14.0 < proj < 0.0)
+            if not good:
+                hit[k] = np.nan
+        if allow_estimate:
+            for k in range(len(hit)):
+                if np.isfinite(hit[k, 0]):
+                    continue
+                est = self._gum_from_cbct(O[k], D[k], P[k], B[k], site)
+                if est is not None:
+                    hit[k] = est
+                    self._entry_est[tuple(np.round(est, 2))] = True
         return hit
+
+    def _soft_thickness_default(self, site):
+        """Soft-tissue thickness measured at the scanned entries of this site so far (median), else 2 mm."""
+        v = getattr(self, "_soft_seen", {}).get(site) or []
+        return float(np.median(v)) if len(v) >= 2 else 2.0
+
+    def _gum_from_cbct(self, o, d, p, buc, site):
+        """The gum along a ray from the CBCT alone: the first bone along it (within 14 mm of the arch point
+        on the right side), backed off by the usual soft-tissue thickness of this site."""
+        t = np.arange(0.0, 40.0, 0.25)
+        pts = o + t[:, None] * d
+        I = ndi.gaussian_filter1d(V.sample(self.vol, pts).astype(np.float32), 2)
+        proj = (pts - p) @ buc
+        side_ok = (proj > 0) & (proj < 14.0) if site in ("buccal", "izc", "shelf") else (proj < 0) & (proj > -14.0)
+        bone = (I >= self.lv["soft"] + 0.5 * (self.lv["bone"] - self.lv["soft"])) & side_ok
+        if not bone.any():
+            return None
+        k = int(np.argmax(bone))
+        return pts[k] - d * self._soft_thickness_default(site)
+
+    def entry_is_estimated(self, H):
+        return tuple(np.round(np.asarray(H, float), 2)) in getattr(self, "_entry_est", {})
 
     def entry(self, site, side, s, a):
         h = self.entries(site, [s], [a])[0]
@@ -140,10 +185,21 @@ class Context:
         A = self.arch
         o = A.from_plane(u, w, 6.0)
         hit, nrm = self.ray(o, -A.n)
-        if not np.isfinite(hit[0, 0]):
+        if np.isfinite(hit[0, 0]) and 0.0 < float(np.dot(hit[0] - o, -A.n)) < 30.0:
+            n = nrm[0] if np.dot(nrm[0], A.n) > 0 else -nrm[0]     # facing the mouth
+            return hit[0], n
+        # the scan does not cover the vault there: the palate from the CBCT - the first bone up the ray (the
+        # palatal plate), backed off by the mucosa thickness (3 mm paramedian is typical); flagged as estimated
+        t = np.arange(0.0, 30.0, 0.25)
+        pts = o + t[:, None] * (-A.n)
+        I = ndi.gaussian_filter1d(V.sample(self.vol, pts).astype(np.float32), 2)
+        bone = I >= self.lv["soft"] + 0.5 * (self.lv["bone"] - self.lv["soft"])
+        if not bone.any():
             return None, None
-        n = nrm[0] if np.dot(nrm[0], A.n) > 0 else -nrm[0]     # facing the mouth
-        return hit[0], n
+        H = pts[int(np.argmax(bone))] + A.n * 3.0
+        self._entry_est = getattr(self, "_entry_est", {})
+        self._entry_est[tuple(np.round(H, 2))] = True
+        return H, A.n
 
     def direction(self, site, s, alpha, beta, surf_n=None):
         A = self.arch
@@ -190,12 +246,28 @@ class Context:
         r1 = max(1, int(round(1.0 / step)))
         envelope = ndi.binary_fill_holes(ndi.binary_closing(bone, iterations=r1))
         depth_out = ndi.distance_transform_edt(envelope, sampling=step)
-        root_thr = lv["bone"] + 0.5 * (lv["dense"] - lv["bone"])
-        bright = (Is >= root_thr) & ~metal
-        core = bright & (depth_out >= 1.5)
-        grown = ndi.binary_dilation(core, iterations=max(1, int(round(0.8 / step))), mask=bright)
-        ridge = ((Is - ndi.gaussian_filter(I, 2.0 / step)) > 0.08 * (lv["dense"] - lv["soft"])) & (Is >= lv["bone"]) & (depth_out >= 1.5) & ~metal
-        cand = grown | ridge
+        # Two kinds of CBCT. On a sharp one (the CS 8200 at 0.15 mm) dentin reads well above cortical bone, and
+        # the root is simply what lies at the tooth level, deeper than the cortical plate: a tight mask that stops
+        # at the PDL. On a soft or low-dose one dentin is no brighter than the cortex; then the half-way level and
+        # the ridge of the root wall are needed, and the mask runs a little fat (lamina dura). Which one: whether
+        # enough tooth-level tissue is found under the crowns (the roots of three teeth are > 300 mm3).
+        tune = getattr(self, "root_tune", None) or {}
+        sharp = tune.get("sharp")
+        core_dense = (Is >= lv["dense"]) & ~metal & (depth_out >= 1.5)
+        if sharp is None:
+            sharp = float(core_dense.sum()) * step ** 3 >= 300.0
+        if sharp:
+            core = core_dense
+            grown = ndi.binary_dilation(core, iterations=max(1, int(round(0.8 / step))), mask=(Is >= lv["dense"]) & ~metal)
+            cand = grown
+        else:
+            root_thr = lv["bone"] + 0.5 * (lv["dense"] - lv["bone"])
+            bright = (Is >= root_thr) & ~metal
+            core = bright & (depth_out >= 1.5)
+            grown = ndi.binary_dilation(core, iterations=max(1, int(round(0.8 / step))), mask=bright)
+            ridge = ((Is - ndi.gaussian_filter(I, 2.0 / step)) > 0.08 * (lv["dense"] - lv["soft"])) & (Is >= lv["bone"]) & (depth_out >= 1.5) & ~metal
+            cand = grown | ridge
+        self.root_sharp = bool(sharp)
         seeds = np.zeros(I.shape, bool)
         if self.teeth is not None and self.teeth.any():
             tp = self.P[self.teeth] - self.N[self.teeth] * 0.8
@@ -225,8 +297,14 @@ class Context:
                 keep[k + 1] = ev[0] >= 2.5 ** 2 * max(ev[1], 1e-6)      # variance ratio = (length ratio)^2
             rootlike = keep[lab] & cand
         droot = ndi.distance_transform_edt(~rootlike, sampling=step) if rootlike.any() else np.full(I.shape, 99.0, np.float32)
+        # inside the bone: the outer envelope of the bone (closed over 2 mm, cavities filled) minus the air
+        # spaces - at 0.15 mm the marrow between the trabeculae reads as soft tissue, and a screw that sits in the
+        # alveolar process would otherwise count as half out of bone
+        r2 = max(1, int(round(2.0 / step)))
+        air = I <= lv["air"]
+        inside = ndi.binary_fill_holes(ndi.binary_closing(bone, iterations=r2)) & ~ndi.binary_dilation(air, iterations=max(1, int(round(0.5 / step))))
         r = dict(c=c, ax=ax, step=step, I=I, depth=depth.astype(np.float32), droot=droot.astype(np.float32), bone_in=bone_in,
-                 root=rootlike)
+                 root=rootlike, inside=inside.astype(np.float32))
         if len(self._roi) > 12:
             self._roi.clear()
         self._roi[key] = r
@@ -289,7 +367,13 @@ class Context:
             else:
                 cortical = 0.3 if pk >= bone_in else 0.0     # no distinct plate: thin or missing
         thread = t >= c
-        in_bone = float(np.mean(inb[thread])) if thread.any() else 0.0
+        inside = self._roi_sample(roi, "inside", pts) > 0.5
+        in_bone = float(np.mean((inb | inside)[thread])) if thread.any() else 0.0
+        if k_bone >= len(t) and inside.any():
+            soft = float(t[int(np.argmax(inside))])
+        if not self.entry_is_estimated(H) and soft < c + L:
+            self._soft_seen = getattr(self, "_soft_seen", {})
+            self._soft_seen.setdefault(tad.get("site"), []).append(soft)
         # air along the thread (sinus, nasal cavity); for the palate, reaching the nasal floor = bicortical
         air = I <= lv["air"]
         air_len = float(np.sum(air & thread) * step)
@@ -320,7 +404,8 @@ class Context:
             s_val = float(s)
         D, L, c = size
         tad = dict(site=site, arch=self.arch.arch, side=side, head=H.tolist(), dir=d.tolist(), diameter=D, length=L, collar=c,
-                   s=s_val, a=float(a), alpha=float(alpha), beta=float(beta), uw=list(u_w) if u_w is not None else None)
+                   s=s_val, a=float(a), alpha=float(alpha), beta=float(beta), uw=list(u_w) if u_w is not None else None,
+                   entry="estimated" if self.entry_is_estimated(H) else "scan")
         tad["label"] = self.label(tad)
         return tad
 
@@ -371,10 +456,12 @@ class Context:
                     for db in np.arange(-dbe, dbe + 1e-6, dbe / 2 if dbe else 1):
                         d = self.direction(site, s0 + dsv, alpha0 + dl, beta0 + db)
                         D, L, c = size
+                        est = self.entry_is_estimated(H)
                         tad = dict(site=site, arch=self.arch.arch, side=side, head=H.tolist(), dir=d.tolist(), diameter=D, length=L,
-                                   collar=c, s=float(s0 + dsv), a=float(max(0.0, a0 + dav)), alpha=float(alpha0 + dl), beta=float(beta0 + db))
+                                   collar=c, s=float(s0 + dsv), a=float(max(0.0, a0 + dav)), alpha=float(alpha0 + dl), beta=float(beta0 + db),
+                                   entry="estimated" if est else "scan")
                         m = self.measure(tad, roi=roi)
-                        sc = score(tad, m, alpha0, beta0)
+                        sc = score(tad, m, alpha0, beta0) - (0.6 if est else 0.0)     # a scanned gum is worth more
                         if best is None or sc > best[0]:
                             best = (sc, tad, m)
         if best is None:
@@ -486,6 +573,9 @@ def judge(tad, m):
             worse("caution"); notes.append("Your rule: no lower buccal TADs at 5/6 or 6/7 (bone too thick) - check.")
     if tad["arch"] == "lower" and tad["site"] in ("shelf", "buccal"):
         notes.append("Check the mandibular canal / mental foramen on the slices.")
+    if tad.get("entry") == "estimated":
+        notes.append("The scan does not reach this spot: the gum surface here is estimated from the CBCT (bone + the usual "
+                     "soft-tissue thickness). The guide's sleeve stands on that estimate - check it on the slices.")
     return status, notes
 
 

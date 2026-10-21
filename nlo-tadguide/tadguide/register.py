@@ -199,7 +199,7 @@ class Target:
         self.tree = cKDTree(self.p)
 
 
-def cbct_target(vol, levels, arch, dent=None, step_mm=0.35, progress=None, reach=3.5):
+def cbct_target(vol, levels, arch, dent=None, step_mm=0.35, progress=None, reach=4.5):
     """The CBCT surface of one arch's crowns (+ outward normals): the tooth-level iso-surface around the crowns,
     kept only within `reach` mm of that arch's enamel and nearer to it than to the other arch's - so the scan's
     gum and palate have no bone to stick to and its crowns cannot take the opposing crowns."""

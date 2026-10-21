@@ -77,10 +77,18 @@ From the TAD course notes:
 | Sinus / nasal cavity | thread in the sinus or nose: caution (stop beyond 2 mm); on the paramedian palate the tip reaching the nasal floor is noted as bicortical, more than 2 mm in the nose is a caution |
 | Lower buccal | Dr. A's rule: no TADs at L5/6 or L6/7 (bone too thick) - flagged; lower buccal and shelf sites carry a reminder to check the mandibular canal / mental foramen on the slices |
 
-**Roots are estimated from the grey values**, not traced: dentin-dense tissue that stands out from what is
-around it and lies deeper than the cortical plate, kept when it connects to a crown or is root-shaped. It leans
-toward calling something a root (a dense trabecular pattern, a lamina dura can count), so in a crowded mouth many
-buccal sites come out caution / stop. The slices are what to trust: they show exactly what was counted.
+**Roots are estimated from the grey values**, not traced. On a sharp CBCT (the CS 8200 at 0.15 mm) dentin
+reads well above cortical bone, and a root is what lies at the tooth level deeper than the cortical plate - a
+tight mask that stops at the PDL. On a soft or low-dose scan dentin is no brighter than the cortex; then a
+half-way level and the ridge of the root wall are used and the mask runs a little fat (the lamina dura counts).
+The app picks the first when it finds enough tooth-level tissue under the crowns. Either way the slices are what
+to trust: the red tint is exactly what was counted. Being *in bone* means inside the outer bone envelope - at
+0.15 mm the marrow between the trabeculae reads as soft tissue, and would otherwise count as "no bone".
+
+**Where the scan ends** (the vestibule above a buccal site, a palate scanned only in part, the IZC), the gum
+surface is estimated from the CBCT: the bone along the same line plus the soft-tissue thickness measured where
+the scan does reach (2 mm until then; 3 mm on the palate). Such a TAD carries the note *the gum surface here is
+estimated* and the sleeve stands on that estimate - check it on the slices. A scanned gum is always preferred.
 
 ## The guide
 
@@ -175,8 +183,12 @@ the process runs below normal priority, like Tray Maker.
 - `tadguide/dicomio.py` - DICOM folder / zip / multi-frame reader (pydicom + pylibjpeg for JPEG-lossless,
   JPEG 2000 and RLE), picks the CBCT series by size, sorts slices by position, builds the voxel → mm (LPS) map,
   refuses 2D images with a plain message. Zips inside the dropped folder are opened (capped at 6 GB unpacked).
-- `tadguide/volume.py` - automatic levels (multi-Otsu on the head; CS 8200 values used only when the scan is
-  HU-like), downsampled display volume, marching-cubes surfaces, the dentition finder (enamel-dense clusters).
+- `tadguide/volume.py` - automatic levels: the values below the 99.9th percentile are split air | soft | hard by
+  a 3-class Otsu, the hard part bone | dentin | enamel by another; metal is the tail above (brackets, bands and
+  wires run up to 32767 on the CS 8200 and, left in, pushed every threshold one class too high - the first real
+  case saw only metal). On a CS 8200 in HU-like units the known profile then applies (air -500, bone 700,
+  teeth 1500, enamel 2500, metal 4500). Also the downsampled display volume, marching-cubes surfaces and the
+  dentition finder (enamel-dense clusters, split across the fitted bite plane).
 - `tadguide/register.py` - crowns to crowns. On the scan: the crowns by colour (a PLY: teeth pale, gum pink -
   each scan sets its own split), or the band nearest the occlusal end (STL). In the CBCT: the tooth-level surface
   only within 3.5 mm of that arch's enamel and nearer to it than to the other arch - no bone for the palate and
@@ -215,8 +227,11 @@ flipped normals. On the phantom the automatic match lands within about 0.15 mm o
 6 mm / 15° off comes back to that from 3 clicked points. The same with the head tilted 14-20° on a public,
 de-identified dental CBCT with brackets (and a scan cut from it): 0.12-0.19 mm.
 
-The first real case (10/20/2026, CS 8200 + a PLY scan) matched wrongly with the first version, which still scored
-it 95 %. Two weaknesses that cause exactly that are fixed above - the scan's palate and gum could stick to bone,
-and the crowns were split upper / lower by a horizontal cut, which fails with the head tilted (reproduced on the
-phantom: 8-12 mm off before, 0.13 mm after) - and the score no longer looks good on a wrong match. Check the
-slices on the first real cases.
+The first real case (10/20/2026, a CS 8200 export at 0.15 mm and AlliedStar PLY scans of both arches) matched
+wrongly with the first version, which still scored it 95 %. The cause was the level finder: the metal tail of the
+histogram pushed every threshold one class up, so the app matched against brackets and bone instead of teeth.
+With that fixed (and crowns-to-crowns matching, the bite-plane split, the honest score), both arches of that
+case match at 0.09-0.10 mm median, and the site finder, root mask, bone envelope, gum estimate and guide were
+all adjusted on it: upper buccal 4/5 and 5/6 come out ok with 1.0-1.5 mm root clearance, palatal 5/6 ok, the
+paramedian palate ok, lower buccal 4/5 caution at 0.6 mm (tight roots), and both guides build watertight. The
+case's files were used for this only and are not in the repo.
