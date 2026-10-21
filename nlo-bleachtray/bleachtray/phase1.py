@@ -149,6 +149,24 @@ def _gauss_loop(L, sigma_mm, step=0.5):
     return gaussian_filter1d(L, sigma_mm / step, axis=0, mode="wrap")
 
 
+def hairpins(L, gap_space=1.6, gap_along=6.0):
+    """Where a closed line doubles back on itself: points far apart along it (> gap_along) but close in space
+    (< gap_space) - a hairpin the bur cannot follow. Returns their xy (n, 2), empty when none."""
+    from scipy.spatial import cKDTree
+    L = np.asarray(L, float)
+    if len(L) < 8:
+        return np.zeros((0, 2))
+    s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(L, axis=0), axis=1))])
+    total = s[-1] + float(np.linalg.norm(L[0] - L[-1]))
+    pairs = cKDTree(L).query_pairs(gap_space, output_type="ndarray")
+    if len(pairs) == 0:
+        return np.zeros((0, 2))
+    ds = np.abs(s[pairs[:, 0]] - s[pairs[:, 1]])
+    ds = np.minimum(ds, total - ds)
+    bad = pairs[ds > gap_along]
+    return L[bad[:, 0], :2] if len(bad) else np.zeros((0, 2))
+
+
 def round_line(line, mesh_f, V, labels, keep_teeth, c, facial_of, strong_mm=2.5, light_mm=1.0, step=0.5):
     """No sharp turns (the doctor, 10/20/2026: "minimize sharp turns ... it's not adapted tightly to the teeth, so it
     doesn't need to be semi-scalloped - only the buccal of 2-2 and the buccal of the 6s and E/5s"). The line is
@@ -424,11 +442,33 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         # the palate inside the palatal gum line, seen from above (the line's lingual points in arch order, closed
         # straight across behind the last teeth), less a U-shaped opening: farther than plate_mm from that line
         # and behind the D/E contacts, its corners rounded
-        lin_pts = np.asarray(margin_f, float)[~facial_of(np.asarray(margin_f, float)[:, :2])]
-        order = np.argsort(_arch_angle(lin_pts[:, :2], c))
-        P_lin = Polygon(lin_pts[order, :2])
+        # (the lingual pass in the line's own order - the longest run of lingual points round the loop - closed straight
+        # across the back; sorted by angle from the arch centre it cut chords across the concavities round the D's
+        # palatal bulge and left a bare strip between the gum band and the plate, which made a hairpin in the line)
+        Mf = np.asarray(margin_f, float)
+        isl = ~facial_of(Mf[:, :2])
+        n_m = len(Mf)
+        if isl.all():
+            lin_pts = Mf
+        else:
+            start = int(np.argmin(isl))                           # a facial point; walk from it so a run never wraps
+            idx = (start + np.arange(n_m)) % n_m
+            best, run, cur = [], [], []
+            for i in idx:
+                if isl[i]:
+                    cur.append(i)
+                else:
+                    if len(cur) > len(best):
+                        best = cur
+                    cur = []
+            if len(cur) > len(best):
+                best = cur
+            lin_pts = Mf[best] if len(best) >= 10 else Mf[isl]
+        P_lin = Polygon(lin_pts[:, :2])
         if not P_lin.is_valid:
             P_lin = P_lin.buffer(0)
+            if hasattr(P_lin, "geoms"):
+                P_lin = max(P_lin.geoms, key=lambda g: g.area)
         ys = []
         for side in (-1, 1):
             d_, e_ = by.get((side, 4)), by.get((side, 5))
@@ -508,6 +548,9 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     if far.any():
         opened = geodesic_dilate(mesh_f, A, ~geodesic_dilate(mesh_f, A, ~far, 1.0), 1.0) & far
         covered = (covered & ~far) | opened
+    # no slits: a bare strip narrower than 3 mm between two covered parts (the plate and a gum band) is covered too -
+    # the line round it was a hairpin (10/21/2026)
+    covered = _close(mesh_f, A, covered, 1.5) & (~edge | tooth)
     body = covered.copy()
     cut = body.copy()
     # the 12-year molars and their gum (all of it: cheek side, tongue side, the pad behind) come out of the line, less
@@ -625,6 +668,12 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
             except Exception as ex:  # noqa
                 res.setdefault("warnings", []).append(f"line not smoothed ({str(ex)[:80]})")
     res.update(points=int(len(lines["cut"])))
+    hp = hairpins(lines["cut"])
+    if len(hp):
+        res["hairpins"] = int(len(hp))
+        side_txt = patient_side(1 if hp[0, 0] > c[0] else -1, arch)
+        res.setdefault("warnings", []).append(
+            f"the line doubles back on itself on the {'right' if side_txt == 'R' else 'left'} ({len(hp)} spots) - check it before cutting")
     if log:
         what = (f"cutouts round {', '.join(res['teeth'])}" if method == "cott" and sel else "block-out" if method == "bott" else "no cutouts")
         if seven:
