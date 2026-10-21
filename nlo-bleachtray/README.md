@@ -472,7 +472,10 @@ and re-run; a scan that stops at the gum line gives a line 3 mm below it and not
 
 **Phase I retainer (mixed dentition, 20 Oct 2026; `bleachtray/phase1.py`).** AISA SOP-LAB-008 / 008A / 009. Tick
 **Phase I (P1)** on the scan in the New case pop-up (or choose a *Phase I retainer* preset); the row then asks **how**
-and **which teeth**. The retainer covers the four incisors and the E/6 segments; the Cs and Ds come out. The app ticks
+(and, for block-out, **which teeth**). A Phase I case is a case of its own: ticking it unticks the whitening tray, the
+retainer and the mouthguard on that scan, ticking any of those unticks it (the doctor, 10/21/2026: "when you choose
+Phase I, it should unselect retainer and whitening"), and Add-model on a Phase I case offers only the Phase I retainer
+for the other arch. The retainer covers the four incisors and the E/6 segments; the Cs and Ds come out. The app ticks
 **C and D on each side** (positions 3 and 4 from the midline); the chips add a **5** that is partly in or untick a C
 already lost. A ticked position with no tooth in it (the C gone, the canine on its way) is cut out as the space it
 left. **Nothing over the 12-year molars** (the doctor: "we're waiting for teeth to erupt in, I don't want anything
