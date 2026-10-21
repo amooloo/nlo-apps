@@ -293,8 +293,8 @@ def scoop_trough(V, labels, trough, keep_mask, floor_z, keep_mm=0.6, ramp_mm=2.0
 
 def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch="upper", method="cott",
                     picks=None, buccal_mm=1.25, plate_mm=0.0, apex_shift_mm=0.0, open_round_mm=6.0, cut_palatal_mm=1.25, cut_lingual_mm=1.5, min_bridge=5.0,
-                    keep_mm=0.6, notch_round_mm=2.0, crown_mm=4.5, bridge_mm=5.0, flange_inset=1.5, flange_min=4.0, flange_max=10.0,
-                    frenum_depth=3.0, frenum_width=6.0, smooth=False, scoop=True, scoop_depth_mm=1.0, scoop_ramp_mm=2.0, window_start_mm=0.5, window_e_frac=0.3,
+                    keep_mm=0.0, notch_round_mm=2.0, crown_mm=4.5, bridge_mm=5.0, flange_inset=1.5, flange_min=4.0, flange_max=10.0,
+                    frenum_depth=3.0, frenum_width=6.0, smooth=False, scoop=True, scoop_depth_mm=1.0, scoop_ramp_mm=2.0, window_start_mm=0.0, window_e_frac=0.3,
                     round_mm=2.5, scallop_mm=1.0, span_idx=None, end_idx=None, six_idx=None, log=None):
     """The Phase I retainer's line. Returns (cut_line, body_line, info, mesh): `cut_line` is what the Trimlign cuts
     (with the C/D cutouts on CUTT); `body_line` is the same outline without them - the model is built round it, so the
@@ -403,8 +403,8 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         e_lo, e_hi = (float(np.percentile(sd * ang_v[me], q)) for q in (2, 98))
         segs[sd] = dict(start=th_a + window_start_mm / r_arch, end=e_lo + frac * (e_hi - e_lo), tooth_a=int(a_t), tooth_e=int(e_t),
                         e_edge=e_lo + frac * (e_hi - e_lo) + 0.3 / r_arch)
-    res["window"] = {patient_side(sd, arch): f"{window_start_mm:.1f} mm past the {info[g['tooth_a']][1]}'s distal to "
-                     f"{int(round(100 * (window_e_frac if by.get((sd, 5)) else 0.0)))} % into the {'E/5' if by.get((sd, 5)) else '6'}" for sd, g in segs.items()}
+    res["window"] = {patient_side(sd, arch): (f"{window_start_mm:.1f} mm past the {info[g['tooth_a']][1]}'s distal to " if window_start_mm > 0 else f"the {info[g['tooth_a']][1]}'s distal face to ")
+                     + f"{int(round(100 * (window_e_frac if by.get((sd, 5)) else 0.0)))} % into the {'E/5' if by.get((sd, 5)) else '6'}" for sd, g in segs.items()}
     # the doctor's own dots (the Phase I tab, 10/21/2026: "I can identify the width of the cutouts by 2 clicks - the
     # mesio-distal span"): two or more dots on a side make the cutout run from the nearest to the farthest of them
     # round the arch, whatever stands there - no 2, no E needed. One dot alone is not enough and says so.
@@ -644,8 +644,9 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
             res["outline_pieces_dropped"] = int(stray.sum())
     body = covered.copy()
     cut = body.copy()
-    # the 12-year molars and their gum (all of it: cheek side, tongue side, the pad behind) come out of the line, less
-    # keep_mm next to the 6 - by both methods
+    # the 12-year molars and their gum (all of it: cheek side, tongue side, the pad behind) come out of the line, right
+    # up to the 6's own surface (keep_mm = 0: a strip of gum kept beside the 6 stood as a ledge in the trough under the
+    # line, in the bur's way) - by both methods
     chunk7 = np.zeros(len(V), bool)
     if seven or end_ang:
         chunk7 = np.isin(labels, seven) | (~tooth & np.isin(near_all, seven))
@@ -690,11 +691,14 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                 continue
             d_a = cKDTree(V[labels == ta]).query(V)[0]
             deep = on_side & (sd * ang_v >= g["start"]) & (labels != ta) & (tooth | fac_v | inner)
-            # the trough: everything in the segment up to the 2 (keep_mm off its surface) and to the E's cut
+            # the trough: everything in the segment right up to the 2's own surface and to the E's cut - nothing stands
+            # in the trough beside the 2's wall (a 0.5 mm strip of gum kept at its height there was a ledge under the
+            # line, where the bur would crash - the doctor, 10/21/2026); the trough's wall is the 2's distal face down to
+            # the floor and the line lies on the 2's rim
             trough |= deep & (sd * ang_v <= g["end"]) & (d_a > keep_mm)
-            # the window the line goes round: window_start_mm off the 2, and 0.3 mm short of the E's cut on the E's
-            # crown - so the line lies on the floor beside the 2's distal wall and on the E's own surface beside the cut,
-            # where the bur reaches from inside the trough
+            # the window the line goes round: the 2's surface (window_start_mm = 0), and 0.3 mm short of the E's cut on
+            # the E's crown - so the line lies on the 2's distal face and on the E's own surface beside the cut, where
+            # the bur reaches from inside the trough
             window |= deep & (sd * ang_v <= g["e_edge"]) & (d_a > window_start_mm)
         window &= body
         cut = body & ~window & ~chunk7
