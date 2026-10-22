@@ -155,16 +155,17 @@ def engrave_model(model, params, outline=None, depth=0.4, log=print):
 
 
 def mark_text(params, mode="initials"):
-    """The mark's words: 'initials' -> "JD W", 'last' -> "DOE W", 'full' -> "JANE DOE"."""
+    """The mark's words: 'initials' -> "J.D", 'last' -> "DOE", 'full' -> "JANE DOE". No tray letter (W / R) any more:
+    the doctor, 10/22/2026 - "first letter of the first name . first letter of the last name - no W or R, because we
+    can tell from the materials and that part is already on the base"."""
     first, last = (params.get("patient_first") or "").strip(), (params.get("patient_last") or "").strip()
-    ttype = tray_type(params)
-    letter = {"WHITENING": "W", "RETAINER": "R", "MOUTHGUARD": "G", "PHASE I": "P"}.get(ttype, "M")
     if mode == "full" and (first or last):
         return f"{first} {last}".strip().upper()
     if mode == "last" and last:
-        return f"{last} {letter}".upper()
-    initials = ((first[:1] + last[:1]) or "NL").upper()
-    return initials + " " + letter
+        return last.upper()
+    if first and last:
+        return f"{first[:1]}.{last[:1]}".upper()
+    return ((first[:1] + last[:1]) or "NL").upper()
 
 
 def auto_mark_anchor(mesh_f, labels, info, log=print):
