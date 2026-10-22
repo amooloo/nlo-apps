@@ -473,14 +473,78 @@ def remove_appliances(mesh, A, mask, rings=2, log=None):
         F2 = F2[keep_f]
         bk = bedges(F2)
         new_b = np.array([tuple(e) not in old_b for e in bk], bool) if len(bk) else np.zeros(0, bool)
-    loops = _chain_loops(bk[new_b]) if new_b.any() else []
+    # the holes to close: every boundary loop of the cut mesh that has a new edge in it. One whose old edges are short
+    # is a hole in the middle of the surface, or a cut-out that ran into a small hole the scanner left (the cavity under
+    # a molar tube's hook: its rim is the hole's other side, and a patch closed across the new edges alone left the
+    # cavity gaping, an upper, 10/21/2026) - patched whole. One with a long run of old edges is the scan's own rim,
+    # notched by the cut: each notch - a run of new edges - is closed by the stretch of old rim between its ends when
+    # that stretch is short (the hook on a second molar's tube at the scan's edge, painted off, came back as a spur
+    # "smoothed over in place"); a notch whose rim stretch is long (a band of appliance running off the scan) stays the
+    # fallback below
+    def edge_len(a, b):
+        return float(np.linalg.norm(V[a] - V[b]))
+    loops = []
+    if new_b.any():
+        for loop, closed in _chain_loops(bk):
+            if len(loop) < 3:
+                continue
+            m_ = len(loop) if closed else len(loop) - 1
+            pairs = [(loop[i], loop[(i + 1) % len(loop)]) for i in range(m_)]
+            isnew = [tuple(sorted(e)) not in old_b for e in pairs]
+            if not any(isnew):
+                continue                                          # a hole the scanner left, untouched
+            old_len = sum(edge_len(*e) for e, nw in zip(pairs, isnew) if not nw)
+            if old_len <= 20.0:
+                loops.append((loop, True))
+                continue
+            # runs of new edges round the loop, each with the old stretch between its ends
+            k0 = next((i for i in range(m_) if not isnew[i]), None)
+            if k0 is None:
+                loops.append((loop, True)); continue
+            order = [(k0 + i) % m_ for i in range(m_)]            # start on an old edge
+            runs, cur = [], []
+            for i in order:
+                if isnew[i]:
+                    cur.append(i)
+                elif cur:
+                    runs.append(cur); cur = []
+            if cur:
+                runs.append(cur)
+            for run in runs:
+                chain = [pairs[run[0]][0]] + [pairs[i][1] for i in run]
+                a, b = chain[-1], chain[0]
+                # the old rim from the run's far end round to its near end, forward or backward round the loop,
+                # whichever is short: the cavity's rim. Neither short: the notch is closed straight across below
+                def walk(start, step):
+                    path = []; i = start; length = 0.0
+                    while 0 <= length <= 20.0:
+                        if isnew[i]:
+                            return None
+                        v = pairs[i][1] if step > 0 else pairs[i][0]
+                        path.append(v); length += edge_len(*pairs[i])
+                        if v == (b if step > 0 else a):
+                            return path if length <= 20.0 else None
+                        i = (i + step) % m_
+                    return None
+                fwd = walk((run[-1] + 1) % m_, +1)            # a -> ... -> b
+                bwd = walk((run[0] - 1) % m_, -1)             # b -> ... -> a
+                if fwd is not None:
+                    loops.append((chain + fwd[:-1], True))
+                elif bwd is not None:
+                    loops.append((chain + bwd[:-1][::-1], True))
+                else:
+                    loops.append((chain, False))
     patches_V, patches_F = [], []
     nV = len(V); filled = skipped = 0
     fallback_rim = np.zeros(len(V), bool)
+    rims = []                                     # (vertices, closed, gap between the ends mm, centre)
     for loop, closed in loops:
         if len(loop) < 3:
             continue
-        if not closed and np.linalg.norm(V[loop[0]] - V[loop[-1]]) < 1.0:
+        rims.append((len(loop), bool(closed), round(float(np.linalg.norm(V[loop[0]] - V[loop[-1]])), 1), [round(float(x), 1) for x in V[loop].mean(0)]))
+        # a notch in the scan's rim with no short stretch of rim between its ends: closed straight across where the
+        # scan ended, when that is near; a wide one stays the fallback (a band of appliance running off the scan)
+        if not closed and np.linalg.norm(V[loop[0]] - V[loop[-1]]) < 8.0:
             closed = True
         if closed and len(loop) == 3:          # a pinhole: one triangle, oriented with the surface
             tri = np.array(loop)
@@ -552,7 +616,7 @@ def remove_appliances(mesh, A, mask, rings=2, log=None):
     for k, v in mesh.metadata.items():
         if k != "rgb":
             out.metadata[k] = v
-    info = dict(vertices=int(mask.sum()), ledge=int((grow & ~mask).sum()), cut_out=int(wide.sum()), holes_patched=filled, smoothed_in_place=skipped, new_vertices=int(sum(len(p) for p in patches_V)))
+    info = dict(vertices=int(mask.sum()), ledge=int((grow & ~mask).sum()), cut_out=int(wide.sum()), holes_patched=filled, smoothed_in_place=skipped, new_vertices=int(sum(len(p) for p in patches_V)), rims=rims)
     if log:
         log(f"appliances removed: {int(wide.sum())} vertices cut out, {filled} hole{'s' if filled != 1 else ''} in the enamel closed with new surface"
             + (f", {skipped} smoothed over in place" if skipped else ""))
@@ -716,16 +780,32 @@ def detect_appliances(mesh, A, rgb, feats=None, log=None, rng_seed=0, thr=0.35):
     sharp = smooth_field(A, (np.abs(H) > 1.0).astype(float), 3)
     # never candidates: the open edge of the scan, the incisal / occlusal band of the teeth, the vestibule
     import trimesh as _tm
+    # the scan's open edge: the band along it (12 rings) is never a candidate - except, along the scan's rim proper (its
+    # long boundary loops), for a candidate that plainly carries the appliance colour, which is kept out only right at
+    # the rim (3 rings): the hook on a second molar's tube sits a mm or two from where the scan ends (an upper,
+    # 10/21/2026). Round the small holes a scanner leaves - and the pinholes a first pass leaves beside its patches -
+    # the whole band stays out: the enamel beside a fresh patch read as "proud" to a second look and came off
     edges = mesh.edges_sorted
     single = _tm.grouping.group_rows(edges, require_count=1)
-    on_edge = np.zeros(n, bool)
+    on_edge = np.zeros(n, bool); on_rim = np.zeros(n, bool)
     if len(single):
         on_edge[np.unique(edges[single])] = True
-    near_edge = smooth_field(A, on_edge.astype(float), 12) > 0.02
+        Vv = np.asarray(mesh.vertices)
+        for loop, closed in _chain_loops(edges[single]):
+            L = np.asarray(loop)
+            if len(L) >= 2 and float(np.linalg.norm(np.diff(Vv[L], axis=0), axis=1).sum()) >= 20.0:
+                on_rim[L] = True
+    edge_band = smooth_field(A, on_edge.astype(float), 12) > 0.02
+    hole_band = smooth_field(A, (on_edge & ~on_rim).astype(float), 12) > 0.02
+    near_edge = hole_band | (edge_band & (cs < 0.45))
+    near_edge |= smooth_field(A, on_edge.astype(float), 3) > 0.05
     top = (below < 1.5) if below is not None else np.zeros(n, bool)
     if radial is not None:
         top &= np.abs(radial) < 7.0
-    outside = (radial > 9) if radial is not None else np.zeros(n, bool)
+    # the vestibule (more than 9 mm out past the arch's ring) is never a candidate - unless it carries the appliance
+    # colour plainly: a tube on a second molar, and the hook on it, stand out there (an upper, 10/21/2026: one tube
+    # missed whole, the other's hook left standing, their regions cut in half by this rule so the bump read as nothing)
+    outside = ((radial > 9) & (cs < 0.45)) if radial is not None else np.zeros(n, bool)
     allowed = ~top & ~near_edge & ~outside
     # candidates: appliance colour, closed so a whole bracket is taken in (its flat faces can read as enamel)
     cand = (cs > 0.3) & allowed
@@ -777,6 +857,36 @@ def detect_appliances(mesh, A, rgb, feats=None, log=None, rng_seed=0, thr=0.35):
         ext = V[m].max(0) - V[m].min(0)
         pieces.append(dict(area_mm2=round(a, 1), height_mm=round(hb, 2), centre=[round(float(x), 2) for x in V[m].mean(0)],
                            extent_mm=[round(float(x), 1) for x in ext], vertices=int(m.sum()), colour=round(float(cs[m].mean()), 2)))
+    # a piece standing on metal is a metal crown's own cusp, not an appliance: what surrounds it (within 3 mm, not
+    # the piece, not the occlusal band) carries the appliance colour too - a bracket on enamel is ringed by enamel
+    # (a stainless-steel crown on a lower first molar, a plain arch in a braces case: its cusps were "proud" of the
+    # grey crown continued across them, cut out and rebuilt as a guess, 10/21/2026)
+    # Told by the appliance-coloured patch the piece is part of: a crown's is the whole tooth - its occlusal and its
+    # tongue side as well as the cheek side (a crown: 255 mm2, 108 of it on the tongue side, 85 on top) - where a
+    # tube or bracket, even with the occlusal in shadow (an iTero upper's molars: 100-240 mm2, 78 on top), has little
+    # on the tongue side (35 at most). Back teeth only (more than 55 deg round the arch from the front)
+    if pieces and radial is not None:
+        rc_ = feats[2].get("ring_center") if (isinstance(feats, tuple) and len(feats) > 2 and isinstance(feats[2], dict)) else None
+        rc_ = np.asarray(rc_, float)[:2] if rc_ is not None else V[:, :2].mean(0)
+        comp_lab = connected_components(keep, A)
+        col_lab = connected_components(cs > 0.3, A)
+        on_metal = []
+        for c in np.unique(comp_lab[comp_lab >= 0]):
+            m = comp_lab == c
+            d_ = V[m][:, :2].mean(0) - rc_
+            ang_ = np.degrees(np.arctan2(abs(d_[0]), d_[1]))        # 0 = straight ahead, 90 = beside the centre
+            cl = col_lab[m]; cl = cl[cl >= 0]
+            if ang_ < 55.0 or not len(cl):
+                continue
+            patch = col_lab == np.bincount(cl).argmax()
+            a_ling = float(area_v[patch & (radial < -2.5)].sum()); a_top = float(area_v[patch & top].sum())
+            if a_ling > 50.0 and a_top > 40.0:
+                keep &= ~m; on_metal.append(round(float(area_v[m].sum()), 1))
+        if on_metal:
+            pieces = [pc for pc in pieces if not any(abs(pc["area_mm2"] - a) < 0.05 for a in on_metal)]
+            info["on_metal_mm2"] = on_metal
+            if log:
+                log(f"appliances: {len(on_metal)} piece{'s' if len(on_metal) != 1 else ''} standing on a metal crown left alone ({', '.join(f'{a:.0f}' for a in on_metal)} mm2) - a tube on a crown is for the Take off brush")
     # a speck of tie or wire right next to a kept piece is part of it
     if dropped and keep.any():
         from scipy.spatial import cKDTree
@@ -784,6 +894,22 @@ def detect_appliances(mesh, A, rgb, feats=None, log=None, rng_seed=0, thr=0.35):
         for m in dropped:
             if float(kt.query(V[m])[0].min()) < 1.0 and float(bs[m].max()) > 0.25:
                 keep |= m
+    # a small bit that plainly carries the appliance colour and touches a kept piece, in the band along the scan's edge
+    # where nothing else may be a candidate, is part of the piece - the hook on a molar tube a mm or two from where the
+    # scan ends (not on the incisal / occlusal band, whose translucent enamel reads as appliance colour; and only
+    # there: elsewhere the enamel in the archwire's shadow reads grey too, and came off with the brackets on an
+    # expander case when every such bit was taken)
+    if keep.any():
+        extra = (cs > 0.45) & ~keep & ~top & edge_band
+        lab2 = connected_components(extra, A)
+        touch = (A @ keep.astype(float) > 0)
+        added = 0
+        for c in np.unique(lab2[lab2 >= 0]):
+            m = lab2 == c
+            if float(area_v[m].sum()) <= 8.0 and touch[m].any():
+                keep |= m; added += int(m.sum())
+        if added:
+            info["bits_added"] = added
     # the archwire runs through every bracket slot: trace a smooth path through the bracket centres and
     # take what is on it, so the thin stretches between brackets that colour alone misses come too
     ring_c = feats[2].get("ring_center") if (isinstance(feats, tuple) and len(feats) > 2 and isinstance(feats[2], dict)) else None

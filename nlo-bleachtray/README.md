@@ -362,7 +362,21 @@ band. Whether a candidate really is an appliance is decided by its height above 
 across the candidate region; that continuation is only honest when the region is tight (a wide one on a
 convex crown reads the crown's own bulge as a bump), so the height is measured, the region shrunk to what
 stood proud, and measured again, four times. Incisal edges and cusps on the teeth, the vestibule and the
-ragged scan edge are never candidates; pieces are kept only if they stand proud (≥ 0.45 mm). The archwire
+ragged scan edge are never candidates - unless the candidate plainly carries the appliance colour: a tube on a
+second molar stands out past the arch's ring, and its hook a mm or two from where the scan's rim runs, and
+ruled out there their regions were cut in half and the bump read as nothing (an upper, 10/21/2026: one tube
+missed whole, the other's hook left standing); such a candidate is kept out only right at the rim, and a small
+plainly coloured bit touching a kept piece in the band along the rim - a hook, a wire end - is part of it (not
+on the incisal / occlusal band, whose translucent enamel reads as appliance colour, and only along the rim:
+elsewhere the enamel in the archwire's shadow reads grey too). Round the small holes a scanner leaves, and the
+pinholes a first pass leaves beside its patches, the whole band stays out as before - the enamel beside a fresh
+patch read as "proud" to the second look and came off on a plain arch. Pieces are kept only if
+they stand proud (≥ 0.45 mm) - and a piece on a back tooth whose appliance-coloured patch is the whole tooth,
+tongue side (over 50 mm2) and occlusal (over 40 mm2) included, is a **metal crown's own cusp** and is left alone
+(a stainless-steel crown on a lower first molar, the plain arch of a braces case, 10/21/2026: its cusps stood
+"proud" of the grey crown continued across them and were cut out and rebuilt as a guess; a tube on a molar
+whose occlusal is in shadow, an iTero upper, colours 100-240 mm2 but no more than 35 of it on the tongue side).
+The archwire
 is then traced as a smooth path through the bracket centres round the arch, so the thin stretches between
 brackets that colour alone misses come too. *Taking them off* (`remove_appliances`) - the bracket's base
 pad and adhesive flash are a low ledge the bump test does not see once the region is tight: a quadric is
@@ -373,7 +387,13 @@ enamel or gum is closed with a patch: a ridge-regularised quadric fitted to the 
 two rings round it (the crown's curvature) plus a harmonic interpolation of the rim's residuals (so the
 patch passes exactly through the rim), triangulated at the mesh's own spacing; a long rim (a band of
 wire + brackets over several teeth) is split at its waists - the embrasures - into one hole per tooth
-first; a rim no patch can hold is restored and smoothed over in place instead; pinholes get a triangle; the
+first. The holes are every boundary loop of the cut mesh with a new edge in it: one whose old edges are short is
+a hole in the surface, or a cut-out that ran into a small hole the scanner left (the cavity under a molar tube's
+hook - its rim is the hole's other side, and a patch closed across the new edges alone left the cavity gaping),
+patched whole; one with a long run of old edges is the scan's own rim notched by the cut, and each notch is
+closed by the short stretch of old rim between its ends, or straight across where the scan ended when the
+ends are within 8 mm (the hook on a second molar's tube, painted off, came back as a spur "smoothed over in
+place", 10/21/2026); a rim no patch can hold is restored and smoothed over in place instead; pinholes get a triangle; the
 seams are relaxed with a few shrink-free Taubin steps. A *second pass* on the result catches the low lips of
 pad or ligature that sat under the first pass's threshold. The cleaned scan is written as
 `<scan>_clean.ply` next to the case and becomes the case's scan file (brush, re-runs, history and the
@@ -416,7 +436,7 @@ area grows 10-50 % on the braces scans, all of it bracket, tube and wire, and no
 ones. Known limits: clear / ceramic brackets (tooth-coloured) are not found; molar bands and an
 expander's arms are not bumps and stay (a band's outline can stay as a faint ridge once its tube is off); a **stainless-steel crown** is grey and stands proud like a bracket and
 IS taken for one (seen on a lower, 10/17/2026 - the lingual wall of the crown was cut out and rebuilt), so
-for a braces scan with a metal crown leave the box off and paint the brackets with the **Take off** brush instead;
+a metal crown on a back tooth is left alone by the detector (above); should one still be taken, leave the box off and paint the brackets with the **Take off** brush instead;
 the enamel under a bracket is a smooth reconstruction, not the scanned surface. That holds for a lone bracket on
 a tooth in line (a patch of 15-30 mm²); on crowded teeth at initial bonding the brackets, wire and ties run
 together into one area over most of a tooth's cheek side, or across two teeth, and what is rebuilt there is a
