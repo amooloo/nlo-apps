@@ -160,6 +160,15 @@ estimated* and the sleeve stands on that estimate - check it on the slices. A sc
   shell ends in a rounded rim about 1.2 mm beyond the covered surface, cut square to the surface. (Earlier
   versions cut the shell straight down the insertion direction, which on the steep buccal and palatal walls
   left a serrated edge.)
+- **Braces.** Most patients wear them, and the guide goes over them. Where the CBCT reads metal just under the
+  scan - brackets, the archwire, hooks, buttons - the app blocks the attachment out with 0.5 mm of relief on top
+  and 0.5 mm around it, so the guide never bears on metal (scans of metal are noisy, and brackets can move
+  between the scan and the surgery); the crown coverage takes the attachments in, the holes the scanner leaves
+  under a wire or behind a bracket are bridged at the height of what is around them (never dropped to the gum
+  below, which hung pillars off the guide), the narrow pits beside attachments - the embrasure under a wire - are
+  blocked out, and the wire is never mistaken for a scan spike. The guide then sits on the crowns and over the
+  brackets with clearance; the TADs panel log says how many points of metal it found. Ceramic brackets are
+  blocked out by the scan surface like any bump; only the extra relief needs the metal reading.
 - Fit: 0.10 mm gap on the teeth, 0.30 mm relief over the gum, 2.2 mm shell.
 - Each TAD gets a sleeve: 3.2 mm hole, 1.6 mm wall, 4 mm tall, 0.5 mm off the gum. 3.2 mm passes the TADs
   (a tomas-pin's collar is 2.8 mm wide, its head 2.3 mm). For the driver to go down the sleeve as well, measure

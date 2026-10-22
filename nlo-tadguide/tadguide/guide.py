@@ -30,6 +30,13 @@ DEFAULTS = dict(
 )
 
 
+def disk(r_mm, v):
+    """Round footprint for the grey filters (a square one leaves boxy plateaus)."""
+    r = max(1, int(round(r_mm / v)))
+    y, x = np.ogrid[-r:r + 1, -r:r + 1]
+    return (x * x + y * y) <= r * r + 0.5
+
+
 def unit(v):
     v = np.asarray(v, float)
     return v / (np.linalg.norm(v) + 1e-12)
@@ -154,9 +161,11 @@ def insertion_direction(P, F, tads, n_occ, search=True):
     return best[1], best[2], best[3]
 
 
-def build(P, F, N, teeth, tads, arch, params=None, progress=None):
+def build(P, F, N, teeth, tads, arch, params=None, progress=None, attach=None):
     """One guide for all TADs - or, when TADs on both sides would leave a sleeve in an undercut with a straight
-    occlusal seat (brackets, flared crowns), one guide per side, each with its own seating angle."""
+    occlusal seat (brackets, flared crowns), one guide per side, each with its own seating angle.
+    attach: bool per scan vertex - the CBCT reads metal just under it (a bracket, the wire, a hook); None = no
+    braces known, the arch is treated as bare."""
     say = progress or (lambda *_: None)
     p = dict(DEFAULTS)
     p.update(params or {})
@@ -169,7 +178,7 @@ def build(P, F, N, teeth, tads, arch, params=None, progress=None):
             say(f"{hidden0} sleeve spot(s) are under a crown bulge with a straight seat - making one guide per side")
             parts, infos = [], []
             for side in ("R", "L"):
-                V1, F1, i1 = _build_one(P, F, N, teeth, sides[side], arch, p, say)
+                V1, F1, i1 = _build_one(P, F, N, teeth, sides[side], arch, p, say, attach=attach)
                 parts.append((V1, F1))
                 i1["side"] = side
                 infos.append(i1)
@@ -186,10 +195,10 @@ def build(P, F, N, teeth, tads, arch, params=None, progress=None):
             if any(i.get("warning") for i in infos):
                 info["warning"] = " / ".join(i["warning"] for i in infos if i.get("warning"))
             return np.vstack(Vs), np.vstack(Fs), info
-    return _build_one(P, F, N, teeth, tads, arch, p, say)
+    return _build_one(P, F, N, teeth, tads, arch, p, say, attach=attach)
 
 
-def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
+def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None, attach=None):
     """Returns dict(vertices, faces (CBCT mm), info) - the guide surface, watertight."""
     say = progress or (lambda *_: None)
     t0 = time.time()
@@ -204,6 +213,19 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
         + (f" - {hidden} sleeve spot(s) sit under a crown bulge" if hidden else ""))
     Q = P @ R.T
     cov_teeth, cov_gum = coverage(P, teeth, tads, arch, p)
+    # Braces: brackets, the wire and hooks sit on the crowns but are not 'teeth' to the colour classifier. The
+    # guide goes over them, so the crown coverage spreads 2.5 mm along the surface onto what reads metal in the
+    # CBCT just under the scan - never onto the gum, and never further apically than the crown it is next to.
+    attach = np.zeros(len(P), bool) if attach is None else np.asarray(attach, bool)
+    if cov_teeth.any() and (attach & ~teeth).any():
+        from scipy.spatial import cKDTree
+        h_all = -(P - arch.O) @ arch.n                         # apical distance from the occlusal plane
+        src = np.where(cov_teeth)[0]
+        cand = np.where(attach & ~teeth)[0]
+        dist, j = cKDTree(P[src]).query(P[cand], distance_upper_bound=2.5)
+        okj = np.isfinite(dist) & (h_all[cand] <= h_all[src[np.minimum(j, len(src) - 1)]] + 0.3)
+        cov_teeth = cov_teeth.copy()
+        cov_teeth[cand[okj]] = True
     # gum is covered only down to the TAD heads: the apron needs to reach the sleeve, not the vestibule beyond it
     # (the scan's fold there is thin and noisy, and the shell would wrap it in fins)
     zh = [float((R @ np.asarray(t["head"], float))[2]) for t in tads if t["site"] != "palate"]
@@ -240,7 +262,9 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
         say(f"large guide: grid coarsened to {v:.2f} mm")
     say(f"grid {shape[0]}x{shape[1]}x{shape[2]} at {v:.2f} mm")
     # height map of the whole scan seen along the insertion direction; tooth/gum of the top-most point.
-    # Loose bits of the scan (a flap, a speck) are left out: only pieces with >= 5 % of the largest's triangles.
+    # Loose bits of the scan far from the guide (a flap, a speck) are left out: only pieces with >= 5 % of the
+    # largest's triangles - unless the piece touches the covered area: a wire segment or a bracket scanned as
+    # its own piece sits right where the guide goes and must be in the block-out.
     Fk = F
     try:
         import scipy.sparse as sps
@@ -251,7 +275,8 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
         if ncomp > 1:
             fl = lab[F[:, 0]]
             cnt = np.bincount(fl, minlength=ncomp)
-            Fk = F[cnt[fl] >= 0.05 * cnt.max()]
+            touch = np.bincount(lab[cov], minlength=ncomp) > 0
+            Fk = F[(cnt[fl] >= 0.05 * cnt.max()) | touch[fl]]
     except Exception:
         Fk = F
     S, tid = sample_triangles(Q, Fk, v * 0.5)
@@ -282,33 +307,102 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
     gapmap[top_cells] = np.where(tooth_face[tid[top_idx]], p["gap_teeth"], p["gap_gum"])
     H = H.reshape(shape[:2])
     gapmap = gapmap.reshape(shape[:2])
+    def grey_open(A, win):
+        er = ndi.minimum_filter(np.where(np.isfinite(A), A, np.inf), size=win)
+        return ndi.maximum_filter(np.where(np.isfinite(er), er, -np.inf), size=win)
     # spikes: a scan flap or stray sheet stands far above its neighbours in a cell or two - the shell would wrap
-    # it in a thin tube. Where a cell is more than 1 mm above a 0.4 mm grey opening of the height map (real cusp
-    # tips are never that steep at this scale), it takes the opening's value.
+    # it in a thin tube. A cell more than 1 mm above a 1 mm grey opening of the height map is levelled to the
+    # opening - but only when the raised patch is a small blob: an archwire is just as narrow and just as high
+    # above the tooth between the brackets, and it is long, and the guide must go over it, not through it.
     valid = np.isfinite(H)
     k = max(3, int(round(0.4 / v)) * 2 + 1)
     if valid.any():
-        er = ndi.minimum_filter(np.where(valid, H, np.inf), size=k)
-        op = ndi.maximum_filter(np.where(np.isfinite(er), er, -np.inf), size=k)
+        op = grey_open(H, k)
         with np.errstate(invalid="ignore"):             # -inf - -inf where there is no scan: not a spike
-            spike = valid & np.isfinite(op) & (H - op > 1.0)
+            raised = valid & np.isfinite(op) & (H - op > 0.5)
+            high = valid & np.isfinite(op) & (H - op > 1.0)
+        spike = np.zeros_like(high)
+        if high.any():
+            lab, nl = ndi.label(raised)
+            blob = np.zeros(nl + 1, bool)
+            for i, sl in enumerate(ndi.find_objects(lab)):
+                if sl is not None and (sl[0].stop - sl[0].start) * v <= 1.6 and (sl[1].stop - sl[1].start) * v <= 1.6:
+                    blob[i + 1] = True
+            spike = high & blob[lab]
         if spike.any():
             H[spike] = op[spike]
             say(f"{int(spike.sum())} spike cells in the scan levelled")
-    # holes in the height map (scan holes, steep walls between samples): nearest neighbour - within 1 mm
-    # everywhere, and without limit under the covered area (a column with no scan under the guide would let the
-    # shell run straight down it)
+    # Braces: what reads metal in the CBCT just under the scan - brackets, the wire, hooks, buttons - is kept in
+    # the block-out (the guide goes over it) with 0.5 mm of relief on top and 0.5 mm around, so the guide never
+    # bears on it (scans of metal are noisy, and brackets move between scan and surgery).
     valid = np.isfinite(H)
+    relief = np.zeros(shape[:2], bool)
+    dbg = {}
+    stand = np.zeros(shape[:2], np.float32)            # how far an attachment stands off the surface it sits on
+    proud = np.zeros(shape[:2], bool)
+    if attach.any():
+        ca = np.floor((Q[attach][:, :2] - lo[:2]) / v + 0.5).astype(int)
+        oka = np.all((ca >= 0) & (ca < shape[:2]), axis=1)
+        proud[ca[oka, 0], ca[oka, 1]] = True
+        proud &= valid
+        proud = ndi.binary_closing(proud, iterations=max(1, int(round(0.4 / v))))
+    if proud.any():
+        # how far they stand off the crown: the median surface of a 7 mm window is the crown under a bracket
+        k3 = int(round(3.5 / v)) * 2 + 1
+        med = ndi.median_filter(np.where(valid, H, np.nanmin(H[valid])), size=k3, mode="nearest")
+        with np.errstate(invalid="ignore"):
+            st = np.where(proud, H - med, 0.0)
+        Hd = ndi.maximum_filter(np.where(proud, H, -np.inf), footprint=disk(0.5, v))
+        widen = np.isfinite(Hd) & (Hd > np.where(valid, H, -np.inf))
+        H = np.where(widen, Hd, H)
+        relief = proud | widen
+        gapmap[relief] = np.maximum(gapmap[relief], 0.5)
+        stand = ndi.maximum_filter(np.where(np.isfinite(st), st, 0.0), footprint=disk(2.0, v)).astype(np.float32)
+        say(f"braces / attachments: {int(proud.sum())} cells of metal on the crowns - blocked out with 0.5 mm relief")
+    # holes in the height map (the scanner sees nothing under a wire or behind a bracket; steep walls between
+    # samples): bridged with the highest valid neighbour within 1.5 mm - never the nearest one, which under a
+    # wire is the gum far below and would let the shell drop a pillar into the pit. Beyond that, the nearest
+    # within 1 mm anywhere, and without limit under the covered area (an unfilled column under the guide would let
+    # the shell run straight down it).
+    valid = np.isfinite(H)
+    bridged = np.zeros(shape[:2], bool)
+    near_att = ndi.binary_dilation(relief, iterations=max(1, int(round(4.0 / v)))) if relief.any() else np.zeros(shape[:2], bool)
+    if (~valid).any() and valid.any() and relief.any():
+        bridge = ndi.maximum_filter(np.where(valid, H, -np.inf), footprint=disk(1.5, v))
+        gb = ndi.maximum_filter(np.where(valid, gapmap, 0.0), footprint=disk(1.5, v))
+        fillb = (~valid) & np.isfinite(bridge) & near_att
+        H[fillb] = bridge[fillb]
+        gapmap[fillb] = np.maximum(gapmap[fillb], gb[fillb])
+        bridged = fillb
+        valid = np.isfinite(H)
     if (~valid).any() and valid.any():
+        # the rest: the nearest valid neighbour - within 1 mm anywhere, without limit under the covered area (a
+        # column with no scan under the guide would let the shell run straight down it) and around attachments
+        # (an empty column beside a bracket's plateau would make its block-out a wall down to the bottom of the
+        # grid, and the shell would wrap that as a tall fin)
         dist, (ii, jj) = ndi.distance_transform_edt(~valid, sampling=v, return_indices=True)
         cm0 = np.zeros(shape[:2], bool)
         cij0 = np.floor((Q[cov][:, :2] - lo[:2]) / v + 0.5).astype(int)
         ok0 = np.all((cij0 >= 0) & (cij0 < shape[:2]), axis=1)
         cm0[cij0[ok0, 0], cij0[ok0, 1]] = True
         cm0 = ndi.binary_dilation(ndi.binary_fill_holes(ndi.binary_closing(cm0, iterations=max(2, int(round(2.0 / v))))), iterations=max(1, int(round(1.5 / v))))
-        fill = (~valid) & ((dist <= 1.0) | cm0)
+        fill = (~valid) & ((dist <= 1.0) | cm0 | near_att)
         H[fill] = H[ii[fill], jj[fill]]
         gapmap[fill] = gapmap[ii[fill], jj[fill]]
+    # narrow pits beside attachments are blocked out: the embrasure under a wire, the gap beside a bracket - a
+    # grey closing over 2 mm fills any pit narrower than that up to the level of its rim (within 3 mm of an
+    # attachment only, so an arch without braces keeps its fissures). The shell would otherwise drape down into
+    # the pit as a thin fin; a rigid guide wants the block-out.
+    if relief.any():
+        fp = disk(1.0, v)
+        Hc = ndi.minimum_filter(ndi.maximum_filter(np.where(np.isfinite(H), H, -np.inf), footprint=fp), footprint=fp)
+        with np.errstate(invalid="ignore"):
+            raised = np.isfinite(H) & np.isfinite(Hc) & (Hc > H + 0.05) & ndi.binary_dilation(relief, iterations=max(1, int(round(3.0 / v))))
+        if raised.any():
+            gc = ndi.maximum_filter(gapmap, footprint=fp)
+            gapmap[raised] = np.maximum(gapmap[raised], gc[raised])
+            H = np.where(raised, Hc, H)
+            say(f"{int(raised.sum())} cells of narrow pits blocked out")
     Hg = H + gapmap
     zc = lo[2] + np.arange(shape[2]) * v
     Fm = zc[None, None, :] < Hg[:, :, None]                      # tissue (+ gap), undercuts included
@@ -321,16 +415,29 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
     vert = np.where(np.isfinite(vert), vert, 1e3).astype(np.float32)
     sdF = (np.sign(sdF) * np.minimum(np.abs(sdF), np.abs(vert))).astype(np.float32)
     del vert
-    # coverage in 3D: the shell ends a little beyond the covered part of the scan, cut square to the surface. The
+    # Coverage in 3D: the shell ends a little beyond the covered part of the scan, cut square to the surface. The
     # cut used to be the 2D coverage boundary carried straight down the insertion direction; on steep walls
     # (the palatal and buccal gingival margins) that wall met the shell at a grazing angle and the ragged
     # projection of the wall made a comb of tall teeth - a serrated edge. A distance to the covered surface
-    # itself gives a rounded rim that follows the surface.
+    # itself gives a rounded rim that follows the surface. Covered: the covered scan vertices, and at the
+    # attachments the whole top of their block-out with its walls down to the crown they sit on - a bracket's
+    # front, the drop beside the wire - so the guide wraps them rather than stopping at their edge.
     cv = np.zeros(shape, bool)
     cijk = np.floor((Q[cov] - lo) / v + 0.5).astype(int)
     okv = np.all((cijk >= 0) & (cijk < np.asarray(shape)), axis=1)
     cv[cijk[okv, 0], cijk[okv, 1], cijk[okv, 2]] = True
     cv = ndi.binary_closing(cv, iterations=max(1, int(round(0.8 / v))))     # tooth / gum flicker at the margin
+    cm = np.zeros(shape[:2], bool)
+    cm[cijk[okv, 0], cijk[okv, 1]] = True
+    cm_src = cm.copy()
+    if relief.any():
+        att = (relief | (bridged & ndi.binary_dilation(relief, iterations=max(1, int(round(1.5 / v)))))) & np.isfinite(Hg)
+        Hmin = ndi.minimum_filter(np.where(np.isfinite(Hg), Hg, np.inf), size=3)
+        Hmin = np.maximum(Hmin, Hg - np.clip(stand + 0.3, 1.5, 3.5))
+        cv |= att[:, :, None] & (zc[None, None, :] >= (Hmin - v)[:, :, None]) & (zc[None, None, :] <= (Hg + 0.5 * v)[:, :, None])
+        cm |= att
+    else:
+        Hmin = Hg
     d_cov = ndi.distance_transform_edt(~cv, sampling=v).astype(np.float32)
     say("shell")
     th = float(p["thickness"])
@@ -339,6 +446,15 @@ def _build_one(P, F, N, teeth, tads, arch, params=None, progress=None):
     # stays over the covered area (a voxel at the top of the shell is thickness + gap + a vertex spacing from the
     # nearest covered vertex; the slack keeps the top smooth) - a rounded edge, near enough square to the surface
     phi = np.maximum(phi, d_cov - (1.0 + 0.8 * (np.clip(sdF, 0.0, th) + 0.3)))
+    if p.get("_dump"):                                            # debugging aid: the 2D fields and the frame
+        np.savez_compressed(p["_dump"], Hg=Hg, H=H, gapmap=gapmap, cm=cm, cm_src=cm_src, relief=relief, bridged=bridged, stand=stand, lo=lo, v=v, R=R, shape=np.asarray(shape), cv=cv, zc=zc, dbg_op3=dbg.get("op3"), dbg_Hmax6=dbg.get("Hmax6"), dbg_proud0=dbg.get("proud0"), dbg_gate=dbg.get("gate"), dbg_H0=dbg.get("H0"))
+    if p.get("_probe") is not None:                               # debugging aid: the fields at given CBCT points
+        for name, pt in p["_probe"]:
+            q = R @ np.asarray(pt, float)
+            ijk = np.round((q - lo) / v).astype(int)
+            if np.all((ijk >= 0) & (ijk < np.asarray(shape))):
+                i, j, kk = ijk
+                say(f"probe {name}: z={q[2]:.2f} Hg={Hg[i, j]:.2f} H={H[i, j]:.2f} gap={gapmap[i, j]:.2f} sdF={sdF[i, j, kk]:.2f} d_cov={d_cov[i, j, kk]:.2f} phi={phi[i, j, kk]:.2f} cm={bool(cm[i, j])} src={bool(cm_src[i, j])} relief={bool(relief[i, j])} bridged={bool(bridged[i, j])} cv-col={int(cv[i, j].sum())} Hmin={Hmin[i, j]:.2f}")
     del d_cov, cv
     # sleeves, struts, holes (evaluated on the voxel centres)
     gx = lo[0] + np.arange(shape[0]) * v

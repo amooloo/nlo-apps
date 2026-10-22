@@ -1238,7 +1238,19 @@ def make_guide(cid: str, body: dict = Body(default={})):
     def job(c):
         ensure_loaded(c)
         c.log("making the guide")
-        V, F, info = guidemod.build(c.P, c.scan[1], c.N, c.teeth, c.state["tads"], c.arch, params, progress=c.log)
+        # braces: where the CBCT reads metal just under the scan (a bracket, the wire, a hook)
+        attach = None
+        try:
+            lv = c.state["levels"]
+            # steel reads far above the metal level; enamel highlights and dense fillings sit just above it
+            attach = volume.sample(c.vol, c.P - c.N * 0.4) >= 2.0 * lv["metal"]
+            if attach.sum() < 20:
+                attach = None
+            else:
+                c.log(f"braces: the scan lies on metal at {int(attach.sum())} vertices - blocked out with relief")
+        except Exception:
+            attach = None
+        V, F, info = guidemod.build(c.P, c.scan[1], c.N, c.teeth, c.state["tads"], c.arch, params, progress=c.log, attach=attach)
         holes = guidemod.check_holes(V, F, c.state["tads"], params["hole"])
         info["holes"] = holes
         c.guide_mesh = (V, F)
