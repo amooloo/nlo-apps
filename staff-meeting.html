@@ -223,6 +223,7 @@ main{max-width:1080px;margin:0 auto;padding:12px 14px 80px}
 .ktile .kd{font-size:11px;font-weight:700;margin-top:6px;display:flex;align-items:center;gap:6px;color:var(--muted)}
 .spark{flex:none}.spark path{fill:none;stroke:var(--blue);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.spark .goal{stroke:var(--coral);stroke-width:1;stroke-dasharray:3 3}
 .src{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--blue);background:var(--blue-1);border-radius:6px;padding:1px 5px}
+a.src{text-decoration:none}a.src:hover{text-decoration:underline}
 .st-m{display:none}
 .koff{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .koff .tag{font-size:12px;padding:3px 9px}
@@ -454,6 +455,10 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
    - KPIs: month-end numbers live in NLO's own Month-End app
      (month-end.html, data under nlo/staffMeeting/monthEnd); the KPIs it
      covers fill in by themselves — only the others are typed here.
+     Patient and insurance delinquency (2.3.2) are typed from NLO A/R's
+     goal gauges — accounts past due, as handbook §19 counts them, not
+     Month-End's dollars ÷ all A/R. A/R's numbers are sealed (encrypted),
+     so the Hub can't read them itself; the tiles link to A/R.
    - RUN: one item at a time (phone, laptop or TV — every screen follows the
      live state in Firebase). Decided / Action (owner + due) / Park /
      Covered / Drop, undo per item. Minutes write themselves on "End".
@@ -473,7 +478,7 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
    Cadence shows each person's action items and has a "raise for the
    staff meeting" button (see the add-on block at the end of cadence.html).
    ===================================================================== */
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.3.2';
 const FB_CONFIG = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
@@ -790,8 +795,6 @@ const ME_KPI = {
   'conversion rate per month': t => t.conv,
   'aligner case starts per month': t => sumOf(t.st_ph1a, t.st_ph2a, t.st_fta),
   'same day starts per month': t => t.np_sameday,
-  'patient delinquencies': t => t.pt_pd_pct,
-  'insurance delinquencies': t => t.ins_pd_pct,
   'credits': t => t.cred_total,
   'collection rate': t => t.coll_rate,
   'production adjustment %': t => t.adj_rate,
@@ -800,6 +803,14 @@ const ME_KPI = {
   'active patients over tx time': t => t.past_pct
 };
 const meFn = d => ME_KPI[String((d && d.label) || '').toLowerCase().trim()] || null;
+/* Typed KPIs whose number comes from another NLO app: the tile names the app and links to it.
+   Delinquency = NLO A/R's goal gauges (handbook §19: accounts, not dollars) — A/R's data is sealed, so it's typed. */
+const AR_URL = 'nlo-ar.html#today';
+const KPI_FROM = {
+  'patient delinquencies': { app: 'A/R', href: AR_URL, tip: 'Type the % from the Patient gauge at the top of NLO A/R (Today or Summary): patient accounts 30+ days past due ÷ active patient accounts.' },
+  'insurance delinquencies': { app: 'A/R', href: AR_URL, tip: 'Type the % from the Insurance gauge at the top of NLO A/R (Today or Summary): insurance accounts past their payment window ÷ insurance accounts.' }
+};
+const fromOf = d => KPI_FROM[String((d && d.label) || '').toLowerCase().trim()] || null;
 function enabledDefs() { return entriesOf(S.kpiDefs).filter(([, d]) => d.enabled !== false).sort((a, b) => (a[1].order || 0) - (b[1].order || 0)); }
 function kpiMet(d, v) { const n = num(v); if (n == null || d.goalNum == null || d.dir === 'target') return null; return d.dir === 'down' ? n <= Number(d.goalNum) : n >= Number(d.goalNum); }
 function unitOf(d) { return d.unit === '%' ? '%' : d.unit === '$' ? '$' : ''; }
@@ -851,7 +862,7 @@ function spark(vals, goal) {
 }
 function kpiRows() {
   const vals = S.meeting.kpis || {}, t = meTotals(kpiMonth());
-  return enabledDefs().map(([id, d]) => { const f = meFn(d); const v = f ? (t ? num(f(t)) : null) : num(vals[id]); return { id, label: d.label, role: d.role || 'Other', unit: unitOf(d), goal: d.goal || '', value: v, met: kpiMet(d, v), me: !!f }; });
+  return enabledDefs().map(([id, d]) => { const f = meFn(d); const v = f ? (t ? num(f(t)) : null) : num(vals[id]); return { id, label: d.label, role: d.role || 'Other', unit: unitOf(d), goal: d.goal || '', value: v, met: kpiMet(d, v), me: !!f, from: f ? null : fromOf(d) }; });
 }
 
 /* ---------------------------------------------------------------- auth + boot */
@@ -1360,15 +1371,15 @@ function kpiCardHTML() {
     const good = diff == null || diff === 0 ? null : (d.dir === 'down' ? diff < 0 : diff > 0);
     const sp = spark(kpiTrend(r.id), d.dir !== 'target' ? d.goalNum : null);
     return '<div class="ktile ' + (r.met === true ? 'met' : r.met === false ? 'off' : '') + '"><span class="st">' + (r.met === true ? '<span class="tag green">✓ met</span>' : r.met === false ? '<span class="tag red">off</span>' : '') + '</span>' +
-      '<div class="kl">' + esc(r.label) + '</div><div class="kg">Goal ' + esc(r.goal || '—') + (r.me ? ' · <span class="src">Month-End</span>' : '') + (r.met === true ? '<span class="st-m" style="color:var(--mint-7)"> · ✓ met</span>' : r.met === false ? '<span class="st-m" style="color:var(--coral-7)"> · off goal</span>' : '') + '</div>' +
-      '<div class="kin"><input type="text" inputmode="decimal" data-kpi="' + esc(r.id) + '" value="' + (r.value != null ? esc(r.value) : '') + '" placeholder="' + (r.me ? 'not in yet' : '—') + '"' + (r.me ? ' disabled title="Comes from the Month-End app"' : '') + ' aria-label="' + esc(r.label) + '"><span class="u">' + esc(r.unit) + '</span></div>' +
+      '<div class="kl">' + esc(r.label) + '</div><div class="kg">Goal ' + esc(r.goal || '—') + (r.me ? ' · <span class="src">Month-End</span>' : r.from ? ' · <a class="src" href="' + esc(r.from.href) + '" target="_blank" rel="noopener" title="' + esc(r.from.tip) + '">' + esc(r.from.app) + ' ›</a>' : '') + (r.met === true ? '<span class="st-m" style="color:var(--mint-7)"> · ✓ met</span>' : r.met === false ? '<span class="st-m" style="color:var(--coral-7)"> · off goal</span>' : '') + '</div>' +
+      '<div class="kin"><input type="text" inputmode="decimal" data-kpi="' + esc(r.id) + '" value="' + (r.value != null ? esc(r.value) : '') + '" placeholder="' + (r.me ? 'not in yet' : r.from ? 'from ' + esc(r.from.app) : '—') + '"' + (r.me ? ' disabled title="Comes from the Month-End app"' : r.from ? ' title="' + esc(r.from.tip) + '"' : '') + ' aria-label="' + esc(r.label) + '"><span class="u">' + esc(r.unit) + '</span></div>' +
       '<div class="kd' + (diff == null && !sp ? ' none' : '') + '">' + (diff != null ? '<span style="color:' + (good == null ? 'var(--muted)' : good ? 'var(--mint-7)' : 'var(--coral-7)') + '">' + (diff > 0 ? '▲ ' : diff < 0 ? '▼ ' : '') + (diff === 0 ? 'same as before' : Math.abs(diff) + ' vs ' + (r.me ? 'prior month' : 'last time')) + '</span>' : '<span>&nbsp;</span>') + sp + '</div></div>';
   }).join('') + '</div></div>').join('');
   const opts = []; for (let i = 0; i < 13; i++) { const ym = addMonthsYm(addMonthsYm(todayYmd().slice(0, 7), 0), -i); opts.push('<option value="' + ym + '"' + (ym === km ? ' selected' : '') + '>' + esc(ymLabel(ym, { month: 'short', year: 'numeric' })) + '</option>'); }
   if (opts.join('').indexOf('value="' + km + '"') < 0) opts.unshift('<option value="' + km + '" selected>' + esc(ymLabel(km, { month: 'short', year: 'numeric' })) + '</option>');
   const status = t ? (rec && rec.final ? '<span class="tag green">✓ month-end complete</span>' : '<span class="tag amber">month-end in progress</span>') : '<span class="tag">month-end not in yet</span>';
   const note = !t ? '<div class="warnbar" style="margin-bottom:10px">' + esc(kpiMonthLabel()) + '’s month-end numbers aren’t in yet. <a href="' + MONTHEND_URL + '#' + km + '">Enter them in Month-End ›</a></div>'
-    : open ? '<p class="hint" style="margin-bottom:10px">Tiles marked <span class="src">Month-End</span> come straight from the Month-End app. Type only the others — they save as you go.</p>' : '';
+    : open ? '<p class="hint" style="margin-bottom:10px">Tiles marked <span class="src">Month-End</span> come straight from the Month-End app. Type only the others — they save as you go.' + (rows.some(r => r.from && r.from.app === 'A/R') ? ' The ones marked <span class="src">A/R</span> are the goal gauges at the top of NLO A/R.' : '') + '</p>' : '';
   const offRows = rows.filter(r => r.met === false);
   const folded = offRows.length ? '<div class="koff"><span class="small bold" style="color:var(--coral-7)">Off goal:</span>' + offRows.map(r => '<span class="tag red">' + esc(r.label) + ' · ' + esc(fmtNum(r.value, r.unit)) + '<span style="opacity:.65;font-weight:600">&nbsp;/ goal ' + esc(r.goal || '—') + '</span></span>').join('') + '</div>'
     : filled ? '<div class="small bold" style="color:var(--mint-7)">Everything entered so far is on goal ✓</div>' : '';
