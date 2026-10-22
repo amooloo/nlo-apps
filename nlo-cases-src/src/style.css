@@ -279,6 +279,35 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 /* in-house aligners and retainers: Print labels right under the name */
 .dLbl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .dLbl .small{line-height:1.35}
+/* the delivery appt across the bottom of the header, always in view (22 Oct 2026): a calendar page, then the day and the time in
+   large type and how far off it is; amber within 3 days, coral once it has passed (open case), grey on a completed case */
+.dHd{flex-wrap:wrap}
+.dAppt{flex:0 0 100%;display:flex;align-items:center;gap:12px;padding:8px 10px 8px 8px;border-radius:12px;background:var(--navy-100);border:1.5px solid var(--navy-100);min-height:66px}
+.apCal{flex:none;width:46px;height:48px;border-radius:9px;background:#fff;border:1px solid var(--grey-200);box-shadow:var(--sh-xs);display:flex;flex-direction:column;overflow:hidden;text-align:center;color:var(--navy)}
+.apCal .m{background:var(--navy);color:#fff;font-family:var(--fd);font-weight:600;font-size:10.5px;letter-spacing:.12em;text-indent:.12em;text-transform:uppercase;line-height:16px}
+.apCal .d{flex:1;display:flex;align-items:center;justify-content:center;font-family:var(--fd);font-weight:600;font-size:21px;line-height:1}
+.apB{flex:1;min-width:0}
+.apK{display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px;font-family:var(--fd);font-weight:500;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--navy-600);line-height:1.3}
+.apRel{font-family:var(--fb);font-size:11.5px;font-weight:700;letter-spacing:0;text-transform:none;border-radius:99px;padding:1px 8px;background:#fff;color:var(--navy-700)}
+.apV{display:flex;align-items:baseline;flex-wrap:wrap;gap:0 14px;margin-top:2px;font-family:var(--fd);font-weight:600;color:var(--navy);line-height:1.25}
+.apD{font-size:19px;letter-spacing:.01em}
+.apT{display:inline-flex;align-items:center;gap:5px;font-size:22px;letter-spacing:.01em;white-space:nowrap}
+.apT .i{color:var(--navy-500)}
+.apNo{font-family:var(--fb);font-size:13px;font-weight:600;font-style:italic;color:var(--grey-500)}
+.apEd{flex:none}
+.dAppt.soon{background:var(--amber-100);border-color:var(--amber-200)}
+.dAppt.soon .apCal .m{background:var(--amber-600)} .dAppt.soon .apRel{color:var(--amber-700)}
+.dAppt.over{background:var(--coral-100);border-color:var(--coral-200)}
+.dAppt.over .apCal .m{background:var(--coral-600)} .dAppt.over .apRel,.dAppt.over .apK{color:var(--coral-700)}
+.dAppt.done{background:var(--grey-50);border-color:var(--grey-100)}
+.dAppt.done .apCal .m{background:var(--grey-500)}
+.dAppt.none{background:#fff;border:1.5px dashed var(--grey-300)}
+.dAppt.none .apCal,.dAppt.raw .apCal{align-items:center;justify-content:center;color:var(--grey-400)}
+.dAppt.none .apCal{border-style:dashed;box-shadow:none}
+.apRow .field{width:200px} .apRow .dTime{margin-top:0} /* (the window's date and time line up) */
+/* phones: a smaller calendar page and just the button's icon, so the day and the time stay on one line */
+@media (max-width:520px){ .dAppt{gap:10px;padding:6px 8px 6px 6px;min-height:58px} .apCal{width:40px;height:44px} .apCal .d{font-size:19px} .apD{font-size:17px} .apT{font-size:20px}
+  .apEd .t{display:none} .apEd{padding:6px 10px;min-width:42px;min-height:42px} }
 .dBd{flex:1;overflow-y:auto;padding:16px 22px 26px}
 .dFt{padding:12px 22px;border-top:1px solid var(--grey-100);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .sec{margin-top:18px}
