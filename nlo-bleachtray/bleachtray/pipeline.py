@@ -24,7 +24,7 @@ DEFAULTS = dict(
     fill_reach=1.25, fill_top=20.0,  # the fill: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how far up from the papilla (20 = to the contact)
     fill_retention=0.5,    # next to an edentulous space: the fill's straight face starts this far below the tooth's height of contour (that much undercut stays for grip)
     blockout_proud=0.0,    # mm: where a PAINTED block-out's wall stands relative to the tooth's contour seen from above - 0 flush with it, > 0 that much further out, < 0 that much of the undercut left for grip
-    engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
+    engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials (J.D) raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line; whitening trays 1 (the bur is ~1 mm wide), retainers 1.25, 2-3 = "high" aligner line
     bridge_radius=3.0,     # straight bridges across papillae narrower than ~2x this

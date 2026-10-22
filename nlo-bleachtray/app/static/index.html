@@ -390,7 +390,7 @@
         <button class="pchip" id="textchip" title="The text on the model: where it goes, what it says, raised or cut in">T&#1090; Text &#9656;</button>
         <div class="place" id="place">
           <div class="phead"><h4>Position on the base</h4><span class="sp"></span><button class="ibtn" id="placehelp" title="How to move the base">?</button><button class="ibtn" id="placehide" title="Hide this box - the Position chip brings it back">&ndash;</button></div>
-          <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. The <b>mark</b> on the model (the raised initials + W/R that form into the tray) shows as a small card on the model: <b>drag it</b> onto any tooth or onto the side of the model, turn it and size it with the Mark buttons, choose what it says, raised or cut in; <b>Auto</b> puts it back on a first molar. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> moves this arch's models on the base (a few seconds - a height change rebuilds them, ~1 min) and replaces the Trimlign order; the other arch stays as it is. <b>Reset</b> goes back to the automatic placement.</div>
+          <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. The <b>mark</b> on the model (the raised initials - J.D - that form into the tray) shows as a small card on the model: <b>drag it</b> onto any tooth or onto the side of the model, turn it and size it with the Mark buttons, choose what it says, raised or cut in; <b>Auto</b> puts it back on a first molar. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> moves this arch's models on the base (a few seconds - a height change rebuilds them, ~1 min) and replaces the Trimlign order; the other arch stays as it is. <b>Reset</b> goes back to the automatic placement.</div>
           <div class="seg" style="margin:8px 0"><button class="small" id="viewUnder" title="Look up at the underside: the locating holes in the base plate must stay clear of the arch">Underneath (holes)</button><button class="small" id="viewTop">From above</button></div>
           <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
           <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
@@ -402,7 +402,7 @@
         <div class="textbox" id="textbox">
           <div class="phead"><h4>Text on the model</h4><span class="sp"></span><button class="ibtn" id="texthelp" title="How the text works">?</button><button class="ibtn" id="texthide" title="Hide this box - the Text chip brings it back">&ndash;</button></div>
           <div class="hint phelp" id="texthelptext">The text is part of the model: <b>raised</b> it forms into the tray and reads on it (the way aligner makers mark theirs), <b>cut in</b> it stays on the model only. <b>Place</b>: click a start point and an end point on the model and the letters are laid along the surface between them, sized to fit; or drag the yellow card. Turn and size with the buttons. <b>Auto</b> puts it back on a first molar. Apply makes it (a few seconds - the model itself is kept).</div>
-          <div class="prow" style="margin-top:8px;grid-template-columns:76px 1fr 64px"><span>Says</span><select id="mktext" class="small" style="width:100%;min-width:0" title="What the text says"><option value="initials">Initials + W/R</option><option value="last">Last name + W/R</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button></div>
+          <div class="prow" style="margin-top:8px;grid-template-columns:76px 1fr 64px"><span>Says</span><select id="mktext" class="small" style="width:100%;min-width:0" title="What the text says"><option value="initials">Initials (J.D)</option><option value="last">Last name</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button></div>
           <div class="prow" style="margin-top:6px;grid-template-columns:76px 1fr 64px"><span>Place</span><button class="primary small" id="mkplace" title="Click a start point and an end point on the model">Start &rarr; end on the model</button><button class="small" id="mkauto" title="Back to the automatic spot: the cheek of a first molar">Auto</button></div>
           <div class="prow" style="margin-top:6px;grid-template-columns:76px 1fr 1fr 1fr 1fr"><span>Adjust</span><button data-mk="angle_deg" data-d="-15" title="Turn">&#8634; 15&deg;</button><button data-mk="angle_deg" data-d="15" title="Turn">15&deg; &#8635;</button><button data-mk="cap" data-d="-0.3" title="Smaller letters">A&minus;</button><button data-mk="cap" data-d="0.3" title="Bigger letters">A+</button></div>
           <div class="hint" id="markstate" style="margin:6px 0 0"></div>
@@ -604,13 +604,13 @@
 
     <h4 class="setSec">Marks on the model</h4>
     <div class="setGrid">
-      <div class="scard"><div class="sLab">Initials on a molar <span class="info" title="Patient initials + W (whitening) or R (retainer) raised 0.35 mm on the cheek side of a first molar, so they show on the tray itself.">i</span></div>
+      <div class="scard"><div class="sLab">Initials on a molar <span class="info" title="Patient initials (J.D) raised 0.35 mm on the cheek side of a first molar, so they show on the tray itself. No W / R: the material says which tray it is, and the base carries it.">i</span></div>
         <div class="sPic" data-img="initials_on_tooth"><svg viewBox="0 0 120 72">
           <path d="M34 14 C48 6 72 6 86 14 L90 44 C88 60 72 66 60 66 C48 66 32 60 30 44 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
           <path d="M44 24 Q60 18 76 24" fill="none" stroke="#C3C9D0" stroke-width="1"/>
           <text x="60" y="48" text-anchor="middle" font-family="Oswald, Arial, sans-serif" font-weight="700" font-size="16" fill="#1D3EA9">KP W</text>
         </svg></div>
-        <select id="tooth_mark"><option value="1">On · initials + W / R</option><option value="0">Off</option></select>
+        <select id="tooth_mark"><option value="1">On · initials (J.D)</option><option value="0">Off</option></select>
       </div>
       <div class="scard"><div class="sLab">Engraving on the base <span class="info" title="Patient name and tray type cut into the base, inside the arch. Type your own text to replace it.">i</span></div>
         <div class="sPic" data-img="engraving_base"><svg viewBox="0 0 120 72">
@@ -1737,10 +1737,12 @@ function markMap(){
 }
 const trayLetter = () => { const t = ((curScans[curScanIdx] || {}).tag || ''); return t === 'TT' ? 'R' : t === 'MG' ? 'G' : t === 'P1' ? 'P' : 'W'; };
 function markText(mode){
-  const f = $('#pfirst').value.trim(), l = $('#plast').value.trim(), L = trayLetter();
+  // no tray letter (W / R) on the model any more: the material says which it is, and the base carries it (the doctor, 10/22/2026)
+  const f = $('#pfirst').value.trim(), l = $('#plast').value.trim();
   if (mode === 'full' && (f || l)) return `${f} ${l}`.trim().toUpperCase();
-  if (mode === 'last' && l) return `${l} ${L}`.toUpperCase();
-  return (((f[0] || '') + (l[0] || '')) || 'NL').toUpperCase() + ' ' + L;
+  if (mode === 'last' && l) return l.toUpperCase();
+  if (f && l) return `${f[0]}.${l[0]}`.toUpperCase();
+  return (((f[0] || '') + (l[0] || '')) || 'NL').toUpperCase();
 }
 // the current mark as a placement: what is on screen, else where the server put it
 function markCurrent(){
