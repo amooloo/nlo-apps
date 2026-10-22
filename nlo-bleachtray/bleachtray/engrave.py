@@ -255,9 +255,11 @@ def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, 
             log("mark skipped: too little surface facing the same way round the spot")
             return model, None
         n0 = PN.mean(0); n0 /= max(np.linalg.norm(n0), 1e-6)
-        # reading frame: 'up' is up on the model (towards the crowns on an upper too: the mark is read with
-        # the model standing on its base), 'right' is the viewer's right looking at the spot from outside
-        up = np.array([0, 0, 1.0]) - n0 * n0[2]
+        # reading frame: the bottom of the letters faces the biting surfaces (the doctor, 10/22/2026) - so the mark is
+        # upside down on a model lying on its base and upright on the tray as it rests on its cusps or is held that
+        # way (the frame's z is towards the crowns on both arches); 'right' is the viewer's right looking at the
+        # spot from outside, holding it so
+        up = -(np.array([0, 0, 1.0]) - n0 * n0[2])
         if np.linalg.norm(up) < 0.3:                      # a flat occlusal spot: read front-to-back
             up = np.array([0, -1.0, 0]) - n0 * (-n0[1])
         up /= max(np.linalg.norm(up), 1e-6)

@@ -1752,9 +1752,11 @@ function markCurrent(){
   return { x: a[0], y: a[1], z: a[2], nx: n[0], ny: n[1], nz: n[2], angle_deg: markInfo.angle_deg || 0, cap: markInfo.cap || 2.4, text: markInfo.mode || 'initials', raised: markInfo.raised !== false, right: markInfo.right, up: markInfo.up, width: markInfo.width_mm };
 }
 function markFrame(mk){
-  // reading frame at the spot: up is up on the model, right the viewer's right looking from outside, turned by the angle
+  // reading frame at the spot (the server's, engrave.emboss_at): the bottom of the letters faces the biting surfaces -
+  // upside down on the model as it lies on its base, upright on the tray resting on its cusps (the doctor, 10/22/2026);
+  // right is the viewer's right looking from outside holding it so, turned by the angle
   const n = new THREE.Vector3(mk.nx, mk.ny, mk.nz).normalize();
-  let up = new THREE.Vector3(0, 0, 1).addScaledVector(n, -n.z);
+  let up = new THREE.Vector3(0, 0, -1).addScaledVector(n, n.z);
   if (up.length() < 0.3) up = new THREE.Vector3(0, -1, 0).addScaledVector(n, n.y);
   up.normalize();
   let right = new THREE.Vector3().crossVectors(up, n).normalize();
@@ -1843,7 +1845,7 @@ function placeClick(ev){
   const h2 = pray.intersectObject(archGroup.children[0], false)[0];
   const P = h2 ? h2.point.clone() : mid, N = h2 && h2.face ? h2.face.normal.clone().transformDirection(archGroup.children[0].matrixWorld) : nm;
   const d = b.p.clone().sub(a.p); const span = d.length(); d.addScaledVector(N, -d.dot(N)).normalize();
-  let up0 = new THREE.Vector3(0, 0, 1).addScaledVector(N, -N.z); if (up0.length() < 0.3) up0 = new THREE.Vector3(0, -1, 0).addScaledVector(N, N.y); up0.normalize();
+  let up0 = new THREE.Vector3(0, 0, -1).addScaledVector(N, N.z); if (up0.length() < 0.3) up0 = new THREE.Vector3(0, -1, 0).addScaledVector(N, N.y); up0.normalize();   // the same frame as markFrame
   const right0 = new THREE.Vector3().crossVectors(up0, N).normalize();
   let ang = Math.atan2(d.dot(up0), d.dot(right0)) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;   // reading left to right
   const cur = markCurrent() || { text: 'initials', raised: true };
@@ -2459,7 +2461,7 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
-window.__view = { camera, controls, requestRender, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
+window.__view = { camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   stroke3d: (mode, pts) => { const before = Object.values(edits).reduce((a, e) => a + e.size, 0); stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
