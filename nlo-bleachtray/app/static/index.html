@@ -764,7 +764,7 @@ const EDIT_KEYS = Object.keys(edits);
 let editsByFile = {}, curFile = null, curScans = [];
 const fileKeyOf = sc => sc ? `${sc.filename}|${sc.preset === 'mouthguard' ? 'mg' : 'std'}` : null;
 let outlines = [];   // closed outlines on the current file: lists of corner vertices (sent with the strokes, kept with the case)
-function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length || Object.keys(toothIds).length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].teeth = Object.assign({}, toothIds); editsByFile[curFile].outlines = outlines.map(o => o.slice()); } else delete editsByFile[curFile]; }
+function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length || Object.keys(toothIds).length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].teeth = Object.assign({}, toothIds); editsByFile[curFile].outlines = outlines.map(o => o.slice()); editsByFile[curFile].raw = rawView && (edits.takeoff.size + edits.notbracket.size) > 0; } else delete editsByFile[curFile]; }
 function restoreEdits(key){ const e = editsByFile[key]; toothIds = e && e.teeth ? Object.assign({}, e.teeth) : {}; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); outlines = e && e.outlines ? e.outlines.map(o => o.slice()) : []; }
 function forgetEdits(){ editsByFile = {}; curFile = null; toothIds = {}; EDIT_KEYS.forEach(k => edits[k].clear()); if (typeof relabelOf !== 'undefined') relabelOf = new Map(); outlines = []; if (typeof dropOutline === 'function') dropOutline(); }
 // every file's strokes, as the server takes them: one entry per scan file, with the index of a scan made from it
@@ -773,7 +773,7 @@ function allEdits(){
   const out = [];
   for (const key in editsByFile) {
     const k = curScans.findIndex(sc => fileKeyOf(sc) === key); if (k < 0) continue;
-    const e = editsByFile[key]; out.push(Object.assign({ scan: k, outlines: (e.outlines || []).map(o => o.slice()), teeth: e.teeth && Object.keys(e.teeth).length ? e.teeth : undefined }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
+    const e = editsByFile[key]; out.push(Object.assign({ scan: k, outlines: (e.outlines || []).map(o => o.slice()), teeth: e.teeth && Object.keys(e.teeth).length ? e.teeth : undefined, raw: e.raw || undefined }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
   }
   return out;
 }
@@ -795,7 +795,7 @@ const PANELS = {
   teeth:  { group: 'seg', title: 'Teeth — the number of every tooth', modes: [['number', 'Number', 'Click a tooth\'s badge and pick its number (1-8, or A-E for a primary tooth); the other teeth on that side are counted from it. × = not a tooth', 'dot']],
             sets: [], hint: 'Every tooth carries a badge with the number the app gave it (counted from the midline). Click a badge and pick the right number - <b>Perm</b> 1-8 or <b>Primary</b> A-E - and the rest of that side is counted from it (one more going back, one less going forward), so one click puts a whole side right; <b>× not a tooth</b> makes a label gum again; <b>auto</b> gives the app\'s count back. Badges given by hand show orange. Apply &amp; re-run makes the models with these numbers; they are kept with the scan.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed, keep what is not a bracket', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the band)', 'brush'], ['notbracket', 'Not a bracket', 'Tooth or gum the app took for a bracket: left as scanned on the next run (on a mouthguard it is kept out of the band). Saved with the case, to teach the detector', 'eraser']],
-            sets: ['takeoff', 'notbracket'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard band; blue = marked not a bracket. Hold <kbd class="key">Shift</kbd> and drag; rotate with the mouse otherwise. <b>Take off</b> over anything that was missed: on a retainer it comes off and the enamel is rebuilt, on a mouthguard it joins the band. <b>Not a bracket</b> over anything taken for one that is not: on a retainer the braces are taken off the scan as scanned again, leaving those areas as they were scanned; on a mouthguard the band leaves them out. The strokes are kept with the case and saved with its lesson.' },
+            sets: ['takeoff', 'notbracket'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard band; blue = marked not a bracket. Hold <kbd class="key">Shift</kbd> and drag; rotate with the mouse otherwise. <b>Take off</b> over anything that was missed: on a retainer it comes off and the enamel is rebuilt, on a mouthguard it joins the band. <b>Not a bracket</b> over anything taken for one that is not: on a retainer the braces are taken off the scan as scanned again, leaving those areas as they were scanned; on a mouthguard the band leaves them out. The strokes are kept with the case and saved with its lesson. <b>Scan as scanned</b> (below) shows the scan exactly as it came with what comes off marked, to fix the outline before it is cut.' },
 };
 const tabMode = { clean: 'cut', seg: 'tooth', res: 'reservoir', block: 'outline', braces: 'takeoff', p1: 'p1span', teeth: 'number' };
 const ICONS = {
@@ -834,11 +834,22 @@ function renderPanel(){
       <span class="sp"></span><button class="ibtn ${helpOpen.brush ? 'on' : ''}" id="brushhelp" title="What this tab does">?</button><button class="ibtn" id="brushhide" title="Hide this box - the Brush chip brings it back">&ndash;</button></div>
     <div class="szrow" ${tab === 'teeth' ? 'style="display:none"' : ''}>Brush <input type="range" id="radius" min="0.5" max="5" step="0.25" value="${brushR}" title="Brush radius"> <b id="rv">${brushR}</b> mm</div>
     <div class="hint phelp ${helpOpen.brush ? 'on' : ''}" id="brushhelptext"><b>${P.title}.</b> ${P.hint} <b>Outline instead of filling:</b> a stroke that comes back onto itself paints everything inside the loop.</div>
+    ${tab === 'braces' ? `<label class="ck" style="margin-top:8px;display:block" title="Shows the scan exactly as it came, with what comes off marked orange (blue = marked Not a bracket). Paint on it: Take off adds to the outline, Not a bracket takes away from it, and Apply takes the braces off again from this scan as marked. Nothing is lost: the scan as scanned is always kept with the case."><input type="checkbox" id="rawview" ${rawView ? 'checked' : ''}> <b>Scan as scanned</b>, with what comes off marked - fix the outline here</label>` : ''}
     <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button>${tab === 'clean' && curScans[scanIdx] && curScans[scanIdx].cut ? '<button class="small" id="uncut" title="Puts the scan back as it was before the first cut and re-makes its models">Bring back what was cut</button>' : ''}</div>
     <div class="hint" id="fixcount">No edits.</div>
     <div class="stepnav"><span class="where" id="stepwhere"></span><button class="small" id="stepback" title="The step before">&larr; Back</button><button class="small" id="stepnext" title="The next step - your edits here are kept and go with the next Apply">Next &rarr;</button></div>`;
   box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); if (isDotMode(b.dataset.mode)) viewFrom('top'); });
   $('#radius').oninput = () => { brushR = +$('#radius').value; $('#rv').textContent = brushR; brushCursor.scale.setScalar(cursorR()); if (brushCursor.visible) requestRender(); };
+  const rv = $('#rawview');
+  if (rv) rv.onchange = async () => {
+    // the strokes of this step are vertex numbers of whichever scan is shown: switching views drops them
+    const n = edits.takeoff.size + edits.notbracket.size;
+    if (n && !confirm(`${n} Take off / Not a bracket stroke${n > 1 ? 's' : ''} drawn on this view will be dropped when the view changes - switch anyway?`)) { rv.checked = rawView; return; }
+    edits.takeoff.clear(); edits.notbracket.clear();
+    rawView = rv.checked;
+    try { await loadSeg(currentJob, scanIdx); } catch (e) { showErr('Could not load the scan: ' + e.message); rawView = false; rv.checked = false; }
+    paintColors(); updateFixCount();
+  };
   // Clear asks first, and can be undone: a mis-click threw away a whole segmentation (the doctor, 10/21/2026: "it
   // should ask you to confirm if you want to undo everything")
   $('#clearfix').onclick = () => {
@@ -892,6 +903,10 @@ brushCursor.add(brushRingOut, brushRingIn); brushCursor.visible = false; scene.a
 function showTab(t){
   if (t === 'braces' && !bracesTab) return;
   if (t === 'p1' && !p1Tab) return;
+  if (rawView && t !== 'braces') {       // the overlay belongs to the Braces step: the other steps work on the cleaned scan
+    rawView = false; edits.takeoff.clear(); edits.notbracket.clear();
+    if (currentJob) loadSeg(currentJob, scanIdx).catch(() => {});
+  }
   tab = t; if (t !== 'result' && underside) lookTop();
   const g = t === 'result' ? 'result' : PANELS[t].group;
   for (const k in groups) groups[k].visible = (k === g);
@@ -902,6 +917,11 @@ function showTab(t){
 }
 document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
 let p1Tab = false;
+// the Braces step's overlay (the doctor, 10/22/2026: "the original model should be available and braces removal should
+// be an overlay ... if I see something incorrect I don't have a chance to go back and correct it"): the scan as
+// scanned, with what the take-off takes marked on it; the two brushes draw on that, and Apply takes the braces off
+// again from it as marked. On until the step is left.
+let rawView = false;
 // the steps of a case, in the order one depends on the next: clean-up changes the scan (everything after it is found
 // again), braces come off before the teeth are found, the teeth before their numbers, the numbers before a Phase I's
 // dots, and reservoirs / block-outs last, on the model as it will be made (the doctor, 10/21/2026: "there should be a
@@ -1980,7 +2000,7 @@ $('#applyplace').onclick = async () => {
 };
 const palette = [0xcfd4da, 0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xfb7185, 0x22d3ee, 0x4ade80, 0xf59e0b, 0x818cf8, 0xe879f9, 0x2dd4bf, 0xf97316, 0x93c5fd, 0xbef264];
 async function loadSeg(id, k=0){
-  const buf = await (await fetchOk(`/api/jobs/${id}/segmesh?scan=${k}`)).arrayBuffer();
+  const buf = await (await fetchOk(`/api/jobs/${id}/${rawView ? 'rawmesh' : 'segmesh'}?scan=${k}`)).arrayBuffer();
   if (buf.byteLength < 8) throw new Error('segmentation not available right now');
   const dv = new DataView(buf); const nV = dv.getUint32(0,true), nF = dv.getUint32(4,true);
   if (buf.byteLength < 8 + nV*12 + nF*12 + nV*2 + nV*4) throw new Error('segmentation file incomplete (the case is probably being rebuilt)');
@@ -2050,6 +2070,7 @@ function paintColors(){
     const pf = segPaint ? segPaint[i] : 0;
     if (t === 'clean') { if (edits.cut.has(i)) c.setHex(0x7f1d1d); }
     else if (t === 'block') { if (edits.blockout.has(i)) c.setHex(0x0d9488); else if (edits.unblockout.has(i)) c.setHex(0xfecaca); else if (pf & 2) c.lerp(teal, 0.45); }
+    else if (t === 'braces' && rawView) { if (edits.takeoff.has(i)) c.setHex(0xf97316); else if (edits.notbracket.has(i)) c.setHex(0x2563eb); else if (pf & 128) c.lerp(blue, 0.5); else if (pf & 4) c.lerp(orange, 0.75); }
     else if (t === 'braces') { if (edits.takeoff.has(i)) c.setHex(0xf97316); else if (edits.notbracket.has(i)) c.setHex(0x2563eb); else if (pf & 128) c.lerp(blue, 0.45); else if (pf & 64) c.lerp(red, 0.55); else if (pf & 4) c.lerp(grey, 0.5); else if (pf & 8) c.lerp(orange, 0.5); }
     else if (t === 'seg' && edits.cut.has(i)) c.setHex(0x7f1d1d);
     segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;

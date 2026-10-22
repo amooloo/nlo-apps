@@ -147,8 +147,19 @@ def _patch_loop(V, N, A, loop, clean=None):
     Lr = V[ri] - c
     ur, wr, zr = Lr @ e1, Lr @ e2, Lr @ nn
     X = _poly_design(ur, wr, False)
+    # the quadric is fitted to the ring's positions AND its normals (the surface's slope there: dz/du = -nu/nz,
+    # dz/dw = -nw/nz). A ring a few rows wide barely constrains the curvature by position alone, and with the ridge
+    # on top the patch came out flatter than the tooth - a lower incisor's labial sank up to a millimetre in the
+    # middle, "carved out" (the doctor, 10/22/2026); the normals carry the curvature directly, so the ridge can be light
+    Nr = N[ri]; nu, nw, nz = Nr @ e1, Nr @ e2, Nr @ nn
+    ok = nz > 0.3
+    Xu = np.column_stack([np.zeros_like(ur), np.ones_like(ur), np.zeros_like(ur), 2 * ur, wr, np.zeros_like(ur)])[ok]
+    Xw = np.column_stack([np.zeros_like(ur), np.zeros_like(ur), np.ones_like(ur), np.zeros_like(ur), ur, 2 * wr])[ok]
+    gu = -nu[ok] / nz[ok]; gw = -nw[ok] / nz[ok]
     try:
-        coef = _ridge_lstsq(X, zr, np.ones(len(ri)), 0.05 * len(ri))
+        Xa = np.vstack([X, Xu, Xw]); za = np.concatenate([zr, gu, gw])
+        swa = np.concatenate([np.ones(len(ri)), np.full(2 * int(ok.sum()), 0.7)])      # a slope row weighs 0.7 mm per unit slope
+        coef = _ridge_lstsq(Xa, za, swa, 0.005 * len(ri))
     except Exception:
         return None
     uv = np.column_stack([(P - c) @ e1, (P - c) @ e2])
@@ -409,14 +420,18 @@ def _mid_air(mesh, A, mask, deep_mm=0.8, local_mm=1.5, tube=0.8):
     return out
 
 
-def remove_appliances(mesh, A, mask, rings=2, log=None):
+def remove_appliances(mesh, A, mask, rings=2, keep=None, log=None):
     """Take the appliance off: every face touching a masked vertex (widened by `rings` for the adhesive
     flash) is cut out - a wire floating across an embrasure is then simply gone - and each hole this
     leaves in the enamel or gum is closed with a smooth patch that continues the surface round it (flat
     patch bent by a biharmonic solve; a rim no plane can hold is ear-clipped and relaxed). Returns a
-    NEW mesh (its own vertex order, colours carried over) and info."""
+    NEW mesh (its own vertex order, colours carried over) and info. `keep`: vertices never cut - the incisal / occlusal
+    band: a bracket's ledge and the two rings round it climbed over a small lateral's incisal edge, the hole's rim
+    folded over the edge, and the patch left a 6 mm crack along it that the model then filled with a faceted chunk
+    (an upper, 10/22/2026)."""
     import trimesh
     mask = np.asarray(mask, bool)
+    keep = np.zeros(len(mask), bool) if keep is None else (np.asarray(keep, bool) & ~mask)
     V = np.asarray(mesh.vertices, dtype=np.float64); N = np.asarray(mesh.vertex_normals); F = np.asarray(mesh.faces)
     rgb = mesh.metadata.get("rgb")
     # the bracket's base pad and the adhesive flash round it are a low ledge (0.2-0.5 mm) that the bump
@@ -433,6 +448,7 @@ def remove_appliances(mesh, A, mask, rings=2, log=None):
     hgt = mls_height(mesh, band & ~mask, ~inner)      # fitted to enamel at least ~1 mm from the appliance
     hgt = np.nan_to_num(hgt, nan=0.0)
     ledge = band & ~mask & (hgt > 0.1)               # above the enamel: the pad, the flash
+    ledge &= ~keep
     grow = mask.copy()
     for _ in range(5):
         nxt = grow | ((A @ grow.astype(float) > 0) & ledge)
@@ -441,7 +457,7 @@ def remove_appliances(mesh, A, mask, rings=2, log=None):
         grow = nxt
     wide = grow.copy()
     for _ in range(rings):
-        wide |= (A @ wide.astype(float) > 0)
+        wide |= (A @ wide.astype(float) > 0) & ~keep
     def bedges(faces):
         e = np.sort(faces[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2), axis=1)
         u, c = np.unique(e, axis=0, return_counts=True)
@@ -485,15 +501,22 @@ def remove_appliances(mesh, A, mask, rings=2, log=None):
         return float(np.linalg.norm(V[a] - V[b]))
     loops = []
     if new_b.any():
+        from scipy.spatial import cKDTree as _kdt
+        kd_wide = _kdt(V[wide]) if wide.any() else None
         for loop, closed in _chain_loops(bk):
             if len(loop) < 3:
                 continue
             m_ = len(loop) if closed else len(loop) - 1
             pairs = [(loop[i], loop[(i + 1) % len(loop)]) for i in range(m_)]
             isnew = [tuple(sorted(e)) not in old_b for e in pairs]
-            if not any(isnew):
-                continue                                          # a hole the scanner left, untouched
             old_len = sum(edge_len(*e) for e, nw in zip(pairs, isnew) if not nw)
+            if not any(isnew):
+                # a hole the scanner left: patched too when it is small and sits right by the cut-out - the
+                # translucent incisal edge of a lateral next to its bracket scanned as a hole, and with the bracket's
+                # patch beside it the model's flat fill of that hole stood as a faceted chunk (an upper, 10/22/2026)
+                if old_len <= 12.0 and closed and kd_wide is not None and float(kd_wide.query(V[loop])[0].min()) < 3.0:
+                    loops.append((loop, True))
+                continue
             if old_len <= 20.0:
                 loops.append((loop, True))
                 continue
@@ -605,21 +628,67 @@ def remove_appliances(mesh, A, mask, rings=2, log=None):
         soft = (isnew | rimv)[ref]
         soft |= (Ao @ soft.astype(float) > 0)
         deg = np.asarray(Ao.sum(1)).ravel(); deg[deg == 0] = 1
-        X = np.asarray(out.vertices, dtype=np.float64).copy()
+        # the new points are then faired into their surroundings (bi-Laplacian: the surface's slope carried across
+        # the rim from two rings out), so the patch bends like the crown round it rather than like the quadric alone
+        X = biharmonic_fill(out, Ao, isnew[ref])
         for _ in range(6):
             for w in (0.5, -0.53):
                 d = (Ao @ X) / deg[:, None] - X
                 X[soft] += w * d[soft]
         out = trimesh.Trimesh(X, out.faces, process=False)
+    # last resort: a small hole the take-off itself left open (a rim across two sheets of the scan - a lateral's
+    # incisal corner with lip tissue fused to it - that no patch and no restore closed, 10/22/2026) is closed with the
+    # 3D fallback patch, so the model never fills it with a flat chunk
+    left_open = 0
+    try:
+        Vo = np.asarray(out.vertices, dtype=np.float64); Fo = np.asarray(out.faces)
+        eo = np.sort(Fo[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2), axis=1)
+        uo, co = np.unique(eo, axis=0, return_counts=True); bo = uo[co == 1]
+        # the original rim's vertices, in the new numbering: those are the scan's own edges
+        old_rim = np.zeros(len(Vo), bool)
+        ob = np.array(sorted(old_b), int) if old_b else np.zeros((0, 2), int)
+        if len(ob):
+            keep_v = remap[np.unique(ob.ravel())]; old_rim[keep_v[keep_v >= 0]] = True
+        extra_F = []
+        No = np.asarray(out.vertex_normals)
+        for loop, closed in (_chain_loops(bo) if len(bo) else []):
+            L = np.asarray(loop)
+            if not closed or len(L) < 3 or old_rim[L].mean() > 0.5:
+                continue
+            per = float(np.linalg.norm(np.diff(Vo[L], axis=0), axis=1).sum())
+            if per > 15.0:
+                continue
+            # ear-clipped in 3D, no new points (a hole this small is a few triangles; subdividing its rim would leave
+            # T-junctions against the faces round it)
+            Pl = Vo[L]; nrm = No[L].mean(0); nrm /= max(np.linalg.norm(nrm), 1e-9)
+            tris = _earclip(Pl, nrm)
+            if len(tris):
+                tris = np.asarray(tris, int)
+                d1 = Pl[tris[:, 1]] - Pl[tris[:, 0]]; d2 = Pl[tris[:, 2]] - Pl[tris[:, 0]]
+                flip = (np.cross(d1, d2) @ nrm) < 0
+                tris[flip] = tris[flip][:, [0, 2, 1]]
+                extra_F.append(L[tris]); left_open += 1
+        if extra_F:
+            out = trimesh.Trimesh(Vo, np.vstack([Fo] + extra_F), process=False)
+    except Exception:  # noqa
+        pass
     if rgb_out is not None:
         out.metadata["rgb"] = np.asarray(rgb_out[ref], dtype=np.uint8)
     for k, v in mesh.metadata.items():
         if k != "rgb":
             out.metadata[k] = v
-    info = dict(vertices=int(mask.sum()), ledge=int((grow & ~mask).sum()), cut_out=int(wide.sum()), holes_patched=filled, smoothed_in_place=skipped, new_vertices=int(sum(len(p) for p in patches_V)), rims=rims)
+    info = dict(vertices=int(mask.sum()), ledge=int((grow & ~mask).sum()), cut_out=int(wide.sum()), holes_patched=filled, smoothed_in_place=skipped, new_vertices=int(sum(len(p) for p in patches_V)), rims=rims, holes_left_closed=left_open)
+    # what this pass touched, in the output's numbering: the new points, the rims they hang on, and what was restored
+    # and smoothed in place (the second look keeps away from all of it)
+    touched = np.zeros(len(Vout), bool); touched[len(V):] = True
+    for faces in patches_F:
+        touched[faces[faces < len(V)]] = True
+    if len(F_restore):
+        touched[np.unique(F_restore)] = True
+    info["_new_mask"] = touched[ref][:len(out.vertices)] if len(ref) == len(Vout) else np.zeros(len(out.vertices), bool)
     if log:
         log(f"appliances removed: {int(wide.sum())} vertices cut out, {filled} hole{'s' if filled != 1 else ''} in the enamel closed with new surface"
-            + (f", {skipped} smoothed over in place" if skipped else ""))
+            + (f", {skipped} smoothed over in place" if skipped else "") + (f", {left_open} left open and closed after" if left_open else ""))
     return out, info
 
 
@@ -739,7 +808,7 @@ def bump_height(mesh, A, free):
     return h
 
 
-def detect_appliances(mesh, A, rgb, feats=None, log=None, rng_seed=0, thr=0.35):
+def detect_appliances(mesh, A, rgb, feats=None, log=None, rng_seed=0, thr=0.35, forbid=None):
     """Per-vertex appliance mask on a coloured scan. `feats` = the pipeline's geometric feature matrix
     (compute_features, with aux), reused when given. Returns (mask, info).
 
@@ -807,6 +876,8 @@ def detect_appliances(mesh, A, rgb, feats=None, log=None, rng_seed=0, thr=0.35):
     # missed whole, the other's hook left standing, their regions cut in half by this rule so the bump read as nothing)
     outside = ((radial > 9) & (cs < 0.45)) if radial is not None else np.zeros(n, bool)
     allowed = ~top & ~near_edge & ~outside
+    if forbid is not None and len(forbid) == n:
+        allowed &= ~np.asarray(forbid, bool)
     # candidates: appliance colour, closed so a whole bracket is taken in (its flat faces can read as enamel)
     cand = (cs > 0.3) & allowed
     grown = cand.copy()
@@ -1056,9 +1127,10 @@ def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2, exclude_pts=Non
     info = dict(used=False, passes=[])
     total_area = 0.0; pieces = 0
     mesh0 = mesh
+    forbid = None
     for k in range(passes):
         thr = 0.35 if k == 0 else 0.25
-        mask, dinfo = detect_appliances(mesh, A, rgb, feats=feats, log=log if k == 0 else None, thr=thr)
+        mask, dinfo = detect_appliances(mesh, A, rgb, feats=feats, log=log if k == 0 else None, thr=thr, forbid=forbid)
         if k == 0 and add_pts is not None and len(add_pts):
             add = near_points(mesh.vertices, add_pts)
             if add.any():
@@ -1075,7 +1147,21 @@ def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2, exclude_pts=Non
             break
         if k > 0 and log:
             log(f"second look: {len(dinfo.get('pieces') or [])} small remnant{'s' if len(dinfo.get('pieces') or []) != 1 else ''} ({dinfo.get('area_mm2', 0):.0f} mm2) taken off")
-        mesh, rinfo = remove_appliances(mesh, A, mask, log=log if k == 0 else None)
+        keep_band = None
+        try:
+            Fk = feats[0]; nk = list(feats[1])
+            key = "below_top9" if "below_top9" in nk else "below_top5"
+            if key in nk and "radial" in nk:
+                keep_band = (Fk[:, nk.index(key)] < 1.5) & (np.abs(Fk[:, nk.index("radial")]) < 7.0)
+        except Exception:
+            keep_band = None
+        if k == 0:
+            info["_mask0"] = np.where(mask)[0]          # what the first pass takes, on the scan as it came (for the page's overlay)
+        mesh, rinfo = remove_appliances(mesh, A, mask, keep=keep_band, log=log if k == 0 else None)
+        # the second look stays off the first pass's patches, their rims and what it smoothed in place, and a band of a
+        # millimetre round them: the enamel beside a fresh patch reads as "proud" of it and came off on a plain arch
+        # (97 mm2 of a Phase I upper's incisors, 10/22/2026)
+        nm_ = rinfo.pop("_new_mask", None)
         total_area += float(dinfo.get("area_mm2", 0.0)); pieces += len(dinfo.get("pieces") or [])
         rec = {kk: vv for kk, vv in dinfo.items() if kk not in ("pieces", "bump", "vertices")}
         rec.update(rinfo); rec["pass"] = k + 1; rec["pieces"] = len(dinfo.get("pieces") or [])
@@ -1085,6 +1171,8 @@ def take_off_appliances(mesh, A, rgb, feats, log=None, passes=2, exclude_pts=Non
         # the mesh changed: adjacency and features go with it (the caller segments on these)
         A = adjacency(mesh)
         feats = compute_features(mesh, return_aux=True)
+        if nm_ is not None and len(nm_) == len(mesh.vertices):
+            forbid = smooth_field(A, nm_.astype(float), 4) > 0.02     # (4 rings, about a millimetre: a tie or wire bit further off is still caught)
     if info.get("used"):
         try:
             areas, _ = rebuilt_areas(mesh0, mesh)

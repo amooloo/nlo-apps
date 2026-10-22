@@ -802,6 +802,19 @@ def _run(job):
                 entry["shield"] = sorted(set(entry.get("shield", [])) | set(int(i) for i in me["takeoff"]))
                 log(f"painted: {len(entry['shield'])} vertices added to the bracket shield")
                 me.pop("takeoff")
+            # strokes made on the scan as scanned (the Braces step's overlay, 10/22/2026): Take off and Not a bracket are
+            # vertex numbers of that file - kept by position and the take-off done again from it with both in
+            if me.get("raw") and (me.get("notbracket") or me.get("takeoff")) and job["scans"][k0].get("preset") != "mouthguard":
+                job["progress"] = dict(frac=0.01, label="taking the braces off again as marked", scan=k0, of=len(job["scans"]))
+                try:
+                    remap = _redo_take_off(job, k0, me.get("notbracket") or [], log=log, add_idx=me.get("takeoff") or [], on_raw=True)
+                except Exception as ex:  # noqa
+                    remap = None; log(f"braces as marked skipped: {ex}")
+                if remap is not None:
+                    for key in ("cut",):
+                        idx = np.asarray(me.get(key) or [], dtype=int); idx = idx[(idx >= 0) & (idx < len(remap))]
+                        me[key] = [int(i) for i in remap[idx] if i >= 0]
+                me.pop("notbracket", None); me.pop("takeoff", None)
             # "Not a bracket" strokes (the doctor, 10/19/2026): on a mouthguard they leave the band; on a scan whose braces
             # the app took off, the take-off is done again from the scan as scanned without them
             if me.get("notbracket"):
@@ -1217,6 +1230,12 @@ def _take_off_braces(job, path, log=print, painted=None, exclude_pts=None, add_p
             ex_n = np.asarray(exclude_normals, float).reshape(-1, 3) @ np.asarray(T_rough)[:3, :3].T      # (normals turn, never move)
         clean, info, A2, feats2 = take_off_appliances(mesh, A, mesh.metadata["rgb"], feats, log=log,
                                                       exclude_pts=to_rough(exclude_pts), add_pts=to_rough(add_pts), exclude_normals=ex_n)
+        # what was found on the scan as scanned (vertex numbers of that file), for the Braces step's overlay on it
+        m0 = info.pop("_mask0", None)
+        try:
+            np.save(_braces_mask_path(job, path), np.asarray(m0 if m0 is not None else [], dtype=np.int64))
+        except Exception:
+            pass
         info = {k: v for k, v in info.items() if k != "passes"} | {"passes": [{kk: vv for kk, vv in p.items()} for p in info.get("passes", [])]}
         if not info.get("used"):
             done[path] = info
@@ -1231,7 +1250,7 @@ def _take_off_braces(job, path, log=print, painted=None, exclude_pts=None, add_p
         pmask = np.zeros(len(mesh.vertices), bool); pmask[idx] = True
         clean, rinfo = remove_appliances(mesh, A, pmask, log=log)
         prev = next((sc.get("braces") for sc in job["scans"] if sc["path"] == path and sc.get("braces")), None) or {}
-        info = dict(used=True, pieces=int(prev.get("pieces", 0)) + 1, area_mm2=float(prev.get("area_mm2", 0.0)), vertices=int(prev.get("vertices", 0)) + int(pmask.sum()), painted=True, **{k: v for k, v in rinfo.items() if k != "vertices"})
+        info = dict(used=True, pieces=int(prev.get("pieces", 0)) + 1, area_mm2=float(prev.get("area_mm2", 0.0)), vertices=int(prev.get("vertices", 0)) + int(pmask.sum()), painted=True, **{k: v for k, v in rinfo.items() if k not in ("vertices", "_new_mask")})
     # back to the scanner's own coordinates, and out as a coloured PLY (or STL when the scan had no colour)
     clean = clean.copy(); clean.apply_transform(np.linalg.inv(T_rough))
     base = os.path.splitext(os.path.basename(path))[0]
@@ -1310,7 +1329,7 @@ def _scan_xyz(path, idx):
     return V[idx]
 
 
-def _redo_take_off(job, k, not_idx, log=print):
+def _redo_take_off(job, k, not_idx, log=print, add_idx=None, on_raw=False):
     """'Not a bracket' strokes (the doctor, 10/19/2026) on a scan whose braces the app took off: the take-off is done
     again from the scan as scanned, leaving the painted areas as they were scanned (the strokes are kept by position
     for every later take-off of that scan, and saved with the case's lesson). Strokes kept for the current file go
@@ -1323,16 +1342,22 @@ def _redo_take_off(job, k, not_idx, log=print):
         log("not a bracket: the app did not take braces off this scan - nothing to put back (a mouthguard's band is changed instead)")
         return None
     mc = load_scan(cur); Vc = np.asarray(mc.vertices)
-    idx = np.asarray(not_idx, dtype=int); idx = idx[(idx >= 0) & (idx < len(Vc))]
-    if not len(idx):
+    # strokes painted on the scan as scanned (the Braces step's overlay): vertex numbers of that file
+    ms = load_scan(raw) if on_raw else mc
+    Vs = np.asarray(ms.vertices); Ns = np.asarray(ms.vertex_normals)
+    idx = np.asarray(not_idx if not_idx is not None else [], dtype=int); idx = idx[(idx >= 0) & (idx < len(Vs))]
+    aidx = np.asarray(add_idx if add_idx is not None else [], dtype=int); aidx = aidx[(aidx >= 0) & (aidx < len(Vs))]
+    if not len(idx) and not len(aidx):
         return None
     be = job.setdefault("braces_edits", {}).setdefault(raw, {"not": [], "add": []})
     # each painted point with the painted surface's normal: the stroke is on the smooth rebuilt enamel, and what the
     # detector took off stood over it (near_points matches along that line)
     nn = be.get("not_n") or []
     nn = list(nn) + [[0.0, 0.0, 0.0]] * max(0, len(be.get("not", [])) - len(nn))
-    be["not"] = be.get("not", []) + Vc[idx].round(4).tolist()
-    be["not_n"] = nn[:len(be["not"]) - len(idx)] + np.asarray(mc.vertex_normals)[idx].round(3).tolist()
+    be["not"] = be.get("not", []) + Vs[idx].round(4).tolist()
+    be["not_n"] = nn[:len(be["not"]) - len(idx)] + Ns[idx].round(3).tolist()
+    if len(aidx):
+        be["add"] = be.get("add", []) + Vs[aidx].round(4).tolist()
     # a Clean-up cut made after the braces came off: the scan as scanned still has what was cut, so the cut is made
     # again on the new file (what it took away, by position: the cut file is the cleaned file less those vertices)
     cut_pts = None
@@ -1366,7 +1391,8 @@ def _redo_take_off(job, k, not_idx, log=print):
         ne = paint.setdefault(new, {"noreservoir": [], "blockout": []})
         for key, vals in _remap_entry(pe, c2n, skip=("removed", "large")).items():
             ne[key] = (ne.get(key) or []) + vals if key == "outlines" else sorted(set(ne.get(key, [])) | set(vals))
-    log(f"not a bracket: {len(idx)} painted vertices - braces taken off the scan as scanned again, those areas left as scanned ({os.path.basename(new)})")
+    log((f"not a bracket: {len(idx)} painted vertices" if len(idx) else "take off") + (f", take off: {len(aidx)} painted vertices" if len(aidx) and len(idx) else (f": {len(aidx)} painted vertices on the scan as scanned" if len(aidx) else ""))
+        + f" - braces taken off the scan as scanned again{', those areas left as scanned' if len(idx) else ''} ({os.path.basename(new)})")
     return np.where(d2 < 1e-3, j2, -1).astype(np.int64)
 
 
@@ -2513,6 +2539,68 @@ def job_file(jid: str, kind: str, scan: int = 0):
     # rewritten at the same URL on every re-run: the browser must not keep a copy (without this, Chrome's
     # heuristic freshness served the previous body for a while after a move on the base)
     return FileResponse(path, media_type=mt, filename=fn, headers={"Cache-Control": "no-store"})
+
+
+def _braces_mask_path(job, raw_path):
+    return os.path.join(job["dir"], "bracesmask_" + os.path.basename(raw_path) + ".npy")
+
+
+@app.get("/api/jobs/{jid}/rawmesh")
+def raw_mesh(jid: str, scan: int = 0):
+    """The scan as scanned, for the Braces step's overlay (the doctor, 10/22/2026: "the original model should be
+    available and braces removal should be an overlay ... if I see something incorrect I don't have a chance to go back
+    and correct it"): the same layout as /segmesh - uint32 nV, uint32 nF, float32 V[nV*3], uint32 F[nF*3],
+    uint16 labels[nV] (all 0), float32 disp[nV] (all 0), uint8 paint[nV][, uint8 rgb[nV*3]] - on the rough-oriented
+    scan file behind the case's cleaned one, with bit 4 = what the take-off takes (found, plus what was painted Take off)
+    and bit 128 = painted Not a bracket. Brush strokes on it are vertex numbers of that file."""
+    job = JOBS.get(jid)
+    if not job or job.get("status") != "done" or not (0 <= scan < len(job["scans"])):
+        raise HTTPException(404)
+    from bleachtray.mesh_utils import load_scan
+    from bleachtray.orient import rough_orient
+    from bleachtray.appliance import near_points
+    sc = job["scans"][scan]
+    raw_p = _raw_scan_for(sc) or sc["path"]
+    raw = load_scan(raw_p)
+    mesh, _ = rough_orient(raw)
+    V = np.asarray(mesh.vertices, dtype=np.float32); F = np.asarray(mesh.faces, dtype=np.uint32)
+    buf = io.BytesIO()
+    buf.write(struct.pack("<II", len(V), len(F)))
+    buf.write(V.tobytes()); buf.write(F.tobytes())
+    buf.write(np.zeros(len(V), dtype=np.uint16).tobytes()); buf.write(np.zeros(len(V), dtype=np.float32).tobytes())
+    flags = np.zeros(len(V), dtype=np.uint8)
+    mp = _braces_mask_path(job, raw_p)
+    if not os.path.exists(mp) and raw.metadata.get("rgb") is not None and raw_p != sc["path"]:
+        # a case cleaned before the overlay existed: find the braces on the scan as scanned once, for the overlay
+        try:
+            from bleachtray.mesh_utils import adjacency
+            from bleachtray.features import compute_features
+            from bleachtray.appliance import detect_appliances
+            A = adjacency(mesh); feats = compute_features(mesh, return_aux=True)
+            m0, _ = detect_appliances(mesh, A, mesh.metadata["rgb"], feats=feats)
+            np.save(mp, np.where(m0)[0].astype(np.int64))
+        except Exception:
+            pass
+    if os.path.exists(mp):
+        try:
+            idx = np.load(mp).astype(int); idx = idx[(idx >= 0) & (idx < len(V))]; flags[idx] |= 4
+        except Exception:
+            pass
+    be = (job.get("braces_edits") or {}).get(raw_p) or {}
+    Vs = np.asarray(raw.vertices); Ns = np.asarray(raw.vertex_normals)
+    try:
+        if be.get("add"):
+            flags[near_points(Vs, be["add"], vnormals=Ns)] |= 4
+        if be.get("not"):
+            nb = near_points(Vs, be["not"], normals=be.get("not_n"), vnormals=Ns)
+            flags[nb] |= 128; flags[nb] &= ~np.uint8(4)
+    except Exception:
+        pass
+    buf.write(flags.tobytes())
+    rgb = raw.metadata.get("rgb")
+    if rgb is not None and len(rgb) == len(V):
+        buf.write(np.asarray(rgb, dtype=np.uint8).tobytes())
+    return Response(content=buf.getvalue(), media_type="application/octet-stream")
 
 
 @app.get("/api/jobs/{jid}/segmesh")
