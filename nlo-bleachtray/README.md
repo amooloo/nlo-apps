@@ -797,7 +797,8 @@ centred between the two on the surface, reads from the first click to the second
 them in the surface's reading frame) and the letter size is fitted to the span (1.4-4 mm cap); or drag the card onto any
 tooth or onto the side wall, turn it (15° steps), size the letters (A- / A+), choose what it says (initials as J.D,
 last name, full name), raised or cut in; *Auto* puts it back on the molar. The text is laid along the surface's horizontal tangent at the spot, each letter on its own
-tangent plane, upright for someone looking at the spot from outside with the model standing on its base; it is kept
+tangent plane, with the bottom of the letters facing the biting surfaces (the doctor, 10/22/2026): upside down on the
+model as it lies on its base, upright on the tray as it rests on its cusps, read from outside holding it so; it is kept
 within the surface (shrunk to the room on the shorter side, a letter that would hang past the end of a wall is left
 out and the log says so). The placement is kept per arch in the scan's own coordinates (`params.mark_by_arch`:
 `{raw, angle_deg, cap, text, raised}`; the page sends a spot in the output frame and the server converts it with the
