@@ -486,8 +486,16 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     # keeps its bridge from (the window's own edge on the palate hugs the gum, below)
     windows = []
     in_seg = np.zeros(len(V), bool)
+    span_of = {}; wedge_of = {}
+    r_v = np.linalg.norm(V[:, :2] - c, axis=1)
+    ridge = ~tooth & (np.abs(r_v - r_near) <= 3.0)       # the alveolar crest band: within 3 mm, in and out, of the teeth's centre line
     for sd, g in segs.items():
-        in_seg |= (np.sign(V[:, 0] - c[0]) == sd) & (sd * ang_v >= g["start"]) & (sd * ang_v <= g["end"])
+        wedge_of[int(sd)] = (np.sign(V[:, 0] - c[0]) == sd) & (sd * ang_v >= g["start"]) & (sd * ang_v <= g["end"])
+        in_seg |= wedge_of[int(sd)]
+        span_of[int(sd)] = wedge_of[int(sd)] & (tooth | ridge)
+    # each side's window for the block-out (BOTT): the teeth and the crest band in it, and the whole wedge from the arch
+    # centre for the block's feather; not for the report
+    res["_span"] = span_of; res["_wedge"] = wedge_of
     if method == "cott":
         from shapely.geometry import MultiPoint
         for sd in segs:
@@ -809,7 +817,7 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
 
 
 def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.0, clear_mm=0.2, share=0.5, flat_mm=0.5,
-               full_mm=2.0, keep_mm=0.8, spacing=0.2, crown_mm=4.5, line=None, line_gap_mm=0.3, log=None):
+               full_mm=2.0, keep_mm=0.8, spacing=0.2, crown_mm=4.5, line=None, line_gap_mm=0.3, span=None, wedge=None, log=None):
     """BOTT: the block-out built into the model in place of the putty - one solid block over each side's run of chosen
     teeth (`sel`, tooth labels), not shaped to the teeth under it (the doctor, 10/20/2026: "a solid block, almost like a
     blob that is smoothed out on the top ... don't try to match the anatomy"), with room round the teeth as the
@@ -825,7 +833,17 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
     pointing towards the cheeks or the lips"). Under its footprint the block is filled down to the model's surface, the
     undercuts under the crowns filled down to the gum as putty does. Never onto a neighbouring tooth (keep_mm). Without
     the opposing arch (`opposing_f`, in this model's frame) the lift is flat_mm and a warning; without `line` the gum
-    line is the crowns' lowest 3 %. Returns (solid or None, info)."""
+    line is the crowns' lowest 3 %.
+    `span` ({side sign: bool mask over the vertices} - each side's window, the cutout's own extent: from the 2's distal
+    face to a quarter into the E, or between the doctor's dots): given, the block stands over that stretch whatever is in
+    it - the C and D, the space where they were (the premolars come in there), the E's mesial quarter - and ends at its
+    ends, not at the end of a tooth (the doctor, 10/21/2026: a dot a quarter into the E put the block over the whole E,
+    and a side whose C and D were already gone got no block at all). The stretch's surface above the trim line is the
+    block's seed in place of the crowns - the teeth in it by their crowns and the crest band of its gum (the ridge
+    where the C and D were); the room round it and the lift on top are as for the crowns, and the feather over the gum
+    down to the line stays within the window's wedge (`wedge`, {side sign: mask}: the stretch round the arch, out to
+    the cheek and in to the tongue). A side without a window falls back to the chosen teeth on it. Returns (solid or
+    None, info)."""
     import trimesh
     from scipy.spatial import cKDTree
     from scipy.ndimage import gaussian_filter
@@ -839,43 +857,71 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
     labels = np.asarray(labels)
     sel = [int(t) for t in sel]
     info = dict(teeth=len(sel), clearance_mm=clearance_mm)
-    if not sel:
-        return None, dict(info, error="no teeth chosen")
     tooth = labels > 0
-    crown = crown_of(V, labels, sel, crown_mm=crown_mm)
-    if not crown.any():
-        return None, dict(info, error="no crowns found under the chosen teeth")
-    others = tooth & ~np.isin(labels, sel)
+    above = (V[:, 2] >= z_line(V) + line_gap_mm) if z_line is not None else np.ones(len(V), bool)
+    # one block per side: its seed region - the window's surface above the line (teeth by their crowns, the gum and
+    # the ridge as they stand), or without a window the chosen teeth's crowns on that side
+    regions = {}
+    under_t = set()                                 # the teeth under a block (their crowns in a region)
+    for sd, m in (span or {}).items():
+        m = np.asarray(m, bool)
+        if m.sum() < 30:
+            continue
+        # the teeth in the stretch: by their crowns, and only a tooth with a real part of its crown in it (the E's
+        # mesial quarter, yes; the 2 whose last vertices touch the window's start, no - it stays a neighbour kept clear)
+        in_t = [int(t) for t in np.unique(labels[m & tooth])]
+        cr = crown_of(V, labels, in_t, crown_mm=crown_mm) if in_t else np.zeros(len(V), bool)
+        for t in in_t:
+            ct = cr & (labels == t)
+            if ct.sum() < 30 or (ct & m).sum() < 0.12 * ct.sum():
+                cr &= labels != t
+        reg = (m & above & ~tooth) | (m & cr)
+        if reg.sum() >= 30:
+            regions[int(sd)] = reg
+            under_t |= {int(t) for t in np.unique(labels[reg & tooth])}
+    crown_sel = crown_of(V, labels, sel, crown_mm=crown_mm) if sel else np.zeros(len(V), bool)
+    windowed = set(regions)
+    for t in sel:
+        m_ = crown_sel & (labels == t)
+        if m_.any():
+            sd = int(np.sign(V[m_][:, 0].mean()) or 1)
+            if sd not in windowed:
+                regions[sd] = regions.get(sd, np.zeros(len(V), bool)) | m_
+                under_t.add(int(t))
+    if not regions:
+        return None, dict(info, error="no window and no teeth chosen" if span is not None else ("no teeth chosen" if not sel else "no crowns found under the chosen teeth"))
+    region_all = np.zeros(len(V), bool)
+    for reg in regions.values():
+        region_all |= reg
+    crown = region_all & tooth                      # the crown part of the seeds (the undercut fill, the thickness)
+    info["labels_under"] = sorted(under_t)
+    others = tooth & ~np.isin(labels, sorted(under_t))
     kd_other = cKDTree(V[others]) if others.any() else None
     # the lift above the crowns: what the bite allows over the cusps - share of (the gap to the opposing teeth less
     # clear_mm), at most max_mm; one lift for the whole block (the 10th percentile over the crowns' top 2 mm: a tight
     # bite gives a thin block, not a dented one). Without the bite, flat_mm
     # the opposing surface straight above every crown vertex (the opposing arch's lowest point in a 0.5 mm cell)
-    zo_v = None
+    zo_at = None
     if opposing_f is not None:
         Vo = np.asarray(opposing_f.vertices)
-        o_lo = V[crown][:, :2].min(0) - 2.0; o_n = np.ceil((V[crown][:, :2].max(0) + 2.0 - o_lo) / 0.5).astype(int) + 1
+        Vr = V[region_all]
+        o_lo = Vr[:, :2].min(0) - 2.0; o_n = np.ceil((Vr[:, :2].max(0) + 2.0 - o_lo) / 0.5).astype(int) + 1
         zo = np.full(tuple(o_n), np.inf)
         ij = np.floor((Vo[:, :2] - o_lo) / 0.5).astype(int)
-        okk = (ij[:, 0] >= 0) & (ij[:, 0] < o_n[0]) & (ij[:, 1] >= 0) & (ij[:, 1] < o_n[1]) & (Vo[:, 2] > V[crown][:, 2].min() - 2.0)
+        okk = (ij[:, 0] >= 0) & (ij[:, 0] < o_n[0]) & (ij[:, 1] >= 0) & (ij[:, 1] < o_n[1]) & (Vo[:, 2] > Vr[:, 2].min() - 2.0)
         np.minimum.at(zo, (ij[okk, 0], ij[okk, 1]), Vo[okk, 2])
         from scipy.ndimage import minimum_filter
         zo = minimum_filter(zo, size=3, mode="nearest")
-        ij = np.floor((V[crown][:, :2] - o_lo) / 0.5).astype(int)
-        zo_v = zo[ij[:, 0], ij[:, 1]]
-        gap = zo_v - V[crown][:, 2]
+        def zo_at(Pq):
+            ij = np.clip(np.floor((np.asarray(Pq)[:, :2] - o_lo) / 0.5).astype(int), 0, np.asarray(o_n) - 1)
+            return zo[ij[:, 0], ij[:, 1]]
+        gap = zo_at(Vr) - Vr[:, 2]
         info["gap_mm"] = dict(min=round(float(np.nanmin(np.where(np.isfinite(gap), gap, np.nan))), 2)) if np.isfinite(gap).any() else None
         lift = float(max_mm)              # the hull is built, then let down to what the bite allows (below)
     else:
         lift = float(flat_mm)
         info["warning"] = f"no opposing arch in the case: the block-out stands a flat {flat_mm:.1f} mm over the C/Ds - check the bite"
     info["lift_mm"] = round(lift, 2)
-    # one block per side's run of chosen teeth (the C and D together; a C already gone leaves the D on its own)
-    sides = {}
-    for t in sel:
-        m_ = labels == t
-        if m_.any():
-            sides.setdefault(int(np.sign(V[m_][:, 0].mean()) or 1), []).append(t)
     def hull_top(h, Pq):
         """the hull's top over the points Pq (x, y): the lowest of its upward faces' planes"""
         Fn = np.asarray(h.face_normals); Fc = h.triangles_center
@@ -885,38 +931,46 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         n = Fn[up_f]; c0 = Fc[up_f]
         return (c0[None, :, 2] - ((Pq[:, None, 0] - c0[None, :, 0]) * n[None, :, 0] + (Pq[:, None, 1] - c0[None, :, 1]) * n[None, :, 1]) / n[None, :, 2]).min(axis=1)
 
-    def build(teeth, lift_):
-        cm = crown & np.isin(labels, teeth)
+    def build(reg, lift_, wdg=None):
+        cm = reg
         if cm.sum() < 30:
             return None
         P = V[cm]; Nh = N[cm].copy(); Nh[:, 2] = 0.0
         nn = np.linalg.norm(Nh, axis=1); ok = nn > 0.2
         Nh[ok] /= nn[ok, None]; Nh[~ok] = 0.0
-        # the push: the full clearance from each crown's top down to full_mm below it, tapering to nothing at the gum
-        # line (line_gap_mm above the trim line; without a line, the crowns' lowest 3 %)
+        # the push: the full clearance from each crown's top (a ridge's crest) down to full_mm below it, tapering to
+        # nothing at the gum line (line_gap_mm above the trim line; without a line, the seeds' lowest 3 %)
         z_lo = (z_line(P) + line_gap_mm) if z_line is not None else np.full(len(P), float(np.percentile(P[:, 2], 3)))
-        z_hi = np.zeros(len(P)); z_cerv = np.zeros(len(P))
+        z_hi = np.zeros(len(P)); z_cerv = z_lo.copy()
         lab_c = labels[cm]
-        for t in teeth:
+        gum_c = lab_c == 0
+        if gum_c.any():
+            z_hi[gum_c] = float(np.percentile(P[gum_c, 2], 98)) - full_mm    # the ridge: from its crest
+        for t in np.unique(lab_c[~gum_c]):
             m_ = lab_c == t
-            if m_.any():
-                top_t = float(np.percentile(P[m_, 2], 98))
-                z_hi[m_] = top_t - full_mm
-                z_cerv[m_] = top_t - crown_mm - 0.5
+            top_t = float(np.percentile(V[labels == t][:, 2], 98))
+            z_hi[m_] = top_t - full_mm
+            z_cerv[m_] = top_t - crown_mm - 0.5
         z_lo = np.minimum(z_lo, z_cerv)                               # (never above the crown's cervical)
         z_hi = np.maximum(z_hi, z_lo + 1.0)
         s_ = np.clip((P[:, 2] - z_lo) / (z_hi - z_lo), 0.0, 1.0)
-        pushed = P + (clearance_mm * s_)[:, None] * Nh                # the room on every side
-        pushed[:, 2] = np.minimum(pushed[:, 2], P[:, 2] + lift_)
-        lifted = P + np.array([0.0, 0.0, lift_])                     # the room on top
+        # (a seed at the line - a window's gum - is pulled 0.15 mm into the model and neither pushed nor lifted: the
+        # block's foot lies on the surface at the line, no lip)
+        P0 = P - (0.15 * (1.0 - s_))[:, None] * N[cm]
+        pushed = P0 + (clearance_mm * s_)[:, None] * Nh               # the room on every side
+        pushed[:, 2] = np.minimum(pushed[:, 2], P[:, 2] + lift_ * s_)
+        lifted = P0 + np.column_stack([np.zeros(len(P)), np.zeros(len(P)), lift_ * s_])   # the room on top
         if kd_other is not None:                                     # never pushed into a neighbouring tooth
             pushed = pushed[kd_other.query(pushed)[0] > keep_mm]
         # the feather runs on past the cervical over the gum down to the trim line (line_gap_mm above it): the gum
         # within band_mm of the crowns, no lower than that, not another tooth's - pulled 0.15 mm into the model, so
-        # the block's foot lies on the gum right at the line, as putty feathered onto the gum does
+        # the block's foot lies on the gum right at the line, as putty feathered onto the gum does. A window's seed
+        # already holds its gum down to the line: the feather stays within the window, so the block ends at its ends
         band_mm = 2.0
         d_c = cKDTree(P).query(V, distance_upper_bound=band_mm + 0.5)[0]
         ring = (~tooth) & np.isfinite(d_c) & (d_c <= band_mm)
+        if wdg is not None:
+            ring &= wdg
         if z_line is not None:
             ring &= V[:, 2] >= z_line(V) + line_gap_mm
         else:
@@ -930,24 +984,24 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         except Exception:
             return None
     solids = []
-    for side, teeth in sides.items():
-        h = build(teeth, lift)
+    for side, reg in regions.items():
+        wdg = np.asarray(wedge[side], bool) if wedge and side in wedge else None
+        h = build(reg, lift, wdg)
         if h is None:
             continue
-        if zo_v is not None:
-            # the bite: over every crown vertex the block's top may take at most `share` of the room up to the opposing
+        if zo_at is not None:
+            # the bite: over every seed vertex the block's top may take at most `share` of the room up to the opposing
             # tooth (less clear_mm) - so with both retainers in the C/Ds are never the only contact. The flat top is
             # let down by the worst excess, once; never under 0.3 mm over the cusps themselves
-            cm = crown & np.isin(labels, teeth)
-            sel_c = np.isin(labels[crown], teeth)
-            z_v = V[cm][:, 2]; zo_c = zo_v[sel_c]
+            cm = reg
+            z_v = V[cm][:, 2]; zo_c = zo_at(V[cm])
             allow = z_v + share * np.clip(zo_c - z_v - clear_mm, 0.0, None)
             fin = np.isfinite(allow)
             if fin.any():
                 excess = float(np.max(hull_top(h, V[cm][fin]) - allow[fin]))
                 if excess > 0.02:
                     lift_s = max(0.3, lift - excess)              # never under 0.3 mm: the cusp tips stay covered
-                    h2 = build(teeth, lift_s)
+                    h2 = build(reg, lift_s, wdg)
                     if h2 is not None:
                         h = h2
                     info.setdefault("lift_by_side", {})[("R" if side > 0 else "L")] = round(lift_s, 2)
@@ -956,9 +1010,9 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
                     left = float(np.max(hull_top(h, V[cm][fin]) - allow[fin]))
                     if left > 0.3:
                         info.setdefault("bite_mm", {})[("R" if side > 0 else "L")] = round(left, 1)
-        solids.append((teeth, h))
+        solids.append((reg, h))
     if not solids:
-        return None, dict(info, error="no block could be made over the chosen teeth")
+        return None, dict(info, error="no block could be made over the window" if span else "no block could be made over the chosen teeth")
     if info.get("lift_by_side"):
         info["lift_mm"] = round(min(info["lift_by_side"].values()), 2)
     if info.get("bite_mm"):
@@ -969,10 +1023,10 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
     # hull's top in that column - the undercuts filled as putty does; never within keep_mm of a neighbouring tooth;
     # blurred a little and meshed. Inside a convex hull = on the inner side of every face plane
     parts = []
-    for teeth, h in solids:
+    for reg, h in solids:
         lo = h.bounds[0] - 1.0; hi = h.bounds[1] + 1.0
-        cm = crown & np.isin(labels, teeth)
-        lo[2] = min(lo[2], float(V[cm][:, 2].min()) - 3.5)
+        cm = reg & tooth                                              # the crown columns: filled down to the gum under the bulge
+        lo[2] = min(lo[2], float(V[reg][:, 2].min()) - 3.5)
         shape = np.ceil((hi - lo) / spacing).astype(int) + 1
         if np.prod(shape) > 12e6:
             info.setdefault("skipped", []).append("block-out region too large")
@@ -1001,7 +1055,7 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
             okk = (ij[:, 0] >= 0) & (ij[:, 0] < nx) & (ij[:, 1] >= 0) & (ij[:, 1] < ny)
             (np.maximum if how == "max" else np.minimum).at(f, (ij[okk, 0], ij[okk, 1]), Pp[okk, 2])
             return f
-        zc_min = field(V[cm], "min"); zg_top = field(V[~crown], "max")
+        zc_min = field(V[cm], "min") if cm.any() else np.full((nx, ny), np.inf); zg_top = field(V[~crown], "max")
         under = np.isfinite(zc_min) & np.isfinite(zg_top) & (zg_top < zc_min)
         floor = np.where(under, zg_top, zc_min)
         floor = np.where(np.isfinite(zc_min), np.maximum(floor, zc_min - 3.0), np.inf)
@@ -1043,15 +1097,16 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
     solid = trimesh.util.concatenate(parts)
     # how thick it stands over the crowns (the hull's top over each crown vertex)
     hits = []
-    for teeth, h in solids:
-        cm = crown & np.isin(labels, teeth)
+    for reg, h in solids:
+        cm = (reg & tooth) if (reg & tooth).any() else reg            # (a block over a bare ridge: over the ridge)
         hits.append(hull_top(h, V[cm]) - V[cm][:, 2])
     thick = np.concatenate(hits) if hits else np.array([lift])
     info.update(top_mm=dict(min=round(float(thick.min()), 2), median=round(float(np.median(thick)), 2), max=round(float(thick.max()), 2)),
                 volume_ml=round(float(sum(abs(p.volume) for p in parts)) / 1000.0, 3), pieces=len(parts))
     if log:
         tm = info["top_mm"]
-        log(f"phase I block-out: one block per side over {len(sel)} teeth, {clearance_mm:.1f} mm of room round them, {tm['min']:.1f}-{tm['max']:.1f} mm over "
+        what = (f"one block per side over the window ({len(under_t)} teeth under them)" if span else f"one block per side over {len(sel)} teeth")
+        log(f"phase I block-out: {what}, {clearance_mm:.1f} mm of room round them, {tm['min']:.1f}-{tm['max']:.1f} mm over "
             f"the crowns (median {tm['median']:.1f}; " + (f"lift {info['lift_mm']:.1f} mm from the bite" if opposing_f is not None else f"a flat {flat_mm:.1f} mm, no bite")
             + f"), {info['volume_ml']:.2f} mL")
     return solid, info
