@@ -543,7 +543,7 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   doctor's own dots** (the Phase I tab, 10/21/2026: "I can identify the width of the cutouts by 2 clicks - the
   mesio-distal span"): two dots on a side and the cutout runs from the nearest to the farthest of them round the
   arch, the dots its walls (a crown is cut at the dot as the E is at its 30 %), the line 0.3 mm beyond each wall on
-  what stays; on block-out the block covers the crowns whose middle lies in the span. One dot alone is not enough
+  what stays; on block-out the block stands over the span, as below. One dot alone is not enough
   and the case says so. An **Ends here** dot on a side leaves everything behind it out (the teeth behind it count
   as uncovered, like the 7s) and ends the flange there. A **6 is here** dot names the first molar on a side: the
   side's count moves so that tooth is the 6 (the one in front the E, anything behind a 7) - on one upper a space
@@ -570,12 +570,20 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   within 5.5 mm of the centre of its top (`crown_of`), the rest is gum. A space where a chosen tooth already stood is
   the gum between its two neighbours, and the first-trim line bridges it along the ridge's crest
   (`edentulous_gaps(ridge_band=1)`). Beside each window no sliver of plate under 2 mm wide is left.
-- **Block-out (BOTT).** No windows: one solid block per side over the run of C/Ds, built into the model in place of
-  the putty (`block_outs`) - not shaped to the teeth under it (the doctor: "a solid block, almost like a blob that is
-  smoothed out on the top ... don't try to match the anatomy"), with **2 mm of room round the teeth** as the
-  mouthguard's band has round the brackets ("clearance on the buccal, on the lingual ... so if the teeth are coming in
-  sideways they're not hitting the tray"). The block is the convex hull of the crowns pushed out on every side and
-  lifted on top: the push is the full 2 mm from the top down to 2 mm below each crown's top, then **tapers to nothing
+- **Block-out (BOTT).** No windows cut: one solid block per side **over the window's stretch** - the same stretch the
+  cutout would take, from the 2's distal face to 30 % into the E, or between the doctor's dots - whatever stands in it:
+  the C and D, the space where they already were (the premolars come in there; the block stands over the ridge's
+  crest band, 3 mm in and out of the teeth's centre line), the E's mesial part - and ending at the stretch's ends, not
+  at the end of a tooth (the doctor's recording, 10/21/2026: a dot a quarter into the E put the block over the whole
+  E, and the side whose C and D were gone - an 11 mm space - got no block at all, since the block was built over the
+  chosen teeth's crowns). A tooth counts as under the block only with a real part of its crown in the stretch (the
+  E's quarter, yes; the 2 whose last vertices touch the stretch's start, no - it stays a neighbour kept clear). Built
+  into the model in place of the putty (`block_outs`) - not shaped to the teeth under it (the doctor: "a solid block,
+  almost like a blob that is smoothed out on the top ... don't try to match the anatomy"), with **2 mm of room round
+  the teeth** as the mouthguard's band has round the brackets ("clearance on the buccal, on the lingual ... so if the
+  teeth are coming in sideways they're not hitting the tray"). The block is the convex hull of the stretch's surface
+  above the line - the crowns, the crest - pushed out on every side and lifted on top: the push is the full 2 mm from
+  the top (a ridge's crest) down to 2 mm below it, then **tapers to nothing
   at the trim line**, the gum between the cervical and the line taken into the hull - the block's sides run down into
   the model like putty feathered onto the gum, its foot on the gum right at the line, so there is no shelf and no space
   under a foot and the sheet's cut edge points apically, not at the cheek (the doctor, 10/21/2026: "edges that are

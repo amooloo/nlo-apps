@@ -755,6 +755,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rep["mouthguard"] = dict(error=str(ex)[:160])
             rep.setdefault("warnings", []).append("the mouthguard line could not be made - this guard is trimmed at the gum line like a tray: check it before sending")
     p1_cut = None             # Phase I: the line the Trimlign cuts (with the C/D cutouts); margin_f is the outline the model is built round
+    p1_span = p1_wedge = None   # Phase I: each side's window as a vertex mask (the block-out stands over it), and its wedge
     if P1:
         from .phase1 import phase1_trimline
         try:
@@ -766,6 +767,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 1.25)),
                 flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)),
                 span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, six_idx=P.get("p1_six_idx") or None, log=lambda m: log(f"[{name}] {m}"))
+            p1_span = p1_info.pop("_span", None); p1_wedge = p1_info.pop("_wedge", None)
             rep["phase1"] = p1_info
             if p1_info.get("positions"):
                 # the doctor's "6 is here" dot moved a side's count: the case's teeth follow (the block-out's picks too)
@@ -1011,8 +1013,14 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 except Exception as ex:  # noqa
                     log(f"[{name}] the opposing arch could not be read ({ex}) - block-out tops without the bite")
                     opp = None
-            cap, cinfo = block_outs(mesh_f, labels, sel_b, opposing_f=opp, line=(p1_cut if p1_cut is not None else margin_f), log=lambda m: log(f"[{name}] {m}"))
-            cinfo["teeth"] = sorted(f"{'R' if (s > 0) == (arch == 'lower') else 'L'}{p}" for t, (s, p) in info.items() if int(t) in sel_b)
+            # the block stands over each side's window - the cutout's own extent, whatever is in it (the C and D, the
+            # space where they were, the E's mesial quarter) - and ends at the window's ends; the chosen teeth only on
+            # a side without a window
+            cap, cinfo = block_outs(mesh_f, labels, sel_b, opposing_f=opp, line=(p1_cut if p1_cut is not None else margin_f), span=p1_span, wedge=p1_wedge, log=lambda m: log(f"[{name}] {m}"))
+            under_b = set(cinfo.get("labels_under") or sel_b)
+            cinfo["teeth"] = sorted(f"{'R' if (s > 0) == (arch == 'lower') else 'L'}{p}" for t, (s, p) in info.items() if int(t) in under_b)
+            if p1_span:
+                cinfo["window"] = (rep.get("phase1") or {}).get("window")
             rep["phase1_blockout"] = cinfo
             if cinfo.get("warning"):
                 rep.setdefault("warnings", []).append(f"Phase I block-out: {cinfo['warning']}")
