@@ -51,7 +51,9 @@ const IC = {
   // a plain tick (Messages: mark as read, and the Read stamp — notes.js)
   check: '<path d="M5 12.5l4.6 4.5L19 7.5"/>',
   // a paper plane (To submit: cases still to go out to a lab)
-  send: '<path d="M20.5 3.5L10.2 13.8"/><path d="M20.5 3.5l-6.6 17-3.7-6.7-6.7-3.7z"/>'
+  send: '<path d="M20.5 3.5L10.2 13.8"/><path d="M20.5 3.5l-6.6 17-3.7-6.7-6.7-3.7z"/>',
+  // a calendar page (the delivery appt in the case panel's header)
+  cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 14h3M13 14h3M8 17h3"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -600,6 +602,60 @@ function dateChip(c, x, none, split) {
   if (d === 1) return '<span class="due soon"' + tip + '>' + i + w + ' tomorrow' + esc(at) + '</span>';
   if (d <= 3) return '<span class="due soon"' + tip + '>' + i + w + ' ' + esc(fmtDay(x.d) + on) + '</span>';
   return '<span class="due"' + tip + '>' + (z ? i : '') + w + ' ' + esc(fmtDate(x.d) + on) + '</span>';
+}
+/* ---------- the delivery appt in the case panel's header: never folded, never scrolled away (Amir, 22 Oct 2026: "The APPT time
+   should always be visible on the card that pulls up on the right side of the screen when you click on the pt. It should be in the
+   header very clearly"). A calendar page (month, day), then the day and the time in large type and how far off it is — amber within
+   3 days, coral once it has passed while the case is open, like the Appt chips. Shipped to the patient: the expected delivery (no
+   time); an older case with only a due date: that date. A missing time or appt says so, with Add time / Set appt (apptModal). In Edit
+   it follows the form's date and time as they're changed (no button there: the form has them). ---------- */
+function apptRel(d) {
+  if (d === 0) return 'Today'; if (d === 1) return 'Tomorrow'; if (d === -1) return 'Yesterday';
+  const a = Math.abs(d), n = a < 14 ? a + ' days' : a < 63 ? Math.round(a / 7) + ' weeks' : Math.round(a / 30.4) + ' months';
+  return d > 0 ? 'In ' + n : n + ' ago';
+}
+function apptBarHTML(c, edit) {
+  const x = apptOf(c), done = c.status === 'done', w = x && x.k === 'due' ? 'Due (older case)' : delWord(c), ship = w === 'Expected delivery';
+  // (on phones the button shows just its icon: its name stays for screen readers)
+  const btn = l => done || edit ? '' : '<button type="button" class="btn btn-sec btn-sm apEd" data-act="apptSet" aria-label="' + esc(l) + '" title="' +
+    esc(l === 'Change' ? 'Change the ' + delWord(c).toLowerCase() : l === 'Add time' ? 'Add the appointment time' : 'Set the ' + delWord(c).toLowerCase()) + '">' + ic(l === 'Change' ? 'edit' : 'plus', 15) + '<span class="t">' + l + '</span></button>';
+  if (!x) return '<div class="dAppt none" id="dAppt"><span class="apCal" aria-hidden="true">' + ic('cal', 24) + '</span>' +
+    '<div class="apB"><div class="apK">' + esc(delWord(c)) + '</div><div class="apV"><span class="apNo">Not set yet</span></div></div>' + btn('Set appt') + '</div>';
+  const [y, m, dd] = String(x.d).split('-').map(Number), dt = new Date(y, m - 1, dd), d = dayDiff(x.d);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(x.d) || isNaN(dt.getTime())) // (a date that isn't a plain yyyy-mm-dd, from an old import: shown as it is)
+    return '<div class="dAppt raw" id="dAppt"><span class="apCal" aria-hidden="true">' + ic('cal', 24) + '</span><div class="apB"><div class="apK">' + esc(w) + '</div><div class="apV"><span class="apD">' + esc(x.d) + '</span></div></div>' + btn('Change') + '</div>';
+  const tm = x.k === 'delivery' && !ship ? fmtTime(c.deliveryTime) : '';
+  const day = dt.toLocaleDateString(undefined, Object.assign({ weekday: 'short', month: 'short', day: 'numeric' }, y !== new Date().getFullYear() ? { year: 'numeric' } : {}));
+  const lv = done ? 'done' : d < 0 ? 'over' : d <= 3 ? 'soon' : '', rel = apptRel(d);
+  const tip = w + ': ' + dt.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + (tm ? ', ' + tm : '');
+  return '<div class="dAppt' + (lv ? ' ' + lv : '') + '" id="dAppt" title="' + esc(tip) + '">' +
+    '<span class="apCal" aria-hidden="true"><span class="m">' + esc(dt.toLocaleDateString(undefined, { month: 'short' })) + '</span><span class="d">' + dd + '</span></span>' +
+    '<div class="apB"><div class="apK"><span>' + esc(w) + '</span><span class="apRel">' + esc(rel) + '</span></div>' +
+    '<div class="apV"><span class="apD">' + esc(day) + '</span>' + (tm ? '<span class="apT">' + ic('clock', 18) + esc(tm) + '</span>' : x.k === 'delivery' && !ship ? '<span class="apNo">No time set</span>' : '') + '</div></div>' +
+    btn(x.k === 'due' ? 'Set appt' : tm || ship ? 'Change' : 'Add time') + '</div>';
+}
+/* set or change the delivery appt from the header: the date and the time (every half hour, like the form); a case shipped to the
+   patient has an expected delivery, without a time. Saved like an Edit of those two fields (history: "changed delivery appt, appt time"). */
+function apptModal(c) {
+  const ship = delWord(c) === 'Expected delivery', w = delWord(c);
+  openModal('<h3>' + esc(w) + '</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
+    '<div class="zoomRow apRow"><div class="field"><label for="apDate">Date</label><input type="date" id="apDate" value="' + esc(c.deliveryDate || '') + '"></div>' +
+    (ship ? '' : '<div class="field"><label for="apTime">Time</label>' + timeSelectHTML('apTime', c.deliveryTime || '', 'Appointment time') + '</div>') + '</div>' +
+    '<div class="mFt">' + (c.deliveryDate ? '<button class="btn btn-ghost" type="button" id="apClear" style="margin-right:auto">Clear the ' + (ship ? 'date' : 'appt') + '</button>' : '') +
+    '<button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="apSave">Save</button></div>', mw => {
+      const dI = $('#apDate', mw), tI = $('#apTime', mw), save = $('#apSave', mw), sync = () => { save.disabled = !dI.value; };
+      dI.addEventListener('input', sync); dI.addEventListener('change', sync); sync();
+      const put = (nd, nt, msg) => {
+        const cur = findCase(c.id) || c, fields = [];
+        if ((cur.deliveryDate || '') !== nd) fields.push('deliveryDate'); if ((cur.deliveryTime || '') !== nt) fields.push('deliveryTime');
+        closeModal(); if (!fields.length) return;
+        // (nothing to change on the saved copy — someone set the same a moment ago: write nothing, say nothing)
+        act(() => B.mutateCase(c.id, x => { if ((x.deliveryDate || '') === nd && (x.deliveryTime || '') === nt) return 'skip'; x.deliveryDate = nd; x.deliveryTime = nt; }, { a: 'edit', fields })
+          .catch(e => { if (!e || e.code !== 'skip') throw e; }), msg);
+      };
+      save.onclick = () => { const nd = dI.value, nt = nd && tI ? tI.value || '' : ''; if (nd) put(nd, nt, w + ' set for ' + fmtDay(nd) + (nt ? ', ' + fmtTime(nt) : '')); };
+      const clr = $('#apClear', mw); if (clr) clr.onclick = () => put('', '', w + ' cleared');
+    });
 }
 /* ---------- flags: ship to patient (an alert wherever the case shows), one-click tracking, MARPE records ---------- */
 /* a case added with Quick add whose details aren't in yet (Amir, 6 Oct 2026: "an option for quick add where they can enter the basics
@@ -1537,7 +1593,8 @@ function renderDrawer() {
   if (S.editing) { // the patient's name stays big at the top while editing (Amir), and follows the name field as it's typed
     stkClose(); // (the stickers to pick from, if they were open)
     d.innerHTML = '<div class="dHd dEdit">' + ptAv(c, 64) + '<div style="flex:1;min-width:0"><div class="dEditLbl">' + ic('edit', 13) + 'Editing case</div><h3 id="dEditName">' + esc(c.patient || '(no name)') + '</h3>' +
-      '<div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+      '<div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button>' +
+      apptBarHTML(c, true) + '</div>' + // (the delivery appt stays in the header while editing, and follows the form — below)
     // Finish details on a Quick add case: the same form, in the New case steps (from Case on), and Save takes the tag off
     (S.editWiz ? '<div class="dWiz"><ol class="wizBar" id="dWizBar" aria-label="Steps"></ol></div>' : '') +
     '<div class="dBd"><div id="drawerNotice"></div>' + caseFormHTML(S.editBase, false) + '</div>' +
@@ -1550,7 +1607,16 @@ function renderDrawer() {
         btns: () => ({ back: $('#dWizBack', d), next: $('#dWizNext', d), save: $('#dWizSave', d) }), top: () => { if (bd) bd.scrollTop = 0; } });
       $('#dWizNext', d).onclick = () => wizNext(d); $('#dWizBack', d).onclick = () => wizBack(d); }
     const nm = $('#cf-patient', d), hd = $('#dEditName', d); if (nm && hd) nm.addEventListener('input', () => { hd.textContent = nm.value.trim() || '(no name)'; });
+    // the header's delivery appt follows the form: its date and time, and Ship to patient / the kind of case (Expected delivery)
+    // (the panel keeps its element while a case is open, so the previous Edit's listeners go first)
+    if (d._apOff) d._apOff.abort(); const apOff = d._apOff = new AbortController(); let apRaf = 0;
+    const apSync = () => { apRaf = 0; const bar = $('#dAppt', d); if (!S.editing || !bar || S.openId !== c.id) return; const o = readCaseForm(d);
+      bar.outerHTML = apptBarHTML(Object.assign({}, c, { type: o.type || c.type, deliveryDate: o.deliveryDate || '', deliveryTime: o.deliveryTime || '', shipToPatient: o.shipToPatient || '' }), true); };
+    const apLater = () => { if (!apRaf) apRaf = requestAnimationFrame(apSync); };
+    ['input', 'change'].forEach(ev => d.addEventListener(ev, e => { if (/^cf-delivery(Date|Time)$/.test((e.target && e.target.id) || '')) apLater(); }, { signal: apOff.signal }));
+    d.addEventListener('click', e => { if (e.target && e.target.closest && e.target.closest('#cf-ship, [data-tile]')) apLater(); }, { signal: apOff.signal });
     return; }
+  if (d._apOff) { d._apOff.abort(); d._apOff = null; } // (back from Edit)
   if (c.locked) {
     d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Case can’t be opened</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
       '<div class="dBd"><div class="notice bad">This case’s saved copy can’t be decrypted — it may have been damaged.</div>' +
@@ -1586,7 +1652,9 @@ function renderDrawer() {
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
     '<div style="flex:1;min-width:0"><div class="dKind" id="dKind">' + esc(caseTitle(c)) + '</div><h3>' + ptName(c.patient) + '</h3><div class="sub">' + typeBadge(c) + (detailShown(c) ? '<span class="small muted">' + esc(detailShown(c)) + '</span>' : '') + caseBadges(c, true) + '</div>' + lblBtn + '</div>' +
-    '<button type="button" class="btn btn-ghost dAll" data-act="dsAll"></button><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+    '<button type="button" class="btn btn-ghost dAll" data-act="dsAll"></button><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button>' +
+    // the delivery appt, date and time, across the bottom of the header: always in view (Amir, 22 Oct 2026)
+    apptBarHTML(c) + '</div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
@@ -2219,6 +2287,7 @@ function onClick(e) {
     case 'clearHold': { const cid = S.openId; act(() => B.mutateCase(cid, d => { if (!d.labHold) return 'skip'; d.labHoldSeen = (d.labHold.date || '') + '|' + (d.labHold.reason || ''); d.labHold = ''; }, { a: 'edit', fields: ['labHold'] }), 'Lab hold cleared'); break; }
     case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }
     case 'zoomSet': { const c = findCase(S.openId); if (c) zoomModal(c); break; }
+    case 'apptSet': { const c = findCase(S.openId); if (c && c.status !== 'done') apptModal(c); break; }
     case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
     case 'noshipF': S.f.noship = S.f.noship ? '' : '1'; renderView(); break;
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
