@@ -1093,6 +1093,75 @@
   .ufr-modal, .ufr-print-frame { display: none !important; }
 }
 </style>
+<style id="copies-style">
+/* ==================== COPIES PROMPT ====================
+   Every Print asks "Do you need an additional copy?" (askCopies in the script). */
+.copies-dlg {
+  margin: auto;                         /* the page's * { margin:0 } would pin the box to the corner */
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  width: min(470px, calc(100vw - 32px));
+  max-width: none;
+  background: var(--white);
+  color: var(--grey-700);
+  font-family: var(--font-body);
+  box-shadow: 0 18px 48px rgba(17,32,58,0.28);
+}
+.copies-dlg::backdrop { background: rgba(17,32,58,0.55); }
+.copies-card { padding: 24px 24px 14px; }
+.copies-what {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--grey-500);
+  margin-bottom: 6px;
+}
+.copies-what:empty { display: none; }
+.copies-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--navy-800);
+  margin-bottom: 18px;
+}
+.copies-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.copies-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: 16px 12px 15px;
+  border: 2px solid var(--grey-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--navy-800);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 140ms var(--ease), background 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+.copies-choice:hover { border-color: var(--blue-500); background: #F7F8FF; }
+.copies-choice:focus { outline: none; border-color: var(--blue-600); background: #EEF2FF; box-shadow: 0 0 0 3px rgba(46,82,201,0.18); }
+.copies-num { font-family: var(--font-display); font-size: 40px; font-weight: 600; line-height: 1; color: var(--blue-600); }
+.copies-main { font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 2px; }
+.copies-sub { font-size: 12px; line-height: 1.35; color: var(--grey-500); text-wrap: balance; }
+.copies-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.copies-hint { font-size: 12px; color: var(--grey-400); }
+@media (hover: none) { .copies-hint { visibility: hidden; } }
+@media (max-width: 420px) {
+  .copies-choices { grid-template-columns: 1fr; }
+  .copies-num { font-size: 32px; }
+}
+/* One copy keeps the copy-label row, blank, so its pages break exactly like the labeled copy's. */
+.print-doc .copy-label.copy-label-blank { visibility: hidden; }
+@media print {
+  .copies-dlg { display: none !important; }
+}
+</style>
 <style id="nlo-home-room">
 /* The NLO Apps button (nlo-home.js) sits in the top-left corner: keep this app's header clear of it. */
 @media screen{
@@ -1170,7 +1239,7 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
   <div class="batch-wrap">
     <div class="batch-header">
       <h2>Batch Print</h2>
-      <p>Select the forms you need, enter the patient&rsquo;s name once, and print them all in one job. Each form prints with the patient name and today&rsquo;s date filled in &mdash; all other fields are left blank to complete by hand. Every form includes both a Next&nbsp;Level copy and a Patient&nbsp;/&nbsp;RP copy.</p>
+      <p>Select the forms you need, enter the patient&rsquo;s name once, and print them all in one job. Each form prints with the patient name and today&rsquo;s date filled in &mdash; all other fields are left blank to complete by hand. You&rsquo;ll be asked whether you need an additional copy: one copy of each form, or two (a Next&nbsp;Level copy and a Patient&nbsp;/&nbsp;RP copy).</p>
     </div>
     <div class="batch-name-row">
       <label for="batch_patientName">Patient Name</label>
@@ -2120,7 +2189,7 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
         <li><strong>Pick the status that is true today.</strong> Braces or clear aligners in active use disqualify an applicant. Retainers &mdash; bonded or removable &mdash; do not.</li>
         <li><strong>Still in treatment:</strong> the military accepts our written commitment that active treatment ends before the patient is sworn in. Get the ship / report date from the patient or recruiter, set the projected end date before it, and book the debond now.</li>
         <li><strong>Ended early:</strong> before the debond, have the patient &mdash; or a parent if under 18 &mdash; sign the <strong>Removal Waiver</strong> (Discontinuation folder).</li>
-        <li>Two copies print. The <strong>Next Level Copy</strong> is scanned to the chart; the unlabeled copy is the patient&rsquo;s original for the recruiter or MEPS.</li>
+        <li>When you print, choose <strong>2 copies</strong>: the <strong>Next Level Copy</strong> is scanned to the chart; the unlabeled copy is the patient&rsquo;s original for the recruiter or MEPS.</li>
         <li>The letter carries the patient&rsquo;s SSN. Hand it to the patient &mdash; don&rsquo;t fax or email it to a recruiter unless the patient (a parent, if a minor) has authorized that in writing.</li>
       </ol>
       <div class="guide-note">
@@ -5237,6 +5306,31 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
   </div>
 </div>
 
+<!-- ==================== COPIES PROMPT (askCopies) ==================== -->
+<!-- Every Print asks: 1 copy (the default, no copy label) or 2 (Next Level Copy + Patient / RP Copy). -->
+<dialog class="copies-dlg" id="copiesDlg" aria-labelledby="copiesTitle" aria-describedby="copiesWhat">
+  <form method="dialog" class="copies-card">
+    <div class="copies-what" id="copiesWhat"></div>
+    <h2 class="copies-title" id="copiesTitle">Do you need an additional copy?</h2>
+    <div class="copies-choices">
+      <button type="submit" value="1" class="copies-choice" id="copiesOne" autofocus>
+        <span class="copies-num" aria-hidden="true">1</span>
+        <span class="copies-main">No, just one</span>
+        <span class="copies-sub" id="copiesOneSub">One copy of the form</span>
+      </button>
+      <button type="submit" value="2" class="copies-choice" id="copiesTwo">
+        <span class="copies-num" aria-hidden="true">2</span>
+        <span class="copies-main">Yes, add a copy</span>
+        <span class="copies-sub" id="copiesTwoSub">Next Level Copy + Patient / RP Copy</span>
+      </button>
+    </div>
+    <div class="copies-foot">
+      <span class="copies-hint">Press 1 or 2</span>
+      <button type="submit" value="0" class="btn btn-clear" id="copiesCancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
   // ==================== TAB SWITCHING ====================
   function switchTab(tabId, btn) {
@@ -5287,12 +5381,48 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
     } catch (e) { /* opened from a file: the frame keeps its default height and scrolls */ }
   }
 
-  // ==================== DUAL-COPY PRINT UTILITY ====================
-  // Prints 2 copies: "Next Level Copy" (page 1) and "Patient / RP Copy" (page 2)
+  // ==================== PRINT: ONE COPY, OR TWO ====================
+  // Every Print asks "Do you need an additional copy?" (askCopies, below). No - the default - prints
+  // one copy with no copy label; yes prints 2: "Next Level Copy" (page 1) and "Patient / RP Copy" (page 2).
   function printDualCopy(printDocId) {
     // Batch mode: collect the doc id instead of printing immediately
     if (window._batchCollect) { window._batchCollect.push(printDocId); return; }
 
+    askCopies([document.getElementById(printDocId)], '', copies => {
+      if (copies === 1) printOneCopy(printDocId);
+      else if (copies === 2) printTwoCopies(printDocId);
+    });
+  }
+
+  // One copy: the form alone, with no copy label. The label's row stays, blank, so the pages break
+  // exactly as the labeled copy's always have - without it, 2-page forms (e.g. Financial
+  // Responsibility) pull a paragraph up into the foot of page 1, where the fixed footer prints over it.
+  function printOneCopy(printDocId) {
+    const doc = document.getElementById(printDocId);
+
+    const oldClone = document.getElementById(printDocId + '_copy2');
+    if (oldClone) oldClone.remove();
+    let label = doc.querySelector('.copy-label');
+    if (!label) {
+      label = document.createElement('div');
+      label.className = 'copy-label';
+      doc.insertBefore(label, doc.firstChild);
+    }
+    label.textContent = 'Next Level Copy';
+    label.classList.add('copy-label-blank');
+
+    document.querySelectorAll('.print-doc').forEach(el => el.classList.remove('print-active'));
+    doc.classList.add('print-active');
+
+    setTimeout(() => {
+      window.print();
+      doc.classList.remove('print-active');
+      label.remove();
+    }, 100);
+  }
+
+  // Two copies: "Next Level Copy" (page 1) and "Patient / RP Copy" (page 2)
+  function printTwoCopies(printDocId) {
     const doc = document.getElementById(printDocId);
 
     // Remove any previous clones
@@ -5307,6 +5437,7 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
       doc.insertBefore(label1, doc.firstChild);
     }
     label1.textContent = 'Next Level Copy';
+    label1.classList.remove('copy-label-blank');
 
     // Clone the entire print doc for page 2
     const clone = doc.cloneNode(true);
@@ -5339,6 +5470,47 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
       clone.remove();
       if (label1) label1.remove();
     }, 100);
+  }
+
+  // ==================== COPIES PROMPT ====================
+  // Asks "Do you need an additional copy?" - once per Print, and once for a whole Batch Print job.
+  // done(1): one copy, the default (Enter, or the 1 key); done(2): two copies (the 2 key);
+  // done(0): nothing prints (Cancel, Esc, or a click outside the box).
+  // batchName: the patient's name for Batch Print; '' for a single form.
+  function askCopies(docs, batchName, done) {
+    const dlg = document.getElementById('copiesDlg');
+    if (!dlg || typeof dlg.showModal !== 'function') {   // a browser without <dialog>: plain OK / Cancel
+      done(window.confirm('Do you need an additional copy?\n\nOK = 2 copies\nCancel = 1 copy') ? 2 : 1);
+      return;
+    }
+    if (dlg.open) return;
+
+    const copy2 = batchName ? '' : docs[0].getAttribute('data-copy2-label');   // a form may rename (or unlabel) its second copy
+    const docTitle = d => ((d.querySelector('.header h2') || {}).textContent || '').replace(/\s+/g, ' ').trim();
+    document.getElementById('copiesWhat').textContent = batchName
+      ? 'Batch Print · ' + docs.length + (docs.length === 1 ? ' form' : ' forms') + ' for ' + batchName
+      : docTitle(docs[0]);
+    document.getElementById('copiesOneSub').textContent = batchName ? 'One of each form' : 'One copy of the form';
+    document.getElementById('copiesTwoSub').textContent = batchName ? 'Two of each form'
+      : 'Next Level Copy + ' + (copy2 === '' ? 'an unlabeled copy' : (copy2 || 'Patient / RP Copy'));
+
+    const onKey = e => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '1' || e.key === '2') { e.preventDefault(); dlg.close(e.key); }
+    };
+    const onClick = e => { if (e.target === dlg) dlg.close('0'); };   // the dimmed area around the box
+    const onClose = () => {
+      dlg.removeEventListener('keydown', onKey);
+      dlg.removeEventListener('click', onClick);
+      dlg.removeEventListener('close', onClose);
+      done(dlg.returnValue === '2' ? 2 : dlg.returnValue === '1' ? 1 : 0);
+    };
+    dlg.addEventListener('keydown', onKey);
+    dlg.addEventListener('click', onClick);
+    dlg.addEventListener('close', onClose);
+    dlg.returnValue = '';
+    dlg.showModal();
+    document.getElementById('copiesOne').focus();
   }
 
   // ==================== ALTERED ARRANGEMENT LOGIC ====================
@@ -6916,7 +7088,15 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
     const allDocs = Array.from(document.querySelectorAll('.print-doc'));
     docIds.sort((a, b) => allDocs.indexOf(document.getElementById(a)) - allDocs.indexOf(document.getElementById(b)));
 
-    // 4. Assemble: dual copy per form, page break between every page after the first
+    // 4. Ask once for the whole job: one copy of each form, or two
+    askCopies(docIds.map(id => document.getElementById(id)), name, copies => {
+      if (copies) batchAssemblePrint(docIds, copies);
+    });
+  }
+
+  // Assemble: one copy per form (label row left blank) or two (Next Level Copy + Patient / RP Copy),
+  // page break between every page after the first
+  function batchAssemblePrint(docIds, copies) {
     document.querySelectorAll('.print-doc').forEach(el => el.classList.remove('print-active'));
     const cleanups = [];
     docIds.forEach((id, idx) => {
@@ -6932,6 +7112,7 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
         doc.insertBefore(label1, doc.firstChild);
       }
       label1.textContent = 'Next Level Copy';
+      label1.classList.toggle('copy-label-blank', copies === 1);   // one copy: the row stays, blank (same page breaks)
       cleanups.push(() => label1.remove());
 
       if (idx > 0) {
@@ -6941,21 +7122,23 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
         cleanups.push(() => br.remove());
       }
 
-      const clone = doc.cloneNode(true);
-      clone.id = id + '_copy2';
-      if (!clone.querySelector(':scope > .page-break')) {
-        const br2 = document.createElement('div');
-        br2.className = 'page-break';
-        clone.insertBefore(br2, clone.firstChild);
+      if (copies === 2) {
+        const clone = doc.cloneNode(true);
+        clone.id = id + '_copy2';
+        if (!clone.querySelector(':scope > .page-break')) {
+          const br2 = document.createElement('div');
+          br2.className = 'page-break';
+          clone.insertBefore(br2, clone.firstChild);
+        }
+        const copy2Label = doc.getAttribute('data-copy2-label');
+        if (copy2Label === '') clone.querySelector('.copy-label').remove();
+        else clone.querySelector('.copy-label').textContent = copy2Label || 'Patient / RP Copy';
+        doc.parentNode.insertBefore(clone, doc.nextSibling);
+        cleanups.push(() => clone.remove());
+        clone.classList.add('print-active');
       }
-      const copy2Label = doc.getAttribute('data-copy2-label');
-      if (copy2Label === '') clone.querySelector('.copy-label').remove();
-      else clone.querySelector('.copy-label').textContent = copy2Label || 'Patient / RP Copy';
-      doc.parentNode.insertBefore(clone, doc.nextSibling);
-      cleanups.push(() => clone.remove());
 
       doc.classList.add('print-active');
-      clone.classList.add('print-active');
       cleanups.push(() => doc.classList.remove('print-active'));
     });
 
