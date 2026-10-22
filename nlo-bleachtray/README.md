@@ -383,10 +383,19 @@ pad and adhesive flash are a low ledge the bump test does not see once the regio
 fitted to the enamel ≥ 1 mm away (`mls_height`) and whatever in the band round the appliance still stands
 > 0.1 mm above it, contiguous to the appliance, is taken too. Every face touching that region (plus two
 rings) is cut out - a wire floating across an embrasure is then simply gone - and each hole this leaves in
-enamel or gum is closed with a patch: a ridge-regularised quadric fitted to the rim and the clean surface
-two rings round it (the crown's curvature) plus a harmonic interpolation of the rim's residuals (so the
-patch passes exactly through the rim), triangulated at the mesh's own spacing; a long rim (a band of
-wire + brackets over several teeth) is split at its waists - the embrasures - into one hole per tooth
+enamel or gum is closed with a patch: a quadric fitted to the rim and the clean surface two rings round it -
+to their positions and to their normals, the surface's slope there, since a ring a few rows wide barely fixes the
+curvature by position alone - plus a harmonic interpolation of the rim's residuals (so the patch passes exactly
+through the rim), triangulated at the mesh's own spacing, and then faired into its surroundings (a bi-Laplacian
+solve: the slope carried across the rim from two rings out), so the patch bends like the crown round it. Before
+the normals and the fairing the patch came out flatter than the tooth and the middle of a lower incisor sank up
+to a millimetre - "carved out" (the doctor, 10/22/2026). Measured by cutting bracket-sized discs out of three plain
+arches and comparing the rebuild with the enamel it replaced: rms 0.13-0.24 mm now (0.25-0.34 before), the tail
+below the real surface halved. The cut never crosses the incisal / occlusal band (a bracket's ledge and the two
+rings round it climbed over a small lateral's incisal edge and onto the lip tissue the scanner had fused to it; the
+rim folded, the patch left a 6 mm crack, and the model filled it with a faceted chunk - "UL2 destroyed"), and
+any small hole the take-off itself leaves open is closed by ear-clipping before the model is built. A long rim
+(a band of wire + brackets over several teeth) is split at its waists - the embrasures - into one hole per tooth
 first. The holes are every boundary loop of the cut mesh with a new edge in it: one whose old edges are short is
 a hole in the surface, or a cut-out that ran into a small hole the scanner left (the cavity under a molar tube's
 hook - its rim is the hole's other side, and a patch closed across the new edges alone left the cavity gaping),
@@ -399,7 +408,18 @@ pad or ligature that sat under the first pass's threshold. The cleaned scan is w
 `<scan>_clean.ply` next to the case and becomes the case's scan file (brush, re-runs, history and the
 Titan export all work on it); its rebuilt vertices are recorded as paint bit 4 (grey on the Braces tab) and
 the result line says how much came off. Scans with braces are kept out of the training set.
-`remove_appliances` = False (default) / True. **Take off brush** (Braces tab): a bit of bracket,
+`remove_appliances` = False (default) / True. The *second look* keeps off everything the first pass touched
+(its patches, their rims, what it restored and smoothed) and a millimetre round it: the enamel beside a fresh patch
+reads as "proud" of it and came off on a plain arch (97 mm2 of a Phase I upper's incisors); a tie or wire bit
+further off is still caught. **Scan as scanned** (Braces tab, 10/22/2026 - the doctor:
+"the original model should be available and braces removal should be an overlay ... if I see something incorrect
+I don't have a chance to go back and correct it"): a tick shows the scan exactly as it came with what the take-off
+takes marked orange on it (what was found - kept with the case as `bracesmask_<scan>.npy`, found once on demand for
+a case cleaned before - plus what was painted Take off; blue = painted Not a bracket; `/api/jobs/{id}/rawmesh`).
+The two brushes draw on it - Take off adds to the outline, Not a bracket takes away from it - and Apply takes the
+braces off again from that scan as marked (the strokes travel as `raw` in the edit, vertex numbers of the scan
+file, kept by position like the others). The overlay belongs to the Braces step and goes off when another step is
+opened; the scan as scanned is always kept with the case. **Take off brush** (Braces tab): a bit of bracket,
 wire or tie the app missed - or anything on a scan dropped without the box - is painted and goes through the
 same cut-and-patch on the next run (no detection, what was painted is the appliance); the scan advances to `_clean2.ply`, `_clean3.ply`…, with the earlier
 rebuilt areas, the painted no-reservoir / block-out strokes and a cut in the same run carried over by
