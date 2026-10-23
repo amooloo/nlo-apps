@@ -1800,8 +1800,16 @@
     o.adjusted = true;
     S.pendingContours = { ...(S.pendingContours || {}), [o.key]: o.handles };
     scheduleSave();
+    toldOutlineLearning();
     renderTrace();
     draw();
+  }
+
+  function toldOutlineLearning() {          // once a session: an outline fixed on a confirmed x-ray is a lesson
+    if (S.case.status === 'confirmed' && !S.toldOutlines) {
+      S.toldOutlines = true;
+      toast('Saved. The app learns outline shapes from the ones you fix on confirmed x-rays.', false, 6000);
+    }
   }
 
   function moveCtrl(ref, x, y) {            // a dot dragged: that outline keeps its dots as left (saved with the x-ray)
@@ -1813,6 +1821,7 @@
     o.adjusted = true;
     S.pendingContours = { ...(S.pendingContours || {}), [o.key]: o.ctrl };
     scheduleSave();
+    toldOutlineLearning();
     renderTrace();
     draw();
   }
@@ -2551,6 +2560,7 @@
       const m = st.model;
       const worst = m && m.per_landmark ? Object.entries(m.per_landmark).sort((x, y) => y[1] - x[1]) : [];
       const prog = st.progress || {};
+      const ol = st.outlines || { cases: 0, by: [] };
       body.innerHTML = `
         <div class="statBig"><div><b>${st.confirmed}</b><span>confirmed tracings</span></div>
           <div><b>${m ? 'v' + esc(m.version) : '-'}</b><span>${m ? 'network in use' : `starts at ${st.min_cases}`}</span></div>
@@ -2560,6 +2570,9 @@
         <p>${esc(st.message || (st.outcome ? '' : 'No learning round has run yet.'))}</p>
         ${m ? `<p class="hint">Trained ${esc(fmtDate((m.trained || '').slice(0, 10)))} on ${m.n_train} x-rays, checked on ${m.n_val} it had not seen. The app only switches to a new network when it does better on those.</p>` : `<p class="hint">After ${st.min_cases} confirmed tracings the app trains a network on this PC; until then the points start from your average tracing.</p>`}
         ${worst.length ? `<label class="f">Average error by point (unseen x-rays)</label><div class="lmErr">${worst.map(([c, e]) => `<span class="${e > 2.5 ? 'bad' : ''}">${esc(lab(c))} ${e} mm</span>`).join('')}</div>` : ''}
+        <label class="f">Outlines</label>
+        <p>${ol.cases ? `Learned from the outlines you fixed on <b>${ol.cases}</b> confirmed x-ray${ol.cases === 1 ? '' : 's'}: ${ol.by.map((b) => `${esc(b.name.toLowerCase())} ${b.n}`).join(' · ')}.` : 'Nothing yet: the outlines you fix on confirmed x-rays become the shapes the next x-rays start from.'}</p>
+        <p class="hint">Learned again a few seconds after you change a confirmed x-ray. A shape gives way to yours a step at a time: a third of the way after one x-ray, two thirds after four, most of the way after ten.</p>
         <label class="f">When it learns</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:12.5px"><input type="checkbox" id="lNightly" ${s.learning.nightly !== false ? 'checked' : ''}> Every evening when there are new confirmed tracings and nobody is using the app</label>
         <div class="row3"><div><label class="f" for="lStart">From (hour)</label><input class="in" id="lStart" type="number" min="0" max="23" value="${s.learning.window_start}"></div>

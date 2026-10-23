@@ -171,6 +171,14 @@ tracings the app needs before it learns.
   there is under 4 mm; every later one only if it beats the network in use on the same held-back x-rays.
   Settings → Learning shows the average error, the share of points within 2 mm, the error of every point, and
   **Go back to the previous network** (the last three are kept).
+- **Your outlines.** The outlines you fix on confirmed x-rays - bone outlines, molars, the soft-tissue profile -
+  become the shapes the next x-rays start from. Each fixed outline is carried back through that x-ray's points to
+  the textbook's frame, and dot by dot the middle of yours takes over a step at a time: a third of the way after
+  one x-ray, two thirds after four, most of the way after ten. A molar starts where you usually put it on the
+  occlusal plane; a stretch of profile between two of its points keeps to your usual course where the x-ray shows
+  two edges (or none). Learned again a few seconds after you change a confirmed x-ray (and at start, so what you
+  fixed before 1.9 counts too); Settings → Learning shows how many x-rays each outline has learned from. Only
+  outlines saved with the current version's dots count - an older one keeps its old shape where you left it.
 - **Your CVM eye.** The flat / concave and shape judgements on confirmed tracings (your picks and the readings
   you let stand) tune the CVM thresholds - how deep a border must dip to count as concave, and where a body
   turns trapezoid / square / vertical - but only once there are 8 such x-rays and only if the tuned thresholds
@@ -184,7 +192,8 @@ judgement stays the doctor's.
 ## Private by design
 
 - The x-rays, tracings and notes are kept in the app folder (`cases\`), the trained networks in `models\`, the
-  settings in `settings.json` - on the PC that runs the app. Nothing is uploaded, synced or shared.
+  outline shapes learned from your outlines in `outline_learning.json`, the settings in `settings.json` - on the PC
+  that runs the app. Nothing is uploaded, synced or shared.
 - The app makes no internet connections. Every page it serves carries a Content-Security-Policy that lets the
   browser load and send things only to this app - so not even a font, a script or a picture comes from outside
   (the fonts ship with the app). For that reason this app's page does not carry the NLO Apps button script or
@@ -193,8 +202,8 @@ judgement stays the doctor's.
   Passcode** (optional) asks each computer for an office passcode once (remembered 30 days) - worth setting if
   patients or guests can join the same Wi-Fi as the office computers.
 - The only internet traffic is the update line, which downloads this app's program files from GitHub. No patient
-  data goes the other way, and the repository never holds patient data (`cases\`, `models\` and the settings are
-  ignored by git).
+  data goes the other way, and the repository never holds patient data (`cases\`, `models\`, the learned outline
+  shapes and the settings are ignored by git).
 - Deleting an x-ray moves it to `cases\_deleted\` (nothing is erased by the app); remove it there for good.
 - **Back up** the app folder (`cases\`, `models\`, `settings.json`) with the office's other backups: the tracings
   and the learned network exist only here.
@@ -239,6 +248,7 @@ nlo-xray\
   xray\landmarks.py     the 42 landmarks, their definitions, tracing order and the textbook template
   xray\analysis.py      measurements, norms, the summary calls, facial thirds, Andrews' GALL
   xray\outlines.py      outlines: curves through dots - the profile followed on the x-ray, the anatomy fitted
+  xray\outline_learn.py the outlines learned from the ones the doctor fixed on confirmed x-rays
   xray\cvm.py           CVM: Baccetti (2005), Hassel & Farman (1995), Mito (2002), the doctor's picks, tuning
   xray\imageio.py       DICOM / JPG / PNG / TIFF reading, pixel size, names and dates
   xray\store.py         one folder per x-ray under cases\
@@ -303,7 +313,8 @@ line joining them (on a copy at about 0.2 mm a pixel), kept only where its edge 
 noise (else a smooth curve through the points) - then given as few dots as keep the curve within 0.6 mm of it, at
 least 3 mm apart; an edge counts fully only with air within 1.2 mm in front of it (the skin, not the bone behind
 it). The anatomy is a textbook tracing (its own points, consistent with its outlines; redrawn in 1.8 after a real
-tracing - a wide ramus, a straight lower border, the orbit as iOrtho draws it) carried onto the x-ray: bone outlines
+tracing - a wide ramus, a straight lower border, the orbit as iOrtho draws it; since 1.9 giving way to the doctor's
+own, `xray/outline_learn.py`) carried onto the x-ray: bone outlines
 by a thin-plate spline through the doctor's points they use (exact at them; an affine fit if the spline would
 fold), teeth along the doctor's U1 / L1 axes at his lengths, molars on the occlusal plane and the small cranial
 structures at their landmark, both at real size, turned with Frankfort horizontal (sella with S-N). Then the

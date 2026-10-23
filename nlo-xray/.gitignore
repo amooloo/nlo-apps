@@ -3,6 +3,7 @@ cases/
 models/
 settings.json
 sessions.json
+outline_learning.json
 *.tmp
 __pycache__/
 *.pyc

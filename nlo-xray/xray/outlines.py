@@ -254,6 +254,42 @@ def _fh_direction(p):
     return None
 
 
+LEARN_K = 2.0                 # a learned shape counts n / (n + 2) against the textbook's (1 x-ray: a third)
+
+
+def signature(entries):
+    """Which dots of an outline are landmarks (codes) and which are free (None): learned dots fit only this shape."""
+    return [e if isinstance(e, str) else None for e in entries]
+
+
+def learned_weight(n):
+    return float(n) / (float(n) + LEARN_K) if n else 0.0
+
+
+def _learned_entries(key, entries, learned):
+    """The textbook's free dots moved toward the doctor's own (outline_learn): n / (n + 2) of the way."""
+    L = ((learned or {}).get("shapes") or {}).get(key)
+    if not L or not L.get("n") or L.get("sig") != signature(entries):
+        return entries
+    w = learned_weight(L["n"])
+    out = []
+    for i, e in enumerate(entries):
+        d = (L.get("dots") or {}).get(str(i))
+        if isinstance(e, str) or d is None:
+            out.append(e)
+            continue
+        x, y = _xy(e)
+        out.append((x + w * (float(d[0]) - x), y + w * (float(d[1]) - y)) + tuple(e[2:]))
+    return out
+
+
+def cranial_direction(p, ref):
+    """The forward direction a small cranial outline is turned with: S-N for sella, else Frankfort (see _fh_direction)."""
+    if ref == "SN":
+        return (np.asarray(p["N"], float) - np.asarray(p["S"], float)) if "S" in p and "N" in p else None
+    return _fh_direction(p)
+
+
 def molar_frame(p, px_per_mm):
     """The molars' frame: at the molar contact, along the occlusal plane, real size (None without the points)."""
     mol, front = _point(p, "MOL"), _point(p, "U1T+L1T")
@@ -262,16 +298,17 @@ def molar_frame(p, px_per_mm):
     return _frame(mol, front - mol, px_per_mm)
 
 
-def anatomy(p, px_per_mm, handles=None):
+def anatomy(p, px_per_mm, handles=None, learned=None):
     """The textbook outlines' control dots on canonical points p (pixels). px_per_mm: the x-ray's scale. handles:
-    {molar key: (crown, root) canonical pixels} for the molars moved by hand.
+    {molar key: (crown, root) canonical pixels} for the molars moved by hand. learned: the doctor's own shapes
+    (outline_learn.learn), which the textbook's give way to as they come in.
     Returns [dict(key, name, group, closed, ctrl [code | canonical (x, y)], anchors, ranges (mm per dot), snap,
     handles (molars: crown and root, canonical))]."""
     out = []
     handles = handles or {}
     for key, name, group, how, uses, shape, closed, snap in STRUCTURES:
         ctrl, anchors, hd = None, [], None
-        entries = shape["ctrl"] if isinstance(shape, dict) else shape
+        entries = _learned_entries(key, shape["ctrl"] if isinstance(shape, dict) else shape, learned)
         if how == "spline":
             anchors = [c for c in uses if c in p and c in DRAW]
             if len(anchors) < 3:
@@ -307,6 +344,13 @@ def anatomy(p, px_per_mm, handles=None):
             f = molar_frame(p, px_per_mm)
             if f is None:
                 continue
+            lm = ((learned or {}).get("molars") or {}).get(key)
+            if key not in handles and lm and lm.get("n"):   # where he usually puts it (mm along the occlusal plane)
+                w = learned_weight(lm["n"])
+                ht = np.asarray(shape["handles"], float)
+                hb = ht + w * (np.asarray(lm["handles"], float) - ht)
+                if g.dist(hb[0], hb[1]) > 0:
+                    f = (lambda f0, m: (lambda pts: f0(m(pts))))(f, _similarity(ht[0], ht[1], hb[0], hb[1]))
             c0, r0 = (np.asarray(h, float) for h in f(shape["handles"]))
             if key in handles:                        # where the doctor put it: the same tooth, moved, turned, sized
                 c1, r1 = (np.asarray(h, float) for h in handles[key])
@@ -320,11 +364,10 @@ def anatomy(p, px_per_mm, handles=None):
             at, ref = uses
             if at not in p:
                 continue
+            d = cranial_direction(p, ref)
             if ref == "SN":
-                d = (np.asarray(p["N"], float) - np.asarray(p["S"], float)) if "S" in p and "N" in p else None
                 anchors = sorted({at, "S", "N"})
             else:
-                d = _fh_direction(p)
                 anchors = sorted({at} | ({"Po", "Or"} if "Po" in p and "Or" in p else {"S", "N"}))
             if d is None or g.norm(d) <= 0:
                 continue
@@ -507,12 +550,15 @@ EDGE_CONTRAST = 3.0           # a stretch counts as followed when its edge is th
 CURVE_TOL_MM = 0.6            # the curve through the profile's dots stays this close to the edge it followed
 DOT_GAP_MM = 3.0              # ... with its free dots at least this far apart (fewer dots to drag)
 AIR_MM = 1.2                  # the skin has air within this distance (the bone's edge behind it has skin)
+PRIOR_COST = 0.3             # a stretch the doctor has drawn: an edge 1.5 mm off his usual course costs this more
+PRIOR_SIGMA_MM = 1.5
 
 
-def _path(grad, p0, p1, half_px, k=3, smooth=0.08):
+def _path(grad, p0, p1, half_px, k=3, smooth=0.08, prior=None, prior_w=0.0, sigma_px=1.0):
     """The cheapest path from p0 to p1 through strong edges, as offsets across the chord (a column per pixel along
-    it). Returns (points (n, 2) in grad pixels, the edge along it against the corridor's typical gradient: about 1-2
-    for noise, well above 3 for a real edge)."""
+    it). prior: points (grad pixels) of the way the doctor draws this stretch - edges near it are cheaper, by prior_w
+    per column at sigma_px off it. Returns (points (n, 2) in grad pixels, the edge along it against the corridor's
+    typical gradient: about 1-2 for noise, well above 3 for a real edge)."""
     p0, p1 = np.asarray(p0, float), np.asarray(p1, float)
     L = g.dist(p0, p1)
     n = max(8, int(math.ceil(L)))
@@ -526,6 +572,12 @@ def _path(grad, p0, p1, half_px, k=3, smooth=0.08):
     G = _bilinear(grad, X, Y)
     ref = float(np.percentile(G, 92)) or 1.0
     C = 1.0 / (1.0 + (G / ref) ** 2)                     # cheap on strong edges
+    if prior is not None and prior_w > 0 and len(prior) >= 2:
+        q = np.asarray(prior, float) - p0
+        t, o = q @ a, q @ b
+        order = np.argsort(t)
+        vp = np.interp(us, t[order], o[order])           # the doctor's usual course, across the chord
+        C = C + prior_w * ((vs[None, :] - vp[:, None]) / sigma_px) ** 2
     INF = 1e18
     E = np.full(2 * m + 1, INF)
     E[m] = C[0, m]
@@ -597,9 +649,26 @@ def _dist_to_curve(pts, curve):
     return np.sqrt(((pts[:, None, :] - foot) ** 2).sum(-1)).min(1)
 
 
-def soft_profile(img, pts_px, mm_per_px):
+def prior_points(uv, p0, p1, sx):
+    """A learned stretch of profile (outline_learn: [u, v] along and across the line joining its two points, as a share
+    of that line's length, across = to its left in the canonical frame) between image points p0, p1 -> image points."""
+    a = np.array([sx * p0[0], -p0[1]], float)
+    b = np.array([sx * p1[0], -p1[1]], float)
+    L = g.dist(a, b)
+    if L <= 0:
+        return None
+    d = (b - a) / L
+    n = np.array([-d[1], d[0]])
+    uv = np.asarray(uv, float)
+    q = a + L * (uv[:, :1] * d + uv[:, 1:2] * n)
+    return np.c_[sx * q[:, 0], -q[:, 1]]
+
+
+def soft_profile(img, pts_px, mm_per_px, prior=None, sx=1.0):
     """The skin's edge from the top of the forehead to soft-tissue menton (whichever of those points are on the
-    x-ray). img: greyscale array. Returns dict(ctrl [code | (x, y) image pixels], dense (the edge followed, image
+    x-ray). img: greyscale array. prior: the doctor's own stretches ({"Tr>Gs": dict(uv, n)}, outline_learn): an edge
+    near his usual course wins over a stronger one far from it, and a stretch without a clear edge takes his course.
+    sx: -1 for an x-ray facing left. Returns dict(ctrl [code | (x, y) image pixels], dense (the edge followed, image
     pixels), traced: share of the length followed on the x-ray, anchors) or None."""
     chain = [c for c in PROFILE if c in pts_px]
     if len(chain) < 2:
@@ -642,12 +711,21 @@ def soft_profile(img, pts_px, mm_per_px):
             followed += L_mm
             continue
         half = min(10.0, max(3.0, 0.35 * L_mm)) * px_mm
-        path, contrast = _path(grad, to_w(p0), to_w(p1), half)
+        pr = (prior or {}).get(f"{c0}>{c1}")
+        mine = prior_points(pr["uv"], p0, p1, sx) if pr and pr.get("n") else None
+        mine_w = None if mine is None else np.stack([to_w(q) for q in mine])
+        path, contrast = _path(grad, to_w(p0), to_w(p1), half, prior=mine_w,
+                               prior_w=PRIOR_COST * learned_weight(pr["n"]) if mine is not None else 0.0,
+                               sigma_px=PRIOR_SIGMA_MM * px_mm)
         if contrast >= EDGE_CONTRAST:
             seg = from_w(path)
             seg[0], seg[-1] = p0, p1
             segs.append(seg)
             followed += L_mm
+        elif mine is not None and pr["n"] >= 2:          # no clear edge: the way the doctor draws this stretch
+            seg = np.asarray(mine, float)
+            seg[0], seg[-1] = p0, p1
+            segs.append(seg)
         else:                                            # no clear edge here: the curve through the points alone
             segs.append(None)
 
@@ -744,10 +822,11 @@ def _snapped(img, mm, o, sx):
     return xy, found
 
 
-def outlines(img, pts_px, facing, mm_per_px, saved=None):
+def outlines(img, pts_px, facing, mm_per_px, saved=None, learned=None):
     """Every outline for an x-ray: [dict(key, name, group, closed, ctrl [code | [x, y] image pixels], xy (every dot,
     image pixels), adjusted (dots placed by hand), anchors, traced, unit ("points": moved as a whole by its two
-    landmarks, "handles": by its two handles), handles)]. saved: {key: dots} moved by hand ({molar: [crown, root]})."""
+    landmarks, "handles": by its two handles), handles)]. saved: {key: dots} moved by hand ({molar: [crown, root]}).
+    learned: the doctor's own shapes from his confirmed x-rays (outline_learn.learn)."""
     pts = {k: v for k, v in (pts_px or {}).items() if v is not None}
     if not pts:
         return []
@@ -785,7 +864,7 @@ def outlines(img, pts_px, facing, mm_per_px, saved=None):
         if h:
             hand[key] = [np.array([sx * h[0][0], -h[0][1]]), np.array([sx * h[1][0], -h[1][1]])]
     out = []
-    for o in anatomy(can, px_per_mm, hand):
+    for o in anatomy(can, px_per_mm, hand, learned):
         key = o["key"]
         if key in UNITS:                                 # a tooth: one piece, never its dots one by one
             ctrl = [c if isinstance(c, str) else to_img(c) for c in o["ctrl"]]
@@ -809,7 +888,7 @@ def outlines(img, pts_px, facing, mm_per_px, saved=None):
         out.append(item(PROFILE_KEY, PROFILE_NAME, "soft", mine, [c for c in mine if isinstance(c, str)], True))
     elif img is not None:
         try:
-            sp = soft_profile(img, pts, mm)
+            sp = soft_profile(img, pts, mm, (learned or {}).get("profile"), sx)
         except (ValueError, FloatingPointError, np.linalg.LinAlgError):
             sp = None
         if sp:
