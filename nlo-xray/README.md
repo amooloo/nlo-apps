@@ -45,12 +45,17 @@ Panoramic x-rays are next; this first version reads lateral cephs.
    - **Outlines** (button *Outline*, key **O**): the tracing is drawn like a hand tracing - the soft-tissue profile
      from the top of the forehead to the chin, followed along the skin on the x-ray itself, and the mandible
      (condyle, ramus, coronoid, angle, lower border, chin and the inner side of the symphysis), maxilla and palate,
-     the upper and lower incisors, the first molars, sella, the frontal and nasal bones, the orbit, the
-     pterygomaxillary fissure and the ear rod, fitted through your points. Each outline is a smooth curve through
-     its dots: your landmarks, and **small white dots** in between - **drag one to fit the curve to the x-ray**
-     (saved at once, Ctrl Z undoes; the outline then keeps your dots, and its landmarks still carry it along when
-     they move). *Redraw from the points* in the Tracing card forgets the dots moved by hand. Outlines are a
-     drawing aid: the measurements come from the points.
+     the upper and lower incisors, the first molars, sella, the frontal and nasal bones, the orbit (its back rim and
+     floor), the pterygomaxillary fissure and the ear rod, fitted through your points. Where a bone shows a clear
+     edge - sella, the back of the ramus, the lower border, the inside of the symphysis, the front of the frontal
+     bone - the curve is pulled onto it; where the mandible shows twice (its two sides), it runs **midway between
+     the two lines**. Each bone outline is a smooth curve through its dots: your landmarks, and **small white dots**
+     in between - **drag one to fit the curve to the x-ray** (saved at once, Ctrl Z undoes; the outline then keeps
+     your dots, and its landmarks still carry it along when they move). **The teeth keep their shape**: drag a
+     tooth to move all of it; an incisor turns and lengthens with its tip and apex points, a molar with its two
+     **small squares** (crown and root end - drag one and the tooth turns and sizes about the other). *Redraw from
+     the points* in the Tracing card forgets what was moved by hand. Outlines are a drawing aid: the measurements
+     come from the points.
    - **Skip soft tissue** or **Skip vertebrae (adult)** when they are not needed.
    - New x-rays include five soft-tissue points for the facial thirds and Andrews' GALL line: the **top of the
      forehead** (trichion, or superion on a rounded forehead), **soft-tissue glabella** (G'), the two **stomia**
@@ -290,11 +295,20 @@ goal 0 (± 2 mm, the app's band). The viewer draws GALL, FFA and FA.
 x-ray from one soft-tissue point to the next - the cheapest path through the strongest edges in a corridor round the
 line joining them (on a copy at about 0.2 mm a pixel), kept only where its edge stands well above the corridor's
 noise (else a smooth curve through the points) - then given as few dots as keep the curve within 0.6 mm of it, at
-least 3 mm apart. The anatomy is a textbook tracing (its own points, consistent with its outlines) carried onto
-the x-ray: bone outlines by a thin-plate spline through the doctor's points they use (exact at them; an affine fit
-if the spline would fold), teeth along the doctor's U1 / L1 axes at his lengths, molars on the occlusal plane and
-the small cranial structures at their landmark turned with S-N, both at real size. Dots moved by hand are stored
-with the x-ray (`case.contours`: landmark codes and pixels) and win over the automatic ones.
+least 3 mm apart; an edge counts fully only with air within 1.2 mm in front of it (the skin, not the bone behind
+it). The anatomy is a textbook tracing (its own points, consistent with its outlines; redrawn in 1.8 after a real
+tracing - a wide ramus, a straight lower border, the orbit as iOrtho draws it) carried onto the x-ray: bone outlines
+by a thin-plate spline through the doctor's points they use (exact at them; an affine fit if the spline would
+fold), teeth along the doctor's U1 / L1 axes at his lengths, molars on the occlusal plane and the small cranial
+structures at their landmark, both at real size, turned with Frankfort horizontal (sella with S-N). Then the
+stretches with a dependable edge are pulled onto it (`snap`): samples every 0.5 mm along the curve, the brightness
+across it within 2-2.5 mm, the edge as the steepest change with the bone on its own side, and the cheapest smooth
+path across them (dynamic programming; a slight pull back to the textbook course, landmarks fixed). For the
+mandible, two like edges 1-5 mm apart (the weaker at least half the stronger) score more midway between them than
+either alone. Condyle, coronoid, palate, orbit, fissure and the teeth are not pulled (other bones overlap them).
+A tooth is one piece: an incisor carried by its two points; a molar by two handles (crown, root end) - a move, turn
+and size of the textbook molar. Dots moved by hand are stored with the x-ray (`case.contours`: landmark codes and
+pixels; a molar's two handles) and win over the automatic ones.
 **Comparison**: rigid superimposition (rotation and shift, each x-ray at its own millimetres) on S-N at S,
 ANS-PNS at ANS or the mandibular plane (Me-MPt, else Me-Go) at Me; movements first to last along FH (cranial
 base), the palatal plane or the mandibular plane of the first x-ray.

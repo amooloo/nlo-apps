@@ -502,6 +502,23 @@
     draw();
   }
 
+  function setPoints(moves, olds) {               // several points moved as one (a tooth): one step to undo
+    const lm = S.case.landmarks;
+    S.undo.push({ group: moves.map(([c], i) => ({ code: c, old: olds[i] })) });
+    if (S.undo.length > 300) S.undo.shift();
+    for (const [c, x, y] of moves) {
+      lm[c] = { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, by: 'doctor', conf: null };
+      S.pending[c] = lm[c];
+    }
+    scheduleSave();
+    if (S.case.status === 'confirmed' && !S.toldLearn) {
+      S.toldLearn = true;
+      toast('Saved. The tracing stays confirmed, and the app learns from the correction.', false, 6000);
+    }
+    renderTrace();
+    draw();
+  }
+
   function acceptCurrent() {
     if (S.correcting) { endCorrecting(); return; }
     if (S.mode !== 'review' || !S.cur) return;
@@ -544,6 +561,23 @@
   function undo() {
     const u = S.undo.pop();
     if (!u) return toast('Nothing to undo.');
+    if (u.group) {                                    // a tooth moved: its points back together
+      for (const { code, old } of u.group) {
+        if (old) S.case.landmarks[code] = old; else delete S.case.landmarks[code];
+        S.pending[code] = old;
+      }
+      scheduleSave();
+      renderTrace(); draw();
+      return;
+    }
+    if (u.unit) {                                     // a molar: back where it was (or on the occlusal plane)
+      const o = ((S.analysis && S.analysis.outlines) || []).find((q) => q.key === u.unit);
+      if (o) { baseOf(o); o.handles = u.old.handles; o.adjusted = u.old.adjusted; }
+      S.pendingContours = { ...(S.pendingContours || {}), [u.unit]: u.old.adjusted ? u.old.handles : null };
+      scheduleSave();
+      renderTrace(); draw();
+      return;
+    }
     if (u.contour) {                                  // an outline dot: back where it was (or drawn from the points)
       const o = ((S.analysis && S.analysis.outlines) || []).find((q) => q.key === u.contour);
       if (o) { o.ctrl = u.old.ctrl; o.adjusted = u.old.adjusted; }
@@ -605,7 +639,7 @@
     if (!takeLandmarks && local) S.case.landmarks = { ...r.case.landmarks, ...local };
     for (const [k, v] of Object.entries(S.pendingContours || {})) {   // dots moved since this was sent: as moved
       const o = ((S.analysis && S.analysis.outlines) || []).find((q) => q.key === k);
-      if (o && v) { o.ctrl = v; o.adjusted = true; }
+      if (o && v && o.unit === 'handles') { baseOf(o); o.handles = v; o.adjusted = true; } else if (o && v) { o.ctrl = v; o.adjusted = true; }
     }
     renderAll();
     draw();
@@ -1289,7 +1323,7 @@
     if (!ol.length) return '';
     if (!S.outlines) return '<p class="hint">Outlines hidden · <button class="linkBtn" id="bOutlOn" type="button">show them</button> (O)</p>';
     const adj = ol.filter((o) => o.adjusted).length;
-    return `<p class="hint">Outlines: drag a small white dot to fit the curve to the x-ray${adj ? ` · ${adj} fitted by hand · <button class="linkBtn" id="bRedraw" type="button">redraw from the points</button>` : ''}.</p>`;
+    return `<p class="hint">Outlines: drag a small white dot to fit the curve to the x-ray; drag a tooth to move it whole (a molar's small squares turn and size it)${adj ? ` · ${adj} fitted by hand · <button class="linkBtn" id="bRedraw" type="button">redraw from the points</button>` : ''}.</p>`;
   }
 
   function setHint(h) {
@@ -1381,6 +1415,10 @@
     for (const [c, v] of Object.entries(S.case.landmarks || {})) out[c] = v;
     if (S.mode === 'anchors') for (const [c, v] of Object.entries(S.anchorPts)) out[c] = { x: v[0], y: v[1], by: 'doctor' };
     if (S.ptr && S.ptr.drag && S.ptr.moved) out[S.ptr.drag] = { ...out[S.ptr.drag], x: S.ptr.ix, y: S.ptr.iy, by: 'doctor' };
+    const u = S.ptr && S.ptr.moved && S.ptr.unit;
+    if (u && u.kind === 'points') {
+      for (const c of u.codes) if (u.from[c]) out[c] = { ...out[c], x: u.from[c][0] + S.ptr.ix - u.x0, y: u.from[c][1] + S.ptr.iy - u.y0, by: 'doctor' };
+    }
     return out;
   }
 
@@ -1442,7 +1480,7 @@
       const drag = S.ptr && S.ptr.ctrl && S.ptr.moved ? { ...S.ptr.ctrl, x: S.ptr.ix, y: S.ptr.iy } : null;
       c2.lineJoin = 'round';
       c2.lineCap = 'round';
-      const dots = [];
+      const dots = [], handles = [];
       for (const o of S.analysis.outlines) {
         const xy = outlineDots(o, P, drag);
         if (xy.length < 2) continue;
@@ -1454,7 +1492,8 @@
         splinePts(xy, o.closed).forEach((q, i) => { const [x, y] = scr({ x: q[0], y: q[1] }); if (i) c2.lineTo(x, y); else c2.moveTo(x, y); });
         if (o.closed) c2.closePath();
         c2.stroke();
-        if (!opts.print) o.ctrl.forEach((c, i) => { if (typeof c !== 'string') dots.push(drag && drag.key === o.key && drag.idx === i ? [drag.x, drag.y] : c); });
+        if (!opts.print && !o.unit) o.ctrl.forEach((c, i) => { if (typeof c !== 'string') dots.push(drag && drag.key === o.key && drag.idx === i ? [drag.x, drag.y] : c); });
+        if (!opts.print && o.unit === 'handles') handles.push(...unitNow(o, P));
       }
       c2.globalAlpha = 1;
       c2.lineCap = 'butt';
@@ -1464,6 +1503,12 @@
       for (const q of dots) {
         const [x, y] = scr({ x: q[0], y: q[1] });
         c2.beginPath(); c2.arc(x, y, 2.6, 0, Math.PI * 2); c2.fill(); c2.stroke();
+      }
+      // a molar's handles (crown, root ends): small squares, to turn and size it; the tooth itself moves it
+      c2.fillStyle = 'rgba(255,255,255,.92)';
+      for (const q of handles) {
+        const [x, y] = scr({ x: q[0], y: q[1] });
+        c2.fillRect(x - 3.2, y - 3.2, 6.4, 6.4); c2.strokeRect(x - 3.2, y - 3.2, 6.4, 6.4);
       }
     }
     // Andrews' GALL: a true vertical (perpendicular to FH) through the forehead, the forehead's FA point (FFA) and the
@@ -1634,8 +1679,38 @@
     return out;
   }
 
+  // the move, turn and size taking a0, b0 to a1, b1 (image pixels)
+  function simil(a0, b0, a1, b1) {
+    const ux = b0[0] - a0[0], uy = b0[1] - a0[1], vx = b1[0] - a1[0], vy = b1[1] - a1[1];
+    const uu = ux * ux + uy * uy || 1e-9;
+    const c = (ux * vx + uy * vy) / uu, s = (ux * vy - uy * vx) / uu;
+    return (p) => { const x = p[0] - a0[0], y = p[1] - a0[1]; return [a1[0] + c * x - s * y, a1[1] + s * x + c * y]; };
+  }
+
+  // a tooth: where its handles were when the server drew it (its dots, o.xy, go with them)...
+  function baseOf(o) {
+    if (!o.base) {
+      o.base = o.unit === 'points' ? o.handles.map((c) => { const i = o.ctrl.indexOf(c); return i >= 0 ? o.xy[i].slice() : null; })
+        : (o.handles || []).map((h) => h.slice());
+    }
+    return o.base;
+  }
+
+  // ...and where they are now: its two points, or its handles (as dragged)
+  function unitNow(o, P) {
+    if (o.unit === 'points') return o.handles.map((c) => (P[c] ? [P[c].x, P[c].y] : null));
+    const u = S.ptr && S.ptr.moved && S.ptr.unit;
+    return u && u.key === o.key && u.now ? u.now : o.handles;
+  }
+
   // an outline's dots in image pixels: a landmark dot where that landmark is now (or is being dragged to)
   function outlineDots(o, P, drag) {
+    if (o.unit) {
+      const from = baseOf(o), to = unitNow(o, P);
+      if (!from || !to || from.some((v) => !v) || to.some((v) => !v)) return o.xy.map((q) => q.slice());
+      const f = simil(from[0], from[1], to[0], to[1]);
+      return o.xy.map(f);
+    }
     const out = [];
     o.ctrl.forEach((c, i) => {
       if (drag && drag.key === o.key && drag.idx === i) out.push([drag.x, drag.y]);
@@ -1649,6 +1724,7 @@
     if (!S.outlines || !S.analysis) return null;
     let best = null, bd = 8;
     for (const o of S.analysis.outlines || []) {
+      if (o.unit) continue;
       o.ctrl.forEach((c, i) => {
         if (typeof c === 'string') return;
         const [x, y] = toScreen(c[0], c[1]);
@@ -1657,6 +1733,63 @@
       });
     }
     return best;
+  }
+
+  function hitUnitHandle(sx, sy) {           // a molar's handle under the mouse
+    if (!S.outlines || !S.analysis) return null;
+    let best = null, bd = 9;
+    for (const o of S.analysis.outlines || []) {
+      if (o.unit !== 'handles' || !o.handles) continue;
+      o.handles.forEach((h, i) => {
+        const [x, y] = toScreen(h[0], h[1]);
+        const d = Math.hypot(x - sx, y - sy);
+        if (d < bd) { bd = d; best = { key: o.key, idx: i }; }
+      });
+    }
+    return best;
+  }
+
+  function hitUnitBody(sx, sy) {             // a tooth under the mouse (inside its outline, or on it)
+    if (!S.outlines || !S.analysis) return null;
+    const P = pointsForDraw();
+    for (const o of S.analysis.outlines || []) {
+      if (!o.unit) continue;
+      const poly = splinePts(outlineDots(o, P), true, 6).map((q) => toScreen(q[0], q[1]));
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j];
+        if ((yi > sy) !== (yj > sy) && sx < (xj - xi) * (sy - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      if (inside) return { key: o.key };
+    }
+    return null;
+  }
+
+  // where a tooth's handles go as it is dragged: all of it (by the tooth), or one end about the other (by a handle)
+  function unitDragged(u, ix, iy) {
+    const dx = ix - u.x0, dy = iy - u.y0;
+    if (u.handle == null) return u.from.map((h) => [h[0] + dx, h[1] + dy]);
+    return u.from.map((h, i) => (i === u.handle ? [h[0] + dx, h[1] + dy] : h.slice()));
+  }
+
+  function finishUnit(p) {                  // a tooth let go: its points (incisor) or its handles (molar) saved
+    const u = p.unit, dx = p.ix - u.x0, dy = p.iy - u.y0;
+    if (u.kind === 'points') {
+      const codes = u.codes.filter((c) => u.from[c]);
+      setPoints(codes.map((c) => [c, u.from[c][0] + dx, u.from[c][1] + dy]), codes.map((c) => u.old[c]));
+      return;
+    }
+    const o = (S.analysis.outlines || []).find((q) => q.key === u.key);
+    if (!o) return;
+    baseOf(o);
+    S.undo.push({ unit: o.key, old: { handles: o.handles.map((h) => h.slice()), adjusted: o.adjusted } });
+    if (S.undo.length > 300) S.undo.shift();
+    o.handles = unitDragged(u, p.ix, p.iy).map((h) => [Math.round(h[0] * 10) / 10, Math.round(h[1] * 10) / 10]);
+    o.adjusted = true;
+    S.pendingContours = { ...(S.pendingContours || {}), [o.key]: o.handles };
+    scheduleSave();
+    renderTrace();
+    draw();
   }
 
   function moveCtrl(ref, x, y) {            // a dot dragged: that outline keeps its dots as left (saved with the x-ray)
@@ -1775,10 +1908,27 @@
       const r = cv.getBoundingClientRect();
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
       const pan = e.button === 1 || e.button === 2 || S.space;
-      const hit = !pan && S.mode !== 'anchors' && S.mode !== 'ruler' ? hitPoint(sx, sy) : null;
-      const ctrl = !pan && !hit && S.mode !== 'anchors' && S.mode !== 'ruler' ? hitCtrl(sx, sy) : null;
+      const can = !pan && S.mode !== 'anchors' && S.mode !== 'ruler';
+      const hit = can ? hitPoint(sx, sy) : null;
+      const uh = can && !hit ? hitUnitHandle(sx, sy) : null;
+      const ctrl = can && !hit && !uh ? hitCtrl(sx, sy) : null;
+      const ub = can && !hit && !uh && !ctrl ? hitUnitBody(sx, sy) : null;
       const old = hit && S.case.landmarks[hit] ? { ...S.case.landmarks[hit] } : null;
-      S.ptr = { id: e.pointerId, button: e.button, sx, sy, x0: S.view.tx, y0: S.view.ty, pan, drag: hit, ctrl, old, moved: false, ix: 0, iy: 0 };
+      let unit = null;
+      const uo = (uh || ub) && (S.analysis.outlines || []).find((q) => q.key === (uh || ub).key);
+      if (uo) {
+        const [x0, y0] = toImage(sx, sy);
+        unit = { key: uo.key, kind: uo.unit, handle: uh ? uh.idx : null, x0, y0 };
+        if (uo.unit === 'points') {
+          unit.codes = uo.handles.slice();
+          unit.from = {}; unit.old = {};
+          for (const c of unit.codes) {
+            const v = S.case.landmarks[c];
+            if (v) { unit.from[c] = [v.x, v.y]; unit.old[c] = { ...v }; }
+          }
+        } else unit.from = uo.handles.map((h) => h.slice());
+      }
+      S.ptr = { id: e.pointerId, button: e.button, sx, sy, x0: S.view.tx, y0: S.view.ty, pan, drag: hit, ctrl, unit, old, moved: false, ix: 0, iy: 0 };
       if (pan) cv.classList.add('panning');
     });
     cv.addEventListener('pointermove', (e) => {
@@ -1790,7 +1940,10 @@
       if (!p) {
         S.hover = [sx, sy];
         const hp = S.mode !== 'anchors' && S.mode !== 'ruler' ? hitPoint(sx, sy) : null;
-        cv.classList.toggle('overpt', !!hp || (S.mode !== 'anchors' && S.mode !== 'ruler' && !!hitCtrl(sx, sy)));
+        const can = S.mode !== 'anchors' && S.mode !== 'ruler';
+        const dot = !!hp || (can && (!!hitCtrl(sx, sy) || !!hitUnitHandle(sx, sy)));
+        cv.classList.toggle('overpt', dot);
+        cv.classList.toggle('overunit', !dot && can && !!hitUnitBody(sx, sy));
         if (hp !== S.hoverPt || S.mode === 'anchors') { S.hoverPt = hp; updateTip(); }
         if (S.mode === 'ruler' && S.ruler.length === 1) draw();
         return;
@@ -1798,15 +1951,16 @@
       const dist = Math.hypot(sx - p.sx, sy - p.sy);
       if (!p.moved && dist > 4) {
         p.moved = true;
-        if (!p.drag && !p.ctrl && !p.pan) { p.pan = true; cv.classList.add('panning'); }
+        if (!p.drag && !p.ctrl && !p.unit && !p.pan) { p.pan = true; cv.classList.add('panning'); }
       }
       if (!p.moved) return;
       if (p.pan) {
         S.view.tx = p.x0 + (sx - p.sx);
         S.view.ty = p.y0 + (sy - p.sy);
         draw();
-      } else if (p.drag || p.ctrl) {
+      } else if (p.drag || p.ctrl || p.unit) {
         [p.ix, p.iy] = toImage(sx, sy);
+        if (p.unit && p.unit.kind === 'handles') p.unit.now = unitDragged(p.unit, p.ix, p.iy);
         draw();
       }
     });
@@ -1818,6 +1972,7 @@
       try { cv.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
       if (p.pan && p.moved) return;
       if (p.ctrl && p.moved) { moveCtrl(p.ctrl, p.ix, p.iy); return; }
+      if (p.unit && p.moved) { finishUnit(p); return; }
       if (p.drag && p.moved) {
         setPoint(p.drag, p.ix, p.iy, { old: p.old });
         endPeek();

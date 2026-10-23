@@ -103,9 +103,80 @@ def test_dots_moved_by_hand_are_kept_and_landmarks_still_follow():
     assert not res["maxilla"]["adjusted"]
 
 
+def _stepped(rows, w=400, h=600):
+    """An x-ray whose brightness steps down its rows: [(from row, value), ...] - a bone's edge, or two."""
+    a = np.zeros((h, w), np.uint8)
+    for y0, v in rows:
+        a[y0:, :] = v
+    return a
+
+
+@pytest.mark.parametrize("rows, expect", [
+    ([(0, 40), (300, 200)], 300),                     # one edge: onto it
+    ([(0, 40), (300, 120), (330, 200)], 315),         # the bone seen twice, 3 mm apart: midway between the lines
+    ([(0, 40), (300, 180), (330, 200)], 300),         # a faint second line is not the bone seen twice
+])
+@pytest.mark.parametrize("sx", [1.0, -1.0])
+def test_a_bone_outline_is_pulled_onto_its_edge(rows, expect, sx):
+    img = _stepped(rows)
+    # an outline 1 mm above the (first) edge (0.1 mm pixels), running forward with the bone below it (on its right)
+    xy = [np.array([sx * x, -290.0]) for x in (50, 120, 190, 260, 330)]
+    if sx < 0:
+        xy = xy[::-1]                                     # forward is to the left on an x-ray facing left
+        xy = [np.array([p[0], p[1]]) for p in xy]
+    moved, found = O.snap(img, xy, [0, 2.5, 2.5, 2.5, 0], "edge", -1, sx, 0.1, double=True)
+    assert [round(-p[1], 1) for p in (moved[0], moved[-1])] == [290.0, 290.0]      # range 0: stays
+    assert all(abs(-p[1] - expect) <= 2.0 for p in moved[1:-1]), [round(-p[1], 1) for p in moved]
+    assert found > 0.6
+    # on the wrong side (polarity): no edge, the outline stays near its course
+    moved, found = O.snap(img, xy, [2.5] * 5, "edge", 1, sx, 0.1)
+    assert all(abs(-p[1] - 290) < 6 for p in moved) and found < 0.2
+
+
+def test_teeth_are_moved_turned_and_sized_whole():
+    _, pts, facing, _ = render(np.random.default_rng(5))
+    res = {o["key"]: o for o in O.outlines(None, pts, facing, MM)}
+    assert res["u1"]["unit"] == "points" and res["u1"]["handles"] == ["U1A", "U1T"]
+    assert res["l1"]["unit"] == "points" and res["l1"]["handles"] == ["L1A", "L1T"]
+    u6 = res["u6"]
+    assert u6["unit"] == "handles" and len(u6["handles"]) == 2 and not u6["adjusted"]
+    assert "unit" not in res["mandible"]
+    # the doctor's handles: the same molar, moved, turned 15 degrees and 20 % bigger - every distance scaled alike
+    c, r = np.array(u6["handles"], float)
+    t = np.radians(15)
+    turn = np.array([[np.cos(t), -np.sin(t)], [np.sin(t), np.cos(t)]])
+    mine = [list(c + [12, -5]), list(c + [12, -5] + 1.2 * turn @ (r - c))]
+    m = {o["key"]: o for o in O.outlines(None, pts, facing, MM, saved={"u6": mine})}["u6"]
+    assert m["adjusted"] and np.allclose(m["handles"], mine, atol=0.06)
+    a, b = np.array(u6["xy"], float), np.array(m["xy"], float)
+    da = np.hypot(*(a[:, None] - a[None]).transpose(2, 0, 1))
+    db = np.hypot(*(b[:, None] - b[None]).transpose(2, 0, 1))
+    assert np.allclose(db, 1.2 * da, atol=0.4)
+    # a molar's dots saved one by one (1.7) - or an incisor's - are not kept: the tooth is drawn whole again
+    old = {o["key"]: o for o in O.outlines(None, pts, facing, MM, saved={"u6": u6["xy"], "u1": [[1, 2], [3, 4], [5, 6]]})}
+    assert not old["u6"]["adjusted"] and old["u6"]["xy"] == u6["xy"] and old["u1"]["xy"] == res["u1"]["xy"]
+
+
+def test_cranial_outlines_turn_with_frankfort():
+    _, pts, facing, _ = render(np.random.default_rng(6))
+    base = {o["key"]: o for o in O.outlines(None, pts, facing, MM)}
+    # porion turned 10 degrees about orbitale: Frankfort turns, S-N does not
+    t = np.radians(10)
+    po, orb = np.array(pts["Po"], float), np.array(pts["Or"], float)
+    turn = np.array([[np.cos(t), -np.sin(t)], [np.sin(t), np.cos(t)]])
+    moved = dict(pts, Po=tuple(orb + turn @ (po - orb)))
+    res = {o["key"]: o for o in O.outlines(None, moved, facing, MM)}
+    a = np.array(base["orbit"]["xy"], float) - orb
+    b = np.array(res["orbit"]["xy"], float) - orb
+    assert np.allclose(b, a @ turn.T, atol=0.2)              # the orbit turned with FH, round orbitale
+    assert res["sella"]["xy"] == base["sella"]["xy"]           # sella goes with S-N
+
+
 def test_template_landmarks_have_drawing_positions():
-    for key, name, group, how, uses, shape, closed in O.STRUCTURES:
+    for key, name, group, how, uses, shape, closed, snap in O.STRUCTURES:
         if how == "spline":
             assert all(c in O.DRAW for c in uses), key
             assert all(c in O.DRAW for c in shape if isinstance(c, str)), key
+        if snap:
+            assert snap[0] in ("edge", "onset") and snap[1] in (1, -1) and 0 < snap[2] <= 3, key
     assert all(c in TEMPLATE for c in O.PROFILE)
