@@ -37,13 +37,30 @@ Panoramic x-rays are next; this first version reads lateral cephs.
      everything else, and there are more as more tracings are confirmed.
    - **A click moves the current point only near it** (within 2 cm). Farther away, a click on another dot goes to
      that dot, and a click on empty space moves nothing - so clicking away never moves a point by accident.
-   - **The loupe** (button *Loupe*, key **M**, on by default): a magnifying glass follows the mouse - about 3 x
-     what is on screen, dots and lines included, a crosshair where a click lands - so there is less zooming in and
-     out. Pointing at a dot shows what it is (*Info*), beside the loupe.
+   - **The magnifying glass**: **right-click** on the x-ray and it appears where the mouse is - about 3 x what is
+     on screen, dots and lines included, a crosshair where a click lands. It follows the mouse until the point is
+     placed (or Enter, or a second right-click, or **Esc**). To keep it on all the time: button *Loupe* or key
+     **M**. Dragging with the right button still moves the x-ray around. Pointing at a dot shows what it is
+     (*Info*), beside the glass.
+   - **Outlines** (button *Outline*, key **O**): the tracing is drawn like a hand tracing - the soft-tissue profile
+     from the top of the forehead to the chin, followed along the skin on the x-ray itself, and the mandible
+     (condyle, ramus, coronoid, angle, lower border, chin and the inner side of the symphysis), maxilla and palate,
+     the upper and lower incisors, the first molars, sella, the frontal and nasal bones, the orbit, the
+     pterygomaxillary fissure and the ear rod, fitted through your points. Each outline is a smooth curve through
+     its dots: your landmarks, and **small white dots** in between - **drag one to fit the curve to the x-ray**
+     (saved at once, Ctrl Z undoes; the outline then keeps your dots, and its landmarks still carry it along when
+     they move). *Redraw from the points* in the Tracing card forgets the dots moved by hand. Outlines are a
+     drawing aid: the measurements come from the points.
    - **Skip soft tissue** or **Skip vertebrae (adult)** when they are not needed.
+   - New x-rays include five soft-tissue points for the facial thirds and Andrews' GALL line: the **top of the
+     forehead** (trichion, or superion on a rounded forehead), **soft-tissue glabella** (G'), the two **stomia**
+     (Stms, Stmi - the same spot when the lips touch) and **soft-tissue menton** (Me'). An x-ray traced before
+     version 1.7, or imported from iOrtho, is complete without them; *Measurements → Facial thirds → Add Tr, G',
+     Stms, Stmi and Me'* places them to check (a confirmed tracing is reopened for that).
 4. **Read it.** The *Summary* gives the skeletal class (ANB and Wits; when they disagree it says *Borderline* and
-   which says what), the vertical pattern (FMA and SN-GoGn), the jaws, the incisors, the lips to the E-line and
-   the CVM stage with what it means for growth timing. *Measurements* lists every value against its norm: amber
+   which says what), the vertical pattern (FMA and SN-GoGn), the **facial thirds** (the lower third against the
+   middle one, hard and soft tissue), the **upper incisors to the forehead** (Andrews' GALL line), the jaws, the
+   incisors, the lips to the E-line and the CVM stage with what it means for growth timing. *Measurements* lists every value against its norm: amber
    more than 1 SD off, coral more than 2 SD.
    **Growth (CVM)** reads the vertebrae three ways, the way the CVM phone apps do - but from the tracing:
    - **Baccetti et al. (2005)**: CS1-CS6 and where the patient sits relative to the peak in mandibular growth
@@ -56,13 +73,24 @@ Panoramic x-rays are next; this first version reads lateral cephs.
    concave) and the C3 and C4 bodies (trapezoid, rectangular horizontal, square, rectangular vertical), with the
    app's reading highlighted. **Click a picture to overrule it** for this x-ray - it is marked *you*, every
    method follows it, and *back to the app's reading* undoes it. The small picture of this x-ray's C2-C4 (with
-   the tracing) zooms the viewer onto the vertebrae when clicked.
+   the tracing) zooms the viewer onto the vertebrae when clicked. **Points that do not make a vertebra** (crossed
+   corners - a front corner behind a back one, an upper corner below the lower border, a deepest point off the
+   border) are named in a note, *Check the vertebra points*, and nothing is measured from them until they are
+   moved: no shape, and no Mito bone age (nor one outside 4-25 years).
 5. **Confirm tracing.** It becomes a lesson for the app, and the five CVM judgements as shown (your picks and
    the readings you let stand) become lessons for its flat / concave and shape readings. **Print** gives a
    one-page report (tracing, summary with all three CVM methods, the stage drawing and timeline,
    measurements). **A confirmed tracing can still be corrected**: click a point, then click where it belongs (or
    drag it) - it is saved at once, the tracing stays confirmed and the app learns from the correction (**Esc**
    leaves the point as it is). Clicking a CVM picture works the same way. **Reopen** walks through it again.
+6. **Compare** (top bar, when the patient has more than one x-ray - the same chart number, or the same name and
+   birth date): the x-rays drawn on top of each other, oldest black, then red, blue, green; **superimposed on the
+   cranial base** (S-N at S), **the maxilla** (the palatal plane at ANS) or **the mandible** (the mandibular plane
+   at menton), each at its own pixel size so growth shows. Click a date to add or drop that x-ray; scroll to zoom,
+   drag to move. Beside it: **how far points moved** from the first to the last (front-back and up-down, along
+   Frankfort horizontal for the cranial base, along the palatal or mandibular plane for the jaws) and **every
+   measurement side by side with the change**, CVM stage and class included. **Print** gives it on paper. An
+   x-ray without a pixel size is drawn at the first one's S-N length, and the comparison says so.
 
 ### Calibration (millimetres)
 
@@ -199,8 +227,9 @@ nlo-xray\
   run_app.py            starts the web app (port 8766; --lan for the office network)
   app\server.py         FastAPI: cases, landmarks, analysis, learning, settings, passcode, security headers
   app\static\           the page (index.html, app.js, style.css), fonts, logo - all served locally
-  xray\landmarks.py     the 38 landmarks, their definitions, tracing order and the textbook template
-  xray\analysis.py      measurements, norms, the summary calls
+  xray\landmarks.py     the 42 landmarks, their definitions, tracing order and the textbook template
+  xray\analysis.py      measurements, norms, the summary calls, facial thirds, Andrews' GALL
+  xray\outlines.py      outlines: curves through dots - the profile followed on the x-ray, the anatomy fitted
   xray\cvm.py           CVM: Baccetti (2005), Hassel & Farman (1995), Mito (2002), the doctor's picks, tuning
   xray\imageio.py       DICOM / JPG / PNG / TIFF reading, pixel size, names and dates
   xray\store.py         one folder per x-ray under cases\
@@ -219,16 +248,20 @@ Data (git-ignored): `cases\<id>\case.json` + `original.*` + `image.png` + `thumb
 `models\prev_*.pt`, `models\status.json`, `models\train.log`, `settings.json`, `sessions.json`.
 `NLO_XRAY_DATA` puts all of it in another folder.
 
-**Landmarks (38), in tracing order.** Cranial base: S, N, Or, Po, Ar. Maxilla: PNS, ANS, A. Teeth: U1A (upper
-incisor apex), U1T (tip), L1T, L1A, MOL (first-molar occlusal contact), PM (first-premolar contact).
+**Landmarks (42), in tracing order.** Cranial base: S, N, Or, Po, Ar. Maxilla: PNS, ANS, A. Teeth: U1A (upper
+incisor apex), U1T (tip), L1T, L1A, MOL (first-molar occlusal contact; the premolar contact PM was dropped in
+1.7 - the occlusal plane now runs to the incisors).
 Mandible: B, Pog, Gn, Me, Go, MPt (the lower-border point: where a line from menton touches the lower border in
 front of the angle - added 20 Oct 2026; an x-ray traced before it gets it placed from the other points when
-opened). Soft tissue: Prn, Sn, Ls, Li, Pos. Vertebrae: C2 lower border (back corner,
+opened). Soft tissue: Tr (top of the forehead: trichion, or superion on a rounded forehead), G' (soft-tissue
+glabella), Prn, Sn, Ls, Stms, Stmi, Li, Pos, Me' (soft-tissue menton) - Tr, G', Stms, Stmi and Me' added in 1.7
+and optional on x-rays traced before (or imported). Vertebrae: C2 lower border (back corner,
 deepest point, front corner), C3 and C4 (upper back, upper front, lower back, lower deepest point, lower front).
 The template (starting positions) is built from textbook norms for a ~12-year-old.
 
 **Measurements** (all in a frame where the face looks to +X and up is +Y, so facing left or right gives the same
-numbers). SNA, SNB, ANB (= SNA - SNB). Wits: A and B projected onto the functional occlusal plane (MOL→PM), AO - BO.
+numbers). SNA, SNB, ANB (= SNA - SNB). Wits: A and B projected onto the occlusal plane - from the molar contact
+to the incisor overlap (midway between the incisor tips) - AO - BO.
 SN-FH; FMA (Po-Or to the mandibular plane); SN-GoGn (Steiner); palatal (ANS-PNS) to the mandibular plane;
 gonial angle Ar-Go-Me; Jarabak S-Go / N-Me; lower face height ANS-Me / N-Me measured perpendicular to FH (Wylie).
 U1-SN; U1-NA and L1-NB in degrees (signed, + = tipped ahead of the line) and mm (to the incisal tip, + = ahead);
@@ -237,14 +270,39 @@ tangent to the lower border through menton (Me-MPt, Tweed / Downs); a tracing wi
 so. Checked 20 Oct 2026 against iOrtho (iCeph) on one of the office's cephs, using iOrtho's own landmark
 positions: SNA, SNB, ANB, FMA, SN-GoGn, gonial angle, lower face height %, U1-SN, U1-NA (° and mm), L1-NB
 (° and mm), IMPA, interincisal angle, both lips to the E-line and the S-N / N-Me / ANS-Me lengths all agree
-within 0.05 (° / mm / %). Wits differs by design: this app projects A and B onto the functional occlusal plane
-(molar to premolar contacts, Jacobson's original); iOrtho uses the plane through the molar and incisor overlaps
-(0.2 mm apart on that ceph). Upper / lower lip to the
-E-line (Prn-Pos, + = ahead). Lengths S-N, ANS-PNS, Go-Me, Ar-Go, N-Me, ANS-Me, S-Go.
+within 0.05 (° / mm / %). Wits then differed by design - the app used the functional occlusal plane through the
+premolar contact (Jacobson's original); since 1.7 it uses iOrtho's plane, molars to incisors. Upper / lower lip to
+the E-line (Prn-Pos, + = ahead). Lengths S-N, ANS-PNS, Go-Me, Ar-Go, N-Me, ANS-Me, S-Go.
+**Facial thirds.** Hard tissue (Wylie): N-ANS and ANS-Me measured perpendicular to FH, and ANS-Me / N-Me.
+Soft tissue (Legan & Burstone 1980, *J Oral Surg* 38:744), heights perpendicular to their horizontal plane (through
+N at 7° to S-N): Tr-G', G'-Sn, Sn-Me'; the lower third's share of G'-Me' (1 : 1, i.e. 50 %); the upper lip's share
+of the lower third, Sn-Stms against Stmi-Me' (1 : 2, i.e. a third); the gap between the lips at rest, Stms-Stmi
+(2 ± 2 mm); the upper incisor below the lip, Stms to U1 tip (2 ± 2 mm). The summary calls the lower third long or
+short from the hard- and soft-tissue shares together (borderline when they disagree).
+**Andrews' GALL** (Element II of the Six Elements). True vertical: the perpendicular to FH (the office takes its
+cephs with FH level). Forehead inclination: Tr-G' against it (+ = sloping back). The forehead's FA point (FFA):
+the profile half way up between Tr and G'. GALL: through FFA, moved forward 0.6 mm for each degree of inclination
+beyond 7° (Andrews' course rule; his 2008 study, *Angle Orthod* 78:662, fitted about 0.5 mm a degree beyond 7.5° -
+both numbers are settings), never ahead of G'. The upper incisor's FA point: the middle of the labial surface of
+the crown (the textbook incisor along the doctor's U1 axis, at its length). Upper incisor to GALL: + = ahead;
+goal 0 (± 2 mm, the app's band). The viewer draws GALL, FFA and FA.
+**Outlines** (`xray/outlines.py`): curves through dots (centripetal Catmull-Rom). The profile is followed on the
+x-ray from one soft-tissue point to the next - the cheapest path through the strongest edges in a corridor round the
+line joining them (on a copy at about 0.2 mm a pixel), kept only where its edge stands well above the corridor's
+noise (else a smooth curve through the points) - then given as few dots as keep the curve within 0.6 mm of it, at
+least 3 mm apart. The anatomy is a textbook tracing (its own points, consistent with its outlines) carried onto
+the x-ray: bone outlines by a thin-plate spline through the doctor's points they use (exact at them; an affine fit
+if the spline would fold), teeth along the doctor's U1 / L1 axes at his lengths, molars on the occlusal plane and
+the small cranial structures at their landmark turned with S-N, both at real size. Dots moved by hand are stored
+with the x-ray (`case.contours`: landmark codes and pixels) and win over the automatic ones.
+**Comparison**: rigid superimposition (rotation and shift, each x-ray at its own millimetres) on S-N at S,
+ANS-PNS at ANS or the mandibular plane (Me-MPt, else Me-Go) at Me; movements first to last along FH (cranial
+base), the palatal plane or the mandibular plane of the first x-ray.
 Default norms (mean ± SD; Settings → Norms changes them): SNA 82±3, SNB 80±3, ANB 2±2, Wits −1±2 (male) /
 0±2 (female), SN-FH 7±3, FMA 25±5, SN-GoGn 32±5, PP-MP 25±5, gonial 130±7, Jarabak 61.5±2 %, LAFH 55±2 %,
 U1-SN 103±6, U1-NA 22±5° / 4±2 mm, L1-NB 25±5° / 4±2 mm, IMPA 90±5, interincisal 131±6, upper lip −4±2,
-lower lip −2±2. Summary calls: Class II when ANB > 4°, Class III when < 0°; Wits Class II/III more than 2 mm
+lower lip −2±2; soft-tissue lower third 50±3 %, upper lip 33.3±3 % of the lower third, lips apart 2±2 mm, upper
+incisor showing 2±2 mm, upper incisor to GALL 0±2 mm. Summary calls: Class II when ANB > 4°, Class III when < 0°; Wits Class II/III more than 2 mm
 from its norm; high angle FMA > 30° or SN-GoGn > 37°, low angle FMA < 20° or SN-GoGn < 27°.
 
 **CVM** (`xray/cvm.py`). The 13 vertebra points are the landmarks of Baccetti, Franchi & McNamara (2002, *Angle

@@ -9,6 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from xray.landmarks import CODES, codes_in_group
+
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
@@ -89,13 +91,13 @@ def test_full_flow(client):
     r = client.post(f"/api/cases/{cid}/anchors", json={c: pts[c] for c in ("S", "N", "Me")})
     body = r.json()
     lm = body["case"]["landmarks"]
-    assert len(lm) == 38 and lm["S"]["by"] == "doctor" and lm["A"]["by"] == "template"
+    assert len(lm) == len(CODES) and lm["S"]["by"] == "doctor" and lm["A"]["by"] == "template"
     assert body["case"]["status"] == "traced"
     assert body["case"]["facing"] == facing
     # move the real points in (as the doctor would)
     r = client.patch(f"/api/cases/{cid}", json={"landmarks": {c: {"x": v[0], "y": v[1], "by": "doctor"} for c, v in pts.items()}})
     a = r.json()["analysis"]
-    assert a["progress"]["reviewed"] == a["progress"]["total"] == 38
+    assert a["progress"]["reviewed"] == a["progress"]["total"] == len(CODES)
     by = {m["key"]: m for m in a["measurements"]}
     assert by["ANB"]["value"] is not None and by["Wits"]["note"] == "needs calibration"
     # calibrate (0.24 mm per pixel in the synthetic cephs)
@@ -105,7 +107,7 @@ def test_full_flow(client):
     assert client.patch(f"/api/cases/{cid}", json={"calibration": {"mm_per_px": 9}}).status_code == 400
     # skip soft tissue -> those points go, progress shrinks; switch back on -> filled in
     r = client.patch(f"/api/cases/{cid}", json={"skipped": ["soft"]}).json()
-    assert "Prn" not in r["case"]["landmarks"] and r["analysis"]["progress"]["total"] == 33
+    assert "Prn" not in r["case"]["landmarks"] and r["analysis"]["progress"]["total"] == len(CODES) - len(codes_in_group("soft"))
     client.patch(f"/api/cases/{cid}", json={"skipped": []})
     r = client.post(f"/api/cases/{cid}/fill").json()
     assert r["case"]["landmarks"]["Prn"]["by"] == "template"
@@ -228,3 +230,72 @@ def test_examples_from_confirmed_tracings(client):
     client.patch(f"/api/cases/{cid}", json={"status": "confirmed"})
     assert client.get("/api/examples/C3d").json()["total"] == 0              # vertebrae skipped there
     assert client.get("/api/examples/S").json()["total"] == 1
+
+
+def _traced_case(client, seed=0, name="Doe, Jane", dob="2013-01-02", taken=None, confirm=True):
+    """A case with every point where synth put it (as the doctor would), optionally confirmed."""
+    data, pts, facing = png_bytes(seed)
+    cid = client.post("/api/cases", files=[("files", (f"x{seed}.png", data, "image/png"))]).json()[0]["id"]
+    body = {"patient": {"name": name, "dob": dob, "sex": "F"}, "details_confirmed": True,
+            "calibration": {"mm_per_px": 0.24, "source": "set by hand"},
+            "landmarks": {c: {"x": v[0], "y": v[1], "by": "doctor"} for c, v in pts.items()}}
+    if taken:
+        body["taken"] = taken
+    client.patch(f"/api/cases/{cid}", json=body)
+    if confirm:
+        r = client.patch(f"/api/cases/{cid}", json={"status": "confirmed"})
+        assert r.status_code == 200, r.text
+    return cid, pts
+
+
+def test_facial_thirds_points_are_optional_on_older_tracings(client):
+    cid, pts = _traced_case(client, confirm=False)
+    old = ("Gs", "Stms", "Stmi", "Mes")
+    # an x-ray traced before these points existed (or imported from iOrtho): complete without them
+    r = client.patch(f"/api/cases/{cid}", json={"landmarks": {c: None for c in old}}).json()
+    assert r["case"]["status"] == "traced" and r["analysis"]["progress"]["placed"] == r["analysis"]["progress"]["total"]
+    assert client.patch(f"/api/cases/{cid}", json={"status": "confirmed"}).status_code == 200
+    by = {m["key"]: m for m in client.get(f"/api/cases/{cid}").json()["analysis"]["measurements"]}
+    assert by["LAFH"]["value"] is not None and by["LowShareS"]["note"] == "not traced"
+    # adding them: placed from the average tracing to check - the confirmed tracing is reopened for that
+    r = client.post(f"/api/cases/{cid}/fill?optional=true").json()
+    lm = r["case"]["landmarks"]
+    assert all(lm[c]["by"] == "template" for c in old) and r["case"]["status"] != "confirmed"
+    assert any("added from the average tracing" in h["what"] for h in r["case"]["history"])
+    # now they are part of the tracing: confirming needs them placed
+    assert set(old) <= set(r["analysis"]["progress"] and lm)
+
+
+def test_outlines_come_with_the_case_and_dots_moved_by_hand_stay(client):
+    cid, pts = _traced_case(client, confirm=True)
+    a = client.get(f"/api/cases/{cid}").json()["analysis"]
+    ol = {o["key"]: o for o in a["outlines"]}
+    assert {"profile", "mandible", "maxilla", "u1", "l1", "sella"} <= set(ol)
+    assert ol["profile"]["traced"] == 1.0 and not ol["mandible"]["adjusted"]
+    mine = [c if isinstance(c, str) else [c[0] + 6, c[1]] for c in ol["mandible"]["ctrl"]]
+    r = client.patch(f"/api/cases/{cid}", json={"contours": {"mandible": mine, "nope": [[1, 2], [3, 4]]}}).json()
+    assert r["case"]["status"] == "confirmed" and "nope" not in r["case"]["contours"]
+    m = next(o for o in r["analysis"]["outlines"] if o["key"] == "mandible")
+    assert m["adjusted"] and m["ctrl"] == [c if isinstance(c, str) else [round(c[0], 1), round(c[1], 1)] for c in mine]
+    # back to drawn from the points: one outline, then all
+    r = client.patch(f"/api/cases/{cid}", json={"contours": {"mandible": None}}).json()
+    assert not next(o for o in r["analysis"]["outlines"] if o["key"] == "mandible")["adjusted"]
+    client.patch(f"/api/cases/{cid}", json={"contours": {"maxilla": [[10, 10], "ANS", [30, 30]]}})
+    r = client.patch(f"/api/cases/{cid}", json={"contours": None}).json()
+    assert r["case"]["contours"] == {} and not any(o["adjusted"] for o in r["analysis"]["outlines"])
+
+
+def test_a_patients_xrays_over_time_and_the_comparison(client):
+    a, _ = _traced_case(client, seed=0, taken="2024-03-01")
+    b, _ = _traced_case(client, seed=4, taken="2026-03-01")
+    other, _ = _traced_case(client, seed=2, name="Roe, Rick", dob="2012-05-05", taken="2025-01-01")
+    rows = client.get(f"/api/cases/{b}/series").json()
+    assert [r["id"] for r in rows] == [a, b]                      # oldest first; not the other patient
+    assert [r["id"] for r in client.get(f"/api/cases/{other}/series").json()] == [other]
+    cmp = client.get(f"/api/compare?ids={b},{a}").json()
+    assert [d["id"] for d in cmp] == [a, b]
+    d = cmp[0]
+    assert d["mm_per_px"] == pytest.approx(0.24) and d["facing"] in ("left", "right") and d["age"] == pytest.approx(11.2, abs=0.1)
+    assert "S" in d["points"] and any(o["key"] == "profile" for o in d["outlines"])
+    assert any(m["key"] == "SNA" and m["value"] is not None for m in d["measurements"])
+    assert client.get("/api/compare?ids=nope").status_code == 404

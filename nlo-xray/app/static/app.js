@@ -15,15 +15,28 @@
   const fmtVal = (m) => {
     if (m.value == null) return '';
     const v = Number(m.value).toFixed(1);
-    const sign = m.unit === 'mm' && m.group !== 'Lengths' && m.value > 0 ? '+' : '';
+    const signed = m.signed != null ? m.signed : (m.unit === 'mm' && m.group !== 'Lengths');
+    const sign = signed && m.value > 0 ? '+' : '';
     return `${sign}${v}${m.unit === '°' ? '°' : ' ' + m.unit}`;
   };
   const statusWord = (s) => ({ new: 'to trace', traced: 'to confirm', confirmed: 'confirmed' }[s] || s);
   const lab = (c) => (S.lm[c] && S.lm[c].label) || c;      // a point's name on screen (Baccetti's for the vertebrae)
   const GROUP_COLORS = { cranial: '#8FB4FF', maxilla: '#64F4C9', mandible: '#FF8C7A', teeth: '#F6C453', soft: '#FF9BD2', cvm: '#C7A6FF' };
   const LINE_COLORS = { SN: '#8FB4FF', FH: '#64F4C9', NA: '#F6AF24', NB: '#F6AF24', MP: '#FF8C7A', PP: '#64F4C9', U1: '#FFFFFF',
-    L1: '#FFFFFF', 'E-line': '#FF9BD2', FOP: '#9DD9FF', Ramus: '#B8C2D3' };
-  const LONG = new Set(['SN', 'FH', 'MP', 'PP', 'FOP']);   // lines drawn past their end points
+    L1: '#FFFFFF', 'E-line': '#FF9BD2', OP: '#9DD9FF', Ramus: '#B8C2D3' };
+  const LONG = new Set(['SN', 'FH', 'MP', 'PP', 'OP']);    // lines drawn past their end points
+  // a line's end: a point, or "A+B" for the point midway between two (the incisor overlap, where the occlusal plane
+  // runs to from the molars)
+  function endOf(P, code) {
+    if (!code.includes('+')) return P[code] || null;
+    const [a, b] = code.split('+');
+    return P[a] && P[b] ? { x: (P[a].x + P[b].x) / 2, y: (P[a].y + P[b].y) / 2 } : null;
+  }
+  function tplOf(T, code) {                 // the same in the textbook template ([x, y] mm)
+    if (!code.includes('+')) return T[code];
+    const [a, b] = code.split('+');
+    return [(T[a][0] + T[b][0]) / 2, (T[a][1] + T[b][1]) / 2];
+  }
 
   const S = {
     defs: null, lm: {}, order: [], status: null, cases: [], q: '',
@@ -33,9 +46,14 @@
     mode: 'idle', anchorIdx: 0, anchorPts: {}, cur: null,
     pending: {}, saveTimer: 0, saving: null, undo: [], ruler: [], prevMode: null,
     ptr: null, hover: null, hoverPt: null, tips: true, space: false, raf: 0, settings: null, setTab: 'learn',
-    loupe: (() => { try { return localStorage.getItem('xr.loupe') !== '0'; } catch (e) { return true; } })(),
-    mouse: null,
+    // the magnifying glass: off until a right-click on the x-ray (gone again once the point is placed), or kept on with
+    // the Loupe button / M
+    loupeKeep: (() => { try { return localStorage.getItem('xr.loupeKeep') === '1'; } catch (e) { return false; } })(),
+    loupePeek: false,
+    outlines: (() => { try { return localStorage.getItem('xr.outlines') !== '0'; } catch (e) { return true; } })(),
+    mouse: null, series: [],
   };
+  const loupeOn = () => S.loupeKeep || S.loupePeek;
 
   // ------------------------------------------------------------------ server
   let passPromise = null;
@@ -312,8 +330,11 @@
     $('#welcome').hidden = true;
     $('#caseView').hidden = false;
     renderCases();
+    $('#compareBtn').hidden = true;
+    S.series = [];
     renderAll();
     loadImage();
+    refreshSeries();
     if (fresh || !S.case.details_confirmed) await openDetails(true);
     startTracing();
   }
@@ -337,9 +358,30 @@
     im.src = `/api/cases/${enc(id)}/image?v=${enc(S.case.updated || '')}`;
   }
 
+  // the points this tracing is checked with: a skipped group left out, and the facial-thirds points only once they are
+  // on the x-ray (an x-ray traced before them, or imported from iOrtho, is complete without them)
   function required() {
     const sk = new Set(S.case.skipped || []);
-    return S.order.filter((c) => !sk.has(S.lm[c].group));
+    const lm = S.case.landmarks || {};
+    return S.order.filter((c) => !sk.has(S.lm[c].group) && (!S.lm[c].optional || lm[c]));
+  }
+
+  const missingThirds = () => !(S.case.skipped || []).includes('soft')
+    && S.order.some((c) => S.lm[c].optional && !(S.case.landmarks || {})[c]);
+
+  // Tr, G', Stms, Stmi and Me' on an x-ray traced without them: placed where the average tracing puts them, then checked
+  async function addThirds() {
+    if (S.case.status === 'confirmed' && !await ask('Add the forehead and facial-thirds points?',
+      "The tracing is reopened while you place the top of the forehead (Tr), G', Stms, Stmi and Me' (they start where your average tracing puts them). Confirm it again afterwards.",
+      'Reopen and add')) return;
+    await flushSave();
+    try {
+      applyServer(await api(`/api/cases/${enc(S.case.id)}/fill?optional=true`, { method: 'POST' }), true);
+    } catch (e) { toast(e.message, true); return; }
+    const lm = S.case.landmarks || {};
+    const first = S.order.find((c) => S.lm[c].optional && lm[c] && lm[c].by !== 'doctor');
+    if (first) { S.cur = first; S.mode = 'review'; S.correcting = false; renderAll(); draw(); focusCurrent(); }
+    refreshCases();
   }
 
   function nextUnreviewed(from) {
@@ -465,6 +507,7 @@
     if (S.mode !== 'review' || !S.cur) return;
     const v = S.case.landmarks[S.cur];
     if (!v) return;
+    endPeek();
     if (v.by === 'doctor') {                     // already checked: on to the next point, nothing to save
       S.cur = S.walkAll ? nextInOrder(S.cur) : nextUnreviewed(S.cur);
       if (!S.cur) { S.mode = 'done'; S.walkAll = false; fit(); } else focusCurrent();
@@ -501,6 +544,14 @@
   function undo() {
     const u = S.undo.pop();
     if (!u) return toast('Nothing to undo.');
+    if (u.contour) {                                  // an outline dot: back where it was (or drawn from the points)
+      const o = ((S.analysis && S.analysis.outlines) || []).find((q) => q.key === u.contour);
+      if (o) { o.ctrl = u.old.ctrl; o.adjusted = u.old.adjusted; }
+      S.pendingContours = { ...(S.pendingContours || {}), [u.contour]: u.old.adjusted ? u.old.ctrl : null };
+      scheduleSave();
+      renderTrace(); draw();
+      return;
+    }
     if (u.old) S.case.landmarks[u.code] = u.old; else delete S.case.landmarks[u.code];
     S.pending[u.code] = u.old;
     scheduleSave();
@@ -524,19 +575,23 @@
   async function flushSave() {
     clearTimeout(S.saveTimer);
     if (S.saving) await S.saving;
-    const p = S.pending;
-    if (!S.case || !Object.keys(p).length) return;
+    const p = S.pending, pc = S.pendingContours || {};
+    if (!S.case || (!Object.keys(p).length && !Object.keys(pc).length)) return;
     S.pending = {};
+    S.pendingContours = {};
     const id = S.case.id;
+    const body = {};
+    if (Object.keys(p).length) body.landmarks = p;
+    if (Object.keys(pc).length) body.contours = pc;
     S.saving = (async () => {
       try {
-        const r = await api(`/api/cases/${enc(id)}`, { method: 'PATCH', body: { landmarks: p } });
+        const r = await api(`/api/cases/${enc(id)}`, { method: 'PATCH', body });
         if (S.case && S.case.id === id) applyServer(r, false);
         const row = S.cases.find((c) => c.id === id);
         if (row && row.status !== r.case.status) { row.status = r.case.status; renderCases(); }
       } catch (e) {
         toast('Not saved: ' + e.message, true);
-        if (S.case && S.case.id === id) S.pending = { ...p, ...S.pending };
+        if (S.case && S.case.id === id) { S.pending = { ...p, ...S.pending }; S.pendingContours = { ...pc, ...S.pendingContours }; }
       }
     })();
     await S.saving;
@@ -548,6 +603,10 @@
     S.case = r.case;
     S.analysis = r.analysis;
     if (!takeLandmarks && local) S.case.landmarks = { ...r.case.landmarks, ...local };
+    for (const [k, v] of Object.entries(S.pendingContours || {})) {   // dots moved since this was sent: as moved
+      const o = ((S.analysis && S.analysis.outlines) || []).find((q) => q.key === k);
+      if (o && v) { o.ctrl = v; o.adjusted = true; }
+    }
     renderAll();
     draw();
   }
@@ -601,10 +660,10 @@
 
   function minimap(code) {
     const T = S.defs.template;
-    const minX = -45, maxX = 100, minY = -105, maxY = 14;
+    const minX = -45, maxX = 100, minY = -110, maxY = 76;          // up to the top of the forehead
     const W = 112, H = 120, pad = 5;
     const k = Math.min((W - 2 * pad) / (maxX - minX), (H - 2 * pad) / (maxY - minY));
-    const P = (c) => [pad + (T[c][0] - minX) * k, pad + (maxY - T[c][1]) * k];
+    const P = (c) => { const t = tplOf(T, c); return [pad + (t[0] - minX) * k, pad + (maxY - t[1]) * k]; };
     let s = `<svg class="minimap" viewBox="0 0 ${W} ${H}" aria-hidden="true">`;
     for (const l of S.defs.lines) {
       const a = P(l.a), b = P(l.b);
@@ -692,7 +751,7 @@
     const grp = S.defs.groups.find((g) => g.codes.includes(code));
     const codes = grp ? grp.codes : [code];
     const left = S.case && S.case.facing === 'left';
-    const P0 = (c) => [left ? -T[c][0] : T[c][0], -T[c][1]];
+    const P0 = (c) => { const t = tplOf(T, c); return [left ? -t[0] : t[0], -t[1]]; };
     const xs = codes.map((c) => P0(c)[0]), ys = codes.map((c) => P0(c)[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
     const half = Math.max(24, (Math.max(...xs) - Math.min(...xs)) / 2 + 14, (Math.max(...ys) - Math.min(...ys)) / 2 + 14);
@@ -852,7 +911,7 @@
         ${hasModel ? '<button class="small" id="bAuto" type="button">Let the app place them</button>' : ''}</div>
         ${whereStrip(code)}
         <p class="hint">Traced it in iOrtho already? <button class="linkBtn" id="bIortho" type="button">Import iOrtho's tracing</button></p>
-        <div class="keys">Scroll to zoom · drag to move around · <span class="kbd">Backspace</span> back</div>`;
+        <div class="keys">Scroll to zoom · drag to move around · <span class="kbd">Right-click</span> magnifier · <span class="kbd">Backspace</span> back</div>`;
       hint = `Click <b>${esc(d.name)}</b> (${S.anchorIdx + 1} of 3)`;
     } else if (S.mode === 'review' && S.cur) {
       const d = S.lm[S.cur];
@@ -889,9 +948,10 @@
     if (S.mode !== 'anchors' && S.mode !== 'busy' && !(S.mode === 'idle' && S.case.status !== 'confirmed')) {
       const groups = S.defs.groups.map((g) => {
         const sk = (S.case.skipped || []).includes(g.id);
-        const n = g.codes.filter((c) => lm[c] && lm[c].by === 'doctor').length;
-        const done = !sk && n === g.codes.length;
-        return `<span class="gchip${done ? ' done' : ''}${sk ? ' skipped' : ''}" data-group="${g.id}" title="${sk ? 'Skipped' : 'Go to these points'}"><span class="dot" style="background:${GROUP_COLORS[g.id]}"></span>${esc(g.name)} ${sk ? '' : `${n}/${g.codes.length}`}</span>`;
+        const codes = g.codes.filter((c) => !S.lm[c].optional || lm[c]);
+        const n = codes.filter((c) => lm[c] && lm[c].by === 'doctor').length;
+        const done = !sk && n === codes.length;
+        return `<span class="gchip${done ? ' done' : ''}${sk ? ' skipped' : ''}" data-group="${g.id}" title="${sk ? 'Skipped' : 'Go to these points'}"><span class="dot" style="background:${GROUP_COLORS[g.id]}"></span>${esc(g.name)} ${sk ? '' : `${n}/${codes.length}`}</span>`;
       }).join('');
       const skipSoft = (S.case.skipped || []).includes('soft');
       const skipCvm = (S.case.skipped || []).includes('cvm');
@@ -902,9 +962,10 @@
         <div class="traceBtns">${hasModel ? '<button class="small" id="bAuto" type="button">Place with the app</button>' : ''}
         <button class="small" id="bRestart" type="button">Start over from S, N, Me</button></div>
         <p class="hint">Traced it in iOrtho? <button class="linkBtn" id="bIortho" type="button">Import iOrtho's tracing</button></p>`}
+        ${outlineHint()}
         <div class="keys">${S.case.status === 'confirmed'
-          ? 'Click a point, then where it belongs · <span class="kbd">Esc</span> leave it · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">M</span> loupe · <span class="kbd">F</span> fit · scroll to zoom'
-          : '<span class="kbd">Enter</span> right, next · <span class="kbd">Backspace</span> back · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">M</span> loupe · <span class="kbd">F</span> fit · scroll to zoom · drag a point to move it'}</div>`;
+          ? 'Click a point, then where it belongs · <span class="kbd">Esc</span> leave it · <span class="kbd">Right-click</span> magnifier · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">O</span> outlines · <span class="kbd">F</span> fit · scroll to zoom'
+          : '<span class="kbd">Enter</span> right, next · <span class="kbd">Backspace</span> back · <span class="kbd">Right-click</span> magnifier · <span class="kbd">←↑→↓</span> nudge · <span class="kbd">Ctrl Z</span> undo · <span class="kbd">O</span> outlines · <span class="kbd">F</span> fit · scroll to zoom · drag a point to move it'}</div>`;
     }
     body.innerHTML = html;
     setHint(hint);
@@ -918,11 +979,14 @@
     on('#bConfirm2', confirmTracing);
     on('#bDone', endCorrecting);
     on('#bIortho', () => openImport(S.case.id));
+    on('#bRedraw', redrawOutlines);
+    on('#bOutlOn', toggleOutlines);
     for (const g of $$('.gchip', body)) {
       g.onclick = () => {
         const grp = S.defs.groups.find((x) => x.id === g.dataset.group);
         if (!grp || (S.case.skipped || []).includes(grp.id)) return;
-        const c = grp.codes.find((x) => !lm[x] || lm[x].by !== 'doctor') || grp.codes[0];
+        const codes = grp.codes.filter((x) => !S.lm[x].optional || lm[x]);
+        const c = codes.find((x) => !lm[x] || lm[x].by !== 'doctor') || codes[0];
         selectPoint(c);
         focusCurrent();
       };
@@ -941,7 +1005,7 @@
       applyServer(r, true);
       if (!on && Object.keys(S.case.landmarks || {}).length >= 4) {
         // bring the group back: its points go where the average tracing says, from the points already placed
-        applyServer(await api(`/api/cases/${enc(S.case.id)}/fill`, { method: 'POST' }), true);
+        applyServer(await api(`/api/cases/${enc(S.case.id)}/fill${group === 'soft' ? '?optional=true' : ''}`, { method: 'POST' }), true);
       }
       S.cur = nextUnreviewed(null);
       S.mode = S.case.status === 'confirmed' ? 'done' : (S.cur ? 'review' : 'done');
@@ -1030,8 +1094,11 @@
       <div class="mTxt">${esc(hf.text)}</div></div>`;
   }
 
-  function mitoBlock(mi) {
-    if (!mi) return '<div class="meth"><div class="mHd"><b>Mito</b> <span>trace the C3 and C4 bodies</span></div></div>';
+  function mitoBlock(mi, cv) {
+    if (!mi) {
+      const check = (cv.notes || []).some((n) => /Check the vertebra points|Mito's bone age is left out/.test(n));
+      return `<div class="meth"><div class="mHd"><b>Mito</b> <span>${check ? 'left out until the C3 and C4 corners are checked (see the note above)' : 'trace the C3 and C4 bodies'}</span></div></div>`;
+    }
     let cmp = '<span class="mTxt">Add the birth date (Details) to compare it with the age.</span>';
     if (mi.age != null) {
       const d = mi.diff;
@@ -1103,10 +1170,10 @@
           <div class="cvmTiming">${esc(cv.timing || '')}</div>
         </div>
       </div>
+      ${cv.notes && cv.notes.length ? `<div class="notes">${cv.notes.map(esc).join('<br>')}</div>` : ''}
       ${cv.stage ? `<div class="meth"><div class="mHd"><b>Baccetti</b> <span>peak in mandibular growth</span></div>${timelineSvg(cv.stage)}</div>` : ''}
       ${hfBlock(m.hassel_farman)}
-      ${mitoBlock(m.mito)}
-      ${cv.notes && cv.notes.length ? `<div class="notes">${cv.notes.map(esc).join('<br>')}</div>` : ''}
+      ${mitoBlock(m.mito, cv)}
       <div class="pHead">What it is based on <span>click a picture to change it · your picks say "you"</span></div>
       ${['C2', 'C3', 'C4'].map((l) => pickRow(l, cv)).join('')}
       ${changed.length ? `<div class="pFoot">Your picks: ${changed.map(([k, v]) => `${k.replace('shape', ' body')} ${esc(SHAPE_NAME[v.mark] || v.mark)}`).join(', ')} · <button type="button" class="linkBtn" id="cvmReset">back to the app's reading</button></div>` : ''}
@@ -1193,8 +1260,13 @@
     let html = '';
     let grp = null;
     let n = 0;
+    const thirdsRow = () => (missingThirds()
+      ? '<tr class="addRow"><td colspan="4"><button class="linkBtn" type="button" id="addThirds">Add Tr, G\', Stms, Stmi and Me\' - for the soft-tissue thirds and GALL</button></td></tr>' : '');
     for (const m of a.measurements) {
-      if (m.group !== grp) { grp = m.group; html += `<tr class="g"><td colspan="4">${esc(grp)}</td></tr>`; }
+      if (m.group !== grp) {
+        if (grp === 'Facial thirds') html += thirdsRow();
+        grp = m.group; html += `<tr class="g"><td colspan="4">${esc(grp)}</td></tr>`;
+      }
       const z = m.z;
       const cls = z == null ? '' : Math.abs(z) > 2 ? 'w2' : Math.abs(z) > 1 ? 'w1' : '';
       const val = fmtVal(m);
@@ -1205,8 +1277,19 @@
         + (m.value == null ? `<td class="note" colspan="3">${esc(m.note)}</td>` : `<td class="v">${esc(val)}</td><td class="nm">${esc(norm)}</td><td>${dev}</td>`)
         + '</tr>';
     }
+    if (grp === 'Facial thirds') html += thirdsRow();
     t.innerHTML = html;
+    const add = $('#addThirds', t);
+    if (add) add.onclick = addThirds;
     $('#measSub').textContent = `${n} of ${a.measurements.length}`;
+  }
+
+  function outlineHint() {
+    const ol = (S.analysis && S.analysis.outlines) || [];
+    if (!ol.length) return '';
+    if (!S.outlines) return '<p class="hint">Outlines hidden · <button class="linkBtn" id="bOutlOn" type="button">show them</button> (O)</p>';
+    const adj = ol.filter((o) => o.adjusted).length;
+    return `<p class="hint">Outlines: drag a small white dot to fit the curve to the x-ray${adj ? ` · ${adj} fitted by hand · <button class="linkBtn" id="bRedraw" type="button">redraw from the points</button>` : ''}.</p>`;
   }
 
   function setHint(h) {
@@ -1318,7 +1401,7 @@
     if (S.lines || opts.print) {
       c2.lineWidth = 1.3 * K;
       for (const l of S.defs.lines) {
-        const a = P[l.a] || (l.name === 'MP' ? P.Go : null), b = P[l.b];   // MP: Go-Me until the lower-border point is placed
+        const a = endOf(P, l.a) || (l.name === 'MP' ? P.Go : null), b = endOf(P, l.b);   // MP: Go-Me until the lower-border point is placed
         if (!a || !b) continue;
         let [x1, y1] = scr(a), [x2, y2] = scr(b);
         if (LONG.has(l.name)) {
@@ -1329,9 +1412,10 @@
         c2.globalAlpha = 0.8;
         c2.beginPath(); c2.moveTo(x1, y1); c2.lineTo(x2, y2); c2.stroke();
       }
-      // Wits: A and B dropped onto the functional occlusal plane
-      if (P.A && P.B && P.MOL && P.PM) {
-        const [mx, my] = scr(P.MOL), [px, py] = scr(P.PM);
+      // Wits: A and B dropped onto the occlusal plane (molar contact to the incisor overlap)
+      const opFront = endOf(P, 'U1T+L1T');
+      if (P.A && P.B && P.MOL && opFront) {
+        const [mx, my] = scr(P.MOL), [px, py] = scr(opFront);
         const dx = px - mx, dy = py - my, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
         c2.setLineDash([3 * K, 3 * K]);
         c2.strokeStyle = '#9DD9FF';
@@ -1351,6 +1435,67 @@
         c2.stroke();
       }
       c2.globalAlpha = 1;
+    }
+    // the outlines: smooth curves through their dots - landmarks where they are now (also while dragged), and the
+    // free dots in between, drawn small and white, to drag where the x-ray shows the edge
+    if ((S.outlines || opts.print) && S.analysis && (S.analysis.outlines || []).length) {
+      const drag = S.ptr && S.ptr.ctrl && S.ptr.moved ? { ...S.ptr.ctrl, x: S.ptr.ix, y: S.ptr.iy } : null;
+      c2.lineJoin = 'round';
+      c2.lineCap = 'round';
+      const dots = [];
+      for (const o of S.analysis.outlines) {
+        const xy = outlineDots(o, P, drag);
+        if (xy.length < 2) continue;
+        const soft = o.group === 'soft';
+        c2.strokeStyle = GROUP_COLORS[o.group] || '#FFFFFF';
+        c2.globalAlpha = opts.print ? 0.95 : soft ? 0.9 : 0.75;
+        c2.lineWidth = (soft ? 1.7 : 1.3) * K;
+        c2.beginPath();
+        splinePts(xy, o.closed).forEach((q, i) => { const [x, y] = scr({ x: q[0], y: q[1] }); if (i) c2.lineTo(x, y); else c2.moveTo(x, y); });
+        if (o.closed) c2.closePath();
+        c2.stroke();
+        if (!opts.print) o.ctrl.forEach((c, i) => { if (typeof c !== 'string') dots.push(drag && drag.key === o.key && drag.idx === i ? [drag.x, drag.y] : c); });
+      }
+      c2.globalAlpha = 1;
+      c2.lineCap = 'butt';
+      c2.fillStyle = 'rgba(255,255,255,.92)';
+      c2.strokeStyle = 'rgba(11,20,36,.9)';
+      c2.lineWidth = 1;
+      for (const q of dots) {
+        const [x, y] = scr({ x: q[0], y: q[1] });
+        c2.beginPath(); c2.arc(x, y, 2.6, 0, Math.PI * 2); c2.fill(); c2.stroke();
+      }
+    }
+    // Andrews' GALL: a true vertical (perpendicular to FH) through the forehead, the forehead's FA point (FFA) and the
+    // upper incisor's FA point
+    const gall = S.analysis && S.analysis.gall;
+    if (gall && (S.lines || opts.print)) {
+      const [x1, y1] = scr({ x: gall.line[0][0], y: gall.line[0][1] }), [x2, y2] = scr({ x: gall.line[1][0], y: gall.line[1][1] });
+      c2.strokeStyle = '#F6AF24';
+      c2.fillStyle = '#F6AF24';
+      c2.lineWidth = 1.3 * K;
+      c2.globalAlpha = 0.9;
+      c2.setLineDash([7 * K, 5 * K]);
+      c2.beginPath(); c2.moveTo(x1, y1); c2.lineTo(x2, y2); c2.stroke();
+      c2.setLineDash([]);
+      c2.globalAlpha = 1;
+      c2.font = `700 ${11 * K}px Montserrat, system-ui, sans-serif`;
+      c2.lineWidth = 3 * K;
+      c2.strokeStyle = 'rgba(11,20,36,.85)';
+      c2.strokeText('GALL', x1 + 6 * K, y1 + 14 * K);
+      c2.fillText('GALL', x1 + 6 * K, y1 + 14 * K);
+      for (const [q, t] of [[gall.ffa, 'FFA'], [gall.fa, 'FA']]) {
+        const [x, y] = scr({ x: q[0], y: q[1] });
+        c2.strokeStyle = '#F6AF24';
+        c2.lineWidth = 1.6 * K;
+        c2.beginPath(); c2.moveTo(x - 5 * K, y); c2.lineTo(x + 5 * K, y); c2.moveTo(x, y - 5 * K); c2.lineTo(x, y + 5 * K); c2.stroke();
+        c2.font = `600 ${10 * K}px Montserrat, system-ui, sans-serif`;
+        c2.lineWidth = 3 * K;
+        c2.strokeStyle = 'rgba(11,20,36,.85)';
+        c2.strokeText(t, x + 7 * K, y + 12 * K);
+        c2.fillStyle = '#F6AF24';
+        c2.fillText(t, x + 7 * K, y + 12 * K);
+      }
     }
     // the nasion-rod ruler the pixel size was measured on: its marks circled
     const rl = !opts.print && S.lines && S.case && S.case.ruler;
@@ -1428,7 +1573,7 @@
     const el = $('#loupe');
     if (!el) return;
     const p = S.ptr;
-    if (!S.loupe || !S.case || !S.img || !S.filtered || !S.mouse || $('#caseView').hidden
+    if (!loupeOn() || !S.case || !S.img || !S.filtered || !S.mouse || $('#caseView').hidden
         || document.querySelector('dialog[open]') || (p && p.pan && p.moved)) {
       el.hidden = true;
       return;
@@ -1453,11 +1598,102 @@
     el.hidden = false;
   }
 
-  function toggleLoupe() {
-    S.loupe = !S.loupe;
-    $('#tLoupe').classList.toggle('on', S.loupe);
-    try { localStorage.setItem('xr.loupe', S.loupe ? '1' : '0'); } catch (e) { /* a private window: this page only */ }
+  function setLoupeKeep(on) {               // the Loupe button and M: keep it on (remembered on this computer)
+    S.loupeKeep = on;
+    if (!on) S.loupePeek = false;
+    $('#tLoupe').classList.toggle('on', S.loupeKeep);
+    try { localStorage.setItem('xr.loupeKeep', S.loupeKeep ? '1' : '0'); } catch (e) { /* a private window: this page only */ }
     scheduleLoupe();
+  }
+  const toggleLoupe = () => setLoupeKeep(!S.loupeKeep);
+
+  // the curve through an outline's dots: centripetal Catmull-Rom (as xray/outlines.py draws it for its tests)
+  function splinePts(P, closed, per = 10) {
+    const n = P.length;
+    if (n < 3) return P.slice();
+    const ext = closed ? [P[n - 1], ...P, P[0], P[1]]
+      : [[2 * P[0][0] - P[1][0], 2 * P[0][1] - P[1][1]], ...P, [2 * P[n - 1][0] - P[n - 2][0], 2 * P[n - 1][1] - P[n - 2][1]]];
+    const out = [];
+    const kn = (a, b) => Math.max(1e-6, Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1])));
+    const mix = (a, b, wa, wb) => [a[0] * wa + b[0] * wb, a[1] * wa + b[1] * wb];
+    for (let i = 1; i < ext.length - 2; i++) {
+      const p0 = ext[i - 1], p1 = ext[i], p2 = ext[i + 1], p3 = ext[i + 2];
+      if (Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) < 1e-9) { out.push(p1); continue; }
+      const t0 = 0, t1 = kn(p0, p1), t2 = t1 + kn(p1, p2), t3 = t2 + kn(p2, p3);
+      for (let k = 0; k < per; k++) {
+        const t = t1 + (t2 - t1) * k / per;
+        const a1 = mix(p0, p1, (t1 - t) / (t1 - t0), (t - t0) / (t1 - t0));
+        const a2 = mix(p1, p2, (t2 - t) / (t2 - t1), (t - t1) / (t2 - t1));
+        const a3 = mix(p2, p3, (t3 - t) / (t3 - t2), (t - t2) / (t3 - t2));
+        const b1 = mix(a1, a2, (t2 - t) / (t2 - t0), (t - t0) / (t2 - t0));
+        const b2 = mix(a2, a3, (t3 - t) / (t3 - t1), (t - t1) / (t3 - t1));
+        out.push(mix(b1, b2, (t2 - t) / (t2 - t1), (t - t1) / (t2 - t1)));
+      }
+    }
+    out.push(closed ? P[0] : P[n - 1]);
+    return out;
+  }
+
+  // an outline's dots in image pixels: a landmark dot where that landmark is now (or is being dragged to)
+  function outlineDots(o, P, drag) {
+    const out = [];
+    o.ctrl.forEach((c, i) => {
+      if (drag && drag.key === o.key && drag.idx === i) out.push([drag.x, drag.y]);
+      else if (typeof c === 'string') { const v = P[c]; if (v) out.push([v.x, v.y]); }
+      else out.push(c);
+    });
+    return out;
+  }
+
+  function hitCtrl(sx, sy) {                // a free outline dot under the mouse
+    if (!S.outlines || !S.analysis) return null;
+    let best = null, bd = 8;
+    for (const o of S.analysis.outlines || []) {
+      o.ctrl.forEach((c, i) => {
+        if (typeof c === 'string') return;
+        const [x, y] = toScreen(c[0], c[1]);
+        const d = Math.hypot(x - sx, y - sy);
+        if (d < bd) { bd = d; best = { key: o.key, idx: i }; }
+      });
+    }
+    return best;
+  }
+
+  function moveCtrl(ref, x, y) {            // a dot dragged: that outline keeps its dots as left (saved with the x-ray)
+    const o = (S.analysis.outlines || []).find((q) => q.key === ref.key);
+    if (!o) return;
+    S.undo.push({ contour: o.key, old: { ctrl: o.ctrl.map((c) => (Array.isArray(c) ? [...c] : c)), adjusted: o.adjusted } });
+    if (S.undo.length > 300) S.undo.shift();
+    o.ctrl = o.ctrl.map((c, i) => (i === ref.idx ? [Math.round(x * 10) / 10, Math.round(y * 10) / 10] : c));
+    o.adjusted = true;
+    S.pendingContours = { ...(S.pendingContours || {}), [o.key]: o.ctrl };
+    scheduleSave();
+    renderTrace();
+    draw();
+  }
+
+  async function redrawOutlines() {
+    if (!await ask('Redraw the outlines?', 'Every outline goes back to being drawn from the points (and the soft-tissue profile followed on the x-ray); the dots you moved are forgotten.', 'Redraw')) return;
+    await flushSave();
+    try { applyServer(await api(`/api/cases/${enc(S.case.id)}`, { method: 'PATCH', body: { contours: null } }), false); } catch (e) { toast(e.message, true); }
+  }
+
+  function toggleOutlines() {
+    S.outlines = !S.outlines;
+    $('#tOutline').classList.toggle('on', S.outlines);
+    try { localStorage.setItem('xr.outlines', S.outlines ? '1' : '0'); } catch (e) { /* a private window: this page only */ }
+    renderTrace();
+    draw();
+  }
+
+  function peekLoupe() {                    // a right-click on the x-ray: show it here, or put it away
+    if (loupeOn()) { S.loupePeek = false; if (S.loupeKeep) setLoupeKeep(false); }
+    else S.loupePeek = true;
+    scheduleLoupe();
+  }
+
+  function endPeek() {                      // the point is placed: the glass that a right-click brought goes away
+    if (S.loupePeek) { S.loupePeek = false; scheduleLoupe(); }
   }
 
   // ------------------------------------------------------------------ the pop-up that says what a point is
@@ -1498,9 +1734,9 @@
     if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
     el.hidden = false;
     const W = cv.clientWidth, H = cv.clientHeight, w = el.offsetWidth, h = el.offsetHeight;
-    const loupeOn = S.loupe && S.mouse && !$('#loupe').hidden;
+    const besideLoupe = loupeOn() && S.mouse && !$('#loupe').hidden;
     let x, y;
-    if (loupeOn) {                                               // beside the magnifying glass, not under it
+    if (besideLoupe) {                                           // beside the magnifying glass, not under it
       const [mx, my] = S.mouse;
       x = mx + LOUPE_D / 2 + 12;
       y = my - h / 2;
@@ -1540,8 +1776,9 @@
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
       const pan = e.button === 1 || e.button === 2 || S.space;
       const hit = !pan && S.mode !== 'anchors' && S.mode !== 'ruler' ? hitPoint(sx, sy) : null;
+      const ctrl = !pan && !hit && S.mode !== 'anchors' && S.mode !== 'ruler' ? hitCtrl(sx, sy) : null;
       const old = hit && S.case.landmarks[hit] ? { ...S.case.landmarks[hit] } : null;
-      S.ptr = { id: e.pointerId, sx, sy, x0: S.view.tx, y0: S.view.ty, pan, drag: hit, old, moved: false, ix: 0, iy: 0 };
+      S.ptr = { id: e.pointerId, button: e.button, sx, sy, x0: S.view.tx, y0: S.view.ty, pan, drag: hit, ctrl, old, moved: false, ix: 0, iy: 0 };
       if (pan) cv.classList.add('panning');
     });
     cv.addEventListener('pointermove', (e) => {
@@ -1553,7 +1790,7 @@
       if (!p) {
         S.hover = [sx, sy];
         const hp = S.mode !== 'anchors' && S.mode !== 'ruler' ? hitPoint(sx, sy) : null;
-        cv.classList.toggle('overpt', !!hp);
+        cv.classList.toggle('overpt', !!hp || (S.mode !== 'anchors' && S.mode !== 'ruler' && !!hitCtrl(sx, sy)));
         if (hp !== S.hoverPt || S.mode === 'anchors') { S.hoverPt = hp; updateTip(); }
         if (S.mode === 'ruler' && S.ruler.length === 1) draw();
         return;
@@ -1561,14 +1798,14 @@
       const dist = Math.hypot(sx - p.sx, sy - p.sy);
       if (!p.moved && dist > 4) {
         p.moved = true;
-        if (!p.drag && !p.pan) { p.pan = true; cv.classList.add('panning'); }
+        if (!p.drag && !p.ctrl && !p.pan) { p.pan = true; cv.classList.add('panning'); }
       }
       if (!p.moved) return;
       if (p.pan) {
         S.view.tx = p.x0 + (sx - p.sx);
         S.view.ty = p.y0 + (sy - p.sy);
         draw();
-      } else if (p.drag) {
+      } else if (p.drag || p.ctrl) {
         [p.ix, p.iy] = toImage(sx, sy);
         draw();
       }
@@ -1580,13 +1817,18 @@
       cv.classList.remove('panning');
       try { cv.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
       if (p.pan && p.moved) return;
+      if (p.ctrl && p.moved) { moveCtrl(p.ctrl, p.ix, p.iy); return; }
       if (p.drag && p.moved) {
         setPoint(p.drag, p.ix, p.iy, { old: p.old });
+        endPeek();
         if (S.case.status === 'confirmed') endCorrecting();
         else selectPoint(p.drag);
         return;
       }
       if (e.type === 'pointercancel') return;
+      // a right-click (no drag) brings up the magnifying glass, or puts it away; the middle button only pans
+      if (p.button === 2) { peekLoupe(); return; }
+      if (p.button === 1) return;
       // a click: while checking points it places the current one when near it (even on top of another dot);
       // farther away, a dot is picked instead; otherwise a click on a dot picks it for a closer look
       if (p.drag && S.mode !== 'review') { selectPoint(p.drag); focusCurrent(); return; }
@@ -1623,13 +1865,16 @@
       const code = S.defs.anchors[S.anchorIdx];
       S.anchorPts[code] = [ix, iy];
       S.anchorIdx++;
+      endPeek();
       if (S.anchorIdx >= S.defs.anchors.length) placeFromAnchors();
       else { renderTrace(); draw(); }
     } else if (S.mode === 'review' && S.cur && S.correcting) {
       setPoint(S.cur, ix, iy);
+      endPeek();
       endCorrecting();
     } else if (S.mode === 'review' && S.cur) {
       setPoint(S.cur, ix, iy, { advance: true });
+      endPeek();
     } else if (S.mode === 'ruler') {
       S.ruler.push([ix, iy]);
       draw();
@@ -1713,6 +1958,7 @@
       });
       applyServer(r, false);
       await refreshCases();
+      refreshSeries();                       // a name or birth date changed: perhaps other x-rays of this patient now
     } catch (e) { toast(e.message, true); }
   }
 
@@ -1781,16 +2027,339 @@
     if (cvp) for (const [k, v] of Object.entries(cvp.judgements || {})) jv[k] = v.value;
     const row = (m) => `<tr><td>${esc(m.label)}</td><td class="v">${esc(fmtVal(m))}</td><td class="nm">${m.norm ? `${m.norm.mean}±${m.norm.sd}` : ''}</td></tr>`;
     const have = a.measurements.filter((m) => m.value != null);
-    const side = (m) => m.group === 'Lengths' || m.group === 'Soft tissue';
-    const rows = have.filter((m) => !side(m)).map(row).join('');
-    const lengths = have.filter(side).map(row).join('');
+    // every measurement group under the tracing and the summary, in two balanced columns: one page
+    const groups = [];
+    for (const m of have) {
+      if (!groups.length || groups[groups.length - 1].name !== m.group) groups.push({ name: m.group, rows: [] });
+      groups[groups.length - 1].rows.push(m);
+    }
+    const tables = groups.map((gr) => `<table class="mt"><tr class="g"><td colspan="3">${esc(gr.name)}</td></tr>${gr.rows.map(row).join('')}</table>`).join('');
     $('#printArea').innerHTML = `
       <div class="phead"><div><h1>Cephalometric analysis</h1><div class="pmeta">${esc(p.name || '')}${p.chart ? ' · #' + esc(p.chart) : ''}</div></div>
         <div class="pmeta" style="text-align:right">${c.taken ? `X-ray ${esc(fmtDate(c.taken))}` : 'X-ray date not set'}${a.age != null ? ` · age ${a.age}` : ''}${p.sex ? ' · ' + (p.sex === 'F' ? 'female' : 'male') : ''}<br>${c.status === 'confirmed' ? 'Tracing confirmed' : 'Tracing NOT confirmed'} · printed ${esc(fmtDate(new Date().toISOString().slice(0, 10)))}</div></div>
-      <div class="pgrid"><div><img class="trace" src="${img}" alt=""><table class="mt" style="margin-top:8px">${rows}</table></div>
-        <div><div class="sum">${sum}</div>${cvp ? `<div class="pcvm">${stageSvg(jv)}${timelineSvg(cvp.stage)}</div>${cvp.overridden ? '<p class="pmeta">CVM read with the doctor\'s picks.</p>' : ''}` : ''}
-        ${lengths ? `<table class="mt" style="margin-top:10px">${lengths}</table>` : ''}</div></div>
+      <div class="pgrid"><div><img class="trace" src="${img}" alt=""></div>
+        <div><div class="sum">${sum}</div>${cvp ? `<div class="pcvm">${stageSvg(jv)}${timelineSvg(cvp.stage)}</div>${cvp.overridden ? '<p class="pmeta">CVM read with the doctor\'s picks.</p>' : ''}` : ''}</div></div>
+      <div class="pmeas">${tables}</div>
       <div class="pfoot">Next Level Orthodontics · NLO X-Ray Reader · ${esc(calText() || 'not calibrated: millimetre values omitted')}. A tracing aid - the clinical judgement is the doctor's.</div>`;
+    setTimeout(() => window.print(), 60);
+  }
+
+  // ------------------------------------------------------------------ comparing tracings over time
+  // The patient's x-rays drawn on top of each other, superimposed on the cranial base (S-N at S), the maxilla (the
+  // palatal plane at ANS) or the mandible (the mandibular plane at menton), each at its own pixel size (millimetres,
+  // so growth shows); how far points moved between the first and the last; and every measurement side by side.
+  const CMP_COLORS = ['#11203A', '#D8412E', '#1D3EA9', '#1F9E7E', '#C2820A', '#7A3FB8'];
+  const SUPER = {
+    cranial: { name: 'Cranial base (S-N, at S)', short: 'cranial base', origin: 'S', dir: [['S', 'N']],
+      axes: 'FH', moves: ['A', 'B', 'Pog', 'Me', 'U1T', 'L1T', 'MOL', 'Prn', 'Ls', 'Li', 'Pos'] },
+    maxilla: { name: 'Maxilla (palatal plane, at ANS)', short: 'maxilla', origin: 'ANS', dir: [['PNS', 'ANS']],
+      axes: 'PP', moves: ['U1T', 'U1A', 'MOL', 'A'] },
+    mandible: { name: 'Mandible (mandibular plane, at menton)', short: 'mandible', origin: 'Me', dir: [['MPt', 'Me'], ['Go', 'Me']],
+      axes: 'MP', moves: ['L1T', 'L1A', 'MOL', 'B', 'Pog'] },
+  };
+  const CMP = { rows: [], sel: [], on: 'cranial', pts: true, lines: true, data: {}, view: null, drawn: null };
+
+  async function refreshSeries() {
+    const id = S.case && S.case.id;
+    if (!id) return;
+    let rows = [];
+    try { rows = await api(`/api/cases/${enc(id)}/series`); } catch (e) { rows = []; }
+    if (!S.case || S.case.id !== id) return;
+    S.series = rows;
+    const n = rows.filter((r) => r.n_points >= 10).length;
+    const b = $('#compareBtn');
+    b.hidden = rows.length < 2;
+    b.textContent = `Compare (${rows.length})`;
+    b.title = n >= 2 ? 'This patient\'s x-rays over time, superimposed' : 'Trace a second x-ray of this patient to compare';
+  }
+
+  async function openCompare() {
+    await flushSave();
+    await refreshSeries();
+    CMP.rows = S.series || [];
+    const traced = CMP.rows.filter((r) => r.n_points >= 10);
+    if (traced.length < 2) { toast('Trace a second x-ray of this patient first - then they can be compared.', true, 5000); return; }
+    const mine = traced.find((r) => r.id === S.case.id);
+    const pick = traced.length <= 3 ? traced : [traced[0], ...(mine && mine !== traced[0] && mine !== traced[traced.length - 1] ? [mine] : []), traced[traced.length - 1]];
+    CMP.sel = pick.map((r) => r.id);
+    CMP.view = null;
+    $('#cmpWho').textContent = (S.case.patient || {}).name || '';
+    $('#cmpOn').value = CMP.on;
+    $('#cmpPts').checked = CMP.pts;
+    $('#cmpLines').checked = CMP.lines;
+    $('#dlgCompare').showModal();
+    await loadCompare();
+  }
+
+  async function loadCompare() {
+    const need = CMP.sel.filter((id) => !CMP.data[id]);
+    if (need.length) {
+      $('#cmpNote').textContent = 'Loading…';
+      try {
+        for (const d of await api(`/api/compare?ids=${need.map(enc).join(',')}`)) CMP.data[d.id] = d;
+      } catch (e) { toast(e.message, true); }
+    }
+    renderCompare();
+  }
+
+  // one x-ray's points -> the first x-ray's frame (canonical millimetres: x forward, y up)
+  const cmpCanon = (d, p, k) => [(d.facing === 'left' ? -p[0] : p[0]) * k, -p[1] * k];
+  const vsub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  const vlen = (a) => Math.hypot(a[0], a[1]);
+
+  function cmpFrames(list) {
+    const sup = SUPER[CMP.on];
+    const ref = list[0];
+    const snPx = (d) => (d.points.S && d.points.N ? vlen(vsub(d.points.S, d.points.N)) : null);
+    const refMm = ref.mm_per_px || (snPx(ref) ? 68 / snPx(ref) : 0.1);
+    const frames = [];
+    let refO = null, refAng = 0;
+    for (const d of list) {
+      let k = d.mm_per_px, scaled = false;
+      if (!k) {                                      // no pixel size: as large as the first x-ray's cranial base
+        scaled = true;
+        k = snPx(d) && snPx(ref) ? (snPx(ref) * refMm) / snPx(d) : refMm;
+      }
+      const pair = sup.dir.find(([a, b]) => d.points[a] && d.points[b]);
+      if (!d.points[sup.origin] || !pair) { frames.push({ d, ok: false, why: `${sup.origin} or the ${sup.short} line not traced` }); continue; }
+      const o = cmpCanon(d, d.points[sup.origin], k);
+      const dv = vsub(cmpCanon(d, d.points[pair[1]], k), cmpCanon(d, d.points[pair[0]], k));
+      const ang = Math.atan2(dv[1], dv[0]);
+      if (!refO) { refO = o; refAng = ang; }
+      const r = refAng - ang, c = Math.cos(r), s = Math.sin(r);
+      const T = (p) => { const q = vsub(cmpCanon(d, p, k), o); return [refO[0] + c * q[0] - s * q[1], refO[1] + s * q[0] + c * q[1]]; };
+      frames.push({ d, ok: true, T, scaled });
+    }
+    return frames;
+  }
+
+  function cmpAxes(f0) {                            // forward and up of the first x-ray, for how far points moved
+    const sup = SUPER[CMP.on], P = f0.d.points;
+    let a = null, b = null;
+    if (sup.axes === 'FH' && P.Po && P.Or) { a = P.Po; b = P.Or; }
+    else if (sup.axes === 'PP' && P.PNS && P.ANS) { a = P.PNS; b = P.ANS; }
+    else if (sup.axes === 'MP' && P.Me && (P.MPt || P.Go)) { a = P.MPt || P.Go; b = P.Me; }
+    let fw;
+    if (a) fw = vsub(f0.T(b), f0.T(a));
+    else {                                          // no FH: S-N turned 7° toward it
+      const sn = vsub(f0.T(P.N), f0.T(P.S)), t = Math.atan2(sn[1], sn[0]) - 7 * Math.PI / 180;
+      fw = [Math.cos(t), Math.sin(t)];
+    }
+    const L = vlen(fw) || 1;
+    fw = [fw[0] / L, fw[1] / L];
+    let up = [-fw[1], fw[0]];
+    if (up[1] < 0) up = [-up[0], -up[1]];
+    return { fw, up, name: a ? { FH: 'Frankfort horizontal', PP: 'the palatal plane', MP: 'the mandibular plane' }[sup.axes] : 'S-N less 7°' };
+  }
+
+  function drawCompare(c, frames, opts = {}) {
+    const dpr = opts.dpr || window.devicePixelRatio || 1;
+    const W = c.width, H = c.height;
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#FFFFFF';
+    g.fillRect(0, 0, W, H);
+    const ok = frames.filter((f) => f.ok);
+    if (!ok.length) return;
+    // everything drawn, in the first x-ray's millimetres
+    const shapes = ok.map((f, i) => {
+      const d = f.d;
+      const col = CMP_COLORS[CMP.sel.indexOf(d.id) % CMP_COLORS.length];
+      const outl = (d.outlines || []).filter((o) => o.key !== 'ear').map((o) => ({ group: o.group, closed: o.closed, pts: splinePts(o.xy, o.closed).map((p) => f.T(p)) }));
+      const P = {};
+      for (const [code, p] of Object.entries(d.points)) P[code] = f.T(p);
+      for (const o of S.defs.outlines) {            // C2-C4
+        if (o.every((c) => P[c])) outl.push({ group: 'cvm', closed: false, pts: o.map((c) => P[c]) });
+      }
+      return { i, col, outl, P };
+    });
+    if (!CMP.view || opts.fit) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const sh of shapes) for (const q of [...sh.outl.flatMap((o) => o.pts), ...Object.values(sh.P)]) {
+        x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]);
+      }
+      const pad = 0.05;
+      const s = Math.min(W / ((x1 - x0) * (1 + 2 * pad)), H / ((y1 - y0) * (1 + 2 * pad)));
+      const view = { s, ox: W / 2 - (x0 + x1) / 2 * s, oy: H / 2 + (y0 + y1) / 2 * s };
+      if (opts.fit) return drawCompareView(g, shapes, view, dpr, opts);
+      CMP.view = view;
+    }
+    drawCompareView(g, shapes, CMP.view, dpr, opts);
+  }
+
+  function drawCompareView(g, shapes, view, dpr, opts) {
+    const X = (q) => [view.ox + q[0] * view.s, view.oy - q[1] * view.s];
+    const u = dpr * (opts.k || 1);
+    g.lineJoin = 'round';
+    g.lineCap = 'round';
+    for (const sh of shapes) {
+      g.strokeStyle = sh.col;
+      g.fillStyle = sh.col;
+      // the outlines: bone and teeth solid, the soft-tissue profile a little heavier
+      for (const o of sh.outl) {
+        if (o.pts.length < 2) continue;
+        g.lineWidth = (o.group === 'soft' ? 1.8 : 1.4) * u;
+        g.globalAlpha = o.group === 'cranial' ? 0.75 : 0.95;
+        g.beginPath();
+        o.pts.forEach((q, j) => { const [x, y] = X(q); if (j) g.lineTo(x, y); else g.moveTo(x, y); });
+        if (o.closed) g.closePath();
+        g.stroke();
+      }
+      g.globalAlpha = 1;
+      if (CMP.lines) {                              // the reference lines, thin and dashed
+        g.lineWidth = 0.9 * u;
+        g.setLineDash([5 * u, 4 * u]);
+        for (const l of S.defs.lines) {
+          if (!['SN', 'FH', 'PP', 'MP', 'OP'].includes(l.name)) continue;
+          const a = endOfArr(sh.P, l.a) || (l.name === 'MP' ? sh.P.Go : null), b = endOfArr(sh.P, l.b);
+          if (!a || !b) continue;
+          let [x1, y1] = X(a), [x2, y2] = X(b);
+          const dx = x2 - x1, dy = y2 - y1;
+          x1 -= dx * 0.08; y1 -= dy * 0.08; x2 += dx * 0.08; y2 += dy * 0.08;
+          g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+        }
+        g.setLineDash([]);
+      }
+      if (CMP.pts) {
+        for (const code of S.order) {
+          const q = sh.P[code];
+          if (!q) continue;
+          const [x, y] = X(q);
+          g.beginPath(); g.arc(x, y, 2.2 * u, 0, Math.PI * 2); g.fill();
+        }
+      }
+    }
+  }
+  function endOfArr(P, code) {
+    if (!code.includes('+')) return P[code] || null;
+    const [a, b] = code.split('+');
+    return P[a] && P[b] ? [(P[a][0] + P[b][0]) / 2, (P[a][1] + P[b][1]) / 2] : null;
+  }
+
+  function cmpMoves(frames) {
+    const ok = frames.filter((f) => f.ok);
+    if (ok.length < 2) return '';
+    const f0 = ok[0], f1 = ok[ok.length - 1];
+    const ax = cmpAxes(f0);
+    const rows = SUPER[CMP.on].moves.filter((c) => f0.d.points[c] && f1.d.points[c]).map((c) => {
+      const dlt = vsub(f1.T(f1.d.points[c]), f0.T(f0.d.points[c]));
+      const h = dlt[0] * ax.fw[0] + dlt[1] * ax.fw[1], v = dlt[0] * ax.up[0] + dlt[1] * ax.up[1];
+      const hz = Math.abs(h) < 0.25 ? '-' : `${Math.abs(h).toFixed(1)} ${h > 0 ? 'forward' : 'back'}`;
+      const vt = Math.abs(v) < 0.25 ? '-' : `${Math.abs(v).toFixed(1)} ${v > 0 ? 'up' : 'down'}`;
+      return `<tr><td>${esc(S.lm[c].name)} <span class="mvName">${esc(lab(c))}</span></td><td class="v">${hz}</td><td class="v">${vt}</td><td class="v">${vlen(dlt).toFixed(1)}</td></tr>`;
+    }).join('');
+    const d0 = f0.d.taken ? fmtDate(f0.d.taken) : 'first', d1 = f1.d.taken ? fmtDate(f1.d.taken) : 'last';
+    return `<div class="cmpH">How far points moved, ${esc(d0)} to ${esc(d1)} <span>mm, along ${esc(ax.name)} of the first x-ray, superimposed on the ${esc(SUPER[CMP.on].short)}</span></div>
+      <table class="mt cmpT"><tr class="h"><td></td><td class="v">front-back</td><td class="v">up-down</td><td class="v">total</td></tr>${rows}</table>`;
+  }
+
+  function cmpTable(frames) {
+    const list = frames.map((f) => f.d);
+    const head = list.map((d) => `<td class="v"><span class="sw" style="background:${CMP_COLORS[CMP.sel.indexOf(d.id) % CMP_COLORS.length]}"></span>${esc(d.taken ? fmtDate(d.taken) : 'no date')}${d.age != null ? `<br><span class="mvName">${d.age} y</span>` : ''}</td>`).join('');
+    const two = list.length >= 2;
+    let html = `<table class="mt cmpT"><tr class="h"><td></td>${head}${two ? '<td class="v">change</td>' : ''}</tr>`;
+    const call = (d, key) => ((d.summary || []).find((s) => s.key === key) || {}).call || '-';
+    html += `<tr><td>CVM stage</td>${list.map((d) => `<td class="v">${esc(d.cvm_stage || '-')}</td>`).join('')}${two ? '<td></td>' : ''}</tr>`;
+    html += `<tr><td>Skeletal class</td>${list.map((d) => `<td class="v sm">${esc(call(d, 'sagittal'))}</td>`).join('')}${two ? '<td></td>' : ''}</tr>`;
+    html += `<tr><td>Vertical pattern</td>${list.map((d) => `<td class="v sm">${esc(call(d, 'vertical'))}</td>`).join('')}${two ? '<td></td>' : ''}</tr>`;
+    let grp = null;
+    for (const m of (list[0] && list[0].measurements) || []) {
+      const vals = list.map((d) => (d.measurements || []).find((x) => x.key === m.key) || {});
+      if (vals.every((x) => x.value == null)) continue;
+      if (m.group !== grp) { grp = m.group; html += `<tr class="g"><td colspan="${list.length + 2}">${esc(grp)}</td></tr>`; }
+      const a = vals[0].value, b = vals[vals.length - 1].value;
+      const ch = two && a != null && b != null ? b - a : null;
+      const chTxt = ch == null ? '' : `${ch > 0 ? '+' : ch < 0 ? '−' : ''}${Math.abs(ch).toFixed(1)}${m.unit === '°' ? '°' : ' ' + m.unit}`;
+      html += `<tr title="${esc(m.desc)}"><td>${esc(m.label)}</td>${vals.map((x) => `<td class="v">${x.value == null ? '<span class="mvName">-</span>' : esc(fmtVal(x))}</td>`).join('')}${two ? `<td class="v ch">${chTxt}</td>` : ''}</tr>`;
+    }
+    return html + '</table>';
+  }
+
+  function renderCompare() {
+    const box = $('#cmpXrays');
+    box.innerHTML = CMP.rows.map((r) => {
+      const on = CMP.sel.includes(r.id), can = r.n_points >= 10;
+      const col = on ? CMP_COLORS[CMP.sel.indexOf(r.id) % CMP_COLORS.length] : 'transparent';
+      return `<button type="button" class="cmpChip${on ? ' on' : ''}" data-id="${esc(r.id)}" ${can ? '' : 'disabled title="Not traced yet"'}>
+        <span class="sw" style="background:${col}"></span>${esc(r.taken ? fmtDate(r.taken) : 'no date')}${r.age != null ? ` · ${r.age} y` : ''}
+        <span class="pill ${esc(r.status)}">${statusWord(r.status)}</span></button>`;
+    }).join('');
+    for (const b of $$('.cmpChip', box)) {
+      b.onclick = () => {
+        const id = b.dataset.id;
+        if (CMP.sel.includes(id)) { if (CMP.sel.length > 1) CMP.sel = CMP.sel.filter((x) => x !== id); }
+        else CMP.sel = CMP.rows.filter((r) => CMP.sel.includes(r.id) || r.id === id).map((r) => r.id).slice(0, CMP_COLORS.length);
+        CMP.view = null;
+        loadCompare();
+      };
+    }
+    const list = CMP.sel.map((id) => CMP.data[id]).filter(Boolean)
+      .sort((a, b) => (a.taken || '').localeCompare(b.taken || '') || a.id.localeCompare(b.id));
+    const frames = cmpFrames(list);
+    CMP.drawn = frames;
+    const c = $('#cmpCv');
+    const dpr = window.devicePixelRatio || 1;
+    c.width = Math.round((c.clientWidth || 600) * dpr);
+    c.height = Math.round((c.clientHeight || 600) * dpr);
+    drawCompare(c, frames);
+    const notes = [];
+    for (const f of frames) {
+      const when = f.d.taken ? fmtDate(f.d.taken) : 'an x-ray without a date';
+      if (!f.ok) notes.push(`${when}: not drawn - ${f.why}.`);
+      else if (f.scaled) notes.push(`${when}: no pixel size, so it is drawn at the first x-ray's S-N length (growth of the cranial base does not show).`);
+      else if (f.d.status !== 'confirmed') notes.push(`${when}: tracing not confirmed yet.`);
+    }
+    $('#cmpNote').innerHTML = notes.map(esc).join('<br>');
+    $('#cmpLegend').innerHTML = frames.filter((f) => f.ok).map((f) => `<span><span class="sw" style="background:${CMP_COLORS[CMP.sel.indexOf(f.d.id) % CMP_COLORS.length]}"></span>${esc(f.d.taken ? fmtDate(f.d.taken) : 'no date')}${f.d.age != null ? ` (${f.d.age} y)` : ''}</span>`).join('')
+      + `<span class="on">superimposed on the ${esc(SUPER[CMP.on].short)}</span>`;
+    $('#cmpMoves').innerHTML = cmpMoves(frames);
+    $('#cmpTable').innerHTML = cmpTable(list.map((d) => ({ d })));
+  }
+
+  function wireCompare() {
+    const c = $('#cmpCv');
+    $('#cmpOn').onchange = (e) => { CMP.on = e.target.value; CMP.view = null; renderCompare(); };
+    $('#cmpPts').onchange = (e) => { CMP.pts = e.target.checked; renderCompare(); };
+    $('#cmpLines').onchange = (e) => { CMP.lines = e.target.checked; renderCompare(); };
+    $('#cmpFit').onclick = () => { CMP.view = null; renderCompare(); };
+    $('#cmpPrint').onclick = printCompare;
+    c.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (!CMP.view) return;
+      const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      const sx = (e.clientX - r.left) * dpr, sy = (e.clientY - r.top) * dpr;
+      const f = Math.exp(-e.deltaY * 0.0015);
+      CMP.view = { s: CMP.view.s * f, ox: sx - (sx - CMP.view.ox) * f, oy: sy - (sy - CMP.view.oy) * f };
+      drawCompare(c, CMP.drawn);
+    }, { passive: false });
+    let drag = null;
+    c.addEventListener('pointerdown', (e) => { if (CMP.view) { drag = { x: e.clientX, y: e.clientY, ox: CMP.view.ox, oy: CMP.view.oy }; c.setPointerCapture(e.pointerId); } });
+    c.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dpr = window.devicePixelRatio || 1;
+      CMP.view = { ...CMP.view, ox: drag.ox + (e.clientX - drag.x) * dpr, oy: drag.oy + (e.clientY - drag.y) * dpr };
+      drawCompare(c, CMP.drawn);
+    });
+    const up = () => { drag = null; };
+    c.addEventListener('pointerup', up);
+    c.addEventListener('pointercancel', up);
+  }
+
+  function printCompare() {
+    const frames = CMP.drawn || [];
+    if (!frames.some((f) => f.ok)) return;
+    const off = document.createElement('canvas');
+    off.width = 1500; off.height = 1500;
+    drawCompare(off, frames, { fit: true, dpr: 1, k: 2.2 });
+    const img = off.toDataURL('image/png');
+    const p = S.case.patient || {};
+    $('#printArea').innerHTML = `
+      <div class="phead"><div><h1>Tracings compared</h1><div class="pmeta">${esc(p.name || '')}${p.chart ? ' · #' + esc(p.chart) : ''}</div></div>
+        <div class="pmeta" style="text-align:right">Superimposed on the ${esc(SUPER[CMP.on].name.toLowerCase())}<br>printed ${esc(fmtDate(new Date().toISOString().slice(0, 10)))}</div></div>
+      <div class="pgrid"><div><img class="trace cmpPrint" src="${img}" alt=""><div class="cmpLegend">${$('#cmpLegend').innerHTML}</div>
+        <div class="pmeta">${$('#cmpNote').innerHTML}</div>${$('#cmpMoves').innerHTML}</div>
+        <div>${$('#cmpTable').innerHTML}</div></div>
+      <div class="pfoot">Next Level Orthodontics · NLO X-Ray Reader · bone and teeth outlines are drawn from the traced points (a textbook shape fitted to them), the soft-tissue profile followed on each x-ray. A tracing aid - the clinical judgement is the doctor's.</div>`;
     setTimeout(() => window.print(), 60);
   }
 
@@ -1861,7 +2430,9 @@
         <div class="row2">${cut('anb_class2_above', 'Class II when ANB is above (°)')}${cut('anb_class3_below', 'Class III when ANB is below (°)')}</div>
         <div class="row2">${cut('wits_band', 'Wits: Class II/III this far from its norm (mm)')}<div></div></div>
         <div class="row2">${cut('fma_low_below', 'Low angle when FMA is below (°)')}${cut('fma_high_above', 'High angle when FMA is above (°)')}</div>
-        <div class="row2">${cut('sngogn_low_below', 'Low angle when SN-GoGn is below (°)')}${cut('sngogn_high_above', 'High angle when SN-GoGn is above (°)')}</div>`;
+        <div class="row2">${cut('sngogn_low_below', 'Low angle when SN-GoGn is below (°)')}${cut('sngogn_high_above', 'High angle when SN-GoGn is above (°)')}</div>
+        <div class="row2">${cut('gall_from_deg', 'GALL: moves forward beyond a forehead inclination of (°)')}${cut('gall_mm_per_deg', '... by this much per degree (mm)')}</div>
+        <p class="hint">Andrews: GALL runs through the forehead's FA point and moves forward with forehead inclination, never ahead of glabella. 7° and 0.6 mm is the rule taught in his course; his 2008 study (Angle Orthod 78:662) found the incisors about 0.5 mm further forward for each degree beyond 7.5°.</p>`;
       foot.innerHTML = '<button class="small" id="nReset" type="button">Back to defaults</button><button class="primary" id="nSave" type="button">Save</button>';
       $('#nReset').onclick = async () => { await saveSettings({ norms: {}, cutoffs: {} }); renderSettings(); };
       $('#nSave').onclick = async () => {
@@ -1939,6 +2510,7 @@
   // ------------------------------------------------------------------ wiring
   function wire() {
     wireViewer();
+    wireCompare();
     resizeCanvas();
     $('#fileIn').onchange = (e) => { importFiles(e.target.files); e.target.value = ''; };
     $('#dropZone').onclick = () => $('#fileIn').click();
@@ -1990,15 +2562,20 @@
     $('#tLines').onclick = (e) => { S.lines = !S.lines; e.currentTarget.classList.toggle('on', S.lines); draw(); };
     $('#tFollow').onclick = (e) => { S.follow = !S.follow; e.currentTarget.classList.toggle('on', S.follow); if (S.follow) focusCurrent(); };
     $('#tTips').onclick = (e) => { S.tips = !S.tips; e.currentTarget.classList.toggle('on', S.tips); updateTip(); };
-    $('#tLoupe').classList.toggle('on', S.loupe);
+    $('#tLoupe').classList.toggle('on', S.loupeKeep);
     $('#tLoupe').onclick = toggleLoupe;
+    $('#tOutline').classList.toggle('on', S.outlines);
+    $('#tOutline').onclick = toggleOutlines;
+    $('#compareBtn').onclick = () => openCompare();
+    $('#cmpClose').onclick = () => $('#dlgCompare').close();
     $('#tRuler').onclick = startRuler;
     for (const h of $$('.fold')) h.onclick = () => $('#' + h.dataset.fold).classList.toggle('closed');
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', (e) => { if (e.code === 'Space') S.space = false; });
     window.addEventListener('pagehide', () => {
-      if (S.case && Object.keys(S.pending).length) {
-        fetch(`/api/cases/${enc(S.case.id)}`, { method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ landmarks: S.pending }) });
+      const pc = S.pendingContours || {};
+      if (S.case && (Object.keys(S.pending).length || Object.keys(pc).length)) {
+        fetch(`/api/cases/${enc(S.case.id)}`, { method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ landmarks: S.pending, contours: pc }) });
       }
     });
   }
@@ -2015,7 +2592,8 @@
     if (k === 'Enter') { e.preventDefault(); acceptCurrent(); }
     else if (k === 'Backspace') { e.preventDefault(); goBack(); }
     else if (k === 'Escape') {
-      if (S.mode === 'ruler') endRuler();
+      if (S.loupePeek) endPeek();
+      else if (S.mode === 'ruler') endRuler();
       else if (S.correcting) endCorrecting();
     }
     else if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown') {
@@ -2027,6 +2605,7 @@
     else if (k === '-' || k === '_') { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); }
     else if (k === 'l' || k === 'L') $('#tLabels').click();
     else if (k === 'm' || k === 'M') toggleLoupe();
+    else if (k === 'o' || k === 'O') toggleOutlines();
     else if (k === 't' || k === 'T') $('#tLines').click();
     else if (k === 'i' || k === 'I') $('#tInvert').click();
   }

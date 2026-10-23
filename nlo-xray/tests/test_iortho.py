@@ -49,10 +49,13 @@ def test_whole_import_lands_on_the_true_points(facing_left):
     res = iortho.import_tracing(f["original_gray"], f["traced_rgb"], rep)
     assert res["facing"] == ("left" if facing_left else "right")
     for c, p in f["truth"].items():
+        if c == "PM":                     # iOrtho's premolar dots are paired (so they are not taken for others), not kept
+            assert c not in res["points"]
+            continue
         got = np.array(res["points"][c])
         assert np.hypot(*(got - p)) < 2.0, (c, got, p)            # original pixels (0.24 mm each)
     assert set(res["verified"]) >= set(iortho.DOT_CODES) | {"MOL"}
-    assert res["unverified"] == ["PM"]
+    assert res["unverified"] == []
     assert all(r["ok"] for r in res["checks"])
 
 
@@ -83,14 +86,16 @@ def test_api_import_new_case_and_confirm(client, adult):
     r = client.post("/api/import/iortho", files=files, data={"confirm": "false"}).json()
     assert not r["errors"] and len(r["results"]) == 1
     res = r["results"][0]
-    assert res["verified"] == len(iortho.DOT_CODES) + 1 and res["unverified"] == ["PM"] and not res["confirmed"]
+    assert res["verified"] == len(iortho.DOT_CODES) + 1 and res["unverified"] == [] and not res["confirmed"]
     case = client.get(f"/api/cases/{res['id']}").json()["case"]
     assert case["patient"]["name"] == "Patient, Test" and case["patient"]["dob"] == "1990-05-10"
     assert "cvm" in case["skipped"] and case["import"]["source"] == "iOrtho"        # an adult: no vertebrae
     assert res["vertebrae"] == "skipped (adult)"
     assert case["calibration"]["mm_per_px"] == pytest.approx(0.24, abs=0.002)     # the fake's scale, from iOrtho's S-N
     assert "iOrtho" in case["calibration"]["source"]
-    assert case["landmarks"]["S"]["by"] == "import" and case["landmarks"]["PM"]["conf"] < 1
+    assert case["landmarks"]["S"]["by"] == "import" and "PM" not in case["landmarks"]
+    # no facial-thirds points from iOrtho, and none needed to confirm an imported tracing
+    assert not {"Gs", "Stms", "Stmi", "Mes"} & set(case["landmarks"])
     assert case["status"] == "traced"
     # the same three files again, confirming: the case is found again and confirmed
     r = client.post("/api/import/iortho", files=files, data={"confirm": "true"}).json()

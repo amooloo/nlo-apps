@@ -21,9 +21,30 @@ sys.path.insert(0, HERE)
 from xray.landmarks import TEMPLATE  # noqa: E402
 
 
+# The landmarks jittered, in the order the template had when these pictures were first made: keeping the order keeps
+# every random draw - and so every synthetic picture - as it was. The premolar contact is still drawn (a tooth) but no
+# longer traced; the facial-thirds points (Gs, Stms, Stmi, Mes) are put on the drawn skin outline afterwards.
+_JITTER_ORDER = ["S", "N", "Or", "Po", "Ar", "PNS", "ANS", "A", "U1A", "U1T", "L1T", "L1A", "B", "Pog", "Gn", "Me", "Go",
+                 "MPt", "MOL", "PM", "Prn", "Sn", "Ls", "Li", "Pos", "C2lp", "C2d", "C2la", "C3up", "C3ua", "C3lp", "C3d",
+                 "C3la", "C4up", "C4ua", "C4lp", "C4d", "C4la"]
+_EXTRA = {"PM": (50.2, -65.5)}
+FOREHEAD_TOP = (40.0, 70.0)          # where the skin outline drawn by render() comes down the forehead from
+
+
+def soft_on_skin(s):
+    """The facial-thirds points on the skin outline render() draws (canonical mm): G' 12 mm and the top of the
+    forehead 50 mm up the forehead edge, the stomia on the lip edge, Me' round the chin."""
+    top, a = s["N"] + [8, 2], np.array(FOREHEAD_TOP)
+    out = {"Gs": top + 12.0 / (a[1] - top[1]) * (a - top), "Tr": top + 50.0 / (a[1] - top[1]) * (a - top)}
+    out["Stms"] = s["Ls"] + 0.45 * (s["Li"] - s["Ls"])
+    out["Stmi"] = s["Ls"] + 0.55 * (s["Li"] - s["Ls"])
+    out["Mes"] = s["Pos"] + 0.6 * np.array([-10.0, -18.0])
+    return out
+
+
 def varied_shape(rng):
     """Template + global rotation/scale + correlated 'class' and 'vertical' changes + jitter (mm, canonical)."""
-    p = {k: np.array(v, float) for k, v in TEMPLATE.items()}
+    p = {k: np.array(TEMPLATE.get(k, _EXTRA.get(k)), float) for k in _JITTER_ORDER}
     # mandible forward/back (Class II/III-like) and its incisors with it
     dx = rng.uniform(-5, 5)
     for k in ("B", "Pog", "Gn", "Me", "L1T", "L1A", "Li", "Pos"):
@@ -42,7 +63,9 @@ def varied_shape(rng):
     ang = math.radians(rng.uniform(-6, 6))
     sc = rng.uniform(0.92, 1.08)
     R = np.array([[math.cos(ang), -math.sin(ang)], [math.sin(ang), math.cos(ang)]]) * sc
-    return {k: R @ v + rng.normal(0, 0.8, 2) for k, v in p.items()}, m
+    out = {k: R @ v + rng.normal(0, 0.8, 2) for k, v in p.items()}
+    out.update(soft_on_skin(out))
+    return out, m
 
 
 def render(rng, w=900, h=1100, mm_px=0.24):
@@ -60,7 +83,7 @@ def render(rng, w=900, h=1100, mm_px=0.24):
     img = Image.new("L", (w, h), 18)
     d = ImageDraw.Draw(img)
     # skull / face soft-tissue mass
-    skin = [px((-60, 60)), px((40, 70)), px(shape["N"] + [8, 2]), px(shape["Prn"]), px(shape["Sn"]),
+    skin = [px((-60, 60)), px(FOREHEAD_TOP), px(shape["N"] + [8, 2]), px(shape["Prn"]), px(shape["Sn"]),
             px(shape["Ls"]), px(shape["Li"]), px(shape["Pos"]), px(shape["Pos"] + [-10, -18]), px((-10, -120)),
             px((-70, -120))]
     d.polygon(skin, fill=58)

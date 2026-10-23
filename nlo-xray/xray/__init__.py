@@ -2,4 +2,4 @@
 
 Everything runs on the office PC: images, tracings and the trained model never leave it.
 """
-__version__ = "1.6.1"
+__version__ = "1.7.0"

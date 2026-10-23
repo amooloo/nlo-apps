@@ -39,9 +39,10 @@ from xray import geometry as geo  # noqa: E402
 from xray.analysis import DEFAULT_CUTOFFS, DEFAULT_NORMS, MEASURES, analyze  # noqa: E402
 from xray.cvm import DEFAULT_THRESHOLDS, clean_marks  # noqa: E402
 from xray import iortho  # noqa: E402
+from xray import outlines as outlines_mod  # noqa: E402
 from xray import ruler as ruler_mod  # noqa: E402
 from xray.imageio import ImageReadError, is_dicom_bytes, load_png  # noqa: E402
-from xray.landmarks import ANCHORS, CODES, GROUP_OF, PAPER_LABEL, codes_in_group, public_definitions  # noqa: E402
+from xray.landmarks import ANCHORS, CODES, GROUP_OF, LABEL, OPTIONAL, codes_in_group, public_definitions  # noqa: E402
 from xray.shape import fill_missing, mean_shape, place_from_anchors  # noqa: E402
 from xray.store import Store, age_years  # noqa: E402
 from xray.train import MIN_CASES, Nightly, Trainer  # noqa: E402
@@ -257,9 +258,17 @@ def status():
 
 # ----------------------------------------------------------------------------- cases
 
-def _required_codes(case):
+def _codes_for(case):
+    """Every point this x-ray is traced with (a skipped group left out): what a fresh tracing places."""
     skipped = set(case.get("skipped") or [])
     return [c for c in CODES if GROUP_OF[c] not in skipped]
+
+
+def _required_codes(case):
+    """The points a tracing needs before it can be confirmed: the facial-thirds points only once they are on it (an
+    x-ray traced before they existed, or imported from iOrtho, is complete without them)."""
+    lm = case.get("landmarks") or {}
+    return [c for c in _codes_for(case) if c not in OPTIONAL or c in lm]
 
 
 def _calibration_check(pts, mm):
@@ -312,13 +321,55 @@ def _ruler_check(case, settings=None):
     return True
 
 
+_img_cache = {}                   # case id -> (image file's mtime, greyscale array): the last few x-rays opened
+_img_lock = threading.Lock()
+
+
+def _image(cid):
+    """The x-ray as a greyscale array (kept for the last few opened: outlines are redrawn at every saved click)."""
+    path = STORE.image_path(cid)
+    try:
+        mt = os.path.getmtime(path)
+    except OSError:
+        return None
+    with _img_lock:
+        hit = _img_cache.get(cid)
+        if hit and hit[0] == mt:
+            return hit[1]
+    try:
+        img = load_png(path)
+    except Exception:  # noqa - an unreadable image: no traced profile, the rest still works
+        return None
+    with _img_lock:
+        if len(_img_cache) >= 6:
+            _img_cache.pop(next(iter(_img_cache)))
+        _img_cache[cid] = (mt, img)
+    return img
+
+
+def _outlines(case, pts):
+    """The anatomy drawn from the points and the soft-tissue profile followed on the x-ray (see xray/outlines.py)."""
+    if not pts:
+        return []
+    try:
+        return outlines_mod.outlines(_image(case["id"]), pts, case.get("facing"),
+                                     (case.get("calibration") or {}).get("mm_per_px"), case.get("contours"))
+    except Exception as ex:  # noqa - outlines are a drawing aid: never let them stop the analysis
+        _log(f"outlines failed for {case.get('id')}: {ex}")
+        return []
+
+
 def _analysis(case, settings=None):
     pts = STORE.points_px(case)
     cal = case.get("calibration") or {}
     age = age_years((case.get("patient") or {}).get("dob"), case.get("taken"))
+    outl = _outlines(case, pts)
+    prof = next((o for o in outl if o["key"] == "profile"), None)
+    dense = outlines_mod.spline(prof["xy"]).tolist() if prof and len(prof["xy"]) >= 2 else None
     a = analyze(pts, cal.get("mm_per_px"), case.get("facing"), (case.get("patient") or {}).get("sex"),
-                effective_settings(settings), cvm_marks=(case.get("cvm") or {}).get("marks"), age=age)
+                effective_settings(settings), cvm_marks=(case.get("cvm") or {}).get("marks"), age=age, profile=dense)
     a["age"] = age
+    a["outlines"] = outl
     a["calibration_check"] = _calibration_check(pts, cal.get("mm_per_px"))
     req = _required_codes(case)
     a["progress"] = dict(placed=sum(1 for c in req if c in pts), total=len(req),
@@ -377,6 +428,57 @@ async def import_cases(files: list[UploadFile] = File(...)):
             out.append(dict(name=f.filename, error=str(ex)))
         except Exception as ex:  # noqa
             out.append(dict(name=f.filename, error=f"Could not import: {ex}"))
+    return out
+
+
+def _name_tokens(p):
+    return {w for w in re.split(r"[^a-z]+", str((p or {}).get("name") or "").lower()) if len(w) >= 2}
+
+
+def _same_patient(a, b):
+    """Two x-rays of one patient: the same chart number; else the same birth date and a matching name; else (no
+    birth date) the same name."""
+    pa, pb = a.get("patient") or {}, b.get("patient") or {}
+    ca, cb = str(pa.get("chart") or "").strip(), str(pb.get("chart") or "").strip()
+    if ca and cb:
+        return ca == cb
+    ta, tb = _name_tokens(pa), _name_tokens(pb)
+    names = bool(ta and tb) and (ta == tb or len(ta & tb) >= min(2, len(ta), len(tb)))
+    if pa.get("dob") and pb.get("dob"):
+        return pa["dob"] == pb["dob"] and (names or not (ta and tb))
+    return names and len(ta & tb) >= 2
+
+
+def _series(case):
+    rows = [c for c in STORE.list() if c["id"] == case["id"] or _same_patient(case, c)]
+    rows.sort(key=lambda c: (c.get("taken") or c["created"][:10], c["created"]))
+    return rows
+
+
+@app.get("/api/cases/{cid}/series")
+def series(cid: str):
+    """This patient's x-rays, oldest first: the ones to compare (before / during / after treatment)."""
+    return [STORE.summary_row(c) for c in _series(_get(cid))]
+
+
+@app.get("/api/compare")
+def compare(ids: str):
+    """What the comparison draws and tabulates for each x-ray (oldest first): its points and outlines in its own
+    pixels, its pixel size and facing, its measurements and stages."""
+    out = []
+    for cid in [x for x in ids.split(",") if x][:6]:
+        case = _get(cid)
+        a = _analysis(case)
+        pts = STORE.points_px(case)
+        cal = case.get("calibration") or {}
+        out.append(dict(id=case["id"], taken=case.get("taken"), age=a.get("age"), status=case.get("status"),
+                        name=(case.get("patient") or {}).get("name") or "", facing=a.get("facing"),
+                        mm_per_px=cal.get("mm_per_px"), cal_source=cal.get("source"), image=case.get("image"),
+                        points={c: [round(x, 2), round(y, 2)] for c, (x, y) in pts.items()},
+                        outlines=a.get("outlines") or [], measurements=a.get("measurements") or [],
+                        summary=a.get("summary") or [], cvm_stage=(a.get("cvm") or {}).get("stage")
+                        if "cvm" not in (case.get("skipped") or []) else None))
+    out.sort(key=lambda r: (r["taken"] or "", r["id"]))
     return out
 
 
@@ -457,7 +559,37 @@ def _patch_case(cid, body):
             changed += 1
         if changed and case.get("status") == "confirmed":
             case["confirmed_at"] = dt.datetime.now().replace(microsecond=0).isoformat()   # learn from the edit
-            hist.append(f"{', '.join(PAPER_LABEL.get(c, c) for c in list(body['landmarks'])[:6])} corrected on the confirmed tracing (a new lesson)")
+            hist.append(f"{', '.join(LABEL.get(c, c) for c in list(body['landmarks'])[:6])} corrected on the confirmed tracing (a new lesson)")
+    if "contours" in body:
+        # outline dots moved by hand: landmark codes and [x, y] pixels per outline; None for an outline (or for all)
+        # draws it from the points again
+        upd = body["contours"]
+        if upd is None:
+            if case.get("contours"):
+                hist.append("outlines redrawn from the points")
+            case["contours"] = {}
+        else:
+            cur = case.setdefault("contours", {})
+            W, H = case["image"]["w"], case["image"]["h"]
+            for key, dots in (upd or {}).items():
+                if key not in outlines_mod.NAMES:
+                    continue
+                if dots is None:
+                    cur.pop(key, None)
+                    continue
+                clean = []
+                for d in (dots or [])[:80]:
+                    if isinstance(d, str) and d in CODES:
+                        clean.append(d)
+                    elif isinstance(d, (list, tuple)) and len(d) == 2:
+                        try:
+                            x, y = float(d[0]), float(d[1])
+                        except (TypeError, ValueError):
+                            continue
+                        if -50 <= x <= W + 50 and -50 <= y <= H + 50:
+                            clean.append([round(x, 1), round(y, 1)])
+                if len(clean) >= 2:
+                    cur[key] = clean
     if "skipped" in body:
         sk = [g for g in (body["skipped"] or []) if g in ("soft", "cvm")]
         case["skipped"] = sk
@@ -584,7 +716,7 @@ def _from_anchors(cid, body):
         pts = place_from_anchors(anchors, shape)
     except ValueError as ex:
         raise HTTPException(400, str(ex))
-    req = set(_required_codes(case))
+    req = set(_codes_for(case))
     lm = {}
     for code, (x, y) in pts.items():
         if code not in req:
@@ -987,15 +1119,25 @@ def examples(code: str, exclude: str = "", n: int = 3):
 
 
 @app.post("/api/cases/{cid}/fill")
-def fill_case(cid: str):
-    """Points still missing (a group switched back on) go where the average tracing says, from the others."""
+def fill_case(cid: str, optional: bool = False):
+    """Points still missing (a group switched back on; with optional, the facial-thirds points of an x-ray traced
+    without them) go where the average tracing says, from the others. On a confirmed tracing the new points reopen it:
+    they must be checked before it is a lesson again."""
     case = _get(cid)
     known = {c: (v["x"], v["y"]) for c, v in (case.get("landmarks") or {}).items()}
-    missing = [c for c in _required_codes(case) if c not in known]
+    want = _codes_for(case) if optional else _required_codes(case)
+    missing = [c for c in want if c not in known]
+    if missing and case.get("status") == "confirmed":
+        _patch_case(cid, {"status": "reopen"})
+        case = _get(cid)
     if missing:
         shape, _ = current_shape()
         for c, (x, y) in fill_missing(known, missing, shape).items():
             case["landmarks"][c] = dict(x=round(x, 2), y=round(y, 2), by="template", conf=None)
+        if optional:
+            case.setdefault("history", []).append(dict(t=dt.datetime.now().replace(microsecond=0).isoformat(),
+                                                       what=f"{', '.join(LABEL.get(c, c) for c in missing)} added from "
+                                                            "the average tracing - to check"))
     case, a = _refresh(case)
     STORE.save(case)
     return _reply(case, a)
@@ -1009,7 +1151,7 @@ def auto_trace(cid: str):
         raise HTTPException(409, "The app has not learned to place points yet.")
     img = load_png(STORE.image_path(cid))
     pred, facing = TRAINER.predict(img, None)
-    req = set(_required_codes(case))
+    req = set(_codes_for(case))
     lm = {c: dict(x=round(v["x"], 2), y=round(v["y"], 2), by="model", conf=v["conf"]) for c, v in pred.items() if c in req}
     rest = [c for c in req if c not in lm]
     if rest:

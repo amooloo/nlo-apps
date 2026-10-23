@@ -26,12 +26,15 @@ import numpy as np
 from PIL import Image
 
 from . import geometry as g
-from .landmarks import TEMPLATE
+from .landmarks import CODES, TEMPLATE
 
 # the landmarks iOrtho traces too (everything but the vertebrae); MOL and PM are midpoints of cusp dots
 DOT_CODES = ["S", "N", "A", "B", "ANS", "PNS", "U1T", "U1A", "L1T", "L1A", "Po", "Or", "Go", "Gn", "Pog", "MPt",
              "Me", "Ar", "Prn", "Pos", "Ls", "Li", "Sn"]
 PAIR_CODES = ["MOL", "PM"]
+# iOrtho dots the premolar cusps too; the app no longer traces a premolar point (its occlusal plane runs from the
+# molars to the incisors, like iOrtho's), but the pair is still found so that its dots are not mistaken for others
+_TPL = dict(TEMPLATE, PM=(50.2, -65.5))
 
 
 class ImportError_(Exception):
@@ -465,7 +468,7 @@ def _umeyama(src, dst):
 
 
 def fit_template(dots):
-    """Our average tracing (TEMPLATE, mm) fitted to the dot cloud by trimmed ICP. Returns the best fit:
+    """Our average tracing (the template, mm) fitted to the dot cloud by trimmed ICP. Returns the best fit:
     dict(facing, scale (px per mm), R, t, pred {code: px})."""
     codes = DOT_CODES + PAIR_CODES
     best = None
@@ -473,7 +476,7 @@ def fit_template(dots):
     r_d = np.sqrt(((dots - c_d) ** 2).sum(1).mean())
     for facing in ("right", "left"):
         sx = 1.0 if facing == "right" else -1.0
-        tp = np.array([[sx * TEMPLATE[c][0], -TEMPLATE[c][1]] for c in codes])      # image orientation, mm
+        tp = np.array([[sx * _TPL[c][0], -_TPL[c][1]] for c in codes])      # image orientation, mm
         c_t = tp.mean(0)
         r_t = np.sqrt(((tp - c_t) ** 2).sum(1).mean())
         for mult in (0.8, 0.95, 1.1):
@@ -755,9 +758,11 @@ def import_tracing(original_gray, traced_rgb, report, reg=None):
     pts = {}
     for c, (x, y) in m["points"].items():
         ox, oy = (x - tx) / s, (y - ty) / s
-        if -20 <= ox <= W + 20 and -20 <= oy <= H + 20:
+        if c in CODES and -20 <= ox <= W + 20 and -20 <= oy <= H + 20:      # the app's own landmarks only
             pts[c] = (ox, oy)
     m["points"] = pts
+    m["verified"] = [c for c in m["verified"] if c in pts]
+    m["unverified"] = [c for c in m["unverified"] if c in pts]
     m["registration"] = reg
     m["mm_per_px"] = m["scale_mm"] * s if m.get("scale_mm") else None      # iOrtho's own scale, original pixels
     return m
