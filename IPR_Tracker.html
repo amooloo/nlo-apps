@@ -938,32 +938,6 @@ function addContacts(a, b) {
   return result;
 }
 
-// ─── Tooth SVG ────────────────────────────────────────────────────────────────
-function toothPath(n) {
-  if (n === 1) return "M 4,43 C 1,42 1,36 1,22 C 1,8 5,1 14,1 C 23,1 27,8 27,22 C 27,36 27,42 24,43 C 21,44 7,44 4,43 Z";
-  if (n === 2) return "M 3,40 C 1,39 1,33 1,21 C 1,9 4,2 12,2 C 20,2 23,9 23,21 C 23,33 23,39 21,40 C 18,41 6,41 3,40 Z";
-  if (n === 3) return "M 4,45 C 1,43 1,37 1,24 C 1,12 5,4 10,1 L 14,0 L 18,1 C 23,4 27,12 27,24 C 27,37 27,43 24,45 C 21,46 7,46 4,45 Z";
-  if (n === 4 || n === 5) return "M 4,41 C 1,39 1,33 1,21 C 1,10 4,3 9,1 L 11.5,0 L 14,3 L 16.5,0 L 19,1 C 24,3 27,10 27,21 C 27,33 27,39 24,41 C 21,42 7,42 4,41 Z";
-  return "M 5,39 C 2,37 2,32 2,21 C 2,10 5,3 9,1 L 12.5,0 L 15.5,3.5 L 20,3.5 L 23,0 L 26.5,1 C 31,3 34,10 34,21 C 34,32 34,37 31,39 C 28,40 8,40 5,39 Z";
-}
-const TW = {
-  7: 36,
-  6: 36,
-  5: 28,
-  4: 28,
-  3: 28,
-  2: 24,
-  1: 28
-};
-const TH = {
-  7: 48,
-  6: 48,
-  5: 42,
-  4: 42,
-  3: 46,
-  2: 41,
-  1: 44
-};
 // ─── Arch diagram geometry ────────────────────────────────────────────────────
 // Teeth tile along a buccal arch curve (a cubic Bézier from the incisal midline back to the
 // distal of the second molar). Each tooth is a superellipse warped onto that curve, so outlines
@@ -1484,7 +1458,136 @@ function CumulativeChart({ cumUpper, cumLower, visitCount, onClose }) {
         el("span", null, "Grand total ", el("b", null, (sumContacts(cumUpper) + sumContacts(cumLower)).toFixed(1), " mm")))));
 }
 
+// ─── Printed arch diagram ─────────────────────────────────────────────────────
+// The printed form draws exactly the arch the app shows (ArchDiagram): the same geometry from
+// archGeometry(), the same tooth outlines, contact circles, colours and type sizes, so a paper form
+// filled in chairside reads just like the screen it gets typed into. Everything is plain SVG with its
+// styling written inline, because the print preview copies this markup into a bare window that has
+// none of the app's stylesheet.
+//   mode "ipr" | "spaces"     vals / bt / missing / cumRef as in ArchDiagram (cumRef = earlier visits)
+//   blank                     empty write-in form: no amounts, no missing teeth, no total in the middle
+const PRINT_ARCH_FONT = '"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif';
+// viewBox for a printed arch. Filled forms use the app's own box (it leaves room for the earlier-visit
+// tags); a blank form never has tags, so it crops to the teeth and circles and both arches print larger.
+// Upper and lower always share one box size, so they print at the same scale.
+const PRINT_ARCH_BOX = {};
+function printArchBox(lower, tight) {
+  const g = archGeometry(lower);
+  if (!tight) return "0 0 " + g.W + " " + g.H;
+  if (!PRINT_ARCH_BOX.U) {
+    const bounds = [false, true].map(isLower => {
+      const a = archGeometry(isLower);
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      const grow = (x, y, r) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
+      a.contacts.forEach(c => grow(c.chip[0], c.chip[1], 20));
+      a.teeth.forEach(t => t.d.slice(1, -1).split("L").forEach(pt => { const xy = pt.split(" "); grow(+xy[0], +xy[1], 1); }));
+      [a.quad.l, a.quad.r].forEach(q => grow(q[0], q[1] - 5, 12));
+      return { x0, y0, x1, y1 };
+    });
+    const w = Math.ceil(Math.max(...bounds.map(b => b.x1 - b.x0))) + 8;
+    const h = Math.ceil(Math.max(...bounds.map(b => b.y1 - b.y0))) + 8;
+    bounds.forEach((b, i) => {
+      PRINT_ARCH_BOX[i ? "L" : "U"] = [Math.round((b.x0 + b.x1 - w) / 2), Math.round((b.y0 + b.y1 - h) / 2), w, h].join(" ");
+    });
+  }
+  return PRINT_ARCH_BOX[lower ? "L" : "U"];
+}
+function PrintArch(p) {
+  const lower = !!p.lower, isSp = p.mode === "spaces", blank = !!p.blank;
+  const g = archGeometry(lower);
+  const arr = lower ? LOWER : UPPER;
+  const vals = blank ? {} : p.vals || {};
+  const bt = blank ? {} : p.bt || {};
+  const missing = blank ? {} : p.missing || {};
+  const ref = blank || isSp ? null : p.cumRef;
+  const adj = i => !!(missing[arr[i]] || missing[arr[i + 1]]);
+  const keyOf = i => arr[i] + "|" + arr[i + 1];       // position-derived, as in ArchDiagram
+  const fillOn = isSp ? "#0b7f8a" : "#2459d6";         // the app's teal / blue for a contact with an amount
+  const total = sumContacts(vals);
+  const btCount = Object.values(bt).filter(Boolean).length;
+  const prevTotal = ref ? sumContacts(ref) : 0;
+  const title = lower ? "Lower arch" : "Upper arch";
+  const cx = g.center[0], cy = g.center[1];
+  const tab = { fontVariantNumeric: "tabular-nums" };
+  const shown = v => (v === undefined || v === null || v === "" || isNaN(parseFloat(v))) ? "" : String(v);
+  const out = [];
+
+  // stems from each contact out to its circle
+  g.contacts.forEach((c, i) => {
+    const has = parseFloat(vals[keyOf(i)]) > 0, off = adj(i);
+    out.push(el("line", {
+      key: "s" + i, x1: c.stem[0][0], y1: c.stem[0][1], x2: c.stem[1][0], y2: c.stem[1][1],
+      stroke: has ? fillOn : "#d3dbe6", strokeWidth: 1.5, strokeLinecap: "round",
+      opacity: off ? 0.35 : undefined, strokeDasharray: off ? "2 4" : undefined
+    }));
+  });
+  // teeth; a missing tooth is dashed with an ×, as on screen
+  g.teeth.forEach((t, i) => {
+    const miss = !!missing[arr[i]];
+    out.push(el("g", { key: "t" + i },
+      el("path", { d: t.d, fill: miss ? "#f4f6f9" : "#fff", stroke: miss ? "#b9c3d1" : "#a7b4c6", strokeWidth: 1.4, strokeLinejoin: "round", strokeDasharray: miss ? "4 3.5" : undefined }),
+      el("text", { x: t.lx, y: t.ly, textAnchor: "middle", dominantBaseline: "central", fontSize: miss ? 19 : 13, fontWeight: miss ? 500 : 600, fill: miss ? "#97a4b7" : "#6b7b92" }, miss ? "×" : t.n)));
+  });
+  // quadrant labels
+  out.push(el("text", { key: "ql", x: g.quad.l[0], y: g.quad.l[1], textAnchor: "middle", fontSize: 13, fontWeight: 700, fill: "#8d9bb0", letterSpacing: "0.04em" }, lower ? "LR" : "UR"));
+  out.push(el("text", { key: "qr", x: g.quad.r[0], y: g.quad.r[1], textAnchor: "middle", fontSize: 13, fontWeight: 700, fill: "#8d9bb0", letterSpacing: "0.04em" }, lower ? "LL" : "UL"));
+  // middle of the arch: its name, its total and the line under it (a blank form shows just the name)
+  if (blank) {
+    out.push(el("text", { key: "lab", x: cx, y: cy, textAnchor: "middle", dominantBaseline: "central", fontSize: 13.5, fontWeight: 600, fill: "#74849b" }, title));
+  } else {
+    out.push(el("text", { key: "lab", x: cx, y: cy - 36, textAnchor: "middle", fontSize: 13.5, fontWeight: 600, fill: "#74849b" }, title));
+    out.push(el("text", { key: "num", x: cx, y: cy + 8, textAnchor: "middle", fontSize: 40, fontWeight: 700, fill: total > 0 ? "#16253b" : "#c3cdda", style: { letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" } },
+      total.toFixed(1), el("tspan", { dx: 5, fontSize: 16, fontWeight: 600, fill: "#74849b", style: { letterSpacing: 0 } }, "mm")));
+    const sub = isSp ? (btCount > 0 ? btCount + " black triangle" + (btCount > 1 ? "s" : "") : "No black triangles")
+      : (prevTotal > 0 ? "Earlier visits: " + prevTotal.toFixed(1) + " mm" : "");
+    if (sub) out.push(el("text", { key: "sub", x: cx, y: cy + 36, textAnchor: "middle", fontSize: 13, fontWeight: 600, fill: isSp && btCount === 0 ? "#74849b" : "#6a3fd0" }, sub));
+  }
+  // contact circles, then the black-triangle marker (spaces) or the earlier-visit tag (IPR) at each contact
+  g.contacts.forEach((c, i) => {
+    const k = keyOf(i), v = shown(vals[k]), has = parseFloat(v) > 0, off = adj(i);
+    out.push(el("g", { key: "c" + i, opacity: off ? 0.28 : undefined },
+      el("circle", { cx: c.chip[0], cy: c.chip[1], r: 18.25, fill: has ? fillOn : "#fff", stroke: has ? fillOn : "#cdd5e1", strokeWidth: 1.5 }),
+      v && el("text", { x: c.chip[0], y: c.chip[1], textAnchor: "middle", dominantBaseline: "central", fontSize: 14, fontWeight: 700, fill: has ? "#fff" : "#16253b", style: tab }, v)));
+    if (isSp) {
+      const on = !!bt[k];
+      out.push(el("path", {
+        key: "b" + i, d: "M-6.5 -5.5 L6.5 -5.5 L0 6 Z", transform: `translate(${c.bt[0]} ${c.bt[1]}) rotate(${c.btRot})`,
+        fill: on ? "#111827" : "none", stroke: on ? "#111827" : "#b9c4d3", strokeWidth: 1.5, strokeLinejoin: "round",
+        opacity: off ? 0.35 : undefined
+      }));
+    } else if (ref) {
+      const pv = parseFloat(ref[k]);
+      if (pv > 0 && !off) out.push(el("g", { key: "p" + i },
+        el("rect", { x: c.pill[0] - 14.5, y: c.pill[1] - 8.5, width: 29, height: 17, rx: 8.5, fill: "#f1ecfd", stroke: "#dacffa", strokeWidth: 1 }),
+        el("text", { x: c.pill[0], y: c.pill[1], textAnchor: "middle", dominantBaseline: "central", fontSize: 11, fontWeight: 700, fill: "#6a3fd0", style: tab }, String(Math.round(pv * 10) / 10))));
+    }
+  });
+  return el("svg", {
+    viewBox: printArchBox(lower, blank), width: "100%", role: "img", "aria-label": title,
+    style: { display: "block", width: "100%", height: "auto", overflow: "visible", fontFamily: PRINT_ARCH_FONT }
+  }, out);
+}
+// The printed arches use the app's own font (Figtree, embedded at the top of this file) so their numbers
+// look the same on paper as on screen. The preview window has no stylesheet, so the font face is copied in.
+function printFontFace() {
+  try {
+    const styles = document.querySelectorAll("style");
+    for (let i = 0; i < styles.length; i++) {
+      const m = (styles[i].textContent || "").match(/@font-face\s*\{[^}]*Figtree[^}]*\}/);
+      if (m) return m[0];
+    }
+  } catch (e) {}
+  return "";
+}
+
 // ─── Print Chart ──────────────────────────────────────────────────────────────
+// The printed form (Print, Export PDF and Print blank form). Its two sections show what the app's two
+// tabs show, drawn with PrintArch: the IPR section has this visit's amounts in the circles and earlier
+// visits in the small violet tags (IPR tab); the spaces section has residual spaces and black triangles
+// (Spaces tab). Upper and lower sit side by side as they do on a computer screen.
+const PRINT_ARCH_CARD = { flex: "1 1 0", minWidth: 0, border: "1px solid #e3e8ef", borderRadius: 12, padding: "4px 2px", background: "#fff" };
+const PRINT_SECTION = { marginBottom: 14, breakInside: "avoid", pageBreakInside: "avoid" };
+const PRINT_TOTALS = { display: "flex", gap: 20, marginTop: 5, fontSize: 10, color: "#334155" };
 function PrintChart({
   upper,
   lower,
@@ -1498,7 +1601,10 @@ function PrintChart({
   blank,
   cumUpper,
   cumLower,
-  visitCount
+  visitCount,
+  missing,
+  prevUpper,
+  prevLower
 }) {
   // When blank mode, zero out all data so we get an empty chart
   if (blank) {
@@ -1510,35 +1616,12 @@ function PrintChart({
     lowerBT = initBT(LOWER);
     cumUpper = null;
     cumLower = null;
+    prevUpper = null;
+    prevLower = null;
+    missing = {};
     notes = "";
     gaugeVerified = false;
   }
-  const NUMS = [7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7];
-  const PAD = 6;
-  let xs = [],
-    cx = PAD;
-  NUMS.forEach(n => {
-    xs.push(cx);
-    cx += TW[n];
-  });
-  const TOTAL_W = cx + PAD;
-  const contactXs = NUMS.slice(0, -1).map((n, i) => xs[i] + TW[n]);
-  const lTW = n => n === 1 ? TW[2] : TW[n];
-  let lxsRaw = [],
-    lcx = PAD;
-  NUMS.forEach(n => {
-    lxsRaw.push(lcx);
-    lcx += lTW(n);
-  });
-  const lOffset = (TOTAL_W - (lcx + PAD)) / 2;
-  const lxs = lxsRaw.map(x => x + lOffset);
-  const lContactXs = NUMS.slice(0, -1).map((n, i) => lxs[i] + lTW(n));
-  const ANN = 54,
-    CH = 48,
-    SVGGAP = 12;
-  const SVG_H = ANN + CH + SVGGAP + CH + ANN;
-  const upperBase = ANN + CH;
-  const lowerTop = upperBase + SVGGAP;
   const upperTotal = sumContacts(upper);
   const lowerTotal = sumContacts(lower);
   const cumUpperTotal = cumUpper ? sumContacts(cumUpper) : 0;
@@ -1549,333 +1632,80 @@ function PrintChart({
   const upperBTCount = Object.values(upperBT).filter(Boolean).length;
   const lowerBTCount = Object.values(lowerBT).filter(Boolean).length;
   const hasAnySpaces = upperSpacesTotal > 0 || lowerSpacesTotal > 0 || upperBTCount > 0 || lowerBTCount > 0;
-  const renderDentalSVG = (cUpper, cLower, btU, btL, lineColor, showBT, blankMode) => {
-    const uKeys = Object.keys(cUpper);
-    const lKeys = Object.keys(cLower);
-    return /*#__PURE__*/React.createElement("svg", {
-      viewBox: `0 0 ${TOTAL_W} ${SVG_H}`,
-      width: "100%",
-      preserveAspectRatio: "xMidYMid meet",
-      style: {
-        display: "block",
-        maxHeight: 200,
-        overflow: "visible"
-      }
-    }, /*#__PURE__*/React.createElement("text", {
-      x: TOTAL_W / 2,
-      y: 8,
-      textAnchor: "middle",
-      fontSize: "7",
-      fontWeight: "700",
-      fill: "#64748b",
-      fontFamily: "system-ui",
-      letterSpacing: "1"
-    }, "UPPER ARCH"), /*#__PURE__*/React.createElement("text", {
-      x: TOTAL_W / 2,
-      y: SVG_H - 2,
-      textAnchor: "middle",
-      fontSize: "7",
-      fontWeight: "700",
-      fill: "#64748b",
-      fontFamily: "system-ui",
-      letterSpacing: "1"
-    }, "LOWER ARCH"), /*#__PURE__*/React.createElement("line", {
-      x1: xs[7],
-      y1: ANN,
-      x2: xs[7],
-      y2: SVG_H - ANN,
-      stroke: "#e2e8f0",
-      strokeWidth: "0.8",
-      strokeDasharray: "3,2"
-    }), /*#__PURE__*/React.createElement("line", {
-      x1: PAD,
-      y1: upperBase,
-      x2: TOTAL_W - PAD,
-      y2: upperBase,
-      stroke: "#cbd5e1",
-      strokeWidth: "0.5"
-    }), /*#__PURE__*/React.createElement("line", {
-      x1: PAD,
-      y1: lowerTop,
-      x2: TOTAL_W - PAD,
-      y2: lowerTop,
-      stroke: "#cbd5e1",
-      strokeWidth: "0.5"
-    }), NUMS.map((n, i) => {
-      const w = TW[n] || 28, h = TH[n] || 44;
-      return /*#__PURE__*/React.createElement("g", { key: `u${i}` }, /*#__PURE__*/React.createElement("path", {
-        d: toothPath(n),
-        transform: `translate(${xs[i]},${ANN})`,
-        fill: "white",
-        stroke: "#334155",
-        strokeWidth: "1.2"
-      }), /*#__PURE__*/React.createElement("text", {
-        x: xs[i] + w / 2,
-        y: ANN + h * 0.52,
-        textAnchor: "middle",
-        dominantBaseline: "central",
-        fontSize: "11",
-        fontWeight: "700",
-        fill: "#475569",
-        fontFamily: "system-ui"
-      }, n));
-    }), NUMS.map((n, i) => {
-      const dn = n === 1 ? 2 : n,
-        w = TW[dn] || 28,
-        h = TH[dn] || 40;
-      return /*#__PURE__*/React.createElement("g", { key: `l${i}` }, /*#__PURE__*/React.createElement("path", {
-        d: toothPath(dn),
-        transform: `translate(${lxs[i]},${lowerTop + h}) scale(1,-1)`,
-        fill: "white",
-        stroke: "#334155",
-        strokeWidth: "1.2"
-      }), /*#__PURE__*/React.createElement("text", {
-        x: lxs[i] + w / 2,
-        y: lowerTop + h * 0.48,
-        textAnchor: "middle",
-        dominantBaseline: "central",
-        fontSize: "11",
-        fontWeight: "700",
-        fill: "#475569",
-        fontFamily: "system-ui"
-      }, n));
-    }), contactXs.map((cx2, i) => {
-      const key = uKeys[i];
-      if (!key) return null;
-      const numVal = parseFloat(cUpper[key]);
-      const hasBT = showBT && btU && btU[key];
-      if (!blankMode && !numVal && !hasBT) return null;
-      if (blankMode) {
-        return /*#__PURE__*/React.createElement("g", {
-          key: `ua${i}`
-        }, /*#__PURE__*/React.createElement("line", {
-          x1: cx2,
-          y1: ANN - 4,
-          x2: cx2,
-          y2: ANN - 18,
-          stroke: "#cbd5e1",
-          strokeWidth: "0.5"
-        }), /*#__PURE__*/React.createElement("line", {
-          x1: cx2 - 8,
-          y1: ANN - 30,
-          x2: cx2 + 8,
-          y2: ANN - 30,
-          stroke: "#94a3b8",
-          strokeWidth: "0.6"
-        }));
-      }
-      return /*#__PURE__*/React.createElement("g", {
-        key: `ua${i}`
-      }, numVal > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("line", {
-        x1: cx2,
-        y1: ANN - 4,
-        x2: cx2,
-        y2: ANN - 28,
-        stroke: lineColor,
-        strokeWidth: "0.8"
-      }), /*#__PURE__*/React.createElement("text", {
-        x: cx2,
-        y: ANN - 30,
-        textAnchor: "middle",
-        fontSize: "7.5",
-        fontWeight: "700",
-        fill: lineColor,
-        fontFamily: "system-ui"
-      }, numVal.toFixed(1))), hasBT && /*#__PURE__*/React.createElement("polygon", {
-        points: `${cx2},${ANN + 10} ${cx2 - 6},${ANN + 1} ${cx2 + 6},${ANN + 1}`,
-        fill: "#111"
-      }));
-    }), lContactXs.map((cx2, i) => {
-      const key = lKeys[i];
-      if (!key) return null;
-      const numVal = parseFloat(cLower[key]);
-      const hasBT = showBT && btL && btL[key];
-      if (!blankMode && !numVal && !hasBT) return null;
-      if (blankMode) {
-        return /*#__PURE__*/React.createElement("g", {
-          key: `la${i}`
-        }, /*#__PURE__*/React.createElement("line", {
-          x1: cx2,
-          y1: lowerTop + CH + 4,
-          x2: cx2,
-          y2: lowerTop + CH + 18,
-          stroke: "#cbd5e1",
-          strokeWidth: "0.5"
-        }), /*#__PURE__*/React.createElement("line", {
-          x1: cx2 - 8,
-          y1: lowerTop + CH + 30,
-          x2: cx2 + 8,
-          y2: lowerTop + CH + 30,
-          stroke: "#94a3b8",
-          strokeWidth: "0.6"
-        }));
-      }
-      return /*#__PURE__*/React.createElement("g", {
-        key: `la${i}`
-      }, numVal > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("line", {
-        x1: cx2,
-        y1: lowerTop + CH + 4,
-        x2: cx2,
-        y2: lowerTop + CH + 26,
-        stroke: lineColor,
-        strokeWidth: "0.8"
-      }), /*#__PURE__*/React.createElement("text", {
-        x: cx2,
-        y: lowerTop + CH + 34,
-        textAnchor: "middle",
-        fontSize: "7.5",
-        fontWeight: "700",
-        fill: lineColor,
-        fontFamily: "system-ui"
-      }, numVal.toFixed(1))), hasBT && /*#__PURE__*/React.createElement("polygon", {
-        points: `${cx2},${lowerTop + CH - 10} ${cx2 - 6},${lowerTop + CH - 1} ${cx2 + 6},${lowerTop + CH - 1}`,
-        fill: "#111"
-      }));
-    }));
-  };
-  const sectionHeader = (title, subtitle, borderColor) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 800,
-      textTransform: "uppercase",
-      letterSpacing: 1,
-      color: borderColor,
-      marginBottom: 6,
-      borderBottom: `1.5px solid ${borderColor}`,
-      paddingBottom: 4,
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "baseline"
-    }
-  }, /*#__PURE__*/React.createElement("span", null, title), subtitle && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      fontWeight: 500,
-      textTransform: "none",
-      letterSpacing: 0,
-      color: "#64748b"
-    }
-  }, subtitle));
-  return /*#__PURE__*/React.createElement("div", {
-    className: "print-only",
-    style: {
-      fontFamily: "'Segoe UI',system-ui,sans-serif",
-      color: "#0f172a",
-      padding: "14px 18px"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      paddingBottom: 8,
-      borderBottom: "2px solid #0f172a",
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 16,
-      fontWeight: 800,
-      letterSpacing: -0.5
-    }
-  }, "IPR Tracker \u2014 Dental Charting"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      color: "#64748b",
-      marginTop: 2,
-      fontStyle: "italic"
-    }
-  }, blank ? "Blank form \u2014 write in IPR amounts" : "IPR completed at this visit \u2014 not prescribed amount")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 16,
-      fontSize: 11,
-      alignItems: "center",
-      flexWrap: "wrap",
-      justifyContent: "flex-end"
-    }
-  }, blank ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Patient ID:"), " ", /*#__PURE__*/React.createElement("span", { style: { display: "inline-block", width: 80, borderBottom: "1px solid #94a3b8" } }, "\u00A0")), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Initials:"), " ", /*#__PURE__*/React.createElement("span", { style: { display: "inline-block", width: 50, borderBottom: "1px solid #94a3b8" } }, "\u00A0")), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Date:"), " ", /*#__PURE__*/React.createElement("span", { style: { display: "inline-block", width: 80, borderBottom: "1px solid #94a3b8" } }, "\u00A0")), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Asst:"), " ", /*#__PURE__*/React.createElement("span", { style: { display: "inline-block", width: 50, borderBottom: "1px solid #94a3b8" } }, "\u00A0"))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Patient ID:"), " ", patient.patientId || "—"), patient.initials && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Initials:"), " ", patient.initials), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Date:"), " ", patient.date || "—"), patient.assistantInitials && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Asst:"), " ", patient.assistantInitials)), /*#__PURE__*/React.createElement("span", {
-    style: {
-      border: `1.5px solid ${gaugeVerified ? "#22c55e" : "#94a3b8"}`,
-      borderRadius: 4,
-      padding: "2px 8px",
-      fontSize: 10,
-      fontWeight: 700,
-      color: gaugeVerified ? "#15803d" : "#94a3b8"
-    }
-  }, gaugeVerified ? "✓" : "☐", " Gauge Verified"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 14
-    }
-  }, sectionHeader(blank ? "Interproximal Reduction" : "This Visit — Interproximal Reduction", null, "#1d4ed8"), renderDentalSVG(upper, lower, null, null, "#1d4ed8", false, blank), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 20,
-      marginTop: 5,
-      fontSize: 10,
-      color: "#334155"
-    }
-  }, blank ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Upper:"), " ", /*#__PURE__*/React.createElement("span", { style: { display: "inline-block", width: 40, borderBottom: "1px solid #94a3b8" } }, "\u00A0"), " mm"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Lower:"), " ", /*#__PURE__*/React.createElement("span", { style: { display: "inline-block", width: 40, borderBottom: "1px solid #94a3b8" } }, "\u00A0"), " mm"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Total:"), " ", /*#__PURE__*/React.createElement("span", { style: { display: "inline-block", width: 40, borderBottom: "1px solid #94a3b8" } }, "\u00A0"), " mm")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Upper:"), " ", upperTotal.toFixed(1), " mm"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Lower:"), " ", lowerTotal.toFixed(1), " mm"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Total:"), " ", (upperTotal + lowerTotal).toFixed(1), " mm")))), showCum && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 14
-    }
-  }, sectionHeader(`Cumulative IPR — All ${visitCount} Visits`, null, "#7e22ce"), renderDentalSVG(cumUpper, cumLower, null, null, "#7e22ce", false), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 20,
-      marginTop: 5,
-      fontSize: 10,
-      color: "#334155"
-    }
-  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Upper:"), " ", cumUpperTotal.toFixed(1), " mm"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Lower:"), " ", cumLowerTotal.toFixed(1), " mm"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Total:"), " ", (cumUpperTotal + cumLowerTotal).toFixed(1), " mm"))), hasAnySpaces && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 14
-    }
-  }, sectionHeader("Residual Spaces & Black Triangles", "▼ = black triangle", "#0369a1"), renderDentalSVG(upperSpaces, lowerSpaces, upperBT, lowerBT, "#0369a1", true), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 20,
-      marginTop: 5,
-      fontSize: 10,
-      color: "#334155"
-    }
-  }, upperSpacesTotal > 0 && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Upper spaces:"), " ", upperSpacesTotal.toFixed(1), " mm"), lowerSpacesTotal > 0 && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Lower spaces:"), " ", lowerSpacesTotal.toFixed(1), " mm"), upperBTCount > 0 && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Upper BT:"), " ", upperBTCount), lowerBTCount > 0 && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Lower BT:"), " ", lowerBTCount))), blank ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 10,
-      fontSize: 10,
-      color: "#475569",
-      paddingTop: 8,
-      borderTop: "1px solid #f1f5f9"
-    }
-  }, /*#__PURE__*/React.createElement("b", null, "Notes: "), /*#__PURE__*/React.createElement("div", { style: { borderBottom: "1px solid #cbd5e1", height: 18 } }), /*#__PURE__*/React.createElement("div", { style: { borderBottom: "1px solid #cbd5e1", height: 18 } }), /*#__PURE__*/React.createElement("div", { style: { borderBottom: "1px solid #cbd5e1", height: 18 } })) : notes && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 10,
-      fontSize: 10,
-      color: "#475569",
-      paddingTop: 8,
-      borderTop: "1px solid #f1f5f9"
-    }
-  }, /*#__PURE__*/React.createElement("b", null, "Notes: "), notes), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 14,
-      paddingTop: 8,
-      borderTop: "1px dashed #cbd5e1",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: "#94a3b8",
-      fontStyle: "italic"
-    }
-  }, "\u26A0 This form should be scanned into the patient's chart."), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: "#cbd5e1"
-    }
-  }, "IPR Tracker \xB7 Palmer Notation")));
+  const hasEarlier = !!((prevUpper && sumContacts(prevUpper) > 0) || (prevLower && sumContacts(prevLower) > 0));
+  const archPair = (mode, vU, vL, btU, btL, refU, refL) => el("div", { style: { display: "flex", gap: 10 } },
+    el("div", { style: PRINT_ARCH_CARD }, el(PrintArch, { mode, vals: vU, bt: btU, cumRef: refU, missing, blank })),
+    el("div", { style: PRINT_ARCH_CARD }, el(PrintArch, { lower: true, mode, vals: vL, bt: btL, cumRef: refL, missing, blank })));
+  // legend under each pair of arches, as under the app's arches
+  const legend = items => el("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", marginTop: 6, fontSize: 9, color: "#64748b" } }, items.filter(Boolean));
+  const lgItem = (key, icon, label) => el("span", { key, style: { display: "inline-flex", alignItems: "center", gap: 5 } }, icon, label);
+  const lgIcon = (w, h, vb, shape) => el("svg", { width: w, height: h, viewBox: vb, "aria-hidden": "true", style: { display: "block" } }, shape);
+  const lgDot = color => lgIcon(9, 9, "0 0 10 10", el("circle", { cx: 5, cy: 5, r: 5, fill: color }));
+  const lgRing = lgIcon(11, 11, "0 0 12 12", el("circle", { cx: 6, cy: 6, r: 5.2, fill: "#fff", stroke: "#94a3b8", strokeWidth: 1.2 }));
+  const lgPill = lgIcon(16, 10, "0 0 16 10", el("rect", { x: 0.5, y: 0.5, width: 15, height: 9, rx: 4.5, fill: "#f1ecfd", stroke: "#dacffa", strokeWidth: 1 }));
+  const lgTri = lgIcon(10, 10, "0 0 12 12", el("path", { d: "M1 2.5h10L6 10.5z", fill: "#111827" }));
+  const blankLine = w => el("span", { style: { display: "inline-block", width: w, borderBottom: "1px solid #94a3b8" } }, " ");
+  const sectionHeader = (title, subtitle, borderColor) => el("div", {
+    style: { fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: borderColor, marginBottom: 6, borderBottom: `1.5px solid ${borderColor}`, paddingBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "baseline" }
+  }, el("span", null, title), subtitle && el("span", { style: { fontSize: 9, fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "#64748b" } }, subtitle));
+  return el("div", { className: "print-only", style: { fontFamily: "'Segoe UI',system-ui,sans-serif", color: "#0f172a", padding: "14px 18px" } },
+    el("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 8, borderBottom: "2px solid #0f172a", marginBottom: 12 } },
+      el("div", null,
+        el("div", { style: { fontSize: 16, fontWeight: 800, letterSpacing: -0.5 } }, "IPR Tracker — Dental Charting"),
+        el("div", { style: { fontSize: 9, color: "#64748b", marginTop: 2, fontStyle: "italic" } }, blank ? "Blank form — write in IPR amounts" : "IPR completed at this visit — not prescribed amount")),
+      el("div", { style: { display: "flex", gap: 16, fontSize: 11, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" } },
+        blank
+          ? el(React.Fragment, null,
+            el("span", null, el("b", null, "Patient ID:"), " ", blankLine(80)),
+            el("span", null, el("b", null, "Initials:"), " ", blankLine(50)),
+            el("span", null, el("b", null, "Date:"), " ", blankLine(80)),
+            el("span", null, el("b", null, "Asst:"), " ", blankLine(50)))
+          : el(React.Fragment, null,
+            el("span", null, el("b", null, "Patient ID:"), " ", patient.patientId || "—"),
+            patient.initials && el("span", null, el("b", null, "Initials:"), " ", patient.initials),
+            el("span", null, el("b", null, "Date:"), " ", patient.date || "—"),
+            patient.assistantInitials && el("span", null, el("b", null, "Asst:"), " ", patient.assistantInitials)),
+        el("span", { style: { border: `1.5px solid ${gaugeVerified ? "#22c55e" : "#94a3b8"}`, borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 700, color: gaugeVerified ? "#15803d" : "#94a3b8" } },
+          gaugeVerified ? "✓" : "☐", " Gauge Verified"))),
+    el("div", { style: PRINT_SECTION },
+      sectionHeader(blank ? "Interproximal Reduction" : "This Visit — Interproximal Reduction", null, "#1d4ed8"),
+      archPair("ipr", upper, lower, null, null, prevUpper, prevLower),
+      legend(blank
+        ? [lgItem("w", lgRing, "Write the IPR amount in mm (0.1–0.8) in the circle at each contact")]
+        : [lgItem("a", lgDot("#2459d6"), "IPR amount in mm (0.1–0.8)"), hasEarlier && lgItem("e", lgPill, "IPR from earlier visits")]),
+      el("div", { style: PRINT_TOTALS },
+        blank
+          ? el(React.Fragment, null,
+            el("span", null, el("b", null, "Upper:"), " ", blankLine(40), " mm"),
+            el("span", null, el("b", null, "Lower:"), " ", blankLine(40), " mm"),
+            el("span", null, el("b", null, "Total:"), " ", blankLine(40), " mm"))
+          : el(React.Fragment, null,
+            el("span", null, el("b", null, showCum ? "This visit — Upper:" : "Upper:"), " ", upperTotal.toFixed(1), " mm"),
+            el("span", null, el("b", null, "Lower:"), " ", lowerTotal.toFixed(1), " mm"),
+            el("span", null, el("b", null, "Total:"), " ", (upperTotal + lowerTotal).toFixed(1), " mm"))),
+      showCum && el("div", { style: Object.assign({}, PRINT_TOTALS, { marginTop: 3, color: "#6a3fd0" }) },
+        el("span", null, el("b", null, "All " + visitCount + " visits — Upper:"), " ", cumUpperTotal.toFixed(1), " mm"),
+        el("span", null, el("b", null, "Lower:"), " ", cumLowerTotal.toFixed(1), " mm"),
+        el("span", null, el("b", null, "Total:"), " ", (cumUpperTotal + cumLowerTotal).toFixed(1), " mm"))),
+    hasAnySpaces && el("div", { style: PRINT_SECTION },
+      sectionHeader("Residual Spaces & Black Triangles", null, "#0369a1"),
+      archPair("spaces", upperSpaces, lowerSpaces, upperBT, lowerBT, null, null),
+      legend([lgItem("s", lgDot("#0b7f8a"), "Residual space in mm"), lgItem("t", lgTri, "Black triangle")]),
+      el("div", { style: PRINT_TOTALS },
+        upperSpacesTotal > 0 && el("span", null, el("b", null, "Upper spaces:"), " ", upperSpacesTotal.toFixed(1), " mm"),
+        lowerSpacesTotal > 0 && el("span", null, el("b", null, "Lower spaces:"), " ", lowerSpacesTotal.toFixed(1), " mm"),
+        upperBTCount > 0 && el("span", null, el("b", null, "Upper BT:"), " ", upperBTCount),
+        lowerBTCount > 0 && el("span", null, el("b", null, "Lower BT:"), " ", lowerBTCount))),
+    blank
+      ? el("div", { style: { marginTop: 10, fontSize: 10, color: "#475569", paddingTop: 8, borderTop: "1px solid #f1f5f9" } },
+        el("b", null, "Notes: "),
+        el("div", { style: { borderBottom: "1px solid #cbd5e1", height: 18 } }),
+        el("div", { style: { borderBottom: "1px solid #cbd5e1", height: 18 } }),
+        el("div", { style: { borderBottom: "1px solid #cbd5e1", height: 18 } }))
+      : notes && el("div", { style: { marginTop: 10, fontSize: 10, color: "#475569", paddingTop: 8, borderTop: "1px solid #f1f5f9" } }, el("b", null, "Notes: "), notes),
+    el("div", { style: { marginTop: 14, paddingTop: 8, borderTop: "1px dashed #cbd5e1", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+      el("span", { style: { fontSize: 9, color: "#94a3b8", fontStyle: "italic" } }, "⚠ This form should be scanned into the patient's chart."),
+      el("span", { style: { fontSize: 9, color: "#cbd5e1" } }, "IPR Tracker \xB7 Palmer Notation")));
 }
 
 // ─── Chart note text ──────────────────────────────────────────────────────────
@@ -2655,7 +2485,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       const printEl = document.querySelector('.print-only');
       if (!printEl) { setPrintBlank(false); return; }
       const w = window.open('', '_blank', 'width=900,height=700');
-      w.document.write('<!DOCTYPE html><html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
+      w.document.write('<!DOCTYPE html><html><head><style>' + printFontFace() + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
       w.document.write('<div class="print-toolbar"><button onclick="window.print()" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Print</button><button onclick="window.close()" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button></div>');
       w.document.write(printEl.innerHTML);
       w.document.write('</body></html>');
@@ -3137,7 +2967,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     const isExport = mode === 'export';
     const primaryLabel = isExport ? 'Save as PDF / Print' : 'Print';
     const hint = isExport ? '<span>Select "Save as PDF" as the printer to download</span>' : '';
-    w.document.write('<!DOCTYPE html><html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}.print-toolbar span{color:#94a3b8;font-size:13px;margin-left:8px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
+    w.document.write('<!DOCTYPE html><html><head><style>' + printFontFace() + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}.print-toolbar span{color:#94a3b8;font-size:13px;margin-left:8px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
     w.document.write('<div class="print-toolbar"><button onclick="window.print()" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">' + primaryLabel + '</button><button onclick="window.close()" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>' + hint + '</div>');
     w.document.write(printEl.innerHTML);
     w.document.write('</body></html>');
@@ -3363,7 +3193,10 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       blank: printBlank,
       cumUpper: cumUpper,
       cumLower: cumLower,
-      visitCount: visitCount
+      visitCount: visitCount,
+      missing: missingTeeth,
+      prevUpper: prevUpper,
+      prevLower: prevLower
     }),
     showCumChart && cumUpper && el(CumulativeChart, {
       cumUpper: cumUpper,
