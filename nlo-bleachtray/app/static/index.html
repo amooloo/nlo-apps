@@ -1752,11 +1752,12 @@ function markCurrent(){
   return { x: a[0], y: a[1], z: a[2], nx: n[0], ny: n[1], nz: n[2], angle_deg: markInfo.angle_deg || 0, cap: markInfo.cap || 2.4, text: markInfo.mode || 'initials', raised: markInfo.raised !== false, right: markInfo.right, up: markInfo.up, width: markInfo.width_mm };
 }
 function markFrame(mk){
-  // reading frame at the spot (the server's, engrave.emboss_at): the bottom of the letters faces the biting surfaces -
-  // upside down on the model as it lies on its base, upright on the tray resting on its cusps (the doctor, 10/22/2026);
-  // right is the viewer's right looking from outside holding it so, turned by the angle
+  // reading frame at the spot (the server's, engrave.emboss_at): the letters stand upright with the arch as it sits in
+  // the mouth - on an upper their bottom faces the biting surfaces (upside down on the model lying on its base), on a
+  // lower they are upright on the model (the doctor, 10/22/2026); right is the viewer's right looking from outside
+  // holding the arch so, turned by the angle
   const n = new THREE.Vector3(mk.nx, mk.ny, mk.nz).normalize();
-  let up = new THREE.Vector3(0, 0, -1).addScaledVector(n, n.z);
+  let up = new THREE.Vector3(0, 0, curArch === 'upper' ? -1 : 1).addScaledVector(n, curArch === 'upper' ? n.z : -n.z);
   if (up.length() < 0.3) up = new THREE.Vector3(0, -1, 0).addScaledVector(n, n.y);
   up.normalize();
   let right = new THREE.Vector3().crossVectors(up, n).normalize();
@@ -1845,8 +1846,7 @@ function placeClick(ev){
   const h2 = pray.intersectObject(archGroup.children[0], false)[0];
   const P = h2 ? h2.point.clone() : mid, N = h2 && h2.face ? h2.face.normal.clone().transformDirection(archGroup.children[0].matrixWorld) : nm;
   const d = b.p.clone().sub(a.p); const span = d.length(); d.addScaledVector(N, -d.dot(N)).normalize();
-  let up0 = new THREE.Vector3(0, 0, -1).addScaledVector(N, N.z); if (up0.length() < 0.3) up0 = new THREE.Vector3(0, -1, 0).addScaledVector(N, N.y); up0.normalize();   // the same frame as markFrame
-  const right0 = new THREE.Vector3().crossVectors(up0, N).normalize();
+  const f0 = markFrame({ nx: N.x, ny: N.y, nz: N.z, angle_deg: 0 }), up0 = f0.up, right0 = f0.right;   // the same frame as the card
   let ang = Math.atan2(d.dot(up0), d.dot(right0)) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;   // reading left to right
   const cur = markCurrent() || { text: 'initials', raised: true };
   const text = markText(cur.text || 'initials');
