@@ -293,6 +293,39 @@ def test_outlines_come_with_the_case_and_dots_moved_by_hand_stay(client):
     assert r["case"]["contours"] == {} and not any(o["adjusted"] for o in r["analysis"]["outlines"])
 
 
+def test_outlines_learn_from_the_confirmed_xrays(client):
+    srv = client.srv
+    cid, pts = _traced_case(client, seed=1, confirm=True)
+    a = client.get(f"/api/cases/{cid}").json()["analysis"]
+    sx = 1 if a["facing"] == "right" else -1
+    ol = {o["key"]: o for o in a["outlines"]}
+    # the doctor moves the coronoid 3 mm forward on a confirmed x-ray (0.24 mm pixels)...
+    m = [c if isinstance(c, str) else list(c) for c in ol["mandible"]["ctrl"]]
+    m[2] = [m[2][0] + sx * 12.5, m[2][1]]
+    client.patch(f"/api/cases/{cid}", json={"contours": {"mandible": m}})
+    assert srv.OUTLINES._due is not None                           # learning again is on its way
+    # ... and the maxilla on one he has not confirmed (not a lesson yet)
+    cid2, _ = _traced_case(client, seed=2, confirm=False)
+    mx = next(o for o in client.get(f"/api/cases/{cid2}").json()["analysis"]["outlines"] if o["key"] == "maxilla")
+    client.patch(f"/api/cases/{cid2}", json={"contours": {"maxilla": [c if isinstance(c, str) else [c[0] + 9, c[1]] for c in mx["ctrl"]]}})
+    learned = srv.OUTLINES.relearn()
+    assert learned["cases"] == 1 and "mandible" in learned["shapes"] and "maxilla" not in learned["shapes"]
+    st = client.get("/api/model").json()["outlines"]
+    assert st["cases"] == 1 and st["by"] == [dict(key="mandible", name="Mandible", n=1)]
+    assert os.path.isfile(os.path.join(srv.DATA, "outline_learning.json"))
+    # the next x-ray starts from it: its coronoid (never pulled to an edge) a third of the way, 1 mm forward
+    cid3, pts3 = _traced_case(client, seed=3, confirm=False)
+    b = client.get(f"/api/cases/{cid3}").json()["analysis"]
+    plain = srv.outlines_mod.outlines(None, pts3, b["facing"], 0.24)
+    got = next(o for o in b["outlines"] if o["key"] == "mandible")["xy"][2]
+    was = next(o for o in plain if o["key"] == "mandible")["xy"][2]
+    sx3 = 1 if b["facing"] == "right" else -1
+    assert (got[0] - was[0]) * sx3 * 0.24 == pytest.approx(1.0, abs=0.25)
+    # learned again from scratch (the doctor's outline forgotten): back to the textbook
+    client.patch(f"/api/cases/{cid}", json={"contours": None})
+    assert srv.OUTLINES.relearn()["shapes"] == {}
+
+
 def test_a_patients_xrays_over_time_and_the_comparison(client):
     a, _ = _traced_case(client, seed=0, taken="2024-03-01")
     b, _ = _traced_case(client, seed=4, taken="2026-03-01")

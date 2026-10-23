@@ -39,6 +39,7 @@ from xray import geometry as geo  # noqa: E402
 from xray.analysis import DEFAULT_CUTOFFS, DEFAULT_NORMS, MEASURES, analyze  # noqa: E402
 from xray.cvm import DEFAULT_THRESHOLDS, clean_marks  # noqa: E402
 from xray import iortho  # noqa: E402
+from xray import outline_learn  # noqa: E402
 from xray import outlines as outlines_mod  # noqa: E402
 from xray import ruler as ruler_mod  # noqa: E402
 from xray.imageio import ImageReadError, is_dicom_bytes, load_png  # noqa: E402
@@ -141,6 +142,64 @@ TRAINER.train = _train_and_keep
 NIGHTLY = Nightly(TRAINER, load_settings, lambda: LAST_ACTIVITY[0])
 if not os.environ.get("NLO_XRAY_NO_NIGHTLY"):
     threading.Thread(target=NIGHTLY.run_forever, name="nightly", daemon=True).start()
+
+
+class OutlineLearning:
+    """The doctor's own outline shapes (xray/outline_learn.py), learned from the outlines he fixed on his confirmed
+    x-rays: kept in memory and on this PC (outline_learning.json), learned again a few seconds after he changes a
+    confirmed x-ray - and once at start, so what he fixed before this version counts too."""
+
+    def __init__(self, path, store, log):
+        self.path, self.store, self.log = path, store, log
+        self.learned = None
+        self._due = None
+        self._cv = threading.Condition()
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+            if d.get("version") == outline_learn.VERSION:
+                self.learned = d
+        except (OSError, ValueError):
+            pass
+
+    def relearn(self):
+        cases = [dict(points=STORE.points_px(c), facing=c.get("facing"), contours=c.get("contours") or {},
+                      mm_per_px=(c.get("calibration") or {}).get("mm_per_px"))
+                 for c in self.store.list() if c.get("status") == "confirmed" and c.get("contours")]
+        learned = outline_learn.learn(cases)
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(learned, f)
+        os.replace(tmp, self.path)
+        self.learned = learned
+        return learned
+
+    def soon(self, delay=6.0):
+        """Learn again once nothing has changed for `delay` seconds."""
+        with self._cv:
+            self._due = time.time() + delay
+            self._cv.notify()
+
+    def run_forever(self):
+        while True:
+            with self._cv:
+                while self._due is None:
+                    self._cv.wait()
+                wait = self._due - time.time()
+                if wait > 0:
+                    self._cv.wait(wait)
+                    continue
+                self._due = None
+            try:
+                self.relearn()
+            except Exception as ex:  # noqa - learning outlines must never stop the app
+                self.log(f"outline learning failed: {ex}")
+
+
+OUTLINES = OutlineLearning(os.path.join(DATA, "outline_learning.json"), STORE, _log)
+if not os.environ.get("NLO_XRAY_NO_NIGHTLY"):            # (the tests learn when they say)
+    threading.Thread(target=OUTLINES.run_forever, name="outline-learning", daemon=True).start()
+    OUTLINES.soon(3.0)
 
 app = FastAPI(title="NLO X-Ray Reader", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -370,7 +429,8 @@ def _outlines(case, pts):
         return []
     try:
         return outlines_mod.outlines(_image(case["id"]), pts, case.get("facing"),
-                                     (case.get("calibration") or {}).get("mm_per_px"), case.get("contours"))
+                                     (case.get("calibration") or {}).get("mm_per_px"), case.get("contours"),
+                                     learned=OUTLINES.learned)
     except Exception as ex:  # noqa - outlines are a drawing aid: never let them stop the analysis
         _log(f"outlines failed for {case.get('id')}: {ex}")
         return []
@@ -531,6 +591,7 @@ async def patch_case(cid: str, request: Request):
 
 def _patch_case(cid, body):
     case = _get(cid)
+    was_confirmed = case.get("status") == "confirmed"
     hist = []
     if "patient" in body:
         p = case.setdefault("patient", {})
@@ -670,13 +731,18 @@ def _patch_case(cid, body):
     for h in hist:
         case.setdefault("history", []).append(dict(t=now, what=h))
     STORE.save(case)
+    if (was_confirmed or case.get("status") == "confirmed") and \
+            any(k in body for k in ("contours", "landmarks", "status", "calibration", "facing")):
+        OUTLINES.soon()                                  # the outlines learn from his confirmed x-rays
     return _reply(case, a)
 
 
 @app.delete("/api/cases/{cid}")
 def delete_case(cid: str):
-    _get(cid)
+    case = _get(cid)
     STORE.delete(cid)
+    if case.get("status") == "confirmed" and case.get("contours"):
+        OUTLINES.soon()
     return {"ok": True}
 
 
@@ -1200,6 +1266,10 @@ def model_status():
             st["log_tail"] = f.read()[-4000:]
     except OSError:
         st["log_tail"] = ""
+    ol = OUTLINES.learned or {}
+    st["outlines"] = dict(cases=ol.get("cases", 0), at=ol.get("at"),
+                          by=[dict(key=k, name=outlines_mod.NAMES.get(k, k), n=n)
+                              for k, n in sorted(outline_learn.summary(ol).items(), key=lambda kv: -kv[1])])
     return st
 
 
