@@ -271,13 +271,21 @@ def _required_codes(case):
     return [c for c in _codes_for(case) if c not in OPTIONAL or c in lm]
 
 
+SN_PLAUSIBLE = (50.0, 90.0)       # mm: an anterior cranial base outside this means the pixel size is wrong
+
+
+def _sn_mm(pts, mm):
+    """S-N in millimetres at pixel size mm (None without S, N or a pixel size)."""
+    if not mm or "S" not in pts or "N" not in pts:
+        return None
+    return geo.dist(pts["S"], pts["N"]) * mm
+
+
 def _calibration_check(pts, mm):
     """A pixel size that makes the anterior cranial base implausible (S-N outside 50-90 mm) is flagged, wherever it
     came from - a wrong ruler spacing or magnification shows up at once."""
-    if not mm or "S" not in pts or "N" not in pts:
-        return None
-    sn = geo.dist(pts["S"], pts["N"]) * mm
-    if 50 <= sn <= 90:
+    sn = _sn_mm(pts, mm)
+    if sn is None or SN_PLAUSIBLE[0] <= sn <= SN_PLAUSIBLE[1]:
         return None
     return f"S-N comes out {sn:.0f} mm (expected 55-80): check the pixel size."
 
@@ -287,7 +295,8 @@ HAND_SET = ("set by hand", "ruler on this x-ray")
 
 def _ruler_check(case, settings=None):
     """The nasion-rod ruler: looked for once per x-ray, and its pixel size used unless the pixel size was set by
-    hand; x-rays calibrated from it follow the mark-spacing setting. True when the case changed."""
+    hand - or was set by hand but makes S-N impossible while the ruler's makes it right (a ruler click on the wrong
+    marks); x-rays calibrated from it follow the mark-spacing setting. True when the case changed."""
     cfg = (settings or load_settings()).get("calibration") or {}
     if cfg.get("ruler_auto") is False:
         return False
@@ -303,17 +312,25 @@ def _ruler_check(case, settings=None):
     r = case.get("ruler")
     cal = case.get("calibration") or {}
     src = str(cal.get("source") or "")
-    if not r or src.startswith(HAND_SET):
+    if not r:
         return changed
+    mm = round(mark / r["spacing_px"], 6)
+    wrong = ""
+    if src.startswith(HAND_SET):
+        pts = STORE.points_px(case)
+        sn_hand, sn_ruler = _sn_mm(pts, cal.get("mm_per_px")), _sn_mm(pts, mm)
+        ok = lambda sn: sn is not None and SN_PLAUSIBLE[0] <= sn <= SN_PLAUSIBLE[1]      # noqa: E731
+        if sn_hand is None or ok(sn_hand) or not ok(sn_ruler):
+            return changed
+        wrong = f"; the pixel size set by hand ({cal['mm_per_px']:.4f}) made S-N {sn_hand:.0f} mm"
     if r.get("mark_mm") != mark:
         r["mark_mm"] = mark
         changed = True
-    mm = round(mark / r["spacing_px"], 6)
     if src.startswith("nasion-rod ruler") and cal.get("mm_per_px") and abs(cal["mm_per_px"] - mm) < 1e-6:
         return changed
     old = cal.get("mm_per_px")
-    note = ""
-    if old and not src.startswith("nasion-rod ruler") and abs(old / mm - 1) > 0.05:
+    note = wrong
+    if not wrong and old and not src.startswith("nasion-rod ruler") and abs(old / mm - 1) > 0.05:
         note = f"; before: {old:.4f} from {src.split(' (')[0] or 'elsewhere'} ({(old / mm - 1) * 100:+.0f} %)"
     case["calibration"] = dict(mm_per_px=mm, source=f"nasion-rod ruler: {r['n']} marks {mark:g} mm apart{note}")
     case.setdefault("history", []).append(dict(t=dt.datetime.now().replace(microsecond=0).isoformat(),

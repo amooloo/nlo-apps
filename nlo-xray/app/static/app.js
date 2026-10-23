@@ -1511,7 +1511,7 @@
         c2.fillRect(x - 3.2, y - 3.2, 6.4, 6.4); c2.strokeRect(x - 3.2, y - 3.2, 6.4, 6.4);
       }
     }
-    // Andrews' GALL: a true vertical (perpendicular to FH) through the forehead, the forehead's FA point (FFA) and the
+    // Andrews' GALL: a true vertical (the x-ray's own vertical) through the forehead, the forehead's FA point (FFA) and the
     // upper incisor's FA point
     const gall = S.analysis && S.analysis.gall;
     if (gall && (S.lines || opts.print)) {
@@ -2626,7 +2626,7 @@
       const c = s.calibration || {};
       body.innerHTML = `<p>Millimetre measurements (Wits, incisor to NA/NB, lips to the E-line, lengths) need the size of a pixel at the patient's midline. Angles and ratios do not.</p>
         <label class="ckRow"><input type="checkbox" id="caRuler" ${c.ruler_auto !== false ? 'checked' : ''}> Find the nasion-rod ruler on every x-ray and take the pixel size from it</label>
-        <div class="row2" style="margin-top:6px"><div><label class="f" for="caRulerMm">Distance between two neighbouring marks (mm)</label><input class="in" id="caRulerMm" type="number" step="0.5" min="1" max="50" value="${c.ruler_mm ?? 10}"><p class="hint">As the marks show on the x-ray. On this office's cephs they measure 10 mm apart: with 10, S-N and N-Me come out as iOrtho measures them. The rod rests on nasion, so the ruler gives the size at the midline, magnification included. A pixel size set by hand with <b>Ruler</b> is never replaced.</p></div><div></div></div>
+        <div class="row2" style="margin-top:6px"><div><label class="f" for="caRulerMm">Distance between two neighbouring marks (mm)</label><input class="in" id="caRulerMm" type="number" step="0.5" min="1" max="50" value="${c.ruler_mm ?? 10}"><p class="hint">As the marks show on the x-ray. On this office's cephs they measure 10 mm apart: with 10, S-N and N-Me come out as iOrtho measures them. The rod rests on nasion, so the ruler gives the size at the midline, magnification included. A pixel size set by hand with <b>Ruler</b> is kept, unless it makes S-N impossible and the rod's ruler makes it right.</p></div><div></div></div>
         <div class="row2"><div><label class="f" for="caDef">Pixel size for exported x-rays (mm)</label><input class="in" id="caDef" type="number" step="0.0001" value="${c.default_mm_per_px ?? ''}" placeholder="not set"><p class="hint">Used for JPG / PNG / TIFF files, which carry no pixel size. Easiest: on one x-ray click <b>Ruler</b>, mark 10 mm on the nasion-rod ruler and tick "use for every exported x-ray". Export the same way every time.</p></div>
         <div><label class="f" for="caMag">Ceph magnification</label><input class="in" id="caMag" type="number" step="0.001" min="1" max="1.5" value="${c.magnification ?? 1.13}"><p class="hint">For DICOM files that give the pixel size at the detector only. 1.13 is Carestream's figure for the CS 8200 ceph arm. Files that say their own magnification use that.</p></div></div>`;
       foot.innerHTML = '<button class="primary" id="caSave" type="button">Save</button>';

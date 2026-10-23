@@ -107,7 +107,10 @@ need the size of a pixel at the patient's midline:
   it used are circled on the x-ray. Settings → Calibration holds the distance between two neighbouring marks:
   **10 mm** on this office's cephs. That was measured, not assumed: on a 12.8-year-old, 5 mm would make S-N 32 mm
   and N-Me 54 mm; 10 mm gives 64.9 and 107.2 mm, as iOrtho measured them (65.1, 107.5). A pixel size set by hand
-  with **Ruler** is never replaced. When the rod is not found, the sources below apply.
+  with **Ruler** is kept - unless it makes S-N impossible (outside 50-90 mm, e.g. the clicks landed on marks 20 mm
+  apart) while the ruler's makes it right: then the ruler's is used, and the history says so. When the rod is not
+  found, the sources below apply. Whatever the source, a pixel size that makes S-N impossible is flagged at the top
+  of the x-ray, and the outlines drawn at real size (molars, sella, orbit, fissure) take their size from S-N instead.
 - **DICOM**: taken from the file. When the file gives the pixel size at the detector only, it is divided by the
   ceph magnification - the file's own figure when it has one, else Settings → Calibration (1.13, Carestream's
   figure for the CS 8200 ceph arm). The case shows where its number came from.
@@ -284,8 +287,9 @@ N at 7° to S-N): Tr-G', G'-Sn, Sn-Me'; the lower third's share of G'-Me' (1 : 1
 of the lower third, Sn-Stms against Stmi-Me' (1 : 2, i.e. a third); the gap between the lips at rest, Stms-Stmi
 (2 ± 2 mm); the upper incisor below the lip, Stms to U1 tip (2 ± 2 mm). The summary calls the lower third long or
 short from the hard- and soft-tissue shares together (borderline when they disagree).
-**Andrews' GALL** (Element II of the Six Elements). True vertical: the perpendicular to FH (the office takes its
-cephs with FH level). Forehead inclination: Tr-G' against it (+ = sloping back). The forehead's FA point (FFA):
+**Andrews' GALL** (Element II of the Six Elements). True vertical: the x-ray's own vertical - Andrews draws GALL
+along the true vertical with the head upright, as the office takes its cephs (until 1.8.1 it was square to Po-Or,
+which tipped the line by as much as FH was off level on the x-ray). Forehead inclination: Tr-G' against it (+ = sloping back). The forehead's FA point (FFA):
 the profile half way up between Tr and G'. GALL: through FFA, moved forward 0.6 mm for each degree of inclination
 beyond 7° (Andrews' course rule; his 2008 study, *Angle Orthod* 78:662, fitted about 0.5 mm a degree beyond 7.5° -
 both numbers are settings), never ahead of G'. The upper incisor's FA point: the middle of the labial surface of
