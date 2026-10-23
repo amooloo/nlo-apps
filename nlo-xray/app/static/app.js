@@ -1474,6 +1474,18 @@
       }
       c2.globalAlpha = 1;
     }
+    // the upper incisor shaded by where it sits against Andrews' GALL line (shown with the lines): ahead of it a see-
+    // through red, on it (within the norm's band) green, behind it dark - the same call as the summary's
+    const u1row = S.analysis && S.analysis.gall && (S.lines || opts.print) && (S.analysis.measurements || []).find((m) => m.key === 'U1_GALL');
+    const u1o = u1row && u1row.value != null && (S.analysis.outlines || []).find((o) => o.key === 'u1');
+    if (u1o) {
+      const nm = u1row.norm || { mean: 0, sd: 2 }, v = u1row.value;
+      c2.fillStyle = v > nm.mean + nm.sd ? 'rgba(255,59,48,.33)' : v < nm.mean - nm.sd ? 'rgba(0,0,0,.5)' : 'rgba(52,211,120,.33)';
+      c2.beginPath();
+      splinePts(outlineDots(u1o, P), true).forEach((q, i) => { const [x, y] = scr({ x: q[0], y: q[1] }); if (i) c2.lineTo(x, y); else c2.moveTo(x, y); });
+      c2.closePath();
+      c2.fill();
+    }
     // the outlines: smooth curves through their dots - landmarks where they are now (also while dragged), and the
     // free dots in between, drawn small and white, to drag where the x-ray shows the edge
     if ((S.outlines || opts.print) && S.analysis && (S.analysis.outlines || []).length) {
