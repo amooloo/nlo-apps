@@ -225,11 +225,12 @@ def _repaired_manifold(model):
         return None
 
 
-def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, height=0.35, depth_in=1.5, fit_extent=None, min_cap=1.4, log=print):
+def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, height=0.35, depth_in=1.5, fit_extent=None, min_cap=1.4, arch=None, log=print):
     """`text` laid on the surface of `surface` (a mesh in the same frame as `model`) round `point`:
     each letter on its own local tangent plane, so the curve of the crown does not change its height,
-    reading left to right for someone looking at that spot from outside; `angle_deg` turns the line
-    within the surface. Raised (`height` mm proud, the way aligner makers mark their trays: forms into
+    reading left to right for someone looking at that spot from outside, upright with the arch the way it sits in the
+    mouth (`arch`: on an upper the letters stand with their bottom to the biting surfaces, so upside down on the model
+    lying on its base; on a lower upright on it); `angle_deg` turns the line within the surface. Raised (`height` mm proud, the way aligner makers mark their trays: forms into
     the tray, legible on it) or cut in. Returns (model, info) - info None when nothing was made;
     info: text, anchor (on the surface), normal, right, up, cap, width_mm, angle_deg, raised."""
     from .solid import to_manifold, from_manifold
@@ -255,11 +256,14 @@ def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, 
             log("mark skipped: too little surface facing the same way round the spot")
             return model, None
         n0 = PN.mean(0); n0 /= max(np.linalg.norm(n0), 1e-6)
-        # reading frame: the bottom of the letters faces the biting surfaces (the doctor, 10/22/2026) - so the mark is
-        # upside down on a model lying on its base and upright on the tray as it rests on its cusps or is held that
-        # way (the frame's z is towards the crowns on both arches); 'right' is the viewer's right looking at the
-        # spot from outside, holding it so
-        up = -(np.array([0, 0, 1.0]) - n0 * n0[2])
+        # reading frame: the letters stand upright with the arch as it sits in the mouth (the doctor, 10/22/2026: on an
+        # upper the bottom of the letters faces the biting surfaces - upside down on the model lying on its base, right
+        # way up on the tray in the mouth; on a lower upright on the model, which lies the way it sits in the mouth).
+        # The frame's z is towards the crowns on both arches; 'right' is the viewer's right looking at the spot from
+        # outside, holding the arch so
+        up = np.array([0, 0, 1.0]) - n0 * n0[2]
+        if str(arch or "").lower().startswith("u"):
+            up = -up
         if np.linalg.norm(up) < 0.3:                      # a flat occlusal spot: read front-to-back
             up = np.array([0, -1.0, 0]) - n0 * (-n0[1])
         up /= max(np.linalg.norm(up), 1e-6)
@@ -358,7 +362,7 @@ def emboss_at(model, surface, point, text, angle_deg=0.0, cap=2.4, raised=True, 
         return model, None
 
 
-def emboss_on_tooth(model, mesh_f, labels, info, params, height=0.35, cap=2.4, depth_in=1.5, log=print):
+def emboss_on_tooth(model, mesh_f, labels, info, params, height=0.35, cap=2.4, depth_in=1.5, arch=None, log=print):
     """The automatic mark: initials + tray letter raised on the buccal of a first molar (right side if
     present) - see auto_mark_anchor / emboss_at. Returns (model, mark info or None). Never fails the case."""
     try:
@@ -368,7 +372,7 @@ def emboss_on_tooth(model, mesh_f, labels, info, params, height=0.35, cap=2.4, d
         point, side, tid, pos, extent = where
         text = mark_text(params, "initials")
         out, minfo = emboss_at(model, model, point, text, angle_deg=0.0, cap=cap, raised=True, height=height, depth_in=depth_in,
-                               fit_extent=0.72 / 0.85 * extent, min_cap=1.6, log=log)      # the text within 72 % of the cheek, letters 1.6 mm at least, as before
+                               fit_extent=0.72 / 0.85 * extent, min_cap=1.6, arch=arch, log=log)      # the text within 72 % of the cheek, letters 1.6 mm at least, as before
         if minfo:
             minfo.update(auto=True, tooth=tid, side=side, position=pos)
             log(f"tooth mark: '{text}' raised {height} mm on the buccal of tooth {tid} (side {side:+d}, position {pos})")

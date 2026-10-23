@@ -1173,7 +1173,7 @@ def _apply_mark(body, P, rep, T_total, mesh_f, labels, info, prev, log, emboss_a
         anchor = trimesh.transform_points(raw[None, :], np.asarray(T_total, float))[0]
         text = mark_text(P, str(mk.get("text") or "initials"))
         body2, minfo = emboss_at(body, body, anchor, text, angle_deg=float(mk.get("angle_deg") or 0.0), cap=float(mk.get("cap") or 2.4),
-                                 raised=bool(mk.get("raised", True)), log=log)
+                                 raised=bool(mk.get("raised", True)), arch=rep.get("arch"), log=log)
         if minfo:
             minfo.update(auto=False, mode=str(mk.get("text") or "initials"))
             log(f"mark: '{text}' {'raised' if minfo['raised'] else 'cut'} where it was put ({minfo['width_mm']} mm wide, letters {minfo['cap']} mm)")
@@ -1182,7 +1182,7 @@ def _apply_mark(body, P, rep, T_total, mesh_f, labels, info, prev, log, emboss_a
         log("mark: the chosen spot could not be used - the automatic spot instead")
     if prev and prev.get("anchor") is not None and (mesh_f is None or labels is None):
         body2, minfo = emboss_at(body, body, prev["anchor"], prev["text"], angle_deg=float(prev.get("angle_deg") or 0.0), cap=float(prev.get("cap") or 2.4),
-                                 raised=bool(prev.get("raised", True)), log=log)
+                                 raised=bool(prev.get("raised", True)), arch=rep.get("arch"), log=log)
         if minfo:
             minfo.update(auto=bool(prev.get("auto", True)), mode=prev.get("mode", "initials"))
             for k in ("tooth", "side", "position"):
@@ -1193,7 +1193,7 @@ def _apply_mark(body, P, rep, T_total, mesh_f, labels, info, prev, log, emboss_a
         return body
     if mesh_f is None or labels is None or info is None:
         return body
-    body2, minfo = emboss_on_tooth(body, mesh_f, labels, info, P, log=log)
+    body2, minfo = emboss_on_tooth(body, mesh_f, labels, info, P, arch=rep.get("arch"), log=log)
     if minfo:
         minfo["mode"] = "initials"
         rep["mark"], rep["tooth_mark"] = minfo, minfo["text"]
