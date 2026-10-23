@@ -142,3 +142,18 @@ def test_fit_thresholds_needs_enough_cases():
     p = vertebrae()
     res = fit_thresholds([_ex(p, judge(features(p), DEFAULT_THRESHOLDS))] * 3)
     assert not res["accepted"] and "Needs 8" in res["message"]
+
+
+def test_vertebra_points_that_make_no_vertebra_are_flagged_not_measured():
+    import numpy as np
+    from xray.cvm import stage
+    from xray.landmarks import TEMPLATE
+    p = {k: np.array(v, float) for k, v in TEMPLATE.items()}
+    good = stage(p, 0.1, age=10.9, sex="F")
+    assert good["methods"]["mito"] and 4 < good["methods"]["mito"]["bone_age"] < 25
+    p["C4la"] = np.array([-31.0, -86.0])           # the front-lower corner of C4 put up and behind (as seen at the office)
+    bad = stage(p, 0.1, age=10.9, sex="F")
+    assert bad["methods"]["mito"] is None                                  # no "-94 years" bone age
+    note = bad["notes"][0]
+    assert note.startswith("Check the vertebra points") and "C4ua is not above the lower border" in note
+    assert bad["judgements"]["C4shape"]["auto"] is None

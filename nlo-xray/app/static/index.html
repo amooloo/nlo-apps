@@ -56,6 +56,7 @@
         <span class="pill" id="pStatus"></span>
         <div class="topBtns">
           <button class="small" id="detailsBtn" type="button">Details</button>
+          <button class="small" id="compareBtn" type="button" hidden>Compare</button>
           <button class="small" id="printBtn" type="button">Print</button>
           <button class="primary" id="confirmBtn" type="button">Confirm tracing</button>
           <button class="small" id="reopenBtn" type="button" hidden>Reopen</button>
@@ -95,9 +96,10 @@
             <span class="sep"></span>
             <button type="button" id="tLabels" class="on" title="Point names (L)">Aa</button>
             <button type="button" id="tLines" class="on" title="Tracing lines (T)">Lines</button>
+            <button type="button" id="tOutline" class="on" title="Outlines - the soft-tissue profile and the anatomy; drag their small white dots to fit them (O)">Outline</button>
             <button type="button" id="tFollow" class="on" title="Zoom to each point while checking">Follow</button>
             <button type="button" id="tTips" class="on" title="Show what each point is when you point at it or move it">Info</button>
-          <button type="button" id="tLoupe" class="on" title="Magnifying glass that follows the mouse (M)">Loupe</button>
+            <button type="button" id="tLoupe" title="Magnifying glass: right-click on the x-ray to bring it up for one point; click here (or M) to keep it on">Loupe</button>
             <button type="button" id="tRuler" title="Calibrate with a ruler on the x-ray">Ruler</button>
           </div>
           <div class="ptTip" id="ptTip" hidden></div>
@@ -175,6 +177,28 @@
 <dialog id="dlgPic">
   <div class="dHd"><h3 id="picTitle"></h3><button class="x" id="picClose" type="button" aria-label="Close">×</button></div>
   <div class="dBd"><div class="picBig" id="picBig"></div><p class="picDef" id="picDef"></p><div class="picNav" id="picNav"></div></div>
+</dialog>
+
+<dialog id="dlgCompare" class="full">
+  <div class="dHd"><h3>Compare tracings</h3><span class="cmpWho" id="cmpWho"></span>
+    <button class="small" id="cmpPrint" type="button">Print</button><button class="x" id="cmpClose" type="button" aria-label="Close">×</button></div>
+  <div class="cmpBar">
+    <div class="cmpXrays" id="cmpXrays"></div>
+    <div class="cmpOpts">
+      <label>Superimposed on <select id="cmpOn" class="in">
+        <option value="cranial">Cranial base: S-N at S</option>
+        <option value="maxilla">Maxilla: palatal plane at ANS</option>
+        <option value="mandible">Mandible: mandibular plane at menton</option></select></label>
+      <label class="ck"><input type="checkbox" id="cmpPts"> Points</label>
+      <label class="ck"><input type="checkbox" id="cmpLines"> Planes</label>
+      <button class="small" id="cmpFit" type="button">Fit</button>
+    </div>
+  </div>
+  <div class="cmpBody">
+    <div class="cmpLeft"><div class="cmpCanvas"><canvas id="cmpCv"></canvas></div>
+      <div class="cmpLegend" id="cmpLegend"></div><p class="hint" id="cmpNote"></p><div id="cmpMoves"></div></div>
+    <div class="cmpRight" id="cmpTable"></div>
+  </div>
 </dialog>
 
 <dialog id="dlgAsk">

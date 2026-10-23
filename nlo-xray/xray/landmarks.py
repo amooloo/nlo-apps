@@ -60,19 +60,30 @@ _DEFS = [
      "Where a line from menton just touches the lower border of the mandible, in front of the angle: the back "
      "end of the mandibular plane used for FMA and IMPA (Tweed, Downs)."),
     ("MOL", "Molar contact", "teeth",
-     "Where the mesial cusps of the upper and lower first molars meet: the back end of the functional occlusal plane."),
-    ("PM", "Premolar contact", "teeth",
-     "Where the first premolars (or first primary molars) meet: the front end of the functional occlusal plane."),
+     "Where the mesial cusps of the upper and lower first molars meet: the back end of the occlusal plane, which runs "
+     "from here to the incisor overlap (midway between the upper and lower incisor tips)."),
+    ("Tr", "Top of the forehead", "soft",
+     "Trichion: where the forehead meets the hairline. On a rounded or angled forehead, superion instead: the top of "
+     "the forehead's front curve, where it turns back. With soft-tissue glabella it gives the forehead's inclination "
+     "and its middle (Andrews' FFA point) for the GALL line, and the top of the upper third of the face."),
+    ("Gs", "Soft-tissue glabella", "soft",
+     "Most prominent point of the soft-tissue forehead, above the nose: the top of the middle third of the face."),
     ("Prn", "Pronasale", "soft",
      "Most anterior point of the tip of the nose."),
     ("Sn", "Subnasale", "soft",
      "Where the columella of the nose meets the upper lip."),
     ("Ls", "Upper lip", "soft",
      "Labrale superius: most anterior point of the upper lip."),
+    ("Stms", "Stomion superius", "soft",
+     "Lowest point of the upper lip, where it meets the lower lip (or faces it, when the lips are apart)."),
+    ("Stmi", "Stomion inferius", "soft",
+     "Highest point of the lower lip, where it meets the upper lip. With the lips together it is the same spot as Stms."),
     ("Li", "Lower lip", "soft",
      "Labrale inferius: most anterior point of the lower lip."),
     ("Pos", "Soft-tissue pogonion", "soft",
      "Most anterior point of the soft-tissue chin."),
+    ("Mes", "Soft-tissue menton", "soft",
+     "Lowest point on the outline of the soft-tissue chin: the bottom of the lower third of the face."),
     ("C2lp", "C2 lower border - back corner", "cvm",
      "The most posterior point on the lower border of the body of C2 (its back-lower corner)."),
     ("C2d", "C2 lower border - deepest point", "cvm",
@@ -106,8 +117,15 @@ _DEFS = [
 
 # what the doctor sees: the code, except where Baccetti et al. (2002) name a vertebra point differently
 PAPER_LABEL = {"C2lp": "C2p", "C2d": "C2m", "C2la": "C2a", "C3d": "C3m", "C4d": "C4m"}
+LABEL = dict(PAPER_LABEL, Gs="G'", Mes="Me'")
 
-LANDMARKS = [dict(code=c, label=PAPER_LABEL.get(c, c), name=n, group=g, definition=d) for c, n, g, d in _DEFS]
+# The facial-thirds and forehead points (added in 1.7): placed and checked on every new tracing, but an x-ray traced
+# before them or imported from iOrtho (which has no such points) can be confirmed without them - they are asked for
+# only once they are on the x-ray (Measurements -> Facial thirds -> Add the points).
+OPTIONAL = ("Tr", "Gs", "Stms", "Stmi", "Mes")
+
+LANDMARKS = [dict(code=c, label=LABEL.get(c, c), name=n, group=g, definition=d, optional=c in OPTIONAL)
+             for c, n, g, d in _DEFS]
 CODES = [lm["code"] for lm in LANDMARKS]
 BY_CODE = {lm["code"]: lm for lm in LANDMARKS}
 GROUP_OF = {lm["code"]: lm["group"] for lm in LANDMARKS}
@@ -125,8 +143,9 @@ TEMPLATE = {
     "U1A": (61.0, -46.0), "U1T": (69.5, -69.0), "L1T": (66.5, -67.0), "L1A": (56.6, -85.5),
     "B": (60.1, -76.4), "Pog": (61.5, -89.0), "Gn": (58.5, -96.5), "Me": (55.1, -99.6), "Go": (-6.5, -70.9),
     "MPt": (2.7, -75.2),
-    "MOL": (38.3, -63.8), "PM": (50.2, -65.5),
-    "Prn": (95.0, -33.0), "Sn": (84.0, -43.0), "Ls": (84.5, -55.0), "Li": (80.5, -72.0), "Pos": (75.0, -94.0),
+    "MOL": (38.3, -63.8),
+    "Tr": (64.0, 72.0), "Gs": (75.5, 21.0), "Prn": (95.0, -33.0), "Sn": (84.0, -43.0), "Ls": (84.5, -55.0), "Stms": (78.5, -65.5),
+    "Stmi": (78.3, -67.0), "Li": (80.5, -72.0), "Pos": (75.0, -94.0), "Mes": (58.0, -106.5),
     "C2lp": (-37.0, -70.5), "C2d": (-29.5, -69.6), "C2la": (-22.0, -69.5),
     "C3up": (-37.5, -73.0), "C3ua": (-22.5, -74.0), "C3lp": (-37.5, -84.5), "C3d": (-30.0, -83.6), "C3la": (-22.5, -83.5),
     "C4up": (-37.5, -87.5), "C4ua": (-22.5, -88.5), "C4lp": (-37.5, -98.0), "C4d": (-30.0, -97.2), "C4la": (-22.5, -97.0),
@@ -134,11 +153,12 @@ TEMPLATE = {
 
 assert set(TEMPLATE) == set(CODES), "every landmark needs a template position"
 
-# Lines drawn over the x-ray (and used by the report), by landmark pair.
+# Lines drawn over the x-ray (and used by the report), by landmark pair; "U1T+L1T" is the point midway between them
+# (the incisor overlap, the front end of the occlusal plane).
 TRACING_LINES = [
     ("S", "N", "SN"), ("Po", "Or", "FH"), ("N", "A", "NA"), ("N", "B", "NB"), ("MPt", "Me", "MP"),
     ("ANS", "PNS", "PP"), ("U1A", "U1T", "U1"), ("L1A", "L1T", "L1"), ("Prn", "Pos", "E-line"),
-    ("MOL", "PM", "FOP"), ("Ar", "Go", "Ramus"),
+    ("MOL", "U1T+L1T", "OP"), ("Ar", "Go", "Ramus"),
 ]
 
 # Outlines of the vertebral bodies (drawn as polylines) for the CVM view.
@@ -157,6 +177,7 @@ def public_definitions():
     """What the browser needs to draw and guide: landmarks in tracing order, groups, anchors, lines."""
     return dict(
         landmarks=LANDMARKS,
+        optional=list(OPTIONAL),
         groups=[dict(id=g, name=n, codes=codes_in_group(g)) for g, n in GROUPS],
         anchors=ANCHORS,
         lines=[dict(a=a, b=b, name=n) for a, b, n in TRACING_LINES],

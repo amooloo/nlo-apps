@@ -30,6 +30,8 @@ measured judgements learn his eye.
 """
 import numpy as np
 
+from .landmarks import PAPER_LABEL
+
 DEFAULT_THRESHOLDS = {
     "concavity_pct": 6.0,     # a lower border counts as concave when its depth is >= this % of its length
     "trapezoid_ratio": 0.80,  # front height / back height below this -> trapezoid
@@ -88,32 +90,85 @@ def _perp(p, a, b):
     return float((p - a) @ n)
 
 
+def _lb(code):
+    return PAPER_LABEL.get(code, code)          # the names the doctor sees (Baccetti's for the C2-C4 border points)
+
+
+def usable(x):
+    """A measured border or body that makes sense (None when not traced, or its points do not make a vertebra)."""
+    return x if x is not None and not x.get("invalid") else None
+
+
 def _concavity(p, lvl, mm):
     lp, d, la = (f"{lvl}lp", f"{lvl}d", f"{lvl}la")
     if not all(k in p for k in (lp, d, la)):
         return None
-    L = float(np.hypot(*(p[la] - p[lp])))
+    v = p[la] - p[lp]
+    L = float(np.hypot(*v))
     if L == 0:
-        return None
+        return dict(invalid=f"{_lb(lp)} and {_lb(la)} are on top of each other")
+    if v[0] <= 0:                               # the canonical frame faces forward: the front corner is ahead
+        return dict(invalid=f"{_lb(la)} (front) is behind {_lb(lp)} (back)")
     depth = _perp(p[d], p[lp], p[la])          # > 0: the border curves up into the body (concave)
+    t = float((p[d] - p[lp]) @ v) / (L * L)
+    if not (0.0 < t < 1.0):
+        return dict(invalid=f"{_lb(d)} is not between {_lb(lp)} and {_lb(la)}")
+    if abs(depth) > 0.4 * L:
+        return dict(invalid=f"{_lb(d)} is far off the lower border")
     return dict(depth_px=depth, length_px=L, pct=100.0 * depth / L, depth_mm=None if not mm else depth * mm)
+
+
+def _crosses(a, b, c, d):
+    """Do segments a-b and c-d cross?"""
+    def side(p, q, r):
+        return np.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]))
+    return side(a, b, c) * side(a, b, d) < 0 and side(c, d, a) * side(c, d, b) < 0
 
 
 def _body(p, lvl, mm):
     up, ua, lp, la = (f"{lvl}{s}" for s in ("up", "ua", "lp", "la"))
     if not all(k in p for k in (up, ua, lp, la)):
         return None
+    v = p[la] - p[lp]
+    w = float(np.hypot(*v))
+    if w == 0:
+        return dict(invalid=f"{lp} and {la} are on top of each other")
     # heights as Mito measures them: from each upper corner to the line through the two lower corners
     ah = _perp(p[ua], p[lp], p[la])
     ph = _perp(p[up], p[lp], p[la])
-    w = float(np.hypot(*(p[la] - p[lp])))
+    probs = []
+    if v[0] <= 0:
+        probs.append(f"{la} (front) is behind {lp} (back)")
+    if float((p[ua] - p[up]) @ v) <= 0:
+        probs.append(f"{ua} (front) is behind {up} (back)")
+    if ah is None or ah <= 0:
+        probs.append(f"{ua} is not above the lower border ({lp}-{la})")
+    if ph is None or ph <= 0:
+        probs.append(f"{up} is not above the lower border ({lp}-{la})")
+    if not probs and (_crosses(p[up], p[ua], p[lp], p[la]) or _crosses(p[ua], p[la], p[up], p[lp])):
+        probs.append("its sides cross")
+    if probs:
+        return dict(invalid="; ".join(probs))
     ap = float(np.hypot(*((p[ua] + p[la]) / 2 - (p[up] + p[lp]) / 2)))       # depth at mid-height
-    if not ph or ph <= 0 or w == 0 or ap == 0 or ah is None:
-        return None
     h = (ah + ph) / 2.0
+    if ap == 0 or not (0.2 <= h / w <= 2.5) or not (0.2 <= ah / ph <= 2.5):
+        return dict(invalid="its proportions are far from any vertebra")
     return dict(ah_px=ah, ph_px=ph, width_px=w, ap_px=ap, front_back=ah / ph, h_w=h / w,
                 ah_mm=None if not mm else ah * mm, ph_mm=None if not mm else ph * mm,
                 width_mm=None if not mm else w * mm)
+
+
+def problems(f):
+    """What does not make sense in the traced vertebrae: ['C4: C4ua is not above ...', ...]."""
+    out = []
+    for lvl in BORDERS:
+        c = f["conc"].get(lvl)
+        if c and c.get("invalid"):
+            out.append(f"{lvl} lower border: {c['invalid']}")
+        b = f["body"].get(lvl)
+        if b and b.get("invalid"):
+            out.append(f"{lvl} body: {b['invalid']}")
+    return out
 
 
 def features(p, mm=None):
@@ -123,7 +178,7 @@ def features(p, mm=None):
 
 
 def _shape(body, t):
-    if body is None:
+    if usable(body) is None:
         return None
     if body["front_back"] < t["trapezoid_ratio"]:
         return "trapezoid"
@@ -138,7 +193,7 @@ def judge(f, t):
     """Measured judgements: {'C2': 'flat'/'concave'/None, ..., 'C3shape': 'trapezoid'/... or None}."""
     j = {}
     for lvl in BORDERS:
-        c = f["conc"][lvl]
+        c = usable(f["conc"][lvl])
         j[lvl] = None if c is None else ("concave" if c["pct"] >= t["concavity_pct"] else "flat")
     for lvl in BODIES:
         j[f"{lvl}shape"] = _shape(f["body"][lvl], t)
@@ -158,13 +213,13 @@ def clean_marks(marks):
 
 # ---------------------------------------------------------------------------------------- methods
 
-def baccetti(j):
-    """CS1-CS6 from judgements. Returns (stage or None, notes)."""
+def baccetti(j, bad=()):
+    """CS1-CS6 from judgements. bad: levels traced but not making sense. Returns (stage or None, notes)."""
     notes = []
     c2, c3, c4 = (j.get(k) for k in BORDERS)
     shapes = [s for s in (j.get("C3shape"), j.get("C4shape")) if s]
     if c2 is None:
-        return None, ["Trace the lower border of C2 to stage CVM."]
+        return None, ["Check the C2 points to stage CVM." if "C2" in bad else "Trace the lower border of C2 to stage CVM."]
     if c2 == "flat":
         stage = "CS1"
         if "concave" in (c3, c4):
@@ -172,12 +227,12 @@ def baccetti(j):
     elif c3 != "concave":
         stage = "CS2"
         if c3 is None:
-            notes.append("C3 not traced: CS2 or later.")
+            notes.append("C3 to check: CS2 or later." if "C3" in bad else "C3 not traced: CS2 or later.")
         elif c4 == "concave":
             notes.append("C4 concave while C3 is flat - unusual, check the C3 points.")
     elif c4 is None:
         stage = "CS3"
-        notes.append("C4 not traced: CS3 or later.")
+        notes.append("C4 to check: CS3 or later." if "C4" in bad else "C4 not traced: CS3 or later.")
     elif c4 == "flat":
         stage = "CS3"
     elif "rect_v" in shapes:
@@ -202,13 +257,19 @@ def hassel_farman(stage_cs):
     return dict(cvmi=n, name=name, lo=lo, hi=hi, text=text)
 
 
+MITO_RANGE = (4.0, 25.0)      # a bone age outside this comes from points that need checking, not from a patient
+
+
 def mito(f, age=None, sex=None):
-    """Cervical vertebral bone age (Mito et al. 2002) from the C3 and C4 proportions."""
-    b3, b4 = f["body"].get("C3"), f["body"].get("C4")
+    """Cervical vertebral bone age (Mito et al. 2002) from the C3 and C4 proportions (None when they do not make
+    sense, or give an age no patient has)."""
+    b3, b4 = usable(f["body"].get("C3")), usable(f["body"].get("C4"))
     if not b3 or not b4:
         return None
     r1, r2, r3 = b3["ah_px"] / b3["ap_px"], b4["ah_px"] / b4["ap_px"], b4["ah_px"] / b4["ph_px"]
     cvba = -0.20 + 6.20 * r1 + 5.90 * r2 + 4.74 * r3
+    if not (MITO_RANGE[0] <= cvba <= MITO_RANGE[1]):
+        return None
     out = dict(bone_age=round(cvba, 1), ratios=dict(AH3_AP3=round(r1, 3), AH4_AP4=round(r2, 3), AH4_PH4=round(r3, 3)),
                age=age, diff=None, note="")
     if age is not None:
@@ -224,9 +285,11 @@ def mito(f, age=None, sex=None):
 def _margins(f, t):
     close = []
     for lvl, c in f["conc"].items():
+        c = usable(c)
         if c is not None and abs(c["pct"] - t["concavity_pct"]) < 1.5:
             close.append(f"{lvl} border")
     for lvl, b in f["body"].items():
+        b = usable(b)
         if b is None:
             continue
         if abs(b["front_back"] - t["trapezoid_ratio"]) < 0.04:
@@ -243,22 +306,29 @@ def stage(p, mm=None, cfg=None, marks=None, age=None, sex=None):
     auto = judge(f, t)
     marks = clean_marks(marks)
     eff = {k: marks.get(k, auto.get(k)) for k in MARK_KEYS}
-    auto_stage, _ = baccetti(auto)
-    st, notes = baccetti(eff)
+    probs = problems(f)
+    bad = {x.split()[0] for x in probs}
+    auto_stage, _ = baccetti(auto, bad)
+    st, notes = baccetti(eff, bad)
+    if probs:
+        notes.insert(0, "Check the vertebra points - " + "; ".join(probs) + ".")
     close = [] if marks else _margins(f, t)
     if close:
         notes.append("Close to a threshold: " + ", ".join(close) + " - worth a look.")
     judgements = {k: dict(auto=auto.get(k), mark=marks.get(k), value=eff.get(k)) for k in MARK_KEYS}
     feats = []
     for lvl in BORDERS:
-        c = f["conc"][lvl]
-        b = f["body"].get(lvl)
+        c = usable(f["conc"][lvl])
+        b = usable(f["body"].get(lvl))
         feats.append(dict(level=lvl, concavity_pct=None if c is None else round(c["pct"], 1),
                           concavity_mm=None if c is None or c["depth_mm"] is None else round(c["depth_mm"], 2),
                           height_width=None if b is None else round(b["h_w"], 2),
                           front_back=None if b is None else round(b["front_back"], 2)))
     hf = hassel_farman(st)
     mi = mito(f, age, sex)
+    if mi is None and usable(f["body"].get("C3")) and usable(f["body"].get("C4")):
+        notes.append("Mito's bone age is left out: the C3 and C4 proportions give an age no patient has - check "
+                     "their corners.")
     return dict(
         stage=st, auto_stage=auto_stage, stage_label=st or "Not staged", timing=TIMING.get(st, ""),
         overridden=bool(marks), judgements=judgements, features=feats, notes=notes, borderline=bool(close),
@@ -273,11 +343,11 @@ def _labels(examples):
     conc, trap, shape = [], [], []
     for i, (f, j) in enumerate(examples):
         for lvl in BORDERS:
-            c, v = f["conc"].get(lvl), j.get(lvl)
+            c, v = usable(f["conc"].get(lvl)), j.get(lvl)
             if c is not None and v in ("flat", "concave"):
                 conc.append((i, c["pct"], v == "concave"))
         for lvl in BODIES:
-            b, v = f["body"].get(lvl), j.get(f"{lvl}shape")
+            b, v = usable(f["body"].get(lvl)), j.get(f"{lvl}shape")
             if b is not None and v in SHAPES:
                 trap.append((i, b["front_back"], v == "trapezoid"))
                 if v != "trapezoid":
@@ -338,7 +408,7 @@ def fit_thresholds(examples, min_cases=8):
     the pictures, and the measured ones he accepted). Returns dict(accepted, thresholds, n, default_agree,
     loo_agree, total, message). Accepted only when, leaving each x-ray out in turn, the tuned thresholds
     agree with him more often than the defaults."""
-    ex = [(f, j) for f, j in examples if f["conc"].get("C2") is not None]
+    ex = [(f, j) for f, j in examples if usable(f["conc"].get("C2")) is not None]
     n = len(ex)
     base = dict(DEFAULT_THRESHOLDS)
     if n < min_cases:
