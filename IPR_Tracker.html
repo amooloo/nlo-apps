@@ -152,9 +152,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);font-size:14p
 .ip-stage{position:absolute;left:0;top:0;transform-origin:0 0;}
 .ip-svg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;font-family:var(--font);}
 .ip-tooth path{fill:#fff;stroke:#a7b4c6;stroke-width:1.4;stroke-linejoin:round;transition:fill .12s,stroke .12s;}
-.ip-tooth text{font-size:13px;font-weight:600;fill:#6b7b92;text-anchor:middle;dominant-baseline:central;pointer-events:none;user-select:none;}
+.ip-tooth text{font-size:13px;font-weight:600;fill:#6b7b92;text-anchor:middle;dominant-baseline:central;pointer-events:none;user-select:none;stroke:#fff;stroke-width:3px;stroke-linejoin:round;paint-order:stroke;}
 .ip-tooth.missing path{fill:#f4f6f9;stroke:#b9c3d1;stroke-dasharray:4 3.5;}
-.ip-tooth.missing text{font-size:19px;font-weight:500;fill:#97a4b7;}
+.ip-tooth.missing text{font-size:19px;font-weight:500;fill:#97a4b7;stroke:#f4f6f9;}
 .ip-tooth:focus,.ip-tooth:focus-visible{outline:none;}
 .ip-tooth.pick{pointer-events:all;cursor:pointer;}
 .ip-tooth.pick path{stroke:#5b6b82;stroke-dasharray:3.5 3;}
@@ -940,19 +940,120 @@ function addContacts(a, b) {
 
 // ─── Arch diagram geometry ────────────────────────────────────────────────────
 // Teeth tile along a buccal arch curve (a cubic Bézier from the incisal midline back to the
-// distal of the second molar). Each tooth is a superellipse warped onto that curve, so outlines
-// stay smooth and every interproximal contact sits exactly on a tooth boundary. The entry chips
-// ride a ring just outside the arch. Everything is in px at the diagram's native size; the
-// FitBox wrapper scales it to the available width.
+// distal of the second molar). Each crown is drawn from an occlusal outline of its own tooth type
+// (TOOTH_FORMS) warped onto that curve, so outlines follow the arch and every interproximal contact
+// sits exactly on a tooth boundary; the faint lines inside are the crown's anatomy (incisal edges,
+// cusp ridges, grooves), as on a dental-anatomy occlusal chart. The entry chips ride a ring just
+// outside the arch. Everything is in px at the diagram's native size; the FitBox wrapper scales it
+// to the available width.
+//
+// TOOTH_FORMS: per arch, teeth 1..7. Coordinates are relative to the tooth's slot on the arch:
+// x runs mesial (−1) → distal (+1), y runs buccal/labial surface (0) → lingual (1), so one form
+// serves all four quadrants. o = outline control points (closed, smoothed); l = anatomy lines.
+const TOOTH_FORMS = {
+  U: [
+    { // central incisor: broad labial face tapering to a rounded cingulum; incisal edge + marginal ridges
+      o: [-0.97, 0.2, -0.78, 0.05, -0.35, -0.01, 0.15, -0.01, 0.62, 0.04, 0.93, 0.16, 0.97, 0.3, 0.8, 0.57, 0.54, 0.82, 0.28, 0.96, -0.02, 1.0, -0.34, 0.93, -0.66, 0.68, -0.91, 0.41],
+      l: [[-0.78, 0.22, -0.3, 0.16, 0.3, 0.16, 0.78, 0.24], [-0.66, 0.32, -0.42, 0.6, -0.1, 0.82], [0.68, 0.34, 0.42, 0.62, 0.1, 0.82]]
+    },
+    { // lateral incisor: smaller and rounder, prominent cingulum
+      o: [-0.96, 0.24, -0.74, 0.07, -0.3, 0.0, 0.2, 0.0, 0.64, 0.06, 0.93, 0.22, 0.96, 0.38, 0.8, 0.65, 0.5, 0.88, 0.1, 1.0, -0.3, 0.93, -0.68, 0.69, -0.93, 0.43],
+      l: [[-0.7, 0.24, 0, 0.18, 0.7, 0.26], [-0.55, 0.34, -0.3, 0.62, -0.04, 0.8], [0.58, 0.36, 0.32, 0.64, 0.06, 0.8]]
+    },
+    { // canine: diamond, prominent labial ridge and cingulum; cusp tip with mesial/distal cusp ridges + lingual ridge
+      o: [-0.97, 0.3, -0.8, 0.12, -0.44, 0.01, -0.05, -0.07, 0.38, 0.02, 0.73, 0.14, 0.97, 0.33, 0.86, 0.58, 0.58, 0.81, 0.26, 0.97, -0.04, 1.0, -0.36, 0.94, -0.68, 0.75, -0.9, 0.52],
+      l: [[-0.86, 0.36, -0.45, 0.27, -0.05, 0.19, 0.42, 0.28, 0.86, 0.38], [-0.05, 0.21, -0.03, 0.55, -0.04, 0.84]]
+    },
+    { // first premolar: buccal wider than lingual, mesial concavity; central groove with its fossae
+      o: [-0.98, 0.33, -0.88, 0.12, -0.55, 0.02, -0.05, -0.04, 0.5, 0.02, 0.88, 0.13, 0.99, 0.34, 0.94, 0.58, 0.76, 0.82, 0.42, 0.97, -0.04, 1.0, -0.44, 0.96, -0.76, 0.82, -0.88, 0.63, -0.87, 0.48],
+      l: [[-0.74, 0.35, -0.6, 0.47, -0.72, 0.6], [-0.6, 0.47, -0.2, 0.45, 0.2, 0.5, 0.6, 0.46], [0.74, 0.34, 0.6, 0.46, 0.73, 0.58]]
+    },
+    { // second premolar: rounder, cusps alike; shorter central groove
+      o: [-0.98, 0.34, -0.86, 0.13, -0.5, 0.02, 0.0, -0.02, 0.5, 0.02, 0.86, 0.13, 0.98, 0.34, 0.96, 0.6, 0.8, 0.84, 0.42, 0.98, 0.0, 1.0, -0.42, 0.98, -0.8, 0.84, -0.96, 0.6],
+      l: [[-0.55, 0.38, -0.4, 0.5, -0.54, 0.62], [-0.4, 0.5, 0.0, 0.47, 0.4, 0.5], [0.55, 0.38, 0.4, 0.5, 0.54, 0.62]]
+    },
+    { // first molar: rhomboid (lingual half sits distal), MB/DB cusps buccally, large ML and smaller DL lingually;
+      // buccal groove into the central fossa, central groove to the mesial fossa, groove across the
+      // oblique ridge to the distal fossa, and the distolingual groove
+      o: [-1.0, 0.34, -0.94, 0.14, -0.74, 0.03, -0.38, 0.0, -0.06, 0.06, 0.26, 0.02, 0.6, 0.04, 0.82, 0.12, 0.98, 0.36, 1.0, 0.6, 0.9, 0.82, 0.64, 0.95, 0.3, 0.99, -0.1, 1.01, -0.56, 0.97, -0.84, 0.83, -0.96, 0.6],
+      l: [[-0.06, 0.08, -0.08, 0.3, -0.1, 0.46], [-0.1, 0.46, -0.4, 0.43, -0.62, 0.4], [-0.78, 0.3, -0.62, 0.4, -0.76, 0.52], [-0.1, 0.46, 0.2, 0.52, 0.5, 0.54], [0.42, 0.94, 0.42, 0.7, 0.5, 0.54, 0.72, 0.42]]
+    },
+    { // second molar: smaller, heart-shaped, reduced distolingual cusp
+      o: [-1.0, 0.36, -0.94, 0.14, -0.72, 0.03, -0.36, 0.0, -0.04, 0.06, 0.3, 0.02, 0.66, 0.06, 0.9, 0.18, 0.99, 0.4, 0.92, 0.64, 0.72, 0.84, 0.42, 0.96, 0.04, 1.0, -0.38, 0.98, -0.74, 0.86, -0.94, 0.64],
+      l: [[-0.04, 0.08, -0.06, 0.28, -0.1, 0.46], [-0.1, 0.46, -0.4, 0.42, -0.6, 0.38], [-0.1, 0.46, 0.24, 0.58, 0.46, 0.76]]
+    }
+  ],
+  L: [
+    { // central incisor: narrow and symmetrical, labial a little wider than lingual; straight incisal edge
+      o: [-0.96, 0.26, -0.8, 0.07, -0.36, 0.0, 0.36, 0.0, 0.8, 0.07, 0.96, 0.26, 0.9, 0.52, 0.68, 0.78, 0.36, 0.96, 0.0, 1.0, -0.36, 0.96, -0.68, 0.78, -0.9, 0.52],
+      l: [[-0.66, 0.24, 0, 0.22, 0.66, 0.24], [-0.42, 0.38, -0.16, 0.68, 0.0, 0.8], [0.42, 0.38, 0.16, 0.68, 0.0, 0.8]]
+    },
+    { // lateral incisor: a little larger, edge turned slightly distolingually
+      o: [-0.96, 0.26, -0.8, 0.07, -0.36, 0.0, 0.36, 0.01, 0.8, 0.09, 0.96, 0.29, 0.9, 0.55, 0.68, 0.8, 0.36, 0.97, 0.0, 1.0, -0.36, 0.95, -0.68, 0.77, -0.9, 0.51],
+      l: [[-0.68, 0.22, 0, 0.23, 0.68, 0.3], [-0.42, 0.38, -0.16, 0.68, 0.0, 0.8], [0.44, 0.42, 0.18, 0.7, 0.02, 0.8]]
+    },
+    { // canine: narrower diamond than the upper
+      o: [-0.97, 0.3, -0.78, 0.11, -0.4, 0.01, 0.0, -0.04, 0.4, 0.01, 0.78, 0.12, 0.97, 0.32, 0.86, 0.58, 0.58, 0.82, 0.24, 0.97, -0.06, 1.0, -0.38, 0.94, -0.68, 0.76, -0.9, 0.54],
+      l: [[-0.84, 0.36, -0.42, 0.28, 0.0, 0.2, 0.42, 0.28, 0.86, 0.38], [0.0, 0.22, -0.02, 0.56, -0.04, 0.82]]
+    },
+    { // first premolar: dominant buccal cusp, small mesially placed lingual cusp, converging lingually
+      o: [-0.98, 0.34, -0.88, 0.13, -0.52, 0.02, 0.0, -0.04, 0.52, 0.02, 0.88, 0.14, 0.98, 0.36, 0.88, 0.6, 0.62, 0.82, 0.26, 0.96, -0.08, 1.0, -0.42, 0.92, -0.56, 0.84, -0.74, 0.74, -0.92, 0.56],
+      l: [[-0.56, 0.48, -0.22, 0.56, 0.18, 0.5, 0.52, 0.56]]
+    },
+    { // second premolar (three-cusp form): squarer, Y-shaped groove
+      o: [-0.98, 0.36, -0.9, 0.14, -0.56, 0.02, 0.0, -0.02, 0.56, 0.02, 0.9, 0.14, 0.98, 0.36, 0.96, 0.62, 0.82, 0.86, 0.46, 0.98, 0.1, 0.95, -0.24, 0.99, -0.64, 0.94, -0.9, 0.78, -0.98, 0.58],
+      l: [[-0.58, 0.42, -0.24, 0.5, 0.06, 0.58, 0.34, 0.5, 0.6, 0.42], [0.06, 0.58, 0.08, 0.76, 0.1, 0.92]]
+    },
+    { // first molar: five cusps (MB, DB, D buccally; ML, DL lingually); zigzag central groove,
+      // mesiobuccal, distobuccal and lingual grooves
+      o: [-1.0, 0.4, -0.96, 0.18, -0.78, 0.05, -0.46, 0.0, -0.2, 0.05, 0.06, 0.01, 0.3, 0.03, 0.46, 0.09, 0.68, 0.1, 0.9, 0.2, 0.99, 0.42, 0.96, 0.66, 0.82, 0.86, 0.52, 0.97, 0.24, 0.96, 0.08, 0.92, -0.12, 0.98, -0.48, 1.0, -0.8, 0.9, -0.96, 0.68],
+      l: [[-0.7, 0.44, -0.42, 0.5, -0.16, 0.46, 0.12, 0.52, 0.44, 0.48, 0.72, 0.42], [-0.2, 0.07, -0.18, 0.28, -0.16, 0.46], [0.46, 0.11, 0.46, 0.3, 0.44, 0.48], [0.08, 0.9, 0.1, 0.7, 0.12, 0.52]]
+    },
+    { // second molar: rectangular, four cusps, cross-shaped groove
+      o: [-1.0, 0.4, -0.95, 0.16, -0.74, 0.04, -0.36, 0.0, -0.04, 0.06, 0.3, 0.01, 0.66, 0.04, 0.9, 0.16, 0.99, 0.42, 0.95, 0.68, 0.82, 0.88, 0.46, 0.98, 0.12, 0.96, -0.02, 0.92, -0.2, 0.97, -0.58, 1.0, -0.86, 0.9, -0.98, 0.66],
+      l: [[-0.7, 0.46, -0.32, 0.5, 0.0, 0.48, 0.36, 0.5, 0.72, 0.46], [-0.04, 0.08, -0.02, 0.3, 0.0, 0.48, -0.01, 0.7, -0.02, 0.9]]
+    }
+  ]
+};
+// Smooth curve through control points (centripetal Catmull-Rom), sampled `steps` per segment.
+// flat = [x0, y0, x1, y1, …]; closed = outline, else an open line (ends extended by reflection).
+function toothSpline(flat, closed, steps) {
+  const P = [];
+  for (let i = 0; i < flat.length; i += 2) P.push([flat[i], flat[i + 1]]);
+  const n = P.length, out = [];
+  const at = i => {
+    if (closed) return P[(i % n + n) % n];
+    if (i < 0) return [2 * P[0][0] - P[1][0], 2 * P[0][1] - P[1][1]];
+    if (i > n - 1) return [2 * P[n - 1][0] - P[n - 2][0], 2 * P[n - 1][1] - P[n - 2][1]];
+    return P[i];
+  };
+  const mix = (a, b, wa, wb) => [a[0] * wa + b[0] * wb, a[1] * wa + b[1] * wb];
+  const segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+    const d = (a, b) => Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1])) || 1e-6;
+    const t1 = d(p0, p1), t2 = t1 + d(p1, p2), t3 = t2 + d(p2, p3);
+    for (let j = 0; j < steps; j++) {
+      const t = t1 + (t2 - t1) * j / steps;
+      const a1 = mix(p0, p1, (t1 - t) / t1, t / t1);
+      const a2 = mix(p1, p2, (t2 - t) / (t2 - t1), (t - t1) / (t2 - t1));
+      const a3 = mix(p2, p3, (t3 - t) / (t3 - t2), (t - t2) / (t3 - t2));
+      const b1 = mix(a1, a2, (t2 - t) / t2, t / t2);
+      const b2 = mix(a2, a3, (t3 - t) / (t3 - t1), (t - t1) / (t3 - t1));
+      out.push(mix(b1, b2, (t2 - t) / (t2 - t1), (t - t1) / (t2 - t1)));
+    }
+  }
+  if (!closed) out.push(P[n - 1]);
+  return out;
+}
 const ARCH_CACHE = {};
 function archBuildRaw(lower) {
   const X = 176, Y = 262, K1 = 0.55, K2 = 0.62;      // half-width, depth, Bézier handle lengths
   const CHIP = 34, PILL = 63, GAP = 2.4, MARGIN = 14; // chip / earlier-visit pill distance from the arch, gap between teeth
   // Mesiodistal width and buccolingual depth (mm) for teeth 1..7 — only their proportions matter.
+  // (The widths also set where each contact, and so each entry chip, sits on the arch.)
   const WID = lower ? [6.0, 6.2, 7.0, 7.0, 7.0, 10.0, 9.5] : [8.0, 6.6, 7.6, 7.0, 6.6, 9.6, 9.0];
-  const THK = lower ? [6.2, 6.4, 7.6, 8.8, 9.2, 10.8, 10.4] : [7.0, 6.2, 8.0, 9.2, 9.2, 11.2, 11.0];
-  const NEX = [3.0, 3.0, 2.5, 2.2, 2.2, 3.0, 3.0];   // superellipse exponent (squarer incisors/molars, rounder premolars)
-  const BMP = [0, 0, 5, 2.5, 2.5, 0, 0];             // outward bulge: cusp tip on canines, cusps on premolars
+  const THK = lower ? [7.0, 7.2, 7.6, 7.8, 8.2, 9.8, 9.4] : [7.0, 6.2, 8.0, 9.2, 9.2, 11.2, 11.0];
   const f1 = v => (Math.round(v * 10) / 10);
 
   // Left half of the buccal curve (viewer's left = patient's right), sampled for arc length.
@@ -988,19 +1089,18 @@ function archBuildRaw(lower) {
 
   const teeth = [], contacts = [];
   const toothShape = (n, side) => {
-    const s0 = S(n - 1) + GAP / 2, s1 = S(n) - GAP / 2, th = THK[n - 1] * k, ex = NEX[n - 1], bump = BMP[n - 1];
-    const M = 84, pp = [];
-    for (let j = 0; j < M; j++) {
-      const a = j / M * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a);
-      const u = Math.sign(c) * Math.pow(Math.abs(c), 2 / ex), v = Math.sign(sn) * Math.pow(Math.abs(sn), 2 / ex);
-      const along = s0 + (u + 1) / 2 * (s1 - s0);
-      let depth = (v + 1) / 2 * th;
-      if (v < 0) depth -= bump * (1 - u * u) * (-v);
-      const F = place(along, side);
-      pp.push([F.x - F.nx * depth, F.y - F.ny * depth]);
-    }
+    const s0 = S(n - 1) + GAP / 2, s1 = S(n) - GAP / 2, th = THK[n - 1] * k;
+    const form = TOOTH_FORMS[lower ? "L" : "U"][n - 1];
+    const warp = p => {                       // slot coordinates → diagram px
+      const F = place(s0 + (p[0] + 1) / 2 * (s1 - s0), side);
+      return [F.x - F.nx * p[1] * th, F.y - F.ny * p[1] * th];
+    };
     const mid = place((s0 + s1) / 2, side);
-    return { pts: pp, lx: mid.x - mid.nx * th * 0.5, ly: mid.y - mid.ny * th * 0.5 };
+    return {
+      pts: toothSpline(form.o, true, 8).map(warp),
+      lines: form.l.map(l => toothSpline(l, false, 6).map(warp)),
+      lx: mid.x - mid.nx * th * 0.5, ly: mid.y - mid.ny * th * 0.5
+    };
   };
   for (let n = 7; n >= 1; n--) teeth.push(Object.assign({ n }, toothShape(n, -1)));   // 7..1 on the patient's right
   for (let n = 1; n <= 7; n++) teeth.push(Object.assign({ n }, toothShape(n, 1)));    // 1..7 on the patient's left
@@ -1030,6 +1130,7 @@ function archBuildRaw(lower) {
   return { teeth, contacts, quad, center, x0, y0, x1, y1, MARGIN, f1 };
 }
 // Both arches share one box size (so the two diagrams scale identically); content is centred in it.
+// Each tooth carries d (its outline) and a (its anatomy lines, drawn faintly over it).
 function archGeometry(lower) {
   if (!ARCH_CACHE.U) {
     const raws = [archBuildRaw(false), archBuildRaw(true)];
@@ -1039,9 +1140,10 @@ function archGeometry(lower) {
       const r = raws[idx], f1 = r.f1;
       const dx = (W - (r.x1 - r.x0)) / 2 - r.x0, dy = r.MARGIN - r.y0;
       const sh = p => [f1(p[0] + dx), f1(p[1] + dy)];
+      const poly = list => list.map(sh).map(p => p[0] + " " + p[1]).join("L");
       ARCH_CACHE[isLower ? "L" : "U"] = {
         W, H,
-        teeth: r.teeth.map(t => ({ n: t.n, d: "M" + t.pts.map(sh).map(p => p[0] + " " + p[1]).join("L") + "Z", lx: f1(t.lx + dx), ly: f1(t.ly + dy) })),
+        teeth: r.teeth.map(t => ({ n: t.n, d: "M" + poly(t.pts) + "Z", a: t.lines.map(l => "M" + poly(l)).join(""), lx: f1(t.lx + dx), ly: f1(t.ly + dy) })),
         contacts: r.contacts.map(c => ({ i: c.i, chip: sh(c.chip), pill: sh(c.pill), stem: c.stem.map(sh), bt: sh(c.bt), btRot: c.btRot })),
         quad: { l: sh(r.quad.l), r: sh(r.quad.r) },
         center: [W / 2, f1(r.center[1] + dy)]
@@ -1050,6 +1152,10 @@ function archGeometry(lower) {
   }
   return ARCH_CACHE[lower ? "L" : "U"];
 }
+
+// Faint anatomy lines inside each tooth — inline style, so the app's tooth CSS (and the bare print
+// window) draw them identically and picking/hover states never restyle them.
+const TOOTH_ANATOMY = { fill: "none", stroke: "#b8c2d0", strokeWidth: 1.1, strokeLinecap: "round", strokeLinejoin: "round", strokeDasharray: "none" };
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
 const el = React.createElement;
@@ -1163,6 +1269,7 @@ function ArchDiagram(p) {
       return el("g", props,
         el("title", null, isMiss ? name + " — missing" : name),
         el("path", { d: t.d }),
+        !isMiss && t.a && el("path", { d: t.a, style: TOOTH_ANATOMY }),
         el("text", { x: t.lx, y: t.ly }, isMiss ? "×" : t.n));
     }),
     el("text", { key: "ql", className: "ip-quad", x: g.quad.l[0], y: g.quad.l[1] }, lower ? "LR" : "UR"),
@@ -1526,7 +1633,9 @@ function PrintArch(p) {
     const miss = !!missing[arr[i]];
     out.push(el("g", { key: "t" + i },
       el("path", { d: t.d, fill: miss ? "#f4f6f9" : "#fff", stroke: miss ? "#b9c3d1" : "#a7b4c6", strokeWidth: 1.4, strokeLinejoin: "round", strokeDasharray: miss ? "4 3.5" : undefined }),
-      el("text", { x: t.lx, y: t.ly, textAnchor: "middle", dominantBaseline: "central", fontSize: miss ? 19 : 13, fontWeight: miss ? 500 : 600, fill: miss ? "#97a4b7" : "#6b7b92" }, miss ? "×" : t.n)));
+      !miss && t.a && el("path", { d: t.a, style: TOOTH_ANATOMY }),
+      el("text", { x: t.lx, y: t.ly, textAnchor: "middle", dominantBaseline: "central", fontSize: miss ? 19 : 13, fontWeight: miss ? 500 : 600, fill: miss ? "#97a4b7" : "#6b7b92",
+        stroke: miss ? "#f4f6f9" : "#fff", strokeWidth: 3, strokeLinejoin: "round", paintOrder: "stroke" }, miss ? "×" : t.n)));
   });
   // quadrant labels
   out.push(el("text", { key: "ql", x: g.quad.l[0], y: g.quad.l[1], textAnchor: "middle", fontSize: 13, fontWeight: 700, fill: "#8d9bb0", letterSpacing: "0.04em" }, lower ? "LR" : "UR"));
