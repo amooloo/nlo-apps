@@ -336,6 +336,185 @@ const cfg = A.arCfg({});
     ok(A.ladState(pa({ days: 40, rp: 'INS: X' }), null, asOf, T) === null && A.ladState(pa({ days: 40, sts: 'Inactive' }), null, asOf, T) === null, 'insurance and inactive accounts have no ladder');
   }
 
+  section('Alternative Arrangements (Past due → Arrangements)');
+  {
+    const at = (y, m, d, h) => new Date(y, m - 1, d, h || 10).getTime(), T = o => A.aaTerms(o), yr = s => s.replace(/, 20\d\d/g, ''); // dates read the same in any year
+    // the terms, as typed on the form or read back
+    eq(A.aaTerms({ pay: '$1,175.50', n: '12', start: '2026-11-01', day: '5', down: '200' }), { pay: 1175.5, n: 12, start: '2026-11-01', day: 5, down: 200 }, 'terms as typed: an amount with $ and commas, whole months, a start date, the drafting day, a down payment');
+    eq([A.aaTerms({}), A.aaTerms(null), A.aaTerms({ pay: 'abc', n: '0', start: '11/1/2026', day: '40', down: '-5' }), A.aaTerms({ n: 12.5, pay: 0 }), A.aaTerms({ n: 121, pay: 100000, day: 0 })], [null, null, null, null, null],
+      'nothing sensible in it: no terms (each value checked, out-of-range ones dropped)');
+    eq([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 31].map(A.ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', '31st'], 'the drafting day said as the 5th, the 12th…');
+    // the payments' days
+    eq([A.aaFirst(T({ start: '2026-11-01', day: 5 })), A.aaFirst(T({ start: '2026-10-20', day: 5 })), A.aaFirst(T({ start: '2026-10-20' })), A.aaFirst(T({ start: '2026-10-12', day: 12 })), A.aaFirst(T({ pay: 100 }))],
+      ['2026-11-05', '2026-11-05', '2026-10-20', '2026-10-12', ''], 'the first payment: the drafting day on or after the start (that month, or the next) — the start itself with no day');
+    const t31 = T({ start: '2027-01-31', day: 31, n: 4 });
+    eq([1, 2, 3, 4].map(k => A.aaPayDate(t31, k)), ['2027-01-31', '2027-02-28', '2027-03-31', '2027-04-30'], 'drafted on the 31st: the month’s last day when it’s shorter');
+    const t12 = T({ pay: 175, n: 10, start: '2026-11-01', day: 12 });
+    eq(A.aaSched(t12, '2026-10-22'), { first: '2026-11-12', last: '2027-08-12', n: 10, due: 0, next: { k: 1, date: '2026-11-12' } }, 'before the first payment: none due, the first is next');
+    eq(A.aaSched(t12, '2026-12-13'), { first: '2026-11-12', last: '2027-08-12', n: 10, due: 2, next: { k: 3, date: '2027-01-12' } }, 'a month in: 2 were due, the 3rd is next');
+    eq([A.aaSched(t12, '2026-12-12').next, A.aaSched(t12, '2027-09-01').next, A.aaSched(t12, '2027-09-01').due], [{ k: 2, date: '2026-12-12' }, null, 10], 'on a payment’s day that one is next; once all ten days have passed, none');
+    eq(A.aaSched(T({ pay: 175, start: '2026-11-12', day: 12 }), '2030-01-20').next, { k: 40, date: '2030-02-12' }, 'the number of months not known: they go on');
+    eq([A.aaFollow(t12, '2026-10-22'), A.aaFollow(t12, '2026-11-13'), A.aaFollow(t12, '2027-09-01')], ['2026-11-16', '2026-12-15', ''], 'look again a few days after the next payment, on an office day (Thu Nov 12 → Mon Nov 16; Sat Dec 12 → Tue Dec 15); none once they’re all past');
+    eq(A.aaTermsSay(T({ pay: 175, n: 10, start: '2026-11-01', day: 12, down: 200 })), '$175.00 a month for 10 months, starting 11/12/26 (drafted on the 12th); $200.00 paid when it was made', 'the terms in words, for Edge');
+    eq([A.aaTermsSay(T({ n: 6 })), A.aaTermsSay(T({ start: '2026-11-05' })), A.aaTermsSay(T({ down: 50 })), A.aaTermsSay(null)], ['6 monthly payments', 'payments starting 11/05/26', '$50.00 paid when it was made', ''], '…as much as was given');
+    eq([A.aaTermsShort(t12), A.aaTermsShort(T({ pay: 175.5 })), A.aaTermsShort(T({ n: 6, day: 5 }))], ['$175/mo × 10 · the 12th', '$175.50/mo', '6 payments · the 5th'], 'and in a few words, for the list');
+
+    // made, worked, its terms
+    const pa = o => A.acctOf(row(Object.assign({ due: 350, b0: 175, b30: 175, days: 40, bal: 2100, recv: '2026-08-20', lastAmt: 175 }, o)), cfg, '2026-10-05');
+    const it1 = A.blankItem(pa());
+    const e1 = A.applyLog(it1, 'pt_plan', { by: 'sarah', note: 'Signed the Altered Arrangement', aa: { pay: '175', n: '10', start: '2026-11-01', day: '12', down: '' } }, at(2026, 10, 22));
+    eq([it1.stage, it1.follow, e1.aa, A.logLabel(e1)], ['plan', '2026-11-16', { pay: 175, n: 10, start: '2026-11-01', day: 12 }, 'Payment plan (AA) made'], 'made with its terms: on an arrangement (Payment plan (AA)), followed up a few days after the first payment');
+    const it0 = A.blankItem(pa()); A.applyLog(it0, 'pt_plan', { by: 'sarah' }, at(2026, 10, 22));
+    eq([it0.stage, it0.follow, it0.log[0].aa], ['plan', '2026-11-23', undefined], '…without terms: followed up in 30 days (an office day)');
+    A.applyLog(it1, 'pt_text', { by: 'sarah' }, at(2026, 10, 26)); A.applyLog(it1, 'pt_promise', { by: 'sarah', date: '2026-11-12' }, at(2026, 10, 27));
+    eq([it1.stage, it1.follow], ['plan', '2026-11-12'], 'texts and promises logged on it keep it on the arrangement (a promise still sets its follow-up)');
+    A.undoLog(it1); eq([it1.stage, it1.follow], ['plan', '2026-10-29'], 'undo puts the follow-up back');
+    const itx = A.blankItem(pa()); A.applyLog(itx, 'pt_text', { by: 'sarah' }, at(2026, 10, 26)); eq(itx.stage, 'waiting', 'an account not on one: as before');
+    A.applyLog(it1, 'aa_ok', { by: 'sarah', note: 'First payment posted' }, at(2026, 11, 13));
+    eq([it1.stage, it1.follow, A.logLabel(it1.log[it1.log.length - 1])], ['plan', '2026-12-15', 'AA payment in'], 'a payment in: still on it, followed up after the next payment (Dec 12 → Tue Dec 15)');
+    const itn = A.blankItem(pa()); A.applyLog(itn, 'pt_plan', { by: 'sarah' }, at(2026, 10, 22)); A.applyLog(itn, 'aa_ok', { by: 'sarah' }, at(2026, 11, 13));
+    eq(itn.follow, '2026-12-14', '…with no terms: in 30 days');
+    let err = null; try { A.applyLog(A.blankItem(pa()), 'aa_terms', { by: 'sarah', aa: { day: '' } }, 1); } catch (x) { err = x.code; }
+    eq(err, 'need-terms', 'terms need something filled in');
+    A.applyLog(it0, 'aa_terms', { by: 'sarah', aa: { pay: 150, n: 12, start: '2026-11-19', day: 19 } }, at(2026, 10, 23));
+    eq([A.aaTermsOf(it0), it0.follow, it0.stage], [{ pay: 150, n: 12, start: '2026-11-19', day: 19 }, '2026-11-23', 'plan'], 'terms added later are the account’s terms (its follow-up and status stay)');
+    A.applyLog(it0, 'pt_plan', { by: 'sarah' }, at(2026, 10, 24));
+    eq(A.aaTermsOf(it0), null, 'a new arrangement without terms: the old ones don’t carry over');
+    const n1 = A.normItem({ id: 'x', state: 'open', stage: 'plan', log: [{ k: 'pt_plan', at: 1, aa: { pay: '175', n: 10, start: '2026-11-01', day: 12, evil: '<x>' } }, { k: 'aa_terms', at: 2, aa: { pay: -1 } }, { k: 'pt_vm', at: 3, aa: { pay: 5 } }, { k: 'aa_ok', at: 4 }] });
+    eq([n1.stage, n1.log.map(e => [e.k, e.aa || null])], ['plan', [['pt_plan', { pay: 175, n: 10, start: '2026-11-01', day: 12 }], ['aa_terms', null], ['pt_vm', null], ['aa_ok', null]]], 'read back: the terms only on the entries that carry them, each value checked');
+    const who = s => ({ sarah: 'Sarah' })[s] || '', en = (it, e) => A.edgeNoteOf(it, e, who, '');
+    eq([en(it1, it1.log[0]), en(it1, it1.log[it1.log.length - 1]), en(it0, it0.log[0]), en(it0, it0.log[1])],
+      ['10/22/26 Alternative Arrangement (AA) made: $175.00 a month for 10 months, starting 11/12/26 (drafted on the 12th). Signed the Altered Arrangement. Next F/U 11/16/26. -Sarah',
+        '11/13/26 AA payment received; the arrangement is on track. First payment posted. Next F/U 12/15/26. -Sarah', '10/22/26 Alternative Arrangement (AA) made. Next F/U 11/23/26. -Sarah',
+        '10/23/26 AA terms: $150.00 a month for 12 months, starting 11/19/26 (drafted on the 19th). -Sarah'], 'Edge notes: made (with its terms), a payment in, terms added');
+
+    // where an arrangement stands
+    const AT = (it, a, p, o) => A.aaState(it, a, p, Object.assign({ asOf: '', prevAsOf: '', today: '2026-10-23', ob: [], lad: null }, o)), ks = s => (s ? s.why.map(w => w.k) : null);
+    const mk = terms => { const it = A.blankItem(pa()); A.applyLog(it, 'pt_plan', { by: 'sarah', aa: terms }, at(2026, 10, 22, 15)); return it; }, TT = { pay: 175, n: 10, start: '2026-11-01', day: 12 };
+    const iA = mk(TT), aNow = pa();
+    let s = AT(iA, aNow, null, { asOf: '2026-10-22', prevAsOf: '2026-10-15' });
+    eq([s.st, s.src, s.madeOn, s.by, ks(s), s.focus, s.sched.next], ['new', 'app', '2026-10-22', 'sarah', ['pd'], null, { k: 1, date: '2026-11-12' }], 'just made: New — past due on the report, the first payment next');
+    s = AT(iA, aNow, A.acctOf(row({ due: 175, b0: 175, days: 10 }), cfg, '2026-10-15'), { asOf: '2026-10-22', prevAsOf: '2026-10-15' });
+    ok(!ks(s).some(k => k === 'up' || k === 'again'), 'a report from before it was made isn’t held against it');
+    eq([AT(A.blankItem(pa()), null, null, {}), (() => { const x = mk(null); A.resolveItem(x, 'paid', { by: 'sarah' }, 5); return AT(x, null, null, {}); })()], [null, null], 'not on one, or resolved: nothing');
+    {
+      const x = mk(TT); A.resolveItem(x, 'paid', { by: 'sarah' }, at(2026, 11, 2)); A.reopenItem(x, { by: 'sarah' }, at(2026, 11, 2, 11));
+      const y = mk(TT); A.resolveItem(y, 'paid', { by: 'sarah' }, at(2026, 11, 2)); A.reopenItem(y, { by: 'sarah', note: 'On the list again', fresh: true }, at(2026, 11, 20)); A.applyLog(y, 'pt_vm', { by: 'sarah' }, at(2026, 11, 20, 11));
+      eq([x.stage, AT(x, null, null, {}).st, y.stage, AT(y, null, null, {})], ['plan', 'new', 'waiting', null],
+        'reopened by hand: still on it; past due again after being resolved (a new round): that arrangement is over, and logging works as on any account');
+    }
+    // OrthoBanc's failed drafts
+    const ob = (date, o) => [{ day: '2026-11-12', row: Object.assign({ amt: 175, date, reason: 'Credit Card - Declined', hold: false }, o || {}) }];
+    s = AT(iA, aNow, null, { asOf: '2026-11-09', today: '2026-11-13', ob: ob('2026-11-12') });
+    eq([s.st, s.why[0].k, s.why[0].tone, s.focus.kind], ['check', 'ob', 'red', 'aamiss'], 'a draft that failed since it was made: Check — first, and urgent in Focus');
+    ok(yr(s.why[0].t) === 'OrthoBanc: the $175.00 draft of Nov 12 failed (Credit Card - Declined)' && /^Arrangement — OrthoBanc/.test(s.focus.why), 'it says which draft and why: ' + s.why[0].t);
+    ok(/OrthoBanc stopped drafting/.test(AT(iA, aNow, null, { today: '2026-11-13', ob: ob('2026-11-12', { hold: true }) }).why[0].t), 'on HOLD: it says OrthoBanc stopped drafting');
+    ok(!ks(AT(iA, aNow, null, { today: '2026-11-13', ob: [{ day: '2026-10-12', row: { amt: 175, date: '2026-10-09' } }] })).includes('ob'), 'a draft that failed before it was made isn’t this arrangement’s');
+    const iB = mk(TT); A.applyLog(iB, 'aa_ok', { by: 'sarah' }, at(2026, 11, 13));
+    s = AT(iB, aNow, null, { today: '2026-11-14', ob: ob('2026-11-12') });
+    ok(!ks(s).includes('ob') && s.ok && s.ok.k === 'aa_ok', '“Payment in — on track” logged after it: settled');
+    // a payment the newest report should show
+    const aR = r => pa({ recv: r });
+    s = AT(iA, aR('2026-08-20'), null, { asOf: '2026-11-16', today: '2026-11-17' });
+    eq([s.st, s.why[0].k, s.focus.kind], ['check', 'miss', 'aamiss'], 'the newest report doesn’t have the Nov 12 payment: Check (urgent)');
+    ok(yr(s.why[0].t) === 'The Nov 12 payment isn’t on Edge’s Nov 16 report (last payment Aug 20)', s.why[0].t);
+    eq([s.focus.since, AT(iA, aNow, null, { asOf: '2026-11-09', today: '2026-11-13', ob: ob('2026-11-12') }).focus.since], ['2026-11-16', '2026-11-12'], 'each reason keeps the day it was known: the report’s, the OrthoBanc report’s');
+    eq(['2026-11-12', '2026-11-03', '2026-11-01'].map(r => ks(AT(iA, aR(r), null, { asOf: '2026-11-16', today: '2026-11-17' })).includes('miss')), [false, false, true], 'a payment on its day, or up to 10 days early, counts for it');
+    ok(!ks(AT(iA, aR('2026-08-20'), null, { asOf: '2026-11-14', today: '2026-11-17' })).includes('miss'), 'a report from less than 3 days after the payment’s day: too early to tell');
+    const iC = mk(TT); A.applyLog(iC, 'aa_ok', { by: 'sarah' }, at(2026, 11, 17));
+    ok(!ks(AT(iC, aR('2026-08-20'), null, { asOf: '2026-11-16', today: '2026-11-18' })).includes('miss'), 'checked after that report ran (the payment came in after it): settled');
+    // past due, against the report before
+    const P = pd => (pd ? A.acctOf(row({ due: pd, b0: pd, days: 5, bal: 2000, recv: '2026-11-12' }), cfg, '2026-11-09') : null);
+    const N = pd => A.acctOf(row({ due: pd, b0: pd, days: pd ? 5 : null, bal: 2000, recv: '2026-11-12' }), cfg, '2026-11-16');
+    const cmpK = (n, p, prev) => ks(AT(iA, N(n), P(p), { asOf: '2026-11-16', prevAsOf: prev || '2026-11-09', today: '2026-11-17' }));
+    eq([cmpK(175, 0), cmpK(350, 175), cmpK(175, 350), cmpK(0, 175), cmpK(175, 175), cmpK(175, 0, '2026-10-15')], [['again'], ['up'], ['down'], ['down'], ['pd'], ['pd']],
+      'against the report before: past due again, up, down, caught up, the same — and nothing when that report is from before it was made');
+    s = AT(iA, N(175), null, { asOf: '2026-11-16', prevAsOf: '2026-11-09', today: '2026-11-17' });
+    ok(s.st === 'check' && s.focus.kind === 'aacheck' && yr(s.why[0].t) === 'Past due again: $175 on Nov 16, nothing on Nov 9', 'past due again: Check (for today, in Focus) — ' + s.why[0].t);
+    ok(yr(AT(iA, N(0), P(175), { asOf: '2026-11-16', prevAsOf: '2026-11-09', today: '2026-11-17' }).why[0].t) === 'Caught up since Nov 9', 'caught up: says so');
+    s = AT(iA, N(175), null, { asOf: '2026-11-16', prevAsOf: '2026-11-09', today: '2026-11-17', ob: ob('2026-11-12') });
+    eq(s.why.map(w => w.tone), ['red', 'amber'], 'the most important first (red, then amber)');
+    // current, paid off, every payment's day passed
+    s = AT(iA, null, null, { asOf: '2026-11-16', today: '2026-11-17' });
+    eq([s.st, ks(s)], ['ok', ['cur']], 'not past due on the newest report (current in Edge): On track');
+    s = AT(iA, null, null, { asOf: '2026-11-16', full: true, today: '2026-11-17' });
+    ok(s.st === 'check' && ks(s).join() === 'end' && s.focus.kind === 'aaend' && yr(s.why[0].t) === 'Not on Edge’s Nov 16 report, which leaves out $0 balances — paid off? Check Edge, then resolve it as paid',
+      'not on a report that has every account with a balance and keeps the arrangements: a $0 balance — paid off? (Check) — ' + s.why[0].t);
+    eq([ks(AT(iA, null, null, { asOf: '', today: '2026-11-17' })), ks(AT(iA, N(175), null, { asOf: '', prevAsOf: '', today: '2026-11-17' }))], [[], []], 'a newest report without the past-due accounts (credit balances only): nothing said from it');
+    s = AT(iA, A.acctOf(row({ due: 0, bal: 0, recv: '2026-11-12' }), cfg, '2026-11-16'), null, { asOf: '2026-11-16', today: '2026-11-17' });
+    eq([s.st, s.why[0].k, s.focus.kind], ['check', 'end', 'aaend'], 'a balance of $0 on the report: paid off — resolve it');
+    s = AT(iA, null, null, { today: '2027-08-20' });
+    ok(s.st === 'check' && ks(s).join() === 'end' && s.focus.kind === 'aaend' && s.sched.next === null && /^All 10 payments were due by Aug 12(, 2027)? — once the balance is paid, resolve it as paid$/.test(s.why[0].t), 'every payment’s day passed: resolve it once it’s paid — ' + s.why[0].t);
+    // Maintenance Hold
+    const iH = mk(TT); A.holdLog(iH, true, { by: 'sarah' }, at(2026, 10, 22, 16));
+    eq(ks(AT(iH, null, null, { today: '2026-11-13' })), ['holdw'], 'on Maintenance Hold: until the first payment is in');
+    s = AT(iH, null, null, { today: '2026-11-15' });
+    eq([s.st, s.why[0].k, s.focus.kind], ['check', 'hold', 'aahold'], 'a few days after the first payment’s day: lift the hold once it’s in (Check)');
+    eq(ks(AT(iH, null, null, { today: '2026-11-15', ob: ob('2026-11-12') })), ['ob', 'holdw'], '…not while a draft has failed');
+    A.holdLog(iH, false, { by: 'sarah' }, at(2026, 11, 16)); ok(!AT(iH, null, null, { today: '2026-11-16' }).hold, 'lifted: gone');
+    // no terms; from Edge; set by hand
+    const iN = A.blankItem(pa()); A.applyLog(iN, 'pt_plan', { by: 'sarah' }, at(2026, 10, 22));
+    eq([ks(AT(iN, null, null, {})), AT(iN, null, null, {}).st, AT(iN, null, null, { today: '2026-11-20' }).st], [['terms'], 'new', 'ok'], 'no terms: says so; New for two weeks, then On track while nothing’s flagged');
+    const iE = A.blankItem(pa());
+    A.edgeTasksApply(iE, [{ id: 'tabc12', title: 'AA MADE - Avery Sample', due: '2026-10-30', desc: '$40 every other Friday', op: 'Jamie' }], { by: 'jamie', today: '2026-10-08', aa: true }, at(2026, 10, 8));
+    s = AT(iE, aNow, aNow, { asOf: '2026-10-22', prevAsOf: '2026-10-15' });
+    eq([iE.stage, s.src, s.madeOn, s.st, ks(s)], ['plan', 'edge', '', 'ok', ['pd', 'terms']], 'an “AA MADE” task from Edge: on an arrangement, the day it was made not known');
+    const iS = A.blankItem(pa()); iS.stage = 'plan'; eq(AT(iS, null, null, {}).src, 'status', 'its status set by hand: on one too');
+    // broken — Letter #8, then the 30 days (as on the collections ladder); a new arrangement instead
+    const a70 = A.acctOf(row({ due: 525, b0: 175, b30: 175, b60: 175, days: 70, bal: 2100 }), cfg, '2026-10-05');
+    const iK = A.blankItem(a70); A.applyLog(iK, 'pt_plan', { by: 'sarah' }, at(2026, 9, 1)); A.breakArrangement(iK, { by: 'sarah' }, at(2026, 10, 5));
+    const LK = d => A.ladState(a70, iK, '2026-10-05', d || '2026-10-05'), AK = d => AT(iK, a70, null, { asOf: '2026-10-05', today: d || '2026-10-05', lad: LK(d) });
+    s = AK();
+    ok(s.st === 'broken' && ks(s).join() === 'broken' && s.focus === null && iK.stage === 'working' && yr(s.why[0].t) === 'Broken Oct 5 — Letter #8 is due (Dr. A signs it)', 'broken: Broken — ' + s.why[0].t + ' (Focus has Letter #8 from the ladder)');
+    A.askSign(iK, 'aa', { by: 'sarah' }, at(2026, 10, 5)); ok(/\(waiting for Dr\. A to sign\)$/.test(AK().why[0].t), 'waiting for his signature');
+    A.answerDrA(iK, true, { by: 'amir' }, at(2026, 10, 5)); ok(/\(signed — send it\)$/.test(AK().why[0].t), 'signed: send it');
+    A.ladderLog(iK, 'aa', { by: 'sarah', note: 'Certified #1' }, at(2026, 10, 6));
+    ok(yr(AK('2026-10-07').why[0].t) === 'Broken Oct 5 — Letter #8 went out Oct 6; the 30 days end Nov 5' && /Debond\/Finish$/.test(AK('2026-11-05').why[0].t), 'sent: the 30 days, then Debond/Finish');
+    A.applyLog(iK, 'pt_plan', { by: 'sarah', aa: { pay: 100, n: 6, start: '2026-11-05', day: 5 } }, at(2026, 10, 8));
+    s = AK('2026-10-08');
+    eq([s.st, !!s.broke, LK('2026-10-08').paused, LK('2026-10-08').fin, LK('2026-10-08').due], ['new', false, 'plan', null, null], 'a new arrangement made after Letter #8 (SOP-FO-003): on that one now — the 30 days stop, the ladder pauses');
+    A.breakArrangement(iK, { by: 'sarah' }, at(2026, 10, 20));
+    eq([LK('2026-10-20').due.id, AK('2026-10-20').st], ['aa', 'broken'], 'that one broken too: its own Letter #8 is due');
+    A.ladderLog(iK, 'aa', { by: 'sarah' }, at(2026, 10, 21)); ok(!!LK('2026-10-21').fin, '…and can be recorded (one Letter #8 for each broken arrangement)');
+    err = null; try { A.ladderLog(iK, 'aa', { by: 'sarah' }, at(2026, 10, 22)); } catch (x) { err = x.code; } eq(err, 'step-done', '…but not twice for the same one');
+    // a new arrangement before Letter #8 went out: the request to sign it leaves Dr. A's list (and undo brings it back)
+    const iQ = A.blankItem(a70); A.applyLog(iQ, 'pt_plan', { by: 's' }, 1); A.breakArrangement(iQ, { by: 's' }, 2); A.askSign(iQ, 'aa', { by: 's' }, 3);
+    A.applyLog(iQ, 'pt_plan', { by: 's' }, 4);
+    const lq = A.ladState(a70, iQ, '2026-10-05', '2026-10-05');
+    eq([lq.due, lq.paused, !!lq.broke, iQ.drA], [null, 'plan', false, false], 'a new arrangement instead of Letter #8: none due, the request to sign it leaves Dr. A’s list, the ladder pauses');
+    A.undoLog(iQ); eq([A.ladState(a70, iQ, '2026-10-05', '2026-10-05').due.id, iQ.drA], ['aa', true], 'undo: Letter #8 due again, waiting for him');
+
+    // the import keeps the accounts on an arrangement even when they're current
+    const F = (rows, sg) => ({ meta: { asOf: '2026-10-05', subgroup: sg || 'None', options: 'Exclude Zero Dollar Balances' }, rows });
+    const cur = row({ patient: 'Avery Sample', rp: 'Jordan Sample', due: 0, bal: 1800, lastAmt: 175, recv: '2026-10-01' }), pdr = row({ patient: 'Blake Demo', rp: 'Pat Demo', due: 100, b0: 100, days: 10, bal: 900 });
+    const kAv = A.acctKey(cur), keep = new Set([kAv]);
+    eq([A.buildReport([F([cur, pdr])], { keep }).rows.map(r => r.key), A.buildReport([F([cur, pdr])]).rows.map(r => r.key)], [[A.acctKey(pdr), kAv], [A.acctKey(pdr)]], 'an account on an arrangement is kept when it’s current (and only then)');
+    eq(A.buildReport([F([cur, Object.assign({}, cur, { bal: 500 }), pdr])], { keep }).rows.length, 1, 'two contracts under one name: neither current one is kept (they can’t be told apart)');
+    eq(A.buildReport([F([Object.assign({}, cur, { due: 50, b0: 50, days: 5 }), cur])], { keep }).rows.map(r => [r.key, r.due]), [[kAv, 50]], 'one of them past due: it keeps the account’s key, the current one isn’t added');
+    eq([A.buildReport([F([pdr], 'Past Due')], { keep: new Set([A.acctKey(pdr)]) }).rows.length, A.buildReport([F([row({ rp: 'INS: Jordan Sample', due: 0, bal: 400 })])], { keep: new Set([A.acctKey(row({ rp: 'INS: Jordan Sample' }))]) }).rows.length], [1, 0],
+      'a subgroup file as before; never an insurance account');
+    const rA = A.buildReport([F([cur, pdr])], { keep }), rB = A.buildReport([F([cur, pdr])]), sA = A.summarize(rA, cfg), sB = A.summarize(rB, cfg);
+    ok(JSON.stringify([sA.pd, sA.cr, sA.book, sA.monthEnd, A.kpis(rA, cfg)]) === JSON.stringify([sB.pd, sB.cr, sB.book, sB.monthEnd, A.kpis(rB, cfg)]), 'kept, it changes no total, goal or Month-End number');
+    ok(A.reportAccts(rA, cfg).filter(a => a.key === kAv).every(a => !a.bucket && !A.onLadder(a) && a.pd === 0 && a.credit === 0 && a.bal === 1800 && a.recv === '2026-10-01'), '…is on no list and not on the ladder — just its balance and last payment');
+    eq([rA.aaKeep, A.buildReport([F([cur, pdr])], { keep: new Set() }).aaKeep, rB.aaKeep, A.buildReport([F([pdr], 'Past Due')], { keep }).aaKeep, A.normReport(rA).aaKeep, A.normReport(rB).aaKeep, A.normReport({ aaKeep: 'yes' }).aaKeep],
+      [true, true, undefined, undefined, true, false, false], 'a full report imported this way says so (even with nobody on one yet), so one missing from it has a $0 balance; a subgroup file doesn’t; read back as is');
+
+    // Focus
+    const fctx = o => Object.assign({ accts: [], asOf: '2026-11-16', byKey: new Map(), item: () => null, lad: () => null, open: [], cleared: () => false, today: '2026-11-17', owner: false, prevPd: null, book: null, auditStart: '' }, o);
+    const fe = A.focusEntries(fctx({ aa: [{ it: { key: 'k1' }, a: null, st: { focus: { kind: 'aamiss', why: 'Arrangement — x' } } }, { it: { key: 'k2' }, a: null, st: { focus: null } }, { it: { key: 'k3' }, a: null, st: { focus: { kind: 'aaend', why: 'Arrangement — y' } } }] }));
+    eq(fe.map(e => [e.key, e.kind, e.cls, e.act]), [['k1', 'aamiss', 'urgent', 'Check'], ['k3', 'aaend', 'today', 'Resolve']], 'Focus: a missed payment is urgent, an arrangement all paid is for today; nothing flagged, nothing listed');
+    const fe2 = A.focusEntries(fctx({ open: [{ key: 'k1', state: 'open', stage: 'plan', follow: '2026-11-17', log: [] }], aa: [{ it: { key: 'k1' }, a: null, st: { focus: { kind: 'aacheck', why: 'Arrangement — past due again' } } }] }));
+    ok(fe2.length === 1 && fe2[0].kind === 'follow' && fe2[0].also.join() === 'Arrangement — past due again', 'one line per account: with its follow-up due too, the arrangement is under “Also”');
+    const fit = (follow, d) => ({ key: 'k1', state: 'open', stage: 'plan', follow, log: d ? [{ k: 'pt_vm', at: at(2026, 11, d, 11) }] : [] });
+    const fk = it => A.focusEntries(fctx({ open: [it], aa: [{ it, a: null, st: { focus: { kind: 'aamiss', why: 'Arrangement — x', since: '2026-11-16' } } }] })).map(e => e.kind).join();
+    eq([fk(fit('2026-11-19', 17)), fk(fit('2026-11-17', 17)), fk(fit('2026-11-19', 15)), fk(fit('', 17))], ['', 'aamiss', 'aamiss', 'aamiss'],
+      'worked after it came up, with a follow-up ahead: off Focus until that day, back on it then — and on it when it was worked before, or with no follow-up');
+    const ip = A.blankItem(pa()); A.applyLog(ip, 'pt_plan', { by: 'sarah', aa: TT }, at(2026, 10, 22)); A.applyLog(ip, 'pt_promise', { by: 'sarah', date: '2026-11-13' }, at(2026, 11, 10));
+    eq([ip.stage, A.focusEntries(fctx({ open: [ip] })).map(e => e.kind + ' ' + e.cls).join()], ['plan', 'promise urgent'], 'a promise made on an arrangement, its day passed: urgent, as on any account (the status stays on the arrangement)');
+    const icr = A.blankItem(pa()); A.applyLog(icr, 'pt_plan', { by: 'sarah' }, 1); A.applyLog(icr, 'cr_review', { by: 'sarah' }, 2);
+    eq(icr.stage, 'plan', 'a credit review logged on it keeps it on the arrangement too');
+  }
+
   section('Insurance carriers (the carrier book)');
   {
     const bk = A.emptyBook(), t0 = Date.UTC(2026, 9, 6, 14);

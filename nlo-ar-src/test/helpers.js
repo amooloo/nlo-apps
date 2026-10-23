@@ -77,4 +77,20 @@ function edgeTasksTSV(run, groups) {
   lines.push(''); put({ 0: 'Edge v8.0.22.1003' });
   return lines.join('\r\n');
 }
-module.exports = { routes, watch, CHROME, obReportTSV, insAgingTSV, edgeTasksTSV };
+/* a made-up Edge "Accounts Receivable Aging" (Subgroup None) as Excel's tab-separated text, laid out like the real export (see
+   make_fixtures.py and fixtures/edge-full.tsv): rows are { patient, sts, rp, home, work, due, b0, b30, b60, b90, days, bal, lastAmt,
+   recv: 'M/D/YYYY' } */
+function arAgingTSV(longDate, rows) {
+  const lines = [], put = cells => { const a = []; Object.keys(cells).forEach(c => { a[c] = cells[c]; }); lines.push(Array.from(a, v => v == null ? '' : String(v)).join('\t')); };
+  const m = v => { const s = Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); return v < 0 ? '(' + s + ')' : s; }, tot = { due: 0, b0: 0, b30: 0, b60: 0, b90: 0, bal: 0 };
+  put({ 0: 'Accounts Receivable Aging', 13: '10/22/2026 2:08 PM' }); put({ 0: 'Accounts Receivable Aging' }); put({ 0: longDate + '  Office: All,  Doctor: All' });
+  put({ 0: 'Exclude Zero Dollar Balances' }); put({ 0: 'Subgroup: None' }); lines.push(''); lines.push('');
+  put({ 0: 'Patient', 1: 'Sts', 2: 'Responsible Party', 4: 'Home  Ph', 5: 'Work  Ph', 6: 'Amt Due', 7: '0-30', 8: '31-60', 9: '61-90', 10: '91+', 12: 'Days', 14: 'Balance', 16: 'Last Amt', 17: 'Received' });
+  rows.forEach(r => {
+    put({ 0: r.patient, 1: r.sts, 2: r.rp, 4: r.home || '', 5: r.work || '', 6: m(r.due), 7: m(r.b0), 8: m(r.b30), 9: m(r.b60), 10: m(r.b90), 12: r.days == null ? '' : String(r.days), 14: m(r.bal), 16: r.lastAmt == null ? '' : m(r.lastAmt), 17: r.recv || '' });
+    Object.keys(tot).forEach(k => { tot[k] += r[k]; });
+  });
+  put({ 0: '(' + rows.length + ' Patients)', 6: m(tot.due), 7: m(tot.b0), 8: m(tot.b30), 9: m(tot.b60), 10: m(tot.b90), 14: m(tot.bal) }); put({ 0: 'Edge v8.0.22.1003' });
+  return lines.join('\r\n');
+}
+module.exports = { routes, watch, CHROME, obReportTSV, insAgingTSV, edgeTasksTSV, arAgingTSV };

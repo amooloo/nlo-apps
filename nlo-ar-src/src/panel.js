@@ -99,12 +99,12 @@ async function loadHistory(key) {
 }
 /* typed text survives the panel being redrawn by a live update */
 function keepInputs(root) { const k = {}; $$('[data-keep]', root).forEach(i => { k[i.id] = i.value; }); const a = document.activeElement; return { k, focus: a && root.contains(a) ? a.id : '', scroll: ($('.dBd', root) || {}).scrollTop || 0 }; }
-function restoreInputs(root, s) { Object.keys(s.k).forEach(id => { const i = $('#' + id, root); if (i && s.k[id]) i.value = s.k[id]; }); if (s.focus) { const f = $('#' + s.focus, root); if (f) f.focus(); } const bd = $('.dBd', root); if (bd) bd.scrollTop = s.scroll; }
+function restoreInputs(root, s) { Object.keys(s.k).forEach(id => { const i = $('#' + id, root); if (i && (s.k[id] || i.closest('.aaForm'))) i.value = s.k[id]; }); aaPreview(); if (s.focus) { const f = $('#' + s.focus, root); if (f) f.focus(); } const bd = $('.dBd', root); if (bd) bd.scrollTop = s.scroll; }
 function renderDrawer() {
   const d = $('#drawer'); if (!d) return;
   const key = S.openKey, a = S.byKey.get(key) || null, it = itemFor(key);
   if (!a && !it) { d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Not in this report</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd"><div class="notice info">This account isn’t past due or in credit in the latest report.</div></div>'; return; }
-  const keep = keepInputs(d), g = groupOf(a, it), back = isBack(it), done = !!it && it.state === 'done' && !back;
+  const keep = keepInputs(d), g = groupOf(a, it), back = isBack(it), done = !!it && it.state === 'done' && !back, aa = done || back ? null : aaFor(key);
   const name = a ? a.patient : it.name, rp = a ? a.rp : it.rp, ins = a ? a.ins : it.src === 'ins';
   let h = '<div class="dHd"><div style="flex:1;min-width:0"><h3>' + esc(name) + '</h3><div class="sub">' +
     (a ? stsBadge(a) + srcBadge(a) : '<span class="badge ' + (ins ? 's-ins' : 's-pt') + '">' + (ins ? 'Insurance' : 'Patient') + '</span>') +
@@ -112,9 +112,11 @@ function renderDrawer() {
     (done ? '<span class="badge t-ok">' + esc(OUTCOMES[it.outcome] || 'Resolved') + '</span>' : '') + '</div>' +
     '<div class="small muted" style="margin-top:6px">' + (ins ? 'Insurance subscriber: ' : 'Responsible party: ') + esc(String(rp || '').replace(/^\s*ins\s*:\s*/i, '')) + '</div></div>' +
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
-  if (!a) h += '<div class="notice info">Not past due or in credit in the ' + esc(S.rep ? fmtDateLong(S.rep.asOf) : 'latest') + ' report — paid or fixed in Edge.' + (it && it.state === 'open' ? ' <button class="linkBtn" data-act="resolveCleared">Close it as cleared</button>' : '') + '</div>';
+  if (!a && aa && aa.st.st !== 'broken') h += '<div class="notice info">Not past due in the ' + esc(S.rep ? fmtDateLong(S.rep.asOf) : 'latest') + ' report — on an Alternative Arrangement, that’s how it should be. It stays under Past due → Arrangements until it’s paid off.</div>';
+  else if (!a) h += '<div class="notice info">Not past due or in credit in the ' + esc(S.rep ? fmtDateLong(S.rep.asOf) : 'latest') + ' report — paid or fixed in Edge.' + (it && it.state === 'open' ? ' <button class="linkBtn" data-act="resolveCleared">Close it as cleared</button>' : '') + '</div>';
   if (back) h += '<div class="notice info">Resolved ' + esc(fmtDate(isoOf(new Date(it.resolvedAt || it.updatedAt || 0)))) + ' (' + esc(String(OUTCOMES[it.outcome] || 'resolved').toLowerCase()) + '), but it’s ' + (a.pd > 0 ? 'past due' : 'in credit') + ' again in the ' + esc(fmtDate(S.rep.asOf)) + ' report. Logging anything reopens it.</div>';
   if (a) h += contactHTML(a) + (a.ins ? carrierBoxHTML(a) : obBoxHTML(a)) + numbersHTML(a) + whyHTML(a);
+  if (aa) h += aaBoxHTML(aa);
   if (it && it.drA && !done) h += drABoxHTML(it);
   const L = a && !done ? ladFor(a) : null;
   if (L) h += ladderHTML(a, it, L);
@@ -176,8 +178,7 @@ function ladderHTML(a, it, L) {
   if (L.hold) h += '<div class="holdBox"><div class="hbT">' + ic('pause', 16) + '<b>On Maintenance Hold</b><span class="small">since ' + esc(fmtDate(isoOf(new Date(L.hold.at)))) + '</span></div>' +
     '<div class="small">Comfort visits only — no active tooth movement. Lift it once the past due is paid in full, or an arrangement is signed and its first payment is in: take the yellow box off in Edge and tell the clinical team.</div>' +
     '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="ladHold" data-on="0">Lift the hold</button></div></div>';
-  if (L.paused && L.paused !== 'done') h += '<div class="notice info">Paused — ' + esc(L.paused === 'plan' ? 'a payment plan (Alternative Arrangement) is in place.' : L.paused === 'promise' ? 'they promised to pay by ' + fmtDay(it.follow) + '; it picks up again after that.' : 'the account is set to Paused.') +
-    (L.paused === 'plan' ? ' <button class="linkBtn" data-act="ladAA">It was broken…</button>' : '') + '</div>';
+  if (L.paused && L.paused !== 'done') h += '<div class="notice info">Paused — ' + esc(L.paused === 'plan' ? 'an Alternative Arrangement is in place (above).' : L.paused === 'promise' ? 'they promised to pay by ' + fmtDay(it.follow) + '; it picks up again after that.' : 'the account is set to Paused.') + '</div>';
   if (L.pip && !L.due && L.reached === 0) h += '<div class="notice info">Edge’s note says a payment is in process — no text needed yet.</div>';
   if (L.due) h += ladNowHTML(L, L.due);
   else if (L.fin) h += '<div class="notice">' + esc((L.done.aa ? 'Letter #8' : 'Letter #7') + ' went out ' + fmtDate(isoOf(new Date(L.fin.at))) + '. The 30 days for appliance removal and emergencies end ' + fmtDay(L.endOn) + '.') + '</div>';
@@ -223,6 +224,63 @@ function ladStepsHTML(a, L) {
   return '<details class="ladAll"><summary><span class="ladBar" aria-hidden="true">' + steps.map((s, i) => '<i class="' + (L.done[s.id] ? 'ok' : L.due && L.due.id === s.id ? 'due' : s.id !== 'aa' && i <= L.reached ? 'skip' : '') + '"></i>').join('') + '</span>' +
     '<span class="small">' + nDone + ' of ' + steps.length + ' recorded · every step</span></summary><ol class="ladList">' + rows + '</ol></details>';
 }
+/* ---------- the account's Alternative Arrangement (Past due → Arrangements, 22 Oct 2026) ---------- */
+function aaTermsLine(t) {
+  const sc = aaSched(t, todayISO()), p = [];
+  if (t.pay) p.push(money(t.pay, true) + ' a month' + (t.n ? ' × ' + t.n : '')); else if (t.n) p.push(plural(t.n, 'monthly payment'));
+  if (t.day) p.push('drafted on the ' + ordinal(t.day));
+  if (sc) p.push(fmtDate(sc.first) + (sc.last ? ' → ' + fmtDate(sc.last) : ' on'));
+  if (t.down) p.push(money(t.down, true) + ' paid when it was made');
+  return p.join(' · ');
+}
+function aaBoxHTML(x) {
+  const s = x.st, sc = s.sched, form = S.ui.form, broken = s.st === 'broken';
+  let h = '<div class="sec aaSec"><h5>' + ic('plan', 14) + 'Alternative Arrangement ' + aaChip(s) + '</h5><div class="aaBox ' + esc(s.st) + '">';
+  h += '<div class="small aaMeta">' + (s.madeOn ? 'Made ' + esc(fmtDay(s.madeOn)) + (s.by ? ' · ' + esc(shortName(s.by)) : '') : s.src === 'edge' ? 'From an “AA MADE” task imported from Edge' : 'Set by its status, Payment plan (AA)') +
+    (s.ok ? ' · last payment confirmed ' + esc(fmtDate(isoOf(new Date(s.ok.at)))) + (s.ok.by ? ' (' + esc(shortName(s.ok.by)) + ')' : '') : '') + '</div>';
+  if (s.terms) h += '<div class="aaTerms"><b>' + esc(aaTermsLine(s.terms)) + '</b>' + (!broken && form !== 'aa_terms' ? ' <button class="linkBtn small" data-act="aaEdit">Edit</button>' : '') + '</div>';
+  if (!broken && sc && sc.next) h += '<div class="small aaNext">' + ic('clock', 13) + 'Next: payment ' + sc.next.k + (sc.n ? ' of ' + sc.n : '') + ' on <b>' + esc(fmtDay(sc.next.date)) + '</b></div>';
+  const why = s.why.filter(w => w.k !== 'terms');
+  if (why.length) h += '<ul class="aaWhyL">' + why.map(w => '<li class="' + esc(w.tone) + '">' + esc(w.t) + '</li>').join('') + '</ul>';
+  if (!s.terms && !broken && form !== 'aa_terms') h += '<div class="small muted">No terms recorded yet. <button class="linkBtn" data-act="aaEdit">Add the terms</button> — from the Altered Arrangement form: then A/R knows each payment’s day and can tell a missed one.</div>';
+  if (form === 'aa_terms') h += aaFormHTML('aa_terms', s.terms);
+  else if (broken) h += '<div class="small muted" style="margin-top:6px">' + (x.a && ladFor(x.a) ? 'Letter #8 and the 30 days are on the collections ladder below.' : 'Letter #8 comes up on the collections ladder once Edge’s report shows the account past due.') +
+    ' If a new arrangement is made instead, record it: <button class="linkBtn" data-act="aaNew">New arrangement made…</button></div>';
+  else h += '<div class="btnRow"><button class="btn btn-mint btn-sm" data-act="aaOk" title="The payment came in: what was flagged is settled, and the follow-up moves to a few days after the next payment">' + ic('done', 15) + 'Payment in — on track</button>' +
+    (s.hold && !(x.a && ladFor(x.a)) ? '<button class="btn btn-sec btn-sm" data-act="ladHold" data-on="0">' + ic('pause', 15) + 'Lift the hold</button>' : '') +
+    '<button class="btn btn-ghost" data-act="ladAA">It was broken…</button></div>';
+  return h + '</div></div>';
+}
+/* the form's fields as typed → { raw, aa: the terms Save keeps (null: none) } — the drafting day alone isn't terms */
+function aaFormTerms(raw) {
+  const r = {}; ['pay', 'n', 'start', 'day', 'down'].forEach(k => { r[k] = raw[k] == null ? '' : String(raw[k]).trim(); });
+  return { raw: r, aa: r.pay || r.n || r.start || r.down ? aaTerms(r) : null };
+}
+/* what the terms come to, under the form: the first payment's day (so a start date and a due day that don't line up show) */
+function aaPrevText(x) {
+  const t = x && x.aa, sc = t ? aaSched(t, todayISO()) : null;
+  if (!sc) return '<span>' + esc(x && x.raw.start ? 'Pick a valid day payments start.' : 'With the day payments start, A/R knows each payment’s day.') + '</span>';
+  return ic('clock', 13) + '<span>First payment <b>' + esc(fmtDay(sc.first)) + '</b>' + (t.day ? ', then the ' + esc(ordinal(t.day)) + ' of each month' : ', then the same day each month') +
+    (sc.n ? ' — ' + plural(sc.n, 'payment') + ', the last on ' + esc(fmtDate(sc.last)) : '') + '</span>';
+}
+function aaPreview() {
+  const el = $('#drawer #aaPrev'); if (!el) return; const v = id => (($('#' + id) || {}).value || '');
+  el.innerHTML = aaPrevText(aaFormTerms({ pay: v('aaPay'), n: v('aaN'), start: v('aaStart'), day: v('aaDay'), down: v('aaDown') }));
+}
+/* the terms, as on the Altered Arrangement form (Forms): kind 'pt_plan' (it was made) or 'aa_terms' (add or change them) */
+function aaFormHTML(kind, t) {
+  t = t || {};
+  const days = AA_DAYS.concat(t.day && !AA_DAYS.includes(t.day) ? [t.day] : []), sel = t.day || (kind === 'pt_plan' ? 5 : 0);
+  return '<div class="inForm aaForm">' + (kind === 'pt_plan' ? '<div class="small" style="margin-bottom:8px">The terms from the Altered Arrangement form (Forms). They’re optional — with them, A/R knows each payment’s day, follows up after it, and can tell a missed one.</div>' : '') +
+    '<div class="grid2"><div class="field"><label for="aaPay">Monthly payment</label><input id="aaPay" data-keep inputmode="decimal" autocomplete="off" placeholder="$" value="' + esc(t.pay ? String(t.pay) : '') + '"></div>' +
+    '<div class="field"><label for="aaN">Months</label><input id="aaN" data-keep type="number" min="1" max="120" step="1" inputmode="numeric" placeholder="e.g. 12" value="' + esc(t.n ? String(t.n) : '') + '"></div>' +
+    '<div class="field"><label for="aaStart">Payments start</label><input id="aaStart" data-keep type="date" value="' + esc(t.start || '') + '"></div>' +
+    '<div class="field"><label for="aaDay">Payments due on the</label><select id="aaDay" data-keep><option value="">—</option>' + days.map(d => '<option value="' + d + '"' + (sel === d ? ' selected' : '') + '>' + ordinal(d) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label for="aaDown">Paid when it was made</label><input id="aaDown" data-keep inputmode="decimal" autocomplete="off" placeholder="$ (optional)" value="' + esc(t.down ? String(t.down) : '') + '"></div></div>' +
+    '<div class="small aaPrev" id="aaPrev" aria-live="polite">' + aaPrevText(aaFormTerms({ pay: t.pay, n: t.n, start: t.start, day: sel || '', down: t.down })) + '</div>' +
+    '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="aaSave" data-k="' + esc(kind) + '">' + (kind === 'pt_plan' ? 'Save — arrangement made' : 'Save the terms') + '</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div></div>';
+}
+
 /* what was just done — one tap */
 function nowHTML(a, it, g) {
   const keys = Object.keys(LOGS).filter(k => LOGS[k].g === g && !(k === 'cr_refreq' && a && a.prepay));
@@ -232,6 +290,7 @@ function nowHTML(a, it, g) {
     '<div class="rbRow">' + keys.map(k => '<button class="rb" data-act="log" data-k="' + k + '"' + (form === k ? ' aria-pressed="true"' : '') + '>' + esc(LOGS[k].l) + '</button>').join('') + '</div>';
   if (form === 'pt_promise') h += '<div class="inForm"><div class="grid2"><div class="field"><label for="prDate">Pay by</label><input type="date" id="prDate" data-keep min="' + todayISO() + '"></div><div class="field"><label for="prAmt">Amount (optional)</label><input id="prAmt" data-keep inputmode="decimal" placeholder="$"></div></div>' +
     '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="savePromise">Save — follow up that day</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div></div>';
+  if (form === 'pt_plan') h += aaFormHTML('pt_plan', null);
   h += '<div class="inRow" style="margin:10px 0 0"><label for="nowNote" class="hidden">Note</label><input id="nowNote" class="inp" data-keep autocomplete="off" placeholder="' + (form === 'ins_denied' ? 'Why was it denied? (needed)' : 'Note — with a button above, or on its own') + '">' +
     (form ? '' : '<button class="btn btn-sec btn-sm" data-act="log" data-k="note" title="Save just the note">Save note</button>') + '</div>' +
     (form === 'ins_denied' ? '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="saveDenied">Save — claim denied</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div>' : '') +
@@ -266,7 +325,7 @@ function logHTML(it) {
   const box = td.length ? '<div class="edgeBox"><div class="ebHd">' + ic('note', 15) + '<b>For Edge · today</b><span class="small muted grow">' + (all ? 'copied' : 'paste into the patient’s notes in Edge') + '</span>' +
     '<button class="btn btn-sec btn-sm" data-act="copyEdgeDay">' + ic(all ? 'tick' : 'copy', 14) + (td.length > 1 ? 'Copy all ' + td.length : 'Copy') + '</button></div><div class="ebTx">' + esc(td.map(x => x.n).join('\n')) + '</div></div>' : '';
   return box + L.map(e => { const n = edgeNote(it, e); return '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(shortName(e.by) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
-    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') +
+    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + (e.aa ? ' — ' + esc(aaTermsShort(e.aa)) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') +
     (n ? '<button class="linkBtn small ebCp" data-act="copyEdge" data-id="' + esc(e.id) + '" title="' + esc(n) + '">' + (edgeCopied(e) ? ic('tick', 12) + 'Copied for Edge' : 'Copy Edge note') + '</button>' : '') + '</div>' +
     (e.id === undoId ? '<button class="btn btn-ghost" data-act="undoLog" title="Take this back">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>'; }).join('');
 }
@@ -355,11 +414,28 @@ Object.assign(ACT, {
   log(t) {
     const k = t.dataset.k, L = LOGS[k];
     if (L.ask === 'date') { S.ui = S.ui.form === k ? {} : { form: k }; renderDrawer(); const f = $('#prDate'); if (f) f.focus(); return; }
+    if (L.ask === 'aa') { S.ui = S.ui.form === k ? {} : { form: k }; renderDrawer(); const f = $('#aaPay'); if (f) f.focus(); return; }
     if (L.ask === 'note' && !noteVal()) { S.ui = S.ui.form === k ? {} : { form: k }; renderDrawer(); const f = $('#nowNote'); if (f) f.focus(); return; }
     if (k === 'note' && !noteVal()) { const f = $('#nowNote'); if (f) { f.focus(); toast('Write the note first, then press Save note.'); } return; }
     doLog(k);
   },
   savePromise() { const d = ($('#prDate') || {}).value || '', amt = Number(String(($('#prAmt') || {}).value || '').replace(/[$,\s]/g, '')); doLog('pt_promise', { date: d, amt: amt > 0 ? amt : null }); },
+  /* an Alternative Arrangement: made (with its terms), its terms added or changed, a payment in */
+  aaSave(t) {
+    const kind = t.dataset.k === 'aa_terms' ? 'aa_terms' : 'pt_plan', v = id => String(($('#' + id) || {}).value || '').trim();
+    const raw = { pay: v('aaPay'), n: v('aaN'), start: v('aaStart'), day: v('aaDay'), down: v('aaDown') }, one = (k, x) => !!(aaTerms({ [k]: x }) || {})[k];
+    // what was typed is checked first, so the form stays open with it
+    const bad = raw.pay && !one('pay', raw.pay) ? 'The monthly payment needs to be an amount, like 175 or 175.50.' : raw.n && !one('n', raw.n) ? 'Months: a whole number from 1 to 120.' :
+      raw.down && !one('down', raw.down) ? 'Paid when it was made: an amount, like 200.' : raw.start && !one('start', raw.start) ? 'Pick the day payments start.' : '';
+    if (bad) { toast(bad, { bad: true }); return; }
+    // the drafting day alone (it starts on the 5th) isn't terms: with nothing else filled in, it's saved without them
+    const aa = aaFormTerms(raw).aa;
+    if (kind === 'aa_terms' && !aa) { toast('Fill in the terms first — the monthly payment, the months or when payments start.', { bad: true }); const f = $('#aaPay'); if (f) f.focus(); return; }
+    doLog(kind, { aa });
+  },
+  aaOk() { doLog('aa_ok'); },
+  aaEdit() { S.ui = { form: 'aa_terms' }; renderDrawer(); const f = $('#aaPay'); if (f) f.focus(); },
+  aaNew() { S.ui = { form: 'pt_plan' }; renderDrawer(); const f = $('#aaPay'); if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); } },
   saveDenied() { doLog('ins_denied'); },
   cancelForm() { S.ui = {}; renderDrawer(); },
   undoLog() { undoLast(curKey()); },
@@ -383,7 +459,7 @@ Object.assign(ACT, {
   drAno() { const key = curKey(), note = noteVal(); change(key, d => answerDrA(d, false, { by: meSid(), note }, Date.now()), { a: 'drAno' }, 'Sent back').then(() => loadHistory(key)); },
   resolve() {
     const key = curKey(), a = S.byKey.get(key), it = itemFor(key), g = groupOf(a, it), hold = it && !isBack(it) && holdOf(it);
-    openModal('<h3>Resolve this account</h3><div class="lsub">' + esc(a ? a.patient : it.name) + (a ? ' · ' + (a.pd > 0 ? money(a.pd, true) + ' past due' : money(a.credit, true) + ' credit') : '') + '</div>' +
+    openModal('<h3>Resolve this account</h3><div class="lsub">' + esc(a ? a.patient : it.name) + (a ? ' · ' + (a.pd > 0 ? money(a.pd, true) + ' past due' : a.credit > 0 ? money(a.credit, true) + ' credit' : 'not past due' + (a.bal != null ? ' · ' + money(a.bal, true) + ' contract balance' : '')) : '') + '</div>' +
       (hold ? '<div class="notice">On Maintenance Hold: once it’s paid or settled, take the yellow box off in Edge and tell the clinical team.</div>' : '') +
       '<div class="flabel">How was it resolved?</div><div class="pickRow" id="rsPick">' + DONE[g].map(([k, l]) => '<button class="pick" data-o="' + k + '" aria-pressed="false">' + esc(l) + '</button>').join('') + '</div>' +
       '<div class="field" style="margin-top:14px"><label for="rsNote">Note (optional)</label><textarea id="rsNote" rows="2" placeholder="e.g. refund check #1012 mailed 10/6"></textarea></div>' +
@@ -436,7 +512,12 @@ Object.assign(ACT, {
   versions() { versionsModal(curKey()); },
   restoreVer(t) { restoreVer(Number(t.dataset.i)); }
 });
-CHG.stage = t => { const key = curKey(), to = t.value; change(key, d => { d.stage = to; }, { a: 'stage', to }); };
+CHG.stage = t => {
+  const key = curKey(), to = t.value, x = to === 'plan' ? aaFor(key) : null;
+  // a broken arrangement replaced by a new one: recorded as made (with its terms), which also takes Letter #8 off
+  if (x && x.st.st === 'broken') { S.ui = { form: 'pt_plan' }; renderDrawer(); toast('A new arrangement after a broken one: record it here — the terms are optional.'); const f = $('#aaPay'); if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); } return; }
+  change(key, d => { d.stage = to; }, { a: 'stage', to });
+};
 CHG.assign = t => { const key = curKey(), to = t.value; change(key, d => { d.assignee = to; }, { a: 'assign', to }, to ? 'Assigned to ' + staffName(to) : 'Unassigned'); };
 CHG.followDate = t => { const key = curKey(), to = t.value || ''; if (to && to < todayISO()) { toast('Pick today or a day ahead.', { bad: true }); return; } change(key, d => { d.follow = to; }, { a: 'follow', to }, to ? 'Follow up ' + fmtDay(to) : 'Follow-up cleared'); };
 CHG.check = t => { const key = curKey(), k = t.dataset.k, on = t.checked; change(key, d => { d.checks = Object.assign({}, d.checks, { [k]: on }); if (!on) delete d.checks[k]; }, { a: 'check', on }); };

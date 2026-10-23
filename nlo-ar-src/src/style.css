@@ -813,3 +813,27 @@ ol.steps b{color:var(--navy)}
 .obBoxHd .i{color:var(--navy-600)}
 .obRow a[href^="tel:"]{white-space:nowrap}
 @media (max-width:560px){ .obRow{flex-wrap:wrap} .obRow .grow{flex:1 1 calc(100% - 46px)} .obRow > .btn{margin:-4px 0 0 42px} }
+/* ---------- Alternative Arrangements: Past due → Arrangements, and the box on the account (22 Oct 2026) ---------- */
+.aaSum{margin:-4px 0 12px;color:var(--grey-600)}
+.aaSum b{color:var(--amber-700)}
+.tbl .aaWhy{margin-top:3px;white-space:normal;max-width:340px;line-height:1.35}
+.aaSec h5{display:flex;align-items:center;gap:6px}
+.aaSec h5 .sug{text-transform:none;letter-spacing:0;font-family:var(--fb)}
+.aaBox{border:1.5px solid var(--grey-200);border-left:5px solid var(--mint-600);border-radius:var(--r);padding:11px 14px 13px;background:#fff}
+.aaBox.check{border-left-color:var(--amber)} .aaBox.broken{border-left-color:var(--coral-600)} .aaBox.new{border-left-color:var(--blue-500)}
+.aaMeta{color:var(--grey-500);margin-bottom:6px}
+.aaTerms{font-size:13.5px;color:var(--navy);margin-bottom:4px;line-height:1.4}
+.aaTerms b{font-weight:700}
+.aaNext{display:flex;align-items:center;gap:6px;color:var(--grey-600);margin-bottom:6px}
+.aaNext .i{color:var(--grey-500)} .aaNext b{color:var(--navy)}
+.aaWhyL{list-style:none;display:flex;flex-direction:column;gap:5px;margin:6px 0 2px;font-size:13px;color:var(--grey-700)}
+.aaWhyL li{position:relative;padding-left:16px;line-height:1.4}
+.aaWhyL li::before{content:"";position:absolute;left:2px;top:.45em;width:8px;height:8px;border-radius:50%;background:var(--grey-300)}
+.aaWhyL li.red{color:var(--coral-700);font-weight:600} .aaWhyL li.red::before{background:var(--coral-600)}
+.aaWhyL li.amber{color:var(--amber-700);font-weight:600} .aaWhyL li.amber::before{background:var(--amber)}
+.aaWhyL li.mint::before{background:var(--mint-600)}
+.aaWhyL li.grey{color:var(--grey-600)}
+.aaForm .grid2{gap:0 12px}
+.aaPrev{display:flex;align-items:flex-start;gap:6px;margin:2px 0 10px;padding:8px 10px;border-radius:var(--r);background:var(--grey-50);color:var(--grey-700);line-height:1.4}
+.aaPrev .i{flex:none;margin-top:2px;color:var(--grey-500)} .aaPrev b{color:var(--navy)}
+@media (max-width:860px){ .tbl .aaWhy{max-width:none} }

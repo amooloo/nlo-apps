@@ -112,9 +112,15 @@ function coverOf(meta) {
   return { full: all, pastDue: all || /past\s*due/.test(sg), credit: all || /credit/.test(sg), ins: !/exclude\s+insurance/.test(opt), zero: /exclude\s+zero/.test(opt) };
 }
 /* one report from one or more files of the same day (e.g. "Past Due" and "Credit Balance" run separately):
-   the accounts that matter (past due or in credit), plus the whole book's totals when a file has every account */
+   the accounts that matter (past due or in credit), plus the whole book's totals when a file has every account.
+   opts.keep: the keys of the accounts on an Alternative Arrangement — kept too when they're current, so the Arrangements tab
+   has their balance, last payment and phone numbers (only from a file with every account, and only an account on it once:
+   two contracts under one name can't be told apart) */
 function buildReport(files, opts) {
   opts = opts || {};
+  // opts.keep: the accounts on an Alternative Arrangement — kept from a full file even when they're current. Such a report says so
+  // (aaKeep), so an arrangement missing from it is one Edge left out: a $0 balance (zero balances are excluded) — paid off
+  const keep = opts.keep instanceof Set && opts.keep.size ? opts.keep : null, aaKeep = opts.keep instanceof Set;
   const warn = [], dates = Array.from(new Set(files.map(f => f.meta.asOf).filter(Boolean)));
   if (dates.length > 1) warn.push('These files are from different days (' + dates.map(fmtDate).join(', ') + '). Import one day at a time.');
   const asOf = dates[0] || opts.asOf || todayISO();
@@ -141,10 +147,20 @@ function buildReport(files, opts) {
       if (seen.has(k)) return; seen.set(k, true);
       rows.push(Object.assign({}, r, { key: k }));
     });
+    if (keep && c.full) {
+      const n = new Map(); f.rows.forEach(r => { const k = acctKey(r); n.set(k, (n.get(k) || 0) + 1); });
+      f.rows.forEach(r => {
+        if (pastDueOf(r) > 0 || creditOf(r) > 0 || isIns(r)) return;
+        const k = acctKey(r); if (!keep.has(k) || n.get(k) !== 1 || seen.has(k)) return;
+        seen.set(k, true); rows.push(Object.assign({}, r, { key: k }));
+      });
+    }
   });
   if (!cover.ins) warn.push('Insurance contracts were left out of this report (“Exclude Insurance Contracts” was ticked), so the Insurance lists can’t be updated from it.');
   if (!cover.full && !(cover.pastDue && cover.credit)) warn.push(cover.pastDue ? 'Only past-due accounts are in this report — credit balances won’t be updated.' : cover.credit ? 'Only credit balances are in this report — past due won’t be updated.' : 'This report is a partial subgroup, so the lists may be incomplete.');
-  return { asOf, cover, book, rows, warn, files: files.map(f => ({ name: f.name || '', kind: f.kind || '', subgroup: f.meta.subgroup || '', options: f.meta.options || '', edge: f.meta.edge || '', n: f.rows.length, ok: f.check ? f.check.ok : null })) };
+  const rep = { asOf, cover, book, rows, warn, files: files.map(f => ({ name: f.name || '', kind: f.kind || '', subgroup: f.meta.subgroup || '', options: f.meta.options || '', edge: f.meta.edge || '', n: f.rows.length, ok: f.check ? f.check.ok : null })) };
+  if (aaKeep && cover.full) rep.aaKeep = true;
+  return rep;
 }
 /* the accounts of a saved report, worked out */
 function reportAccts(rep, cfg) { return (rep && rep.rows || []).map(r => acctOf(r, cfg, rep.asOf)); }
@@ -240,7 +256,7 @@ function diffReports(cur, prev, cfg) {
    Saved (sealed) only once someone does something with an account.
    ===================================================================== */
 const STAGES = {
-  '': 'Not started', working: 'Working on it', waiting: 'Waiting to hear back', promise: 'Promised to pay', plan: 'Payment plan', hold: 'Paused'
+  '': 'Not started', working: 'Working on it', waiting: 'Waiting to hear back', promise: 'Promised to pay', plan: 'Payment plan (AA)', hold: 'Paused'
 };
 const OUTCOMES = { paid: 'Paid', writeoff: 'Written off', refund: 'Refunded', transfer: 'Credit transferred', applied: 'Credit applied', cleared: 'Cleared in Edge', other: 'Resolved' };
 /* one tap logs it; most set what happens next */
@@ -253,7 +269,10 @@ const LOGS = {
   pt_email: { g: 'pt', l: 'Emailed', s: 'Emailed', stage: 'waiting', next: 5 },
   pt_letter: { g: 'pt', l: 'Sent a letter', s: 'Sent a letter', stage: 'waiting', next: 14 },
   pt_promise: { g: 'pt', l: 'Promised to pay…', s: 'Promised to pay', stage: 'promise', ask: 'date' },
-  pt_plan: { g: 'pt', l: 'Payment plan set up', s: 'Payment plan set up', stage: 'plan', next: 30 },
+  // an Alternative Arrangement (AA): made (with its terms, if they're filled in), a payment in, its terms changed — the Arrangements tab
+  pt_plan: { g: 'pt', l: 'Payment plan (AA) made…', s: 'Payment plan (AA) made', stage: 'plan', next: 30, ask: 'aa' },
+  aa_ok: { g: 'aa', l: 'Payment in — on track', s: 'AA payment in', stage: 'plan', next: 30 },
+  aa_terms: { g: 'aa', l: 'The terms', s: 'AA terms', ask: 'aa' },
   // insurance
   ins_call: { g: 'ins', l: 'Called the carrier', s: 'Called the carrier', stage: 'waiting', next: 14 },
   ins_portal: { g: 'ins', l: 'Checked the portal', s: 'Checked the portal', stage: 'working', next: 14 },
@@ -289,21 +308,30 @@ const REFUND_CHECKS = [
 function blankItem(a) {
   return { key: a.key, name: a.patient, rp: a.rp, src: a.src, kind: a.credit > 0 && !(a.pd > 0) ? 'cr' : 'pd', state: 'open', stage: '', outcome: '', assignee: '', follow: '', drA: false, log: [], checks: {} };
 }
-/* log something on an account (mutates it). o: { by, note, date, amt, next } */
+/* log something on an account (mutates it). o: { by, note, date, amt, next, aa: an arrangement's terms } */
 function applyLog(item, k, o, now) {
   const L = LOGS[k]; if (!L) throw errCode('bad-log');
-  o = o || {}; const note = String(o.note || '').trim();
+  o = o || {}; const note = String(o.note || '').trim(), aa = L.ask === 'aa' ? aaTerms(o.aa) : null, today = isoOf(new Date(now));
   if (L.ask === 'note' && !note) throw errCode('need-note', 'Add a note (the reason) first.');
   if (L.ask === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(o.date || '')) throw errCode('need-date', 'Pick the day they promised to pay.');
   if (k === 'note' && !note) throw errCode('need-note', 'Write the note first.');
+  if (k === 'aa_terms' && !aa) throw errCode('need-terms', 'Fill in the terms first — the monthly payment, the months or the first payment.');
+  const terms = k === 'aa_ok' ? aaTermsOf(item) : aa;
   const e = { id: uid8(), at: now, by: o.by || '', k, note, prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } };
   if (o.amt != null && isFinite(o.amt)) e.amt = round2(o.amt);
   if (o.date) e.date = o.date;
+  if (aa) e.aa = aa;
+  // a new arrangement after a broken one: Letter #8 isn't needed any more (the SOP: "If no AA is made at or before that appointment…")
+  if (k === 'pt_plan' && item.drA) { const q = drAQuestion(item); if (q && q.k === 'drA_ask' && q.step === 'aa') item.drA = false; }
   item.log = (item.log || []).concat([e]);
-  if (L.stage) item.stage = L.stage;
+  // an arrangement stays in place through the calls, texts, promises (and credit reviews) logged on it — it ends when it's broken,
+  // resolved or its status is changed
+  if (L.stage && !(item.stage === 'plan' && (L.g === 'pt' || L.g === 'cr'))) item.stage = L.stage;
   if (L.ask === 'date') item.follow = o.date;
   else if (o.next !== undefined) item.follow = o.next || '';
-  else if (L.next) item.follow = nextOfficeDay(addDays(isoOf(new Date(now)), L.next));
+  // an arrangement: look again a few days after its next payment (made: the first one; a payment in: the one after today)
+  else if ((k === 'pt_plan' || k === 'aa_ok') && terms && terms.start) item.follow = aaFollow(terms, k === 'aa_ok' ? addDays(today, 1) : today) || nextOfficeDay(addDays(today, L.next));
+  else if (L.next) item.follow = nextOfficeDay(addDays(today, L.next));
   if (L.drA) item.drA = true;
   return e;
 }
@@ -318,9 +346,11 @@ function resolveItem(item, outcome, o, now) {
   const note = String((o && o.note) || '').trim();
   item.log = (item.log || []).concat([{ id: uid8(), at: now, by: (o && o.by) || '', k: 'done', outcome, note }]);
 }
-/* o.fresh: it's past due again after being resolved, so the collections ladder starts over */
+/* o.fresh: it's past due again after being resolved, so the collections ladder starts over — and an Alternative Arrangement it was
+   on before then is over too (a new one is logged as made again) */
 function reopenItem(item, o, now) {
   item.state = 'open'; item.outcome = ''; delete item.resolvedAt; delete item.resolvedBy;
+  if (o && o.fresh && item.stage === 'plan') item.stage = '';
   const e = { id: uid8(), at: now, by: (o && o.by) || '', k: 'reopen', note: String((o && o.note) || '').trim() };
   if (o && o.fresh) e.fresh = true;
   item.log = (item.log || []).concat([e]);
@@ -431,7 +461,8 @@ function ladState(a, it, asOf, today) {
     if (e.k === 'ladder' && own(LAD_BY, e.step)) done[e.step] = e;
     else if (e.k === 'drA_ok' && own(LAD_BY, e.step)) signed[e.step] = e;
     else if (e.k === 'aa_broken') broke = e;
-    else if (e.k === 'pt_plan') plan = true;
+    // a new arrangement made after a broken one: the broken one's Letter #8 (and its 30 days) no longer apply
+    else if (e.k === 'pt_plan') { plan = true; if (broke) { broke = null; delete done.aa; delete signed.aa; } }
   });
   const q = it && it.drA ? drAQuestion(it) : null, asked = q && q.k === 'drA_ask' && own(LAD_BY, q.step) ? q.step : '';
   const day = ladDays(a, asOf, today);
@@ -453,7 +484,9 @@ function ladState(a, it, asOf, today) {
 /* a step done. o: { by, note } — the account's follow-up isn't moved: the next step comes due by itself */
 function ladderLog(item, id, o, now) {
   const s = own(LAD_BY, id) ? LAD_BY[id] : null; if (!s) throw errCode('bad-step');
-  if (ladEntries(item).some(e => e.k === 'ladder' && e.step === id)) throw errCode('step-done', s.s + ' is already recorded on this account.');
+  // Letter #8 belongs to one broken arrangement: a new one made since can be broken (and get its own Letter #8) too
+  const E = ladEntries(item), from = id === 'aa' ? E.map(e => e.k).lastIndexOf('pt_plan') : -1;
+  if (E.slice(from + 1).some(e => e.k === 'ladder' && e.step === id)) throw errCode('step-done', s.s + ' is already recorded on this account.');
   o = o || {};
   const e = { id: uid8(), at: now, by: o.by || '', k: 'ladder', step: id, note: String(o.note || '').trim(), prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } };
   const q = item.drA ? drAQuestion(item) : null;
@@ -489,6 +522,165 @@ function breakArrangement(item, o, now) {
 }
 
 /* =====================================================================
+   Alternative Arrangements (22 Oct 2026, Amir: "for the AR app, can you
+   create a tab specifically for patients with existing Alternative
+   Arrangement accounts?"). An AA is the new payment plan the FC makes
+   with a family that has fallen behind (handbook §14; SOP-FO-003: "Make
+   an Alternative Arrangement (AA) as soon as financial difficulty is
+   sensed"; the Altered Arrangement form in Forms): a monthly payment for
+   a number of months from a start date, drafted by OrthoBanc on the
+   5th, 12th, 19th or 26th. An account is on one while its status is
+   "Payment plan (AA)" — set by "Payment plan (AA) made…" or by an Edge
+   "AA MADE" task — which pauses its collections ladder. It stays there
+   through the calls, texts and promises logged on it, and ends when it's
+   resolved (paid off), marked broken (Letter #8) or its status is
+   changed by hand. Its terms live on the entry that made it (or a later
+   "AA terms" entry). Whether the family is keeping it comes from each
+   week's report (past due, the last payment), OrthoBanc's failed drafts
+   and the terms; "Payment in — on track" clears what was flagged before.
+   ===================================================================== */
+const AA_DAYS = [5, 12, 19, 26]; // OrthoBanc's drafting days (the Altered Arrangement form's "Payments Due On")
+const AA_LOOK = 3;               // days after a payment's date to look for it: a draft can take that long to post, or to come back
+const AA_EARLY = 10;             // a payment made up to this many days before its date counts for it
+function ordinal(n) { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+/* the terms, as typed or read back: { pay: the monthly payment, n: how many months, start: payments start (YYYY-MM-DD), day: the day
+   of the month it's drafted, down: paid when it was made } — anything missing or not a sensible number is left out; null if nothing's left */
+function aaTerms(t) {
+  if (!t || typeof t !== 'object') return null;
+  const num = v => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v.replace(/[$,\s]/g, '')) : NaN), o = {};
+  const pay = num(t.pay), n = num(t.n), day = num(t.day), down = num(t.down);
+  if (pay > 0 && pay < 100000) o.pay = round2(pay);
+  if (Number.isInteger(n) && n >= 1 && n <= 120) o.n = n;
+  if (isoOrBlank(t.start)) o.start = t.start;
+  if (Number.isInteger(day) && day >= 1 && day <= 31) o.day = day;
+  if (down > 0 && down < 1000000) o.down = round2(down);
+  return Object.keys(o).length ? o : null;
+}
+/* the terms of the account's arrangement: the latest given since it was made (this round) */
+function aaTermsOf(item) {
+  let t = null;
+  ladEntries(item).forEach(e => { if (e.k === 'pt_plan') t = e.aa || null; else if (e.k === 'aa_terms' && e.aa) t = e.aa; });
+  return t;
+}
+/* a date from a year, a month (it may run past 12) and a day (cut to the month's last day) */
+function aaYMD(y, m, d) {
+  const mm = m - 1, yy = y + Math.floor(mm / 12), m0 = ((mm % 12) + 12) % 12, last = new Date(yy, m0 + 1, 0).getDate();
+  return yy + '-' + String(m0 + 1).padStart(2, '0') + '-' + String(Math.min(d, last)).padStart(2, '0');
+}
+/* the first payment: the drafting day on or after the start (that month, or the next) — the start itself when no day is given */
+function aaFirst(t) {
+  if (!t || !t.start) return '';
+  const [y, m, d] = t.start.split('-').map(Number);
+  return !t.day || t.day === d ? t.start : t.day > d ? aaYMD(y, m, t.day) : aaYMD(y, m + 1, t.day);
+}
+/* the k-th payment's date (k from 1): the first payment, then the same day of each month after */
+function aaPayDate(t, k) {
+  const f = aaFirst(t); if (!f || !(k >= 1)) return '';
+  const [y, m, d] = f.split('-').map(Number);
+  return k === 1 ? f : aaYMD(y, m + k - 1, t.day || d);
+}
+/* where the payments stand on `iso`: { first, last (the final payment, when the months are known), n, due: how many were due before
+   `iso`, next: { k, date } — the next one on or after `iso` (null once they're all past) } */
+function aaSched(t, iso) {
+  const first = aaFirst(t); if (!first) return null;
+  const n = t.n || 0, out = { first, last: n ? aaPayDate(t, n) : '', n, due: 0, next: null };
+  for (let k = 1; k <= (n || 600); k++) { const d = aaPayDate(t, k); if (d < iso) out.due = k; else { out.next = { k, date: d }; break; } }
+  return out;
+}
+/* when to look again: a few days after the next payment on or after `from`, on an office day ('' once they're all past) */
+function aaFollow(t, from) { const s = aaSched(t, from); return s && s.next ? nextOfficeDay(addDays(s.next.date, AA_LOOK)) : ''; }
+/* the terms in words, for Edge: "$175.00 a month for 10 months, starting 11/12/26 (drafted on the 12th); $200.00 paid when it was made" */
+function aaTermsSay(t) {
+  if (!t) return '';
+  let s = t.pay ? money(t.pay, true) + ' a month' + (t.n ? ' for ' + plural(t.n, 'month') : '') : t.n ? plural(t.n, 'monthly payment') : '';
+  const f = aaFirst(t);
+  if (f) s += (s ? ', starting ' : 'payments starting ') + mdy(f);
+  if (t.day) s += s ? ' (drafted on the ' + ordinal(t.day) + ')' : 'drafted on the ' + ordinal(t.day);
+  if (t.down) s += (s ? '; ' : '') + money(t.down, true) + ' paid when it was made';
+  return s;
+}
+/* the terms in a few words, for a list: "$175/mo × 10 · the 12th" */
+function aaTermsShort(t) {
+  if (!t) return '';
+  const a = t.pay ? money(t.pay, true).replace(/\.00$/, '') + '/mo' + (t.n ? ' × ' + t.n : '') : t.n ? plural(t.n, 'payment') : '';
+  return [a, t.day ? 'the ' + ordinal(t.day) : ''].filter(Boolean).join(' · ');
+}
+/* where an account's arrangement stands — the Arrangements tab, its box on the account's panel, and Focus.
+   it: the account's record; a: the account on the newest report (null if it isn't on it); p: on the report before (null if not);
+   o: { asOf: the newest report's date ('' when it has no past-due accounts in it), prevAsOf: the report before's ('' when there's
+        none to compare with), full: the newest report has every account with a balance and keeps the arrangements (aaKeep), today,
+        ob: its failed OrthoBanc drafts [{ day, row }] (newest first), lad: its collections-ladder state (or null) }
+   → null (not on an arrangement) | { st: 'check' | 'new' | 'ok' | 'broken', made, madeOn, by, src: 'app' | 'edge' | 'status', terms,
+     sched, ok (the latest "Payment in"), hold, broke, why: [{ k, tone: 'red' | 'amber' | 'mint' | 'grey', t, d: the day it was known }]
+     most important first, focus: { kind, why, since } for Focus, or null } */
+function aaState(it, a, p, o) {
+  if (!it || it.state !== 'open') return null;
+  o = o || {};
+  let made = null, broke = null, terms = null, ok = null, task = null;
+  ladEntries(it).forEach(e => {
+    if (e.k === 'pt_plan') { made = e; broke = null; ok = null; terms = e.aa || null; }
+    else if (e.k === 'aa_terms' && e.aa) terms = e.aa;
+    else if (e.k === 'aa_broken') broke = e;
+    else if (e.k === 'aa_ok') ok = e;
+    else if (e.k === 'edgetask' && !task && taskIsAA(String(e.note || '').split('\n')[0])) task = e;
+  });
+  if (!broke && it.stage !== 'plan') return null;
+  const t = isoOrBlank(o.today) || todayISO(), asOf = isoOrBlank(o.asOf), on = x => isoOf(new Date(x.at));
+  const madeOn = made ? on(made) : '', since = madeOn || (task ? on(task) : '');
+  const hold = holdOf(it), why = [], add = (k, tone, txt, d) => why.push({ k, tone, t: txt, d: d || '' });
+  const s = terms ? aaSched(terms, t) : null;
+  const out = { made, madeOn, by: made ? made.by : '', src: made ? 'app' : task ? 'edge' : 'status', terms, sched: s, ok, hold, broke, why };
+  if (broke) {
+    const L = o.lad, b = fmtDate(on(broke));
+    add('broken', 'red', L && L.due && L.due.id === 'aa' ? 'Broken ' + b + ' — Letter #8 is due' + (L.signed.aa ? ' (signed — send it)' : L.asked === 'aa' ? ' (waiting for Dr. A to sign)' : ' (Dr. A signs it)') :
+      L && L.due && L.due.id === 'endaa' ? 'Broken ' + b + ' — the 30 days after Letter #8 are up: Debond/Finish' :
+      L && L.fin ? 'Broken ' + b + ' — Letter #8 went out ' + fmtDate(on(L.fin)) + '; the 30 days end ' + fmtDate(L.endOn) : 'Marked broken ' + b);
+    return Object.assign(out, { st: 'broken', focus: null });
+  }
+  const after = d => !!d && (!since || d >= since); // a report, a draft or a payment from the day it was made or later
+  const seen = d => !!ok && on(ok) >= d;           // "Payment in — on track" logged on or after that day: what was flagged is settled
+  // OrthoBanc: a draft that failed since it was made
+  const f = (o.ob || []).find(h => h && h.row && after(h.row.date || h.day) && !seen(h.day));
+  if (f) add('ob', 'red', 'OrthoBanc: the ' + (f.row.amt != null ? money(f.row.amt, true) + ' ' : '') + 'draft' + (f.row.date ? ' of ' + fmtDate(f.row.date) : '') + ' failed' + (f.row.reason ? ' (' + f.row.reason + ')' : '') + (f.row.hold ? ' — OrthoBanc stopped drafting' : ''), f.day);
+  // a payment the newest report should show, but its last payment is from before it
+  const rep = !!asOf && after(asOf) && !seen(asOf);
+  if (s && a && rep) {
+    let k = 0; for (let i = 1; i <= (s.n || 600); i++) { if (addDays(aaPayDate(terms, i), AA_LOOK) <= asOf) k = i; else break; }
+    const d = k ? aaPayDate(terms, k) : '';
+    if (d && after(d) && (!a.recv || a.recv < addDays(d, -AA_EARLY))) add('miss', 'red', 'The ' + fmtDate(d) + ' payment isn’t on Edge’s ' + fmtDate(asOf) + ' report' + (a.recv ? ' (last payment ' + fmtDate(a.recv) + ')' : ''), asOf);
+  }
+  // past due, against the report before (when that one's from after it was made too)
+  const cmp = rep && !!isoOrBlank(o.prevAsOf) && after(o.prevAsOf);
+  if (cmp && a && a.pd > 0 && !(p && p.pd > 0)) add('again', 'amber', 'Past due again: ' + money(a.pd) + ' on ' + fmtDate(asOf) + ', nothing on ' + fmtDate(o.prevAsOf), asOf);
+  else if (cmp && a && p && a.pd > p.pd + 0.5) add('up', 'amber', 'Past due up ' + money(a.pd - p.pd) + ' since ' + fmtDate(o.prevAsOf) + ' (now ' + money(a.pd) + ')', asOf);
+  else if (cmp && a && p && p.pd > 0 && a.pd < p.pd - 0.5) add('down', 'mint', a.pd > 0 ? 'Past due down ' + money(p.pd - a.pd) + ' since ' + fmtDate(o.prevAsOf) : 'Caught up since ' + fmtDate(o.prevAsOf), asOf);
+  // where it stands on the newest report
+  if (asOf && after(asOf)) {
+    if (a && a.pd > 0) { if (!why.some(w => w.k === 'again' || w.k === 'up' || w.k === 'down')) add('pd', 'grey', money(a.pd) + ' past due on Edge’s ' + fmtDate(asOf) + ' report', asOf); }
+    else if (a && a.bal != null && a.bal <= 0.004 && !(a.credit > 0)) add('end', 'amber', 'Balance $0 on Edge’s ' + fmtDate(asOf) + ' report — paid off: resolve it as paid', asOf);
+    // a report with every account that has a balance, which keeps the arrangements even when they're current: not on it = a $0 balance
+    else if (!a && o.full) add('end', 'amber', 'Not on Edge’s ' + fmtDate(asOf) + ' report, which leaves out $0 balances — paid off? Check Edge, then resolve it as paid', asOf);
+    else if (!why.some(w => w.k === 'down')) add('cur', 'mint', 'Not past due on Edge’s ' + fmtDate(asOf) + ' report', asOf);
+  }
+  // Maintenance Hold: lifted once the first payment is in (handbook §45)
+  if (hold) {
+    const first = s ? s.first : '';
+    if (first && addDays(first, AA_LOOK) <= t && !why.some(w => w.tone === 'red')) add('hold', 'amber', 'On Maintenance Hold — the first payment was due ' + fmtDate(first) + ': once it’s in, lift the hold', addDays(first, AA_LOOK));
+    else add('holdw', 'grey', 'On Maintenance Hold until the first payment is in' + (first ? ' (' + fmtDate(first) + ')' : ''));
+  }
+  // every payment's day has passed
+  if (s && s.n && !s.next && !why.some(w => w.k === 'end')) add('end', 'amber', 'All ' + s.n + ' payments were due by ' + fmtDate(s.last) + ' — once the balance is paid, resolve it as paid', addDays(s.last, AA_LOOK));
+  if (!terms) add('terms', 'grey', 'No terms recorded yet — add them from the Altered Arrangement form');
+  const R = { red: 0, amber: 1, mint: 2, grey: 3 };
+  why.sort((x, y) => R[x.tone] - R[y.tone]);
+  const top = why[0], bad = !!top && (top.tone === 'red' || top.tone === 'amber');
+  return Object.assign(out, {
+    st: bad ? 'check' : madeOn && daysBetween(madeOn, t) <= 14 ? 'new' : 'ok',
+    focus: bad ? { kind: top.k === 'ob' || top.k === 'miss' ? 'aamiss' : top.k === 'end' ? 'aaend' : top.k === 'hold' ? 'aahold' : 'aacheck', why: 'Arrangement — ' + top.t, since: top.d } : null
+  });
+}
+
+/* =====================================================================
    Edge notes (8 Oct 2026, Amir: "after every action that is taken turn
    it into a edge note that can be copied and entered into the edge"):
    each thing done on an account in A/R as one line to paste into the
@@ -500,7 +692,7 @@ function breakArrangement(item, o, now) {
    ===================================================================== */
 const EDGE_SAY = {
   pt_vm: 'Called RP, left voicemail.', pt_noans: 'Called RP, no answer.', pt_spoke: 'Spoke with RP.', pt_text: 'Texted RP.', pt_email: 'Emailed RP.',
-  pt_letter: 'Mailed a letter to RP.', pt_plan: 'Payment plan set up.', ins_pt: 'Billed the insurance balance to the family.',
+  pt_letter: 'Mailed a letter to RP.', aa_ok: 'AA payment received; the arrangement is on track.', ins_pt: 'Billed the insurance balance to the family.',
   cr_review: 'Reviewed the ledger for the credit balance.', cr_hold: 'Holding the credit until insurance pays out.', cr_refreq: 'Refund requested; waiting for Dr. A’s OK.',
   aa_broken: 'Alternative Arrangement broken; Letter #8 is next.', mhold_on: 'Placed on Maintenance Hold (comfort visits only).', mhold_off: 'Maintenance Hold lifted.'
 };
@@ -521,6 +713,8 @@ function edgeNoteText(e, o) {
   const st = own(LAD_BY, e.step) ? LAD_BY[e.step] : null, car = String(o.carrier || '').trim(), note = String(e.note || '').replace(/\s+/g, ' ').trim();
   let say;
   if (own(EDGE_SAY, e.k)) say = EDGE_SAY[e.k];
+  else if (e.k === 'pt_plan') say = 'Alternative Arrangement (AA) made' + (e.aa ? ': ' + aaTermsSay(e.aa) : '') + '.';
+  else if (e.k === 'aa_terms') say = 'AA terms' + (e.aa ? ': ' + aaTermsSay(e.aa) : '') + '.';
   else if (e.k === 'pt_promise') say = 'RP promised to pay' + (e.amt > 0 ? ' ' + money(e.amt, true) : '') + (isoOrBlank(e.date) ? ' by ' + mdy(e.date) : '') + '.';
   else if (e.k === 'ins_call') say = /^called\b/i.test(note) ? '' : car ? 'Called ' + car + '.' : 'Called the insurance carrier.';
   else if (e.k === 'ins_portal') say = car ? 'Checked the ' + car + ' portal.' : 'Checked the insurance portal.';
@@ -589,7 +783,7 @@ function normReport(rep) {
     book: b ? Object.assign(bk(b), { due: numOr0(b.due), pt: bk(b.pt), ins: bk(b.ins) }) : null,
     rows: Array.isArray(rep.rows) ? rep.rows.map(normRow).filter(r => r.patient && r.key) : [],
     files: Array.isArray(rep.files) ? rep.files.slice(0, 10).map(f => ({ name: strOf(f && f.name), kind: strOf(f && f.kind, 10), subgroup: strOf(f && f.subgroup, 80), options: strOf(f && f.options), edge: strOf(f && f.edge, 40), n: Math.round(numOr0(f && f.n)), ok: f && typeof f.ok === 'boolean' ? f.ok : null })) : [],
-    made: numOrNull(rep.made)
+    made: numOrNull(rep.made), aaKeep: rep.aaKeep === true
   };
 }
 function normSum(s) {
@@ -608,6 +802,7 @@ function normLog(e) {
   if (isoOrBlank(e.date)) o.date = e.date;
   if (numOrNull(e.amt) != null) o.amt = e.amt;
   if (o.k === 'edgetask') { if (/^t[0-9a-z]{4,14}$/.test(String(e.et || ''))) o.et = e.et; o.op = strOf(e.op, 60); }
+  if ((o.k === 'pt_plan' || o.k === 'aa_terms') && e.aa) { const t = aaTerms(e.aa); if (t) o.aa = t; }
   if (e.prev && typeof e.prev === 'object') o.prev = { stage: own(STAGES, e.prev.stage) ? e.prev.stage : '', follow: isoOrBlank(e.prev.follow), drA: e.prev.drA === true };
   return o;
 }
@@ -947,14 +1142,15 @@ function edgeTasksApply(item, list, o, now) {
    follow-up 3+ office days late. One line per account (its most urgent
    reason first, the rest listed with it).
    ===================================================================== */
-const FOCUS_SEV = { promise: 1, signlate: 2, tf: 3, ladlate: 4, cross: 5, new: 6, insinv: 7, followlate: 8,
-  sign: 10, lad: 11, drA: 12, follow: 13, chase: 14, claim: 15, end: 16, creditaudit: 17, credit: 20, nofile: 21, wait: 22 };
+const FOCUS_SEV = { promise: 1, signlate: 2, tf: 3, aamiss: 3, ladlate: 4, cross: 5, new: 6, insinv: 7, followlate: 8,
+  sign: 10, lad: 11, drA: 12, follow: 13, aacheck: 13, aahold: 13, chase: 14, claim: 15, end: 16, creditaudit: 17, aaend: 17, credit: 20, nofile: 21, wait: 22 };
 /* office days after `from`, up to and including `today` */
 function officeDaysLate(from, today) { let n = 0, d = from; for (let i = 0; i < 400 && d < today; i++) { d = addDays(d, 1); if (nextOfficeDay(d) === d) n++; } return n; }
 /* about how long a step takes, in minutes */
 function stepMin(s) { return s.id === 'end' || s.id === 'endaa' ? 5 : (s.n ? (s.cert ? 7 : 4) : 2) + (s.call ? 5 : 0); }
 /* ctx: { accts, asOf: the report's date, byKey, item(key) → its record (null if none, or back on the list), lad(a) → its ladder state, open: open records,
-   cleared(it), today, owner, prevPd: keys past due in the report before (or null), book, auditStart: the December credit audit's first day, while it runs } */
+   cleared(it), today, owner, prevPd: keys past due in the report before (or null), book, auditStart: the December credit audit's first day, while it runs,
+   aa: the accounts on an Alternative Arrangement [{ it, a, st: aaState(…) }] } */
 function focusEntries(ctx) {
   const t = ctx.today, best = new Map();
   const put = e => { const cur = best.get(e.key); if (!cur) best.set(e.key, e); else if (e.sev < cur.sev) { e.also = [cur.why].concat(cur.also); best.set(e.key, e); } else cur.also.push(e.why); };
@@ -1005,10 +1201,19 @@ function focusEntries(ctx) {
     if (!it.key || ctx.cleared(it)) return;
     const a = ctx.byKey.get(it.key) || null;
     if (it.follow && it.follow <= t) {
-      if (it.stage === 'promise') put(mk(a, it, it.follow < t ? 'promise' : 'follow', (it.follow < t ? 'Promised to pay by ' + fmtDate(it.follow) : 'Promised to pay today') + ' — check whether it came in', 'Check', 3));
+      // a promise to pay — or, on an Alternative Arrangement (its status stays), a promise that set this follow-up
+      const pe = it.stage === 'plan' ? (it.log || []).slice().reverse().find(e => e.k === 'pt_promise') : null;
+      if (it.stage === 'promise' || (pe && pe.date === it.follow)) put(mk(a, it, it.follow < t ? 'promise' : 'follow', (it.follow < t ? 'Promised to pay by ' + fmtDate(it.follow) : 'Promised to pay today') + ' — check whether it came in', 'Check', 3));
       else { const late = officeDaysLate(it.follow, t), e = lastLog(it); put(mk(a, it, late >= 3 ? 'followlate' : 'follow', 'Follow-up ' + (late ? plural(late, 'office day') + ' late' : 'due today') + (e ? ' — last: ' + logLabel(e).toLowerCase() : ''), 'Follow up', 5)); }
     }
     if (ctx.owner && it.drA) { const q = drAQuestion(it); if (!(q && q.k === 'drA_ask' && q.step)) put(mk(a, it, 'drA', q ? logLabel(q) + (q.note ? ': ' + q.note : '') : 'Waiting for your OK', 'Answer', 2)); }
+  });
+  // Alternative Arrangements: a draft that failed or a payment that didn't come in (urgent), past due again, a hold to lift, all paid —
+  // until someone works the account after it came up and sets when to look again (that follow-up brings it back if it's still so)
+  (ctx.aa || []).forEach(x => {
+    const f = x && x.st && x.st.focus, it = x && x.it; if (!f || !it || !it.key) return;
+    if (f.since && it.follow && it.follow > t && (it.log || []).some(e => e.at && e.k !== 'edgetask' && e.k !== 'reopen' && isoOf(new Date(e.at)) >= f.since)) return;
+    put(mk(x.a || null, x.it, f.kind, f.why, f.kind === 'aaend' ? 'Resolve' : f.kind === 'aahold' ? 'Lift the hold' : 'Check', f.kind === 'aamiss' ? 5 : 3));
   });
   return Array.from(best.values()).sort((x, y) => x.sev - y.sev || y.amt - x.amt);
 }

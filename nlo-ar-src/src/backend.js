@@ -379,7 +379,8 @@ const FB = {
     await Crypto.openBig(key, box, 'arrep:' + id); // never store what can't be opened
     const b = FB.db.batch();
     b.set(FB.db.doc('arReportData/' + id), { v, iv: box.iv, ct: box.ct });
-    b.set(ref, { v, sum: sbox, asOf: rep.asOf, n: rep.rows.length, uid: FB.uid, sid: FB.me.staffId, at: FB.ts() });
+    // n: the accounts past due or in credit (one on an Alternative Arrangement, kept while it's current, isn't counted)
+    b.set(ref, { v, sum: sbox, asOf: rep.asOf, n: rep.rows.filter(r => pastDueOf(r) > 0 || creditOf(r) > 0).length, uid: FB.uid, sid: FB.me.staffId, at: FB.ts() });
     await FB.track(b.commit());
     return id;
   },

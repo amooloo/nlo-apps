@@ -37,8 +37,13 @@ const arState = p => p.evaluate(() => S.arState);
 // every change on this page has reached the database
 const settled = p => p.waitForFunction(() => !FB.pending && !Object.keys(S.pend).length, null, { timeout: 30000 });
 const waitState = (p, st, ms) => p.waitForFunction(st => S.arState === st, st, { timeout: ms || 30000 });
+/* NLO Cases' Team & security page folds each card (10 Oct 2026): open Team before using its buttons */
+async function openTeam(owner) {
+  await owner.click('#nav-admin'); await owner.waitForSelector('.card.fold[data-fold="Team"]');
+  if (!(await owner.$('.card.fold.open[data-fold="Team"]'))) await owner.click('.card.fold[data-fold="Team"] .fdBtn');
+}
 async function addPerson(owner, name, username) {
-  await owner.click('#nav-admin'); await owner.click('[data-act=addStaff]');
+  await openTeam(owner); await owner.click('[data-act=addStaff]');
   await owner.fill('#asName', name); await owner.fill('#asUser', username); await owner.click('#asForm button[type=submit]');
   await owner.waitForSelector('.modal .kv', { timeout: 30000 });
   const temp = (await owner.locator('.modal .kv .v').nth(1).textContent()).trim();
@@ -215,6 +220,23 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   check(!/FC- #|Certified|9407|drA_ask|ladder/.test(ladBlob), 'the letters, the tracking number and the steps are sealed in the database');
   await jamie.keyboard.press('Escape');
 
+  console.log('\n# An Alternative Arrangement: Jamie records it with its terms; it’s on Dr. A’s Past due → Arrangements at once; he marks a payment in');
+  const aaPt = await jamie.evaluate(() => { const a = list31(S.accts).concat(list91(S.accts)).find(x => onLadder(x) && !itemFor(x.key)); return a && a.patient; });
+  const aaWant = await jamie.evaluate(() => { const start = addDays(todayISO(), 10); return { start, first: fmtDate(aaFirst(aaTerms({ pay: 187.5, n: 9, start, day: 19 }))) }; });
+  await openAcct(jamie, aaPt); await jamie.click('#drawer [data-act=log][data-k=pt_plan]'); await jamie.waitForSelector('#drawer .aaForm #aaPay');
+  await jamie.fill('#aaPay', '187.50'); await jamie.fill('#aaN', '9'); await jamie.fill('#aaStart', aaWant.start); await jamie.selectOption('#aaDay', '19');
+  await jamie.fill('#nowNote', 'Signed the Altered Arrangement form'); await jamie.click('#drawer [data-act=aaSave]');
+  await owner.waitForFunction(n => { const x = Array.from(aaAll().values()).find(y => y.it.name === n); return !!x && !!x.st.terms && x.st.terms.pay === 187.5 && x.st.terms.day === 19; }, aaPt, { timeout: 30000 });
+  await owner.click('#nav-pd'); await owner.click('[data-act=tab][data-t=aa]'); await owner.waitForSelector('#view .aaSum');
+  const aaRow = await owner.evaluate(n => { const r = Array.from(document.querySelectorAll('#view tbody tr')).find(x => x.textContent.includes(n)); return r ? r.textContent : ''; }, aaPt);
+  check(/New/.test(aaRow) && /\$187\.50\/mo × 9 · the 19th/.test(aaRow) && aaRow.includes(aaWant.first), 'on Dr. A’s Past due → Arrangements without reloading: New, $187.50 a month × 9 on the 19th, the first payment ' + aaWant.first);
+  await openAcct(owner, aaPt); await owner.click('#drawer [data-act=aaOk]');
+  await jamie.waitForFunction(n => { const it = Array.from(S.items.values()).find(x => x.name === n); return !!it && it.log.some(e => e.k === 'aa_ok') && it.stage === 'plan'; }, aaPt, { timeout: 30000 });
+  check(true, 'Dr. A marks a payment in: Jamie’s screen has it, the account still on the arrangement');
+  await owner.keyboard.press('Escape'); await jamie.keyboard.press('Escape'); await settled(owner); await settled(jamie);
+  const aaBlob = JSON.stringify((await fsDocs('arItems')).concat(await fsDocs('arLog')));
+  check(!/187\.5|Altered Arrangement|pt_plan|aa_ok/.test(aaBlob) && !aaBlob.includes(aaPt), 'the arrangement, its terms and the patient are sealed in the database');
+
   console.log('\n# Settings: the numbers are shared');
   await owner.click('#nav-settings'); await owner.waitForSelector('#cfgInst');
   await owner.selectOption('#cfgDue', '4'); await owner.fill('#cfgGoalPt', '5'); await owner.click('[data-act=saveCfg]');
@@ -334,7 +356,7 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   check(versions.length >= 3 && versions.every(Boolean), 'every earlier version of an account still opens after the key change (' + versions.length + ')');
 
   console.log('\n# Taylor’s login is reissued in NLO Cases: Dr. A turns A/R on for the new login');
-  await ownerC.click('#nav-admin'); await ownerC.click('[data-act=reissue][data-sid=taylor]'); await ownerC.click('#cbYes');
+  await openTeam(ownerC); await ownerC.click('[data-act=reissue][data-sid=taylor]'); await ownerC.click('#cbYes');
   await ownerC.waitForSelector('.modal .kv', { timeout: 30000 });
   const taylorTemp2 = (await ownerC.locator('.modal .kv .v').nth(1).textContent()).trim(); await ownerC.click('.modal [data-act=closeModal]');
   await taylor.waitForSelector('#loginForm', { timeout: 30000 });
@@ -366,7 +388,7 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
 
   console.log('\n# Removing someone in NLO Cases takes A/R off them and makes a new A/R key');
   await ownerC.goto(CASES); await ownerC.waitForSelector('#lgUser'); await ownerC.fill('#lgUser', OWNER_EMAIL); await ownerC.fill('#lgPw', 'Owner-Reset-999'); await ownerC.click('#lgBtn'); await waitApp(ownerC);
-  await ownerC.click('#nav-admin'); await ownerC.click('[data-act=removeStaff][data-sid=taylor]'); await ownerC.click('#cbYes');
+  await openTeam(ownerC); await ownerC.click('[data-act=removeStaff][data-sid=taylor]'); await ownerC.click('#cbYes');
   await taylor.waitForSelector('#loginForm', { timeout: 30000 });
   check(true, 'Taylor’s A/R locks at once');
   await owner.evaluate(() => ownerUpkeep());
