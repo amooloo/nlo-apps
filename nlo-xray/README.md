@@ -64,7 +64,8 @@ Panoramic x-rays are next; this first version reads lateral cephs.
      Stms, Stmi and Me'* places them to check (a confirmed tracing is reopened for that).
 4. **Read it.** The *Summary* gives the skeletal class (ANB and Wits; when they disagree it says *Borderline* and
    which says what), the vertical pattern (FMA and SN-GoGn), the **facial thirds** (the lower third against the
-   middle one, hard and soft tissue), the **upper incisors to the forehead** (Andrews' GALL line), the jaws, the
+   middle one, hard and soft tissue), the **upper incisors to the forehead** (Andrews' GALL line - on the x-ray the
+   upper incisor is shaded see-through **red** when ahead of it, **green** on it, **dark** behind it), the jaws, the
    incisors, the lips to the E-line and the CVM stage with what it means for growth timing. *Measurements* lists every value against its norm: amber
    more than 1 SD off, coral more than 2 SD.
    **Growth (CVM)** reads the vertebrae three ways, the way the CVM phone apps do - but from the tracing:
@@ -294,7 +295,8 @@ the profile half way up between Tr and G'. GALL: through FFA, moved forward 0.6 
 beyond 7° (Andrews' course rule; his 2008 study, *Angle Orthod* 78:662, fitted about 0.5 mm a degree beyond 7.5° -
 both numbers are settings), never ahead of G'. The upper incisor's FA point: the middle of the labial surface of
 the crown (the textbook incisor along the doctor's U1 axis, at its length). Upper incisor to GALL: + = ahead;
-goal 0 (± 2 mm, the app's band). The viewer draws GALL, FFA and FA.
+goal 0 (± 2 mm, the app's band). The viewer draws GALL, FFA and FA, and shades the upper incisor by the same call:
+see-through red ahead of GALL, green on it (within the band), dark behind it.
 **Outlines** (`xray/outlines.py`): curves through dots (centripetal Catmull-Rom). The profile is followed on the
 x-ray from one soft-tissue point to the next - the cheapest path through the strongest edges in a corridor round the
 line joining them (on a copy at about 0.2 mm a pixel), kept only where its edge stands well above the corridor's
