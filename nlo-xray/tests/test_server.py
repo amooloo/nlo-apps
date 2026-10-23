@@ -280,6 +280,14 @@ def test_outlines_come_with_the_case_and_dots_moved_by_hand_stay(client):
     # back to drawn from the points: one outline, then all
     r = client.patch(f"/api/cases/{cid}", json={"contours": {"mandible": None}}).json()
     assert not next(o for o in r["analysis"]["outlines"] if o["key"] == "mandible")["adjusted"]
+    # a molar: moved whole by its two handles
+    u6 = next(o for o in r["analysis"]["outlines"] if o["key"] == "u6")
+    assert u6["unit"] == "handles" and not u6["adjusted"]
+    hs = [[h[0] + 20, h[1] - 8] for h in u6["handles"]]
+    r = client.patch(f"/api/cases/{cid}", json={"contours": {"u6": hs}}).json()
+    m = next(o for o in r["analysis"]["outlines"] if o["key"] == "u6")
+    assert m["adjusted"] and m["handles"] == [[round(h[0], 1), round(h[1], 1)] for h in hs]
+    assert m["xy"][0] == pytest.approx([u6["xy"][0][0] + 20, u6["xy"][0][1] - 8], abs=0.2)
     client.patch(f"/api/cases/{cid}", json={"contours": {"maxilla": [[10, 10], "ANS", [30, 30]]}})
     r = client.patch(f"/api/cases/{cid}", json={"contours": None}).json()
     assert r["case"]["contours"] == {} and not any(o["adjusted"] for o in r["analysis"]["outlines"])
