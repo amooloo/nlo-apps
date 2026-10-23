@@ -885,6 +885,20 @@ service cloud.firestore {
       allow create, update: if isOwner() && okPx();
       allow delete: if isOwner();
     }
+    // Paid holidays (Dr. A marks them on Payroll, 23 Oct 2026): { days: { 'YYYY-MM-DD': { n: name, h: hours } } }. Everyone
+    // paid by the hour with time in the pay period gets each one's hours. Managers (who may run payroll) and the alert
+    // script read them; the page and the script check each holiday as they read it.
+    match /meta/tcHol {
+      function okHol() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['days', 'at'])
+          && d.days is map && d.days.size() <= 120
+          && d.at == request.time;
+      }
+      allow get: if isTcMgr() || isTcBot();
+      allow create, update: if isOwner() && okHol();
+      allow delete: if isOwner();
+    }
     // each person's clock settings: on the clock, may clock in from home (and on which days), their own earliest
     // clock-in, a weekly cap, salaried (hours kept for the record: no overtime), and when their PIN was last set
     match /tcStaff/{sid} {
@@ -1235,6 +1249,10 @@ service cloud.firestore {
     }
     // (Paychex's IDs, meta/tcPx: the page offers them once these rules are live)
     match /meta/rules_tc_3 {
+      allow get: if isMember() || isTcDevice() || isLaptop() || isNetBot();
+    }
+    // (paid holidays, meta/tcHol: the Payroll page offers them once these rules are live)
+    match /meta/rules_tc_4 {
       allow get: if isMember() || isTcDevice() || isLaptop() || isNetBot();
     }
 

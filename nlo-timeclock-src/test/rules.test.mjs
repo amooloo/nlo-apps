@@ -132,6 +132,33 @@ await ok('the rules level for them is readable to staff', getDoc(doc(as('ca'), '
 await ok('…and to the time clock', getDoc(doc(kiosk('kiosk1'), 'meta/rules_tc_3')));
 await no('…not to a stranger', getDoc(doc(as('stranger'), 'meta/rules_tc_3')));
 
+console.log('\n# paid holidays (Dr. A marks them on Payroll)');
+const HOL = { days: { '2026-11-26': { n: 'Thanksgiving', h: 8.5 }, '2026-12-25': { n: 'Christmas', h: 8.5 } } };
+await ok('Dr. A saves them', setDoc(doc(as('owner'), 'meta/tcHol'), Object.assign({ at: serverTimestamp() }, HOL)));
+await ok('…and takes one off', setDoc(doc(as('owner'), 'meta/tcHol'), { days: { '2026-11-26': { n: 'Thanksgiving', h: 8.5 } }, at: serverTimestamp() }));
+await ok('…or all of them', setDoc(doc(as('owner'), 'meta/tcHol'), { days: {}, at: serverTimestamp() }));
+await no('…not with an extra field', setDoc(doc(as('owner'), 'meta/tcHol'), Object.assign({ x: 1, at: serverTimestamp() }, HOL)));
+await no('…not without the server’s time', setDoc(doc(as('owner'), 'meta/tcHol'), Object.assign({ at: now() }, HOL)));
+await no('…not days that aren’t a map', setDoc(doc(as('owner'), 'meta/tcHol'), { days: ['2026-11-26'], at: serverTimestamp() }));
+{
+  const many = {}; for (let i = 0; i < 121; i++) many['2030-01-' + String(i).padStart(3, '0')] = { n: '', h: 8.5 };
+  await no('…not more than 120 of them', setDoc(doc(as('owner'), 'meta/tcHol'), { days: many, at: serverTimestamp() }));
+}
+await ok('they’re saved again', setDoc(doc(as('owner'), 'meta/tcHol'), Object.assign({ at: serverTimestamp() }, HOL)));
+await no('a manager can’t change them', setDoc(doc(as('fc'), 'meta/tcHol'), Object.assign({ at: serverTimestamp() }, HOL)));
+await no('…or take them away', deleteDoc(doc(as('fc'), 'meta/tcHol')));
+await ok('a manager reads them (Payroll)', getDoc(doc(as('fc'), 'meta/tcHol')));
+await ok('the alert script reads them (the payroll-Friday email)', getDoc(doc(as('bot1'), 'meta/tcHol')));
+await no('…and can’t change them', setDoc(doc(as('bot1'), 'meta/tcHol'), Object.assign({ at: serverTimestamp() }, HOL)));
+await no('staff can’t read them', getDoc(doc(as('ca'), 'meta/tcHol')));
+await no('…nor the time clock', getDoc(doc(kiosk('kiosk1'), 'meta/tcHol')));
+await no('…nor a stranger', getDoc(doc(as('stranger'), 'meta/tcHol')));
+await no('…nor someone signed out', getDoc(doc(anon(), 'meta/tcHol')));
+await ok('the rules level for them is readable to staff', getDoc(doc(as('ca'), 'meta/rules_tc_4')));
+await ok('…and to the time clock', getDoc(doc(kiosk('kiosk1'), 'meta/rules_tc_4')));
+await no('…not to a stranger', getDoc(doc(as('stranger'), 'meta/rules_tc_4')));
+await ok('Dr. A can take them all away', deleteDoc(doc(as('owner'), 'meta/tcHol')));
+
 console.log('\n# who manages the time clock: Dr. A, and whoever he adds');
 await no('someone who approves time off isn’t a time clock manager (Tina reads no punches)', getDocs(collection(as('hr2'), 'tcPunch')));
 await no('…or corrections', getDocs(collection(as('hr2'), 'tcFix')));

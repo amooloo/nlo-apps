@@ -57,7 +57,8 @@ const IC = {
   shield: '<path d="M12 3l7 2.8v5.5c0 4.4-3 7.5-7 9.2-4-1.7-7-4.8-7-9.2V5.8z"/><path d="M9.2 12l2 2 3.6-3.8"/>',
   monitor: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M9 20h6M12 16.5V20"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4v4.5H15"/>',
-  bksp: '<path d="M9 5.5h10.5a1.5 1.5 0 011.5 1.5v10a1.5 1.5 0 01-1.5 1.5H9L3.5 12z"/><path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/>'
+  bksp: '<path d="M9 5.5h10.5a1.5 1.5 0 011.5 1.5v10a1.5 1.5 0 01-1.5 1.5H9L3.5 12z"/><path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/>',
+  cal: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3.5v3M16 3.5v3"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -572,7 +573,7 @@ ACT.doSetup = async b => {
   const team = Array.from(S.roster.values()).filter(r => r.active && r.role !== 'owner').map(r => r.sid);
   if (await act(b, () => B.setupOffice(team), 'The time clock is set up. Next: People (PINs), then Alerts.')) { S.view = 'people'; renderShell(); }
 };
-ACT.go = b => { S.view = b.dataset.v; S.dirty = false; S.pxDraft = null; closeModal(); renderView(); window.scrollTo(0, 0); };
+ACT.go = b => { S.view = b.dataset.v; S.dirty = false; S.pxDraft = null; S.hol = null; closeModal(); renderView(); window.scrollTo(0, 0); };
 // (data-nodirty: a box on those screens that isn't one of their settings — the code a laptop shows, say)
 ['input', 'change'].forEach(ev => document.addEventListener(ev, e => { if (S.mode === 'app' && (S.view === 'settings' || S.view === 'alerts') && e.target.closest && e.target.closest('#view') && !e.target.closest('[data-nodirty]')) S.dirty = true; }));
 document.addEventListener('click', e => { if (S.mode === 'app' && (S.view === 'settings' || S.view === 'alerts') && e.target.closest && e.target.closest('#view .pick')) S.dirty = true; }, true);

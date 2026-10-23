@@ -299,22 +299,27 @@ VIEWS.pay = () => {
     if (!P.loading) { P.loading = true; P.key = a + S.set.wk + S.set.pay; B.loadRange(TCE.dayStart(TCE.addDays(a, -10)), TCE.dayStart(TCE.addDays(z, 2))).then(d => { P.data = d; P.loading = false; P.at = Date.now(); queueRender(); }).catch(e => { P.loading = false; P.err = errText(e); queueRender(); }); }
     return payNav(a, z, cur) + '<div class="empty">' + (P.err ? esc(P.err) : 'Reading the period…') + '</div>';
   }
-  const rows = payRows(a, z, P.data);
+  holNeed(); // (the paid holidays: read with the period, so the totals don't change under the reader's eyes)
+  if (!S.hol || !S.hol.done) return payNav(a, z, cur) + '<div class="empty">Reading the period…</div>';
+  const rows = payRows(a, z, P.data), hd = TCE.holidaysIn(holDays(), a, z), showHol = hd.length > 0;
   const anyIssue = rows.some(r => r.issues.length), live = z >= today, payDay = TCE.payDayOf(z);
   // the two-week totals first (what goes into payroll), then each workweek (overtime is counted by workweek)
   const wkHead = rows.length ? rows[0].weeks.map(x => '<th class="num wkCol" colspan="2">Week of ' + esc(TCE.dayText(x.wkIso)) + (x.partial ? '*' : '') + '</th>').join('') : '';
   const sub = rows.length ? rows[0].weeks.map(() => '<th class="num wkCol">Reg</th><th class="num wkCol">OT</th>').join('') : '';
   const body = rows.map(r => '<tr' + (r.sal ? ' class="salRow"' : '') + '><td><b class="pt">' + esc(r.name) + '</b>' + (r.sal ? ' ' + chip('Salaried', 'info') : '') + '</td>' +
-    '<td class="num big"><b>' + hNum(r.reg) + '</b></td><td class="num big' + (r.ot ? ' bad' : '') + (r.sal ? ' muted' : '') + '"><b>' + (r.sal ? '—' : hNum(r.ot)) + '</b></td><td class="num">' + hStr(paidH(r)) + '</td>' +
+    '<td class="num big"><b>' + hNum(r.reg) + '</b></td><td class="num big' + (r.ot ? ' bad' : '') + (r.sal ? ' muted' : '') + '"><b>' + (r.sal ? '—' : hNum(r.ot)) + '</b></td>' +
+    (showHol ? '<td class="num big holCol' + (r.sal ? ' muted' : '') + '"><b>' + (r.sal ? '—' : hNum(r.hol)) + '</b></td>' : '') + '<td class="num">' + hStr(paidH(r)) + '</td>' +
     '<td class="small">' + (r.issues.length ? '<span class="bad">' + esc(r.issues.join('; ')) + '</span>' : r.sal ? '<span class="muted">Salaried: hours for the record, not for pay</span>' : '<span class="ok">Ready</span>') + '</td>' +
     r.weeks.map(x => x.wkIso > today ? '<td class="num muted wkCol">—</td><td class="num muted wkCol">—</td>' : '<td class="num wkCol">' + hNum(x.reg) + '</td><td class="num wkCol' + (x.ot ? ' bad' : '') + (r.sal ? ' muted' : '') + '">' + (r.sal ? '—' : hNum(x.ot)) + '</td>').join('') + '</tr>').join('');
   return payNav(a, z, cur) +
-    (today === payDay ? '<div class="notice ok">' + ic('done', 16) + ' <b>Payroll day.</b> Each person’s regular and overtime hours for the two weeks are below' + (live ? ' (so far: the period ends ' + esc(TCE.dayText(z)) + ')' : '') + '.</div>'
+    (today === payDay ? '<div class="notice ok">' + ic('done', 16) + ' <b>Payroll day.</b> Each person’s regular' + (showHol ? ', overtime and holiday' : ' and overtime') + ' hours for the two weeks are below' + (live ? ' (so far: the period ends ' + esc(TCE.dayText(z)) + ')' : '') + '.</div>'
       : z < today && payDay > today ? '<div class="notice info">Payroll for this period is entered ' + esc(TCE.dayText(payDay, true)) + '.</div>'
         : live ? '<div class="notice info">This period isn’t over yet: the hours are so far. Payroll is entered ' + esc(TCE.dayText(payDay, true)) + '.</div>' : '') +
     (anyIssue ? '<div class="notice bad">Some days aren’t complete (time with a missing clock-in or clock-out counts 0 hours, and a missed punch someone asked for counts once approved). Fix them on Now or in Timesheets before running payroll.</div>' : '') +
-    '<div class="card"><div class="tblWrap"><table class="tbl pay"><thead><tr><th rowspan="2">Person</th><th class="num" rowspan="2">Regular<br><span class="muted small">2 weeks</span></th><th class="num" rowspan="2">Overtime<br><span class="muted small">2 weeks</span></th><th class="num" rowspan="2">Total</th><th rowspan="2">To check</th>' + wkHead + '</tr><tr>' + sub + '</tr></thead><tbody>' +
-    (body || '<tr><td colspan="9" class="muted">Nobody on the clock.</td></tr>') + '</tbody>' + payFoot(rows, today) + '</table></div></div>' +
+    holBarHTML(hd) +
+    '<div class="card"><div class="tblWrap"><table class="tbl pay"><thead><tr><th rowspan="2">Person</th><th class="num" rowspan="2">Regular<br><span class="muted small">2 weeks</span></th><th class="num" rowspan="2">Overtime<br><span class="muted small">2 weeks</span></th>' +
+    (showHol ? '<th class="num holCol" rowspan="2">Holiday<br><span class="muted small">2 weeks</span></th>' : '') + '<th class="num" rowspan="2">Total</th><th rowspan="2">To check</th>' + wkHead + '</tr><tr>' + sub + '</tr></thead><tbody>' +
+    (body || '<tr><td colspan="' + (showHol ? 10 : 9) + '" class="muted">Nobody on the clock.</td></tr>') + '</tbody>' + payFoot(rows, today, showHol) + '</table></div></div>' +
     (DEMO_ONLY ? '<p class="muted small" style="margin-top:10px">In the office’s copy, this page also downloads the totals and every day as CSV files, makes the Paychex punch file (<button class="linkBtn" data-act="payPx">see what goes in it</button>) and prints.</p>'
       : '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="payCsv">' + ic('download', 15) + 'Totals (CSV)</button><button class="btn btn-sec btn-sm" data-act="payCsvDays">' + ic('download', 15) + 'Every day (CSV)</button><button class="btn btn-sec btn-sm" data-act="payPx">' + ic('download', 15) + 'Paychex punch file</button><button class="btn btn-sec btn-sm" data-act="payPrint">' + ic('print', 15) + 'Print</button></div>') +
     '<p class="muted small" style="margin-top:10px">Overtime is worked out by workweek (over ' + S.set.ot + ' hours from ' + TCE.WD[S.set.wk] + ' to ' + TCE.WD[(S.set.wk + 6) % 7] + '), never by pay period.' + (rows.some(r => r.weeks.some(x => x.partial)) ? ' * A workweek that starts or ends outside this period: only its days inside the period are counted here, and its overtime is shown in the period it ends in.' : '') + ' Read ' + esc(agoText(P.at, Date.now())) + ' · <button class="linkBtn" data-act="payReload">read again</button></p>';
@@ -335,25 +340,29 @@ function payRows(a, z, data) {
     const pp = TCE.payPeriod(list, set, staff, a, z, now, wk => ot.get(r.sid + '_' + wk) || 0);
     const issues = pp.issues.map(i => (ISSUE[i.type] || i.type) + ' ' + TCE.dayText(i.day));
     reqsOf(r.sid, 'open').forEach(q => { if (q.ps.some(p => p.t >= from && p.t < to)) issues.push('Asked for a missed punch (not approved yet)'); });
-    return { sid: r.sid, name: nameOf(r.sid), sal: staff.sal, weeks: pp.weeks, list, reg: pp.reg, ot: pp.ot, issues };
+    // paid holidays: everyone paid by the hour with time in the period (never part of overtime)
+    const hol = TCE.holidayMs(holDays(), a, z, staff.sal, pp.reg + pp.ot);
+    return { sid: r.sid, name: nameOf(r.sid), sal: staff.sal, weeks: pp.weeks, list, reg: pp.reg, ot: pp.ot, hol, issues };
   }).filter(r => r.reg + r.ot > 0 || r.issues.length || (S.staff.get(r.sid) || {}).on);
 }
-/* a person's hours as payroll takes them: regular and overtime, each to the hundredth, then added (Total = Regular + Overtime as shown) */
-function paidH(r) { return TCE.h2(r.reg) + TCE.h2(r.ot); }
+/* a person's hours as payroll takes them: regular, overtime and holiday, each to the hundredth, then added (Total = what's
+   shown beside it, added up) */
+function paidH(r) { return TCE.h2(r.reg) + TCE.h2(r.ot) + TCE.h2(r.hol || 0); }
 /* the totals (Amir, 23 Oct 2026: "total hours for hourly … total hours for overtime and also total hours for everything",
    then "including eve"): Total is everyone on the page, salaried too (their hours are regular, never overtime); when someone
    is salaried, a second line adds up only the people paid by the hour — what the payroll entered in Paychex adds up to.
    Each person's hours as shown, added up. */
 function payTotals(rows, hourlyOnly) {
   const in_ = hourlyOnly ? rows.filter(r => !r.sal) : rows, add = f => in_.reduce((n, r) => n + f(r), 0);
-  return { n: in_.length, open: in_.some(r => r.issues.length), reg: add(r => TCE.h2(r.reg)), ot: add(r => TCE.h2(r.ot)), all: add(paidH),
+  return { n: in_.length, open: in_.some(r => r.issues.length), reg: add(r => TCE.h2(r.reg)), ot: add(r => TCE.h2(r.ot)), hol: add(r => TCE.h2(r.hol || 0)), all: add(paidH),
     weeks: (rows[0] ? rows[0].weeks : []).map((x, i) => ({ wkIso: x.wkIso, reg: add(r => TCE.h2(r.weeks[i].reg)), ot: add(r => TCE.h2(r.weeks[i].ot)) })) };
 }
-function payFoot(rows, today) {
+function payFoot(rows, today, showHol) {
   if (!rows.length) return '';
   const sal = rows.filter(r => r.sal).map(r => r.name), otCls = h => (Math.round(h * 100) > 0 ? ' bad' : '');
   const line = (T, label, notes, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td><b class="pt">' + label + '</b></td>' +
-    '<td class="num big"><b>' + hStr(T.reg) + '</b></td><td class="num big' + otCls(T.ot) + '"><b>' + hStr(T.ot) + '</b></td><td class="num big"><b>' + hStr(T.all) + '</b></td>' +
+    '<td class="num big"><b>' + hStr(T.reg) + '</b></td><td class="num big' + otCls(T.ot) + '"><b>' + hStr(T.ot) + '</b></td>' +
+    (showHol ? '<td class="num big holCol"><b>' + hStr(T.hol) + '</b></td>' : '') + '<td class="num big"><b>' + hStr(T.all) + '</b></td>' +
     '<td class="small">' + notes.filter(Boolean).join('<br>') + '</td>' +
     T.weeks.map(x => x.wkIso > today ? '<td class="num muted wkCol">—</td><td class="num muted wkCol">—</td>'
       : '<td class="num wkCol"><b>' + hStr(x.reg) + '</b></td><td class="num wkCol' + otCls(x.ot) + '"><b>' + hStr(x.ot) + '</b></td>').join('') + '</tr>';
@@ -363,17 +372,96 @@ function payFoot(rows, today) {
   if (H && H.n) h += line(H, 'Hourly staff', ['<span class="muted">Without ' + esc(sal.join(', ')) + ': what goes into Paychex</span>'], 'hrRow');
   return '<tfoot>' + h + '</tfoot>';
 }
+
+/* ---------- paid holidays (Amir, 23 Oct 2026: "allow specific days and mark them as holidays … automatically adds 8.5 hours
+   of holiday to those days for everyone that are not salary") ----------
+   meta/tcHol: Dr. A marks the days on Payroll (8.5 h unless he changes it); managers see them. Everyone paid by the hour who
+   has time in the pay period gets each one's hours, beside their regular and overtime (TCE.holidayMs).
+   S.hol: { done, rules, days, at, err } — read when Payroll opens (and "read again"); the time clock works without it. */
+async function holRead() {
+  let rules = true, d = { days: {}, at: 0 }, err = '';
+  try { rules = await B.holRulesOk(); } catch (e) { } // (offline: try to read them anyway)
+  if (rules) { try { d = await B.loadHol(); } catch (e) { if (B.isPerm(e)) rules = false; else err = errText(e); } }
+  return (S.hol = { done: true, rules, days: d.days, at: d.at, err });
+}
+function holNeed(again) {
+  if (!again && S.hol && (S.hol.loading || S.hol.done)) return;
+  S.hol = { loading: true };
+  holRead().then(() => { holModalDraw(); queueRender(); });
+}
+// the holidays that count: none until the database's rules know them, or when they couldn't be read (said on the page)
+function holDays() { const H = S.hol; return H && H.done && H.rules && !H.err ? H.days : {}; }
+function holBarHTML(hd) {
+  const H = S.hol || {}, own = B.isOwner();
+  const btn = '<button class="btn btn-sec btn-sm holBtn" data-act="holEdit">' + ic('cal', 15) + 'Holidays</button>';
+  if (H.err) return '<div class="holBar notice bad"><span>Couldn’t read the holidays: ' + esc(H.err) + '</span><button class="btn btn-sec btn-sm holBtn" data-act="payReload">' + ic('refresh', 15) + 'Check again</button></div>';
+  if (!H.rules) return own ? '<div class="holBar"><span class="muted">Paid holidays need the database’s updated rules first.</span>' + btn + '</div>' : '';
+  if (!hd.length) return '<div class="holBar"><span class="muted">No holidays in this pay period.</span>' + btn + '</div>';
+  return '<div class="holBar hasHol">' + ic('cal', 16) + '<span><b>' + (hd.length > 1 ? 'Holidays' : 'Holiday') + ':</b> ' +
+    hd.map(x => esc(TCE.dayText(x.day, true)) + (x.n ? ' (' + esc(x.n) + ')' : '') + ', ' + hStr(x.h) + ' h').join('; ') +
+    ' <span class="muted">— for everyone paid by the hour with time in this period</span></span>' + btn + '</div>';
+}
+ACT.holEdit = () => { holNeed(); openModal('<div id="holModal">' + holModalHTML() + '</div>'); };
+function holModalDraw() { const el = $('#holModal'); if (el) el.innerHTML = holModalHTML(); }
+function holModalHTML() {
+  const own = B.isOwner(), H = S.hol || {};
+  let body;
+  if (!H.done) body = '<p class="muted small">Reading…</p>';
+  else if (H.err) body = '<p class="bad small" style="margin-bottom:8px">Couldn’t read the holidays: ' + esc(H.err) + '</p><button class="btn btn-sec btn-sm" data-act="holAgain">' + ic('refresh', 15) + 'Check again</button>';
+  else if (!H.rules) {
+    body = own ? '<p class="small" style="margin-bottom:8px">This needs the database’s updated rules first (the same rules, with the holidays added; the time clock keeps working meanwhile):</p>' +
+      '<ol class="steps"><li><button class="btn btn-sec btn-sm" data-act="copyRules">' + ic('copy', 15) + 'Copy the new rules</button></li>' +
+      '<li><a class="btn btn-sec btn-sm" href="https://console.firebase.google.com/project/nlo-cases/firestore" target="_blank" rel="noopener">Open the Firebase console</a> → <b>Firestore Database</b> → <b>Rules</b> tab.</li>' +
+      '<li>Select everything in the editor, paste, and press <b>Publish</b>.</li>' +
+      '<li><button class="btn btn-pri btn-sm" data-act="holAgain">' + ic('refresh', 15) + 'Check again</button></li></ol>'
+      : '<p class="muted small">Dr. A turns this on.</p>';
+  } else {
+    const today = TCE.dayOf(nowMs()), all = TCE.holidaysIn(H.days, '1900-01-01', '2999-12-31');
+    // the coming ones, and the last two months' (older ones stay saved: past payrolls still show them)
+    const list = all.filter(x => x.day >= TCE.addDays(today, -62)), older = all.length - list.length;
+    const row = x => '<div class="holRow' + (x.day < today ? ' past' : '') + '"><span class="holD">' + esc(TCE.dayText(x.day, true)) + ', ' + x.day.slice(0, 4) + '</span>' +
+      '<span class="holN">' + (x.n ? esc(x.n) : '<span class="muted">Holiday</span>') + '</span><b class="holH">' + hStr(x.h) + ' h</b>' +
+      (own ? '<button class="iconBtn" data-act="holDel" data-day="' + esc(x.day) + '" aria-label="Take ' + esc(TCE.dayText(x.day)) + ' off">' + ic('trash', 16) + '</button>' : '') + '</div>';
+    body = (list.length ? '<div class="holList">' + list.map(row).join('') + '</div>' : '<p class="muted small" style="margin-bottom:10px">No holidays marked yet.</p>') +
+      (older ? '<p class="muted small" style="margin:4px 0 10px">And ' + plural(older, 'older one') + ', kept for past payrolls.</p>' : '') +
+      (own ? '<div class="holAdd"><span class="flabel">Mark a holiday</span><div class="grid3">' +
+        '<div class="field"><label for="holDay">Day</label><input id="holDay" type="date"></div>' +
+        '<div class="field"><label for="holName">Name (optional)</label><input id="holName" maxlength="40" placeholder="e.g. Thanksgiving" autocomplete="off"></div>' +
+        '<div class="field"><label for="holH">Hours each</label><input id="holH" type="number" min="0.25" max="24" step="0.25" value="' + TCE.HOL_H + '"></div></div>' +
+        '<button class="btn btn-pri btn-sm" data-act="holAdd">' + ic('plus', 15) + 'Add</button></div>'
+        : '<p class="muted small" style="margin-top:8px">Dr. A marks the holidays.</p>');
+  }
+  return '<h3>Holidays</h3><p class="lsub">Each holiday adds its hours (' + TCE.HOL_H + ' unless changed) to everyone paid by the hour who has time in that pay period; ' +
+    'salaried people don’t get them. They aren’t hours worked, so they never count toward overtime, and anyone who works that day is paid for those hours too.</p>' +
+    body + '<div class="mFt"><button class="btn btn-sec" data-act="closeM">Close</button></div>';
+}
+ACT.holAgain = () => { holNeed(true); holModalDraw(); };
+ACT.holAdd = async b => {
+  const day = String($('#holDay').value || ''), n = String($('#holName').value || '').trim(), h = Number($('#holH').value);
+  if (!TCE.isISO(day)) { toast('Pick the day.', { bad: true }); $('#holDay').focus(); return; }
+  if (!TCE.holOk(day, { n, h })) { toast('Hours: from 0.25 to 24, in quarter hours.', { bad: true }); $('#holH').focus(); return; }
+  const days = Object.assign({}, S.hol.days), had = !!days[day];
+  days[day] = { n, h };
+  if (Object.keys(days).length > TCE.HOL_MAX) { toast('That’s more than ' + TCE.HOL_MAX + ' holidays: take an old one off first.', { bad: true }); return; }
+  await holSave(b, days, had ? TCE.dayText(day) + ' changed.' : TCE.dayText(day) + ' is a holiday now.');
+};
+ACT.holDel = async b => { const days = Object.assign({}, S.hol.days); delete days[b.dataset.day]; await holSave(b, days, TCE.dayText(b.dataset.day) + ' isn’t a holiday now.'); };
+async function holSave(b, days, msg) {
+  await act(b, () => B.saveHol(days, S.hol.at), msg);
+  await holRead(); // (saved, or not — changed in another window: what's there now either way)
+  holModalDraw(); renderView();
+}
 ACT.payPrev = () => { S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], -14) }; renderView(); };
 ACT.payNext = () => { S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], 14) }; renderView(); };
 ACT.payNow = () => { S.pay = { start: periodOf(TCE.dayOf(nowMs()))[0] }; renderView(); };
-ACT.payReload = () => { S.pay = { start: S.pay.start }; renderView(); };
+ACT.payReload = () => { S.pay = { start: S.pay.start }; S.hol = null; renderView(); };
 ACT.payAnchor = async b => { const v = $('#payAnchor').value; if (!TCE.isISO(v)) { toast('Pick a day.', { bad: true }); return; } await act(b, () => B.saveSettings(Object.assign({}, S.set, { pay: v })), 'Saved.'); };
 ACT.payCsv = () => {
   const [a, z] = periodOf(S.pay.start), rows = payRows(a, z, S.pay.data), wks = rows.length ? rows[0].weeks : [];
-  const head = ['Employee', 'Period start', 'Period end', 'Regular hours', 'Overtime hours', 'Total hours', 'Pay type', 'To check'].concat(wks.flatMap(x => ['Week of ' + x.wkIso + ' regular', 'Week of ' + x.wkIso + ' overtime']));
-  const out = [head].concat(rows.map(r => [r.name, a, z, hNum(r.reg), hNum(r.ot), hStr(paidH(r)), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.join('; ')].concat(r.weeks.flatMap(x => [hNum(x.reg), hNum(x.ot)]))));
+  const head = ['Employee', 'Period start', 'Period end', 'Regular hours', 'Overtime hours', 'Holiday hours', 'Total hours', 'Pay type', 'To check'].concat(wks.flatMap(x => ['Week of ' + x.wkIso + ' regular', 'Week of ' + x.wkIso + ' overtime']));
+  const out = [head].concat(rows.map(r => [r.name, a, z, hNum(r.reg), hNum(r.ot), hNum(r.hol), hStr(paidH(r)), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.join('; ')].concat(r.weeks.flatMap(x => [hNum(x.reg), hNum(x.ot)]))));
   // the totals, as on the page: everyone, then (with someone salaried) only the people paid by the hour
-  const sal = rows.filter(r => r.sal).map(r => r.name), tot = (T, label, type, note) => [label, a, z, hStr(T.reg), hStr(T.ot), hStr(T.all), type,
+  const sal = rows.filter(r => r.sal).map(r => r.name), tot = (T, label, type, note) => [label, a, z, hStr(T.reg), hStr(T.ot), hStr(T.hol), hStr(T.all), type,
     [T.open ? 'Not final: some days aren’t complete' : '', note].filter(Boolean).join('; ')].concat(T.weeks.flatMap(x => [hStr(x.reg), hStr(x.ot)]));
   if (rows.length) out.push(tot(payTotals(rows, false), 'Total', sal.length ? 'Everyone' : '', sal.length ? 'With ' + sal.join(', ') + ' (salaried)' : ''));
   const H = sal.length ? payTotals(rows, true) : null;

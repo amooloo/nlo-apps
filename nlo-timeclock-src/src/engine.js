@@ -493,11 +493,29 @@ const TCE = (() => {
   function pxCidOk(s) { return typeof s === 'string' && /^[A-Za-z0-9]{1,8}$/.test(s); }
   function pxWidOk(s) { return typeof s === 'string' && /^[A-Za-z0-9]{1,10}$/.test(s); }
 
+  /* ---------- paid holidays (Amir, 23 Oct 2026: "mark them as holidays … automatically adds 8.5 hours of holiday to those
+     days for everyone that are not salary") ----------
+     meta/tcHol: { days: { 'YYYY-MM-DD': { n: a name (may be ''), h: hours } } }, Dr. A marks them on Payroll. Everyone paid
+     by the hour who has time in the pay period gets each holiday's hours; someone salaried doesn't. Holiday hours aren't
+     hours worked: they're never part of a workweek's overtime, and they're paid on top of any hours worked that day. */
+  const HOL_H = 8.5, HOL_MAX = 120;
+  function holOk(day, x) {
+    return isISO(day) && !!x && typeof x === 'object' && typeof x.h === 'number' && isFinite(x.h) && x.h >= 0.25 && x.h <= 24 && Math.round(x.h * 4) === x.h * 4
+      && (x.n == null || (typeof x.n === 'string' && x.n.length <= 40));
+  }
+  // the valid ones (a database read is checked as it's read): { day: { n, h } }
+  function holClean(days) { const o = {}; if (days && typeof days === 'object') Object.keys(days).forEach(d => { if (holOk(d, days[d])) o[d] = { n: String(days[d].n || ''), h: days[d].h }; }); return o; }
+  // the holidays from a to z (days), in order: [{ day, n, h }]
+  function holidaysIn(days, a, z) { const c = holClean(days); return Object.keys(c).filter(d => d >= a && d <= z).sort().map(d => ({ day: d, n: c[d].n, h: c[d].h })); }
+  // a person's holiday time (ms) for a pay period: none when salaried, or with no time worked in the period (worked, ms)
+  function holidayMs(days, a, z, sal, worked) { return sal || !(worked > 0) ? 0 : holidaysIn(days, a, z).reduce((n, x) => n + Math.round(x.h * HOUR), 0); }
+
   return {
     MIN, HOUR, DAY, KINDS, KWORD, OFFICE_TZ, DEFAULTS, WD, WD3, ROUTE, ALERTS,
     setTZ, parts, dayOf, minuteOf, isISO, addDays, dow, daysBetween, dayStart, atTime, okHM, hmText, timeText, dayText,
     weekOf, weekRange, h2, hText, hmDur, settingsOf, staffOf, homeP, entries, sortEntries, reqPunches, withReqs, reqText, reqAlert,
     timeline, shortGaps, worked, week, alertsFor, payWeeks, payPeriodOf, payPeriod, payDayOf, payPeriodToEnter,
-    PX_HEAD, paychexLines, paychexCsv, pxHundredths, pxWant, pxTime, pxDate, pxCidOk, pxWidOk
+    PX_HEAD, paychexLines, paychexCsv, pxHundredths, pxWant, pxTime, pxDate, pxCidOk, pxWidOk,
+    HOL_H, HOL_MAX, holOk, holClean, holidaysIn, holidayMs
   };
 })();

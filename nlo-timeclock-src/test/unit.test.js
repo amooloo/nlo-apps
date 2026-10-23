@@ -337,5 +337,23 @@ eq('a laptop asking to be approved says what it is', [devText('Mozilla/5.0 (Wind
   eq('a random whole number stays in range (the laptop’s code: 100000 + one under 900000)', [lo, hi, seen.size], [0, 9, 10]);
 }
 
+console.log('\n# paid holidays (Payroll → Holidays)');
+{
+  const HOL = { '2026-11-26': { n: 'Thanksgiving', h: 8.5 }, '2026-11-27': { n: '', h: 4 }, '2026-12-25': { n: 'Christmas', h: 8.5 },
+    '2026-11-30': { n: 'too long', h: 25 }, '2026-12-01': { n: 'not a quarter hour', h: 8.3 }, '2026-02-30': { n: 'no such day', h: 8.5 }, 'x': { h: 8.5 }, '2026-12-02': { n: 'x'.repeat(41), h: 8 }, '2026-12-03': null };
+  eq('the holidays in a pay period, in order (the bad ones left out)', TCE.holidaysIn(HOL, '2026-11-22', '2026-12-05'), [{ day: '2026-11-26', n: 'Thanksgiving', h: 8.5 }, { day: '2026-11-27', n: '', h: 4 }]);
+  eq('…none in a period without one', TCE.holidaysIn(HOL, '2026-11-08', '2026-11-21'), []);
+  eq('…the period’s first and last days count', TCE.holidaysIn(HOL, '2026-11-26', '2026-11-26').length + TCE.holidaysIn(HOL, '2026-12-13', '2026-12-26').length, 2);
+  eq('someone paid by the hour with time in the period: every holiday in it (8.5 + 4 h)', TCE.holidayMs(HOL, '2026-11-22', '2026-12-05', false, 30 * H), 12.5 * H);
+  eq('…salaried: none', TCE.holidayMs(HOL, '2026-11-22', '2026-12-05', true, 30 * H), 0);
+  eq('…no time in the period (on leave, not hired yet, left before it): none', TCE.holidayMs(HOL, '2026-11-22', '2026-12-05', false, 0), 0);
+  eq('…no holidays saved yet', [TCE.holidayMs(undefined, '2026-11-22', '2026-12-05', false, 30 * H), TCE.holidayMs({}, '2026-11-22', '2026-12-05', false, 30 * H)], [0, 0]);
+  eq('a holiday: a real day, 0.25–24 h in quarter hours, a name up to 40 characters (or none)',
+    [TCE.holOk('2026-11-26', { n: 'Thanksgiving', h: 8.5 }), TCE.holOk('2026-11-26', { h: 0.25 }), TCE.holOk('2026-11-26', { n: '', h: 24 }), TCE.holOk('2026-11-26', { h: 0 }), TCE.holOk('2026-11-26', { h: '8.5' }), TCE.holOk('2026-13-01', { h: 8 }), TCE.holOk('2026-11-26', { h: NaN })],
+    [true, true, true, false, false, false, false]);
+  eq('…what’s read from the database is checked first (only the good ones kept)', Object.keys(TCE.holClean(HOL)), ['2026-11-26', '2026-11-27', '2026-12-25']);
+  eq('…the default is 8.5 hours', TCE.HOL_H, 8.5);
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

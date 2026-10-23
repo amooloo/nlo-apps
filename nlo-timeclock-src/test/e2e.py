@@ -478,6 +478,25 @@ async def steps(b, log):
     csv = open(await (await dl.value).path(), encoding='utf-8-sig').read()
     check('…and downloads for Paychex', csv.startswith('"Employee","Period start"') and 'Gwen Tester' in csv, csv[:200])
 
+    print('\n# Dr. A: a paid holiday (Payroll → Holidays), saved in the database')
+    if await op.locator('[data-act=payNow]').count(): await op.click('[data-act=payNow]'); await op.wait_for_selector('table.pay')
+    hday = await op.evaluate('S.pay.start')
+    await op.click('[data-act=holEdit]'); await op.wait_for_selector('#holModal #holDay')
+    await op.fill('#holDay', hday); await op.fill('#holName', 'Test Day'); await op.click('[data-act=holAdd]'); await op.wait_for_selector('#holModal .holRow')
+    hd = ((get('meta/tcHol') or {}).get('days') or {}).get('fields') or {}
+    hv = ((hd.get(hday) or {}).get('mapValue') or {}).get('fields') or {}
+    check('Dr. A marks a holiday: in the database, 8.5 h and its name', list((hv.get('h') or {}).values())[:1] == [8.5] and list((hv.get('n') or {}).values())[:1] == ['Test Day'], hd)
+    await op.click('[data-act=closeM]'); await op.wait_for_selector('table.pay th.holCol')
+    pay2 = await op.evaluate("[...document.querySelectorAll('table.pay tbody tr')].map(r => r.cells[0].innerText.trim().split('\\n')[0] + ': ' + r.cells[3].innerText.trim())")
+    check('…Payroll: 8.5 h for each person paid by the hour with time this period', any(x.startswith('Gwen Tester: 8.5') for x in pay2) and all(x.endswith(('8.5', '0', '—')) for x in pay2), pay2)
+    await op.reload(); await op.wait_for_selector('.navBtn[data-v=pay]'); await op.click('.navBtn[data-v=pay]'); await op.wait_for_selector('table.pay')
+    if await op.locator('[data-act=payNow]').count(): await op.click('[data-act=payNow]')
+    await op.wait_for_selector('table.pay th.holCol')
+    check('…still there when the page is opened again', 'Test Day' in await op.inner_text('.holBar'), await op.inner_text('.holBar'))
+    await op.click('[data-act=holEdit]'); await op.wait_for_selector('#holModal .holRow'); await op.click('#holModal [data-act=holDel]')
+    await op.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 0"); await op.click('[data-act=closeM]'); await op.wait_for_timeout(300)
+    check('…taken off again', await op.locator('table.pay th.holCol').count() == 0 and (((get('meta/tcHol') or {}).get('days') or {}).get('fields') or {}) == {})
+
     print('\n# Dr. A: the Paychex punch file')
     await op.click('.navBtn[data-v=settings]'); await op.wait_for_selector('#pxCard #pxCid')
     await op.fill('#pxCid', '00123456')

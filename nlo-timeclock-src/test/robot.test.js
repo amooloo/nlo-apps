@@ -123,7 +123,7 @@ const tsMs = s => Date.parse(s);
     ok('the alerts sent are noted, each by email and push as chosen', sent1.length === 4 && sent1.every(x => x.st === 'sent') &&
       sent1.find(x => x.type === 'home').ch === '2' && sent1.find(x => x.type === 'ot').ch === '3', sent1.map(x => [x.type, x.st, x.ch]));
     const beat = (await list('tcBeat'))[0] || {};
-    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '4' && beat.err === '' && beat.id === su.localId, beat);
+    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '5' && beat.err === '' && beat.id === su.localId, beat);
 
     console.log('\n# each alert once');
     const r2 = A.run('check_(true)');
@@ -187,7 +187,7 @@ const tsMs = s => Date.parse(s);
     ok('ntfy can’t be reached: Dr. A’s test still goes, by email and through ntfy’s email address, nothing to report', ra === '1 alert sent' && away.mail.length === 2 && away.mail[0].to === 'dr.test@example.com' &&
       pm1.subject === 'Test alert from NLO Time Clock' && /^Dr\. A asked for a test at .*the time clock’s alerts reach you here/.test(pm1.body) && pm1.name === 'NLO Time Clock' && !pm1.attachments && pushes().length === pAway, [ra, away.mail.map(m => m.to + ' / ' + m.subject)]);
     ok('…noted as sent both ways', (s => s.st === 'sent' && s.ch === '3')(await sentFor(tA)), await sentFor(tA));
-    ok('…the check-in shows no problem (version 4)', (b => b.err === '' && b.ver === '4')((await list('tcBeat'))[0] || {}), (await list('tcBeat'))[0]);
+    ok('…the check-in shows no problem (version 5)', (b => b.err === '' && b.ver === '5')((await list('tcBeat'))[0] || {}), (await list('tcBeat'))[0]);
     ok('…the log says how the push went', away.logs.some(l => /1 alert sent \(Test alert from NLO Time Clock\); the phone push went through ntfy’s email address/.test(l)), away.logs);
     const restA = Number(away.props.TC_NTFY_REST || 0);
     ok('…and the direct way rests for 3 hours', restA >= tA + 3 * H - 60000 && restA <= Date.now() + 3 * H, (restA - tA) / 60000);
@@ -262,6 +262,29 @@ const tsMs = s => Date.parse(s);
     ok('…with nothing attached', !pm.attachments);
     ok('…and how to get the Paychex punch file attached too (no Paychex IDs yet)', /To get the Paychex punch file attached here too, add Paychex’s IDs in the Time Clock: Settings → Paychex\./.test(pm.body), pm.body);
 
+    console.log('\n# payroll Friday with a paid holiday in the period (Payroll → Holidays)');
+    // (the same payroll email again, as if it hadn't gone yet)
+    const hDay = TCE.addDays(pa, 1), holId = pf.ctx.alertId_('payroll|' + pa);
+    await put('meta/tcHol', { days: { [hDay]: { n: 'Founders Day', h: 8.5 }, [TCE.addDays(pz, 1)]: { n: 'Next period', h: 8.5 } }, at: new Date() });
+    await del('tcSent/' + holId);
+    const hv = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+    Object.assign(hv.props, A.props);
+    hv.run('check_(true)');
+    const hm = hv.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+    if (process.env.SHOW) console.log(hm.body);
+    ok('the holiday is named at the top (not one in the next period)', new RegExp('Holiday in this period: ' + TCE.dayText(hDay) + ' \\(Founders Day\\), 8\\.5 h\\. Everyone paid by the hour with time in the period gets the holiday hours \\(never part of overtime\\)\\.').test(hm.body) && !/Next period/.test(hm.body), hm.body);
+    ok('…everyone paid by the hour with time in the period gets its hours, beside regular and overtime (overtime unchanged)',
+      /Gwen — 38 h regular, 0 h overtime, 8\.5 h holiday \(46\.5 h in all\)/.test(hm.body) && /Kim — 40 h regular, 0\.5 h overtime, 8\.5 h holiday \(49 h in all\): 0\.5 h the week of /.test(hm.body) &&
+      /Lee \(left\) — 40 h regular, 0\.5 h overtime, 8\.5 h holiday \(49 h in all\)/.test(hm.body), hm.body);
+    ok('…not someone with no time in the period', /Wila — 0 h regular, 0 h overtime, 0 h holiday \(0 h in all\)/.test(hm.body), hm.body);
+    const hx = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+    Object.assign(hx.props, A.props); await del('tcSent/' + holId);
+    hx.ctx.holidays_ = () => ({ err: 'boom' }); // (the holidays couldn't be read, somehow)
+    hx.run('check_(true)');
+    const hxm = hx.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+    ok('the holidays can’t be read: the numbers still go, saying to check the Payroll page', /Gwen — 38 h regular, 0 h overtime \(38 h in all\)/.test(hxm.body) && /The holidays couldn’t be read this time \(boom\): see the Payroll page for any holiday hours\./.test(hxm.body), hxm.body);
+    await del('meta/tcHol'); await del('tcSent/' + holId);
+
     console.log('\n# payroll Friday with Paychex’s IDs: the punch file attached');
     // (the same payroll email again, as if it hadn't gone yet: its entry in the list of alerts sent taken out)
     const payId = pf.ctx.alertId_('payroll|' + pa);
@@ -333,6 +356,7 @@ const tsMs = s => Date.parse(s);
     let rx = '', ex = '';
     try { rx = rcx.run('check_(true)'); } catch (e) { ex = e.message; }
     ok('a problem making them never holds up the alerts: the check goes on, and says so', !ex && /The time cards couldn’t be made: boom/.test(rx) && /The time cards couldn’t be made: boom/.test((await list('tcBeat')).find(b => b.box === 'records@example.com').err) && !rcx.mail.some(m => /^Time cards: /.test(m.subject)), [rx, ex]);
+    await put('meta/tcHol', { days: { [hDay]: { n: 'Founders Day', h: 8.5 } }, at: new Date() }); // (the holiday back: in the time cards too)
     const rc = load(cfg, 'records@example.com', { off: recDue + 10 * 60000 - Date.now() });
     Object.assign(rc.props, pf.props);
     const pushN = pushes().length;
@@ -342,20 +366,22 @@ const tsMs = s => Date.parse(s);
     ok('then: an email of its own, “Time cards: … (for your records)”', tcm.subject === 'Time cards: ' + TCE.dayText(pa) + ' – ' + TCE.dayText(pz) + ' (for your records)' && tcm.to === 'dr.test@example.com' && !/\(\+\d+ more\)/.test(tcm.subject), rc.mail.map(m => m.subject));
     const att = tcm.attachments || [], f1 = att.find(x => x.name === 'time-clock-' + pa + '-to-' + pz + '.csv') || { text: '' }, f2 = att.find(x => x.name === 'time-clock-days-' + pa + '-to-' + pz + '.csv') || { text: '' };
     ok('…the two spreadsheets attached (the Payroll page’s Totals and Every day)', att.length === 2 && f1.type === 'text/csv' && f2.type === 'text/csv', att.map(x => x.name));
-    ok('…spreadsheet-ready: UTF-8 mark, every cell quoted, CR LF', f1.text.charCodeAt(0) === 0xFEFF && f1.text.endsWith('\r\n') && f1.text.split('\r\n')[0] === '\uFEFF"Employee","Period start","Period end","Regular hours","Overtime hours","Total hours","Pay type","To check","Week of ' + pa + ' regular","Week of ' + pa + ' overtime","Week of ' + TCE.addDays(pa, 7) + ' regular","Week of ' + TCE.addDays(pa, 7) + ' overtime"', f1.text.split('\r\n')[0]);
+    ok('…spreadsheet-ready: UTF-8 mark, every cell quoted, CR LF', f1.text.charCodeAt(0) === 0xFEFF && f1.text.endsWith('\r\n') && f1.text.split('\r\n')[0] === '\uFEFF"Employee","Period start","Period end","Regular hours","Overtime hours","Holiday hours","Total hours","Pay type","To check","Week of ' + pa + ' regular","Week of ' + pa + ' overtime","Week of ' + TCE.addDays(pa, 7) + ' regular","Week of ' + TCE.addDays(pa, 7) + ' overtime"', f1.text.split('\r\n')[0]);
     const t1rows = f1.text.split('\r\n').slice(1, -1);
-    ok('…totals: everyone, by full name, overtime by workweek', t1rows.length === 4 &&
-      t1rows[0] === '"Gwen Tester","' + pa + '","' + pz + '","38","0","38","Hourly","No clock-out ' + TCE.dayText(today) + '","38","0","0","0"' &&
-      t1rows[1] === '"Kim Tester","' + pa + '","' + pz + '","40","0.5","40.5","Hourly","","40","0.5","0","0"' &&
-      t1rows[2] === '"Lee Tester","' + pa + '","' + pz + '","40","0.5","40.5","Hourly","","40","0.5","0","0"' &&
-      /^"Wila Tester","[^"]+","[^"]+","0","0","0","Hourly","No clock-out /.test(t1rows[3]), t1rows);
+    ok('…totals: everyone, by full name, overtime by workweek, the holiday’s hours for those with time (not Wila: none)', t1rows.length === 5 &&
+      t1rows[0] === '"Gwen Tester","' + pa + '","' + pz + '","38","0","8.5","46.5","Hourly","No clock-out ' + TCE.dayText(today) + '","38","0","0","0"' &&
+      t1rows[1] === '"Kim Tester","' + pa + '","' + pz + '","40","0.5","8.5","49","Hourly","","40","0.5","0","0"' &&
+      t1rows[2] === '"Lee Tester","' + pa + '","' + pz + '","40","0.5","8.5","49","Hourly","","40","0.5","0","0"' &&
+      /^"Wila Tester","[^"]+","[^"]+","0","0","0","0","Hourly","No clock-out /.test(t1rows[3]), t1rows);
+    ok('…then everyone’s hours added up, as on the Payroll page (not final while days are incomplete)',
+      t1rows[4] === '"Total","' + pa + '","' + pz + '","118","1","25.5","144.5","","Not final: some days aren’t complete","118","1","0","0"', t1rows[4]);
     const d2 = f2.text.split('\r\n');
     ok('…every day: the punches and hours', d2[0] === '\uFEFF"Employee","Date","Day","Punches","Hours","Flags","Corrections"' &&
       d2.includes('"Kim Tester","' + TCE.addDays(today, -2) + '","' + TCE.WD[TCE.dow(TCE.addDays(today, -2))] + '","In 7:00 AM; Out 8:30 PM","13.5","",""') &&
       d2.includes('"Gwen Tester","' + TCE.addDays(today, -1) + '","' + TCE.WD[TCE.dow(TCE.addDays(today, -1))] + '","In 7:00 AM; Out 7:40 PM","12.67","",""'), d2.slice(0, 8));
     ok('…a correction: who made it, when, and why', d2.some(l => l.startsWith('"Gwen Tester","' + today + '"') && /"In \d+:\d\d [AP]M","0","No clock-out","Added In \d+:\d\d [AP]M \(Dr\. A, [^:]+: Forgot to clock in\)"$/.test(l)), d2.filter(l => /Gwen/.test(l)));
     ok('…from home marked so, and the day flagged', d2.some(l => l.startsWith('"Wila Tester","' + today + '"') && /"In \d+:\d\d [AP]M \(home\)","0","Home; No clock-out",""$/.test(l)), d2.filter(l => /Wila/.test(l)));
-    ok('…the email says what’s in them, and to keep it', /each person’s regular and overtime hours/.test(tcm.body) && /Kim Tester — 40 h regular, 0\.5 h overtime/.test(tcm.body) && /Keep this email: it’s this pay period’s record/.test(tcm.body), tcm.body);
+    ok('…the email says what’s in them, and to keep it', /each person’s regular, overtime and holiday hours/.test(tcm.body) && /Kim Tester — 40 h regular, 0\.5 h overtime, 8\.5 h holiday/.test(tcm.body) && /Keep this email: it’s this pay period’s record/.test(tcm.body), tcm.body);
     ok('…by email only (no push, even with the payroll numbers set to push)', !pushes().slice(pushN).some(x => /^Time cards/.test(x.title)), pushes().slice(pushN).map(x => x.title));
     const rcN = rc.mail.length; rc.run('check_(true)');
     ok('…once', !rc.mail.slice(rcN).some(m => /^Time cards: /.test(m.subject)));
@@ -368,6 +394,7 @@ const tsMs = s => Date.parse(s);
     Object.assign(rc3.props, rc.props);
     rc3.run('check_(true)');
     ok('a period nobody has time in: no time cards', !rc3.mail.some(m => /^Time cards: /.test(m.subject)), rc3.mail.map(m => m.subject));
+    await del('meta/tcHol');
     await put('meta/tcAlerts', { emails: ['dr.test@example.com'], topic: '', route: {}, digest: '', test: null, at: new Date() });
 
     console.log('\n# nights');

@@ -339,6 +339,13 @@ const DEMO = (() => {
       if (((D.px && D.px.at) || 0) !== (at || 0)) throw errCode('stale', 'Not saved: the Paychex IDs were changed in another window since this page read them.');
       D.px = { cid, ids: Object.assign({}, ids), at: Date.now() };
     },
+    async holRulesOk() { return true; },
+    async loadHol() { await wait(60); if (!D.mgr) deny(); return { days: TCE.holClean(D.hol && D.hol.days), at: (D.hol && D.hol.at) || 0 }; },
+    async saveHol(days, at) {
+      await wait(150); if (!isOwner()) deny();
+      if (((D.hol && D.hol.at) || 0) !== (at || 0)) throw errCode('stale', 'Not saved: the holidays were changed in another window since this page read them.');
+      D.hol = { days: TCE.holClean(days), at: Date.now() };
+    },
     async testAlert() { await wait(150); if (!isOwner()) deny(); D.alerts.test = now(); later(); },
     async makeBot() { await wait(200); if (!isOwner()) deny(); return { email: 'tc-alerts-demo@example.com', password: 'demo-only', uid: 'b_demo' }; },
     async hasBot() { return true; },

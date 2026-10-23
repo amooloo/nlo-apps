@@ -204,6 +204,29 @@ const FB = {
       t.set(ref, { cid, ids, at: FB.ts() });
     }));
   },
+  /* the rules that know the paid holidays (meta/tcHol) are live: the time clock works without them; only holidays wait */
+  async holRulesOk() {
+    try { await FB.db.doc('meta/rules_tc_4').get(); return true; }
+    catch (e) { if (FB.isPerm(e)) return false; throw e; }
+  },
+  /* the paid holidays (Dr. A marks them on Payroll; managers read them) → { days: { 'YYYY-MM-DD': { n, h } }, at } (at:
+     when they were saved, 0 for never) */
+  async loadHol() {
+    const s = await FB.db.doc('meta/tcHol').get();
+    const d = s.exists ? s.data() : {};
+    return { days: TCE.holClean(d.days), at: s.exists ? FB.tsMs(d.at) : 0 };
+  },
+  /* all of them at once (they replace what's there) — refused when they were saved again since these were read (at, as
+     loadHol gave it: another window, say), so nothing saved there is lost */
+  async saveHol(days, at) {
+    if (!FB.isOwner()) throw errCode('permission');
+    const ref = FB.db.doc('meta/tcHol');
+    await FB.track(FB.db.runTransaction(async t => {
+      const s = await t.get(ref);
+      if ((s.exists ? FB.tsMs(s.data().at) : 0) !== (at || 0)) throw errCode('stale', 'Not saved: the holidays were changed in another window since this page read them.');
+      t.set(ref, { days, at: FB.ts() });
+    }));
+  },
 
   /* ---------- the office lock: where this login is right now ----------
      The office check (url: a workers.dev address) looks at the address the request comes from and writes down, under

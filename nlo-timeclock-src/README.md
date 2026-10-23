@@ -34,8 +34,20 @@ clock … that sends me and multiple people alerts when someone is getting close
   overtime and total hours, salaried included: their hours are regular, never overtime) and, when someone is salaried,
   an **Hourly staff** row without them: what the payroll keyed into Paychex adds up to. Each person's hours as shown,
   added up, per workweek too; "Not final" when a day above isn't complete. Each person's Total is now their regular +
-  overtime as shown (it was the period rounded once, a hundredth off at times). The Totals CSV ends with the same rows.
-  The alert script's emails are unchanged (no totals there).
+  overtime as shown (it was the period rounded once, a hundredth off at times). The Totals CSV ends with the same rows,
+  and so does the records email's (alert script version 5).
+- **Paid holidays** (Amir, 23 Oct 2026: "allow specific days and mark them as holidays … automatically adds 8.5 hours of
+  holiday to those days for everyone that are not salary"): Payroll → **Holidays** (Dr. A marks them; managers see
+  them): a day, a name (optional) and hours (8.5 unless changed; 0.25–24 in quarter hours). Everyone **paid by the hour
+  with time in that pay period** gets each holiday's hours in a **Holiday** column (shown when the period has one),
+  their Total and the totals rows include them, and the Totals CSV always has a "Holiday hours" column. Salaried people
+  don't get them; nor does someone with no time in the period (on leave the whole two weeks, hired after it, left
+  before it): add those by hand in Paychex. Holiday hours aren't hours worked (the federal rule): **never part of a
+  workweek's overtime**, and someone who works that day is paid those hours too. The payroll-Friday email names the
+  period's holidays and gives each person's holiday hours ("…, 8.5 h holiday (46.5 h in all)"), the records email's
+  spreadsheet too (alert script version 5; the old script keeps working, without them). `meta/tcHol` needs the rules
+  with `meta/rules_tc_4`: until they're published the time clock works as before and the Holidays window says to
+  publish them (the Payroll page counts no holidays meanwhile).
 - **Each pay period's time cards kept, automatically** (Amir, 10 Oct 2026: "I definitely want to keep the data for at
   least 2 years. I would love to make this automated so I don't have to"): the morning after a pay period ends (7 AM,
   never before 8 PM on its payroll Friday), the alert script emails the period's time cards as the Payroll page's two
@@ -150,6 +162,9 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
 - `meta/tcAlerts` — where alerts go, Dr. A writes, managers and the script read: `emails` (≤ 10), `topic` (ntfy
   topic, '' = no push), `route` ({type: bits} 1 = email, 2 = push; a missing type uses the script's default),
   `digest` ('HH:MM' daily summary, '' = off), `test` (timestamp: Dr. A asked for a test alert), `at`.
+- `meta/tcHol` — paid holidays, Dr. A writes, managers and the script read: `days` ({ 'YYYY-MM-DD': { n: name (≤ 40, may
+  be ''), h: hours (0.25–24, quarter hours) } }, ≤ 120; the rules check only the shape, so the page and the script check
+  each holiday as they read it, TCE.holClean), `at` (a save over a newer one, from another window, is refused).
 - `tcStaff/{sid}` — per person (sid = NLO Cases staff id = `roster/{sid}`): `on`, `home`, `hdays` (home days; [] =
   any), `early` (own earliest, '' = the office's), `cap` (weekly cap hours, 0 = none), `sal` (salaried: hours for the
   record; optional), `pinAt` (PIN set, or null), `pinBy` ('mgr' | 'self': a manager set it — the time clock suggests
@@ -218,6 +233,12 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
 
 Corrections a manager makes never alert (early/offday/home only fire for real punches). A missing punch the person has
 already asked for doesn't alert (their request does). Someone salaried gets only the missing-punch alerts.
+
+## Build status (23 Oct 2026, noon: payroll totals and paid holidays)
+- Passing: unit 153, rules 454, alert script 103 (version 5), end to end 110, demo click-through 154 (the office check's
+  suite not run: nothing there changed). The rules change only adds `meta/tcHol` and `meta/rules_tc_4`; NLO Cases, A/R,
+  Inventory and Time Off rebuilt for the embedded rules copy (each rebuilt page = the published one with only the new
+  rules and its script hash; Time Off's copy had been from before the Tray Maker's queue, 19 Oct).
 
 ## Build status (12 Oct 2026, morning: the Paychex punch file)
 - All passing: unit 143 (`test/unit.test.js`), rules 433 (`test/rules.test.mjs`), the office check 66

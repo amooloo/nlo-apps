@@ -621,6 +621,21 @@ body.demo #kiosk{bottom:31px}
 .tbl.pay tfoot td{border-top:2px solid var(--navy);border-bottom:none;background:#fff}
 .tbl.pay tfoot tr+tr td{border-top:1px solid var(--grey-100)}
 .tbl.pay tfoot tr.hrRow td,.tbl.pay tfoot tr.hrRow td.big{font-size:13px}
+/* paid holidays (23 Oct 2026): the line above the payroll table, the column, the Holidays window */
+.holBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;font-size:13.5px}
+.holBar>span{flex:1 1 260px}
+.holBar.hasHol{background:var(--blue-50,#EEF3FB);color:var(--navy);border-radius:12px;padding:10px 14px}
+.holBar.notice{margin:0 0 12px}
+.tbl.pay td.holCol{color:var(--navy)}
+.holList{border:1px solid var(--grey-100);border-radius:12px;margin-bottom:12px}
+.holRow{display:flex;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid var(--grey-100);font-size:14px}
+.holRow:last-child{border-bottom:none}
+.holRow.past{color:var(--grey-500)}
+.holRow .holD{min-width:150px;font-weight:700}
+.holRow .holN{flex:1}
+.holRow .holH{white-space:nowrap}
+.holAdd{border-top:1px solid var(--grey-100);padding-top:12px}
+@media print{ body.printPay .holBtn{display:none !important} }
 /* the overtime pop-up (time clock, My time) */
 .kOt{display:flex;align-items:flex-start;gap:14px;border-radius:18px;padding:16px 18px;text-align:left;border:2px solid transparent}
 .kOt>svg{flex:none;margin-top:2px}
