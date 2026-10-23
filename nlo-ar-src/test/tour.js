@@ -99,7 +99,12 @@ const check = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { f
   check(await waitStep('batch'), 'closing it → Many at once');
   a = await aimed(); check(a.ring && a.on, 'the ring is on the bar that marks a step for many accounts');
   await next();
-  check(await waitStep('p91'), 'Next → Biggest first');
+  check(await waitStep('aa'), 'Next → Alternative Arrangements');
+  a = await aimed(); check(a.ring && a.on && a.inView, 'the ring is on the Arrangements (AA) tab');
+  check(/Tap Arrangements \(AA\)/.test(await p.textContent('#tourCard')), 'its card says what to tap');
+  await p.click('#view [data-act=tab][data-t=aa]');
+  check(await waitStep('p91'), 'tapping Arrangements (AA) → Biggest first');
+  check(await p.evaluate(() => S.tab.pd === 'aa' && !!document.querySelector('#view .aaSum')), '…with the arrangements showing behind it');
   await p.click('#view [data-act=tab][data-t="91"]');
   check(await waitStep('ins'), 'tapping 91+ days → Insurance');
   await p.click('#nav-ins');
@@ -190,6 +195,7 @@ const check = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { f
   check(!(await o.$('#tourCard')) && !(await o.$('#tourOffer')) && (await o.textContent('#syncLine')) === 'Demo · nothing saved', 'the plain demo: no tour by itself, no offer card, still “Demo · nothing saved”');
   await o.click('#nav-account'); await o.waitForSelector('[data-act=tourOpen]');
   const [pop] = await Promise.all([ctx.waitForEvent('page'), o.click('[data-act=tourOpen]')]);
+  await pop.waitForURL(/nlo-ar\.html/, { timeout: 15000 }).catch(() => { }); // opened with noopener: it starts blank, then loads
   check(/nlo-ar\.html\?demo&tour=owner$/.test(pop.url()), 'My account → Take the tour opens the practice tab (' + pop.url().replace(/^.*\//, '') + ')');
   await pop.close(); await o.close();
 

@@ -126,6 +126,7 @@ const LAD_PAUSE = { plan: 'A payment plan (Alternative Arrangement) is in place'
 function ladSug(a) {
   const L = ladFor(a); if (!L) return '';
   if (L.due) return ladChip(L.due);
+  if (L.paused === 'plan') return '<span class="sug mint" title="' + esc(LAD_PAUSE.plan + ' — Past due → Arrangements') + '">' + ic('plan', 12) + 'On an AA</span>';
   if (L.paused) return '<span class="sug" title="' + esc(LAD_PAUSE[L.paused] || '') + '">' + ic('pause', 12) + 'Paused</span>';
   if (L.fin) return '<span class="small muted" title="The last letter went out; the 30 days end then">Ends ' + esc(fmtDate(L.endOn)) + '</span>';
   if (L.next) return '<span class="small muted" title="' + esc(L.next.l) + '">Next: ' + esc(L.next.s) + ' · ' + esc(fmtDate(L.nextOn)) + '</span>';
@@ -191,10 +192,12 @@ function viewToday() {
   const s91 = round2(S.accts.filter(a => a.bucket === '91').reduce((s, a) => s + a.b90, 0)), crw = S.accts.filter(a => a.credit > 0 && !a.prepay);
   const tile = (n, l, cls, act, sub) => '<button class="tile ' + cls + '" ' + act + '><span class="n' + (String(n).length > 6 ? ' sm' : '') + '">' + n + '</span><span class="l">' + l + '</span>' + (sub ? '<span class="s">' + sub + '</span>' : '') + '</button>';
   const toSign = ladDueAccts().filter(a => { const l = ladFor(a); return l.due.dra && !l.signed[l.due.id]; }).length;
+  const aaC = Array.from(aaAll().values()).filter(x => x.st.st === 'check').length;
   if (S.focus && S.rep) return tourOfferHTML() + staleHTML() + auditBannerHTML() + focusViewHTML();
   let h = tourOfferHTML() + staleHTML() + obBannerHTML() + auditBannerHTML() + (S.rep ? focusStripHTML(focusData()) : '') + goalsHTML() + '<div class="tiles">' +
     tile(c.due, 'Follow-ups due', c.late ? 'red' : 'amber', 'data-act="tileDue"', c.late ? c.late + ' late' : 'today') +
     tile(c.lad, 'Collection steps due', 'coral', 'data-act="nav" data-v="pd" data-tab="lad"', toSign ? toSign + ' for Dr. A to sign' : 'letters, texts & calls') +
+    (aaC ? tile(aaC, 'Arrangements to check', 'amber', 'data-act="nav" data-v="pd" data-tab="aa" data-sub="check"', 'Alternative Arrangements (AA)') : '') +
     tile(money(s91), '91+ days past due', 'red', 'data-act="nav" data-v="pd" data-tab="91"', plural(c.n91, 'account')) +
     tile(c.chase, 'Insurance: chase now', 'coral', 'data-act="nav" data-v="ins" data-tab="chase"', 'nothing paid, ' + (S.cfg.tiers[0] + 1) + '–' + S.cfg.tiers[1] + ' days') +
     tile(money(crw.reduce((s, a) => s + a.credit, 0)), 'Credits to resolve', 'blue', 'data-act="nav" data-v="cr" data-tab="work"', plural(crw.length, 'account')) +
@@ -256,7 +259,7 @@ function lastReportCardHTML() {
     '<div class="kvRow"><span>Edge A/R Aging as of</span><b>' + esc(fmtDateLong(S.rep.asOf)) + '</b></div>' +
     '<div class="kvRow"><span>Imported</span><b>' + esc(fmtWhen(m.at)) + ' · ' + esc(shortName(m.sid)) + '</b></div>' +
     '<div class="kvRow"><span>Covers</span>' + coverHTML(S.rep.cover) + '</div>' +
-    '<div class="kvRow"><span>Accounts past due or in credit</span><b>' + S.rep.rows.length + '</b></div></div></div>';
+    '<div class="kvRow"><span>Accounts past due or in credit</span><b>' + S.accts.filter(a => a.pd > 0 || a.credit > 0).length + '</b></div></div></div>';
 }
 function coverHTML(c) {
   return '<span class="cov">' + [['pastDue', 'Past due'], ['credit', 'Credits'], ['ins', 'Insurance'], ['full', 'Whole book']].map(([k, l]) => '<span class="' + (c && c[k] ? '' : 'no') + '">' + l + '</span>').join('') + '</span>';
@@ -285,8 +288,9 @@ function viewPastDue() {
   if (S.rep && !S.rep.cover.pastDue) return staleHTML() + '<div class="card"><div class="empty">The latest report doesn’t have past-due accounts in it (it was run for credit balances only).</div></div>';
   const A = S.accts, l91 = withCum(list91(A)), l31 = list31(A), l0 = list0(A), all = A.filter(a => a.pd > 0), LD = ladDueAccts();
   const amt = (l, f) => l.reduce((s, a) => s + f(a), 0), tab = S.tab.pd;
-  let h = staleHTML() + tabsHTML([['lad', 'Steps due', LD.length], ['91', '91+ days', l91.length, amt(l91, a => a.b90)], ['31', '31–90 days', l31.length, amt(l31, a => a.pd)], ['0', '0–30 days', l0.length, amt(l0, a => a.pd)], ['all', 'All past due', all.length, amt(all, a => a.pd)]]);
+  let h = staleHTML() + tabsHTML([['lad', 'Steps due', LD.length], ['aa', 'Arrangements (AA)', aaAll().size], ['91', '91+ days', l91.length, amt(l91, a => a.b90)], ['31', '31–90 days', l31.length, amt(l31, a => a.pd)], ['0', '0–30 days', l0.length, amt(l0, a => a.pd)], ['all', 'All past due', all.length, amt(all, a => a.pd)]]);
   if (tab === 'lad') return h + ladListHTML(A, LD);
+  if (tab === 'aa') return h + aaTabHTML();
   if (tab === '91') {
     const s = summarize(S.rep, S.cfg).conc;
     h += '<div class="listHd">' + ic('info', 16) + '<span><b>' + plural(s.n, 'account') + ', ' + money(s.total) + '.</b> ' + (s.n > 25 ? 'The top 25 carry ' + pct(s.top25, s.total) + '% of it — w' : 'W') + 'ork down the list and stop where the return stops justifying the call. Under ' + money(S.cfg.writeOff) + ' is a write-off candidate.</span></div>';
@@ -320,6 +324,57 @@ function ladListHTML(A, LD) {
   return h + filtersHTML({ src: false }) + tableHTML([C.name, C.lday, C.lstep, C.pd, M(C.bal), C.work], sortBy(list, { k: 'ladN', dir: -1 }), { k: 'ladN', dir: -1 },
     { empty: step === '_hold' ? 'Nobody is on Maintenance Hold.' : LD.length ? 'No accounts match.' : 'No collection steps due. ✓' });
 }
+/* ---------- Past due → Arrangements (AA): every family on an Alternative Arrangement (22 Oct 2026) ---------- */
+const AA_ST = { check: { l: 'Check', tone: 'amber', n: 0 }, broken: { l: 'Broken', tone: 'red', n: 1 }, new: { l: 'New', tone: 'blue', n: 2 }, ok: { l: 'On track', tone: 'mint', n: 3 } };
+function aaChip(s) { const x = AA_ST[s.st] || AA_ST.ok; return '<span class="sug ' + x.tone + '">' + (s.st === 'check' || s.st === 'broken' ? '' : ic('plan', 12)) + esc(x.l) + '</span>'; }
+/* the tab's rows: the account as it is on the report — or, when it isn't on it (current in Edge), what its record knows */
+function aaRows() {
+  return Array.from(aaAll().values()).map(x => {
+    const a = x.a || { key: x.it.key, patient: x.it.name, rp: x.it.rp, sts: '', ins: false, src: 'pt', inactive: false, prepay: false, home: '', work: '', note: '',
+      due: 0, b0: 0, b30: 0, b60: 0, b90: 0, pd: 0, credit: 0, o30: 0, bal: null, days: null, recv: '', lastAmt: null, bucket: '', months: 0, tier: '', age: null, ageBucket: '' };
+    const s = x.st, sc = s.sched;
+    return Object.assign({}, a, { aa: s, aaRank: AA_ST[s.st].n, aaMade: s.madeOn || '', aaNext: sc && sc.next ? sc.next.date : '9999', onRep: !!x.a });
+  });
+}
+const CA = {
+  name: { k: 'name', l: 'Patient', td: a => '<div class="pt">' + esc(a.patient) + '</div><div class="ptSub">' + stsBadge(a) + (a.aa.hold ? '<span class="badge s-hold" title="Maintenance Hold — comfort visits only, no active tooth movement">Maint. Hold</span>' : '') + '<span class="small muted">' + esc(rpName(a)) + '</span></div>' },
+  st: { k: 'aaRank', l: 'Status', td: a => { const w = a.aa.why[0]; return aaChip(a.aa) + (w && w.k !== 'terms' ? '<div class="small muted aaWhy">' + esc(w.t) + '</div>' : ''); } },
+  made: { k: 'aaMade', l: 'Made', cls: 'hideM', td: a => a.aa.madeOn ? esc(fmtDate(a.aa.madeOn)) + '<div class="small muted">' + esc(shortName(a.aa.by)) + '</div>' : '<span class="small muted">' + (a.aa.src === 'edge' ? 'From Edge (AA MADE)' : '—') + '</span>' },
+  terms: { l: 'Terms', cls: 'hideM', td: a => a.aa.terms ? '<span class="small">' + esc(aaTermsShort(a.aa.terms)) + '</span>' : '<span class="small muted">Not recorded</span>' },
+  next: { k: 'aaNext', l: 'Next payment', cls: 'hideM', td: a => { const s = a.aa.sched; return s && s.next ? esc(fmtDate(s.next.date)) + '<div class="small muted">' + s.next.k + (s.n ? ' of ' + s.n : '') + '</div>' : '<span class="small muted">' + (s && s.n ? 'All ' + s.n + ' due' : '—') + '</span>'; } },
+  pd: { k: 'pd', l: 'Past due', num: true, cls: 'hideM', td: a => a.pd > 0 ? money(a.pd, true) : '<span class="small muted">' + (a.onRep ? 'Current' : '—') + '</span>' }
+};
+function aaTabHTML() {
+  const all = aaRows(), n = k => all.filter(r => r.aa.st === k).length, held = all.filter(r => r.aa.hold);
+  if (S.aaSub && (S.aaSub === '_hold' ? !held.length : !n(S.aaSub))) S.aaSub = ''; // nothing left under that chip: show them all
+  const sub = S.aaSub, pd = all.filter(r => r.pd > 0);
+  let h = '<div class="listHd">' + ic('plan', 16) + '<span><b>Alternative Arrangements (AA)</b> — every family on a new payment plan (handbook §14), kept here until it’s paid off or broken. Each week’s report, OrthoBanc’s failed drafts and the terms show whether they’re keeping it — the ones to check come first. <button class="linkBtn" data-act="aaHelp">How it works</button></span></div>';
+  const chip = (k, l, c) => '<button class="chip sm' + (sub === k ? ' on' : '') + '" data-act="aaSub" data-s="' + esc(k) + '">' + esc(l) + '<span class="c">' + c + '</span></button>';
+  h += '<div class="chips subChips">' + chip('', 'Every arrangement', all.length) + [['check', 'To check'], ['new', 'New'], ['ok', 'On track'], ['broken', 'Broken']].filter(([k]) => n(k)).map(([k, l]) => chip(k, l, n(k))).join('') +
+    (held.length ? chip('_hold', 'On Maintenance Hold', held.length) : '') + '</div>';
+  if (all.length) h += '<div class="aaSum small">' + plural(all.length, 'arrangement') + (pd.length ? ' · ' + money(pd.reduce((s, r) => s + r.pd, 0)) + ' past due on ' + plural(pd.length, 'of them', 'of them') : ' · none past due') +
+    (n('check') ? ' · <b>' + n('check') + ' to check</b>' : '') + (n('broken') ? ' · ' + n('broken') + ' broken' : '') + '</div>';
+  const base = sub === '_hold' ? held : sub ? all.filter(r => r.aa.st === sub) : all;
+  return h + filtersHTML({ src: false }) + tableHTML([CA.name, CA.st, CA.made, CA.terms, CA.next, CA.pd, C.work], sortBy(applyFilters(base), { k: 'aaRank', dir: 1 }), { k: 'aaRank', dir: 1 },
+    { empty: all.length ? 'No arrangements match.' : 'No family is on an Alternative Arrangement. On an account, “Payment plan (AA) made…” puts it here — so does an “AA MADE” task imported from Edge.' });
+}
+/* how the tab works, for reference (and for training) */
+function aaHelpHTML() {
+  return '<h3>Alternative Arrangements (AA)</h3><div class="lsub">Handbook §14 and SOP-FO-003: make an AA as soon as financial difficulty is sensed — a realistic payment plan the responsible party signs (Forms → Altered Arrangement).</div>' +
+    '<ul class="small helpList">' +
+    '<li><b>On it:</b> an account whose status is “Payment plan (AA)” — set by <b>Payment plan (AA) made…</b> on the account (with the terms from the Altered Arrangement form), or by an “AA MADE” task imported from Edge. Its collections ladder pauses. Calls, texts and promises logged on it keep it on the arrangement.</li>' +
+    '<li><b>The terms:</b> the monthly payment, how many months, when payments start and the day payments are due — the 5th, 12th, 19th or 26th, OrthoBanc’s drafting days (the first payment is that day on or after the start; the form shows it). With them the app knows each payment’s day, follows up a few days after it, and can tell a missed one.</li>' +
+    '<li><b>To check</b> (most urgent first): an OrthoBanc draft that failed since it was made; a payment the newest report should show but doesn’t (its last payment is older); past due again, or up, since the report before; on Maintenance Hold after the first payment’s day (lift the hold once it’s in); every payment’s day passed, or not on the newest report at all — Edge leaves out $0 balances, so it’s likely paid off (resolve it once it’s paid). Once someone works the account and sets a follow-up, it leaves Focus until that day.</li>' +
+    '<li><b>Payment in — on track</b> settles what was flagged, and sets the follow-up for a few days after the next payment.</li>' +
+    '<li><b>Broken:</b> “It was broken…” brings Letter #8 (Dr. A signs; certified) and the 30 days, as on the collections ladder. A new arrangement made after that replaces it — the SOP: “If no AA is made at or before that appointment, the next visit may be a Debond.”</li>' +
+    '<li><b>Ends</b> when it’s resolved (paid off), or its status is changed by hand; a broken one stays here until it’s resolved. Accounts on one are never closed as “Cleared in Edge” — being current is the point. Each week’s import keeps them even when they’re current, with their balance, last payment and phone numbers. An account resolved and past due again starts over without it.</li></ul>' +
+    '<div class="mFt"><button class="btn btn-pri" data-act="closeModal">Close</button></div>';
+}
+Object.assign(ACT, {
+  aaSub(t) { S.aaSub = t.dataset.s || ''; S.sort = { k: '', dir: 1 }; renderView(); },
+  aaHelp() { const w = openModal(aaHelpHTML()); const m = w && $('.modal', w); if (m) m.classList.add('ladM'); }
+});
+
 /* one step for many accounts at once — e.g. this week's Letter #2s, sent together from Edge */
 function ladBatchHTML(step, list) {
   const s = own(LAD_BY, step) ? LAD_BY[step] : null; if (!s || !list.length) return '';
@@ -345,7 +400,7 @@ function ladHelpHTML() {
     '<li><b>A broken arrangement</b> — Letter #8 (Dr. A signs; certified); an appointment becomes Debond/Finish; 30 days for appliance removal and emergencies only; to restart treatment, the full remaining balance by Mastercard, Visa or Discover.</li>' +
     '<li><b>After Letter #7</b> — 30 days for appliance removal and emergencies; then the write-off, the collection agency, Inactive Financial (only the FC changes it), and the patient and family archived.</li>' +
     '<li><b>Hardship</b> (a job loss, a medical emergency) — talk it over with Dr. A before discontinuing.</li>' +
-    '<li>A payment plan or a promise to pay pauses an account’s ladder; it picks up where the days are if the plan is broken or the day passes.</li>' +
+    '<li>An Alternative Arrangement (Past due → Arrangements) or a promise to pay pauses an account’s ladder: a broken arrangement brings Letter #8; a promise picks up where the days are once its day passes.</li>' +
     '<li class="muted">The handbook doesn’t name the day-75 text or give a day for “FC- Delinquent #8”: the app uses #7 (the between-letters text) on day 75, and #8 on day 104 — two weeks after Dr. A’s day-90 letter, which it mentions.</li></ul>' +
     '<div class="mFt"><button class="btn btn-pri" data-act="closeModal">Close</button></div>';
 }
@@ -420,7 +475,10 @@ ACT.csv = async () => {
   if (!list.length) return;
   if (!(await confirmBox('Download this list?', 'The file has patients’ names, phone numbers and balances. Keep it on an office computer and delete it when you’re done.', 'Download'))) return;
   const head = ['Patient', 'Responsible party', 'Edge status', 'Pays', 'Home phone', 'Work phone', '0-30', '31-60', '61-90', '91+', 'Past due', 'Contract balance', 'Credit', 'Days', 'Last payment', 'Suggested', 'Collections step', 'Follow-up', 'Last note'];
-  const rows = list.map(a => { const it = itemFor(a.key), e = it && lastLog(it), sug = a.credit > 0 && !(a.pd > 0) ? crAction(a).l : a.months ? TIERS[a.tier].l : pdAction(a, S.cfg).l, L = ladFor(a);
+  const rows = list.map(a => { const it = itemFor(a.key), e = it && lastLog(it), L = ladFor(a);
+    // on the Arrangements tab: the arrangement's status and its first reason, and its terms
+    const sug = a.aa ? 'AA ' + (AA_ST[a.aa.st] || AA_ST.ok).l.toLowerCase() + (a.aa.why[0] ? ': ' + a.aa.why[0].t : '') + (a.aa.terms ? ' · ' + aaTermsShort(a.aa.terms) : '') :
+      a.credit > 0 && !(a.pd > 0) ? crAction(a).l : a.months ? TIERS[a.tier].l : pdAction(a, S.cfg).l;
     const lad = !L ? '' : (L.due ? 'Day ' + L.day + ': ' + L.due.s + ' — ' + L.due.l + (L.due.dra ? ' (' + ladSignText(L, L.due) + ')' : '') : L.paused ? 'Paused — ' + (LAD_PAUSE[L.paused] || '') : L.fin ? 'Last letter sent; 30 days end ' + L.endOn : L.next ? 'Next: ' + L.next.s + ' on ' + L.nextOn : '') + (L.hold ? ' · on Maintenance Hold' : '');
     return [a.patient, a.rp, a.sts, a.ins ? 'Insurance' : 'Patient', a.home, a.work].map(csvCell).concat([a.b0, a.b30, a.b60, a.b90, a.pd, a.bal == null ? '' : a.bal, a.credit, a.days == null ? '' : a.days].map(n => String(n))).concat([a.recv, sug, lad, it ? it.follow || '' : '', e ? logLabel(e) + (e.note ? ': ' + e.note : '') : ''].map(csvCell)).join(','); });
   const blob = new Blob(['﻿' + head.map(csvCell).join(',') + '\n' + rows.join('\n')], { type: 'text/csv' });
@@ -477,11 +535,13 @@ ACT.print = () => window.print();
 function ladSummaryHTML() {
   if (!S.rep || !S.rep.cover.pastDue) return '';
   const all = Array.from(ladAll().values()), LD = ladDueAccts(), pdOf = l => l.reduce((t, a) => t + a.pd, 0), n = f => all.filter(f).length;
+  const AA = aaAll(), aaN = k => Array.from(AA.values()).filter(x => x.st.st === k).length;
   const rows = ladGroups(LD).map(([s, k]) => '<tr><td>' + ladChip(s) + ' <span class="small muted">' + esc(s.id === 'end' || s.id === 'endaa' ? 'after the last letter' : s.id === 'aa' ? 'arrangement broken' : 'day ' + s.day + (s.dra ? ' · Dr. A signs' : '')) + '</span></td><td class="num">' + k + '</td><td class="num">' + money(pdOf(LD.filter(a => ladFor(a).due.id === s.id))) + '</td></tr>').join('');
   return '<div class="card"><div class="cardHd"><h3>Collections ladder</h3><span class="sub">Today · ' + plural(all.length, 'patient account') + ' on it</span></div><div class="cardBd">' +
     (rows ? '<table class="tbl"><thead><tr><th>Step due</th><th class="num">Accounts</th><th class="num">Past due</th></tr></thead><tbody>' + rows + '<tr><td><b>Total</b></td><td class="num"><b>' + LD.length + '</b></td><td class="num"><b>' + money(pdOf(LD)) + '</b></td></tr></tbody></table>' : '<div class="small muted">No steps due.</div>') +
     '<div style="margin-top:10px"><div class="kvRow"><span>On Maintenance Hold</span><b>' + n(l => l.hold) + '</b></div>' +
     '<div class="kvRow"><span>Paused — a payment plan, or a promise to pay</span><b>' + n(l => l.paused === 'plan' || l.paused === 'promise') + '</b></div>' +
+    (AA.size ? '<div class="kvRow"><span>On an Alternative Arrangement, current ones too (Past due → Arrangements)</span><b>' + AA.size + (aaN('check') ? ' · ' + aaN('check') + ' to check' : '') + '</b></div>' : '') +
     '<div class="kvRow"><span>Last letter sent — in the 30 days after it</span><b>' + n(l => l.fin && !l.due) + '</b></div></div></div></div>';
 }
 /* past due, 91+ and credits to resolve, report by report (from each report's sealed totals) */
@@ -575,7 +635,7 @@ function importPreviewHTML(imp) {
     A.slice(0, 6).map(a => '<tr><td>' + esc(a.patient) + '<div class="small muted">' + esc(a.rp) + '</div></td><td>' + esc(a.sts) + '</td><td class="num">' + money(a.pd, true) + '</td><td class="num">' + money(a.b90, true) + '</td><td class="num">' + (a.bal == null ? '—' : money(a.bal, true)) + '</td></tr>').join('') + '</tbody></table></div></details>';
   h += '<div class="btnRow" style="margin-top:14px"><button class="btn btn-teal" data-act="impSave" id="impSave"' + (imp.busy ? ' disabled' : '') + '>' + ic('lock', 15) + 'Save report (sealed)</button><button class="btn btn-sec btn-sm" data-act="impMore">Add another file</button><button class="btn btn-ghost" data-act="impReset">Cancel</button></div>' +
     '<input type="file" id="arFile" accept=".xls,.xlsx,.csv,.txt,.htm,.html" multiple class="hidden">' +
-    '<p class="small muted" style="margin-top:8px">Only accounts past due or in credit are kept, plus the book’s totals. Nothing leaves this computer until it’s sealed.</p>';
+    '<p class="small muted" style="margin-top:8px">Only accounts past due or in credit are kept (and the ones on an Alternative Arrangement), plus the book’s totals. Nothing leaves this computer until it’s sealed.</p>';
   return h;
 }
 /* wire the drop zone, the file chooser and the paste box after each render */
@@ -620,7 +680,8 @@ async function addFiles(files) {
 function addParsed(list) {
   const files = ((S.imp && S.imp.files) || []).concat(list);
   const good = files.filter(f => !f.err);
-  S.imp = { files, rep: good.length ? buildReport(good.map(f => f.p)) : null, busy: false };
+  // the accounts on an Alternative Arrangement are kept even when they're current (Past due → Arrangements shows them)
+  S.imp = { files, rep: good.length ? buildReport(good.map(f => f.p), { keep: aaKeepKeys() }) : null, busy: false };
   renderView();
 }
 Object.assign(ACT, {
@@ -652,7 +713,7 @@ function focusCtx() {
   const t = todayISO(), aw = auditWindow(t), pk = S.prevId + '|' + S.repId;
   if (!S.prevPdMemo || S.prevPdMemo.k !== pk) S.prevPdMemo = { k: pk, set: S.prev && S.rep && S.prev.cover.pastDue && S.rep.cover.pastDue ? new Set(reportAccts(S.prev, S.cfg).filter(a => a.pd > 0).map(a => a.key)) : null };
   return { accts: S.rep ? S.accts : [], asOf: S.rep ? S.rep.asOf : t, byKey: S.byKey, item: k => { const it = itemFor(k); return it && !isBack(it) ? it : null; }, lad: a => ladFor(a), open: openItems(), cleared: isCleared,
-    today: t, owner: isOwner(), prevPd: S.prevPdMemo.set, book: S.book, auditStart: aw.on && S.rep && S.rep.cover.credit ? aw.start : '' };
+    today: t, owner: isOwner(), prevPd: S.prevPdMemo.set, book: S.book, auditStart: aw.on && S.rep && S.rep.cover.credit ? aw.start : '', aa: Array.from(aaAll().values()) };
 }
 /* accounts somebody logged something on today */
 function focusDoneToday() {
@@ -967,7 +1028,7 @@ function etBoxHTML() {
   h += '<div class="etOpts">' + (overdue ? '<div><label for="etOverdue" style="display:block;margin-bottom:4px">' + plural(overdue, 'task is', 'tasks are') + ' overdue in Edge. Their follow-up:</label>' +
     '<select id="etOverdue" class="inp" data-chg="etOpt">' + opt('today', (nextOfficeDay(t) === t ? 'Today' : 'The next office day') + ' (' + fmtDay(nextOfficeDay(t)) + ') — all of them') +
     opt('spread', 'Spread over the next 2 weeks, oldest first (about ' + plural(perDay, 'account') + ' a day)') + opt('edge', 'Keep Edge’s dates (they show as late)') + '</select></div>' : '') +
-    (aa ? '<label><input type="checkbox" id="etAA" data-chg="etOpt"' + (I.o.aa ? ' checked' : '') + '><span>“AA MADE” (' + aa + '): mark the account as on a payment plan — that pauses its collections ladder (only where no stage is set yet)</span></label>' : '') +
+    (aa ? '<label><input type="checkbox" id="etAA" data-chg="etOpt"' + (I.o.aa ? ' checked' : '') + '><span>“AA MADE” (' + aa + '): put the account on an Alternative Arrangement (Past due → Arrangements) — that pauses its collections ladder (only where no status is set yet)</span></label>' : '') +
     (I.sid ? '<label><input type="checkbox" id="etAssign" data-chg="etOpt"' + (I.o.assign ? ' checked' : '') + '><span>Assign the accounts to ' + esc(shortName(I.sid)) + ' (only ones nobody has)</span></label>' : '') + '</div>';
   if (check.length) h += '<details class="help" open><summary>Check these (' + check.length + ') — tick the ones that are right</summary><div class="etList">' + check.map(r => {
     const i = r.i, has = Object.prototype.hasOwnProperty.call(I.picks, i), picked = has ? I.picks[i] : '';

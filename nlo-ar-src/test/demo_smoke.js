@@ -7,7 +7,7 @@
    Run: node test/demo_smoke.js  (screenshots go to shots/) */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
-const { routes, watch, CHROME, obReportTSV, insAgingTSV, edgeTasksTSV } = require('./helpers');
+const { routes, watch, CHROME, obReportTSV, insAgingTSV, edgeTasksTSV, arAgingTSV } = require('./helpers');
 const URL = 'http://127.0.0.1:' + (process.env.PORT || 8766) + '/nlo-ar.html?demo';
 const SHOTS = path.join(__dirname, '..', 'shots');
 let pass = 0, fail = 0;
@@ -38,7 +38,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   const clip = () => page.evaluate(() => window.__clip[window.__clip.length - 1] || '');
   await collect(); await shot(page, 'today', true);
   const c0 = await S_(() => counts());
-  ok(await page.$$eval('.tiles .tile', t => t.length) === 7, 'Today: seven tiles (follow-ups, collection steps, 91+, chase now, credits, waiting for Dr. A, cleared)');
+  ok(await page.$$eval('.tiles .tile', t => t.length) === 8, 'Today: eight tiles (follow-ups, collection steps, arrangements to check, 91+, chase now, credits, waiting for Dr. A, cleared)');
   ok(c0.due === 2 && c0.late === 1 && c0.drA === 2 && c0.cleared === 1 && c0.lad > 20, 'counts: 2 follow-ups (1 late), 2 for Dr. A (a refund, a letter to sign), 1 cleared, ' + c0.lad + ' collection steps: ' + JSON.stringify(c0));
   ok((await page.title()) === '(' + (c0.due + c0.lad) + ') NLO A/R', 'tab title counts follow-ups and collection steps due: ' + await page.title());
   ok((await page.evaluate(() => window.__maxCleared)) === 1, 'while opening, “Cleared in Edge” never counts more than the 1 really cleared');
@@ -164,7 +164,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   const askedQ = (ctx.aisaAsked || []).slice(-1)[0] || '', names = await S_(() => { const n = new Set(); S.accts.forEach(a => { n.add(a.patient); n.add(rpName(a)); }); S.items.forEach(it => { if (it.name) n.add(it.name); }); return Array.from(n).filter(x => x && x.length > 3); });
   ok(/Past due: \$/.test(askedQ) && /Goals \(handbook §19/.test(askedQ) && names.every(n => !askedQ.includes(n)), 'what goes to AISA: totals only — none of the ' + names.length + ' names on the page');
   // tabs on each list
-  for (const [v, tabs] of [['pd', ['91', '31', '0', 'all', 'lad']], ['ins', ['investigate', 'nofile', 'monitor', 'all', 'partly', 'chase']], ['cr', ['pre', 'all', 'work']]]) {
+  for (const [v, tabs] of [['pd', ['91', '31', '0', 'all', 'aa', 'lad']], ['ins', ['investigate', 'nofile', 'monitor', 'all', 'partly', 'chase']], ['cr', ['pre', 'all', 'work']]]) {
     await page.click('#nav-' + v);
     for (const t of tabs) { await page.click('[data-act=tab][data-t="' + t + '"]'); await page.waitForTimeout(80); await collect(); }
   }
@@ -259,6 +259,124 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(back.log[back.log.length - 2].fresh === true, 'as a new round (a collections ladder starts over)');
   await closeDrawer();
 
+  // ---- Alternative Arrangements: Past due → Arrangements (22 Oct 2026)
+  const aaN = st => page.evaluate(st => Array.from(aaAll().values()).filter(x => x.st.st === st).length, st), aaSt = k => page.evaluate(k => (aaFor(k) || { st: {} }).st.st, k);
+  const ladOf = k => page.evaluate(k => { const l = ladFor(S.byKey.get(k)); return l ? { due: l.due && l.due.id, paused: l.paused } : null; }, k);
+  const noToasts = () => page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+  await page.click('#nav-today'); await page.waitForSelector('.tiles');
+  const aaTile = await page.$eval('.tile[data-sub=check]', e => e.querySelector('.n').textContent + ' ' + e.querySelector('.l').textContent);
+  ok(aaTile === '3 Arrangements to check', 'Today: “Arrangements to check” (3)');
+  await page.click('[data-act=focusOn]'); await page.waitForSelector('.fList .frow');
+  const aaF = await page.$$eval('.fList .frow[data-kind^=aa]', r => r.map(x => ({ cls: x.className.replace('frow ', ''), kind: x.dataset.kind, why: x.querySelector('.fWhy').textContent })));
+  ok(aaF.filter(x => x.kind === 'aamiss' && x.cls === 'urgent').length === 2 && aaF.some(x => /^Arrangement — OrthoBanc: the \$199\.00 draft of .+ failed/.test(x.why)) && aaF.some(x => /^Arrangement — The .+ payment isn’t on Edge’s/.test(x.why)) &&
+    aaF.some(x => x.kind === 'aacheck' && x.cls === 'today' && /^Arrangement — Past due again/.test(x.why)), 'Focus: a failed OrthoBanc draft and a payment Edge’s report doesn’t show are urgent; past due again is for today');
+  await page.click('[data-act=focusOff]'); await page.waitForSelector('.tiles');
+  await page.click('.tile[data-sub=check]'); await page.waitForSelector('#view .subChips');
+  ok(await S_(() => S.view === 'pd' && S.tab.pd === 'aa' && S.aaSub === 'check' && S.lastList.length === 3 && S.lastList.every(a => a.aa.st === 'check')), 'the tile opens Past due → Arrangements, on the 3 to check');
+  await page.click('[data-act=aaSub][data-s=""]'); await page.waitForTimeout(150);
+  const aaChips = await page.$$eval('#view .subChips .chip', c => c.map(x => x.firstChild.textContent + '=' + x.querySelector('.c').textContent));
+  ok(aaChips.join() === 'Every arrangement=7,To check=3,New=1,On track=2,Broken=1,On Maintenance Hold=1', 'every arrangement — ' + aaChips.join(', '));
+  ok((await S_(() => S.lastList.map(a => a.aa.st))).join() === 'check,check,check,broken,new,ok,ok', 'the ones to check first, then broken, new, on track');
+  ok(await page.$eval('#view .aaSum', e => /^7 arrangements · \$2,550 past due on 6 of them · 3 to check · 1 broken$/.test(e.textContent)), 'how many, the past due among them, how many to check: ' + await page.textContent('#view .aaSum'));
+  ok(await page.$$eval('#view tbody tr', r => r.some(x => /Current/.test(x.textContent) && /On track/.test(x.textContent)) && r.some(x => /From Edge \(AA MADE\)/.test(x.textContent) && /Not recorded/.test(x.textContent))),
+    'one current in Edge (kept with its balance), one from an Edge “AA MADE” task with no terms yet');
+  await collect(); await shot(page, 'aa-tab', true);
+  await page.click('[data-act=aaHelp]'); await page.waitForSelector('#modalWrap .helpList');
+  ok(/Payment in — on track/.test(await page.textContent('#modalWrap')) && /never closed as “Cleared in Edge”/.test(await page.textContent('#modalWrap')), '“How it works”');
+  await collect(); await page.click('#modalWrap [data-act=closeModal]');
+  // a payment Edge's report doesn't show: its panel, then "Payment in — on track"
+  const kMiss = await S_(() => { const x = Array.from(aaAll().values()).find(x => x.st.why[0] && x.st.why[0].k === 'miss' && !x.st.why.some(w => w.k === 'ob')); return x && x.it.key; });
+  await page.click('tr[data-key="' + kMiss + '"]'); await page.waitForSelector('#drawer .aaBox');
+  const box = await page.$eval('#drawer .aaBox', e => ({ cls: e.className, txt: e.textContent, ok: !!e.querySelector('[data-act=aaOk]'), br: !!e.querySelector('[data-act=ladAA]') }));
+  ok(/check/.test(box.cls) && /\$150\.00 a month × 12 · drafted on the \d+(st|nd|rd|th)/.test(box.txt) && /Next: payment 2 of 12/.test(box.txt) && /payment isn’t on Edge’s .* report \(last payment/.test(box.txt) && box.ok && box.br,
+    'its panel: the arrangement — the terms, the next payment, why to check it, “Payment in — on track” and “It was broken…”');
+  ok(await page.$eval('#drawer .ladSec .notice.info', e => /an Alternative Arrangement is in place/.test(e.textContent)), 'its collections ladder says it’s paused for it');
+  await collect(); await shot(page, 'aa-panel');
+  const nextFU = await page.evaluate(k => aaFollow(aaFor(k).st.terms, addDays(todayISO(), 1)), kMiss);
+  await noToasts(); await page.click('#drawer [data-act=aaOk]'); await page.waitForTimeout(250);
+  const okIt = await itemOf(kMiss);
+  ok(okIt.log[okIt.log.length - 1].k === 'aa_ok' && okIt.stage === 'plan' && okIt.follow === nextFU && await toastHas(/Logged: AA payment in/), '“Payment in — on track”: logged, still on it, followed up after the next payment (' + nextFU + ')');
+  ok(await aaSt(kMiss) === 'ok' && await aaN('check') === 2, '…what was flagged is settled: 2 left to check');
+  await page.click('#drawer .aaTerms [data-act=aaEdit]'); await page.waitForSelector('#drawer .aaForm #aaN');
+  ok(await page.$eval('#aaPay', e => e.value) === '150' && await page.$eval('#aaN', e => e.value) === '12', 'Edit: the form has its terms');
+  await page.fill('#aaN', '10'); await noToasts(); await page.click('#drawer [data-act=aaSave][data-k=aa_terms]'); await page.waitForTimeout(250);
+  const tIt = await itemOf(kMiss), tE = tIt.log[tIt.log.length - 1];
+  ok(tE.k === 'aa_terms' && tE.aa.n === 10 && tE.aa.pay === 150 && await page.$eval('#drawer .aaTerms', e => /× 10/.test(e.textContent)), 'the terms changed: 10 months now');
+  await page.click('.toast button:has-text("Copy for Edge")'); await page.waitForTimeout(150);
+  ok(/^\d\d\/\d\d\/\d\d AA terms: \$150\.00 a month for 10 months, starting \d\d\/\d\d\/\d\d \(drafted on the \d+(st|nd|rd|th)\)\. -Dr\. A$/.test(await clip()), 'its note for Edge: “' + (await clip()) + '”');
+  await closeDrawer();
+  // current in Edge: kept by the import, so its phone, balance and last payment are there — never offered as "cleared"
+  const kCur = await S_(() => { const x = Array.from(aaAll().values()).find(x => x.a && x.a.pd === 0); return x && x.it.key; });
+  await page.evaluate(k => openDrawer(k), kCur); await page.waitForSelector('#drawer .aaBox');
+  const cp = await page.$eval('#drawer', e => ({ tel: !!e.querySelector('.contact a[href^="tel:"]'), close: !!e.querySelector('[data-act=resolveCleared]'), txt: e.textContent }));
+  ok(cp.tel && !cp.close && /Not past due on Edge’s/.test(cp.txt) && /last payment confirmed/.test(cp.txt) && /Contract balance/.test(cp.txt) && await S_(() => counts().cleared) === 1,
+    'current in Edge: its phone, balance and last payment (the import kept it); not counted as cleared');
+  await page.click('#drawer [data-act=resolve]'); await page.waitForSelector('#rsPick');
+  ok(/not past due · \$[\d,]+\.\d\d contract balance/.test(await page.textContent('#modalWrap .lsub')), 'Resolve says it’s not past due, with its balance (not “$0.00 credit”): ' + (await page.textContent('#modalWrap .lsub')).replace(/^.*? · /, ''));
+  await page.click('#modalWrap [data-act=closeModal]');
+  await closeDrawer();
+  // a new arrangement on an account: "Payment plan (AA) made…" with the terms from the Altered Arrangement form
+  const kNew = await S_(() => list31(S.accts).filter(a => onLadder(a) && !itemFor(a.key)).sort((x, y) => x.days - y.days)[0].key);
+  await page.evaluate(k => openDrawer(k), kNew); await page.waitForSelector('#drawer [data-act=log][data-k=pt_plan]');
+  await page.click('#drawer [data-act=log][data-k=pt_plan]'); await page.waitForSelector('#drawer .aaForm #aaPay');
+  ok(await page.$eval('#aaDay', e => e.value) === '5' && await page.$$eval('#aaDay option', o => o.map(x => x.value).join()) === ',5,12,19,26', '“Payment plan (AA) made…” opens the terms — payments due on the 5th, 12th, 19th or 26th (the 5th to start, as on the form)');
+  await collect();
+  await page.fill('#aaPay', 'abc'); await page.click('#drawer [data-act=aaSave]'); await page.waitForTimeout(150);
+  ok(await toastHas(/monthly payment needs to be an amount/) && !(await itemOf(kNew)) && await page.isVisible('#aaPay'), 'a monthly payment that isn’t an amount is refused (the form stays open, nothing saved)');
+  const aaStart = await S_(() => addDays(todayISO(), 10));
+  await noToasts();
+  await page.fill('#aaPay', '$125.50'); await page.fill('#aaN', '8'); await page.fill('#aaStart', aaStart); await page.selectOption('#aaDay', '19'); await page.fill('#aaDown', '100');
+  const pv = await page.evaluate(s => { const sc = aaSched(aaTerms({ pay: 125.5, n: 8, start: s, day: 19 }), todayISO()); return 'First payment ' + fmtDay(sc.first) + ', then the 19th of each month — 8 payments, the last on ' + fmtDate(sc.last); }, aaStart);
+  ok(await page.textContent('#drawer #aaPrev') === pv, 'under the form, what the terms come to: “' + pv + '”');
+  await page.selectOption('#aaDay', ''); await page.evaluate(() => renderDrawer());
+  ok(await page.$eval('#aaDay', e => e.value) === '' && /then the same day each month/.test(await page.textContent('#drawer #aaPrev')) && await page.$eval('#aaN', e => e.value) === '8',
+    'a redraw (a live update) keeps what was typed — “—” picked too — and says what that comes to');
+  await page.selectOption('#aaDay', '19');
+  await page.click('#drawer [data-act=aaSave]'); await page.waitForTimeout(300);
+  const nIt = await itemOf(kNew), nE = nIt && nIt.log[nIt.log.length - 1], want = await page.evaluate(s => { const t = aaTerms({ pay: 125.5, n: 8, start: s, day: 19, down: 100 }); return { t, f: aaFollow(t, todayISO()) }; }, aaStart);
+  ok(nE && nE.k === 'pt_plan' && JSON.stringify(nE.aa) === JSON.stringify(want.t) && nIt.stage === 'plan' && nIt.follow === want.f && await toastHas(/Logged: Payment plan \(AA\) made/),
+    'saved: the arrangement with its terms, followed up a few days after the first payment (' + want.f + ')');
+  await page.click('.toast button:has-text("Copy for Edge")'); await page.waitForTimeout(150);
+  ok(/^\d\d\/\d\d\/\d\d Alternative Arrangement \(AA\) made: \$125\.50 a month for 8 months, starting \d\d\/19\/\d\d \(drafted on the 19th\); \$100\.00 paid when it was made\. Next F\/U \d\d\/\d\d\/\d\d\. -Dr\. A$/.test(await clip()), 'its note for Edge: “' + (await clip()) + '”');
+  ok(await aaSt(kNew) === 'new' && await page.$eval('#drawer .aaBox', e => /\$125\.50 a month × 8 · drafted on the 19th/.test(e.textContent)) && (await ladOf(kNew)).paused === 'plan', 'its panel: the arrangement, New — its collections ladder paused');
+  await collect(); await shot(page, 'aa-new');
+  await page.click('#drawer .aaBox [data-act=ladAA]'); await page.click('#cbYes'); await page.waitForTimeout(250);
+  ok((await ladOf(kNew)).due === 'aa' && await aaSt(kNew) === 'broken' && await page.$eval('#drawer .aaBox', e => /Letter #8 is due/.test(e.textContent) && !!e.querySelector('[data-act=aaNew]')), '“It was broken…”: Letter #8 is due; it shows as Broken, and offers a new arrangement instead');
+  await noToasts(); await page.selectOption('#drawer select[data-chg=stage]', 'plan'); await page.waitForSelector('#drawer .nowBox .aaForm');
+  ok((await itemOf(kNew)).stage === 'working' && await toastHas(/A new arrangement after a broken one/) && await page.$eval('#drawer select[data-chg=stage]', e => e.value) === 'working',
+    'Status → “Payment plan (AA)” on a broken one opens the new arrangement’s form instead (Letter #8 stays due until it’s saved)');
+  await page.click('#drawer .nowBox [data-act=cancelForm]'); await page.waitForTimeout(150);
+  await page.click('#drawer [data-act=aaNew]'); await page.waitForSelector('#drawer .nowBox .aaForm');
+  await page.click('#drawer .nowBox [data-act=aaSave]'); await page.waitForTimeout(250);
+  ok((await ladOf(kNew)).due === null && (await ladOf(kNew)).paused === 'plan' && await aaSt(kNew) === 'new' && (await itemOf(kNew)).log.slice(-1)[0].aa === undefined, 'a new arrangement made instead (no terms this time): on one again, no Letter #8');
+  await closeDrawer();
+  await page.click('[data-act=tab][data-t="31"]'); await page.waitForTimeout(150);
+  ok(await page.$eval('tr[data-key="' + kNew + '"]', r => /On an AA/.test(r.textContent)), '31–90: its suggestion is “On an AA”');
+  await page.click('[data-act=tab][data-t=aa]'); await page.waitForTimeout(150);
+  const [dl3] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=csv]').then(() => page.click('#cbYes'))]);
+  const csv3 = fs.readFileSync(await dl3.path(), 'utf8'), aaNames = await S_(() => S.lastList.map(a => a.patient));
+  ok(aaNames.length === 8 && aaNames.every(n => csv3.includes('\n"' + n + '",')) && /"AA check: OrthoBanc: the \$199\.00 draft of/.test(csv3) && /nlo-ar-past-due-aa-\d{4}-\d{2}-\d{2}\.csv/.test(dl3.suggestedFilename()),
+    'Download list on Arrangements: each one with its status and why (' + aaNames.length + ')');
+  // the next import keeps the accounts on one even when they're current
+  const kept = await page.evaluate(k => { const a = S.byKey.get(k), [y, m, d] = (a.recv || '').split('-').map(Number);
+    return { key: k, a, recv: a.recv ? m + '/' + d + '/' + y : '', long: new Date(todayISO() + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) }; }, kCur);
+  const arTsv = arAgingTSV(kept.long, [Object.assign({}, kept.a, { due: 0, b0: 0, b30: 0, b60: 0, b90: 0, days: null, recv: kept.recv }),
+    { patient: 'Imaginary Pastdue', sts: 'A-Comp Bra', rp: 'Pat Pastdue', home: '', work: '', due: 150, b0: 150, b30: 0, b60: 0, b90: 0, days: 10, bal: 900, lastAmt: 150, recv: '9/1/2026' }]);
+  await page.click('#nav-reports'); await page.waitForSelector('#dropZone');
+  await page.setInputFiles('#arFile', { name: 'AR Aging.txt', mimeType: 'text/plain', buffer: Buffer.from(arTsv) }); await page.waitForSelector('#impSave');
+  const kr = await page.evaluate(k => S.imp.rep.rows.map(r => [r.key === k, r.due, r.bal, r.recv]), kept.key);
+  ok(kr.length === 2 && kr.some(([k, d, b, r]) => k && d === 0 && b === kept.a.bal && r === kept.a.recv) && /and the ones on an Alternative Arrangement/.test(await page.textContent('#view')),
+    'importing: the account on an arrangement is kept though it’s current (with its balance and last payment) — the preview says so');
+  await page.click('[data-act=impReset]');
+  // broken while it's current in Edge: never offered as cleared; Letter #8 comes up once a report shows it past due
+  await page.evaluate(k => openDrawer(k), kCur); await page.waitForSelector('#drawer .aaBox [data-act=ladAA]');
+  await page.click('#drawer .aaBox [data-act=ladAA]'); await page.click('#cbYes'); await page.waitForTimeout(250);
+  ok(await aaSt(kCur) === 'broken' && await S_(() => counts().cleared) === 1 && !(await page.$('#drawer [data-act=resolveCleared]')) && /Letter #8 comes up on the collections ladder once Edge’s report shows the account past due/.test(await page.textContent('#drawer .aaBox')),
+    'broken while current in Edge: Broken, not counted as cleared — Letter #8 comes up once a report shows it past due');
+  await page.evaluate(k => undoLast(k), kCur); await page.waitForTimeout(250);
+  ok(await aaSt(kCur) === 'ok', '…undone: on track again');
+  await closeDrawer();
+
   // ---- the collections ladder (handbook §14)
   const lad = k => page.evaluate(k => { const l = ladFor(S.byKey.get(k)); return l && JSON.parse(JSON.stringify({ due: l.due && l.due.id, done: Object.keys(l.done), signed: Object.keys(l.signed), asked: l.asked, hold: !!l.hold, paused: l.paused, fin: !!l.fin })); }, k);
   const dueKey = (step, extra) => page.evaluate(([st, x]) => { const a = ladDueAccts().find(a => { const l = ladFor(a); return l.due.id === st && (x !== 'asked' || l.asked === st) && (x !== 'free' || (!l.asked && !l.signed[st])); }); return a && a.key; }, [step, extra || '']);
@@ -321,8 +439,8 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await page.evaluate(() => { B.me.role = 'owner'; }); await closeDrawer();
   // a broken arrangement: Letter #8 comes due
   const kp = await S_(() => { const a = S.accts.find(a => { const l = ladFor(a); return l && l.paused === 'plan'; }); return a && a.key; });
-  await page.evaluate(k => openDrawer(k), kp); await page.waitForSelector('#drawer .ladSec .notice.info [data-act=ladAA]');
-  await page.click('#drawer .ladSec [data-act=ladAA]'); await page.click('#cbYes'); await page.waitForTimeout(250);
+  await page.evaluate(k => openDrawer(k), kp); await page.waitForSelector('#drawer .aaSec [data-act=ladAA]');
+  await page.click('#drawer .aaSec [data-act=ladAA]'); await page.click('#cbYes'); await page.waitForTimeout(250);
   ok((await lad(kp)).due === 'aa' && (await itemOf(kp)).stage === 'working', 'a payment plan broken: Letter #8 (off the ladder) is due');
   await closeDrawer();
   // the last step: 30 days after Letter #7 — write it off
@@ -636,6 +754,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
     await pl.evaluate(() => localStorage.setItem('nloAR.focus', '0'));
     r = await open('#settings'); ok(r.view === 'today' && !r.focus, 'anything else (#settings) opens Today');
     r = await open('#pd'); ok(r.view === 'pd', '#pd opens Past due');
+    r = await open('#aa'); ok(r.view === 'pd' && await pl.evaluate(() => S.tab.pd === 'aa' && !!document.querySelector('#view .aaSum')), '#aa opens Past due → Arrangements');
     await pl.click('[data-act=lock] >> nth=0'); await pl.waitForSelector('#loginForm'); await pl.click('#lgBtn'); await pl.waitForFunction(() => S.arState === 'ok' && S.rep, null, { timeout: 15000 });
     ok(await pl.evaluate(() => S.view) === 'today', 'after Lock and signing in again: Today, as usual');
     await lc.close();
@@ -669,6 +788,14 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await p2.click('#mnav-pd'); await p2.click('#view tbody tr >> nth=0'); await p2.waitForSelector('#drawer .ladNow');
   await p2.screenshot({ path: path.join(SHOTS, 'phone-drawer.png'), fullPage: false });
   ok(await p2.$eval('#drawer', e => e.getBoundingClientRect().width <= window.innerWidth), 'phone: the account panel fits');
+  await p2.click('#drawer [data-act=closeDrawer]');
+  await p2.click('[data-act=tab][data-t=aa]'); await p2.waitForSelector('#view .aaSum');
+  await p2.screenshot({ path: path.join(SHOTS, 'phone-aa.png'), fullPage: true });
+  ok(await wide() <= 0 && await p2.$$eval('#view tbody tr', r => r.length) === 7, 'phone: Past due → Arrangements fits (7)');
+  await p2.click('#view tbody tr >> nth=0'); await p2.waitForSelector('#drawer .aaBox');
+  await p2.evaluate(() => document.querySelector('#drawer .aaSec').scrollIntoView({ block: 'start' }));
+  await p2.screenshot({ path: path.join(SHOTS, 'phone-aa-panel.png'), fullPage: false });
+  ok(await p2.$eval('#drawer .aaBox', e => e.getBoundingClientRect().right <= window.innerWidth + 1) && await p2.$$eval('#drawer .aaBox .btn', b => b.every(x => x.getBoundingClientRect().right <= window.innerWidth + 1)), 'phone: an arrangement’s box fits');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ':\n    ' + errs.join('\n    ') : ''));
   await browser.close();

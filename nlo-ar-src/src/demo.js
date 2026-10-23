@@ -133,7 +133,7 @@ const DEMO = {
 
     // accounts as they are in the newest report (days past due), and the weeks they're in a report at all
     const A = [];
-    const add = (o) => { const pat = person(), last = pat.split(' ')[1]; A.push(Object.assign({ patient: pat, rpName: (rnd() < 0.15 ? 'Mr. ' : rnd() < 0.15 ? 'Mrs. ' : '') + pick(PARENT) + ' ' + last, home: phone(), work: rnd() < 0.08 ? phone() : '', from: 0, to: W - 1, note: '' }, o)); };
+    const add = (o) => { const pat = person(), last = pat.split(' ')[1], x = Object.assign({ patient: pat, rpName: (rnd() < 0.15 ? 'Mr. ' : rnd() < 0.15 ? 'Mrs. ' : '') + pick(PARENT) + ' ' + last, home: phone(), work: rnd() < 0.08 ? phone() : '', from: 0, to: W - 1, note: '' }, o); A.push(x); return x; };
     // patients: 91+, 31–90, 0–30 (some written-off-sized), one inactive
     [420, 310, 255, 214, 188, 172, 160, 151, 139, 128, 117, 109, 101, 96].forEach((d, i) => add({ src: 'pt', days: d, m: pick([150, 175, 199, 225, 250, 275, 300]), sts: i % 6 === 5 ? 'Inactive' : pick(PT_STS), rem: int(3, 20) }));
     [131, 97].forEach(d => add({ src: 'pt', days: d, m: pick([35, 45]), sts: 'Retention', rem: int(1, 4) }));
@@ -149,12 +149,21 @@ const DEMO = {
     [[85, 40, 'A-Comp Bra'], [240, 1290, 'Inactive'], [1150, 1460, 'Inactive'], [62.5, 410, 'Retention'], [310, 220, 'Inactive'], [37.75, 65, 'A-Comp Inv'],
       [450, 18, 'Start Sche'], [900, 33, 'Start Sche'], [128, 820, 'RET ONLY'], [199, 12, 'A-Comp Bra', 5], [75, 30, 'A-Comp NLA', 4], [260, 150, 'A-Comp Bra', 0, 4], [44.44, 95, 'A-Comp Bra', 0, 5, true], [512, 1180, 'Inactive', 0, 5, true]]
       .forEach(([amt, age, sts, from, to, ins]) => add({ src: ins ? 'ins' : 'pt', credit: amt, age, sts, from: from || 0, to: to == null ? W - 1 : to }));
+    // OrthoBanc's drafting days (the Altered Arrangement form's "Payments Due On"): the first one on or after a day, the last one on or before it
+    const obOnOrAfter = iso => { let d = iso; while (!AA_DAYS.includes(Number(d.slice(8)))) d = addDays(d, 1); return d; };
+    const obOnOrBefore = iso => { let d = iso; while (!AA_DAYS.includes(Number(d.slice(8)))) d = addDays(d, -1); return d; };
+    // on an Alternative Arrangement made two days after the third report, and current in Edge since (the import keeps such accounts):
+    // its balance and its last payment — $199 a month for 10 months, the first one on the first drafting day at least three days after
+    // it was made (added last, so the made-up names and amounts above stay as they were)
+    const aaMade = addDays(asOfW(2), 2), aaStart = obOnOrAfter(addDays(aaMade, 3)), aaT = { pay: 199, n: 10, start: aaStart, day: Number(aaStart.slice(8)), down: 199 };
+    const aaCur = add({ src: 'pt', m: 199, sts: 'A-Comp Bra', rem: 9, from: 3, aaCur: { made: aaMade, t: aaT, pays: Array.from({ length: 10 }, (_, i) => aaPayDate(aaT, i + 1)) } });
 
     const rowAt = (a, w) => {
       if (w < a.from || w > a.to) return null;
       const asOf = asOfW(w), back = 7 * (W - 1 - w), rp = (a.src === 'ins' ? 'INS: ' : '') + a.rpName;
       const base = { patient: a.patient, sts: a.sts, rp, home: a.home, work: a.work, note: '' };
       if (a.credit) return Object.assign(base, { due: -a.credit, b0: 0, b30: 0, b60: 0, b90: 0, days: 0, bal: -a.credit, lastAmt: round2(a.credit + (a.src === 'ins' ? 0 : 150)), recv: addDays(latest, -a.age) });
+      if (a.aaCur) { const paid = a.aaCur.pays.filter(d => d <= asOf); return Object.assign(base, { due: 0, b0: 0, b30: 0, b60: 0, b90: 0, days: 0, bal: round2(a.m * (a.rem + 1 - paid.length)), lastAmt: a.m, recv: paid.length ? paid[paid.length - 1] : a.aaCur.made }); }
       const d = a.days - back; if (d <= 0) return null;
       // one instalment missed every 30 days; an unpaid claim (partly paid insurance) sits in the oldest bucket
       const n = Math.ceil(d / 30), m = a.m, x = a.extra || 0;
@@ -166,11 +175,12 @@ const DEMO = {
     for (let w = 0; w < W; w++) {
       const asOf = asOfW(w), rows = A.map(a => rowAt(a, w)).filter(Boolean).map(r => Object.assign(r, { key: acctKey(r) }));
       const pt = rows.filter(r => !isIns(r)), ins = rows.filter(isIns), sum = (l, k) => round2(l.reduce((t, r) => t + (Number(r[k]) || 0), 0));
-      // the accounts that are paid up (not in the saved rows) add to the book's totals; act = not Inactive (the goals' "active accounts")
-      const act = l => l.filter(r => !isInactive(r)).length;
-      const book = { n: rows.length + 560 + w, bal: round2(sum(rows, 'bal') + 1201250 - w * 1830), due: sum(rows, 'due'), pt: { n: pt.length + 380, bal: round2(sum(pt, 'bal') + 919400 - w * 1400), act: act(pt) + 380 }, ins: { n: ins.length + 180 + w, bal: round2(sum(ins, 'bal') + 281850 - w * 430), act: act(ins) + 180 + w } };
-      const rep = { asOf, cover: { full: true, pastDue: true, credit: true, ins: true }, book, rows, files: [{ name: 'AR Aging ' + asOf + '.xls', kind: 'xls', subgroup: '', options: 'Exclude Zero Dollar Balances', edge: 'Edge', n: rows.length + 560, ok: true }], made: atDay(asOf, 8, 40) };
-      DEMO.reports.push({ meta: { id: 'demo-r' + w, asOf, n: rows.length, at: Math.min(Date.now() - 40 * 60000, atDay(asOf, 8, 52 + w)), by: 'u-jamie', sid: 'jamie', v: 1, sum: reportTotals(rep, cfg, w ? DEMO.reports[w - 1].data : null), locked: false }, data: rep });
+      // the accounts that are paid up (not in the saved rows) add to the book's totals; act = not Inactive (the goals' "active accounts");
+      // a current account kept in the rows (an Alternative Arrangement) is one of those, so the totals stay the same
+      const act = l => l.filter(r => !isInactive(r)).length, cur = pt.filter(r => pastDueOf(r) <= 0 && creditOf(r) <= 0), nCur = cur.length, curBal = sum(cur, 'bal');
+      const book = { n: rows.length + 560 + w - nCur, bal: round2(sum(rows, 'bal') + 1201250 - w * 1830 - curBal), due: sum(rows, 'due'), pt: { n: pt.length + 380 - nCur, bal: round2(sum(pt, 'bal') + 919400 - w * 1400 - curBal), act: act(pt) + 380 - nCur }, ins: { n: ins.length + 180 + w, bal: round2(sum(ins, 'bal') + 281850 - w * 430), act: act(ins) + 180 + w } };
+      const rep = { asOf, cover: { full: true, pastDue: true, credit: true, ins: true }, book, rows, files: [{ name: 'AR Aging ' + asOf + '.xls', kind: 'xls', subgroup: '', options: 'Exclude Zero Dollar Balances', edge: 'Edge', n: rows.length + 560 - nCur, ok: true }], made: atDay(asOf, 8, 40), aaKeep: true };
+      DEMO.reports.push({ meta: { id: 'demo-r' + w, asOf, n: rows.length - nCur, at: Math.min(Date.now() - 40 * 60000, atDay(asOf, 8, 52 + w)), by: 'u-jamie', sid: 'jamie', v: 1, sum: reportTotals(rep, cfg, w ? DEMO.reports[w - 1].data : null), locked: false }, data: rep });
     }
 
     /* accounts being worked — logged the way the app logs them */
@@ -194,6 +204,8 @@ const DEMO = {
         else if (k === 'sign') { signStep(it, o.step, { by: who }, at); act = { a: 'drAok', step: o.step }; }
         else if (k === 'hold') { holdLog(it, o.on !== false, { by: who }, at); act = { a: 'mhold', on: o.on !== false }; }
         else if (k === 'aa') { breakArrangement(it, { by: who, note: o && o.note || '' }, at); act = { a: 'aa' }; }
+        // a task imported from Edge's task list ("AA MADE …" puts the account on an Alternative Arrangement)
+        else if (k === 'et') { edgeTasksApply(it, [Object.assign({ id: taskId(o), op: 'Jamie' }, o)], { by: who, today: isoOf(new Date(at)), aa: true }, at); act = { a: 'edgetask', n: 1 }; }
         else applyLog(it, k, Object.assign({ by: who }, o || {}), at);
         rev++; DEMO.logs.push(Object.assign({ itemId: id, rev, at, sid: who }, act));
       }
@@ -232,7 +244,7 @@ const DEMO = {
     const dNow = a => ladDays(a, latestRep.asOf, t);
     const on = (a, x, h, mi) => ago(Math.max(0, dNow(a) - x), h || 10, mi || 0); // the day the account was x days past due
     const L = (a, x, step, o) => ['lad', on(a, x, 10, 20), 'jamie', Object.assign({ step }, o || {})];
-    const seed = async (a, steps) => { if (a) await make(a, 'jamie', steps(a)); };
+    const seed = async (a, steps, after) => { if (a) await make(a, 'jamie', steps(a), after); };
     // day 47: the first text, letters #1 and #2 went out — #3 and the call are due
     await seed(pt(47), a => [L(a, 1, 'd0'), L(a, 15, 'l1'), L(a, 31, 'l2')]);
     // day 64: up to #3 — Letter #4 (Dr. A signs) and Maintenance Hold are due
@@ -243,9 +255,9 @@ const DEMO = {
     // day 101: on hold, Letter #5 went certified — #6 (the bridge letter) is due
     await seed(pt(101), a => [L(a, 15, 'l1'), L(a, 31, 'l2'), L(a, 46, 'l3'), ['sign', on(a, 60, 15), 'amir', { step: 'l4' }], L(a, 61, 'l4'), ['hold', on(a, 61, 11), 'jamie', {}],
       L(a, 75, 'c75'), ['sign', on(a, 90, 15), 'amir', { step: 'l5' }], L(a, 91, 'l5', { note: 'Certified #9407 1000 0000 0000 0000 01' })]);
-    // day 82: a payment plan (an Alternative Arrangement) at day 78 — paused, still on hold until its first payment
+    // day 82: an Alternative Arrangement made at day 78 — paused, still on hold until its first payment (the 12th, coming up)
     await seed(pt(82), a => [L(a, 15, 'l1'), L(a, 30, 'l2'), L(a, 45, 'l3'), ['sign', on(a, 60, 15), 'amir', { step: 'l4' }], L(a, 61, 'l4'), ['hold', on(a, 61, 11), 'jamie', {}],
-      L(a, 75, 'c75'), ['pt_plan', on(a, 78, 14), 'jamie', { note: 'New contract: $175 on the 15th' }]]);
+      L(a, 75, 'c75'), ['pt_plan', on(a, 78, 14), 'jamie', { note: 'Altered Arrangement signed', aa: { pay: 175, n: 10, start: addDays(t, 2), day: 12, down: 175 } }]]);
     // day 69: the arrangement made at day 40 was broken — Letter #8 is due
     await seed(pt(69), a => [L(a, 15, 'l1'), L(a, 31, 'l2'), ['pt_plan', on(a, 40, 11), 'jamie', { note: 'Alternative Arrangement signed' }], ['aa', on(a, 67, 10), 'jamie', { note: 'Second payment bounced' }]]);
     // day 139: Letter #7 went out 18 days ago — in the 30 days for appliance removal and emergencies
@@ -254,6 +266,28 @@ const DEMO = {
     await seed(pt(160) || pt(151) || pt(188), a => [['sign', on(a, a.days - 38, 9), 'amir', { step: 'l7' }], L(a, a.days - 38, 'l7', { note: 'Certified #9407 1000 0000 0000 0000 03' })]);
     // day 15: texted on day 1 — Letter #1 is due
     await seed(pt(15), a => [L(a, 1, 'd0')]);
+
+    /* Alternative Arrangements (Past due → Arrangements), besides the two above (made at day 78; broken at day 67) — each dated
+       from the newest report, so the demo reads the same on any day. Their follow-ups are a few days ahead. */
+    const asOf5 = latestRep.asOf, dayOf = iso => Number(iso.slice(8)), soon = () => nextOfficeDay(addDays(t, 3));
+    // day 58: made 25 days before the report; its first payment (the last drafting day at least 3 days before the report) isn't on it —
+    // Edge's last payment is older
+    const aaMissOn = obOnOrBefore(addDays(asOf5, -AA_LOOK)), aaMiss = { pay: 150, n: 12, start: aaMissOn, day: dayOf(aaMissOn) };
+    await seed(pt(58), a => [L(a, 15, 'l1'), L(a, 31, 'l2'), ['pt_plan', on(a, 33, 15), 'jamie', { note: 'Altered Arrangement signed', aa: aaMiss }]], it => { it.follow = soon(); });
+    // day 43: made before OrthoBanc's last failed-payment report, whose list has its first draft (the drafting day before it; failed) —
+    // see the OrthoBanc lists below
+    const aaObAcct = pt(43), obC0 = obCycle(todayISO()), obDay = obC0.prev ? obC0.prev.date : addDays(asOf5, -9), aaObOn = obOnOrBefore(addDays(obDay, -1));
+    const aaOb = { pay: 199, n: 12, start: aaObOn, day: dayOf(aaObOn) };
+    await seed(aaObAcct, a => [['pt_plan', Math.min(now - 3600000, atDay(addDays(obDay, -20), 11, 30)), 'jamie', { note: 'Altered Arrangement signed', aa: aaOb }]], it => { it.follow = soon(); });
+    // day 6: made 40 days before the report and current in the one before — past due again in this one
+    { const d2 = obOnOrAfter(addDays(asOf5, -36)), aaAgain = { pay: 175, n: 10, start: d2, day: dayOf(d2) };
+      await seed(pt(6), a => [['pt_plan', Math.min(now - 3600000, atDay(addDays(asOf5, -40), 15, 10)), 'taylor', { note: 'Altered Arrangement signed', aa: aaAgain }]], it => { it.follow = soon(); }); }
+    // day 38: an "AA MADE" task imported from Edge — on an arrangement, its terms not recorded in A/R
+    await seed(pt(38), a => [['et', ago(14, 8, 40), 'jamie', { title: 'AA MADE - ' + a.patient, due: addDays(t, 6), desc: 'AA MADE: $45.00 every other Friday' }]]);
+    // current in Edge since its arrangement: its first payment confirmed in A/R
+    const cur = accts.find(a => a.patient === aaCur.patient);
+    if (cur) await make(cur, 'taylor', [['pt_plan', Math.min(now - 3600000, atDay(aaCur.aaCur.made, 14, 5)), 'taylor', { note: 'Altered Arrangement signed', aa: aaCur.aaCur.t }],
+      ['aa_ok', Math.min(now - 3500000, atDay(addDays(aaCur.aaCur.t.start, 2), 9, 30)), 'taylor', { note: 'First payment posted' }]]);
 
     /* insurance carriers (made-up names, 555 numbers): most insurance accounts have theirs; a few are left for the FC to set */
     const book = emptyBook();
@@ -276,7 +310,9 @@ const DEMO = {
       const pts = accts.filter(a => !a.ins && a.pd > 0 && !a.inactive), plain = a => rpName(a).replace(/^(mr|mrs|ms|dr)\.?\s+/i, '');
       const rows = [pts[2], pts[9]].filter(Boolean).map((a, i) => ({ ref: 'ob9000000' + (i + 1), acct: String(10401 + i), patient: a.patient, rp: plain(a), status: 'FAIL', amt: i ? 199 : 175, bal: i ? 1990 : 1400,
         reason: i ? 'Credit Card - Declined' : 'Credit Card - Declined Insufficient Funds', date: addDays(day, -3), how: 'Pmt', hold: i === 1 }))
-        .concat([{ ref: 'ob90000009', acct: '10499', patient: 'Imaginary Zzyzx', rp: 'Pat Zzyzx', status: 'FAIL', amt: 150, bal: 900, reason: 'Credit Card - Card Number Error', date: addDays(day, -3), how: 'OnLine Pmt', hold: false }]);
+        .concat([{ ref: 'ob90000009', acct: '10499', patient: 'Imaginary Zzyzx', rp: 'Pat Zzyzx', status: 'FAIL', amt: 150, bal: 900, reason: 'Credit Card - Card Number Error', date: addDays(day, -3), how: 'OnLine Pmt', hold: false }])
+        // the first draft of the arrangement made at day 43 (above)
+        .concat(aaObAcct ? [{ ref: 'ob90000012', acct: '10412', patient: aaObAcct.patient, rp: plain(aaObAcct), status: 'FAIL', amt: 199, bal: 2388, reason: 'Credit Card - Declined Insufficient Funds', date: aaOb.start, how: 'Pmt', hold: false }] : []);
       const rec = emptyOBRep(day);
       obImport(rec, { asOf: day, rows, name: 'FailedTransactions.xls' }, { day, by: 'jamie' }, t1);
       obTick(rec, rec.rows.map(obRowId), true, { by: 'jamie' }, t2);

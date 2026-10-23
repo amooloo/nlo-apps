@@ -5,7 +5,7 @@
    ===================================================================== */
 const S = {
   demo: false, emu: false, tour: '', inApp: false, arState: '', view: 'today', q: '',
-  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladVer: 0,
+  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', ladVer: 0,
   settings: { idleMin: 10 }, cfg: arCfg({}), roster: [], team: [],
   reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
   items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {},
@@ -52,6 +52,7 @@ const IC = {
   sign: '<path d="M4 19.5h16"/><path d="M14.5 4.5l3 3-8.5 8.5H6v-3z"/>',
   ladder: '<path d="M7 3.5v17M17 3.5v17M7 7.5h10M7 12h10M7 16.5h10"/>',
   pause: '<circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/>',
+  plan: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17.3h2M11 17.3h2"/>',
   tour: '<circle cx="12" cy="12" r="8.5"/><path d="M10.3 8.7l5 3.3-5 3.3z"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
@@ -78,7 +79,7 @@ function errText(e) {
   if (/boot-stale/.test(c)) return 'This invite expired after a security update. Ask Dr. A to reissue your login.';
   if (/bad-code/.test(c)) return 'That recovery code didn’t work. Check it and try again.';
   if (/no-escrow/.test(c)) return 'There’s no recovery copy of the A/R key to restore from.';
-  if (/need-date|need-note|bad-date|no-pub|too-big|not-ar|bad-file|pdf|step-done/.test(c)) return (e && e.message) || 'Check that and try again.';
+  if (/need-date|need-note|need-terms|bad-date|no-pub|too-big|not-ar|bad-file|pdf|step-done/.test(c)) return (e && e.message) || 'Check that and try again.';
   if (/nothing-to-undo/.test(c)) return 'Nothing to undo.';
   if (/permission/.test(c)) return 'Not allowed. Your access may have changed.';
   if (/gone/.test(c)) return 'That no longer exists.';
@@ -88,8 +89,8 @@ function errText(e) {
 
 /* ---------- boot ---------- */
 /* a link can open A/R on one screen — the FC's checklist in CADANCe links here: nlo-ar.html#today, #focus (Today in Focus
-   mode), #pd, #ins, #cr, #sum or #reports. Used once, after signing in; anything else opens Today. */
-const START_VIEWS = ['today', 'focus', 'pd', 'ins', 'cr', 'sum', 'reports'];
+   mode), #pd, #aa (Past due → Arrangements), #ins, #cr, #sum or #reports. Used once, after signing in; anything else opens Today. */
+const START_VIEWS = ['today', 'focus', 'pd', 'aa', 'ins', 'cr', 'sum', 'reports'];
 function startView(hash) { const v = String(hash || '').replace(/^#/, '').toLowerCase(); return START_VIEWS.includes(v) ? v : ''; }
 /* leaving the page: nothing from A/R stays in the page the browser may keep for Back; coming back to it starts over */
 window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
@@ -217,13 +218,14 @@ async function enterApp() {
   const sv = S.startView; S.startView = ''; // a link's screen (see startView), this once — after Lock it's Today again
   if (sv === 'focus') { try { localStorage.setItem('nloAR.focus', '1'); } catch (e) { } } // same as tapping Focus mode
   Object.assign(S, {
-    inApp: true, arState: 'opening', view: sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
+    inApp: true, arState: 'opening', view: sv === 'aa' ? 'pd' : sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', ladMemo: null, aaMemo: null,
     book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: sv === 'focus' || focusPref(),
     obReps: new Map(), obVer: 0, obPend: {}, obSrv: {}, obImp: null, obIdx: null,
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
   });
+  if (sv === 'aa') S.tab.pd = 'aa';
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   clearInterval(S.idleTimer);
@@ -310,6 +312,7 @@ async function loadLatest() {
 }
 function derive() {
   S.accts = reportAccts(S.rep, S.cfg); S.byKey = new Map(S.accts.map(a => [a.key, a]));
+  S.prevByKey = S.prev ? new Map(reportAccts(S.prev, S.cfg).map(a => [a.key, a])) : null; // the report before, by account (the Arrangements tab compares the two)
   S.diff = S.rep && S.prev ? diffReports(S.rep, S.prev, S.cfg) : null; S.summ = null; S.ladVer++;
 }
 function indexItems() { S.itemByKey = new Map(); S.items.forEach(it => { if (it.key && !it.locked) S.itemByKey.set(it.key, it); }); S.ladVer++; }
@@ -377,6 +380,40 @@ function ladAll() {
 }
 function ladFor(a) { return a ? ladAll().get(a.key) || null : null; }
 function ladDueAccts() { return S.accts.filter(a => { const l = ladFor(a); return l && l.due; }); }
+
+/* ---------- Alternative Arrangements: every open account on one (and a broken one until it's resolved), worked out once per change ---------- */
+function aaAll() {
+  const t = todayISO(), mk = S.ladVer + '|' + S.obVer + '|' + S.repId + '|' + S.prevId + '|' + t;
+  if (S.aaMemo && S.aaMemo.k === mk) return S.aaMemo.m;
+  const m = new Map(), rep = S.rep, pd = !!(rep && rep.cover.pastDue);
+  // the newest report's date only when it has the past-due accounts in it (one run for credit balances alone says nothing about them)
+  const asOf = pd ? rep.asOf : '', full = pd && rep.cover.full && rep.aaKeep === true, cmp = pd && S.prev && S.prev.cover.pastDue ? S.prev.asOf : '';
+  const recs = openItems().filter(it => it.key && it.src !== 'ins' && (it.stage === 'plan' || (it.log || []).some(e => e.k === 'aa_broken')));
+  if (recs.length) {
+    // OrthoBanc's failed drafts of the last 120 days, as the account's panel shows them (obIndex); an account that isn't on the report
+    // (current in Edge, from a report run before they were kept) is matched among those alone, with the drafts nobody else has
+    const idx = obIndex(), off = recs.filter(it => !S.byKey.has(it.key)), ob = new Map();
+    if (off.length && S.obReps && S.obReps.size) {
+      const used = new Set(), since = addDays(t, -120), cands = off.map(it => ({ key: it.key, patient: it.name, rp: it.rp, ins: false, pd: 0 }));
+      idx.forEach(l => l.forEach(h => used.add(h.row)));
+      Array.from(S.obReps.values()).filter(r => r.day >= since).sort((x, y) => y.day.localeCompare(x.day)).forEach(r => r.rows.forEach(row => {
+        if (used.has(row)) return; const a = obMatch(cands, row); if (!a) return;
+        if (!ob.has(a.key)) ob.set(a.key, []); ob.get(a.key).push({ day: r.day, row });
+      }));
+    }
+    recs.forEach(it => {
+      const a = S.byKey.get(it.key) || null, p = cmp && S.prevByKey ? S.prevByKey.get(it.key) || null : null;
+      const st = aaState(it, a, p, { asOf, prevAsOf: cmp, full, today: t, ob: (a ? idx.get(it.key) : ob.get(it.key)) || [], lad: a ? ladFor(a) : null });
+      if (st) m.set(it.key, { it, a, st });
+    });
+  }
+  S.aaMemo = { k: mk, m };
+  return m;
+}
+function aaFor(key) { return key ? aaAll().get(key) || null : null; }
+/* the keys to keep on the next import even when they're current (buildReport's opts.keep): every account on Past due → Arrangements
+   (on one, or a broken one not resolved yet) */
+function aaKeepKeys() { return new Set(aaAll().keys()); }
 function curRepMeta() { return S.reports.find(r => r.id === S.repId) || null; }
 
 /* ---------- owner upkeep: logins reissued since, the recovery copy, anything under an older A/R key ---------- */
@@ -416,6 +453,8 @@ function matchesQ(a) {
 /* an open account record whose account isn't past due / in credit any more in the latest report (paid or fixed in Edge) */
 function isCleared(it) {
   if (!S.rep || it.state !== 'open') return false;
+  // on an Alternative Arrangement (or a broken one): not past due is how it should be — it stays on Past due → Arrangements
+  if (it.stage === 'plan' || aaFor(it.key)) return false;
   const a = S.byKey.get(it.key);
   if (it.src === 'ins' && !S.rep.cover.ins) return false;
   if (it.kind === 'cr') return S.rep.cover.credit && !(a && a.credit > 0);
@@ -601,10 +640,10 @@ Object.assign(ACT, {
     if (S.view === 'reports' && v !== 'reports' && S.imp && S.imp.files && S.imp.files.length && !confirm('Leave without saving this report?')) return;
     if (v !== 'reports') S.imp = null;
     S.view = v; if (t.dataset.tab) S.tab[v] = t.dataset.tab;
-    S.f = { src: '', work: '', who: '', car: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || '';
+    S.f = { src: '', work: '', who: '', car: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || ''; S.aaSub = t.dataset.sub || '';
     closeDrawer(true); renderNav(); renderView(); window.scrollTo(0, 0);
   },
-  tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; renderView(); },
+  tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; S.aaSub = ''; renderView(); },
   clearF() { S.f = { src: '', work: '', who: '', car: '' }; renderView(); },
   sort(t) { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : (t.dataset.d === 'asc' ? 1 : -1) }; renderView(); },
   open(t) { openDrawer(t.dataset.key); },
@@ -638,4 +677,4 @@ function onChange(e) {
   if (t.dataset && t.dataset.f) { S.f[t.dataset.f] = t.value; renderView(); return; }
   if (t.dataset && t.dataset.chg && CHG[t.dataset.chg]) CHG[t.dataset.chg](t, e);
 }
-function onInput(e) { if (e.target.id === 'q') { S.q = e.target.value; renderView(); } }
+function onInput(e) { if (e.target.id === 'q') { S.q = e.target.value; renderView(); } else if (e.target.closest && e.target.closest('.aaForm')) aaPreview(); }
