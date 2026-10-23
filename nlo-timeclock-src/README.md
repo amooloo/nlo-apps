@@ -62,6 +62,14 @@ clock … that sends me and multiple people alerts when someone is getting close
   the flags their days had. Hours worked only (paid holidays are on Payroll); weeks before the time clock's first punch
   aren't counted (no zeros for them). Read when the page opens (`B.loadRange`, the same reads as Payroll) and on "read
   again".
+- **The hours emails as tables** (Amir, 23 Oct 2026: "make the body of the emails that come through for summary of the
+  hours look more clean and organized, like an actual table or chart"): the payroll numbers, the daily summary and the
+  time cards carry `html` (alert script version 6), sent as the email's page beside its words (`htmlBody`; the words
+  stay for anything that can't show a page, and the phone push only ever has the words). A table with a navy header:
+  each person (a small bar of their hours under the name — regular navy, overtime coral, holiday light blue — and the
+  overtime weeks, or "Salaried"), then Regular / Overtime / (Holiday) / Total, the totals underneath (as on Payroll);
+  the daily summary: Today and This week, the bar out of 40 h, where each person is now. Notes in coloured boxes (fix
+  these first, flagged today, waiting for a manager, holidays). Inline styles only (Gmail, phones); 390 px wide fits.
 - **Each pay period's time cards kept, automatically** (Amir, 10 Oct 2026: "I definitely want to keep the data for at
   least 2 years. I would love to make this automated so I don't have to"): the morning after a pay period ends (7 AM,
   never before 8 PM on its payroll Friday), the alert script emails the period's time cards as the Payroll page's two
@@ -249,7 +257,7 @@ Corrections a manager makes never alert (early/offday/home only fire for real pu
 already asked for doesn't alert (their request does). Someone salaried gets only the missing-punch alerts.
 
 ## Build status (23 Oct 2026, afternoon: payroll totals, paid holidays, Reports)
-- Passing: unit 153, rules 454, alert script 103 (version 5), end to end 111, demo click-through 162 (the office check's
+- Passing: unit 153, rules 454, alert script 109 (version 6: the emails as tables), end to end 111, demo click-through 162 (the office check's
   suite not run: nothing there changed). The rules change only adds `meta/tcHol` and `meta/rules_tc_4`; NLO Cases, A/R,
   Inventory and Time Off rebuilt for the embedded rules copy (each rebuilt page = the published one with only the new
   rules and its script hash; Time Off's copy had been from before the Tray Maker's queue, 19 Oct).

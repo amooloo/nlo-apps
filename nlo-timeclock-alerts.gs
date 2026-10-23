@@ -552,7 +552,7 @@ const TCE = (() => {
   };
 })();
 
-var VERSION = '5';
+var VERSION = '6';
 var CONFIG = /*TC_CONFIG*/null; // filled in by NLO Time Clock when you copy the script (Time Clock → Alerts → Get the script)
 
 // where each kind of alert goes when Dr. A hasn't picked: 1 = email, 2 = phone push, 3 = both, 0 = not sent
@@ -841,7 +841,7 @@ function payroll_(cfg, s, office, set, P, F, asks, pay, now, mail) {
   const px = mail ? paychexIds_(cfg, s) : null, pxIn = [], pxNoId = [], pxOpen = [];
   // paid holidays (Payroll → Holidays): their hours go to everyone paid by the hour with time in the period
   const hol = holidays_(cfg, s), hd = hol && hol.days ? TCE.holidaysIn(hol.days, a, z) : [];
-  const lines = [], fix = [];
+  const lines = [], fix = [], rowsH = [];
   const word = { 'missing-out': 'no clock-out', 'no-return': 'never back from lunch', 'no-in': 'no clock-in', 'lunch-out': 'clocked out from lunch (no Back)' };
   // everyone on the clock, and anyone else with time in the period (someone who left, or was taken off the clock)
   (office.all || office.people).forEach(p => {
@@ -861,9 +861,11 @@ function payroll_(cfg, s, office, set, P, F, asks, pay, now, mail) {
     }
     const hms = hd.length ? TCE.holidayMs(hol.days, a, z, staff.sal, tot) : 0;
     // (in all: regular, overtime and holiday as entered — each to the hundredth — added up, as the Payroll page shows it)
+    const otWeeks = pp.ot ? pp.weeks.filter(x => x.ot > 0).map(x => TCE.hText(x.ot) + ' the week of ' + TCE.dayText(x.wkIso)) : [];
     lines.push(staff.sal ? who + ' (salaried) — ' + TCE.hText(tot) + ', for the record'
       : who + ' — ' + TCE.hText(pp.reg) + ' regular, ' + TCE.hText(pp.ot) + ' overtime' + (hd.length ? ', ' + TCE.hText(hms) + ' holiday' : '') + ' (' + hSum_([pp.reg, pp.ot, hms]) + ' in all)' +
-        (pp.ot ? ': ' + pp.weeks.filter(x => x.ot > 0).map(x => TCE.hText(x.ot) + ' the week of ' + TCE.dayText(x.wkIso)).join(', ') : ''));
+        (otWeeks.length ? ': ' + otWeeks.join(', ') : ''));
+    rowsH.push(staff.sal ? { who, sal: true, reg: tot, ot: 0, hol: 0, otWeeks: [] } : { who, sal: false, reg: pp.reg, ot: pp.ot, hol: hms, otWeeks });
   });
   const holText = hol && hol.err ? '\nThe holidays couldn’t be read this time (' + hol.err + '): see the Payroll page for any holiday hours.'
     : hd.length ? '\n' + (hd.length > 1 ? 'Holidays' : 'Holiday') + ' in this period: ' + hd.map(x => TCE.dayText(x.day) + (x.n ? ' (' + x.n + ')' : '') + ', ' + TCE.hText(Math.round(x.h * TCE.HOUR))).join('; ') +
@@ -891,7 +893,8 @@ function payroll_(cfg, s, office, set, P, F, asks, pay, now, mail) {
     (fix.length ? '\n\nFix these first (on the Now screen, or in Timesheets):\n' + fix.join('\n') : '') +
     '\n\nThese are the hours as of ' + TCE.timeText(now) + (to > now ? ' (the period ends ' + TCE.dayText(z) + ')' : '') + '. The Payroll page always has the latest numbers.' +
     (pxText ? '\n\n' + pxText : '');
-  const o = { key: 'payroll|' + a, type: 'payroll', sid: '', prio: 3, title: 'Payroll: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z), text };
+  const o = { key: 'payroll|' + a, type: 'payroll', sid: '', prio: 3, title: 'Payroll: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z), text,
+    html: payrollHtml_(a, z, rowsH, hd, hol, fix, now, to, pxText) };
   if (files) o.files = files;
   return o;
 }
@@ -1000,7 +1003,17 @@ function records_(cfg, s, props, office, set, P, F, asks, rec, now) {
     '• ' + name2 + ': every day: the punches, the hours, anything flagged, and each correction (who made it, when, and why)\n\n' +
     lines.join('\n') + '\n\n' +
     'Keep this email: it’s this pay period’s record. The Time Clock keeps every punch and correction too, and anything changed later shows there as a correction.';
-  return { key, type: 'payroll', sid: '', prio: 2, title: 'Time cards: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ' (for your records)', text, only: 1,
+  // the page: the same table as the payroll numbers (with what's still to check), then what's attached
+  const shown = rows.filter(r => r.pp.reg + r.pp.ot > 0 || r.issues.length);
+  const rowsH = shown.map(r => r.sal ? { who: r.name, sal: true, reg: r.pp.reg + r.pp.ot, ot: 0, hol: 0, otWeeks: [] }
+    : { who: r.name, sal: false, reg: r.pp.reg, ot: r.pp.ot, hol: r.hol, otWeeks: r.pp.weeks.filter(x => x.ot > 0).map(x => TCE.hText(x.ot) + ' the week of ' + TCE.dayText(x.wkIso)) });
+  const toCheck = shown.filter(r => r.issues.length).map(r => r.name + ': ' + r.issues.join('; '));
+  const html = p_('The time cards for the pay period <b>' + h_(TCE.dayText(a)) + ' – ' + h_(TCE.dayText(z)) + '</b>, as they stand ' + h_(TCE.dayText(TCE.dayOf(now))) + ' at ' + h_(TCE.timeText(now)) + '.') +
+    (rowsH.length ? payTbl_(rowsH, anyHol) : p_('Nobody had time in this pay period.')) + (toCheck.length ? box_('warn', 'Still to check', toCheck) : '') +
+    box_('', 'Attached', [name1 + ': each person’s regular' + (anyHol ? ', overtime and holiday' : ' and overtime') + ' hours (overtime is counted for each workweek)',
+      name2 + ': every day: the punches, the hours, anything flagged, and each correction (who made it, when, and why)']) +
+    p_('Keep this email: it’s this pay period’s record. The Time Clock keeps every punch and correction too, and anything changed later shows there as a correction.', 1);
+  return { key, type: 'payroll', sid: '', prio: 2, title: 'Time cards: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ' (for your records)', text, html, only: 1,
     files: [{ name: name1, text: csvOf_(totals) }, { name: name2, text: csvOf_(days) }] };
 }
 /* where a punch came from, as the Payroll page's spreadsheet says it */
@@ -1019,9 +1032,78 @@ function csvCell_(v) {
 }
 function csvOf_(rows) { return '\uFEFF' + rows.map(r => r.map(csvCell_).join(',')).join('\r\n') + '\r\n'; }
 
+/* ---------- the hours emails as a page (Amir, 23 Oct 2026: "make the body of the emails that come through for summary of
+   the hours look more clean and organized, like an actual table or chart") ----------
+   The payroll numbers, the daily summary and the time cards carry html: their body as tables, with a small bar for each
+   person's hours. The email has both: the page, and the words (text) for anything that can't show a page (and the phone
+   push, which only ever has the words). Inline styles only — what Gmail and phones keep. */
+var C_ = { navy: '#1B2F4C', navy5: '#5471A0', navyBg: '#E8ECF2', coral: '#D8412E', coralBar: '#FA624D', coralBg: '#FFE7E1', mint: '#1F9E7E',
+  blueBar: '#9DB8E8', blueBg: '#E5EAF8', blue: '#16318C', amber: '#8A5A00', amberBg: '#FEF2D7', grey: '#6B7685', line: '#ECEEF0', zebra: '#F7F8F9', track: '#ECEEF0' };
+function h_(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+var TD_ = 'padding:9px 8px;border-bottom:1px solid ' + C_.line + ';vertical-align:top;';
+function th_(t, right) { return '<th style="padding:9px 8px;text-align:' + (right ? 'right' : 'left') + ';font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#FFFFFF;background:' + C_.navy + '">' + t + '</th>'; }
+function td_(html, o) {
+  o = o || {};
+  return '<td style="' + TD_ + (o.right ? 'text-align:right;white-space:nowrap;' : '') + (o.bold ? 'font-weight:700;' : '') + (o.color ? 'color:' + o.color + ';' : '') + (o.bg ? 'background:' + o.bg + ';' : '') + (o.top ? 'border-top:2px solid ' + C_.navy + ';' : '') + (o.size ? 'font-size:' + o.size + ';' : '') + '">' + html + '</td>';
+}
+function tbl_(head, rows) {
+  return '<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;width:100%;font-size:14px;color:' + C_.navy + ';margin:6px 0 14px">' +
+    '<tr>' + head.join('') + '</tr>' + rows.join('') + '</table>';
+}
+/* a small bar for a person's hours: regular (navy), overtime (coral), holiday (light blue), out of max (ms) */
+function bar_(reg, ot, hol, max, w) {
+  w = w || 110;
+  const px = ms => Math.round(Math.max(0, ms) / max * w), segs = [[px(reg), C_.navy], [px(ot), C_.coralBar], [px(hol), C_.blueBar]].filter(x => x[0] > 0);
+  const used = segs.reduce((n, x) => n + x[0], 0);
+  if (used < w) segs.push([w - used, C_.track]);
+  return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:' + w + 'px"><tr>' +
+    segs.map(x => '<td width="' + x[0] + '" style="width:' + x[0] + 'px;height:10px;background:' + x[1] + ';font-size:0;line-height:0">&nbsp;</td>').join('') + '</tr></table>';
+}
+function box_(tone, title, items) {
+  const c = { bad: [C_.coral, C_.coralBg], warn: [C_.amber, C_.amberBg], info: [C_.blue, C_.blueBg] }[tone] || [C_.navy, C_.zebra];
+  return '<div style="background:' + c[1] + ';color:' + c[0] + ';border-radius:10px;padding:10px 14px;margin:8px 0 14px;font-size:14px">' + (title ? '<b>' + h_(title) + '</b>' : '') +
+    (items.length ? '<ul style="margin:6px 0 0;padding-left:18px">' + items.map(t => '<li style="margin:3px 0">' + h_(t) + '</li>').join('') + '</ul>' : '') + '</div>';
+}
+function p_(html, small) { return '<p style="margin:8px 0;font-size:' + (small ? '12.5px;color:' + C_.grey : '14px') + '">' + html + '</p>'; }
+function hh_(ms) { return h_(TCE.hText(ms)); }
+/* the payroll numbers as a table: each person's regular, overtime (and holiday) hours, Total = those as entered, added up;
+   then the totals — everyone, and (with someone salaried) the people paid by the hour: what goes into Paychex */
+function payTbl_(rows, showHol) {
+  const max = Math.max(80 * TCE.HOUR, ...rows.map(r => r.reg + r.ot + r.hol));
+  const head = [th_('Person'), th_('Regular', 1), th_('Overtime', 1)].concat(showHol ? [th_('Holiday', 1)] : []).concat([th_('Total', 1)]);
+  const body = rows.map((r, i) => {
+    const bg = i % 2 ? C_.zebra : '';
+    const sub = r.sal ? 'Salaried: for the record' : r.otWeeks.length ? 'Overtime: ' + r.otWeeks.join(', ') : '';
+    return '<tr>' + td_('<b>' + h_(r.who) + '</b><div style="margin-top:5px">' + bar_(r.reg, r.ot, r.hol, max, 110) + '</div>' +
+      (sub ? '<div style="font-size:12px;color:' + (r.sal ? C_.grey : C_.coral) + ';margin-top:4px">' + h_(sub) + '</div>' : ''), { bg }) +
+      td_(h_(hNum_(r.reg)), { right: 1, bg, color: r.sal ? C_.grey : '' }) +
+      td_(r.sal ? '—' : h_(hNum_(r.ot)), { right: 1, bg, color: r.sal ? C_.grey : r.ot > 0 ? C_.coral : '', bold: r.ot > 0 }) +
+      (showHol ? td_(r.sal ? '—' : h_(hNum_(r.hol)), { right: 1, bg, color: r.sal ? C_.grey : '' }) : '') +
+      td_(h_(hAdd_([r.reg, r.ot, r.hol])), { right: 1, bold: 1, bg, color: r.sal ? C_.grey : '' }) + '</tr>';
+  });
+  const sal = rows.filter(r => r.sal), hr = rows.filter(r => !r.sal);
+  const foot = (rs, label, note, first) => '<tr>' + td_('<b>' + h_(label) + '</b>' + (note ? '<div style="font-size:12px;color:' + C_.grey + ';font-weight:400;margin-top:2px">' + h_(note) + '</div>' : ''), { top: first, size: first ? '15px' : '13.5px' }) +
+    td_(h_(hAdd_(rs.map(r => r.reg))), { right: 1, bold: 1, top: first }) + td_(h_(hAdd_(rs.map(r => r.ot))), { right: 1, bold: 1, top: first, color: rs.some(r => r.ot > 0) ? C_.coral : '' }) +
+    (showHol ? td_(h_(hAdd_(rs.map(r => r.hol))), { right: 1, bold: 1, top: first }) : '') +
+    td_(h_(hAdd_(flat_(rs.map(r => [r.reg, r.ot, r.hol])))), { right: 1, bold: 1, top: first, size: first ? '15px' : '13.5px' }) + '</tr>';
+  if (rows.length) body.push(foot(rows, 'Total', sal.length ? 'Everyone, with ' + sal.map(r => r.who).join(', ') + ' (salaried)' : '', 1));
+  if (sal.length && hr.length) body.push(foot(hr, 'Hourly staff', 'What goes into Paychex', 0));
+  return tbl_(head, body);
+}
+function payrollHtml_(a, z, rows, hd, hol, fix, now, to, pxText) {
+  const showHol = hd.length > 0;
+  return p_('Pay period <b>' + h_(TCE.dayText(a)) + ' – ' + h_(TCE.dayText(z)) + '</b> · the hours to enter (overtime is counted for each workweek, then added up)') +
+    (hol && hol.err ? box_('warn', 'The holidays couldn’t be read this time (' + hol.err + '): see the Payroll page for any holiday hours.', []) : '') +
+    (showHol ? box_('info', (hd.length > 1 ? 'Holidays' : 'Holiday') + ' in this period: ' + hd.map(x => TCE.dayText(x.day) + (x.n ? ' (' + x.n + ')' : '') + ', ' + TCE.hText(Math.round(x.h * TCE.HOUR))).join('; '), ['Everyone paid by the hour with time in the period gets the holiday hours (never part of overtime).']) : '') +
+    (rows.length ? payTbl_(rows, showHol) : p_('Nobody has time in this period.')) +
+    (fix.length ? box_('bad', 'Fix these first (on the Now screen, or in Timesheets):', fix) : '') +
+    p_('These are the hours as of ' + h_(TCE.timeText(now)) + (to > now ? ' (the period ends ' + h_(TCE.dayText(z)) + ')' : '') + '. The Payroll page always has the latest numbers.', 1) +
+    (pxText ? p_(h_(pxText).replace(/\n/g, '<br>'), 1) : '');
+}
+
 /* the daily summary: each person who clocked in this week, then anything flagged today */
 function digest_(weeks, today, now, asks, names) {
-  const rows = [], flags = [];
+  const rows = [], flags = [], rowsH = [];
   weeks.forEach(x => {
     const w = x.w, n = x.p.name;
     if (!w.days.some(d => d.entries.some(e => !e.void))) return; // nobody to report: no punches this week
@@ -1030,6 +1112,7 @@ function digest_(weeks, today, now, asks, names) {
       : w.state === 'lunch' && w.since ? 'at lunch since ' + TCE.timeText(w.since)
         : w.since && TCE.dayOf(w.since) === today ? 'clocked out at ' + TCE.timeText(w.since) : 'not clocked in today';
     rows.push(n + (w.sal ? ' (salaried)' : '') + ' — today ' + TCE.hText(d.ms) + ' · week ' + TCE.hText(w.total) + ' · ' + state);
+    rowsH.push({ n, sal: w.sal, today: d.ms, week: w.total, reg: w.reg, ot: w.ot, limit: w.limit, state, now: w.clocked || w.state === 'lunch' });
     d.flags.forEach(f => {
       if (f.type === 'early') flags.push(n + ' clocked in early (' + TCE.timeText(f.e.t) + '; the earliest set is ' + TCE.hmText(f.limit) + ')' + (f.e.src === 'fix' ? ' — a correction' : ''));
       if (f.type === 'offday') flags.push(n + ' clocked in on a closed day');
@@ -1050,7 +1133,18 @@ function digest_(weeks, today, now, asks, names) {
   const waiting = (asks || []).map(r => names[r.sid] + ': ' + (TCE.reqText(r) || 'a note') + (r.note ? ' (“' + r.note + '”)' : '') + ' — asked ' + TCE.timeText(r.at) + ' ' + TCE.dayText(TCE.dayOf(r.at)));
   const text = (rows.length ? rows.join('\n') + (flags.length ? '\n\nFlagged today:\n' + flags.join('\n') : '') : 'Nobody clocked in today.') +
     (waiting.length ? '\n\nWaiting for a manager (approve on the Now screen):\n' + waiting.join('\n') : '');
-  return { key: 'digest|' + today, type: 'digest', sid: '', prio: 2, title: 'Time clock summary: ' + TCE.dayText(today), text };
+  // the page: a table — today, the week so far (a bar out of 40 h: overtime in coral), where they are now
+  const max = Math.max(40 * TCE.HOUR, ...rowsH.map(r => r.week));
+  const html = (rowsH.length ? tbl_([th_('Person'), th_('Today', 1), th_('This week', 1)], rowsH.map((r, i) => {
+    const bg = i % 2 ? C_.zebra : '';
+    return '<tr>' + td_('<b>' + h_(r.n) + '</b>' + (r.sal ? ' <span style="font-size:12px;color:' + C_.grey + '">(salaried)</span>' : '') +
+      '<div style="margin-top:5px">' + bar_(r.sal ? r.week : r.reg, r.sal ? 0 : r.ot, 0, max, 110) + '</div>' +
+      '<div style="font-size:12.5px;margin-top:4px;color:' + (r.now ? C_.mint : C_.grey) + '">' + h_(r.state.charAt(0).toUpperCase() + r.state.slice(1)) + '</div>', { bg }) +
+      td_(hh_(r.today), { right: 1, bg }) + td_(hh_(r.week), { right: 1, bold: 1, bg, color: r.ot > 0 ? C_.coral : '' }) + '</tr>';
+  })) : p_('Nobody clocked in today.')) +
+    (flags.length ? box_('warn', 'Flagged today', flags) : '') +
+    (waiting.length ? box_('info', 'Waiting for a manager (approve on the Now screen)', waiting) : '');
+  return { key: 'digest|' + today, type: 'digest', sid: '', prio: 2, title: 'Time clock summary: ' + TCE.dayText(today), text, html };
 }
 
 /* ---------- sending: each alert once, whichever copy of this script gets there first ----------
@@ -1146,6 +1240,15 @@ function mark_(cfg, s, id, st, ch) {
   return r.code === 200;
 }
 
+/* an email's page: each alert's title and its page (or its words), then where to open the time clock */
+function page_(cfg, list) {
+  return '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:' + C_.navy + ';max-width:760px;line-height:1.4">' +
+    list.map((a, i) => (i ? '<hr style="border:none;border-top:1px solid ' + C_.line + ';margin:22px 0">' : '') +
+      '<h2 style="font-size:18px;margin:0 0 6px;color:' + C_.navy + '">' + h_(a.title) + '</h2>' +
+      (a.html || '<p style="margin:6px 0;font-size:14px;white-space:pre-wrap">' + h_(a.text) + '</p>')).join('') +
+    '<p style="margin:22px 0 0;padding-top:10px;border-top:1px solid ' + C_.line + ';font-size:12px;color:' + C_.grey + '">' +
+    (cfg.appUrl ? '<a href="' + h_(cfg.appUrl) + '" style="color:' + C_.navy + ';font-weight:700">Open the NLO Time Clock</a> · ' : '') + 'Change these alerts: Time Clock → Alerts</p></div>';
+}
 /* one email, from this Gmail account, with every alert of this check (and any files they carry, attached) */
 function email_(cfg, emails, list) {
   const subject = list[0].title + (list.length > 1 ? ' (+' + (list.length - 1) + ' more)' : '');
@@ -1155,6 +1258,11 @@ function email_(cfg, emails, list) {
   try { left = MailApp.getRemainingDailyQuota(); } catch (e) { }
   if (left != null && left < emails.length) throw new Error('this Gmail account’s daily email limit is used up (it resets within a day)');
   const msg = { to: emails.join(','), subject: cap_(subject, 250), body: cap_(body, 20000), name: 'NLO Time Clock' };
+  // the page (the hours emails' tables): every alert of the email, those without a page as their words
+  if (list.some(a => a.html)) {
+    const html = page_(cfg, list);
+    if (html.length <= 150000) msg.htmlBody = html; // (far more than any of these: else the words alone)
+  }
   const files = flat_(list.map(a => (a.files || []).map(f => Utilities.newBlob(f.text, 'text/csv', f.name))));
   if (files.length) msg.attachments = files;
   MailApp.sendEmail(msg);
