@@ -497,6 +497,12 @@ async def steps(b, log):
     await op.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 0"); await op.click('[data-act=closeM]'); await op.wait_for_timeout(300)
     check('…taken off again', await op.locator('table.pay th.holCol').count() == 0 and (((get('meta/tcHol') or {}).get('days') or {}).get('fields') or {}) == {})
 
+    print('\n# Dr. A: Reports')
+    await op.click('.navBtn[data-v=reports]'); await op.wait_for_selector('.repTiles')
+    rep = await op.inner_text('#view')
+    check('Reports: highlights, the numbers at a glance, the team’s weeks and each person (from the database)', 'HIGHLIGHTS' in rep.upper() and 'USUAL CLOCK-IN' in rep.upper() and await op.locator('.repChart g.bar').count() >= 1 and 'Gwen Tester' in await op.inner_text('.repTbl'), rep[:600])
+    await op.click('.navBtn[data-v=pay]'); await op.wait_for_selector('table.pay')
+
     print('\n# Dr. A: the Paychex punch file')
     await op.click('.navBtn[data-v=settings]'); await op.wait_for_selector('#pxCard #pxCid')
     await op.fill('#pxCid', '00123456')

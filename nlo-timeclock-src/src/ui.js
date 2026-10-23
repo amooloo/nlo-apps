@@ -58,7 +58,8 @@ const IC = {
   monitor: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M9 20h6M12 16.5V20"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4v4.5H15"/>',
   bksp: '<path d="M9 5.5h10.5a1.5 1.5 0 011.5 1.5v10a1.5 1.5 0 01-1.5 1.5H9L3.5 12z"/><path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/>',
-  cal: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3.5v3M16 3.5v3"/>'
+  cal: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3.5v3M16 3.5v3"/>',
+  chart: '<path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -476,11 +477,11 @@ function lapReqsOf(data) {
 }
 function navList() {
   if (S.role !== 'mgr') return [['me', 'My time', 'user']];
-  const n = [['now', 'Now', 'board'], ['sheets', 'Timesheets', 'sheet'], ['pay', 'Payroll', 'money'], ['people', 'People', 'people'], ['alerts', 'Alerts', 'bell'], ['settings', 'Settings', 'gear']];
+  const n = [['now', 'Now', 'board'], ['sheets', 'Timesheets', 'sheet'], ['pay', 'Payroll', 'money'], ['reports', 'Reports', 'chart'], ['people', 'People', 'people'], ['alerts', 'Alerts', 'bell'], ['settings', 'Settings', 'gear']];
   if (B.me && S.staff.get(B.me.staffId) && S.staff.get(B.me.staffId).on) n.push(['me', 'My time', 'user']);
   return n;
 }
-const TITLES = { now: 'Now', sheets: 'Timesheets', pay: 'Payroll', people: 'People', alerts: 'Alerts', settings: 'Settings', me: 'My time' };
+const TITLES = { now: 'Now', sheets: 'Timesheets', pay: 'Payroll', reports: 'Reports', people: 'People', alerts: 'Alerts', settings: 'Settings', me: 'My time' };
 function renderShell() {
   const nav = navList(), me = B.me || {};
   const btns = nav.map(([v, l, i]) => '<button class="navBtn' + (S.view === v ? ' on' : '') + '" data-act="go" data-v="' + v + '">' + ic(i, 18) + '<span>' + esc(l) + '</span>' + navCount(v) + '</button>').join('');
@@ -573,7 +574,7 @@ ACT.doSetup = async b => {
   const team = Array.from(S.roster.values()).filter(r => r.active && r.role !== 'owner').map(r => r.sid);
   if (await act(b, () => B.setupOffice(team), 'The time clock is set up. Next: People (PINs), then Alerts.')) { S.view = 'people'; renderShell(); }
 };
-ACT.go = b => { S.view = b.dataset.v; S.dirty = false; S.pxDraft = null; S.hol = null; closeModal(); renderView(); window.scrollTo(0, 0); };
+ACT.go = b => { S.view = b.dataset.v; S.dirty = false; S.pxDraft = null; S.hol = null; S.rep = null; closeModal(); renderView(); window.scrollTo(0, 0); };
 // (data-nodirty: a box on those screens that isn't one of their settings — the code a laptop shows, say)
 ['input', 'change'].forEach(ev => document.addEventListener(ev, e => { if (S.mode === 'app' && (S.view === 'settings' || S.view === 'alerts') && e.target.closest && e.target.closest('#view') && !e.target.closest('[data-nodirty]')) S.dirty = true; }));
 document.addEventListener('click', e => { if (S.mode === 'app' && (S.view === 'settings' || S.view === 'alerts') && e.target.closest && e.target.closest('#view .pick')) S.dirty = true; }, true);

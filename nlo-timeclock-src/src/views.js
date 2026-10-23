@@ -451,6 +451,199 @@ async function holSave(b, days, msg) {
   await holRead(); // (saved, or not — changed in another window: what's there now either way)
   holModalDraw(); renderView();
 }
+
+/* ---------- Reports (Amir, 23 Oct 2026: "a report section that basically watches trends for different employees and
+   different things … insights about the payroll and clock times and all that stuff") ----------
+   The last 4, 12 or 26 workweeks, this one so far included: highlights in plain words, the team's hours each week (regular
+   and overtime), and for each person their weekly hours, usual clock-in and clock-out, lunch, corrections and flags. Hours
+   worked only (paid holidays are on Payroll), from the same arithmetic as Timesheets and Payroll. Weeks before the time
+   clock's first punch have no data (they're left out, not counted as zeros). Managers and Dr. A.
+   S.rep: { key, data, loading, err, at }; S.repN: how many weeks (12 unless picked). */
+const REP_N = [4, 12, 26];
+VIEWS.reports = () => {
+  const today = TCE.dayOf(nowMs()), n = REP_N.includes(S.repN) ? S.repN : 12;
+  const a = TCE.addDays(TCE.weekOf(today, S.set.wk), -7 * (n - 1)), key = a + '|' + S.set.wk + '|' + n;
+  const R = S.rep && S.rep.key === key ? S.rep : (S.rep = { key });
+  if (!R.data) {
+    if (!R.loading && !R.err) {
+      R.loading = true;
+      B.loadRange(TCE.dayStart(TCE.addDays(a, -1)), TCE.dayStart(TCE.addDays(today, 2)))
+        .then(d => { R.data = d; R.loading = false; R.at = Date.now(); queueRender(); })
+        .catch(e => { R.loading = false; R.err = errText(e); queueRender(); });
+    }
+    return repNav(n) + '<div class="empty">' + (R.err ? esc(R.err) + ' · <button class="linkBtn" data-act="repReload">try again</button>' : 'Reading ' + n + ' weeks…') + '</div>';
+  }
+  const M = repModel(a, today, R.data);
+  if (!M.rows.length) return repNav(n) + '<div class="empty">No time on the clock in these weeks yet.</div>';
+  return repNav(n) + repHighlightsHTML(M) + repTilesHTML(M) + repChartHTML(M) + repTableHTML(M) +
+    '<p class="muted small" style="margin-top:10px">Hours worked (paid holidays are on Payroll). Overtime is by workweek (over ' + S.set.ot + ' h from ' + TCE.WD[S.set.wk] + ' to ' + TCE.WD[(S.set.wk + 6) % 7] + '). ' +
+    (M.since > a ? 'The first punch on the time clock here is ' + esc(TCE.dayText(M.since, true)) + ', so earlier weeks aren’t counted. ' : '') +
+    'Usual times are the middle of each person’s days (half earlier, half later). Read ' + esc(agoText(R.at, Date.now())) + ' · <button class="linkBtn" data-act="repReload">read again</button></p>';
+};
+function repNav(n) {
+  return '<div class="filters"><div class="seg" role="group" aria-label="How many weeks">' + REP_N.map(k => '<button type="button" data-act="repN" data-n="' + k + '" aria-pressed="' + (k === n) + '">Last ' + k + ' weeks</button>').join('') + '</div></div>';
+}
+ACT.repN = b => { S.repN = Number(b.dataset.n); renderView(); };
+ACT.repReload = () => { S.rep = null; renderView(); };
+function median(xs) { if (!xs.length) return null; const s = xs.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+function mean(xs) { return xs.length ? xs.reduce((n, x) => n + x, 0) / xs.length : null; }
+// a minute of the day as a time: 448 → "7:28 AM"
+function minText(m) { m = Math.round(m); return TCE.hmText(String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')); }
+function minDur(m) { m = Math.round(m); return m >= 60 ? Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' min' : m + ' min'; }
+/* each person over the weeks: their workweeks (regular, overtime), and each day they worked — first clock-in, last
+   clock-out, lunches, corrections, anything unfinished, the day's flags */
+function repModel(a, today, data) {
+  const now = nowMs(), set = S.set;
+  const ot = new Map(); (data.ot || []).forEach(x => { if (x.sid && x.week) ot.set(x.sid + '_' + x.week, Number(x.hrs) || 0); });
+  const first = (data.punches || []).reduce((m, p) => Math.min(m, ms(p.at) || Infinity), Infinity);
+  if (!isFinite(first)) return { rows: [], weeks: [] };
+  const since = TCE.dayOf(first) < a ? a : TCE.dayOf(first), from = TCE.weekOf(since, set.wk);
+  const weeks = []; for (let wk = from; wk <= today; wk = TCE.addDays(wk, 7)) weeks.push({ wk, cur: TCE.addDays(wk, 6) >= today });
+  const people = Array.from(S.roster.values()).filter(r => S.staff.get(r.sid) && (S.staff.get(r.sid).on || (data.punches || []).some(p => p.sid === r.sid)));
+  const rows = people.map(r => {
+    const P = (data.punches || []).filter(p => p.sid === r.sid).map(p => ({ id: p.id, sid: p.sid, kind: p.kind, at: ms(p.at), src: p.src, net: p.net, by: p.by }));
+    const F = (data.fixes || []).filter(f => f.sid === r.sid).map(f => ({ id: f.id, sid: f.sid, op: f.op, ref: f.ref || '', kind: f.kind || '', t: Number(f.t) || 0, why: f.why || '', bsid: f.bsid || '', at: ms(f.at) }));
+    const list = TCE.entries(P, F), staff = staffOf(r.sid);
+    const wks = weeks.map(x => { const w = TCE.week({ sid: r.sid, list, set, staff, wkIso: x.wk, now, approved: ot.get(r.sid + '_' + x.wk) || 0 }); return { wk: x.wk, cur: x.cur, total: w.total, reg: w.reg, ot: w.ot, w }; });
+    const days = [];
+    wks.forEach(x => x.w.days.forEach(d => {
+      if (d.iso < since || d.iso > today) return;
+      const live = d.entries.filter(e => !e.void);
+      const fin = live.find(e => e.kind === 'in'), lout = live.slice().reverse().find(e => e.kind === 'out'), lunch = [];
+      live.forEach((e, i) => { if (e.kind === 'lunch') { const back = live.slice(i + 1).find(x2 => x2.kind === 'back'); if (back) lunch.push((back.t - e.t) / TCE.MIN); } });
+      if (!d.ms && !d.entries.length) return;
+      days.push({ iso: d.iso, ms: d.ms, in: fin ? TCE.minuteOf(fin.t) : null, out: lout ? TCE.minuteOf(lout.t) : null, lunch,
+        fixes: d.entries.filter(e => e.fix || e.void).length, open: d.issues.length > 0, flags: d.flags.map(f => f.type) });
+    }));
+    return { sid: r.sid, name: nameOf(r.sid), sal: staff.sal, wks, days };
+  }).filter(r => r.days.length || (S.staff.get(r.sid) || {}).on);
+  return { a, since, today, weeks, rows };
+}
+// the full weeks (not this one, still going) of a person, the last k of them, or the k before those
+function repFull(r, k, skip) { const f = r.wks.filter(x => !x.cur); return f.slice(Math.max(0, f.length - k - (skip || 0)), f.length - (skip || 0)); }
+function repDaysIn(r, ws) { const lo = ws.length ? ws[0].wk : '9', hi = ws.length ? TCE.addDays(ws[ws.length - 1].wk, 6) : '0'; return r.days.filter(d => d.iso >= lo && d.iso <= hi); }
+/* the highlights: a few sentences, the most useful first; only what the weeks so far can really say */
+function repHighlights(M) {
+  const out = [], H = TCE.HOUR, hr = M.rows.filter(r => !r.sal), full = M.weeks.filter(x => !x.cur).length;
+  const h1 = v => hStr(v / H) + ' h';
+  // unfinished days first: they change the numbers
+  const open = M.rows.map(r => [r.name, r.days.filter(d => d.open).length]).filter(x => x[1]);
+  if (open.length) out.push({ tone: 'bad', t: 'Days still incomplete (a missing clock-in or clock-out): ' + open.map(x => x[0] + (x[1] > 1 ? ' ×' + x[1] : '')).join(', ') + '. They count 0 hours until they’re fixed in Timesheets.' });
+  if (full < 2) out.push({ tone: 'info', t: (full ? 'One full week' : 'Not a full week yet') + ' on the time clock: the trends get clearer every week (this page compares the last two weeks with the two before).' });
+  // overtime: this pay period so far, and the one before
+  if (S.set.pay) {
+    const [pa, pz] = TCE.payPeriodOf(M.today, S.set.pay), pa0 = TCE.addDays(pa, -14);
+    const otIn = (lo, hi) => { const per = hr.map(r => [r.name, r.wks.filter(x => x.wk >= lo && x.wk <= hi).reduce((n, x) => n + x.ot, 0)]); return { all: per.reduce((n, x) => n + x[1], 0), per: per.filter(x => x[1] > 0).sort((x, y) => y[1] - x[1]) }; };
+    const now = otIn(pa, pz), before = otIn(pa0, TCE.addDays(pa, -1)), seen = M.weeks.some(x => x.wk < pa);
+    out.push({ tone: now.all ? 'warn' : 'ok', t: 'Overtime this pay period so far: ' + (now.all ? h1(now.all) + ' (' + now.per.map(x => x[0] + ' ' + h1(x[1])).join(', ') + ')' : 'none') +
+      (seen ? '; last pay period: ' + (before.all ? h1(before.all) : 'none') : '') + '.' });
+  }
+  if (full >= 2) {
+    // close to the overtime line: averaging 39+ hours a week over the last two full weeks
+    const near = hr.map(r => [r.name, mean(repFull(r, 2).map(x => x.total))]).filter(x => x[1] != null && x[1] >= (S.set.ot - 1) * H).sort((x, y) => y[1] - x[1]);
+    if (near.length) out.push({ tone: 'warn', t: near.map(x => x[0] + ' (' + h1(x[1]) + ')').join(', ') + (near.length > 1 ? ' are' : ' is') + ' averaging close to or over ' + S.set.ot + ' h a week over the last two weeks.' });
+  }
+  if (full >= 4) {
+    // hours: the biggest changes, the last two full weeks against the two before (10% and 3 h a week at least)
+    const ch = M.rows.map(r => { const now = mean(repFull(r, 2).map(x => x.total)), was = mean(repFull(r, 2, 2).map(x => x.total)); return { r, now, was }; })
+      .filter(x => x.now != null && x.was > 0 && Math.abs(x.now - x.was) >= 3 * H && Math.abs(x.now - x.was) / x.was >= 0.1).sort((x, y) => Math.abs(y.now - y.was) - Math.abs(x.now - x.was)).slice(0, 2);
+    ch.forEach(x => out.push({ tone: 'info', t: x.r.name + '’s hours are ' + (x.now > x.was ? 'up ' : 'down ') + Math.round(Math.abs(x.now - x.was) / x.was * 100) + '%: ' + h1(x.now) + ' a week over the last two weeks, ' + h1(x.was) + ' the two before.' }));
+    // clock-in drift: the usual clock-in 10+ minutes later (or earlier) than in the two weeks before
+    M.rows.forEach(r => {
+      const now = median(repDaysIn(r, repFull(r, 2)).map(d => d.in).filter(m => m != null)), was = median(repDaysIn(r, repFull(r, 2, 2)).map(d => d.in).filter(m => m != null));
+      const nNow = repDaysIn(r, repFull(r, 2)).filter(d => d.in != null).length, nWas = repDaysIn(r, repFull(r, 2, 2)).filter(d => d.in != null).length;
+      if (now != null && was != null && nNow >= 3 && nWas >= 3 && Math.abs(now - was) >= 10)
+        out.push({ tone: 'info', t: r.name + ' has been clocking in ' + (now > was ? 'later' : 'earlier') + ': usually ' + minText(now) + ' over the last two weeks, ' + minText(was) + ' before.' });
+    });
+  }
+  // corrections (a missed or wrong punch fixed): the most on the team, from 3 up
+  const fx = M.rows.map(r => [r.name, r.days.reduce((n, d) => n + d.fixes, 0)]).filter(x => x[1] >= 3).sort((x, y) => y[1] - x[1]);
+  if (fx.length) out.push({ tone: 'info', t: 'Most corrections (missed or wrong punches fixed): ' + fx.slice(0, 3).map(x => x[0] + ' ' + x[1]).join(', ') + '.' });
+  // clock-ins before the earliest time allowed
+  const early = M.rows.map(r => [r.name, r.days.filter(d => d.flags.includes('early')).length]).filter(x => x[1]).sort((x, y) => y[1] - x[1]);
+  if (early.length) out.push({ tone: 'info', t: 'Clock-ins before the earliest time allowed' + (S.set.early ? ' (' + TCE.hmText(S.set.early) + ')' : '') + ': ' + early.map(x => x[0] + ' ' + x[1]).join(', ') + '.' });
+  // lunch: the team's usual, and whose run longest
+  const lunches = M.rows.map(r => [r.name, r.days.flatMap(d => d.lunch)]).filter(x => x[1].length >= 3);
+  if (lunches.length >= 2) {
+    const all = median(lunches.flatMap(x => x[1])), top = lunches.map(x => [x[0], median(x[1])]).sort((x, y) => y[1] - x[1])[0];
+    out.push({ tone: 'info', t: 'Lunch usually runs ' + minDur(all) + (top[1] >= all + 10 ? '; ' + top[0] + '’s run longest (' + minDur(top[1]) + ').' : '.') });
+  }
+  return out.slice(0, 7);
+}
+function repHighlightsHTML(M) {
+  const hs = repHighlights(M), icon = { bad: 'warn', warn: 'warn', ok: 'done', info: 'info' };
+  return '<div class="card repHi"><div class="cardHd"><h3>' + ic('info', 18) + ' Highlights</h3></div><div class="cardBd"><ul class="repList">' +
+    hs.map(x => '<li class="' + x.tone + '">' + ic(icon[x.tone], 16) + '<span>' + esc(x.t) + '</span></li>').join('') + '</ul></div></div>';
+}
+/* the numbers at a glance: this pay period so far against the last, the team's usual clock-in and lunch, corrections */
+function repTilesHTML(M) {
+  const H = TCE.HOUR, hr = M.rows.filter(r => !r.sal), tiles = [];
+  if (S.set.pay) {
+    const [pa, pz] = TCE.payPeriodOf(M.today, S.set.pay), sum = (lo, hi, k) => hr.reduce((n, r) => n + r.wks.filter(x => x.wk >= lo && x.wk <= hi).reduce((m, x) => m + x[k], 0), 0);
+    const seen = M.weeks.some(x => x.wk < pa);
+    tiles.push(['Hours this pay period', hStr(sum(pa, pz, 'total') / H), seen ? 'last: ' + hStr(sum(TCE.addDays(pa, -14), TCE.addDays(pa, -1), 'total') / H) : 'so far, people paid by the hour']);
+    tiles.push(['Overtime this pay period', hStr(sum(pa, pz, 'ot') / H), seen ? 'last: ' + hStr(sum(TCE.addDays(pa, -14), TCE.addDays(pa, -1), 'ot') / H) : 'hours, so far']);
+  }
+  const ins = M.rows.flatMap(r => r.days.map(d => d.in).filter(m => m != null)), lun = M.rows.flatMap(r => r.days.flatMap(d => d.lunch));
+  if (ins.length) tiles.push(['Usual clock-in', minText(median(ins)), 'the team, ' + plural(ins.length, 'day')]);
+  if (lun.length) tiles.push(['Usual lunch', minDur(median(lun)), plural(lun.length, 'lunch', 'lunches')]);
+  tiles.push(['Corrections', String(M.rows.reduce((n, r) => n + r.days.reduce((m, d) => m + d.fixes, 0), 0)), 'missed or wrong punches fixed']);
+  return '<div class="repTiles">' + tiles.map(t => '<div class="repTile"><span class="rtL">' + esc(t[0]) + '</span><b class="rtV">' + esc(t[1]) + '</b><span class="rtS">' + esc(t[2]) + '</span></div>').join('') + '</div>';
+}
+/* the team's hours each week: a bar for each workweek, regular and overtime (this week: so far) */
+function repChartHTML(M) {
+  const H = TCE.HOUR, wkOf = (r, wk) => r.wks.find(y => y.wk === wk) || { reg: 0, ot: 0 };
+  const ws = M.weeks.map(x => ({ wk: x.wk, cur: x.cur, reg: M.rows.reduce((n, r) => n + wkOf(r, x.wk).reg, 0) / H, ot: M.rows.reduce((n, r) => n + wkOf(r, x.wk).ot, 0) / H }));
+  const max = Math.max(10, ...ws.map(x => x.reg + x.ot)), step = max > 300 ? 100 : max > 120 ? 50 : max > 40 ? 20 : 10, top = Math.ceil(max / step) * step;
+  const W = 720, Hh = 230, L = 44, Bm = 34, T = 14, pw = W - L - 10, ph = Hh - T - Bm, bw = Math.min(46, pw / ws.length * 0.62);
+  const y = v => T + ph - v / top * ph;
+  let g = '';
+  for (let v = 0; v <= top; v += step) g += '<line x1="' + L + '" x2="' + (W - 10) + '" y1="' + y(v) + '" y2="' + y(v) + '" class="gl"/><text x="' + (L - 8) + '" y="' + (y(v) + 4) + '" class="ax" text-anchor="end">' + v + '</text>';
+  const bars = ws.map((x, i) => {
+    const cx = L + pw * (i + 0.5) / ws.length, x0 = cx - bw / 2, label = TCE.dayText(x.wk).replace(/^\w+, /, '');
+    const tip = 'Week of ' + TCE.dayText(x.wk) + (x.cur ? ' (so far)' : '') + ': ' + hStr(x.reg + x.ot) + ' h, ' + hStr(x.ot) + ' h overtime';
+    return '<g class="bar' + (x.cur ? ' cur' : '') + '"><title>' + esc(tip) + '</title>' +
+      '<rect x="' + x0 + '" y="' + y(x.reg) + '" width="' + bw + '" height="' + Math.max(0, y(0) - y(x.reg)) + '" class="reg" rx="3"/>' +
+      (x.ot > 0 ? '<rect x="' + x0 + '" y="' + y(x.reg + x.ot) + '" width="' + bw + '" height="' + Math.max(1.5, y(x.reg) - y(x.reg + x.ot)) + '" class="ot" rx="2"/>' : '') +
+      '<text x="' + cx + '" y="' + (y(x.reg + x.ot) - 6) + '" class="bv" text-anchor="middle">' + Math.round(x.reg + x.ot) + '</text>' +
+      (ws.length <= 14 || i % 2 === 0 || i === ws.length - 1 ? '<text x="' + cx + '" y="' + (Hh - Bm + 18) + '" class="ax" text-anchor="middle">' + esc(label) + (x.cur ? '*' : '') + '</text>' : '') + '</g>';
+  }).join('');
+  return '<div class="card repChart"><div class="cardHd"><h3>' + ic('chart', 18) + ' Team hours by week</h3><span class="repKey"><i class="rkReg"></i>Regular <i class="rkOt"></i>Overtime</span></div><div class="cardBd">' +
+    '<svg class="repSvg" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="The team’s hours each week">' + g + bars + '</svg>' +
+    '<p class="muted small">Everyone on the clock, salaried included. * This week, so far.</p></div></div>';
+}
+// a person's weekly hours as a little line (their full weeks and this one so far)
+function spark(vals, cur) {
+  if (!vals.length) return '';
+  const W = 96, Hh = 26, max = Math.max(1, ...vals), x = i => vals.length === 1 ? W / 2 : 3 + (W - 6) * i / (vals.length - 1), y = v => Hh - 3 - (Hh - 6) * v / max;
+  const pts = vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+  return '<svg class="spark" viewBox="0 0 ' + W + ' ' + Hh + '" aria-hidden="true"><polyline points="' + pts + '"/>' + vals.map((v, i) => '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="' + (i === vals.length - 1 ? 2.6 : 1.6) + '"' + (i === vals.length - 1 && cur ? ' class="cur"' : '') + '/>').join('') + '</svg>';
+}
+/* each person: average hours a week (full weeks), the weeks as a line, overtime, usual clock-in and clock-out (and their
+   spread), lunch, days, corrections, and the flags their days had */
+function repTableHTML(M) {
+  const H = TCE.HOUR, FLAGW = { early: 'early', offday: 'closed day', home: 'home', homeday: 'home, other day', offnet: 'off network', nonet: 'network unchecked', late: 'late', long: 'long shift' };
+  const body = M.rows.map(r => {
+    const full = r.wks.filter(x => !x.cur), avg = mean(full.map(x => x.total)), otAll = r.wks.reduce((n, x) => n + x.ot, 0);
+    const ins = r.days.map(d => d.in).filter(m => m != null), outs = r.days.map(d => d.out).filter(m => m != null), lun = r.days.flatMap(d => d.lunch);
+    const spread = xs => xs.length >= 3 && Math.min(...xs) !== Math.max(...xs) ? '<span class="muted small">' + esc(minText(Math.min(...xs)) + '–' + minText(Math.max(...xs))) + '</span>' : '';
+    const fl = {}; r.days.forEach(d => d.flags.forEach(f => { fl[f] = (fl[f] || 0) + 1; }));
+    const flags = Object.keys(fl).map(k => (FLAGW[k] || k) + (fl[k] > 1 ? ' ×' + fl[k] : '')).join(', ');
+    const fixes = r.days.reduce((n, d) => n + d.fixes, 0), open = r.days.filter(d => d.open).length;
+    return '<tr' + (r.sal ? ' class="salRow"' : '') + '><td><b class="pt">' + esc(r.name) + '</b>' + (r.sal ? ' ' + chip('Salaried', 'info') : '') + '</td>' +
+      '<td class="num big"><b>' + (avg != null ? hStr(avg / H) : '—') + '</b></td>' +
+      '<td>' + spark(r.wks.map(x => x.total / H), r.wks.length && r.wks[r.wks.length - 1].cur) + '</td>' +
+      '<td class="num' + (otAll > 0 && !r.sal ? ' bad' : '') + '">' + (r.sal ? '—' : hStr(otAll / H)) + '</td>' +
+      '<td class="num">' + (ins.length ? esc(minText(median(ins))) + '<br>' + spread(ins) : '—') + '</td>' +
+      '<td class="num">' + (outs.length ? esc(minText(median(outs))) + '<br>' + spread(outs) : '—') + '</td>' +
+      '<td class="num">' + (lun.length ? esc(minDur(median(lun))) : '—') + '</td>' +
+      '<td class="num">' + r.days.filter(d => d.ms > 0).length + '</td>' +
+      '<td class="num">' + (fixes || '0') + (open ? '<br><span class="bad small">' + open + ' incomplete</span>' : '') + '</td>' +
+      '<td class="small">' + (flags ? esc(flags) : '<span class="muted">none</span>') + '</td></tr>';
+  }).join('');
+  return '<div class="card"><div class="cardHd"><h3>' + ic('people', 18) + ' Each person</h3></div><div class="tblWrap"><table class="tbl pay repTbl"><thead><tr><th>Person</th><th class="num">Avg hours<br><span class="muted small">a full week</span></th><th>Weeks</th><th class="num">Overtime</th>' +
+    '<th class="num">Usual<br>clock-in</th><th class="num">Usual<br>clock-out</th><th class="num">Usual<br>lunch</th><th class="num">Days</th><th class="num">Corrections</th><th>Flags</th></tr></thead><tbody>' + body + '</tbody></table></div></div>';
+}
 ACT.payPrev = () => { S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], -14) }; renderView(); };
 ACT.payNext = () => { S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], 14) }; renderView(); };
 ACT.payNow = () => { S.pay = { start: periodOf(TCE.dayOf(nowMs()))[0] }; renderView(); };

@@ -243,6 +243,42 @@ async def main():
         await pg.click('#holModal [data-act=holDel][data-day="2026-10-19"]'); await pg.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 1")
         await pg.click('[data-act=closeM]'); await pg.wait_for_timeout(200)
         check('taken off: the Holiday column goes away (Christmas stays saved)', await pg.locator('table.pay th.holCol').count() == 0, await pg.inner_text('.holBar'))
+
+        print('\n# Reports (Dr. A)')
+        await pg.click('.navBtn[data-v=reports]'); await pg.wait_for_selector('.repTiles')
+        hi = await pg.inner_text('.repHi')
+        check('highlights: overtime this pay period (who), not a full week yet, the usual lunch (Taylor’s day was fixed above: nothing incomplete)', 'Overtime this pay period so far: 0.5 h (Casey Park 0.5 h)' in hi and 'Not a full week yet' in hi and 'Lunch usually runs' in hi and 'Days still incomplete' not in hi, hi)
+        tiles = await pg.inner_text('.repTiles')
+        check('the numbers at a glance: hours and overtime this pay period, the usual clock-in and lunch, corrections', all(x in tiles.upper() for x in ['HOURS THIS PAY PERIOD', 'OVERTIME THIS PAY PERIOD', 'USUAL CLOCK-IN', 'USUAL LUNCH', 'CORRECTIONS']), tiles)
+        check('the team’s weeks (one so far) and each person, salaried marked', await pg.locator('.repChart g.bar').count() == 1 and await pg.locator('.repTbl tbody tr').count() == 7 and 'Salaried' in await pg.inner_text('.repTbl'))
+        # weeks of history: the demo's Monday to Wednesday copied into the 7 weeks before — Robin clocking in 20 minutes
+        # earlier back then, Morgan staying 2 hours later
+        await pg.evaluate("""() => {
+          const orig = window._lr = B.loadRange, W = 7 * TCE.DAY, mon = TCE.dayStart('2026-10-19'), thu = TCE.dayStart('2026-10-22');
+          B.loadRange = async (from, to) => {
+            const d = await orig(from, to), base = d.punches.filter(p => p.at >= mon && p.at < thu && !(p.sid === 's_taylor' && p.at >= TCE.dayStart('2026-10-21')));
+            const more = [];
+            for (let k = 1; k <= 7; k++) base.forEach(p => {
+              let at = p.at - k * W;
+              if (k >= 3 && p.sid === 's_robin' && p.kind === 'in') at -= 20 * TCE.MIN;
+              if (k >= 3 && p.sid === 's_morgan' && p.kind === 'out') at += 120 * TCE.MIN;
+              if (at >= from && at < to) more.push(Object.assign({}, p, { id: 'h' + k + p.id.slice(2), at }));
+            });
+            return Object.assign({}, d, { punches: d.punches.concat(more) });
+          };
+          S.rep = null; renderView();
+        }""")
+        await pg.wait_for_selector('.repChart g.bar:nth-of-type(8)')
+        hi = await pg.inner_text('.repHi')
+        check('with 8 weeks: the bars, and an average for a full week', await pg.locator('.repChart g.bar').count() == 8 and re.search(r'Robin Hale\s+\d+(\.\d+)?', await pg.inner_text('.repTbl')) is not None, await pg.inner_text('.repTbl'))
+        check('…a change in someone’s hours (Morgan, down)', re.search(r'Morgan Lee’s hours are down \d+%: [\d.]+ h a week over the last two weeks, [\d.]+ h the two before\.', hi) is not None, hi)
+        check('…and a clock-in that drifted (Robin, later)', re.search(r'Robin Hale has been clocking in later: usually 7:\d\d AM over the last two weeks, 7:\d\d AM before\.', hi) is not None, hi)
+        check('…no “not a full week yet” now', 'Not a full week yet' not in hi and 'One full week' not in hi, hi)
+        await shot(pg, 'm2-reports')
+        await pg.click('[data-act=repN][data-n="4"]'); await pg.wait_for_selector('.repTiles')
+        check('the last 4 weeks: 4 bars', await pg.locator('.repChart g.bar').count() == 4)
+        await pg.evaluate("() => { B.loadRange = window._lr; S.rep = null; }")
+        await pg.click('.navBtn[data-v=pay]'); await pg.wait_for_selector('[data-act=payCsvDays]')
         async with pg.expect_download() as dl: await pg.click('[data-act=payCsvDays]')
         days = open(await (await dl.value).path(), encoding='utf-8-sig').read()
         check('the every-day CSV lists punches and corrections', 'Added In 7:30 AM (Dr. A: Was told to start at 7:30)' in days and 'Took out In 7:21 AM' in days, days[:300])

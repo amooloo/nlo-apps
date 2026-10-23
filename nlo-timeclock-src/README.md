@@ -48,6 +48,20 @@ clock … that sends me and multiple people alerts when someone is getting close
   spreadsheet too (alert script version 5; the old script keeps working, without them). `meta/tcHol` needs the rules
   with `meta/rules_tc_4`: until they're published the time clock works as before and the Holidays window says to
   publish them (the Payroll page counts no holidays meanwhile).
+- **Reports** (Amir, 23 Oct 2026: "a report section that basically watches trends for different employees and different
+  things … insights about the payroll and clock times"): managers and Dr. A, the last 4, 12 (default) or 26 workweeks,
+  this one so far included. **Highlights** in plain words, most useful first, only what the weeks can say: days still
+  incomplete; overtime this pay period so far (who) and the last; anyone averaging close to or over the overtime line
+  (last two full weeks); the biggest changes in weekly hours (last two full weeks against the two before, 10% and 3 h a
+  week at least); a usual clock-in that moved 10+ minutes (3+ days in each); the most corrections (3+); clock-ins
+  before the earliest time allowed; the usual lunch and whose runs longest; "not a full week yet" while there isn't.
+  **At a glance**: hours and overtime this pay period (people paid by the hour; the last period beside them), the
+  team's usual clock-in and lunch, corrections. **Team hours by week**: a bar a workweek, regular and overtime (this week
+  so far, lighter). **Each person**: average hours a full week, the weeks as a line, overtime, usual clock-in and
+  clock-out (the middle of their days, earliest–latest under it), usual lunch, days, corrections (and days incomplete),
+  the flags their days had. Hours worked only (paid holidays are on Payroll); weeks before the time clock's first punch
+  aren't counted (no zeros for them). Read when the page opens (`B.loadRange`, the same reads as Payroll) and on "read
+  again".
 - **Each pay period's time cards kept, automatically** (Amir, 10 Oct 2026: "I definitely want to keep the data for at
   least 2 years. I would love to make this automated so I don't have to"): the morning after a pay period ends (7 AM,
   never before 8 PM on its payroll Friday), the alert script emails the period's time cards as the Payroll page's two
@@ -234,8 +248,8 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
 Corrections a manager makes never alert (early/offday/home only fire for real punches). A missing punch the person has
 already asked for doesn't alert (their request does). Someone salaried gets only the missing-punch alerts.
 
-## Build status (23 Oct 2026, noon: payroll totals and paid holidays)
-- Passing: unit 153, rules 454, alert script 103 (version 5), end to end 110, demo click-through 154 (the office check's
+## Build status (23 Oct 2026, afternoon: payroll totals, paid holidays, Reports)
+- Passing: unit 153, rules 454, alert script 103 (version 5), end to end 111, demo click-through 162 (the office check's
   suite not run: nothing there changed). The rules change only adds `meta/tcHol` and `meta/rules_tc_4`; NLO Cases, A/R,
   Inventory and Time Off rebuilt for the embedded rules copy (each rebuilt page = the published one with only the new
   rules and its script hash; Time Off's copy had been from before the Tray Maker's queue, 19 Oct).
