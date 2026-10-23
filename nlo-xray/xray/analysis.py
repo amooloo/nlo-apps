@@ -97,11 +97,11 @@ MEASURES = [
     ("U1Expo", "Upper incisor showing (Stms-U1)", "Facial thirds", MM, ("Stms", "U1T", "S", "N"), True,
      "How far the upper incisor tip reaches below the upper lip at rest, vertically; negative when it stays above the "
      "lip line. Legan & Burstone: 2 ± 2 mm."),
-    ("FI", "Forehead inclination", "Incisors to the forehead (Andrews)", DEG, ("Tr", "Gs", "Po", "Or"), False,
-     "The forehead (from its top to soft-tissue glabella) against the true vertical - the perpendicular to Frankfort "
-     "horizontal, as the cephs are taken with FH level. Positive: the forehead slopes back."),
+    ("FI", "Forehead inclination", "Incisors to the forehead (Andrews)", DEG, ("Tr", "Gs"), False,
+     "The forehead (from its top to soft-tissue glabella) against the true vertical - the x-ray's own vertical, as "
+     "the cephs are taken with the head upright. Positive: the forehead slopes back."),
     ("U1_GALL", "Upper incisor to GALL", "Incisors to the forehead (Andrews)", MM,
-     ("Tr", "Gs", "U1A", "U1T", "Po", "Or"), True,
+     ("Tr", "Gs", "U1A", "U1T"), True,
      "The upper incisor's FA point (the middle of the labial surface of the crown) to Andrews' GALL line: a true "
      "vertical through the forehead's FA point (half way up the forehead, between its top and glabella), moved forward "
      "0.6 mm for each degree of forehead inclination beyond 7°, never ahead of glabella (both numbers: Settings -> "
@@ -162,23 +162,22 @@ def _height(p, a, b, frame):
 
 
 def andrews_gall(p, mm, profile=None, cut=None):
-    """Andrews' Goal Anterior Limit Line on canonical points p (pixels; mm: mm per pixel). True vertical: the
-    perpendicular to Frankfort horizontal. FFA: the forehead's surface half way up between its top (Tr) and soft-tissue
-    glabella - on the traced profile when there is one (canonical pixels), else the middle of the line joining them.
+    """Andrews' Goal Anterior Limit Line on canonical points p (pixels; mm: mm per pixel). True vertical: the x-ray's
+    own vertical - Andrews draws GALL along the true vertical with the head upright, the way these cephs are taken
+    (not square to Po-Or, which tips it whenever FH is not quite level on the x-ray). FFA: the forehead's surface
+    half way up between its top (Tr) and soft-tissue glabella - on the traced profile when there is one (canonical
+    pixels), else the middle of the line joining them.
     GALL runs through FFA, moved forward cut['gall_mm_per_deg'] mm per degree of forehead inclination beyond
     cut['gall_from_deg'], never ahead of glabella. The upper incisor's FA point: the middle of the labial surface of
     its crown (the textbook incisor along the doctor's U1 axis). Returns dict or None."""
-    if not mm or any(c not in p for c in ("Tr", "Gs", "Po", "Or", "U1A", "U1T")):
+    if not mm or any(c not in p for c in ("Tr", "Gs", "U1A", "U1T")):
         return None
     cut = cut or DEFAULT_CUTOFFS
     try:
-        h = g.unit(g.vec(p["Po"], p["Or"]))          # forward, along FH
         ax = g.unit(g.vec(p["U1A"], p["U1T"]))
     except ValueError:
         return None
-    v = np.array([-h[1], h[0]])
-    if v[1] < 0:
-        v = -v
+    h, v = np.array([1.0, 0.0]), np.array([0.0, 1.0])      # forward and up on the x-ray (canonical frame)
     tr, gs = np.asarray(p["Tr"], float), np.asarray(p["Gs"], float)
     d = tr - gs
     if d @ v <= 0:

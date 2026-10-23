@@ -1,6 +1,7 @@
 """Measurements on the template tracing, checked against values worked out by hand."""
 import math
 
+import numpy as np
 import pytest
 
 from xray.analysis import MEASURES, analyze, measure
@@ -220,6 +221,21 @@ def test_andrews_gall_on_the_template():
     assert gl["line"][0][0] == pytest.approx(gall_x / MM + 500, abs=1)
     item = next(s for s in a["summary"] if s["key"] == "gall")
     assert "GALL" in item["call"] and "forehead inclination 13°" in item["detail"]
+
+
+def test_gall_is_the_xrays_true_vertical_whatever_frankfort_does():
+    """GALL is drawn along the x-ray's vertical (head upright): Po-Or tipped 4 degrees does not tip it."""
+    pts = template_px()
+    base = analyze(pts, MM)
+    po, orb = np.array(pts["Po"], float), np.array(pts["Or"], float)
+    t = math.radians(4.0)
+    pts["Po"] = tuple(orb + np.array([[math.cos(t), -math.sin(t)], [math.sin(t), math.cos(t)]]) @ (po - orb))
+    a = analyze(pts, MM)
+    (x0, y0), (x1, y1) = a["gall"]["line"]
+    assert x0 == pytest.approx(x1, abs=0.01) and y1 > y0                 # straight up and down on the x-ray
+    assert a["gall"]["line"] == base["gall"]["line"] and a["gall"]["fi"] == base["gall"]["fi"]
+    rows = {r["key"]: r for r in a["measurements"]}
+    assert rows["FI"]["value"] == pytest.approx(12.7, abs=0.1) and "Po" not in rows["U1_GALL"]["missing"]
 
 
 def test_gall_never_ahead_of_glabella_and_follows_the_settings():

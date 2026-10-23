@@ -157,6 +157,21 @@ def test_teeth_are_moved_turned_and_sized_whole():
     assert not old["u6"]["adjusted"] and old["u6"]["xy"] == u6["xy"] and old["u1"]["xy"] == res["u1"]["xy"]
 
 
+def test_a_wrong_pixel_size_does_not_blow_the_outlines_up():
+    """A calibration that makes S-N 34 mm (half the pixel size) would draw the molars and the cranial outlines twice
+    their size: they are drawn at the size S-N gives instead."""
+    img, pts, facing, _ = render(np.random.default_rng(7))
+    right = {o["key"]: o for o in O.outlines(img, pts, facing, MM)}
+    wrong = {o["key"]: o for o in O.outlines(img, pts, facing, MM / 2)}
+    for key in ("l6", "u6", "orbit", "sella", "ptm"):
+        a, b = np.array(right[key]["xy"], float), np.array(wrong[key]["xy"], float)
+        assert _size(b) == pytest.approx(_size(a), rel=0.08), key
+
+
+def _size(xy):
+    return float(np.hypot(*(xy.max(0) - xy.min(0))))
+
+
 def test_cranial_outlines_turn_with_frankfort():
     _, pts, facing, _ = render(np.random.default_rng(6))
     base = {o["key"]: o for o in O.outlines(None, pts, facing, MM)}

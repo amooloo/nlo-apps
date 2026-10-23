@@ -137,6 +137,16 @@ def test_new_xray_is_calibrated_from_the_ruler(client):
     client.patch(f"/api/cases/{cid}", json={"calibration": {"mm_per_px": 0.2, "source": "ruler on this x-ray: 10 mm over 50.0 px"}})
     client.put("/api/settings", json={"calibration": {"ruler_mm": 5}})
     assert client.get(f"/api/cases/{cid}").json()["case"]["calibration"]["mm_per_px"] == 0.2
+    # ... unless it makes S-N impossible (the ruler clicked on marks 20 mm apart, say) and the ruler's makes it right
+    client.put("/api/settings", json={"calibration": {"ruler_mm": 10}})
+    hand = {"mm_per_px": MM / 2, "source": "ruler on this x-ray: 10 mm over 83.3 px"}
+    client.patch(f"/api/cases/{cid}", json={"calibration": hand})
+    got = client.get(f"/api/cases/{cid}").json()
+    cal = got["case"]["calibration"]
+    assert cal["mm_per_px"] == pytest.approx(MM, rel=0.006)
+    assert "set by hand" in cal["source"] and "made S-N" in cal["source"]
+    assert got["analysis"]["calibration_check"] is None
+    assert "nasion-rod ruler" in got["case"]["history"][-1]["what"]
 
 
 def test_an_older_xray_is_checked_when_opened_and_the_switch_works(client):

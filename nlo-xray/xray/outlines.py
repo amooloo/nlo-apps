@@ -38,7 +38,8 @@ from PIL import Image, ImageFilter
 
 from . import geometry as g
 
-SN_MM = 68.0                  # assumed S-N length for an x-ray without a pixel size
+SN_MM = 68.0                  # assumed S-N length for an x-ray without a pixel size...
+SN_PLAUSIBLE_MM = (50.0, 90.0)  # ... or with one that makes S-N impossible (a wrong calibration)
 SN_TO_FH = 7.0                # textbook S-N to Frankfort, degrees (turns the cranial structures without Po or Or)
 
 # ------------------------------------------------------------------------------------------------- the textbook tracing
@@ -753,12 +754,17 @@ def outlines(img, pts_px, facing, mm_per_px, saved=None):
     saved = saved or {}
     facing = facing or g.facing_of(pts) or "right"
     can = g.to_canonical(pts, facing)
-    if mm_per_px:
-        px_per_mm = 1.0 / float(mm_per_px)
-    elif "S" in can and "N" in can and g.dist(can["S"], can["N"]) > 0:
-        px_per_mm = g.dist(can["S"], can["N"]) / SN_MM
+    sn_px = g.dist(can["S"], can["N"]) if "S" in can and "N" in can else 0.0
+    mm = float(mm_per_px) if mm_per_px else None
+    if mm and sn_px > 0 and not (SN_PLAUSIBLE_MM[0] <= sn_px * mm <= SN_PLAUSIBLE_MM[1]):
+        mm = None                                        # a pixel size S-N says is wrong: drawn at S-N's size instead
+    if mm:
+        px_per_mm = 1.0 / mm
+    elif sn_px > 0:
+        px_per_mm = sn_px / SN_MM
     else:
         px_per_mm = 10.0
+    mm = 1.0 / px_per_mm
     sx = 1.0 if facing != "left" else -1.0
     to_img = lambda c: (sx * float(c[0]), -float(c[1]))        # noqa: E731
 
@@ -793,7 +799,7 @@ def outlines(img, pts_px, facing, mm_per_px, saved=None):
         ctrl, traced = o["ctrl"], None
         if o["snap"] and img is not None and not o["closed"] and max(o["ranges"]) > 0:
             o["xy_can"] = [can[c] if isinstance(c, str) else c for c in ctrl]
-            xy, traced = _snapped(img, float(mm_per_px or 1.0 / px_per_mm), o, sx)
+            xy, traced = _snapped(img, mm, o, sx)
             ctrl = [c if isinstance(c, str) else xy[i] for i, c in enumerate(ctrl)]
             traced = round(traced, 2)
         ctrl = [c if isinstance(c, str) else to_img(c) for c in ctrl]   # back to the image
@@ -803,7 +809,7 @@ def outlines(img, pts_px, facing, mm_per_px, saved=None):
         out.append(item(PROFILE_KEY, PROFILE_NAME, "soft", mine, [c for c in mine if isinstance(c, str)], True))
     elif img is not None:
         try:
-            sp = soft_profile(img, pts, mm_per_px or (1.0 / px_per_mm))
+            sp = soft_profile(img, pts, mm)
         except (ValueError, FloatingPointError, np.linalg.LinAlgError):
             sp = None
         if sp:
