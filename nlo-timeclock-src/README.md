@@ -27,6 +27,15 @@ clock … that sends me and multiple people alerts when someone is getting close
 - **Payroll every other Friday**: the Payroll page shows each person's two-week regular and overtime hours first (overtime
   still worked out per workweek, then added), marks payroll day, and the alert script emails the numbers that Friday
   at 7 AM. Payroll Friday = the period's last Friday when it ends Fri–Sun, else the first Friday after it ends.
+  Paychex's pay periods are Sunday–Saturday (Oct 11–24, 2026, paid Tue Oct 27); Amir moved Settings' pay-period start to
+  match on 23 Oct 2026 (it had been the Monday).
+- **Payroll totals** (Amir, 23 Oct 2026: "the total hours for hourly and regular hours and total hours for overtime and
+  also total hours for everything", then "including eve"): under the Payroll table, a **Total** row (everyone's regular,
+  overtime and total hours, salaried included: their hours are regular, never overtime) and, when someone is salaried,
+  an **Hourly staff** row without them: what the payroll keyed into Paychex adds up to. Each person's hours as shown,
+  added up, per workweek too; "Not final" when a day above isn't complete. Each person's Total is now their regular +
+  overtime as shown (it was the period rounded once, a hundredth off at times). The Totals CSV ends with the same rows.
+  The alert script's emails are unchanged (no totals there).
 - **Each pay period's time cards kept, automatically** (Amir, 10 Oct 2026: "I definitely want to keep the data for at
   least 2 years. I would love to make this automated so I don't have to"): the morning after a pay period ends (7 AM,
   never before 8 PM on its payroll Friday), the alert script emails the period's time cards as the Payroll page's two
@@ -46,6 +55,12 @@ clock … that sends me and multiple people alerts when someone is getting close
   they need the rules with `meta/rules_tc_3` — the time clock itself keeps working on the older rules. A save made over
   newer IDs (another window) is refused, and the latest shown with what was typed. Known limit: a shift that crosses
   midnight is on the day it started (none at this office; the 16-hour rule splits a forgotten clock-out).
+  **What Paychex did with it** (the first payroll, 23 Oct 2026): every line came back "Worker doesn't have a check in this
+  pay period. (WEBIMPORT602)", with each worker ID matched to the right person and no format error. The punch import only
+  adds punches to paychecks already in the payroll (the spec: "the check the punch detail shall be applied to"; Total
+  Hours "will print on the check stub"), so the hours are keyed in first and the file can go on top. Paychex's hours
+  import (SPI, the 16-column layout) answered "Sorry, import isn't set up for Amir Akhavan DMD PLLC (18122716)", and
+  Paychex told Amir it's only for companies over 25 employees: the hours stay keyed by hand from the Payroll page.
 - **Getting close to 40 hours**: "only warning that they are getting close and only approved ot allows them to go over" —
   a pop-up warning at the time clock and on My time from the first heads-up hour (or when 40 h would come today); at or
   over 40 h without approval, a clock-in (or back from lunch) is asked first — "Clock in anyway", never refused — and

@@ -305,7 +305,7 @@ VIEWS.pay = () => {
   const wkHead = rows.length ? rows[0].weeks.map(x => '<th class="num wkCol" colspan="2">Week of ' + esc(TCE.dayText(x.wkIso)) + (x.partial ? '*' : '') + '</th>').join('') : '';
   const sub = rows.length ? rows[0].weeks.map(() => '<th class="num wkCol">Reg</th><th class="num wkCol">OT</th>').join('') : '';
   const body = rows.map(r => '<tr' + (r.sal ? ' class="salRow"' : '') + '><td><b class="pt">' + esc(r.name) + '</b>' + (r.sal ? ' ' + chip('Salaried', 'info') : '') + '</td>' +
-    '<td class="num big"><b>' + hNum(r.reg) + '</b></td><td class="num big' + (r.ot ? ' bad' : '') + (r.sal ? ' muted' : '') + '"><b>' + (r.sal ? '—' : hNum(r.ot)) + '</b></td><td class="num">' + hNum(r.reg + r.ot) + '</td>' +
+    '<td class="num big"><b>' + hNum(r.reg) + '</b></td><td class="num big' + (r.ot ? ' bad' : '') + (r.sal ? ' muted' : '') + '"><b>' + (r.sal ? '—' : hNum(r.ot)) + '</b></td><td class="num">' + hStr(paidH(r)) + '</td>' +
     '<td class="small">' + (r.issues.length ? '<span class="bad">' + esc(r.issues.join('; ')) + '</span>' : r.sal ? '<span class="muted">Salaried: hours for the record, not for pay</span>' : '<span class="ok">Ready</span>') + '</td>' +
     r.weeks.map(x => x.wkIso > today ? '<td class="num muted wkCol">—</td><td class="num muted wkCol">—</td>' : '<td class="num wkCol">' + hNum(x.reg) + '</td><td class="num wkCol' + (x.ot ? ' bad' : '') + (r.sal ? ' muted' : '') + '">' + (r.sal ? '—' : hNum(x.ot)) + '</td>').join('') + '</tr>').join('');
   return payNav(a, z, cur) +
@@ -314,7 +314,7 @@ VIEWS.pay = () => {
         : live ? '<div class="notice info">This period isn’t over yet: the hours are so far. Payroll is entered ' + esc(TCE.dayText(payDay, true)) + '.</div>' : '') +
     (anyIssue ? '<div class="notice bad">Some days aren’t complete (time with a missing clock-in or clock-out counts 0 hours, and a missed punch someone asked for counts once approved). Fix them on Now or in Timesheets before running payroll.</div>' : '') +
     '<div class="card"><div class="tblWrap"><table class="tbl pay"><thead><tr><th rowspan="2">Person</th><th class="num" rowspan="2">Regular<br><span class="muted small">2 weeks</span></th><th class="num" rowspan="2">Overtime<br><span class="muted small">2 weeks</span></th><th class="num" rowspan="2">Total</th><th rowspan="2">To check</th>' + wkHead + '</tr><tr>' + sub + '</tr></thead><tbody>' +
-    (body || '<tr><td colspan="9" class="muted">Nobody on the clock.</td></tr>') + '</tbody></table></div></div>' +
+    (body || '<tr><td colspan="9" class="muted">Nobody on the clock.</td></tr>') + '</tbody>' + payFoot(rows, today) + '</table></div></div>' +
     (DEMO_ONLY ? '<p class="muted small" style="margin-top:10px">In the office’s copy, this page also downloads the totals and every day as CSV files, makes the Paychex punch file (<button class="linkBtn" data-act="payPx">see what goes in it</button>) and prints.</p>'
       : '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="payCsv">' + ic('download', 15) + 'Totals (CSV)</button><button class="btn btn-sec btn-sm" data-act="payCsvDays">' + ic('download', 15) + 'Every day (CSV)</button><button class="btn btn-sec btn-sm" data-act="payPx">' + ic('download', 15) + 'Paychex punch file</button><button class="btn btn-sec btn-sm" data-act="payPrint">' + ic('print', 15) + 'Print</button></div>') +
     '<p class="muted small" style="margin-top:10px">Overtime is worked out by workweek (over ' + S.set.ot + ' hours from ' + TCE.WD[S.set.wk] + ' to ' + TCE.WD[(S.set.wk + 6) % 7] + '), never by pay period.' + (rows.some(r => r.weeks.some(x => x.partial)) ? ' * A workweek that starts or ends outside this period: only its days inside the period are counted here, and its overtime is shown in the period it ends in.' : '') + ' Read ' + esc(agoText(P.at, Date.now())) + ' · <button class="linkBtn" data-act="payReload">read again</button></p>';
@@ -338,6 +338,31 @@ function payRows(a, z, data) {
     return { sid: r.sid, name: nameOf(r.sid), sal: staff.sal, weeks: pp.weeks, list, reg: pp.reg, ot: pp.ot, issues };
   }).filter(r => r.reg + r.ot > 0 || r.issues.length || (S.staff.get(r.sid) || {}).on);
 }
+/* a person's hours as payroll takes them: regular and overtime, each to the hundredth, then added (Total = Regular + Overtime as shown) */
+function paidH(r) { return TCE.h2(r.reg) + TCE.h2(r.ot); }
+/* the totals (Amir, 23 Oct 2026: "total hours for hourly … total hours for overtime and also total hours for everything",
+   then "including eve"): Total is everyone on the page, salaried too (their hours are regular, never overtime); when someone
+   is salaried, a second line adds up only the people paid by the hour — what the payroll entered in Paychex adds up to.
+   Each person's hours as shown, added up. */
+function payTotals(rows, hourlyOnly) {
+  const in_ = hourlyOnly ? rows.filter(r => !r.sal) : rows, add = f => in_.reduce((n, r) => n + f(r), 0);
+  return { n: in_.length, open: in_.some(r => r.issues.length), reg: add(r => TCE.h2(r.reg)), ot: add(r => TCE.h2(r.ot)), all: add(paidH),
+    weeks: (rows[0] ? rows[0].weeks : []).map((x, i) => ({ wkIso: x.wkIso, reg: add(r => TCE.h2(r.weeks[i].reg)), ot: add(r => TCE.h2(r.weeks[i].ot)) })) };
+}
+function payFoot(rows, today) {
+  if (!rows.length) return '';
+  const sal = rows.filter(r => r.sal).map(r => r.name), otCls = h => (Math.round(h * 100) > 0 ? ' bad' : '');
+  const line = (T, label, notes, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td><b class="pt">' + label + '</b></td>' +
+    '<td class="num big"><b>' + hStr(T.reg) + '</b></td><td class="num big' + otCls(T.ot) + '"><b>' + hStr(T.ot) + '</b></td><td class="num big"><b>' + hStr(T.all) + '</b></td>' +
+    '<td class="small">' + notes.filter(Boolean).join('<br>') + '</td>' +
+    T.weeks.map(x => x.wkIso > today ? '<td class="num muted wkCol">—</td><td class="num muted wkCol">—</td>'
+      : '<td class="num wkCol"><b>' + hStr(x.reg) + '</b></td><td class="num wkCol' + otCls(x.ot) + '"><b>' + hStr(x.ot) + '</b></td>').join('') + '</tr>';
+  const A = payTotals(rows, false), notFinal = '<span class="bad">Not final: some days above aren’t complete</span>';
+  let h = line(A, 'Total', [A.open ? notFinal : '', sal.length ? '<span class="muted">Everyone, with ' + esc(sal.join(', ')) + ' (salaried)</span>' : '']);
+  const H = sal.length ? payTotals(rows, true) : null;
+  if (H && H.n) h += line(H, 'Hourly staff', ['<span class="muted">Without ' + esc(sal.join(', ')) + ': what goes into Paychex</span>'], 'hrRow');
+  return '<tfoot>' + h + '</tfoot>';
+}
 ACT.payPrev = () => { S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], -14) }; renderView(); };
 ACT.payNext = () => { S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], 14) }; renderView(); };
 ACT.payNow = () => { S.pay = { start: periodOf(TCE.dayOf(nowMs()))[0] }; renderView(); };
@@ -346,7 +371,13 @@ ACT.payAnchor = async b => { const v = $('#payAnchor').value; if (!TCE.isISO(v))
 ACT.payCsv = () => {
   const [a, z] = periodOf(S.pay.start), rows = payRows(a, z, S.pay.data), wks = rows.length ? rows[0].weeks : [];
   const head = ['Employee', 'Period start', 'Period end', 'Regular hours', 'Overtime hours', 'Total hours', 'Pay type', 'To check'].concat(wks.flatMap(x => ['Week of ' + x.wkIso + ' regular', 'Week of ' + x.wkIso + ' overtime']));
-  const out = [head].concat(rows.map(r => [r.name, a, z, hNum(r.reg), hNum(r.ot), hNum(r.reg + r.ot), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.join('; ')].concat(r.weeks.flatMap(x => [hNum(x.reg), hNum(x.ot)]))));
+  const out = [head].concat(rows.map(r => [r.name, a, z, hNum(r.reg), hNum(r.ot), hStr(paidH(r)), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.join('; ')].concat(r.weeks.flatMap(x => [hNum(x.reg), hNum(x.ot)]))));
+  // the totals, as on the page: everyone, then (with someone salaried) only the people paid by the hour
+  const sal = rows.filter(r => r.sal).map(r => r.name), tot = (T, label, type, note) => [label, a, z, hStr(T.reg), hStr(T.ot), hStr(T.all), type,
+    [T.open ? 'Not final: some days aren’t complete' : '', note].filter(Boolean).join('; ')].concat(T.weeks.flatMap(x => [hStr(x.reg), hStr(x.ot)]));
+  if (rows.length) out.push(tot(payTotals(rows, false), 'Total', sal.length ? 'Everyone' : '', sal.length ? 'With ' + sal.join(', ') + ' (salaried)' : ''));
+  const H = sal.length ? payTotals(rows, true) : null;
+  if (H && H.n) out.push(tot(H, 'Hourly staff', 'Hourly', 'Without ' + sal.join(', ') + ': what goes into Paychex'));
   download('time-clock-' + a + '-to-' + z + '.csv', csvOf(out));
 };
 ACT.payCsvDays = () => {

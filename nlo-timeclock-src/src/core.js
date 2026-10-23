@@ -105,3 +105,5 @@ function agoText(ms, now) {
 }
 /* hours for a table: "38.5" (two decimals at most) */
 function hNum(ms) { const v = TCE.h2(ms); return String(Object.is(v, -0) ? 0 : v); }
+/* the same for a number of hours (a sum of hours already rounded): "454.8" */
+function hStr(h) { const v = Math.round(h * 100) / 100; return String(Object.is(v, -0) ? 0 : v); }

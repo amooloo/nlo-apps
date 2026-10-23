@@ -196,6 +196,22 @@ async def main():
         check('the payroll CSV: each person’s two-week regular and overtime hours first, and the pay type', csv.startswith('"Employee","Period start","Period end","Regular hours","Overtime hours","Total hours","Pay type"') and '"Robin Hale"' in csv and '"Salaried (hours for the record)"' in csv, csv[:300])
         pay = await pg.inner_text('table.pay')
         check('payroll: Casey’s overtime, and Quinn marked salaried', re.search(r'Casey Park\s+\d+(\.\d+)?\s+0\.5\b', pay) is not None and 'Salaried' in pay, pay[:600])
+        # the totals (23 Oct 2026): Total is everyone (Quinn, salaried, too), then the hourly staff — each person's hours as shown, added up
+        tt = await pg.evaluate('''() => { const t = document.querySelector('table.pay'), num = s => Number(String(s).trim()) || 0;
+          const row = r => ({ label: r.cells[0].innerText.trim(), sal: r.classList.contains('salRow'), reg: num(r.cells[1].innerText), ot: num(r.cells[2].innerText), all: num(r.cells[3].innerText), note: r.cells[4].innerText.trim() });
+          return { body: [...t.tBodies[0].rows].map(row), foot: t.tFoot ? [...t.tFoot.rows].map(row) : [] }; }''')
+        r2 = lambda v: round(v + 1e-9, 2)
+        body, foot = tt['body'], tt['foot']
+        check('payroll: each person’s Total is their regular + overtime as shown', all(r2(r['reg'] + r['ot']) == r['all'] for r in body), body)
+        ev, hr = body, [r for r in body if not r['sal']]
+        check('payroll totals: Total = everyone’s regular, overtime and hours added up, salaried included and said so',
+              len(foot) == 2 and foot[0]['label'] == 'Total' and foot[0]['reg'] == r2(sum(r['reg'] for r in ev)) and foot[0]['ot'] == r2(sum(r['ot'] for r in ev))
+              and foot[0]['all'] == r2(foot[0]['reg'] + foot[0]['ot']) and 'Quinn' in foot[0]['note'], foot)
+        check('payroll totals: then the hourly staff only (what goes into Paychex)',
+              len(foot) == 2 and foot[1]['label'] == 'Hourly staff' and foot[1]['reg'] == r2(sum(r['reg'] for r in hr)) and foot[1]['ot'] == r2(sum(r['ot'] for r in hr))
+              and foot[1]['all'] == r2(foot[1]['reg'] + foot[1]['ot']) and foot[1]['reg'] < foot[0]['reg'] and 'Paychex' in foot[1]['note'], foot)
+        check('the payroll CSV ends with the same two totals', '"Total"' in csv and '"Hourly staff"' in csv and csv.rstrip().splitlines()[-1].startswith('"Hourly staff"'), csv[-400:])
+        await shot(pg, 'm2-pay-totals')
         async with pg.expect_download() as dl: await pg.click('[data-act=payCsvDays]')
         days = open(await (await dl.value).path(), encoding='utf-8-sig').read()
         check('the every-day CSV lists punches and corrections', 'Added In 7:30 AM (Dr. A: Was told to start at 7:30)' in days and 'Took out In 7:21 AM' in days, days[:300])
