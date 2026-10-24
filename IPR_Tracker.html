@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-6EuZB/xhVeoPa3E2ob0N7OUmTjyZJTbwQeGc1hu5QAY=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-yYpc5HZs6S7jclXLtXyia2x/k01elvD1kAAhQcUZpJs=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO IPR Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4325,6 +4325,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   const handleCancel = () => {
     const hasWork = !!patient.patientId || !!dbPatient || sumContacts(upper) > 0 || sumContacts(lower) > 0 || notes.trim().length > 0;
     if (hasWork && !readOnly && !window.confirm("Cancel and discard this entry?\n\nThis will clear the current charting data and return to the patient picker. Any unsaved changes will be lost.")) return;
+    // (discarded, as it says: the change still waiting to autosave isn't saved on the way out)
+    if (autosave.current) { clearTimeout(autosave.current.timer); autosave.current = null; }
     clearAllState();
     setFlowStep("choose");
   };

@@ -489,7 +489,12 @@ def run(b):
     menu(gwen, 'Lock'); gwen.wait_for_selector('#lgPw', timeout=20000)
     check('the lock closes a print window left open (it shows the patient’s name and IPR)', w.is_closed())
     sign_in(gwen, 'gwen', PW['gwen'], go=False); wait_app(gwen)
-    wizard(gwen); gwen.click('.ip-opt:has-text("New patient")')
+    # Cancel discards what it says it does: a change still waiting to autosave isn't saved on the way out
+    tap(gwen, 'upper', 'UL6|UL7'); gwen.click('.ip-foot button:has-text("Cancel")')
+    gwen.wait_for_selector('.ip-dlg-h:has-text("New visit")', timeout=8000); gwen.wait_for_timeout(3200); settle(gwen)
+    vb = open_vault(gwen)['vis'].get(add2[0] if add2 else '') or {}
+    check('Cancel right after a change: the change isn’t saved (the visit stays as it was)', (vb.get('body') or {}).get('upper_ipr', {}).get('UL6|UL7', '') == '' and (vb.get('body') or {}).get('lower_ipr', {}).get('LR5|LR4') == '0.3', (vb.get('body') or {}).get('upper_ipr'))
+    gwen.click('.ip-opt:has-text("New patient")')
     gwen.fill('#ip-np-id', '15-6541'); gwen.fill('#ip-np-name', 'John Smith')
     gwen.wait_for_selector('.ip-exists', timeout=8000); n_pts = len(query('iprPts'))
     gwen.click('.ip-dialog button:has-text("Create & continue")'); gwen.wait_for_selector('.ip-dialog .ip-msg.err', timeout=8000)

@@ -2310,6 +2310,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   const handleCancel = () => {
     const hasWork = !!patient.patientId || !!dbPatient || sumContacts(upper) > 0 || sumContacts(lower) > 0 || notes.trim().length > 0;
     if (hasWork && !readOnly && !window.confirm("Cancel and discard this entry?\n\nThis will clear the current charting data and return to the patient picker. Any unsaved changes will be lost.")) return;
+    // (discarded, as it says: the change still waiting to autosave isn't saved on the way out)
+    if (autosave.current) { clearTimeout(autosave.current.timer); autosave.current = null; }
     clearAllState();
     setFlowStep("choose");
   };
