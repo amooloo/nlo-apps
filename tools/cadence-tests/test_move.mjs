@@ -407,7 +407,7 @@ await fsPut('cadMeta/moved', { on: true, pause: true, at: new Date() });
 const pauseNote = '.nlo-signin [role=status]:has-text("moving Cadence")';
 await B.page.waitForSelector(pauseNote, { timeout: 15000 }).catch(() => { });
 ok(await B.page.isVisible(pauseNote) && !(await B.page.isVisible('#nloOverlay')), 'the sign-in says Cadence is paused, without covering it');
-await B.page.screenshot({ path: 'shots/m06-paused-signin.png' });
+await B.page.screenshot({ path: 'shots/m09-paused-signin.png' });
 await signIn(B.page, 'gwen');
 await B.page.waitForSelector('.nlo-signin [role=alert]', { timeout: 20000 }).catch(() => { });
 ok(/moving Cadence/.test(await B.page.textContent('.nlo-signin [role=alert]').catch(() => '')) && /#\/picker$/.test(await hash(B.page)), 'staff can’t sign in meanwhile');
@@ -418,7 +418,7 @@ ok(!(await A.page.isVisible('#nloOverlay')) && await A.page.isVisible('button:ha
 await A.page.goto(BASE + '#/admin/dashboard');
 await A.page.waitForSelector('#nloOverlay .nlo-ov-btn', { timeout: 10000 }).catch(() => { });
 ok(await A.page.isVisible('#nloOverlay .nlo-ov-btn'), 'elsewhere the pause covers his screen, with a way back to the Move page');
-await A.page.screenshot({ path: 'shots/m07-paused-owner.png' });
+await A.page.screenshot({ path: 'shots/m10-paused-owner.png' });
 await A.page.click('#nloOverlay .nlo-ov-btn');
 ok(await waitHash(A.page, /#\/admin\/move$/), '… which opens it');
 await A.page.click('button:has-text("let them carry on")');
@@ -514,7 +514,7 @@ await A.ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: ne
 await signIn(A.page, 'dr.owner@example.com');
 await A.page.waitForSelector('.nlo-signin button:has-text("Copy the rules")', { timeout: 30000 }).catch(() => { });
 ok(await A.page.isVisible('.nlo-signin button:has-text("Copy the rules")') && /#\/picker$/.test(await hash(A.page)), 'Dr. A signing in there gets the rules to publish');
-await A.page.screenshot({ path: 'shots/m08-rules-older.png' });
+await A.page.screenshot({ path: 'shots/m11-rules-older.png' });
 await A.page.click('.nlo-signin button:has-text("Copy the rules")');
 const clip = await A.page.evaluate(() => navigator.clipboard.readText()).catch(() => '');
 ok(clip.includes('match /cadInst/{id}') && clip.includes('match /invItems/{id}') && clip.includes("request.auth.token.email == 'dr.owner@example.com'"), '… the whole file, with his email filled in');
