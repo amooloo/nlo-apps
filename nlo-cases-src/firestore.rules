@@ -1510,7 +1510,7 @@ service cloud.firestore {
     // - Which day it is (cadState/day, with the quarter) and the out-of-office board (cadState/timeoff) are kept up by
     //   everyone's screens; the day is never one that hasn't begun yet (a device whose clock runs ahead).
     // - Cadence's activity log (cadAudit) only grows: one record per entry, in the saver's name, never changed, with its
-    //   text fields text and its time never ahead of the database's.
+    //   text fields text and its time (the saving device's clock) at most a day ahead of the database's.
     // - cadMeta/moved says whether Cadence lives here, and pauses Cadence's screens while Dr. A moves it; the pages read it
     //   before anyone signs in, so it holds nothing else.
     // =====================================================================
@@ -1555,7 +1555,7 @@ service cloud.firestore {
         && request.resource.data.get('message', '') is string && request.resource.data.get('message', '').size() <= 4000
         && cadStr(request.resource.data.get('tone', null), 40) && cadStr(request.resource.data.get('actor', null), 200)
         && cadStr(request.resource.data.get('detail', null), 2000) && cadStr(request.resource.data.get('at', null), 60)
-        && request.resource.data.get('t0', 0) is number && request.resource.data.get('t0', 0) <= request.time.toMillis() + 120000;
+        && request.resource.data.get('t0', 0) is number && request.resource.data.get('t0', 0) <= request.time.toMillis() + 86400000;
       allow update, delete: if false;
     }
     match /cadMirror/{id} {
@@ -1575,8 +1575,12 @@ service cloud.firestore {
       allow create, update: if cadOk(request.resource.data) && isOwner();
       allow delete: if false;
     }
-    // which set of these rules is live (Cadence reads this; older rules refuse it)
+    // which set of these rules is live (Cadence reads these; older rules refuse them): 1 = Cadence's block (24 Oct 2026, the
+    // move), 2 = a log entry dated by a device's clock may run up to a day ahead (24 Oct 2026, the same afternoon)
     match /meta/rules_cad_1 {
+      allow get: if isMember();
+    }
+    match /meta/rules_cad_2 {
       allow get: if isMember();
     }
   }

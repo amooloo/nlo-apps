@@ -10,21 +10,22 @@ Dr. A, once). Everything here is a made-up office on the Firebase emulators: not
   `rtdb.rules.json` for `nlo/cadence`), Cadence on its old database: the device's Google step, every sign-in error, staff /
   manager / Dr. A, Lock, reload, a login turned off while signed in, Sign-in check and linking a login, password fillers, the
   page cache, offline, phones, and (without `--quick`) the idle lock, its warning and its wait for the internet. 102 checks.
-- `rules.test.mjs` — Cadence's block of the shared Firestore rules, 84 checks: not signed in (only the move marker), a
+- `rules.test.mjs` — Cadence's block of the shared Firestore rules, 87 checks: not signed in (only the move marker), a
   login with no member record or turned off, staff (lists, ticks, the day, the out-of-office board, the log; not the setup,
   not a day ahead of the office's, not a list's checklist or day, not un-certifying or taking off a list once it's been
-  certified, not text fields that aren't text, not a log entry dated ahead), Dr. A, a batch of 450 list saves, the day's
+  certified, not text fields that aren't text, not a log entry dated days ahead — a clock a few minutes fast is fine), Dr. A, a batch of 450 list saves, the day's
   roll in a transaction. Its dates are the office's (US Eastern).
 - `test_move.mjs` — the move, on the real page: the rules as they were before (eac0d28) → Cadence as before and the Move
   page asking for the rules; the new rules → the move with other screens open (one of them the page as published before,
   eac0d28), what it leaves in both databases; then a device with no Google connection, two phones ticking one list, Lock,
   Dr. A's copies of Staff Hub's roster / the calendar's closed days / NLO Time Off's feed key and his edits, a staff login
   refused the setup, two devices rolling the day, NLO Time Off's sealed feed (served by the test with a made-up key), the
-  Staff Meeting Hub's copy, moving back, and moving again. And what an independent review found (24 Oct): a page from
-  before saving a tick while the move runs (nothing moves), a tick still waiting with no internet when the next person
+  Staff Meeting Hub's copy, moving back, and moving again. And what two independent reviews found (24 Oct): a page from
+  before saving a tick while the move runs (nothing moves, and Dr. A's next change keeps it), a tick still waiting with no internet when the next person
   signs in (the sign-in waits for it), a pause left behind by a move that didn't finish (the sign-in and the Move page
-  aren't covered; Dr. A ends it), a device whose clock is a day behind (it shows the office's day), and older rules
-  published again after the move (screens stay on the new system and Dr. A's sign-in hands him the rules). 127 checks; the
+  aren't covered; a fresh pause can't be ended, one minutes old can, and that leaves Cadence where it is), a device whose clock is a day behind (it shows the office's day), and older rules
+  published again after the move (screens stay on the new system and Dr. A's sign-in hands him the rules), and the rules as
+  Dr. A published them at the move (ef2e7ef) → his admin pages ask for the updated ones. 134 checks; the
   browsers and the test run on US Eastern time.
 
 Run (Java and Node 20+):

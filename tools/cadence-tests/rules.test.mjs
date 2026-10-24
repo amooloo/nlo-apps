@@ -46,7 +46,8 @@ await t('can’t list the lists', assertFails(getDocs(collection(anon, 'cadInst'
 await t('can’t read the activity log', assertFails(getDocs(collection(anon, 'cadAudit'))));
 await t('can’t read the mirrors', assertFails(getDoc(doc(anon, 'cadMirror/roster'))));
 await t('can’t read the move info', assertFails(getDoc(doc(anon, 'cadMeta/info'))));
-await t('can’t read the rules marker', assertFails(getDoc(doc(anon, 'meta/rules_cad_1'))));
+await t('can’t read the rules markers', assertFails(getDoc(doc(anon, 'meta/rules_cad_1'))));
+await t('… nor the second', assertFails(getDoc(doc(anon, 'meta/rules_cad_2'))));
 await t('can’t write a list', assertFails(setDoc(doc(anon, 'cadInst/x1'), inst('x1', ST('gwen')))));
 await t('can’t flip the move marker', assertFails(setDoc(doc(anon, 'cadMeta/moved'), { on: false, at: serverTimestamp() })));
 
@@ -62,7 +63,8 @@ await t('reads the day', assertSucceeds(getDoc(doc(gwen, 'cadState/day'))));
 await t('lists the lists from a date on', assertSucceeds(getDocs(query(collection(gwen, 'cadInst'), where('date', '>=', '2026-07-01')))));
 await t('reads the activity log', assertSucceeds(getDocs(collection(gwen, 'cadAudit'))));
 await t('reads the mirrors', assertSucceeds(getDoc(doc(gwen, 'cadMirror/roster'))));
-await t('reads the rules marker', assertSucceeds(getDoc(doc(gwen, 'meta/rules_cad_1'))));
+await t('reads the rules markers', assertSucceeds(getDoc(doc(gwen, 'meta/rules_cad_1'))));
+await t('… and the second (the updated rules)', assertSucceeds(getDoc(doc(gwen, 'meta/rules_cad_2'))));
 await t('reads the move info', assertSucceeds(getDoc(doc(gwen, 'cadMeta/info'))));
 await t('can’t change the setup (checklists, staff, rotations)', assertFails(updateDoc(doc(gwen, 'cadState/config'), ST('gwen', { checklists: [{ id: 'x' }] }))));
 await t('can’t make a new setup either', assertFails(setDoc(doc(gwen, 'cadState/config'), ST('gwen', { checklists: [] }))));
@@ -104,7 +106,8 @@ await t('… not with extra fields', assertFails(setDoc(doc(gwen, 'cadAudit/aud_
 await t('… not under another id', assertFails(setDoc(doc(gwen, 'cadAudit/aud_g2'), aud('aud_g3'))));
 await t('… not with a detail that isn’t text (it would break the log screen)', assertFails(setDoc(doc(gwen, 'cadAudit/aud_g2'), aud('aud_g2', { detail: { x: 1 } }))));
 await t('… not with a name that isn’t text', assertFails(setDoc(doc(gwen, 'cadAudit/aud_g2'), aud('aud_g2', { actor: ['x'] }))));
-await t('… not dated ahead (it would sit on top of the log)', assertFails(setDoc(doc(gwen, 'cadAudit/aud_g2'), aud('aud_g2', { t0: Date.now() + 36e5 }))));
+await t('… dated by a device whose clock runs a few minutes fast', assertSucceeds(setDoc(doc(gwen, 'cadAudit/aud_g3'), aud('aud_g3', { t0: Date.now() + 5 * 6e4 }))));
+await t('… not dated days ahead (it would sit on top of the log)', assertFails(setDoc(doc(gwen, 'cadAudit/aud_g2'), aud('aud_g2', { t0: Date.now() + 2 * 864e5 }))));
 await t('can’t change an entry', assertFails(updateDoc(doc(gwen, 'cadAudit/aud_1'), { message: 'changed' })));
 await t('can’t overwrite an entry', assertFails(setDoc(doc(gwen, 'cadAudit/aud_1'), aud('aud_1'))));
 await t('can’t delete an entry', assertFails(deleteDoc(doc(gwen, 'cadAudit/aud_1'))));

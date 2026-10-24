@@ -249,16 +249,26 @@ await A.page.click('button:has-text("Check again")');
 await A.page.waitForSelector('text=The new rules are live.', { timeout: 15000 }).catch(() => { });
 ok(await A.page.isVisible('text=The new rules are live.'), 'Check again: the new rules are live');
 ok(!(await A.page.isDisabled('button:has-text("Move it now")')), 'Move it now is on');
+const before0 = { amir: (arrOf((await dbGet('nlo/cadence/state')).staff).find(x => x && x.id === 's_amir') || {}).name };
 // a Cadence page from before this version (it doesn't hear the pause) saves a tick while the move runs: nothing moves
 {
   const idx = ST.instances.findIndex(x => x.date < TODAY && x.status === 'in-progress'); // (a list from before today no later check uses)
+  const nAud = arrOf((await dbGet('nlo/cadence/state')).audit).length, oldEntry = 'aud_' + Date.now().toString(36) + '_oldp';
   const [d0] = await Promise.all([A.page.waitForEvent('download', { timeout: 30000 }).catch(() => null), A.page.click('button:has-text("Move it now")')]);
-  if (d0) await dbPatch(`nlo/cadence/state/instances/${idx}/items/0`, { checked: true, doneBy: short(ST.instances[idx].assigneeId), doneAt: '9:41a' });
+  if (d0) await dbPatch('nlo/cadence/state', { [`instances/${idx}/items/0/checked`]: true, [`instances/${idx}/items/0/doneBy`]: short(ST.instances[idx].assigneeId),
+    [`audit/${nAud}`]: { id: oldEntry, tone: 'info', actor: 'Kaylee Doty', message: '<b>Kaylee Doty</b> ticked an item (on a page from before)', detail: '9:41a', at: '9:41a' } });
   await A.page.waitForSelector('text=saved something while this ran', { timeout: 60000 }).catch(() => { });
   ok(!!d0 && await A.page.isVisible('text=saved something while this ran'), 'a page from before saves a tick during the move: nothing moves, and it says why');
   const m0 = await fsDoc('cadMeta/moved'), o0 = await dbGet('nlo/cadence/state');
   ok(m0 && m0.on === false && m0.pause === false && (await dbGet('nlo/cadence/pause')) === null && (await dbGet('nlo/cadence/moved')) === null && arrOf(o0.staff).length === CAD_STAFF.length && o0.practiceName === ST.practiceName, '… Cadence stays on its old database, unpaused, its copy as it was');
   ok(!!(await until(async () => !(await G.page.isVisible('#nloOverlay')), 10000)) && (await mode(A.page)) === 'rtdb', '… and the screens carry on there');
+  // Dr. A's screen took in what that page saved while it moved: his next change keeps it (the old database saves the log whole)
+  const CX = CLS.find(c => c && !c.archived && !DAILY.some(d => d.id === c.id)) || CLS[CLS.length - 1]; // (one no later check uses)
+  await A.page.goto(BASE + '#/admin/checklists/' + CX.id); await A.page.waitForSelector('.editor-meta input.input');
+  await A.page.fill('.editor-meta input.input', CX.name + ' (edited)'); await A.page.click('button:has-text("Save checklist")');
+  const kept = await until(async () => { const a = arrOf((await dbGet('nlo/cadence/state')).audit); return a.some(x => x && x.message === `<b>${before0.amir}</b> edited <b>${CX.name} (edited)</b>`) && a; });
+  ok(!!kept && kept.some(x => x && x.id === oldEntry), '… and Dr. A’s next change keeps what the page from before saved meanwhile (its log entry too)');
+  await A.page.goto(BASE + '#/admin/move'); await A.page.waitForSelector('button:has-text("Move it now"):not([disabled])', { timeout: 20000 }).catch(() => { });
 }
 // other screens open meanwhile: Gwen on Mine (this page), Kaylee on the page as published before, a sign-in screen
 await G.page.goto(BASE + '#/app/mine'); await G.page.waitForSelector('.staff-content');
@@ -413,16 +423,19 @@ await B.page.waitForSelector('.nlo-signin [role=alert]', { timeout: 20000 }).cat
 ok(/moving Cadence/.test(await B.page.textContent('.nlo-signin [role=alert]').catch(() => '')) && /#\/picker$/.test(await hash(B.page)), 'staff can’t sign in meanwhile');
 await signIn(A.page, 'dr.owner@example.com');
 ok(await waitHash(A.page, /#\/admin\/move$/, 30000), 'Dr. A can: he lands on the Move page');
-await A.page.waitForSelector('button:has-text("let them carry on")', { timeout: 15000 }).catch(() => { });
-ok(!(await A.page.isVisible('#nloOverlay')) && await A.page.isVisible('button:has-text("let them carry on")'), '… which the pause doesn’t cover');
+await A.page.waitForSelector('text=Cadence is paused for a move', { timeout: 15000 }).catch(() => { });
+ok(!(await A.page.isVisible('#nloOverlay')) && await A.page.isVisible('text=Cadence is paused for a move') && !(await A.page.isVisible('button:has-text("let them carry on")')), '… which the pause doesn’t cover; a pause this fresh may be a move under way, so nothing ends it yet');
 await A.page.goto(BASE + '#/admin/dashboard');
 await A.page.waitForSelector('#nloOverlay .nlo-ov-btn', { timeout: 10000 }).catch(() => { });
 ok(await A.page.isVisible('#nloOverlay .nlo-ov-btn'), 'elsewhere the pause covers his screen, with a way back to the Move page');
 await A.page.screenshot({ path: 'shots/m10-paused-owner.png' });
 await A.page.click('#nloOverlay .nlo-ov-btn');
 ok(await waitHash(A.page, /#\/admin\/move$/), '… which opens it');
+await fsPut('cadMeta/moved', { on: true, pause: true, at: new Date(Date.now() - 4 * 6e4) }); // (the move that paused them stopped 4 minutes ago)
+await A.page.waitForSelector('button:has-text("let them carry on")', { timeout: 30000 }).catch(() => { });
+ok(await A.page.isVisible('button:has-text("let them carry on")'), 'a pause minutes old: the Move page offers to end it');
 await A.page.click('button:has-text("let them carry on")');
-ok(!!(await until(async () => { const m = await fsDoc('cadMeta/moved'); return m && m.on === true && m.pause === false; })), 'let them carry on: the pause ends (Cadence stays moved)');
+ok(!!(await until(async () => { const m = await fsDoc('cadMeta/moved'); return m && m.on === true && m.pause === false; })), 'let them carry on: the pause ends, and Cadence stays where it is');
 ok(!!(await until(async () => !(await B.page.isVisible(pauseNote)), 10000)), '… and the sign-in stops saying it’s paused');
 await A.page.click('.admin-nav button:has-text("Lock")'); await waitHash(A.page, /#\/picker$/);
 
@@ -455,6 +468,31 @@ ok(await B.page.evaluate(async () => {
   try { await a.firestore().doc('cadState/config').update({ practiceName: 'Hacked', up: firebase.firestore.FieldValue.serverTimestamp(), upBy: 'gwen' }); return false; }
   catch (e) { return /permission/i.test(String(e.code || e.message)); } finally { await au.signOut(); }
 }), 'a staff login can’t change the setup');
+
+// ---------- 6b. the rules as Dr. A published them at the move (24 Oct, 11:27), then the updated ones ----------
+console.log('6b. the rules published at the move, then the updated ones');
+{
+  let RULES_MOVE = '';
+  try { RULES_MOVE = execFileSync('git', ['show', 'ef2e7ef:nlo-cases-src/firestore.rules'], { cwd: REPO, encoding: 'utf8' }); } catch { }
+  if (!RULES_MOVE.includes('match /meta/rules_cad_1') || RULES_MOVE.includes('rules_cad_2')) throw new Error('the rules as published at the move are not where expected');
+  await rules(RULES_MOVE);
+  await A.page.reload(); await waitHash(A.page, /#\/picker$/);
+  await signIn(A.page, 'dr.owner@example.com'); await waitHash(A.page, /#\/admin\/dashboard$/, 30000);
+  await A.page.waitForSelector('.nlo-move-banner', { timeout: 15000 }).catch(() => { });
+  ok(/updated database rules/.test(await A.page.textContent('.nlo-move-banner').catch(() => '')), 'with the rules as published at the move, his admin pages say one step is left (the updated rules)');
+  await A.page.click('.nlo-move-banner button');
+  ok(await waitHash(A.page, /#\/admin\/move$/), '… the banner opens the Data page');
+  await A.page.waitForSelector('text=One step left: the updated database rules', { timeout: 15000 }).catch(() => { });
+  const txt = await A.page.$eval('details textarea', t => t.value).catch(() => '');
+  ok(await A.page.isVisible('text=One step left: the updated database rules') && txt.includes('match /meta/rules_cad_2') && txt.includes("request.auth.token.email == 'dr.owner@example.com'"), '… with the rules card (the whole file, his email filled in)');
+  await A.page.screenshot({ path: 'shots/m12-updated-rules.png', fullPage: true });
+  await rules(RULES_NEW);
+  await A.page.click('button:has-text("Check again")');
+  await A.page.waitForSelector('text=The updated rules are live.', { timeout: 15000 }).catch(() => { });
+  ok(await A.page.isVisible('text=The updated rules are live.'), 'published: Check again says they’re live');
+  await A.page.goto(BASE + '#/admin/dashboard'); await sleep(800);
+  ok(!(await A.page.isVisible('.nlo-move-banner')), '… and the banner is gone');
+}
 
 // ---------- 7. two devices rolling the day ----------
 console.log('7. the day rolls once');

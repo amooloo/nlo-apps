@@ -74,9 +74,9 @@ await dbPut('nlo/cadence', null); // (also what test_move.mjs leaves: Cadence ma
   await page.goto(BASE);
   await connect(page);
   for (let i = 0; i < 50; i++) { const st = await dbGet('nlo/cadence/state'); if (st && st.checklists) break; await page.waitForTimeout(200); }
+  await ctx.close(); // (before the made-up office goes in: that tab's old-database writer could still save its starting state over it)
   const st = await dbGet('nlo/cadence/state');
   await seedCadence(st);
-  await ctx.close();
 }
 fs.mkdirSync(new URL('./shots/', import.meta.url), { recursive: true });
 process.chdir(new URL('./', import.meta.url).pathname);
