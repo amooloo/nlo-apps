@@ -491,6 +491,10 @@ const FB_CONFIG = {
 const ROOT = 'nlo/staffMeeting';
 const ROSTER_PATH = 'nlo/cadence/roster/people';
 const CADENCE_PATH = 'nlo/cadence/state';
+/* Since Cadence moved onto the NLO Cases system (24 Oct 2026) its data isn't here any more: Cadence keeps a copy of what this
+   page reads (staff, checklists, the last month's lists, the next weeks' out-of-office days) at nlo/cadence/forMeeting,
+   written by its screens that have the office Google connection; nlo/cadence/moved says it has moved. */
+const CADENCE_COPY = 'nlo/cadence/forMeeting', CADENCE_MOVED = 'nlo/cadence/moved';
 const OWNER_EMAIL = 'akhavan.ak@gmail.com';
 const OWNER_ID = 's_amir';
 const ALLOWED_DOMAIN = 'thenextlevelorthodontics.com';
@@ -1109,9 +1113,9 @@ async function loadAuto(force) {
     await S.rosterReady;   // former staff are filtered out using the roster
     const auto = { at: Date.now() };
     const jobs = [];
-    if (src.cadence || src.out) jobs.push(Promise.all(['staff', 'checklists', 'instances', 'timeOff'].map(k => readOnce(CADENCE_PATH + '/' + k))).then(([staff, checklists, instances, timeOff]) => {
+    if (src.cadence || src.out) jobs.push(readCadence().then(([staff, checklists, instances, timeOff, asOf]) => {
       const st = { staff: arrOf(staff), checklists: arrOf(checklists), instances: arrOf(instances), timeOff: arrOf(timeOff) };
-      if (src.cadence) auto.cadence = computeCadence(st);
+      if (src.cadence) { auto.cadence = computeCadence(st); if (asOf) auto.cadence.asOf = asOf; }
       if (src.out) auto.out = computeOut(st);
     }).catch(e => { if (src.cadence) auto.cadence = { err: e.message }; if (src.out) auto.out = { err: e.message }; }));
     if (src.spend) jobs.push(Promise.all([readOnce('nlo/budget', 20000), readOnce('nlo/log', 20000), readOnce('nlo/orders', 20000), readOnce('nlo/items', 20000)]).then(([budget, log, orders, items]) => { auto.spend = computeSpending(items, orders, log, budget); }).catch(e => { auto.spend = { err: /permission/i.test(e.message) ? 'this sign-in can’t read Inventory’s budget — use the office or Dr. A’s sign-in' : e.message }; }));
@@ -1120,6 +1124,12 @@ async function loadAuto(force) {
     S.auto = auto; S.autoAt = Date.now();
   })();
   try { await S.autoPromise; } finally { S.autoLoading = false; render('inbox', 'run'); }
+}
+async function readCadence() {
+  const [moved, copy] = await Promise.all([readOnce(CADENCE_MOVED).catch(() => null), readOnce(CADENCE_COPY).catch(() => null)]);
+  if (!moved) return Promise.all(['staff', 'checklists', 'instances', 'timeOff'].map(k => readOnce(CADENCE_PATH + '/' + k)));
+  if (!copy || typeof copy.at !== 'number') throw new Error('Cadence moved to the NLO Cases system; its numbers show here once Cadence has been open on a computer connected to the office Google account');
+  return [copy.staff, copy.checklists, copy.instances, copy.timeOff, copy.at];
 }
 /* same rules as Cadence's scoreboard: last 30 days since the compliance epoch; certified = on time */
 function computeCadence(st) {
@@ -1298,7 +1308,8 @@ function cadenceBlock(c) {
   return '<div class="app-b"><div class="eyebrow">Cadence · last 30 days</div><div class="big" style="margin-top:6px">' + (c.practice == null ? '—' : c.practice + '%') + '<small>on time</small></div>' +
     (c.practice != null ? '<div class="bar"><i style="width:' + c.practice + '%"></i></div>' : '') +
     (top ? '<div class="podium">' + top + '</div>' : '') +
-    (most ? '<div class="small muted bold" style="margin-top:10px">Most often late</div><ul>' + most + '</ul>' : '') + '</div>';
+    (most ? '<div class="small muted bold" style="margin-top:10px">Most often late</div><ul>' + most + '</ul>' : '') +
+    (c.asOf && Date.now() - c.asOf > 36e5 ? '<div class="small muted" style="margin-top:8px">As of ' + esc(new Date(c.asOf).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</div>' : '') + '</div>';
 }
 function spendBlock(sp) {
   if (!sp) return '';

@@ -67,8 +67,7 @@ async function cad(p) { try { await p.waitForFunction(() => window.__nloCad && w
 console.log('seeding');
 await loadRules();
 const uids = await seedCases();
-await dbPut('nlo/cadence/state', null);
-await dbPut('nlo/cadence/roster', null);
+await dbPut('nlo/cadence', null); // (also what test_move.mjs leaves: Cadence marked moved, its copies)
 {
   // a connected device on an empty database writes Cadence's starting state; the made-up staff go in after
   const { ctx, page } = await device();
