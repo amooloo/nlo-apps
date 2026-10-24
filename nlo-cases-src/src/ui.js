@@ -2042,7 +2042,7 @@ function iprSumHTML(c) {
 function iprBoxHTML(c) {
   const x = iprRead(c), saved = String(c.ipr || '').trim();
   const savedBox = saved ? '<div class="iprSaved"><div class="k">IPR note saved on the case <span>(used in the chart note)</span></div><div class="txt">' + esc(saved) + '</div></div>' : '';
-  const open = '<a class="btn btn-ghost" href="' + esc(iprDeepUrl(c.chart, c.patient)) + '" target="_blank" rel="noopener" data-act="iprOpen">' + ic('ext', 14) + (c.chart ? 'Enter IPR in the IPR Tracker' : 'Open IPR Tracker') + '</a>';
+  const open = '<a class="btn btn-ghost" href="' + esc(iprDeepUrl(c.chart)) + '" target="_blank" rel="noopener" data-act="iprOpen">' + ic('ext', 14) + (c.chart ? 'Enter IPR in the IPR Tracker' : 'Open IPR Tracker') + '</a>';
   const msg = (t, plain) => '<div class="small' + (plain ? '' : ' muted') + ' iprMsg">' + t + '</div>';
   switch (x.k) {
     case 'off': return savedBox;
@@ -2075,6 +2075,7 @@ function iprPaint(c) {
   if (pin && !(S.dsTog && S.dsTog.has('ipr')) && !sec.classList.contains('open')) { dsShow(sec, true); dsAllSync(); }
 }
 async function iprAutoLoad(c, force) {
+  await iprMovedCheck(); // (IPR Tracker 4: read here, sealed, once the records have moved)
   const L = iprLink(); if (!L.init()) return;
   if (!L.user()) { await L.waitUser(); if (!L.user()) return; }
   const k = IPR.norm(c.chart); S.iprCache = S.iprCache || {};
@@ -2111,8 +2112,9 @@ async function iprSyncAll(quiet, btn) {
 /* once the link is on (connected now, or still on in this tab after a reload): everything synced in the background, at most every
    15 minutes on this computer */
 async function iprAutoSync() {
-  const L = iprLink(); if (!L.init()) return;
   for (let i = 0; i < 100 && S.inApp && S.firstLoad; i++) await new Promise(r => setTimeout(r, 100));
+  if (await iprMovedCheck(true)) { const c = S.openId && findCase(S.openId); if (c) iprPaint(c); if (S.view === 'account') renderView(); }
+  const L = iprLink(); if (!L.init()) return;
   const u = L.user() || await L.waitUser(); if (!u || !S.inApp) return;
   let last = 0; try { last = Number(localStorage.getItem('nloCases.iprSyncAt')) || 0; } catch (e) { }
   if (Date.now() - last > 15 * 60e3) iprSyncAll(true);
@@ -2148,6 +2150,7 @@ async function iprPull(btnOrRoot, quiet) {
   const msg = $('#cf-iprMsg', root), chartEl = $('#cf-chart', root); if (!msg || !chartEl) return;
   const chart = (chartEl.value || '').trim();
   if (!chart) { msg.textContent = 'Enter the chart # first.'; return; }
+  await iprMovedCheck();
   const L = iprLink(); if (!L.init()) { msg.textContent = 'IPR link unavailable in this browser.'; return; }
   try {
     if (!L.user()) { if (quiet) { msg.textContent = 'Tap Get from IPR Tracker to bring the visit in (connects this computer to the IPR Tracker once).'; return; } await L.connect(); }
@@ -2351,7 +2354,7 @@ function onClick(e) {
     case 'iprPull': iprPull(t); break;
     case 'iprEnter': { const root = t.closest('.modal') || $('#drawer'); const ch = (($('#cf-chart', root) || {}).value || '').trim(), msg = $('#cf-iprMsg', root);
       if (!ch) { if (msg) msg.textContent = 'Enter the chart # first.'; break; }
-      window.open(iprDeepUrl(ch, (($('#cf-patient', root) || {}).value || '')), '_blank', 'noopener'); root._iprWait = Date.now();
+      window.open(iprDeepUrl(ch), '_blank', 'noopener'); root._iprWait = Date.now();
       if (msg) msg.textContent = 'Enter the visit in the IPR Tracker and save it there. When you come back to this window, it shows up here by itself.';
       break; }
     case 'iprOpen': S.iprWait = { id: S.openId, at: Date.now() }; break; // (the link opens the IPR Tracker; coming back refreshes the chart)

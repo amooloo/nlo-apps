@@ -411,6 +411,77 @@ await ok('a deleted case takes its photo with it', (async () => { const b = writ
 await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'photos/gone'), { v: 2, ...box, pv: 'p1', at: Timestamp.now(), by: 'owner' }); });
 await ok('a photo left without its case can be cleared away', deleteDoc(doc(env.authenticatedContext('gwen').firestore(), 'photos/gone')));
 
+console.log('\n# The IPR Tracker (23 Oct 2026): sealed patients and visits, each save with its history entry');
+await seed();
+const iprPC = 'A'.repeat(22);
+await env.withSecurityRulesDisabled(async c => {
+  const d = c.firestore();
+  await setDoc(doc(d, 'iprPts/p1'), { v: 2, ...box, rev: 2, by: 'owner', sid: 'amir', createdAt: Timestamp.fromMillis(1e12), updatedAt: Timestamp.now(), pc: iprPC });
+  await setDoc(doc(d, 'iprPtLog/p1_2'), { ptId: 'p1', rev: 2, uid: 'owner', sid: 'amir', at: Timestamp.now(), v: 2, ...box, prev: { v: 2, iv: 'b2xk', ct: 'b2xk' } });
+  await setDoc(doc(d, 'iprVis/v1'), { p: 'p1', v: 2, ...box, rev: 1, by: 'gwen', sid: 'gwen', createdAt: Timestamp.fromMillis(1e12), updatedAt: Timestamp.now() });
+  await setDoc(doc(d, 'iprVisLog/v1_1'), { visId: 'v1', rev: 1, uid: 'gwen', sid: 'gwen', at: Timestamp.now(), v: 2, ...box, prev: null });
+});
+const IPR_PREV = { v: 2, ...box };
+const iprHist = (kind, uid, sid, id, rev, prev, extra) => Object.assign(kind === 'pt' ? { ptId: id } : { visId: id }, { rev, uid, sid, at: serverTimestamp(), v: 2, ...box, prev }, extra || {});
+const iprDoc = (kind, uid, sid, rev, extra) => Object.assign(kind === 'vis' ? { p: 'p1' } : {}, { v: 2, ...box, rev, by: uid, sid, createdAt: rev === 1 ? serverTimestamp() : Timestamp.fromMillis(1e12), updatedAt: serverTimestamp() }, extra || {});
+function iprWrite(db, kind, id, data, hist, mode, also) {
+  const b = writeBatch(db), coll = kind === 'pt' ? 'iprPts' : 'iprVis', logc = kind === 'pt' ? 'iprPtLog' : 'iprVisLog';
+  if (mode === 'create') b.set(doc(db, coll + '/' + id), data); else if (mode === 'delete') b.delete(doc(db, coll + '/' + id)); else b.update(doc(db, coll + '/' + id), data);
+  if (hist) b.set(doc(db, logc + '/' + id + '_' + hist.rev), hist);
+  if (also) also(b);
+  return b.commit();
+}
+db = env.unauthenticatedContext().firestore();
+await no('signed out: cannot read IPR patients', getDocs(collection(db, 'iprPts')));
+await no('signed out: cannot read IPR visits', getDoc(doc(db, 'iprVis/v1')));
+await no('signed out: cannot read IPR history', getDocs(collection(db, 'iprVisLog')));
+await no('signed out: cannot read the move marker', getDoc(doc(db, 'iprMeta/moved')));
+db = env.authenticatedContext('stranger').firestore();
+await no('stranger: cannot read IPR patients', getDoc(doc(db, 'iprPts/p1')));
+await no('stranger: cannot write an IPR patient', iprWrite(db, 'pt', 'px', iprDoc('pt', 'stranger', 'x', 1), iprHist('pt', 'stranger', 'x', 'px', 1, null), 'create'));
+db = env.authenticatedContext('kay').firestore();
+await no('removed staff: cannot read IPR visits', getDocs(query(collection(db, 'iprVis'), where('p', '==', 'p1'))));
+await no('removed staff: cannot save a visit', iprWrite(db, 'vis', 'v1', iprDoc('vis', 'kay', 'kaylee', 2), iprHist('vis', 'kay', 'kaylee', 'v1', 2, IPR_PREV)));
+db = env.authenticatedContext('gwen').firestore();
+await ok('staff: reads IPR patients', getDocs(collection(db, 'iprPts')));
+await ok('staff: finds a patient by the chart # index', getDocs(query(collection(db, 'iprPts'), where('pc', 'in', [iprPC]))));
+await ok('staff: reads a patient’s visits', getDocs(query(collection(db, 'iprVis'), where('p', '==', 'p1'))));
+await ok('staff: reads the history', getDocs(query(collection(db, 'iprVisLog'), where('visId', '==', 'v1'))));
+await ok('staff: reads the move marker (needn’t exist)', getDoc(doc(db, 'iprMeta/moved')));
+await ok('staff: reads the rules marker', getDoc(doc(db, 'meta/rules_ipr_1')));
+await ok('staff: new patient with its history entry', iprWrite(db, 'pt', 'p2', iprDoc('pt', 'gwen', 'gwen', 1, { pc: iprPC }), iprHist('pt', 'gwen', 'gwen', 'p2', 1, null), 'create'));
+await no('staff: new patient without a history entry', iprWrite(db, 'pt', 'p3', iprDoc('pt', 'gwen', 'gwen', 1), null, 'create'));
+await no('staff: new patient with a readable name field', iprWrite(db, 'pt', 'p3', iprDoc('pt', 'gwen', 'gwen', 1, { name: 'Jane Doe' }), iprHist('pt', 'gwen', 'gwen', 'p3', 1, null), 'create'));
+await no('staff: new patient with a readable chart #', iprWrite(db, 'pt', 'p3', iprDoc('pt', 'gwen', 'gwen', 1, { pc: '12345' }), iprHist('pt', 'gwen', 'gwen', 'p3', 1, null), 'create'));
+await no('staff: new patient sealed with an old key version', iprWrite(db, 'pt', 'p3', iprDoc('pt', 'gwen', 'gwen', 1, { v: 1 }), iprHist('pt', 'gwen', 'gwen', 'p3', 1, null), 'create'));
+await no('staff: new patient in someone else’s name', iprWrite(db, 'pt', 'p3', iprDoc('pt', 'gwen', 'sarah', 1), iprHist('pt', 'gwen', 'sarah', 'p3', 1, null), 'create'));
+await no('staff: new patient over an existing record', iprWrite(db, 'pt', 'p1', iprDoc('pt', 'gwen', 'gwen', 1), iprHist('pt', 'gwen', 'gwen', 'p1', 1, null), 'create'));
+await ok('staff: saves a patient (history holds the copy it replaced)', iprWrite(db, 'pt', 'p1', iprDoc('pt', 'gwen', 'gwen', 3, { pc: iprPC }), iprHist('pt', 'gwen', 'gwen', 'p1', 3, IPR_PREV)));
+await no('staff: save with a made-up previous copy', iprWrite(db, 'pt', 'p1', iprDoc('pt', 'gwen', 'gwen', 4), iprHist('pt', 'gwen', 'gwen', 'p1', 4, { v: 2, iv: 'eA==', ct: 'eA==' })));
+await no('staff: save that skips a revision', iprWrite(db, 'pt', 'p1', iprDoc('pt', 'gwen', 'gwen', 5), iprHist('pt', 'gwen', 'gwen', 'p1', 5, IPR_PREV)));
+await no('staff: save that changes when it was created', iprWrite(db, 'pt', 'p1', iprDoc('pt', 'gwen', 'gwen', 4, { createdAt: Timestamp.fromMillis(2e12) }), iprHist('pt', 'gwen', 'gwen', 'p1', 4, IPR_PREV)));
+await no('staff: cannot delete a patient', iprWrite(db, 'pt', 'p1', null, iprHist('pt', 'gwen', 'gwen', 'p1', 4, IPR_PREV), 'delete'));
+await ok('staff: new visit for a patient', iprWrite(db, 'vis', 'v2', iprDoc('vis', 'gwen', 'gwen', 1), iprHist('vis', 'gwen', 'gwen', 'v2', 1, null), 'create'));
+await ok('staff: new patient and their first visit in one save', iprWrite(db, 'vis', 'v3', iprDoc('vis', 'gwen', 'gwen', 1, { p: 'p9' }), iprHist('vis', 'gwen', 'gwen', 'v3', 1, null), 'create',
+  b => { b.set(doc(db, 'iprPts/p9'), iprDoc('pt', 'gwen', 'gwen', 1)); b.set(doc(db, 'iprPtLog/p9_1'), iprHist('pt', 'gwen', 'gwen', 'p9', 1, null)); }));
+await no('staff: visit for a patient that doesn’t exist', iprWrite(db, 'vis', 'v4', iprDoc('vis', 'gwen', 'gwen', 1, { p: 'nobody' }), iprHist('vis', 'gwen', 'gwen', 'v4', 1, null), 'create'));
+await no('staff: visit with a readable field', iprWrite(db, 'vis', 'v4', iprDoc('vis', 'gwen', 'gwen', 1, { date: '2026-10-23' }), iprHist('vis', 'gwen', 'gwen', 'v4', 1, null), 'create'));
+await ok('staff: saves a visit', iprWrite(db, 'vis', 'v1', iprDoc('vis', 'gwen', 'gwen', 2), iprHist('vis', 'gwen', 'gwen', 'v1', 2, IPR_PREV)));
+await no('staff: moves a visit to another patient', iprWrite(db, 'vis', 'v1', iprDoc('vis', 'gwen', 'gwen', 3, { p: 'p2' }), iprHist('vis', 'gwen', 'gwen', 'v1', 3, IPR_PREV)));
+await no('staff: visit saved without its history entry', iprWrite(db, 'vis', 'v1', iprDoc('vis', 'gwen', 'gwen', 3), null));
+await no('staff: cannot change a history entry', updateDoc(doc(db, 'iprVisLog/v1_1'), { prev: IPR_PREV }));
+await no('staff: cannot delete a history entry', deleteDoc(doc(db, 'iprPtLog/p1_2')));
+await no('staff: cannot delete a visit', iprWrite(db, 'vis', 'v1', null, iprHist('vis', 'gwen', 'gwen', 'v1', 3, IPR_PREV), 'delete'));
+await no('staff: cannot mark the move done', setDoc(doc(db, 'iprMeta/moved'), { at: serverTimestamp(), by: 'gwen', pts: 1, vis: 1 }));
+db = env.authenticatedContext('owner').firestore();
+await ok('owner: marks the move done (counts only)', setDoc(doc(db, 'iprMeta/moved'), { at: serverTimestamp(), by: 'amir', pts: 2, vis: 3, named: 1 }));
+await no('owner: the move mark can’t be changed afterwards', setDoc(doc(db, 'iprMeta/moved'), { at: serverTimestamp(), by: 'amir', pts: 9, vis: 9 }));
+await no('owner: the move mark with a patient’s name in it', setDoc(doc(db, 'iprMeta/oldRemoved'), { at: serverTimestamp(), by: 'amir', pts: 2, vis: 3, who: 'Jane Doe' }));
+await ok('owner: marks the old copy removed', setDoc(doc(db, 'iprMeta/oldRemoved'), { at: serverTimestamp(), by: 'amir', pts: 2, vis: 3 }));
+await no('owner: no other IPR marker', setDoc(doc(db, 'iprMeta/other'), { at: serverTimestamp(), by: 'amir', pts: 0, vis: 0 }));
+await no('owner: delete without a history entry', iprWrite(db, 'vis', 'v2', null, null, 'delete'));
+await ok('owner: deletes a visit (history keeps it)', iprWrite(db, 'vis', 'v2', null, iprHist('vis', 'owner', 'amir', 'v2', 2, IPR_PREV), 'delete'));
+
 console.log('\n# First-time office setup');
 await env.clearFirestore();
 const OWNER = { email: 'dr.test@example.com', email_verified: true };

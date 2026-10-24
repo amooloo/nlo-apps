@@ -1493,5 +1493,106 @@ service cloud.firestore {
     match /meta/rules_inv_1 {
       allow get: if invReader();
     }
+
+    // ---------- NLO IPR Tracker (same office, same logins, same key ring; 23 Oct 2026) ----------
+    // Amir, 23 Oct 2026: "can we just use the full name of the patients instead of having like initials" → the IPR Tracker moved
+    // here from its own Realtime Database (nothing sealed there, and outside Google's BAA). A patient and each of their visits
+    // are sealed in the browser with the office key, like cases; every save comes with a history entry holding the copy it
+    // replaced (iprPtLog / iprVisLog, append-only), as leads do. Plain fields: the key version, the revision, who saved and
+    // when, a visit's patient record (a random id) and pc — the keyed hash of the chart # that NLO Cases' patient index uses —
+    // so NLO Cases finds a patient's IPR visits, and the IPR Tracker a patient's cases, without opening every record.
+    function iprPtDoc(id) { return /databases/$(db)/documents/iprPts/$(id); }
+    function iprSealed(d, max) {
+      return d.v == curV() && d.iv is string && d.ct is string && d.ct.size() < max && d.rev is int
+        && d.by == request.auth.uid && d.sid == mySid() && d.updatedAt == request.time;
+    }
+    match /iprPts/{id} {
+      function okPt() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'rev', 'by', 'sid', 'createdAt', 'updatedAt', 'pc']) && iprSealed(d, 20000)
+          && (!('pc' in d) || (d.pc is string && d.pc.size() == 22));
+      }
+      allow read: if isMember();
+      allow create: if isMember() && okPt() && request.resource.data.rev == 1 && request.resource.data.createdAt == request.time
+        && existsAfter(/databases/$(db)/documents/iprPtLog/$(id + '_1'));
+      allow update: if isMember() && okPt() && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.createdAt == resource.data.createdAt
+        && existsAfter(/databases/$(db)/documents/iprPtLog/$(id + '_' + string(request.resource.data.rev)));
+      allow delete: if isOwner() && existsAfter(/databases/$(db)/documents/iprPtLog/$(id + '_' + string(resource.data.rev + 1)));
+    }
+    match /iprVis/{id} {
+      function okVis() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['p', 'v', 'iv', 'ct', 'rev', 'by', 'sid', 'createdAt', 'updatedAt']) && iprSealed(d, 200000)
+          && d.p is string && d.p.size() <= 64 && existsAfter(iprPtDoc(d.p));
+      }
+      allow read: if isMember();
+      allow create: if isMember() && okVis() && request.resource.data.rev == 1 && request.resource.data.createdAt == request.time
+        && existsAfter(/databases/$(db)/documents/iprVisLog/$(id + '_1'));
+      allow update: if isMember() && okVis() && request.resource.data.p == resource.data.p
+        && request.resource.data.rev == resource.data.rev + 1 && request.resource.data.createdAt == resource.data.createdAt
+        && existsAfter(/databases/$(db)/documents/iprVisLog/$(id + '_' + string(request.resource.data.rev)));
+      allow delete: if isOwner() && existsAfter(/databases/$(db)/documents/iprVisLog/$(id + '_' + string(resource.data.rev + 1)));
+    }
+    match /iprPtLog/{lid} {
+      function ptBefore() { return iprPtDoc(request.resource.data.ptId); }
+      function okPtHist() {
+        let d = request.resource.data;
+        return (exists(ptBefore()) && d.rev == get(ptBefore()).data.rev + 1
+                 && d.prev == {'v': get(ptBefore()).data.v, 'iv': get(ptBefore()).data.iv, 'ct': get(ptBefore()).data.ct})
+          || (!exists(ptBefore()) && d.rev == 1 && d.prev == null);
+      }
+      function okPtAfter() {
+        let d = request.resource.data;
+        return (existsAfter(ptBefore()) && getAfter(ptBefore()).data.rev == d.rev)
+          || (!existsAfter(ptBefore()) && exists(ptBefore()) && isOwner());
+      }
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['ptId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()
+        && request.resource.data.at == request.time && request.resource.data.ptId is string
+        && request.resource.data.rev is int && lid == request.resource.data.ptId + '_' + string(request.resource.data.rev)
+        && request.resource.data.v is int && request.resource.data.ct is string && request.resource.data.ct.size() < 20000
+        && okPtHist() && okPtAfter();
+      allow update, delete: if false;
+    }
+    match /iprVisLog/{lid} {
+      function visBefore() { return /databases/$(db)/documents/iprVis/$(request.resource.data.visId); }
+      function okVisHist() {
+        let d = request.resource.data;
+        return (exists(visBefore()) && d.rev == get(visBefore()).data.rev + 1
+                 && d.prev == {'v': get(visBefore()).data.v, 'iv': get(visBefore()).data.iv, 'ct': get(visBefore()).data.ct})
+          || (!exists(visBefore()) && d.rev == 1 && d.prev == null);
+      }
+      function okVisAfter() {
+        let d = request.resource.data;
+        return (existsAfter(visBefore()) && getAfter(visBefore()).data.rev == d.rev)
+          || (!existsAfter(visBefore()) && exists(visBefore()) && isOwner());
+      }
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['visId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()
+        && request.resource.data.at == request.time && request.resource.data.visId is string
+        && request.resource.data.rev is int && lid == request.resource.data.visId + '_' + string(request.resource.data.rev)
+        && request.resource.data.v is int && request.resource.data.ct is string && request.resource.data.ct.size() < 20000
+        && okVisHist() && okVisAfter();
+      allow update, delete: if false;
+    }
+    // the one-time move from the old database (moved), and the old copy taken out afterwards (oldRemoved): by Dr. A, once
+    // each, counts only
+    match /iprMeta/{id} {
+      allow get: if isMember();
+      allow create: if isOwner() && id in ['moved', 'oldRemoved']
+        && request.resource.data.keys().hasOnly(['at', 'by', 'pts', 'vis', 'named'])
+        && request.resource.data.at == request.time && request.resource.data.by == mySid()
+        && request.resource.data.pts is int && request.resource.data.vis is int && request.resource.data.get('named', 0) is int;
+      allow update, delete: if false;
+    }
+    // which set of these rules is live (the IPR Tracker and NLO Cases read this; older rules refuse it)
+    match /meta/rules_ipr_1 {
+      allow get: if isMember();
+    }
   }
 }

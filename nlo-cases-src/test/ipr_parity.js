@@ -1,13 +1,14 @@
 // Compare the IPR note built by NLO Cases with the IPR Tracker's own buildChartNote ("lines" format).
 const fs = require('fs'); const vm = require('vm');
-const ipr = fs.readFileSync('/home/claude/nlo-apps/IPR_Tracker.html', 'utf8');
+// (the IPR Tracker's own source since 4.0 — nlo-ipr-src builds IPR_Tracker.html from it)
+const ipr = fs.readFileSync(require('path').join(__dirname, '..', '..', 'nlo-ipr-src', 'src', 'app.js'), 'utf8');
 const grab = (start, endMarker) => { const i = ipr.indexOf(start); const j = ipr.indexOf(endMarker, i); if (i < 0 || j < 0) throw new Error('not found ' + start); return ipr.slice(i, j); };
 const orig = [
   grab('function initContacts(teeth)', 'function initBT'),
   grab('function canonContacts(teeth, raw, blank)', 'function sumContacts'),
   grab('function sumContacts(contacts)', '// Parse a value'),
   grab('function jp(val, fallback)', 'function load('),
-  grab('function addContacts(a, b)', '// ─── Tooth SVG'),
+  grab('function addContacts(a, b)', '// ─── Arch diagram geometry'),
   grab('const NOTE_DASH', '// UI preference'),
   'const UPPER = ' + JSON.stringify(["UR7","UR6","UR5","UR4","UR3","UR2","UR1","UL1","UL2","UL3","UL4","UL5","UL6","UL7"]) + '; const LOWER = ' + JSON.stringify(["LR7","LR6","LR5","LR4","LR3","LR2","LR1","LL1","LL2","LL3","LL4","LL5","LL6","LL7"]) + ';'
 ].join('\n');

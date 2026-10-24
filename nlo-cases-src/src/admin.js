@@ -104,6 +104,11 @@ function viewAccount() {
 }
 
 function iprAccountHTML() {
+  if (IPR_MOVED.on) { // IPR Tracker 4: on these logins, its records sealed here
+    let last = 0; try { last = Number(localStorage.getItem('nloCases.iprSyncAt')) || 0; } catch (e) { }
+    return '<p class="small" style="margin-bottom:10px">The IPR Tracker signs in with these logins now, and its records are sealed in this office database, so they’re read here directly — no Google sign-in. Every open aligner case with a chart # gets its latest IPR chart, kept on the case for everyone' + (last ? ' (last synced ' + esc(fmtWhen(last)) + ')' : '') + '.</p>' +
+      '<div class="pickRow"><button class="btn btn-sec btn-sm" data-act="iprSyncAll">' + ic('refresh', 15) + 'Sync all patients now</button></div>';
+  }
   const L = iprLink(); if (!L.init()) return '<div class="small muted">Not available in this browser.</div>';
   const u = L.user(); let last = 0; try { last = Number(localStorage.getItem('nloCases.iprSyncAt')) || 0; } catch (e) { }
   // (5 Oct 2026: every open aligner case's IPR chart is synced at once, and kept on the case for everyone)
@@ -379,7 +384,7 @@ function shUsername(p) {
 }
 async function shLoad() {
   if (SH.loading) return; SH.loading = true; SH.err = '';
-  try { SH.data = (await iprLink().roster()) || { people: {} }; SH.at = Date.now(); shPhotos(); shNames(); }
+  try { SH.data = (await rosterLink().roster()) || { people: {} }; SH.at = Date.now(); shPhotos(); shNames(); }
   catch (e) { SH.data = null; SH.err = /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the office roster. Connect with the account Staff Hub shares it with.' : 'Couldn’t reach the office roster. Check the connection and try again.'; }
   SH.loading = false; if (S.view === 'admin') queueRender('team');
 }
@@ -389,14 +394,14 @@ async function shLoad() {
    logins are still made here, and someone who left is only flagged. */
 async function shAutoSync() {
   if (S.demo || !isOwner()) return;
-  const L = iprLink(); if (!L.init()) return;
+  const L = rosterLink(); if (!L.init()) return;
   const u = L.user() || await L.waitUser(); if (!u || !S.inApp) return;
   for (let i = 0; i < 100 && S.inApp && !S.roster.length; i++) await new Promise(r => setTimeout(r, 100));
   if (S.inApp && S.roster.length && !SH.data && !SH.loading) await shLoad();
 }
 function shPhoto(p) { const el = '<span class="av shAv"' + (p.photo ? ' data-shph="' + esc(p.id) + '"' : '') + '>' + esc(initials(p.name)) + '</span>'; return el; }
 function shBoxHTML() {
-  const L = iprLink(), head = '<div class="shBox" id="shBox"><div class="shHd"><b>From Staff Hub</b><span class="small muted">the office roster Cadence and the IPR Tracker follow</span>';
+  const L = rosterLink(), head = '<div class="shBox" id="shBox"><div class="shHd"><b>From Staff Hub</b><span class="small muted">the office roster Cadence and the IPR Tracker follow</span>';
   if (!L.init()) return head + '</div><p class="small muted">Not available in this browser.</p></div>';
   if (!L.user()) return head + '</div><p class="small" style="margin:4px 0 10px">Pick people from Staff Hub’s roster instead of typing them in, and see who has left.</p>' +
     '<button class="btn btn-sec btn-sm" data-act="shConnect">' + ic('team', 15) + 'Connect to the office roster</button><p class="small muted" style="margin-top:6px">Uses the Google sign-in the IPR Tracker link uses. It stays connected on this computer, like the IPR Tracker itself.</p></div>';
@@ -477,7 +482,7 @@ function shrinkPhoto(src, px) {
 /* staff photos from Staff Hub (data: URLs from the roster) are set after drawing, like the company logos */
 function shPaint() { $$('[data-shph]').forEach(el => { const p = shPeople().find(x => x.id === el.dataset.shph); if (p && /^data:image\/jpeg;base64,/.test(p.photo || '')) { el.textContent = ''; const im = document.createElement('img'); im.alt = ''; im.src = p.photo; el.appendChild(im); el.classList.add('ph'); } }); }
 Object.assign(ADMIN_ACTS, {
-  shConnect(t) { busyBtn(t, true, 'Connecting…'); iprLink().connect().then(() => { SH.data = null; SH.err = ''; queueRender('team'); }).catch(x => { busyBtn(t, false); if (!/popup-closed|cancelled-popup/.test(String(x && x.code))) toast(errText(x), { bad: true }); }); },
+  shConnect(t) { busyBtn(t, true, 'Connecting…'); rosterLink().connect().then(() => { SH.data = null; SH.err = ''; queueRender('team'); }).catch(x => { busyBtn(t, false); if (!/popup-closed|cancelled-popup/.test(String(x && x.code))) toast(errText(x), { bad: true }); }); },
   shRefresh() { SH.data = null; SH.err = ''; queueRender('team'); },
   shAdd(t) { const p = shPeople().find(x => x.id === t.dataset.rid); if (p) ADMIN_ACTS.addStaff(t, null, { name: p.name, username: shUsername(p), rid: p.id }); }
 });

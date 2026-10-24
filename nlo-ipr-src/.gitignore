@@ -1,0 +1,6 @@
+dist/
+test/www/
+test/vendor/
+__pycache__/
+node_modules
+*-debug.log

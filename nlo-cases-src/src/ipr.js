@@ -1,9 +1,14 @@
 /* =====================================================================
-   IPR Tracker link — reads the IPR Tracker's own records (nlo-inventory
-   Realtime Database, nlo/ipr) for a chart # and builds the same chart
-   note the IPR Tracker's "Chart note" tab makes ("lines" format), so the
-   case gets it without copy and paste. Read-only; the IPR Tracker is not
-   changed. Sign-in is the IPR Tracker's own Google sign-in, once per device.
+   IPR Tracker link — reads the IPR Tracker's records for a chart # and
+   builds the same chart note the IPR Tracker's "Chart note" tab makes
+   ("lines" format), so the case gets it without copy and paste. Read-only.
+   - IPR Tracker 4 (23 Oct 2026): the records moved to this office database,
+     sealed with the office key (iprPts / iprVis), on the same logins — so
+     they're read straight from here (IPRS below), no Google sign-in.
+   - Until Dr. A moves them (iprMeta/moved), the old link: the IPR Tracker's
+     own Realtime Database (nlo-inventory, nlo/ipr) with its Google sign-in,
+     once per device. That Google sign-in stays for Staff Hub's office roster
+     (Team & security), which lives in the same database.
    ===================================================================== */
 const IPR_FB = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
@@ -14,12 +19,12 @@ const IPR_FB = {
 };
 const IPR_URL = 'IPR_Tracker.html';
 /* the IPR Tracker straight to a patient's new visit (Amir, 6 Oct 2026: "the step for IPR entry should open up the IPR tracker so they
-   can upload it there instead of having to enter it in IPR tracker and then reconnect it in case tracker"): its #chart=…&ini=… link,
-   which IPR_Tracker.html reads once (the patient's visits, or New patient filled in). Only the chart # and initials ride on it, in
-   the part of the address that never leaves the computer. Coming back to NLO Cases reads the visit in by itself (iprBack, ui.js). */
-function iprDeepUrl(chart, name) {
-  const t = nameTokens(name), ini = t.length ? (t[0][0] + (t.length > 1 ? t[t.length - 1][0] : '')).toUpperCase() : '';
-  return IPR_URL + (String(chart || '').trim() ? '#chart=' + encodeURIComponent(String(chart).trim()) + (ini ? '&ini=' + ini : '') : '');
+   can upload it there instead of having to enter it in IPR tracker and then reconnect it in case tracker"): its #chart=… link, which
+   IPR_Tracker.html reads once (the patient's visits, or New patient with the chart # and the name this case has). Only the chart #
+   rides on it, in the part of the address that never leaves the computer (the initials it carried until IPR Tracker 4 aren't
+   needed: the IPR Tracker finds the name here). Coming back to NLO Cases reads the visit in by itself (iprBack, ui.js). */
+function iprDeepUrl(chart) {
+  return IPR_URL + (String(chart || '').trim() ? '#chart=' + encodeURIComponent(String(chart).trim()) : '');
 }
 const IPR_UPPER = ["UR7", "UR6", "UR5", "UR4", "UR3", "UR2", "UR1", "UL1", "UL2", "UL3", "UL4", "UL5", "UL6", "UL7"];
 const IPR_LOWER = ["LR7", "LR6", "LR5", "LR4", "LR3", "LR2", "LR1", "LL1", "LL2", "LL3", "LL4", "LL5", "LL6", "LL7"];
@@ -319,4 +324,56 @@ const IPR_DEMO = {
       s_nora: p('s_nora', 'Nora', 'Newhire', 'Orthodontic assistant', { photo: await face(105) }), s_lena: p('s_lena', 'Lena', 'Leaveson', 'Front desk', { chairside: false, end: addDays(todayISO(), 9) }) } };
   }
 };
-function iprLink() { return S.demo ? IPR_DEMO : IPR; }
+/* ---------- IPR Tracker 4: its records, sealed here (iprPts: a patient { chart, name, ini? }; iprVis: a visit, the same fields the
+   IPR Tracker always kept; each patient carries pc — the patient index's keyed hash of its chart #, letters and digits only) ----------
+   Read once Dr. A has moved them (iprMeta/moved — the rules before IPR Tracker 4 refuse even the look, which reads as "not yet"). */
+const IPR_MOVED = { on: false, at: 0 };
+async function iprMovedCheck(force) {
+  if (S.demo || IPR_MOVED.on || !S.inApp) return IPR_MOVED.on;
+  if (!force && Date.now() - IPR_MOVED.at < 60000) return false;
+  IPR_MOVED.at = Date.now();
+  try { IPR_MOVED.on = (await FB.db.doc('iprMeta/moved').get()).exists; } catch (e) { IPR_MOVED.on = false; }
+  return IPR_MOVED.on;
+}
+const IPRS = {
+  init() { return true; }, user() { return { sealed: true, email: '' }; }, waitUser: async () => ({ sealed: true }), async connect() { }, async disconnect() { },
+  norm: IPR.norm,
+  async open(id, d, aad) { const key = FB.keys && FB.keys[d.v]; if (!key) throw errCode('no-key'); return Crypto.openJSON(key, d, aad + id); },
+  /* the patients with these chart #s: Map(normalized chart # → [{ id, name, ini }]) */
+  async patients(norms) {
+    const want = new Map(); for (const n of norms) want.set(await FB.idxHash('c:' + n), n);
+    const keys = Array.from(want.keys()), out = new Map();
+    for (let i = 0; i < keys.length; i += 30) {
+      const s = await FB.db.collection('iprPts').where('pc', 'in', keys.slice(i, i + 30)).get();
+      for (const doc of s.docs) {
+        let b; try { b = await IPRS.open(doc.id, doc.data(), 'iprpt:'); } catch (e) { continue; }
+        const n = IPR.norm(b.chart); if (!n || !norms.includes(n)) continue;
+        if (!out.has(n)) out.set(n, []);
+        out.get(n).push({ id: doc.id, name: String(b.name || ''), ini: String(b.ini || '') });
+      }
+    }
+    return out;
+  },
+  async visits(pid) {
+    const s = await FB.db.collection('iprVis').where('p', '==', pid).get(), out = [];
+    for (const doc of s.docs) { try { out.push(await IPRS.open(doc.id, doc.data(), 'iprvis:')); } catch (e) { } }
+    return out;
+  },
+  async answer(pts) {
+    if (!pts || !pts.length) return { status: 'not-found' };
+    let visits = []; for (const p of pts) visits = visits.concat(await IPRS.visits(p.id));
+    const who = pts[0].name || pts[0].ini || '';
+    return visits.length ? Object.assign({ status: 'ok', initials: who }, iprNoteFromVisits(visits)) : { status: 'no-visits', initials: who };
+  },
+  async latest(chart) { const n = IPR.norm(chart); if (!n) return { status: 'not-found' }; return IPRS.answer((await IPRS.patients([n])).get(n)); },
+  async latestMany(charts) {
+    const want = Array.from(new Set((charts || []).map(IPR.norm).filter(Boolean))), out = new Map(); if (!want.length) return out;
+    const byN = await IPRS.patients(want);
+    for (let i = 0; i < want.length; i += 6) await Promise.all(want.slice(i, i + 6).map(async n => { out.set(n, await IPRS.answer(byN.get(n))); }));
+    return out;
+  },
+  roster() { return IPR.roster(); }
+};
+function iprLink() { return S.demo ? IPR_DEMO : IPR_MOVED.on ? IPRS : IPR; }
+/* Staff Hub's office roster (Team & security): always the Google link — it isn't part of the IPR Tracker's move */
+function rosterLink() { return S.demo ? IPR_DEMO : IPR; }
