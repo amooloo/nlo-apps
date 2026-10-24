@@ -1621,11 +1621,14 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         }, 3000);
         return true;
       }
+      // a save that finished after someone moved on to another visit (no internet for a while, say) leaves that visit alone
+      if (!onScreen()) { setSyncMsg("Saved ✓"); setTimeout(() => { setSyncStatus("idle"); setSyncMsg(""); }, 3000); return true; }
       setSyncMsg("Saved ✓ — Resetting for next patient...");
-      // After a brief delay so user sees the success message, reset everything
+      // After a brief delay so user sees the success message, reset everything (the visit saved still on screen)
       setTimeout(() => {
+        if (!onScreen()) return;
         clearAllState();
-        setFlowStep("choose");
+        if (nowRef.current.flowStep === null) setFlowStep("choose");
       }, 1500);
       return true;
     } catch (e) {
@@ -1645,10 +1648,13 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   React.useEffect(() => {
     // skip the very first run (initial mount / draft restore)
     if (autosaveSkipRef.current) { autosaveSkipRef.current = false; return; }
-    const N = nowRef.current, w = autosave.current;
-    if (w) { clearTimeout(w.timer); autosave.current = null; if (w.snap.currentVisitId !== N.currentVisitId) enqueueSave(w.snap, { silent: true }); }
+    // A change still waiting is saved at once — never dropped — unless it's the same visit, still being charted, and this is just
+    // a newer change to it (then the timer starts over, with the newer snapshot): another visit came on screen, the same one
+    // came back read-only, or a dialog is open (no timer then, as in IPR Tracker 3)
+    const N = nowRef.current, w = autosave.current, more = !!N.dbPatient && !N.readOnly && N.flowStep === null;
+    if (w) { clearTimeout(w.timer); autosave.current = null; if (w.snap.currentVisitId !== N.currentVisitId || !more) enqueueSave(w.snap, { silent: true }); }
     lastEdit.current = Date.now();
-    if (!N.dbPatient || N.readOnly || N.flowStep !== null) return;
+    if (!more) return;
     const snap = N;
     const timer = setTimeout(() => {
       if (autosave.current && autosave.current.timer === timer) autosave.current = null;
@@ -2338,10 +2344,12 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       openPrintPreview(mode);
       return;
     }
+    const vid = nowRef.current.currentVisitId;
     const ok = await handleSaveToRecord({ keepOpen: true });
     if (ok === false) return; // save errored or deferred to wizard; don't open preview
-    // Small delay so the "Saved ✓" status has a moment to paint, and DOM updates finish
-    setTimeout(() => openPrintPreview(mode), 200);
+    // Small delay so the "Saved ✓" status has a moment to paint, and DOM updates finish — and only for the visit that was on
+    // screen when Print was pressed (a slow save, and someone moved on: no print of another patient's chart)
+    setTimeout(() => { if (nowRef.current.currentVisitId === vid) openPrintPreview(mode); }, 200);
   };
 
   // Export as PDF — saves to record first, then opens print preview with a "Save as PDF" button

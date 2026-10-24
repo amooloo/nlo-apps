@@ -32,8 +32,11 @@ check('nothing else in the rules changes (and the rules handed in aren’t touch
 check('the order of the blocks is kept (the console shows them as they were)', list(new['rules']['nlo']) == list(LIVE['rules']['nlo']))
 again, was2 = lock.lock_ipr(new)
 check('run again: locked already, nothing to do', again is None and was2 == new['rules']['nlo']['ipr'])
+check('…and a .read: false above it is fine', lock.lock_ipr({'rules': {'.read': False, 'nlo': {'.write': 'false', 'ipr': {'.read': STAFF, '.write': STAFF}}}})[0] is not None)
 check('a test owner address goes where Dr. A’s does', lock.lock_ipr(LIVE, 'dr.test@example.com')[0]['rules']['nlo']['ipr']['.write'] == lock.owner_only('dr.test@example.com'))
 for label, bad in [('no nlo block', {'rules': {}}), ('no ipr rules', {'rules': {'nlo': {'items': {}}}}),
+                   ('a read granted at the top (it reaches nlo/ipr whatever the lock says)', {'rules': {'.read': 'auth != null', 'nlo': {'ipr': {'.read': STAFF, '.write': STAFF}}}}),
+                   ('a write granted on nlo', {'rules': {'nlo': {'.write': STAFF, 'ipr': {'.read': STAFF, '.write': STAFF}}}}),
                    ('rules it doesn’t know under ipr', {'rules': {'nlo': {'ipr': {'.read': STAFF, '.write': STAFF, '.indexOn': ['x']}}}})]:
     try: lock.lock_ipr(bad); check('stops, changing nothing: ' + label, False, 'no stop')
     except SystemExit as e: check('stops, changing nothing: ' + label, 'nothing changed' in str(e), str(e))

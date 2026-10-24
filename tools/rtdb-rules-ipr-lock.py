@@ -25,6 +25,11 @@ def lock_ipr(rules, owner=OWNER):
     nlo = (r.get('rules') or {}).get('nlo')
     if not isinstance(nlo, dict):
         raise SystemExit('No "nlo" block in the rules — nothing changed.')
+    # (a read or write granted above nlo/ipr reaches everything under it — a lock at nlo/ipr couldn't take it back)
+    for where, block in (('the top of the rules', r['rules']), ('nlo', nlo)):
+        for k in ('.read', '.write'):
+            if k in block and block[k] is not False and block[k] != 'false':
+                raise SystemExit('%s grants %s to everything under it (%s), so a lock at nlo/ipr wouldn\'t hold — nothing changed.' % (where, k, json.dumps(block[k])[:120]))
     ipr = nlo.get('ipr')
     if not isinstance(ipr, dict) or not isinstance(ipr.get('.read'), str):
         raise SystemExit('nlo/ipr has no rules of its own (%s) — nothing changed.' % json.dumps(ipr)[:300])
@@ -52,16 +57,18 @@ def call(method, body=None):
             continue
         req = urllib.request.Request(URL, data=body, method=method, headers={'Authorization': 'Bearer ' + tok})
         try:
-            out = urllib.request.urlopen(req).read().decode()
+            out = urllib.request.urlopen(req, timeout=60).read().decode()
             if not _tok: _tok.append(cmd)
             return out
         except urllib.error.HTTPError as e:
             last = e
             if e.code not in (401, 403): break
+        except (urllib.error.URLError, OSError) as e:
+            raise SystemExit('Couldn\'t reach the database rules (%s).%s' % (e, '' if method == 'GET' else ' Run it again to see whether it took.'))
     if last is not None and last.code in (401, 403):
         raise SystemExit('The database refused this Google sign-in (%d). Check Cloud Shell is signed in as %s (gcloud auth list) - '
                          'or ask Claude to make this change in your Chrome instead. Nothing changed.' % (last.code, OWNER))
-    raise SystemExit('Couldn\'t reach the database rules (%s). Nothing changed.' % (last or 'no gcloud sign-in'))
+    raise SystemExit('Couldn\'t reach the database rules (%s).%s' % (last or 'no gcloud sign-in', ' Nothing changed.' if method == 'GET' or last is not None else ''))
 
 
 def main():
@@ -84,9 +91,11 @@ def main():
     keep = os.path.expanduser('~/rtdb-rules-before-ipr-lock-%d.json' % time.time())
     open(keep, 'w').write(raw)
     call('PUT', json.dumps(new, indent=2).encode())
-    after = json.loads(call('GET'))
-    ok = after == new
-    print(('PUBLISHED. The old copy is locked to %s.' % OWNER) if ok else 'CHECK: the rules read back differ from what was sent.')
+    try:
+        ok = json.loads(call('GET')) == new
+        print(('PUBLISHED. The old copy is locked to %s.' % OWNER) if ok else 'CHECK: the rules read back differ from what was sent.')
+    except SystemExit as e:
+        print('PUBLISHED, but they couldn\'t be read back to check (%s). Run the script again: it says "locked already" if they took.' % e)
     print('The rules as they were are saved in', keep)
 
 

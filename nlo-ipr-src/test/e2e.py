@@ -479,6 +479,17 @@ def run(b):
     gwen.wait_for_timeout(3500); settle(gwen)
     p1 = pats(); add1 = [k for k in p1 if k not in p0]; v = open_vault(gwen)['vis']
     check('Save a moment after a change: one new visit, with the change (IPR Tracker 3’s waiting autosave made a second)', len(add1) == 1 and (v[add1[0]]['body'].get('upper_ipr') or {}).get('UR5|UR4') == '0.3', (p0, p1))
+    # a change still waiting when that same visit is opened again, read-only, from its patient's visits: saved, not dropped
+    pat_new_visit(); tap(gwen, 'upper', 'UR6|UR5'); tap(gwen, 'upper', 'UR7|UR6'); gwen.wait_for_timeout(3200); settle(gwen)
+    cur = [k for k in pats() if k not in p1]
+    tap(gwen, 'lower', 'LL6|LL7')
+    wizard(gwen); gwen.click('.ip-opt:has-text("Search existing patient")'); gwen.fill('.ip-dialog .ip-search input', 'pat two')
+    gwen.wait_for_selector('.ip-result:has-text("Pat Two")'); gwen.click('.ip-result:has-text("Pat Two")')
+    gwen.wait_for_selector('.ip-visit:has-text("Upper 0.6 mm")'); gwen.click('.ip-visit:has-text("Upper 0.6 mm")'); gwen.wait_for_selector('.ip-banner')
+    gwen.wait_for_timeout(1500); settle(gwen)
+    vb = open_vault(gwen)['vis'].get(cur[0] if cur else '') or {}
+    check('a change still waiting when that visit is opened again read-only: it’s saved, not dropped', len(cur) == 1 and (vb.get('body') or {}).get('lower_ipr', {}).get('LL6|LL7') == '0.3', (cur, (vb.get('body') or {}).get('lower_ipr')))
+    p1 = pats(); wizard(gwen)
     pat_new_visit()
     tap(gwen, 'lower', 'LR5|LR4')
     with gwen.expect_popup() as pop: gwen.click('.ip-actions .ip-btn:has-text("Print")')

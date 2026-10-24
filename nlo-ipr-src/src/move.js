@@ -286,7 +286,7 @@ function rmRender() {
   let h = '<div class="lkModalCard wide"><div class="rmHd"><h3>Remove the old copy</h3><button type="button" class="btn btn-ghost lkX" data-act="rmClose" aria-label="Close"' + (RM.busy ? ' disabled' : '') + '>' + ic('x', 16) + '</button></div>';
   if (S.removed && st === 'start') h += '<p class="small">The old copy was removed ' + esc(fmtWhen(S.removed.at)) + '. Checking again shows anything an old page saved there since.</p>';
   if (st === 'start' || st === 'reading') {
-    h += '<p class="small">The old IPR Tracker’s database still has a copy of the patients and visits, unencrypted. Take it out: anything saved there since the move comes over first, every record is checked here, and then the old copy is deleted.</p>' +
+    h += '<p class="small">The old IPR Tracker’s database still has a copy of the patients and visits, unencrypted. Take it out: anything saved there since the move comes over first, every record is checked here, and then the old copy is deleted. Connect with your own Google account (once the old copy is locked, it’s the only one that can).</p>' +
       (RM.err ? '<div class="lockErr" role="alert">' + esc(RM.err) + '</div>' : '') +
       '<div class="btnRow">' + (RM.who ? '<span class="small muted" style="align-self:center">Connected as <b>' + esc(RM.who) + '</b></span><button class="btn btn-pri btn-sm" data-act="rmRead"' + (st !== 'start' ? ' disabled' : '') + '>' + (st === 'reading' ? 'Reading…' : 'Check the old copy') + '</button>'
         : '<button class="btn btn-pri btn-sm" data-act="rmConnect"' + (st !== 'start' ? ' disabled' : '') + '>' + ic('google', 16) + (st === 'reading' ? 'Reading…' : 'Connect to the old IPR Tracker') + '</button>') + '</div>';

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-e690Y0PYYg5w7xAqrzTfmoubFBdvQYxYXeXKQVWsTs0=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-nb4ClsQ3LRvevtKyuG+NI9LD7VUUNL3j1C5vZZAPRpc=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO IPR Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1899,7 +1899,7 @@ function rmRender() {
   let h = '<div class="lkModalCard wide"><div class="rmHd"><h3>Remove the old copy</h3><button type="button" class="btn btn-ghost lkX" data-act="rmClose" aria-label="Close"' + (RM.busy ? ' disabled' : '') + '>' + ic('x', 16) + '</button></div>';
   if (S.removed && st === 'start') h += '<p class="small">The old copy was removed ' + esc(fmtWhen(S.removed.at)) + '. Checking again shows anything an old page saved there since.</p>';
   if (st === 'start' || st === 'reading') {
-    h += '<p class="small">The old IPR Tracker’s database still has a copy of the patients and visits, unencrypted. Take it out: anything saved there since the move comes over first, every record is checked here, and then the old copy is deleted.</p>' +
+    h += '<p class="small">The old IPR Tracker’s database still has a copy of the patients and visits, unencrypted. Take it out: anything saved there since the move comes over first, every record is checked here, and then the old copy is deleted. Connect with your own Google account (once the old copy is locked, it’s the only one that can).</p>' +
       (RM.err ? '<div class="lockErr" role="alert">' + esc(RM.err) + '</div>' : '') +
       '<div class="btnRow">' + (RM.who ? '<span class="small muted" style="align-self:center">Connected as <b>' + esc(RM.who) + '</b></span><button class="btn btn-pri btn-sm" data-act="rmRead"' + (st !== 'start' ? ' disabled' : '') + '>' + (st === 'reading' ? 'Reading…' : 'Check the old copy') + '</button>'
         : '<button class="btn btn-pri btn-sm" data-act="rmConnect"' + (st !== 'start' ? ' disabled' : '') + '>' + ic('google', 16) + (st === 'reading' ? 'Reading…' : 'Connect to the old IPR Tracker') + '</button>') + '</div>';
@@ -3636,11 +3636,14 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         }, 3000);
         return true;
       }
+      // a save that finished after someone moved on to another visit (no internet for a while, say) leaves that visit alone
+      if (!onScreen()) { setSyncMsg("Saved ✓"); setTimeout(() => { setSyncStatus("idle"); setSyncMsg(""); }, 3000); return true; }
       setSyncMsg("Saved ✓ — Resetting for next patient...");
-      // After a brief delay so user sees the success message, reset everything
+      // After a brief delay so user sees the success message, reset everything (the visit saved still on screen)
       setTimeout(() => {
+        if (!onScreen()) return;
         clearAllState();
-        setFlowStep("choose");
+        if (nowRef.current.flowStep === null) setFlowStep("choose");
       }, 1500);
       return true;
     } catch (e) {
@@ -3660,10 +3663,13 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   React.useEffect(() => {
     // skip the very first run (initial mount / draft restore)
     if (autosaveSkipRef.current) { autosaveSkipRef.current = false; return; }
-    const N = nowRef.current, w = autosave.current;
-    if (w) { clearTimeout(w.timer); autosave.current = null; if (w.snap.currentVisitId !== N.currentVisitId) enqueueSave(w.snap, { silent: true }); }
+    // A change still waiting is saved at once — never dropped — unless it's the same visit, still being charted, and this is just
+    // a newer change to it (then the timer starts over, with the newer snapshot): another visit came on screen, the same one
+    // came back read-only, or a dialog is open (no timer then, as in IPR Tracker 3)
+    const N = nowRef.current, w = autosave.current, more = !!N.dbPatient && !N.readOnly && N.flowStep === null;
+    if (w) { clearTimeout(w.timer); autosave.current = null; if (w.snap.currentVisitId !== N.currentVisitId || !more) enqueueSave(w.snap, { silent: true }); }
     lastEdit.current = Date.now();
-    if (!N.dbPatient || N.readOnly || N.flowStep !== null) return;
+    if (!more) return;
     const snap = N;
     const timer = setTimeout(() => {
       if (autosave.current && autosave.current.timer === timer) autosave.current = null;
@@ -4353,10 +4359,12 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       openPrintPreview(mode);
       return;
     }
+    const vid = nowRef.current.currentVisitId;
     const ok = await handleSaveToRecord({ keepOpen: true });
     if (ok === false) return; // save errored or deferred to wizard; don't open preview
-    // Small delay so the "Saved ✓" status has a moment to paint, and DOM updates finish
-    setTimeout(() => openPrintPreview(mode), 200);
+    // Small delay so the "Saved ✓" status has a moment to paint, and DOM updates finish — and only for the visit that was on
+    // screen when Print was pressed (a slow save, and someone moved on: no print of another patient's chart)
+    setTimeout(() => { if (nowRef.current.currentVisitId === vid) openPrintPreview(mode); }, 200);
   };
 
   // Export as PDF — saves to record first, then opens print preview with a "Save as PDF" button
