@@ -1,0 +1,34 @@
+{
+ "rules": {
+  "nlo": {
+   "items": {
+    ".read": "auth != null",
+    ".write": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email === 'records@thenextlevelorthodontics.com')"
+   },
+   "settings": {
+    ".read": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email === 'records@thenextlevelorthodontics.com')",
+    ".write": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email === 'records@thenextlevelorthodontics.com')"
+   },
+   "checklistApp": {
+    ".read": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))",
+    ".write": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))"
+   },
+   "cadence": {
+    ".read": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))",
+    ".write": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))"
+   },
+   "staffMeeting": {
+    ".read": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))",
+    ".write": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))"
+   },
+   "ipr": {
+    ".read": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))",
+    ".write": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))"
+   },
+   "calendar": {
+    ".read": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))",
+    ".write": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))"
+   }
+  }
+ }
+}
