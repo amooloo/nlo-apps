@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-K34u3GU0qduo1yBy27ujokBmEXzdTIMk+hFOkfOoYk0=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-p367PLKTX40SQwQoE95laiIHq5ynvVAohuJE9dtwVao=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4065,7 +4065,8 @@ const IPR_DEMO = {
   }
 };
 /* ---------- IPR Tracker 4: its records, sealed here (iprPts: a patient { chart, name, ini? }; iprVis: a visit, the same fields the
-   IPR Tracker always kept; each patient carries pc — the patient index's keyed hash of its chart #, letters and digits only) ----------
+   IPR Tracker always kept, sealed for its id and its patient's record p; each patient carries pc — the patient index's keyed hash of
+   its chart #, letters and digits only) ----------
    Read once Dr. A has moved them (iprMeta/moved — the rules before IPR Tracker 4 refuse even the look, which reads as "not yet"). */
 const IPR_MOVED = { on: false, at: 0 };
 async function iprMovedCheck(force) {
@@ -4096,7 +4097,8 @@ const IPRS = {
   },
   async visits(pid) {
     const s = await FB.db.collection('iprVis').where('p', '==', pid).get(), out = [];
-    for (const doc of s.docs) { try { out.push(await IPRS.open(doc.id, doc.data(), 'iprvis:')); } catch (e) { } }
+    // (a visit's sealed copy is bound to its id and its patient's record: one copied onto another patient doesn't open)
+    for (const doc of s.docs) { const d = doc.data(); if (d.p !== pid) continue; try { out.push(await IPRS.open(doc.id + ':' + d.p, d, 'iprvis:')); } catch (e) { } }
     return out;
   },
   async answer(pts) {

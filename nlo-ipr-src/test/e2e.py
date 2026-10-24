@@ -4,7 +4,7 @@ Cases (owner, two staff, a few cases with chart #s), and the old IPR Tracker's d
 wrote them. Dr. A publishes the rules and moves the records through the page; staff then chart, look patients up by name,
 lock, come back; at the end Dr. A removes the old copy.
     python3 build.py && (cd ../nlo-cases-src && python3 build.py)
-    npx firebase emulators:exec --only firestore,auth,database --project demo-nlo-cases "python3 test/e2e.py"
+    ../nlo-cases-src/node_modules/.bin/firebase emulators:exec --only firestore,auth,database --project demo-nlo-cases --config ../nlo-cases-src/firebase.json "python3 test/e2e.py"
 Needs Python Playwright with Chromium, and the pinned Firebase files in test/vendor/firebasejs-10.12.2/ (npm pack
 firebase@10.12.2: firebase-app-compat.js, -auth-, -firestore-, -database-). Made-up people only."""
 import json, os, re, sys, time, shutil, threading, functools, http.server, urllib.request, urllib.error, pathlib, traceback, subprocess
@@ -92,9 +92,31 @@ def verify_email(email):
     codes = [x for x in (j or {}).get('oobCodes', []) if x.get('email') == email and x.get('requestType') == 'VERIFY_EMAIL']
     assert codes, 'no verify email'
     opener.open(codes[-1]['oobLink']).read()
-def signup(email, pw):
+def signup(email, pw, verified=False):
     c, j = req('POST', AUTH + '/accounts:signUp?key=any', {'email': email, 'password': pw, 'returnSecureToken': True}, token='')
+    if verified:   # (a Google sign-in's email is verified; the old database's rules ask for that)
+        c2, j2 = req('POST', AUTH + '/projects/' + P + '/accounts:update', {'localId': j['localId'], 'emailVerified': True}); assert c2 == 200, j2
     return j['localId']
+def id_token(email, pw):
+    c, j = req('POST', AUTH + '/accounts:signInWithPassword?key=any', {'email': email, 'password': pw, 'returnSecureToken': True}, token='')
+    assert c == 200, j; return j['idToken']
+def rt_as(tok, method, path, body=None):
+    """the old database as someone signed in (its rules apply)"""
+    return req(method, RT + path + '.json?ns=' + P + '&auth=' + tok, body, token='')
+# the old database's rules as they are live (27 Sep 2026: nlo/ipr open to Dr. A and the office's own verified Google accounts),
+# with the test's owner address in Dr. A's place; and the same rules after the lock (../../tools/rtdb-rules-ipr-lock.py)
+import importlib.util
+sys.dont_write_bytecode = True   # (no __pycache__ next to the published tools/ script)
+_spec = importlib.util.spec_from_file_location('lock', SRC.parent / 'tools' / 'rtdb-rules-ipr-lock.py')
+LOCK = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(LOCK)
+STAFF_RULE = "auth != null && auth.token.email_verified == true && (auth.token.email === 'dr.test@example.com' || auth.token.email.endsWith('@thenextlevelorthodontics.com'))"
+RT_RULES = {'rules': {'nlo': {'cadence': {'.read': STAFF_RULE, '.write': STAFF_RULE}, 'ipr': {'.read': STAFF_RULE, '.write': STAFF_RULE}}}}
+def set_rt_rules(rules):
+    c, j = req('PUT', RT + '/.settings/rules.json?ns=' + P, rules); assert c == 200, j
+STAFF_EMAIL, STAFF_PW = 'staff@thenextlevelorthodontics.com', 'old-page-pass-1'
+def old_login(pg):
+    """the page's connection to the old database, signed in as Dr. A (on the emulator: his test address, verified)"""
+    return J(pg, "async a => { OLD.init(); await OLD.auth.signInWithEmailAndPassword(a[0], a[1]); return OLD.auth.currentUser.email; }", [OWNER_EMAIL, OWNER_PW])
 
 # ---------- the old IPR Tracker's records (IPR Tracker 3's shapes) ----------
 def contacts(teeth, vals):
@@ -205,7 +227,8 @@ def run(b):
     c, j = rt('PUT', '/nlo/ipr', OLD); assert c == 200, j
 
     section('Before the rules are published (the live rules are the ones without the IPR Tracker)')
-    old_rules = subprocess.run(['git', 'show', 'HEAD:nlo-cases-src/firestore.rules'], cwd=str(SRC.parent), capture_output=True, text=True, check=True).stdout.replace('__OWNER_EMAIL__', OWNER_EMAIL)
+    # (the rules live before this update: the ones in main — on GitHub Pages — until it's merged; LIVE_RULES_REF=<ref> to pick)
+    old_rules = subprocess.run(['git', 'show', os.environ.get('LIVE_RULES_REF', 'origin/main') + ':nlo-cases-src/firestore.rules'], cwd=str(SRC.parent), capture_output=True, text=True, check=True).stdout.replace('__OWNER_EMAIL__', OWNER_EMAIL)
     assert 'iprPts' not in old_rules
     set_rules(old_rules)
     gc, gwen, ge = new_page(b, 'gwen', quiet_perm=True)
@@ -241,16 +264,19 @@ def run(b):
     check('NLO Cases, rules live but nothing moved yet: still the old IPR link', J(owner_cases, "iprMovedCheck(true).then(m => [m, iprLink() === IPR])") == [False, True])
     check('staff: "moving to your NLO Cases login", with the old IPR Tracker', 'moving to your NLO Cases login' in txt(gwen, '#gateCard') and J(gwen, "!!document.querySelector('#gateCard a[href^=\"IPR_Tracker_old.html\"]')"))
 
-    signup('staff@thenextlevelorthodontics.com', 'old-page-pass-1')
+    signup(STAFF_EMAIL, STAFF_PW, verified=True)
     xc, xp, xe = new_page(b, 'oldPageBefore', quiet_perm=True)
     xp.goto(BASE + 'IPR_Tracker_old.html?emu', wait_until='load')
-    xp.evaluate("fbAuth.signInWithEmailAndPassword('staff@thenextlevelorthodontics.com', 'old-page-pass-1')")
+    xp.evaluate("a => fbAuth.signInWithEmailAndPassword(a[0], a[1])", [STAFF_EMAIL, STAFF_PW])
     xp.wait_for_selector('#root .ip-app', timeout=20000); xp.wait_for_timeout(500)
     check('the old IPR Tracker (kept beside it) still works until the move', 'IPR_Tracker_old.html' in xp.url and xp.title() == 'IPR Tracker (old)' and J(xp, "!document.getElementById('iprMovedBar')"))
+    check('…and saves there (under the old database’s live rules, with a staff Google account)', J(xp, "sbPatch('visits?id=eq.v-j2', { patient_uuid: 'pt-jane', notes: 'second visit notes' }).then(() => 'saved', e => String(e))") == 'saved')
     xold = (xc, xp)
 
     section('The move')
-    own.click('[data-act="mvConnect"]')
+    check('the move card: Dr. A connects with his Google account', old_login(own) == OWNER_EMAIL)
+    J(own, "() => { MV.who = OLD.auth.currentUser.email; renderGate(); }")
+    own.click('[data-act="mvRead"]')
     own.wait_for_function("() => MV.step === 'ready' || MV.err", timeout=30000)
     check('move: read the old IPR Tracker', J(own, "MV.step") == 'ready', J(own, "MV.err")); shot(own, '05-move-ready', True)
     c = J(own, "MV.plan.counts")
@@ -262,7 +288,10 @@ def run(b):
     check('move: the card shows what it found', 'Patients5' in t.replace(' ', '') and 'Visits4' in t.replace(' ', '') and '2026-03-02 – 2026-04-06' in t, t[:500])
     own.click('[data-act="mvGo"]'); own.wait_for_selector('#cbYes'); own.click('#cbYes')
     own.wait_for_function("() => MV.step === 'done' || MV.step === 'error'", timeout=90000)
-    check('move: done, every record checked', J(own, "MV.step") == 'done', J(own, "MV.err")); shot(own, '06-move-done')
+    if J(own, "MV.step") == 'done': own.wait_for_selector('[data-act="mvOpen"]', timeout=10000)
+    check('move: done, every record checked', J(own, "MV.step") == 'done', J(own, "MV.err")); shot(own, '06-move-done', True)
+    t = txt(own, '.moveCard')
+    check('move: the done card has the two steps left — the lock command for Cloud Shell, and Remove the old copy', 'rtdb-rules-ipr-lock.py' in t and 'Lock the old copy' in t and J(own, "!!document.querySelector('[data-act=\"mvRemove\"]') && !!document.querySelector('[data-act=\"mvCopyCmd\"]')"), t[:500])
     mv = get('iprMeta/moved') or {}
     OWNER_SID[0] = next(m.get('staffId') for m in query('members').values() if m.get('role') == 'owner')
     check('move: marked moved (by Dr. A; counts only)', mv.get('by') == OWNER_SID[0] and mv.get('pts') == 5 and mv.get('vis') == 4 and mv.get('named') == 2, mv)
@@ -287,8 +316,16 @@ def run(b):
     own.click('[data-act="mvOpen"]'); wait_app(own)
     J(own, "setInterval(() => { S.lastAct = Date.now(); }, 5000)")
     check('move: the IPR Tracker opens for Dr. A, with every patient', J(own, "IP.pts.size") == 5)
+    # a visit's sealed copy is bound to its patient's record too: one copied onto another patient's record opens for neither app
+    c, rawv = req('GET', FS + '/iprVis/v-j1'); f = dict(rawv['fields']); f['p'] = {'stringValue': 'pt-mark'}
+    c, j = req('PATCH', FS + '/iprVis/forged', {'fields': f}); assert c == 200, j
+    r = J(own, "FB.visitsOf('pt-mark').then(r => r.map(x => x.id))"); rc = J(owner_cases, "IPRS.visits('pt-mark').then(r => r.map(x => x.date))")
+    check('a sealed visit copied onto another patient’s record doesn’t open there (here or in NLO Cases)', r == ['v-m1'] and rc == ['2026-03-09'] and 'forged' in open_vault(own)['bad'], [r, rc])
+    req('DELETE', FS + '/iprVis/forged')
     xold[1].wait_for_selector('#iprMovedBar', timeout=20000)
     check('an old page left open says the IPR Tracker has moved, with a button to the new one', 'has moved to your NLO Cases login' in txt(xold[1], '#iprMovedBar'))
+    r = J(xold[1], "sbPatch('visits?id=eq.v-j2', { patient_uuid: 'pt-jane', notes: 'typed after the move' }).then(() => 'saved', e => String(e))")
+    check('…and saves nothing more there (a page left open kept saving where nobody would see it)', 'no longer saves' in r and (rt('GET', '/nlo/ipr/visits/pt-jane/v-j2')[1] or {}).get('notes') == 'second visit notes', r)
     xold[0].close()
 
     section('Charting: staff, by full name')
@@ -327,6 +364,46 @@ def run(b):
     tap(gwen, 'upper', 'UL1|UL2'); gwen.wait_for_timeout(3200); settle(gwen)
     vis2 = query('iprVis')
     check('…and the next change goes to that same visit (no second copy)', len(vis2) == len(vis) and (vis2.get(vid) or {}).get('rev', 0) >= 4, (len(vis2), len(vis), (vis2.get(vid) or {}).get('rev')))
+
+    # a new visit locked a moment after its first changes (Amir's review: the lock's last save made the visit after the draft was
+    # sealed, so after signing in again it counted as an earlier visit too, and the next change made a second copy)
+    jane = lambda: sorted(k for k, x in query('iprVis').items() if x.get('p') == 'pt-jane')
+    j_before = jane()
+    wizard(gwen); gwen.click('.ip-opt:has-text("Search existing patient")'); gwen.fill('.ip-dialog .ip-search input', 'jane')
+    gwen.wait_for_selector('.ip-result:has-text("Jane Doe")'); gwen.click('.ip-result:has-text("Jane Doe")')
+    gwen.wait_for_selector('.ip-dialog button:has-text("Start new visit")'); gwen.click('.ip-dialog button:has-text("Start new visit")'); gwen.wait_for_selector('.ip-strip')
+    tap(gwen, 'upper', 'UR4|UR3'); tap(gwen, 'lower', 'LR2|LR1')
+    menu(gwen, 'Lock'); gwen.wait_for_selector('#lgPw', timeout=20000)
+    j_after = jane(); new_v = [k for k in j_after if k not in j_before]
+    check('Lock a moment after a new visit’s first changes: the lock saves it (one visit)', len(new_v) == 1, (j_before, j_after))
+    sign_in(gwen, 'gwen', PW['gwen'], go=False); wait_app(gwen)
+    gwen.wait_for_function("n => document.querySelector('.ip-strip') && document.querySelector('.ip-strip').textContent.includes(n + ' visits on file')", arg=len(j_after), timeout=10000)
+    t = txt(gwen, '.ip-app')
+    check('…signed in again: it’s the visit on screen, not also counted as an earlier one', ('Across all %d visits' % len(j_after)) in t, re.findall(r'Across all \d+ visits', t))
+    tap(gwen, 'upper', 'UL2|UL3'); gwen.wait_for_timeout(3200); settle(gwen)
+    vb = open_vault(gwen)['vis'].get(new_v[0] if new_v else '') or {}
+    check('…and its next change updates that one visit (no second copy)', jane() == j_after and (vb.get('body') or {}).get('upper_ipr', {}).get('UL2|UL3') == '0.3' and (vb.get('body') or {}).get('lower_ipr', {}).get('LR2|LR1') == '0.3', (jane(), vb.get('rev')))
+
+    # a draft from an earlier day (a tab locked last night) comes back read-only: today's taps never change yesterday's visit
+    menu(gwen, 'Lock'); gwen.wait_for_selector('#lgPw', timeout=20000)
+    J(gwen, "() => { const o = B.openDraft; B.openDraft = async s => { const d = await o(s); d.ipr_at = Date.now() - 30 * 3600e3; return d; }; }")
+    sign_in(gwen, 'gwen', PW['gwen'], go=False); wait_app(gwen)
+    check('a draft from an earlier day comes back read-only', gwen.is_visible('.ip-banner') and 'Jane Doe' in txt(gwen, '.ip-strip') and J(gwen, "document.querySelector('.ip-foot .ip-btn').disabled") is True, txt(gwen, '.ip-app')[:160])
+
+    # a change that couldn't reach the database when the tab locked (the internet down) is saved after signing in again
+    wizard(gwen); gwen.click('.ip-opt:has-text("Search existing patient")'); gwen.fill('.ip-dialog .ip-search input', 'smith')
+    gwen.wait_for_selector('.ip-result:has-text("Mark Smith")'); gwen.click('.ip-result:has-text("Mark Smith")')
+    gwen.wait_for_selector('.ip-dialog button:has-text("Start new visit")'); gwen.click('.ip-dialog button:has-text("Start new visit")'); gwen.wait_for_selector('.ip-strip')
+    tap(gwen, 'upper', 'UR1|UL1'); gwen.wait_for_timeout(3200); settle(gwen)
+    m_vid = J(gwen, "JSON.parse(JSON.stringify(Array.from(IP.made)))")[-1]
+    gc.set_offline(True)
+    tap(gwen, 'lower', 'LL1|LL2'); menu(gwen, 'Lock')
+    gwen.wait_for_timeout(9500); gc.set_offline(False)
+    gwen.goto(IPR, wait_until='load'); sign_in(gwen, 'gwen', PW['gwen'], go=False); wait_app(gwen)
+    gwen.wait_for_timeout(1500); settle(gwen)
+    vb = open_vault(gwen)['vis'].get(m_vid) or {}
+    check('the internet down at the lock: the last change is saved once signed in again', (vb.get('body') or {}).get('lower_ipr', {}).get('LL1|LL2') == '0.3' and (vb.get('body') or {}).get('upper_ipr', {}).get('UR1|UL1') == '0.3', vb.get('body', {}).get('lower_ipr'))
+    ge[:] = [e for e in ge if 'ERR_INTERNET_DISCONNECTED' not in e and 'offline' not in e.lower() and 'could not reach' not in e.lower()]
     menu(gwen, 'Lock'); gwen.wait_for_selector('#lgPw', timeout=20000)
     TEMP['kaylee_first'] = True
     sign_in(gwen, 'kaylee', TEMP['kaylee'], go=False); gwen.wait_for_selector('#firstForm', timeout=30000)
@@ -388,6 +465,40 @@ def run(b):
     v = open_vault(gwen); pat = [k for k, x in v['pts'].items() if x['body'].get('name') == 'Pat Two']
     check('…it’s saved with the new patient', len(pat) == 1 and any(x['p'] == pat[0] and (x['body'].get('lower_ipr') or {}).get('LL2|LL3') == '0.3' for x in v['vis'].values()))
 
+    section('Save, or Print, right after a change: one visit; a chart # on file under another name')
+    pat_id = pat[0] if pat else ''
+    pats = lambda: sorted(k for k, x in query('iprVis').items() if x.get('p') == pat_id)
+    def pat_new_visit():
+        gwen.wait_for_selector('.ip-dlg-h:has-text("New visit")', timeout=8000)
+        gwen.click('.ip-opt:has-text("Search existing patient")'); gwen.fill('.ip-dialog .ip-search input', 'pat two')
+        gwen.wait_for_selector('.ip-result:has-text("Pat Two")'); gwen.click('.ip-result:has-text("Pat Two")')
+        gwen.wait_for_selector('.ip-dialog button:has-text("Start new visit")'); gwen.click('.ip-dialog button:has-text("Start new visit")'); gwen.wait_for_selector('.ip-strip')
+    pat_new_visit(); p0 = pats()
+    tap(gwen, 'upper', 'UR5|UR4'); gwen.click('.ip-foot .ip-btn:has-text("Save to patient record")')
+    gwen.wait_for_function("() => /Saved/.test(document.querySelector('.ip-foot').textContent)", timeout=15000)
+    gwen.wait_for_timeout(3500); settle(gwen)
+    p1 = pats(); add1 = [k for k in p1 if k not in p0]; v = open_vault(gwen)['vis']
+    check('Save a moment after a change: one new visit, with the change (IPR Tracker 3’s waiting autosave made a second)', len(add1) == 1 and (v[add1[0]]['body'].get('upper_ipr') or {}).get('UR5|UR4') == '0.3', (p0, p1))
+    pat_new_visit()
+    tap(gwen, 'lower', 'LR5|LR4')
+    with gwen.expect_popup() as pop: gwen.click('.ip-actions .ip-btn:has-text("Print")')
+    w = pop.value; w.wait_for_load_state()
+    gwen.wait_for_timeout(3500); settle(gwen)
+    p2 = pats(); add2 = [k for k in p2 if k not in p1]; v = open_vault(gwen)['vis']
+    check('Print a moment after a change: saved first, one visit with the change', len(add2) == 1 and (v[add2[0]]['body'].get('lower_ipr') or {}).get('LR5|LR4') == '0.3', (p1, p2))
+    menu(gwen, 'Lock'); gwen.wait_for_selector('#lgPw', timeout=20000)
+    check('the lock closes a print window left open (it shows the patient’s name and IPR)', w.is_closed())
+    sign_in(gwen, 'gwen', PW['gwen'], go=False); wait_app(gwen)
+    wizard(gwen); gwen.click('.ip-opt:has-text("New patient")')
+    gwen.fill('#ip-np-id', '15-6541'); gwen.fill('#ip-np-name', 'John Smith')
+    gwen.wait_for_selector('.ip-exists', timeout=8000); n_pts = len(query('iprPts'))
+    gwen.click('.ip-dialog button:has-text("Create & continue")'); gwen.wait_for_selector('.ip-dialog .ip-msg.err', timeout=8000)
+    check('New patient, a chart # on file under another name: it says whose it is, and makes no record (a mistyped chart # never gets this visit)', 'is on file as Jane Doe, not John Smith' in txt(gwen, '.ip-dialog') and len(query('iprPts')) == n_pts, txt(gwen, '.ip-dialog')[:300])
+    gwen.fill('#ip-np-name', 'jane doe'); gwen.click('.ip-dialog button:has-text("Create & continue")')
+    gwen.wait_for_selector('.ip-dlg-h:has-text("Select visit")', timeout=8000)
+    check('…the same chart # and her name: her visits open, no second record', 'Jane Doe' in txt(gwen, '.ip-dialog') and len(query('iprPts')) == n_pts)
+    gwen.click('.ip-dialog button:has-text("Close")'); wizard(gwen)
+
     section('Printing (the page’s security rules: the print window’s buttons are wired from the page)')
     gwen.wait_for_selector('.ip-dlg-h:has-text("New visit")', timeout=8000)
     gwen.click('.ip-opt:has-text("Search existing patient")'); gwen.fill('.ip-dialog .ip-search input', 'jane')
@@ -421,35 +532,79 @@ def run(b):
     patch_field('members/' + kuid, 'active', True); kc.close()
 
     section('Remove the old copy (Dr. A), after an old page saved something')
-    # an old page left open: a new visit, and a change to one not touched here since; and one changed in both places
+    # an old page left open, before the lock: a new visit, and a change to one not touched here since; and one changed in both places
     rt('PUT', '/nlo/ipr/visits/pt-jane/v-j3', visit('v-j3', 'pt-jane', '2026-10-20', 'Gwen', {'UR4|UR3': '0.2'}, {}, 'third visit notes'))
     rt('PATCH', '/nlo/ipr/visits/pt-mark/v-m1', {'notes': 'changed on an old page'})
     J(own, "FB.mutate('vis', 'v-c1', b => { b.notes = 'changed here'; }, { a: 'save' })")
     rt('PATCH', '/nlo/ipr/visits/pt-carl/v-c1', {'notes': 'changed there too'})
+
+    section('The old copy locked to Dr. A (tools/rtdb-rules-ipr-lock.py, run as in Cloud Shell)')
+    locked, was = LOCK.lock_ipr(RT_RULES, OWNER_EMAIL)
+    set_rt_rules(locked)
+    st, ot = id_token(STAFF_EMAIL, STAFF_PW), id_token(OWNER_EMAIL, OWNER_PW)
+    check('locked: a staff Google account can’t read the old copy or save there any more', rt_as(st, 'GET', '/nlo/ipr/patients')[0] == 401 and rt_as(st, 'PUT', '/nlo/ipr/visits/pt-jane/v-x', {'n': 1})[0] == 401 and rt_as(st, 'GET', '/nlo/ipr')[0] == 401)
+    check('…but still reads the mark that sends an old page to the new IPR Tracker', rt_as(st, 'GET', '/nlo/ipr/moved')[0] == 200)
+    check('…and Dr. A’s account reads it and changes it', rt_as(ot, 'GET', '/nlo/ipr/patients')[0] == 200 and rt_as(ot, 'PATCH', '/nlo/ipr/moved', {'at': (rt('GET', '/nlo/ipr/moved')[1] or {}).get('at', 0)})[0] == 200)
+
+    section('Remove the old copy')
     own.click('.ip-menu-wrap > button'); own.wait_for_selector('.ip-menu'); shot(own, '16-menu'); own.click('.ip-menu-scrim')
     menu(own, 'Remove the old copy'); own.wait_for_selector('#rmWrap')
-    own.click('#rmWrap [data-act="rmConnect"]')
+    old_login(own); J(own, "() => { RM.who = OLD.auth.currentUser.email; rmRender(); }")
+    own.click('#rmWrap [data-act="rmRead"]')
     own.wait_for_function("() => RM.step === 'ready' || RM.err", timeout=30000)
     t = txt(own, '#rmWrap'); shot(own, '14-remove-old')
-    check('the old copy: what it has, and what was saved there since the move', RM_ok(own) and 'Changedinbothplaces1' in t.replace(' ', '') and 'Saved there since the move3 records' in t and 'deleted with the old copy' in t, t[:600])
+    check('the old copy: what it has, and what was saved there since the move', RM_ok(own) and 'Changedinbothplaces1' in t.replace(' ', '') and 'Saved there since the move3 records' in t and 'Visits that belong to no patient1' in t and 'deleted with the old copy' in t, t[:700])
+    # something saved in the old copy between the last read and the delete (an old page, this very moment): nothing is deleted
+    J(own, """() => { const orig = OLD.req; OLD.req = async (m, p, o) => {
+        if (m === 'PUT' && o && o.ifMatch && !window.__casHit) { window.__casHit = 1;
+          await fetch('http://127.0.0.1:9000/nlo/ipr/visits/pt-jane/v-j3.json?ns=demo-nlo-cases', { method: 'PATCH', headers: { Authorization: 'Bearer owner' }, body: JSON.stringify({ notes: 'saved during the removal' }) }); }
+        return orig(m, p, o); }; }""")
+    own.click('#rmWrap [data-act="rmGo"]'); own.wait_for_selector('#cbYes')
+    check('the confirmation names the visit that belongs to no patient', '1 visit that belongs to no patient is deleted with it' in txt(own, '.lkModalCard:has(#cbYes)'), txt(own, '.lkModalCard:has(#cbYes)')[:300])
+    own.click('#cbYes')
+    own.wait_for_function("() => (RM.step === 'ready' || RM.step === 'done') && !RM.busy", timeout=60000)
+    check('a save in the old copy just before the delete: nothing is deleted, and it shows', 'nothing was deleted' in (J(own, "RM.err") or '') and len(rt('GET', '/nlo/ipr/patients')[1] or {}) == 5 and J(own, "window.__casHit") == 1, [J(own, "RM.step"), J(own, "RM.err")])
     own.click('#rmWrap [data-act="rmGo"]'); own.wait_for_selector('#cbYes'); own.click('#cbYes')
     own.wait_for_function("() => RM.step === 'done' || (RM.err && RM.step !== 'working')", timeout=60000)
     check('removed', J(own, "RM.step") == 'done', J(own, "RM.err")); shot(own, '15-removed')
+    check('…and it offers the lock command (recommended, if not done yet)', 'rtdb-rules-ipr-lock.py' in txt(own, '#rmWrap') and J(own, "!!document.querySelector('#rmWrap [data-act=\"mvCopyCmd\"]')"))
     check('the old database: no patients or visits left (the visit that belonged to no patient too); the mark that sends its page here stays', rt('GET', '/nlo/ipr/patients')[1] is None and rt('GET', '/nlo/ipr/visits')[1] is None and (rt('GET', '/nlo/ipr/moved')[1] or {}).get('to') == 'IPR_Tracker.html')
     v = open_vault(own)
-    check('the visit saved on the old page since the move is here now', (v['vis'].get('v-j3') or {}).get('p') == 'pt-jane' and v['vis']['v-j3']['body'].get('notes') == 'third visit notes')
+    check('the visit saved on the old page since the move is here now — with the change saved during the first try', (v['vis'].get('v-j3') or {}).get('p') == 'pt-jane' and v['vis']['v-j3']['body'].get('notes') == 'saved during the removal', (v['vis'].get('v-j3') or {}).get('body', {}).get('notes'))
     check('the one changed only there: the old page’s version', v['vis']['v-m1']['body'].get('notes') == 'changed on an old page')
     hist = J(own, "FB.historyOf('vis', 'v-c1')")
     check('changed in both places: this one’s version kept, the old one in its history', v['vis']['v-c1']['body'].get('notes') == 'changed here' and [h['a'] for h in hist][-2:] == ['old-copy', 'kept'], [h['a'] for h in hist])
     check('marked removed (counts only)', (get('iprMeta/oldRemoved') or {}).get('by') == OWNER_SID[0])
     own.click('#rmWrap [data-act="rmClose"]')
 
+    # an old page still open saves after the copy is gone (Dr. A's own account, or before the lock): the patient isn't in the old copy
+    # any more but is here — Check again brings the visits over to him (one saved without its created_at keeps the one it had)
+    o1 = visit('v-m1', 'pt-mark', '2026-03-09', 'Gwen', {'UR3|UR2': '0.3'}, {'LL1|LL2': '0.2'}, 'after the removal'); o1.pop('created_at')
+    rt('PATCH', '/nlo/ipr/visits/pt-mark/v-m1', o1)
+    rt('PUT', '/nlo/ipr/visits/pt-mark/v-m2', visit('v-m2', 'pt-mark', '2026-10-22', 'Gwen', {'UR1|UL1': '0.1'}, {}))
+    menu(own, 'Old copy: check again'); own.wait_for_selector('#rmWrap')
+    old_login(own); J(own, "() => { RM.who = OLD.auth.currentUser.email; rmRender(); }")
+    own.click('#rmWrap [data-act="rmRead"]'); own.wait_for_function("() => RM.step === 'ready' || RM.err", timeout=30000)
+    p = J(own, "RM.plan && { recs: RM.plan.recs, orphans: RM.plan.counts.orphans, vis: RM.plan.counts.vis }")
+    check('after the removal an old page saved two visits of a patient no longer in the old copy: both come over to him (not “no patient”)', p == {'recs': 2, 'orphans': 0, 'vis': 2}, p)
+    own.click('#rmWrap [data-act="rmGo"]'); own.wait_for_selector('#cbYes'); own.click('#cbYes')
+    own.wait_for_function("() => RM.step === 'done' || (RM.err && RM.step !== 'working')", timeout=60000)
+    v = open_vault(own)
+    check('…here now, with Mark Smith; the one saved without its created_at keeps the one it had', J(own, "RM.step") == 'done' and (v['vis'].get('v-m2') or {}).get('p') == 'pt-mark' and v['vis']['v-m1']['body'].get('notes') == 'after the removal' and v['vis']['v-m1']['body'].get('created_at') == OLD['visits']['pt-mark']['v-m1']['created_at'] and rt('GET', '/nlo/ipr/visits')[1] is None, [J(own, "RM.err"), v['vis'].get('v-m1', {}).get('body', {}).get('created_at')])
+    own.click('#rmWrap [data-act="rmClose"]')
+    # removed earlier but not noted here (the note failed): found empty, it's noted then
+    req('DELETE', FS + '/iprMeta/oldRemoved'); J(own, "() => { S.removed = null; rmOpen(); }")
+    old_login(own); J(own, "() => { RM.who = OLD.auth.currentUser.email; rmRender(); }")
+    own.click('#rmWrap [data-act="rmRead"]'); own.wait_for_function("() => RM.step === 'ready' || RM.err", timeout=30000)
+    check('the old copy found empty when it wasn’t noted as removed: noted now', 'The old copy is empty' in txt(own, '#rmWrap') and get('iprMeta/oldRemoved') is not None, [J(own, "RM.step"), J(own, "RM.err"), J(own, "!!S.removed"), get('iprMeta/oldRemoved'), txt(own, '#rmWrap')[-300:]])
+    own.click('#rmWrap [data-act="rmClose"]')
+
     section('The old IPR Tracker’s page (kept beside it) sends everyone here')
     xc, xp, xe = new_page(b, 'oldPage', quiet_perm=True)
     xp.goto(BASE + 'IPR_Tracker_old.html?emu#chart=15-6541', wait_until='load')
-    xp.evaluate("fbAuth.signInWithEmailAndPassword('staff@thenextlevelorthodontics.com', 'old-page-pass-1')")
+    xp.evaluate("a => fbAuth.signInWithEmailAndPassword(a[0], a[1])", [STAFF_EMAIL, STAFF_PW])
     xp.wait_for_url(re.compile(r'/IPR_Tracker\.html'), timeout=20000); xp.wait_for_selector('#lgUser', timeout=20000)
-    check('signed in to the old page: straight to the new IPR Tracker, the link’s chart # along', J(xp, "S.deep && S.deep.chart") == '15-6541', xp.url)
+    check('signed in to the old page (a staff Google account, the old copy locked): straight to the new IPR Tracker, the link’s chart # along', J(xp, "S.deep && S.deep.chart") == '15-6541', xp.url)
     xc.close()
 
     section('Page errors')
@@ -466,7 +621,7 @@ def main():
     req('DELETE', 'http://127.0.0.1:9099/emulator/v1/projects/' + P + '/accounts')
     rt('DELETE', '/')
     set_rules((DIST / 'firestore.rules').read_text())
-    c, j = req('PUT', RT + '/.settings/rules.json?ns=' + P, {'rules': {'.read': 'auth != null', '.write': 'auth != null'}}); assert c == 200, j
+    set_rt_rules(RT_RULES)
     with sync_playwright() as p:
         b = p.chromium.launch(args=['--disable-features=PrivateNetworkAccessRespectPreflightResults'])
         try: run(b)

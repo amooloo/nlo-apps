@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ZKylN4WaP2tAqAXndzccA5R79cOdQw4djsGecG197+A=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-6EuZB/xhVeoPa3E2ob0N7OUmTjyZJTbwQeGc1hu5QAY=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO IPR Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -409,6 +409,8 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px;}
 .kvRow b{color:var(--lk-navy);text-align:right;}
 .hint{background:var(--lk-grey-50);border:1px solid var(--lk-grey-100);border-radius:12px;padding:10px 14px;margin-top:12px;font-size:12.5px;color:var(--lk-grey-600);}
 .mvNotes{margin:6px 0 0 18px;}
+.cmdBox{margin-top:8px;background:var(--lk-grey-50);border:1px solid var(--lk-grey-100);border-radius:10px;padding:8px 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all;color:var(--lk-navy);user-select:all;}
+.cmdBox code{font:inherit;}
 .bar{height:10px;border-radius:99px;background:var(--lk-grey-100);overflow:hidden;margin-top:12px;}
 .bar i{display:block;height:100%;background:var(--lk-blue);border-radius:99px;transition:width .3s var(--lk-ease);}
 .stat{display:inline-block;border-radius:99px;padding:1px 9px;font-size:12px;font-weight:600;}
@@ -1062,14 +1064,17 @@ const FB = {
   ptRow(id, body, d) {
     return { id, patient_id: String(body.chart || ''), name: cleanName(body.name), ini: String(body.ini || ''), created_at: body.at || '', rev: d.rev, by: d.sid || '', updatedAt: FB.tsMs(d.updatedAt) };
   },
+  /* what a record's sealed copy is bound to: its own id — and a visit also to its patient's record (p), so a sealed visit can't be
+     passed off as another patient's (the rules keep p from changing) */
+  aad(kind, id, p) { return kind === 'pt' ? 'iprpt:' + id : 'iprvis:' + id + ':' + p; },
   async openPt(id, d) {
-    try { return FB.ptRow(id, await FB.openBox(d, 'iprpt:' + id), d); }
+    try { return FB.ptRow(id, await FB.openBox(d, FB.aad('pt', id)), d); }
     catch (e) { return { id, locked: true, patient_id: '', name: '', ini: '', created_at: '', rev: d.rev }; }
   },
   visRow(id, body, d) { return Object.assign({}, body, { id, patient_uuid: d.p, rev: d.rev, by: d.sid || '', updatedAt: FB.tsMs(d.updatedAt) }); },
   async visitsOf(pid) {
     const snap = await FB.db.collection('iprVis').where('p', '==', pid).get(), out = [];
-    for (const doc of snap.docs) { const d = doc.data(); try { out.push(FB.visRow(doc.id, await FB.openBox(d, 'iprvis:' + doc.id), d)); } catch (e) { } }
+    for (const doc of snap.docs) { const d = doc.data(); try { out.push(FB.visRow(doc.id, await FB.openBox(d, FB.aad('vis', doc.id, d.p)), d)); } catch (e) { } }
     return out;
   },
   /* (fields the page keeps on a row, never saved inside the sealed copy) */
@@ -1142,7 +1147,7 @@ const FB = {
     opts = opts || {};
     const b = FB.db.batch();
     const add = async (k, rid, bd, p) => {
-      const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], bd, (k === 'pt' ? 'iprpt:' : 'iprvis:') + rid);
+      const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], bd, FB.aad(k, rid, p));
       const doc = { v, iv: box.iv, ct: box.ct, rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts() };
       if (k === 'pt') { const pc = await FB.iprPc(bd.chart); if (pc) doc.pc = pc; } else doc.p = p;
       b.set(FB.db.doc((k === 'pt' ? 'iprPts/' : 'iprVis/') + rid), doc);
@@ -1158,22 +1163,23 @@ const FB = {
     }
     return id;
   },
-  /* fn(body) edits the latest sealed copy in place (return false: nothing to save); one person's saves to the same record run
-     one after another, never racing each other. Resolves to { body, rev } (or { body, skipped }) */
-  mutate(kind, id, fn, action) {
-    const k = kind + '/' + id, run = () => FB._mutate(kind, id, fn, action, 0);
-    const p = (FB.queues[k] || Promise.resolve()).then(run, run);
+  /* one person's saves to the same record run one after another, never racing each other */
+  queued(k, fn) {
+    const p = (FB.queues[k] || Promise.resolve()).then(fn, fn);
     FB.queues[k] = p.catch(() => { });
     return p;
   },
+  /* fn(body, doc) edits the latest sealed copy in place (return false: nothing to save). Resolves to { body, rev, d } (or { body,
+     skipped }) */
+  mutate(kind, id, fn, action) { return FB.queued(kind + '/' + id, () => FB._mutate(kind, id, fn, action, 0)); },
   async _mutate(kind, id, fn, action, tries) {
-    const aad = (kind === 'pt' ? 'iprpt:' : 'iprvis:') + id, ref = FB.db.doc((kind === 'pt' ? 'iprPts/' : 'iprVis/') + id);
+    const ref = FB.db.doc((kind === 'pt' ? 'iprPts/' : 'iprVis/') + id);
     let out = null;
     try {
       await FB.track(FB.db.runTransaction(async tx => {
         const s = await tx.get(ref); if (!s.exists) throw errCode('gone', 'That record isn’t there any more.');
-        const d = s.data(), body = await FB.openBox(d, aad);
-        if (fn(body) === false) { out = { body, rev: d.rev, skipped: true, d }; return; }
+        const d = s.data(), aad = FB.aad(kind, id, d.p), body = await FB.openBox(d, aad);
+        if (fn(body, d) === false) { out = { body, rev: d.rev, skipped: true, d }; return; }
         const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], body, aad);
         const upd = { v, iv: box.iv, ct: box.ct, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts() };
         if (kind === 'pt') { const pc = await FB.iprPc(body.chart); upd.pc = pc || FB.del(); }
@@ -1196,8 +1202,8 @@ const FB = {
   async everything() {
     const [ps, vs] = await Promise.all([FB.db.collection('iprPts').get(), FB.db.collection('iprVis').get()]);
     const pts = new Map(), vis = new Map(), bad = [];
-    for (const doc of ps.docs) { const d = doc.data(); try { pts.set(doc.id, { body: await FB.openBox(d, 'iprpt:' + doc.id), d }); } catch (e) { bad.push(doc.id); } }
-    for (const doc of vs.docs) { const d = doc.data(); try { vis.set(doc.id, { body: await FB.openBox(d, 'iprvis:' + doc.id), d }); } catch (e) { bad.push(doc.id); } }
+    for (const doc of ps.docs) { const d = doc.data(); try { pts.set(doc.id, { body: await FB.openBox(d, FB.aad('pt', doc.id)), d }); } catch (e) { bad.push(doc.id); } }
+    for (const doc of vs.docs) { const d = doc.data(); try { vis.set(doc.id, { body: await FB.openBox(d, FB.aad('vis', doc.id, d.p)), d }); } catch (e) { bad.push(doc.id); } }
     return { pts, vis, bad };
   },
   /* what each save to a record was (its history), oldest first: [{ rev, a, sid, at }] */
@@ -1236,8 +1242,8 @@ const FB = {
 /* ---------- the records the app works with, opened, in memory while signed in ----------
    Every patient (live from iprPts); a patient's visits when they're opened. Gone at the lock. */
 const IP = {
-  pts: new Map(), ready: false, waiters: [], err: null, vis: new Map(),
-  reset() { IP.pts = new Map(); IP.vis = new Map(); IP.ready = false; IP.err = null; const w = IP.waiters; IP.waiters = []; w.forEach(([, rej]) => rej(errCode('locked'))); },
+  pts: new Map(), ready: false, waiters: [], err: null, vis: new Map(), made: new Set(),
+  reset() { IP.pts = new Map(); IP.vis = new Map(); IP.made = new Set(); IP.ready = false; IP.err = null; const w = IP.waiters; IP.waiters = []; w.forEach(([, rej]) => rej(errCode('locked'))); },
   apply(up, gone) {
     up.forEach(r => IP.pts.set(r.id, r)); gone.forEach(id => IP.pts.delete(id));
     if (!IP.ready) { IP.ready = true; const w = IP.waiters; IP.waiters = []; w.forEach(([res]) => res()); }
@@ -1271,19 +1277,32 @@ const IP = {
     }, action || { a: 'save' });
     const row = FB.ptRow(id, r.body, r.d); IP.pts.set(id, row); return row;
   },
-  async createVisit(pid, fields) {
-    const id = FB.newId('vis'), body = FB.cleanVis(Object.assign({}, fields, { created_at: new Date().toISOString() }));
-    await FB.create('vis', id, body, { p: pid });
-    const row = FB.visRow(id, body, { p: pid, rev: 1, sid: FB.me.staffId, updatedAt: Date.now() });
+  /* the visit on screen, saved under the id it was given when it started (app.js): made by its first save, updated by every save
+     after — so a save that runs twice (an autosave and Save, the lock's last save, a save after signing in again) can only ever
+     update that one visit, never make a second copy. Fields replace the ones of the same name; the rest stays as it is. Saves to
+     one visit run one after another. Resolves to the visit's row (made: true when this save made it). */
+  async putVisit(id, pid, fields) {
+    if (!id || !pid) throw errCode('no-visit', 'No visit to save.');
+    const patch = FB.cleanVis(fields), known = () => IP.made.has(id) || (IP.vis.has(pid) && IP.vis.get(pid).has(id));
+    const update = () => FB._mutate('vis', id, (b, d) => {
+      if (d.p !== pid) throw errCode('wrong-patient', 'This visit belongs to another patient’s record.');
+      const before = canonJSON(b); Object.assign(b, patch); return canonJSON(b) !== before;
+    }, null, 0);
+    const r = await FB.queued('vis/' + id, async () => {
+      if (known()) return update();
+      const body = FB.cleanVis(Object.assign({}, fields, { created_at: new Date().toISOString() }));
+      try { await FB.create('vis', id, body, { p: pid }); }
+      catch (e) {
+        // refused: is it there already (saved by this tab before the lock, its answer lost on the way)? Then it's updated instead
+        const s = await FB.db.doc('iprVis/' + id).get().catch(() => null);
+        if (!s || !s.exists) throw e;
+        return update();
+      }
+      return { body, rev: 1, made: true, d: { p: pid, rev: 1, sid: FB.me.staffId, updatedAt: Date.now() } };
+    });
+    IP.made.add(id);
+    const row = Object.assign(FB.visRow(id, r.body, r.d), { made: !!r.made });
     if (IP.vis.has(pid)) IP.vis.get(pid).set(id, row);
-    return Object.assign({}, row);
-  },
-  /* fields replace the ones of the same name; the rest of the visit stays as it is */
-  async saveVisit(id, fields) {
-    const patch = FB.cleanVis(fields);
-    const r = await FB.mutate('vis', id, b => { const before = canonJSON(b); Object.assign(b, patch); return canonJSON(b) !== before; });
-    const row = FB.visRow(id, r.body, r.d);
-    if (IP.vis.has(row.patient_uuid)) IP.vis.get(row.patient_uuid).set(id, row);
     return Object.assign({}, row);
   }
 };
@@ -1519,6 +1538,7 @@ const IP_SUBS = new Set();
 async function lockOut(msg) {
   if (!S.inApp || S.locking) return;
   S.locking = true; clearInterval(S.idleTimer);
+  if (typeof closePrintWindows === 'function') closePrintWindows();   // (a print window left open shows the patient too)
   $('#root').classList.add('hidden'); $('#gateWrap').classList.add('hidden'); $$('.lkModal').forEach(m => m.remove());
   $('#lockCard').innerHTML = '<div class="lsub" style="text-align:center">Locking…</div>'; $('#lockWrap').classList.remove('hidden');
   // what was on screen goes in the draft, and a change still waiting to autosave is saved (a few seconds at most)
@@ -1604,12 +1624,16 @@ ACT.copyRules = () => { navigator.clipboard.writeText(rulesText()).then(() => to
    (nlo/ipr/moved) that sends the old IPR Tracker's page here.
    Running it again (a move that stopped half way) saves the same records
    under the same ids, so nothing doubles.
-   The old copy stays until Dr. A removes it (the app's menu): that reads
-   the old database again, brings over anything saved there since the
-   move (an old page left open), checks, and then deletes nlo/ipr's
-   patients and visits (the mark stays).
+   Then (the done card) Dr. A locks the old copy to his own Google account
+   (../tools/rtdb-rules-ipr-lock.py, in Cloud Shell: an IPR Tracker 3 page
+   left open on some computer can't keep saving there) and removes it:
+   that reads the old database again, brings over anything saved there
+   since the move, checks, and deletes nlo/ipr's patients and visits —
+   only if the old copy is still exactly what it read (its ETag), so a
+   save there in the meantime is never lost (the mark stays).
    ===================================================================== */
 const MV = { step: 'start', who: '', plan: null, done: 0, total: 0, err: '', res: null, checked: false, busy: false };
+const LOCK_CMD = 'curl -sO https://amooloo.github.io/nlo-apps/tools/rtdb-rules-ipr-lock.py && python3 rtdb-rules-ipr-lock.py';
 
 /* ---------- the old database (read, and at the very end emptied) ----------
    Its own Google sign-in, kept only while this page is open (never on the computer): closed after the move; a lock or a
@@ -1635,38 +1659,60 @@ const OLD = {
     return OLD.auth.signInWithPopup(p);
   },
   async disconnect() { if (OLD.auth) await OLD.auth.signOut(); },
-  async call(method, path, body) {
+  /* the old database's REST API, with this sign-in. o: { body, etag: true (ask for the data's ETag), ifMatch: <ETag> (write only
+     if the data there is still exactly that) } → { status, data, etag }; a refused ifMatch (412: changed since) is an answer */
+  async req(method, path, o) {
+    o = o || {};
     const u = await OLD.user(); if (!u) throw errCode('no-old', 'Not connected to the old IPR Tracker.');
     const tok = await u.getIdToken();
     const url = (S.emu ? 'http://127.0.0.1:9000/' : OLD_FB.databaseURL + '/') + path + '.json?' + (S.emu ? 'ns=demo-nlo-cases&' : '') + 'auth=' + encodeURIComponent(tok);
+    const headers = {};
+    if (o.body !== undefined) headers['Content-Type'] = 'application/json';
+    if (o.etag) headers['X-Firebase-ETag'] = 'true';
+    if (o.ifMatch) headers['if-match'] = o.ifMatch;
     let r;
-    try { r = await fetch(url, { method, cache: 'no-store', credentials: 'omit', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); }
+    try { r = await fetch(url, { method, cache: 'no-store', credentials: 'omit', headers, body: o.body === undefined ? undefined : JSON.stringify(o.body) }); }
     catch (e) { throw errCode('unavailable', 'Couldn’t reach the old IPR Tracker. Check the internet connection.'); }
-    if (r.status === 401 || r.status === 403) throw errCode('permission-denied', 'This Google account (' + (u.email || 'not Dr. A’s or the office’s') + ') can’t ' + (method === 'GET' ? 'read' : 'change') + ' the old IPR Tracker. Connect with Dr. A’s or the office account.');
+    if (r.status === 401 || r.status === 403) throw errCode('permission-denied', 'This Google account (' + (u.email || 'not Dr. A’s') + ') can’t ' + (method === 'GET' ? 'read' : 'change') + ' the old IPR Tracker. Connect with Dr. A’s Google account.');
+    if (r.status === 412 && o.ifMatch) return { status: 412, data: null, etag: r.headers.get('ETag') || '' };
     if (!r.ok) throw errCode('unavailable', 'The old IPR Tracker answered ' + r.status + '.');
-    return r.json();
+    return { status: r.status, data: await r.json(), etag: r.headers.get('ETag') || '' };
   },
+  async call(method, path, body) { return (await OLD.req(method, path, { body })).data; },
   read(path) { return OLD.call('GET', path); }
 };
+/* everything under nlo/ipr, read at once, with its ETag (the old database's fingerprint of that data) */
+function asObj(v) {
+  if (Array.isArray(v)) { const o = {}; v.forEach((x, i) => { if (x != null) o[String(i)] = x; }); return o; }
+  return v && typeof v === 'object' ? v : {};
+}
 async function readOld() {
-  const [patients, visits, moved] = await Promise.all([OLD.read('nlo/ipr/patients'), OLD.read('nlo/ipr/visits'), OLD.read('nlo/ipr/moved').catch(() => null)]);
-  return { patients: patients && typeof patients === 'object' ? patients : {}, visits: visits && typeof visits === 'object' ? visits : {}, moved };
+  const r = await OLD.req('GET', 'nlo/ipr', { etag: true }), all = asObj(r.data), other = {};
+  Object.keys(all).forEach(k => { if (k !== 'patients' && k !== 'visits' && k !== 'moved') other[k] = all[k]; });
+  return { patients: asObj(all.patients), visits: asObj(all.visits), moved: all.moved || null, other, etag: r.etag };
 }
 
 /* ---------- working out the move (nothing is saved here): the old records → the sealed records ----------
-   → { pts: [{ id, body }], vis: [{ id, p, body }], counts, notes, first, last } */
+   → { pts: [{ id, body }], vis: [{ id, p, body }], orphans: [{ pk, vk }], counts, notes, first, last }.
+   have (Remove the old copy): the records here — a visit whose patient is here already (taken out of the old copy before, the
+   visit saved there after by an old page left open) comes over to that patient. */
 const okId = id => typeof id === 'string' && id.length > 0 && id.length <= 64 && /^[A-Za-z0-9_.:-]+$/.test(id) && !/^__.*__$/.test(id);
+/* the id a record keeps here: its old one — or, for one with characters this database can't take (only a hand edit makes
+   one), the same new one every time */
+async function idFor(k) { return okId(k) ? k : 'm' + (await Crypto.sha256hex('ipr-old-id:' + k)).slice(0, 31); }
 /* a fingerprint of an old record exactly as it was read (any order of keys): kept, sealed, with the record here, so "Remove
    the old copy" can tell a record that changed in the old database after the move */
 async function oldHash(row) { return (await Crypto.sha256hex(canonJSON(row))).slice(0, 32); }
-async function planMove(old, names) {
-  const pts = [], vis = [], notes = [], skipped = { badId: 0, orphan: 0, junk: 0 };
-  const counts = { pts: 0, vis: 0, named: 0, unnamed: 0, mismatch: 0, twoNames: 0 };
+async function planMove(old, names, have) {
+  const pts = [], vis = [], orphans = [], notes = [], skipped = { renamed: 0, junk: 0 };
+  const counts = { pts: 0, vis: 0, named: 0, unnamed: 0, mismatch: 0, twoNames: 0, orphans: 0 };
+  const group = new Map();   // the key the old app filed a patient's visits under → that patient's id here
+  const seenVis = new Set();
   let first = '', last = '';
   for (const k of Object.keys(old.patients)) {
     const r = old.patients[k];
     if (!r || typeof r !== 'object') { skipped.junk++; continue; }
-    if (!okId(k)) { skipped.badId++; continue; }
+    const id = await idFor(k); if (id !== k) skipped.renamed++;
     const chart = String(r.patient_id == null ? '' : r.patient_id).trim();
     // the old app kept the initials in "name" (or the chart # again when none were typed)
     let ini = String(r.name == null ? '' : r.name).trim(); if (ini === chart) ini = '';
@@ -1675,30 +1721,38 @@ async function planMove(old, names) {
     const list = names.get(iprNorm(chart)) || [], one = FB.oneName(list);
     if (one && fitsInitials(one, ini)) { body.name = one; counts.named++; }
     else { counts.unnamed++; if (one) counts.mismatch++; else if (list.length) counts.twoNames++; }
-    pts.push({ id: k, body }); counts.pts++;
+    pts.push({ id, body }); counts.pts++;
+    // (IPR Tracker 3 filed a patient's visits under the record's own id field — the same as its key, for every record it made)
+    group.set(k, id);
+    if (typeof r.id === 'string' && r.id && r.id !== k && !old.patients[r.id] && !group.has(r.id)) group.set(r.id, id);
   }
-  const have = new Set(pts.map(p => p.id));
   for (const pk of Object.keys(old.visits)) {
-    const group = old.visits[pk]; if (!group || typeof group !== 'object') { skipped.junk++; continue; }
-    for (const vk of Object.keys(group)) {
-      const r = group[vk];
+    const grp = old.visits[pk]; if (!grp || typeof grp !== 'object') { skipped.junk++; continue; }
+    let p = group.get(pk) || null;
+    if (!p && have) { const m = await idFor(pk); p = have.pts.has(pk) ? pk : have.pts.has(m) ? m : null; }
+    for (const vk of Object.keys(grp)) {
+      const r = grp[vk];
       if (!r || typeof r !== 'object') { skipped.junk++; continue; }
-      if (!have.has(pk)) { skipped.orphan++; continue; }
-      if (!okId(vk)) { skipped.badId++; continue; }
+      if (!p) { orphans.push({ pk, vk }); counts.orphans++; continue; }
+      // (the same visit key under two patients — only a hand edit makes that — or here already under another patient: a stable id
+      // of its own, so neither is lost)
+      let id = await idFor(vk);
+      if (seenVis.has(id) || (have && have.vis && have.vis.has(id) && have.vis.get(id).d.p !== p)) id = await idFor(pk + '/' + vk);
+      seenVis.add(id); if (id !== vk) skipped.renamed++;
       const body = FB.cleanVis(r); delete body.patient_uuid; delete body.id;
       body.oh = await oldHash(r);
-      vis.push({ id: vk, p: pk, body }); counts.vis++;
+      vis.push({ id, p, body }); counts.vis++;
       const d = String(r.date || ''); if (d) { if (!first || d < first) first = d; if (!last || d > last) last = d; }
     }
   }
   if (counts.mismatch) notes.push(plural(counts.mismatch, 'patient') + ': the name NLO Cases has for the chart # doesn’t fit the initials here, so it isn’t used; the initials stay until someone adds the full name.');
   if (counts.twoNames) notes.push(plural(counts.twoNames, 'patient') + ': NLO Cases has two different names for the chart #, so neither is used.');
-  if (skipped.orphan) notes.push(plural(skipped.orphan, 'visit') + (skipped.orphan === 1 ? ' belongs' : ' belong') + ' to no patient (the old app never showed them), so ' + (skipped.orphan === 1 ? 'it stays' : 'they stay') + ' behind.');
-  if (skipped.badId) notes.push(plural(skipped.badId, 'record') + ' had an id this database can’t take, so they stay behind.');
+  if (counts.orphans) notes.push(plural(counts.orphans, 'visit') + (counts.orphans === 1 ? ' belongs' : ' belong') + ' to no patient (the old app never showed ' + (counts.orphans === 1 ? 'it' : 'them') + '), so ' + (counts.orphans === 1 ? 'it isn’t' : 'they aren’t') + ' moved.');
+  if (skipped.renamed) notes.push(plural(skipped.renamed, 'record') + ' get a new record id here (the old one has characters this database can’t take).');
   if (skipped.junk) notes.push(plural(skipped.junk, 'empty entry', 'empty entries') + ' in the old database aren’t moved.');
-  return { pts, vis, counts, notes, first, last };
+  return { pts, vis, orphans, counts, notes, first, last };
 }
-function planSum(P) { return JSON.stringify([P.counts, P.first, P.last, P.notes.length, P.pts.map(p => p.id + p.body.oh), P.vis.map(v => v.id + v.body.oh)]); }
+function planSum(P) { return JSON.stringify([P.counts, P.first, P.last, P.notes.length, P.pts.map(p => p.id + p.body.oh), P.vis.map(v => v.id + v.p + v.body.oh), P.orphans.map(o => o.pk + '/' + o.vk)]); }
 /* the names NLO Cases has for every chart # in the old records */
 async function namesFor(old) {
   const charts = Array.from(new Set(Object.values(old.patients).filter(r => r && typeof r === 'object').map(r => String(r.patient_id == null ? '' : r.patient_id).trim()).filter(Boolean)));
@@ -1708,10 +1762,10 @@ async function namesFor(old) {
 /* ---------- the move card ---------- */
 function moveCardHTML() {
   const st = MV.step, P = MV.plan;
-  let h = '<div class="card gateCard moveCard"><div class="cardHd"><h3>Move the IPR Tracker over</h3><span class="sub">one time, a minute or two</span></div><div class="cardBd">';
+  let h = '<div class="card gateCard moveCard"><div class="cardHd"><h3>Move the IPR Tracker over</h3><span class="sub">one time, a few minutes</span></div><div class="cardBd">';
   if (st === 'start' || st === 'connecting' || st === 'reading') {
     h += '<p class="small">The IPR Tracker now signs in with NLO Cases logins, locks after ' + idleMinutes() + ' minutes like NLO Cases, and seals every patient and visit with the office key. Its patients and visits move here from the old IPR Tracker once, each with the full name NLO Cases has for the chart #.</p>' +
-      '<ol class="steps small"><li><b>Connect to the old IPR Tracker</b> with your Google account (or the office one).</li><li>Look over what it found, then press <b>Move it now</b>.</li><li>Every record is checked here before the IPR Tracker opens. The old copy stays until you remove it (the menu, once everyone is on the new one).</li></ol>' +
+      '<ol class="steps small"><li><b>Connect to the old IPR Tracker</b> with your Google account (or the office one).</li><li>Look over what it found, then press <b>Move it now</b>.</li><li>Every record is checked here before the IPR Tracker opens. Then you lock the old copy and remove it (this card shows how).</li></ol>' +
       (MV.err ? '<div class="lockErr" role="alert">' + esc(MV.err) + '</div>' : '') +
       '<div class="btnRow">' + (MV.who ? '<span class="small muted" style="align-self:center">Connected as <b>' + esc(MV.who) + '</b></span><button class="btn btn-pri btn-sm" data-act="mvRead"' + (st !== 'start' ? ' disabled' : '') + '>' + (st === 'reading' ? 'Reading…' : 'Read the old IPR Tracker') + '</button><button class="btn btn-ghost" data-act="mvSwitch">Use another account</button>'
         : '<button class="btn btn-pri btn-sm" data-act="mvConnect"' + (st !== 'start' ? ' disabled' : '') + '>' + ic('google', 16) + (st === 'connecting' ? 'Connecting…' : st === 'reading' ? 'Reading…' : 'Connect to the old IPR Tracker') + '</button>') + '</div>';
@@ -1732,14 +1786,24 @@ function moveCardHTML() {
   } else if (st === 'done' && MV.res) {
     const r = MV.res;
     h += '<p class="small"><b>Moved.</b> Every record matches the old IPR Tracker: ' + plural(r.pts, 'patient') + ' (' + r.named + ' with their full name from NLO Cases) and ' + plural(r.vis, 'visit') + '.</p>' +
-      '<p class="small">From now on everyone signs in here with their NLO Cases login' + (MV.markErr ? '.' : '; the old IPR Tracker’s page sends them here.') + ' When everyone is on this one, remove the old copy (the menu → <b>Remove the old copy</b>).</p>' +
+      '<p class="small">From now on everyone signs in here with their NLO Cases login' + (MV.markErr ? '.' : '; the old IPR Tracker’s page sends them here.') + '</p>' +
       (MV.markErr ? '<div class="hint">The old IPR Tracker’s database didn’t take the mark that sends its page here (' + esc(MV.markErr) + '), so an old page someone opens still works on its own until the old copy is removed.</div>' : '') +
+      '<div class="mvNext"><p class="small" style="margin-top:14px"><b>While you’re here:</b></p><ol class="steps small">' +
+      '<li><b>Remove the old copy</b> (a minute): anything saved there meanwhile comes over first, every record is checked, then the unencrypted copy is deleted.' +
+      '<div class="btnRow" style="margin-top:8px"><button class="btn btn-sec btn-sm" data-act="mvRemove">Remove the old copy</button></div></li>' +
+      '<li><b>Lock the old copy</b> (recommended, two minutes): only your Google account can then use it, so an IPR Tracker page left open on some computer since before today can’t keep saving there. Open <b>Cloud Shell</b> (signed in as you), paste the command, look over what it shows, and answer <b>y</b>.' +
+      lockCmdHTML() + '</li></ol></div>' +
       '<div class="btnRow"><button class="btn btn-pri" data-act="mvOpen">Open the IPR Tracker</button></div>';
   } else if (st === 'error') {
     h += '<div class="lockErr" role="alert">' + esc(MV.err || 'The move stopped.') + '</div><p class="small">Nothing is marked moved, and the old IPR Tracker wasn’t changed. Running the move again saves the same records under the same ids, so it’s safe to try again.</p>' +
       '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="mvRead">Read it again</button></div>';
   }
   return h + '</div></div>';
+}
+/* the Cloud Shell command that locks the old copy to Dr. A (../tools/rtdb-rules-ipr-lock.py) */
+function lockCmdHTML() {
+  return '<div class="cmdBox"><code>' + esc(LOCK_CMD) + '</code></div>' +
+    '<div class="btnRow" style="margin-top:8px"><button class="btn btn-sec btn-sm" data-act="mvCopyCmd">' + ic('copy', 15) + 'Copy the command</button><a class="btn btn-ghost" href="https://shell.cloud.google.com/?show=terminal" target="_blank" rel="noopener noreferrer">Open Cloud Shell</a></div>';
 }
 /* after the card is drawn: is this page connected to the old database already? */
 function moveAfter() {
@@ -1755,7 +1819,7 @@ ACT.mvConnect = async () => {
 ACT.mvSwitch = async () => { await OLD.disconnect().catch(() => { }); MV.who = ''; MV.err = ''; MV.step = 'start'; ACT.mvConnect(); };
 ACT.mvRead = async () => {
   MV.err = ''; MV.step = 'reading'; renderGate();
-  try { const old = await readOld(); MV.plan = await planMove(old, await namesFor(old)); MV.step = 'ready'; }
+  try { const old = await readOld(); MV.plan = await planMove(old, await namesFor(old), null); MV.step = 'ready'; }
   catch (e) { console.error(e); MV.step = MV.plan ? 'error' : 'start'; MV.err = errText(e); MV.plan = null; }
   renderGate();
 };
@@ -1765,7 +1829,7 @@ ACT.mvGo = async () => {
   MV.err = ''; MV.step = 'rereading'; MV.busy = true; renderGate();
   try {
     // read it all again: anything different from what the card showed, and the card shows the new numbers instead
-    const old = await readOld(), P = await planMove(old, await namesFor(old));
+    const old = await readOld(), P = await planMove(old, await namesFor(old), null);
     if (planSum(P) !== planSum(MV.plan)) {
       MV.plan = P; MV.step = 'ready'; MV.busy = false;
       MV.err = 'The old IPR Tracker changed since you read it. The numbers above are new: look them over and press Move it now again.';
@@ -1773,11 +1837,11 @@ ACT.mvGo = async () => {
     }
     MV.plan = P;
     await doMove(P);
-    MV.step = 'done';
     // the old page sends everyone here from now on (a mark only: nothing about anyone)
     MV.markErr = '';
     await OLD.call('PUT', 'nlo/ipr/moved', { at: Date.now(), to: 'IPR_Tracker.html' }).catch(e => { console.warn('moved mark', e); MV.markErr = errText(e); });
     OLD.disconnect().catch(() => { }); MV.who = '';
+    MV.step = 'done';
   } catch (e) { console.error(e); MV.step = 'error'; MV.err = errText(e); }
   MV.busy = false; renderGate();
 };
@@ -1811,14 +1875,17 @@ async function doMove(P) {
   MV.res = { pts: P.pts.length, vis: P.vis.length, named: P.counts.named };
 }
 ACT.mvOpen = () => { OLD.disconnect().catch(() => { }); S.moved = { at: Date.now() }; ACT.retryOpen(); };
+ACT.mvCopyCmd = () => { navigator.clipboard.writeText(LOCK_CMD).then(() => toast('Copied — paste it in Cloud Shell and press Enter.', { ms: 6000 }), () => toast('Couldn’t copy — select the command and copy it by hand.', { bad: true })); };
+ACT.mvRemove = () => rmOpen();
 
-/* ---------- "Remove the old copy" (Dr. A, from the app's menu, once everyone is on the new IPR Tracker) ----------
+/* ---------- "Remove the old copy" (Dr. A: the move's done card, or the app's menu) ----------
    The old database is read again; anything saved there after the move (an old page left open) comes over first — a record
-   changed in both places keeps this one's version, the old one going into its history — then every record is checked and
-   nlo/ipr's patients and visits are deleted (the mark that sends the old page here stays). */
-const RM = { step: 'start', who: '', plan: null, err: '', res: null, busy: false };
+   changed in both places keeps this one's version, the old one going into its history — then every record is checked, and the
+   old copy is deleted only if it is still exactly the copy read (its ETag): a save there in the meantime, and nothing is
+   deleted (the mark that sends the old page here stays). */
+const RM = { step: 'start', who: '', plan: null, err: '', res: null, busy: false, markErr: '' };
 function rmOpen() {
-  RM.err = ''; RM.res = null; RM.plan = null; RM.step = 'start';
+  RM.err = ''; RM.res = null; RM.plan = null; RM.step = 'start'; RM.markErr = '';
   let w = $('#rmWrap');
   if (!w) { w = document.createElement('div'); w.id = 'rmWrap'; w.className = 'lkModal'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); document.body.appendChild(w); }
   OLD.user().then(u => { RM.who = u ? (u.email || (S.emu ? 'test account' : 'a Google account')) : ''; rmRender(); }).catch(() => rmRender());
@@ -1832,21 +1899,25 @@ function rmRender() {
   let h = '<div class="lkModalCard wide"><div class="rmHd"><h3>Remove the old copy</h3><button type="button" class="btn btn-ghost lkX" data-act="rmClose" aria-label="Close"' + (RM.busy ? ' disabled' : '') + '>' + ic('x', 16) + '</button></div>';
   if (S.removed && st === 'start') h += '<p class="small">The old copy was removed ' + esc(fmtWhen(S.removed.at)) + '. Checking again shows anything an old page saved there since.</p>';
   if (st === 'start' || st === 'reading') {
-    h += '<p class="small">The old IPR Tracker’s database still has a copy of the patients and visits, unencrypted. Once everyone uses this IPR Tracker, take it out: anything saved there since the move comes over first, every record is checked here, and then the old copy is deleted.</p>' +
+    h += '<p class="small">The old IPR Tracker’s database still has a copy of the patients and visits, unencrypted. Take it out: anything saved there since the move comes over first, every record is checked here, and then the old copy is deleted.</p>' +
       (RM.err ? '<div class="lockErr" role="alert">' + esc(RM.err) + '</div>' : '') +
       '<div class="btnRow">' + (RM.who ? '<span class="small muted" style="align-self:center">Connected as <b>' + esc(RM.who) + '</b></span><button class="btn btn-pri btn-sm" data-act="rmRead"' + (st !== 'start' ? ' disabled' : '') + '>' + (st === 'reading' ? 'Reading…' : 'Check the old copy') + '</button>'
         : '<button class="btn btn-pri btn-sm" data-act="rmConnect"' + (st !== 'start' ? ' disabled' : '') + '>' + ic('google', 16) + (st === 'reading' ? 'Reading…' : 'Connect to the old IPR Tracker') + '</button>') + '</div>';
   } else if ((st === 'ready' || st === 'working') && P) {
     const c = P.counts;
     h += '<p class="small">In the old database now:</p>' + row('Patients', c.pts) + row('Visits', c.vis) +
+      (c.orphans ? row('Visits that belong to no patient', '<span class="stat off">' + c.orphans + '</span> <span class="muted">(no app ever showed them; they can’t be brought here, so they’re deleted with the old copy)</span>') : '') +
       row('Saved there since the move', P.recs ? '<span class="stat off">' + plural(P.recs, 'record') + '</span> <span class="muted">(they come over first)</span>' : '<span class="stat ok">nothing</span>') +
       (P.conflicts ? row('Changed in both places', P.conflicts + ' <span class="muted">(this IPR Tracker’s version is kept; the old one goes into its history)</span>') : '') +
       (P.notes.length ? '<div class="hint"><ul class="mvNotes">' + P.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul></div>' : '') +
       (RM.err ? '<div class="lockErr" role="alert">' + esc(RM.err) + '</div>' : '') +
-      (c.pts + c.vis ? '<div class="btnRow"><button class="btn btn-danger" data-act="rmGo"' + (st === 'ready' ? '' : ' disabled') + '>' + (st === 'working' ? 'Working…' : P.writes.length ? 'Bring them over and remove the old copy' : 'Remove the old copy') + '</button></div>'
+      (c.pts + c.vis + c.orphans ? '<div class="btnRow"><button class="btn btn-danger" data-act="rmGo"' + (st === 'ready' ? '' : ' disabled') + '>' + (st === 'working' ? 'Working…' : P.writes.length ? 'Bring them over and remove the old copy' : 'Remove the old copy') + '</button></div>'
         : '<p class="small"><b>The old copy is empty.</b> Nothing left to remove.</p>');
   } else if (st === 'done' && RM.res) {
     h += '<p class="small"><b>Removed.</b> ' + (RM.res.brought ? plural(RM.res.brought, 'record') + ' saved in the old IPR Tracker since the move came over first; ' : '') + 'the old database no longer has the IPR Tracker’s patients or visits. Everything is here, sealed.</p>' +
+      '<p class="small muted">The old database’s daily backups from before today still hold it; they delete themselves after a year.</p>' +
+      '<p class="small" style="margin-top:12px"><b>Recommended, if it isn’t done yet: lock the old copy</b> to your Google account, so an IPR Tracker page left open on some computer since before the move can’t save there. In <b>Cloud Shell</b> (signed in as you): paste the command and answer <b>y</b>.</p>' + lockCmdHTML() +
+      (RM.markErr ? '<div class="hint">It wasn’t noted here as removed (' + esc(RM.markErr) + '); checking the old copy again notes it.</div>' : '') +
       '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="rmClose">Done</button></div>';
   }
   w.innerHTML = h + '</div>';
@@ -1857,68 +1928,84 @@ ACT.rmConnect = async () => {
   catch (e) { RM.step = 'start'; RM.err = errText(e); rmRender(); return; }
   RM.step = 'start'; return ACT.rmRead();
 };
-/* the old copy now, against what's here: [writes] to bring over, and how many of them changed in both places */
+/* the old copy now, against what's here: the writes that bring over what changed there since the move */
 async function rmPlan() {
   const old = await readOld(), have = await FB.everything();
-  const P = await planMove(old, new Map());   // (names aren't looked up again: a record here keeps the one it has)
-  const writes = [], conflicts = [];
+  const P = await planMove(old, new Map(), have);   // (names aren't looked up again: a record here keeps the one it has)
+  const writes = []; let conflicts = 0;
   const sameOld = (h, x) => h && h.body.oh && h.body.oh === x.body.oh;
   for (const x of P.pts) {
     const h = have.pts.get(x.id);
-    if (!h) { const nb = Object.assign({}, x.body); writes.push({ kind: 'pt', id: x.id, body: nb, mode: 'create', action: { a: 'old-copy' } }); continue; }
+    if (!h) { writes.push({ kind: 'pt', id: x.id, body: Object.assign({}, x.body), mode: 'create', action: { a: 'old-copy' } }); continue; }
     if (sameOld(h, x)) continue;
     // a patient changed in the old database (the old page never changes one — only a hand edit could): this one's chart # and
     // name stay; the fingerprint is the old record's now, and its initials come along if this one has none
     const nb = Object.assign({}, h.body, { oh: x.body.oh }); if (x.body.ini && !nb.ini) nb.ini = x.body.ini;
-    writes.push({ kind: 'pt', id: x.id, body: nb, mode: 'update', action: { a: 'old-copy' } });
+    writes.push({ kind: 'pt', id: x.id, body: nb, mode: 'update', rev: h.d.rev, action: { a: 'old-copy' } });
   }
   for (const x of P.vis) {
     const h = have.vis.get(x.id);
     if (!h) { writes.push({ kind: 'vis', id: x.id, p: x.p, body: x.body, mode: 'create', action: { a: 'old-copy' } }); continue; }
     if (sameOld(h, x)) continue;
     // changed in the old database since the move: if nobody saved it here since, the old one's version comes over; if both
-    // changed, the old version goes into this one's history and this one's version is put back on top
+    // changed, the old version goes into this one's history and this one's version stays on top. (An old page saving a visit
+    // whose record it no longer finds there writes it without its created_at: this one's is kept.)
+    const body = Object.assign({}, x.body); if (!body.created_at && h.body.created_at) body.created_at = h.body.created_at;
     const hist = await FB.historyOf('vis', x.id), editedHere = hist.some(e => e.a && e.a !== 'move' && e.a !== 'old-copy');
-    if (!editedHere) writes.push({ kind: 'vis', id: x.id, p: x.p, body: x.body, mode: 'update', action: { a: 'old-copy' } });
-    else { conflicts.push(x.id); writes.push({ kind: 'vis', id: x.id, p: x.p, body: x.body, mode: 'update', action: { a: 'old-copy' } }, { kind: 'vis', id: x.id, p: x.p, body: Object.assign({}, h.body, { oh: x.body.oh }), mode: 'update', action: { a: 'kept' } }); }
+    if (!editedHere && h.d.p === x.p) writes.push({ kind: 'vis', id: x.id, p: x.p, body, mode: 'update', rev: h.d.rev, action: { a: 'old-copy' } });
+    else { conflicts++; writes.push({ kind: 'vis', id: x.id, p: x.p, body, mode: 'both', rev: h.d.rev }); }
   }
-  // (the old copy goes as a whole: a visit there that belongs to no patient goes with it)
-  const notes = P.notes.map(n => /to no patient/.test(n) ? n.replace(/, so (it stays|they stay) behind\.$/, ': not brought over, and deleted with the old copy.') : n);
-  return { old, P, writes, recs: new Set(writes.map(w => w.id)).size, conflicts: conflicts.length, counts: P.counts, notes, sig: planSum(P) };
+  const notes = P.notes.filter(n => !/ to no patient /.test(n));   // (they have their own row)
+  return { old, P, writes, recs: new Set(writes.map(w => w.id)).size, conflicts, counts: P.counts, notes, sig: planSum(P) };
+}
+/* one write bringing a record over; each checks the record here is still the one planned against (rev) */
+async function rmWrite(w) {
+  const put = (b, nb) => { Object.keys(b).forEach(k => delete b[k]); Object.assign(b, JSON.parse(JSON.stringify(nb))); };
+  const same = d => { if (d.rev !== w.rev) throw errCode('changed', 'it was saved here a moment ago'); };
+  try {
+    if (w.mode === 'create') await FB.create(w.kind, w.id, w.body, { p: w.p, action: w.action });
+    else if (w.mode === 'update') await FB.mutate(w.kind, w.id, (b, d) => { same(d); put(b, w.body); }, w.action);
+    else {
+      // changed in both places: the old version saved over this one, then this one's put back on top — the old version stays in
+      // the history in between (and if someone saves here in between, theirs stays on top)
+      let keep = null;
+      const a = await FB.mutate('vis', w.id, (b, d) => { same(d); keep = JSON.parse(JSON.stringify(b)); put(b, w.body); }, { a: 'old-copy' });
+      await FB.mutate('vis', w.id, (b, d) => { if (d.rev !== a.rev) return false; put(b, Object.assign({}, keep, { oh: w.body.oh })); }, { a: 'kept' });
+    }
+  } catch (e) { throw errCode('mismatch', 'A record couldn’t be brought over (' + errText(e) + '). Nothing was deleted; try again.'); }
 }
 ACT.rmRead = async () => {
   RM.err = ''; RM.step = 'reading'; rmRender();
-  try { RM.plan = await rmPlan(); RM.step = 'ready'; }
-  catch (e) { console.error(e); RM.step = 'start'; RM.err = errText(e); }
+  try {
+    const plan = await rmPlan(), c = plan.counts;
+    // empty already (removed before, and it wasn't noted here then): noted now
+    if (!c.pts && !c.vis && !c.orphans && !S.removed) { try { await FB.markMoved('oldRemoved', { pts: 0, vis: 0 }); S.removed = { at: Date.now() }; } catch (e) { } }
+    RM.plan = plan; RM.step = 'ready';
+  } catch (e) { console.error(e); RM.step = 'start'; RM.err = errText(e); }
   rmRender();
 };
 ACT.rmGo = async () => {
   if (!RM.plan) return;
-  if (!await confirmBox('Remove the old copy?', 'The IPR Tracker’s patients and visits are deleted from the old database, after anything saved there since the move comes over and every record is checked here. This can’t be undone — but everything stays here, sealed.', 'Remove it', true)) return;
-  RM.err = ''; RM.step = 'working'; RM.busy = true; MV.busy = true; rmRender();
+  const n = RM.plan.counts.orphans;
+  if (!await confirmBox('Remove the old copy?', 'The IPR Tracker’s patients and visits are deleted from the old database, after anything saved there since the move comes over and every record is checked here.' +
+    (n ? ' The ' + plural(n, 'visit') + ' that belong' + (n === 1 ? 's' : '') + ' to no patient ' + (n === 1 ? 'is' : 'are') + ' deleted with it.' : '') + ' This can’t be undone — but everything stays here, sealed.', 'Remove it', true)) return;
+  RM.err = ''; RM.markErr = ''; RM.step = 'working'; RM.busy = true; MV.busy = true; rmRender();
   try {
     const Q = await rmPlan();
     if (Q.sig !== RM.plan.sig) { RM.plan = Q; RM.step = 'ready'; RM.err = 'The old copy changed since you checked it. The numbers above are new: look them over and press the button again.'; throw null; }
+    if (!Q.old.etag) throw errCode('unavailable', 'The old database didn’t say which copy it has, so nothing was deleted. Try again.');
     // conflicts are two saves to one record, in order: one at a time
-    for (const w of Q.writes) { const f = await FB.moveWrite([w]); if (f.length) throw errCode('mismatch', 'A record couldn’t be saved (' + errText(f[0].e) + '). Nothing was deleted; try again.'); }
-    // everything in the old copy is here now: each record, with the old one's fingerprint
+    for (const w of Q.writes) await rmWrite(w);
+    // everything in the old copy is here now: each record, with the old one's fingerprint (and each visit with its patient)
     const have = await FB.everything(), missing = [];
     Q.P.pts.forEach(x => { const h = have.pts.get(x.id); if (!h || h.body.oh !== x.body.oh) missing.push(x.id); });
     Q.P.vis.forEach(x => { const h = have.vis.get(x.id); if (!h || h.body.oh !== x.body.oh || h.d.p !== x.p) missing.push(x.id); });
     if (missing.length) throw errCode('mismatch', plural(missing.length, 'record') + ' from the old copy aren’t here yet, so nothing was deleted. Try again.');
-    // a last look: nothing new in the old copy since (an old page saving right now)
-    const again = await rmPlan();
-    if (again.writes.length) { RM.plan = again; RM.step = 'ready'; RM.err = 'Something was just saved in the old IPR Tracker. Look it over and press the button again.'; throw null; }
-    // delete exactly the records just checked (one saved there this very moment stays, and shows the next time)
-    const vdel = {}, pdel = {};
-    Object.keys(again.old.visits).forEach(pid => { const g = again.old.visits[pid]; if (g && typeof g === 'object') Object.keys(g).forEach(vid => { vdel[pid + '/' + vid] = null; }); else vdel[pid] = null; });
-    Object.keys(again.old.patients).forEach(id => { pdel[id] = null; });
-    if (Object.keys(vdel).length) await OLD.call('PATCH', 'nlo/ipr/visits', vdel);
-    if (Object.keys(pdel).length) await OLD.call('PATCH', 'nlo/ipr/patients', pdel);
-    const [p2, v2] = await Promise.all([OLD.read('nlo/ipr/patients'), OLD.read('nlo/ipr/visits')]);
-    if (p2 || v2) { RM.plan = await rmPlan(); RM.step = 'ready'; RM.err = 'Something was saved in the old IPR Tracker just now, so it’s still there. Look it over and press the button again.'; throw null; }
-    await OLD.call('PUT', 'nlo/ipr/moved', { at: Date.now(), to: 'IPR_Tracker.html' }).catch(() => { });
-    if (!S.removed) { await FB.markMoved('oldRemoved', { pts: Q.counts.pts, vis: Q.counts.vis }); S.removed = { at: Date.now() }; }
+    // the old copy goes — only if it's still exactly the copy read above: a save there meanwhile, and nothing is deleted
+    const keep = Object.assign({}, Q.old.other, { moved: Q.old.moved || { at: Date.now(), to: 'IPR_Tracker.html' } });
+    const r = await OLD.req('PUT', 'nlo/ipr', { body: keep, ifMatch: Q.old.etag });
+    if (r.status === 412) { RM.plan = await rmPlan(); RM.step = 'ready'; RM.err = 'Something was saved in the old IPR Tracker just now, so nothing was deleted. Look it over and press the button again.'; throw null; }
+    if (!S.removed) { try { await FB.markMoved('oldRemoved', { pts: Q.counts.pts, vis: Q.counts.vis }); S.removed = { at: Date.now() }; } catch (e) { RM.markErr = errText(e); } }
     RM.res = { brought: Q.recs }; RM.step = 'done';
     OLD.disconnect().catch(() => { }); RM.who = '';
     IP_SUBS.forEach(f => { try { f(); } catch (e) { } });
@@ -1926,7 +2013,7 @@ ACT.rmGo = async () => {
   RM.busy = false; MV.busy = false; rmRender();
 };
 
-// ─── Data layer: the sbGet / sbPost / sbPatch the IPR Tracker has always used, now over the sealed records ───
+// ─── Data layer: the sbGet / sbPost the IPR Tracker has always used, now over the sealed records ───
 // backend.js: IP holds every patient, opened, while someone is signed in; a patient's visits are read when they're opened.
 // The Supabase-style query strings (eq., ilike., or=(), order=, limit=) are evaluated here, on the opened records.
 function fbParseCond(field, spec) {
@@ -1993,27 +2080,22 @@ async function sbGet(path) {
   }
   throw new Error("Unknown table: " + table);
 }
+// (a visit is saved by IP.putVisit, under the id it got when it started — see the App's save)
 async function sbPost(table, body) {
   if (table === "patients") return [await IP.createPatient({ chart: body.patient_id, name: body.name })];
-  if (table === "visits") {
-    if (!body.patient_uuid) throw new Error("Visit missing patient_uuid");
-    const { patient_uuid, ...rest } = body;
-    return [await IP.createVisit(patient_uuid, rest)];
-  }
   throw new Error("Unknown table: " + table);
 }
-async function sbPatch(path, body) {
-  const q = path.split("?");
-  const table = q[0];
-  const params = new URLSearchParams(q[1] || "");
-  const id = (params.get("id") || "").replace(/^eq\./, "");
-  if (!id) throw new Error("PATCH needs id=eq.<id>");
-  if (table === "visits") { const { patient_uuid, ...rest } = body || {}; return [await IP.saveVisit(id, rest)]; }
-  if (table === "patients") return [await IP.savePatient(id, { chart: body.patient_id, name: body.name })];
-  throw new Error("Unknown table: " + table);
+// The patient on file for a chart # who is the patient typed (Amir's review, 23 Oct 2026: a mistyped chart # must never put one
+// patient's visit on another's record): the same full name — or, on an older record kept with initials only, a name that fits
+// them. A record with no name and no initials is the patient too. [] = nobody on file with that chart #.
+function iprSamePatient(list, name) {
+  const nm = cleanName(name);
+  return (list || []).filter(p => !nm ? true : p.name ? normName(p.name) === normName(nm) : (!p.ini || fitsInitials(nm, p.ini)))
+    .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
 }
 // Today's date on this computer's clock (IPR Tracker 3 used the UTC date, so an evening visit got tomorrow's date)
-function localToday() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function localToday() { return iprDayOf(Date.now()); }
+function iprDayOf(ms) { if (!ms) return ""; const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 // What a patient is called on screen: the full name, else the initials an older record kept
 function ptLabel(p) { return (p && (p.name || p.ini)) || ""; }
 function ptSort(a, b) { return ptLabel(a).localeCompare(ptLabel(b)) || String(a.patient_id).localeCompare(String(b.patient_id)); }
@@ -2917,9 +2999,14 @@ function printFontFace() {
 // ─── The print window (Print, Export as PDF, Print blank form) ───
 // The printed form with Print and Cancel above it. The page's security rules (one script, by its fingerprint) don't let a
 // window run code of its own, so the two buttons are wired from here.
+// Every print window still open closes with the lock (and when this page goes away): it shows the patient's name and IPR.
+const PRINT_WINS = new Set();
+function closePrintWindows() { PRINT_WINS.forEach(w => { try { if (!w.closed) w.close(); } catch (e) { } }); PRINT_WINS.clear(); }
+window.addEventListener("pagehide", closePrintWindows);
 function openPrintWindow(html, primaryLabel, hint) {
   const w = window.open("", "_blank", "width=900,height=700");
   if (!w) { alert("The browser blocked the print window. Allow pop-ups for this page and try again."); return null; }
+  PRINT_WINS.add(w);
   w.document.write('<!DOCTYPE html><html><head><title>IPR Tracker</title><style>' + printFontFace() + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}.print-toolbar span{color:#94a3b8;font-size:13px;margin-left:8px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
   w.document.write('<div class="print-toolbar"><button type="button" id="ppGo" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">' + primaryLabel + '</button><button type="button" id="ppX" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>' + (hint || "") + '</div>');
   w.document.write(html);
@@ -2927,7 +3014,7 @@ function openPrintWindow(html, primaryLabel, hint) {
   w.document.close();
   const go = w.document.getElementById("ppGo"), x = w.document.getElementById("ppX");
   if (go) go.addEventListener("click", () => w.print());
-  if (x) x.addEventListener("click", () => w.close());
+  if (x) x.addEventListener("click", () => { PRINT_WINS.delete(w); w.close(); });
   return w;
 }
 
@@ -3227,11 +3314,19 @@ function App() {
   // Patient record state
   const [dbPatient, setDbPatient] = React.useState(null); // { id, name, ini, patient_id }
   const [visitHistory, setVisitHistory] = React.useState([]);
-  const [currentVisitId, setCurrentVisitId] = React.useState(() => load("ipr_visit_id", null));
+  // The visit on screen has its id from the moment it starts (a new one's is chosen here, before it's ever saved), so every save
+  // of it — the autosave, Save, the lock's last save, the first save after signing in again — goes to that one visit, and never
+  // makes a second copy of it (IPR Tracker 3 made the visit at its first save, so a save running twice could make two).
+  const [currentVisitId, setVisitIdState] = React.useState(() => load("ipr_visit_id", null) || FB.newId("vis"));
+  const setCurrentVisitId = id => setVisitIdState(id || FB.newId("vis"));
   const [showHistory, setShowHistory] = React.useState(false);
-  const [readOnly, setReadOnly] = React.useState(() => load("ipr_read_only", false) === true); // true when viewing a saved past visit
+  // true when viewing a saved past visit. A draft from an earlier day (a tab locked last night) comes back read-only: today's
+  // taps never change yesterday's visit; New visit starts today's.
+  const [readOnly, setReadOnly] = React.useState(() => load("ipr_read_only", false) === true || (!!load("ipr_db_patient", null) && !!APP_DRAFT && iprDayOf(load("ipr_at", 0)) !== localToday()));
   // after the lock or a reload: the patient whose visit was on screen, and their visits, opened again (so the next save goes to
   // the same visit, never a second copy of it)
+  // (a change that hadn't reached the database when the tab locked — no internet, say — is saved again once the patient is open)
+  const [restoreSave, setRestoreSave] = React.useState(false);
   React.useEffect(() => {
     const pid = load("ipr_db_patient", null); if (!pid) return;
     let off = false;
@@ -3240,7 +3335,7 @@ function App() {
         await IP.whenReady(); const p = IP.patient(pid); if (off || !p) return;
         setDbPatient(p);
         const vs = await sbGet(`visits?patient_uuid=eq.${pid}&order=date.desc,created_at.desc`);
-        if (!off) setVisitHistory(vs || []);
+        if (!off) { setVisitHistory(vs || []); if (load("ipr_dirty", false) === true) setRestoreSave(true); }
       } catch (e) { }
     })();
     return () => { off = true; };
@@ -3385,13 +3480,23 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     setTimeout(() => setQuickMsg(null), 3000);
   };
 
+  // What's on screen right now, for a save that runs later than the render that asked for it (the autosave's timer, Save while a
+  // save is still on its way): each save takes one of these, so the visit it saves to and what it saves always belong together.
+  const nowRef = React.useRef(null);
+  nowRef.current = { patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower, dbPatient, currentVisitId, readOnly, flowStep };
+  const autosave = React.useRef(null);                     // { timer, snap }: the autosave waiting, and what it's to save
+  const saving = React.useRef(0);                          // saves on their way
+  const lastEdit = React.useRef(load("ipr_at", 0) || Date.now());
+
   // This tab's draft — what's on screen — sealed with the office key for the person signed in (lock.js), debounced. It's opened
-  // again after the lock or a reload, only by the same person; Cancel and a finished save clear it.
+  // again after the lock or a reload, only by the same person; Cancel and a finished save clear it. ipr_dirty: a change was still
+  // on its way to the database (saved again once the patient is open after signing in); ipr_at: the last change (a draft from an
+  // earlier day comes back read-only).
   const draftObj = () => ({
     ipr_patient: patient, ipr_upper: upper, ipr_lower: lower, ipr_notes: notes, ipr_gauge: gaugeVerified,
     ipr_upper_spaces: upperSpaces, ipr_lower_spaces: lowerSpaces, ipr_upper_bt: upperBT, ipr_lower_bt: lowerBT, ipr_missing: missingTeeth,
     ipr_presc_upper: prescribedUpper, ipr_presc_lower: prescribedLower, ipr_db_patient: dbPatient ? dbPatient.id : null,
-    ipr_visit_id: currentVisitId, ipr_read_only: readOnly, ipr_tab: activeTab
+    ipr_visit_id: currentVisitId, ipr_read_only: readOnly, ipr_tab: activeTab, ipr_at: lastEdit.current, ipr_dirty: !!autosave.current || saving.current > 0
   });
   React.useEffect(() => {
     const saveTimer = setTimeout(() => {
@@ -3400,9 +3505,30 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     return () => clearTimeout(saveTimer);
   }, [patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower, dbPatient, currentVisitId, readOnly, activeTab]);
 
-  const handleSaveToRecord = async (opts = {}) => {
-    const keepOpen = opts.keepOpen === true;
-    const silent = opts.silent === true; // autosave: no wizard, no reset, quiet status
+  // Saves run one after another — a second waits for the first — each with what was on screen when it was asked for (a snapshot
+  // from nowRef): one that runs late saves its own visit's changes to that visit, never to the one on screen by then.
+  const saveChain = React.useRef(Promise.resolve());
+  const enqueueSave = (snap, opts) => {
+    const run = () => saveNow(snap, opts || {});
+    const p = saveChain.current.then(run, run);
+    saveChain.current = p.catch(() => { });
+    return p;
+  };
+  // Save (the button), Print and Export save what's on screen now; the autosave still waiting isn't needed after that
+  const handleSaveToRecord = (opts) => {
+    const o = { keepOpen: !!(opts && opts.keepOpen === true) };
+    if (autosave.current) { clearTimeout(autosave.current.timer); autosave.current = null; }
+    return enqueueSave(nowRef.current, o);
+  };
+  const saveNow = async (snap, opts) => {
+    const { patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower } = snap;
+    const visitId = snap.currentVisitId, keepOpen = opts.keepOpen === true, silent = opts.silent === true; // silent: the autosave — no wizard, no reset, quiet status
+    const onScreen = () => !!nowRef.current && nowRef.current.currentVisitId === visitId;
+    // (a new patient's record may have been made by the save just before this one: the visit on screen has it by now)
+    let dbPatient = snap.dbPatient;
+    if (!dbPatient && onScreen() && nowRef.current.dbPatient) dbPatient = nowRef.current.dbPatient;
+    if (silent && !dbPatient) return false;
+    saving.current++;
     setSyncStatus("saving");
     setSyncMsg("");
     try {
@@ -3411,34 +3537,39 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       // Create patient if needed
       if (!patientId) {
         if (!(patient.patientId || "").trim()) {
-          if (silent) { setSyncStatus("idle"); return false; }
-          // No patient loaded — open wizard so they can select/create one, then auto-save
           setSyncStatus("idle");
+          if (silent) return false;
+          // No patient loaded — open wizard so they can select/create one, then auto-save
           setPendingSave(true);
           setFlowStep("choose");
           return false;
         }
-        // a record with this chart # already (letters and digits compared) is the patient — it gets the name typed, if it had none
-        const existing = await IP.byChart(patient.patientId);
-        if (existing && existing.length > 0) {
-          let ex = existing[0];
+        // the patient on file with this chart # (letters and digits compared) is this one — when the name is theirs (it gets the
+        // name typed if it had none); one on file under another name stops the save: a mistyped chart # never puts this visit on
+        // someone else's record
+        const existing = await IP.byChart(patient.patientId), same = iprSamePatient(existing, patient.name);
+        if (same.length) {
+          let ex = same[0];
           if (!ex.name && cleanName(patient.name)) { try { ex = await IP.savePatient(ex.id, { name: patient.name }, { a: "name" }); } catch (e) { } }
-          setDbPatient(ex);
+          if (onScreen()) setDbPatient(ex);
           pushRecentPatient(ex);
           patientId = ex.id;
+        } else if (existing.length) {
+          setSyncStatus("error");
+          setSyncMsg("Not saved: chart # " + patient.patientId.trim() + " is on file as " + (ptLabel(existing[0]) || "another patient") + ". Check the chart # (Edit), or open that patient’s visits.");
+          return false;
         } else {
           const created = await sbPost("patients", {
             name: cleanName(patient.name),
             patient_id: patient.patientId.trim()
           });
           const newPat = created[0];
-          setDbPatient(newPat);
+          if (onScreen()) setDbPatient(newPat);
           pushRecentPatient(newPat);
           patientId = newPat.id;
         }
       }
       const visitData = {
-        patient_uuid: patientId,
         date: patient.date,
         assistant_initials: patient.assistantInitials,
         gauge_verified: gaugeVerified,
@@ -3462,18 +3593,11 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       if (window.__missingTeethColumnExists !== false) {
         visitData.missing_teeth = missingTeeth;
       }
+      // the visit under its own id: its first save makes it, every save after updates it
       const doSave = async (data) => {
-        if (currentVisitId) {
-          await sbPatch(`visits?id=eq.${currentVisitId}`, data);
-          setVisitHistory(prev => prev.map(v => v.id === currentVisitId ? { ...v, ...data } : v));
-          setSyncMsg("Visit updated ✓");
-        } else {
-          const created = await sbPost("visits", data);
-          const newVisit = created[0];
-          setCurrentVisitId(newVisit.id);
-          setVisitHistory(prev => [newVisit, ...prev]);
-          setSyncMsg("Saved to patient record ✓");
-        }
+        const row = await IP.putVisit(visitId, patientId, data);
+        if (onScreen()) setVisitHistory(prev => prev.some(v => v.id === visitId) ? prev.map(v => v.id === visitId ? { ...v, ...row } : v) : [row, ...prev]);
+        setSyncMsg(row.made ? "Saved to patient record ✓" : "Visit updated ✓");
       };
       // Save, progressively stripping optional columns the DB may not have yet
       for (let attempt = 0; ; attempt++) {
@@ -3527,31 +3651,40 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         setSyncMsg("");
       }, 8000);
       return false;
-    }
+    } finally { saving.current--; }
   };
 
-  // ─── Autosave: debounced save 2.5s after the last edit, once a patient is loaded ───
+  // ─── Autosave: 2.5 s after the last change, once the patient has a record. A change still waiting when another visit or patient
+  // comes on screen is saved at once, to the visit it was made on (IPR Tracker 3 dropped it). ───
   const autosaveSkipRef = React.useRef(true);
-  const autosaveWaiting = React.useRef(false);
   React.useEffect(() => {
     // skip the very first run (initial mount / draft restore)
     if (autosaveSkipRef.current) { autosaveSkipRef.current = false; return; }
-    if (!dbPatient || readOnly || flowStep !== null) return;
-    autosaveWaiting.current = true;
-    const t = setTimeout(() => {
-      autosaveWaiting.current = false;
-      if (syncStatus === "saving") return;
-      handleSaveToRecord({ silent: true });
+    const N = nowRef.current, w = autosave.current;
+    if (w) { clearTimeout(w.timer); autosave.current = null; if (w.snap.currentVisitId !== N.currentVisitId) enqueueSave(w.snap, { silent: true }); }
+    lastEdit.current = Date.now();
+    if (!N.dbPatient || N.readOnly || N.flowStep !== null) return;
+    const snap = N;
+    const timer = setTimeout(() => {
+      if (autosave.current && autosave.current.timer === timer) autosave.current = null;
+      enqueueSave(snap, { silent: true });
     }, 2500);
-    return () => clearTimeout(t);
-  }, [upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, patient.date, patient.assistantInitials]);
+    autosave.current = { timer, snap };
+  }, [upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, patient.date, patient.assistantInitials, currentVisitId]);
+  // after signing in again: a change that hadn't reached the database before the lock is saved now
+  React.useEffect(() => {
+    if (!restoreSave || !dbPatient) return;
+    setRestoreSave(false);
+    enqueueSave(nowRef.current, { silent: true });
+  }, [restoreSave, dbPatient]);
 
-  // the lock (lock.js) asks the app to put what's on screen in the draft, and to save a change still waiting to autosave
+  // the lock (lock.js) asks the app to put what's on screen in the draft, and to save a change still waiting to autosave (and
+  // waits for a save already on its way)
   APP_HOOKS.flush = async () => {
-    const waiting = autosaveWaiting.current && dbPatient && !readOnly;
-    autosaveWaiting.current = false;
-    await draftSave(draftObj());
-    if (waiting) await handleSaveToRecord({ silent: true });
+    const w = autosave.current; if (w) { clearTimeout(w.timer); autosave.current = null; }
+    await draftSave(Object.assign(draftObj(), { ipr_dirty: !!w || saving.current > 0 }));
+    if (w) await enqueueSave(w.snap, { silent: true });
+    await saveChain.current;
   };
 
   const handleChange = setter => (key, val) => setter(prev => ({
@@ -3834,9 +3967,24 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setFlowStep(null);
     };
 
-    const createNewPatient = () => {
+    const createNewPatient = async () => {
       if (!tempPatientId.trim() || !cleanName(tempName)) {
         setWizMsg('Enter the chart # and the patient’s full name.');
+        return;
+      }
+      // a chart # on file already: that patient's record (and visits), never a second one — and never this name on a record that
+      // has another one (a mistyped chart #)
+      let onFile = [];
+      try { onFile = await IP.byChart(tempPatientId); } catch (e) { onFile = []; }
+      if (onFile.length) {
+        const same = iprSamePatient(onFile, tempName);
+        if (!same.length) {
+          setWizMsg('Chart # ' + tempPatientId.trim() + ' is on file as ' + (ptLabel(onFile[0]) || 'another patient') + ', not ' + cleanName(tempName) + '. Check the chart #, or open that patient’s visits.');
+          return;
+        }
+        let p = same[0];
+        if (!p.name) { try { p = await IP.savePatient(p.id, { name: tempName }, { a: 'name' }); } catch (e) { } }
+        go('search'); selectPatientForVisit(p);
         return;
       }
       setPatient({
@@ -3941,7 +4089,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         el("h2", { className: "ip-dlg-h" }, "Search patient"),
         el("p", { className: "ip-dlg-s" }, "Type a name, chart #, or initials."),
         el("div", { className: "ip-search" },
-          el("input", { type: "text", className: "ip-text", autoFocus: true, placeholder: "Name, chart #, or initials…", "aria-label": "Patient name, chart #, or initials", value: searchInputVal, onChange: e => setSearchInputVal(e.target.value), onKeyDown: e => { if (e.key === 'Enter') doSearch(); } }),
+          el("input", { type: "text", className: "ip-text", autoFocus: true, autoComplete: "off", spellCheck: false, placeholder: "Name, chart #, or initials…", "aria-label": "Patient name, chart #, or initials", value: searchInputVal, onChange: e => setSearchInputVal(e.target.value), onKeyDown: e => { if (e.key === 'Enter') doSearch(); } }),
           el("button", { type: "button", className: "ip-btn soft", onClick: doSearch, disabled: isSearching2 }, isSearching2 ? 'Searching…' : 'Search')),
         el("button", { type: "button", className: "ip-btn quiet sm", onClick: listAllPatients, disabled: isSearching2 }, "List all patients"),
         noteLine(),
@@ -4069,7 +4217,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
             el("h2", { className: "ip-dlg-h" }, "Patient records"),
             el("p", { className: "ip-dlg-s" }, "Open any saved visit to review it."),
             el("div", { className: "ip-search" },
-              el("input", { type: "text", className: "ip-text", autoFocus: true, placeholder: "Search by name or chart #…", "aria-label": "Search by name or chart #", value: recSearch, onChange: e => setRecSearch(e.target.value), onKeyDown: e => { if (e.key === 'Enter') searchRecords(recSearch.trim()); } }),
+              el("input", { type: "text", className: "ip-text", autoFocus: true, autoComplete: "off", spellCheck: false, placeholder: "Search by name or chart #…", "aria-label": "Search by name or chart #", value: recSearch, onChange: e => setRecSearch(e.target.value), onKeyDown: e => { if (e.key === 'Enter') searchRecords(recSearch.trim()); } }),
               el("button", { type: "button", className: "ip-btn soft", onClick: () => searchRecords(recSearch.trim()), disabled: recLoading }, recLoading ? 'Searching…' : 'Search')),
             el("button", { type: "button", className: "ip-btn quiet sm", onClick: () => { setRecSearch(''); searchRecords(''); } }, "List all patients"),
             recResults.length > 0 && el("div", { className: "ip-results", style: { maxHeight: 320 } }, recResults.map(p =>

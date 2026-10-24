@@ -736,6 +736,7 @@ async function sbGet(path) {
   throw new Error("Unknown table: " + table);
 }
 async function sbPost(table, body) {
+  iprNoSave();
   const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(36).slice(2));
   const row = fbSanitize({ ...body, id: id, created_at: new Date().toISOString() });
   if (table === "patients") {
@@ -750,6 +751,7 @@ async function sbPost(table, body) {
   throw new Error("Unknown table: " + table);
 }
 async function sbPatch(path, body) {
+  iprNoSave();
   const q = path.split("?");
   const table = q[0];
   const params = new URLSearchParams(q[1] || "");
@@ -778,6 +780,7 @@ async function sbPatch(path, body) {
   throw new Error("Unknown table: " + table);
 }
 async function sbDelete(path) {
+  iprNoSave();
   const q = path.split("?");
   const table = q[0];
   const params = new URLSearchParams(q[1] || "");
@@ -3316,6 +3319,10 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
 }
 // ─── IPR Tracker 4: the records moved to the NLO Cases logins (IPR_Tracker.html) ───
 function iprGoNew() { location.replace("IPR_Tracker.html" + location.search + location.hash); }
+// once the records have moved, this page saves nothing more here (Amir's review, 23 Oct 2026: a page left open kept saving where
+// nobody would see it)
+let iprMovedNow = false;
+function iprNoSave() { if (iprMovedNow) throw new Error("The IPR Tracker has moved to your NLO Cases login: this old page no longer saves. Open the new one."); }
 let iprMovedRef = null;
 function iprWatchMoved() {
   if (iprMovedRef) return;
@@ -3324,7 +3331,8 @@ function iprWatchMoved() {
     if (!s.exists() || document.getElementById("iprMovedBar")) return;
     const bar = document.createElement("div"); bar.id = "iprMovedBar"; bar.setAttribute("role", "alert");
     bar.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:100000;background:#1B2F4C;color:#fff;padding:12px 18px;font:600 14px system-ui,sans-serif;display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;";
-    const t = document.createElement("span"); t.textContent = "The IPR Tracker has moved to your NLO Cases login. Finish this visit, then switch.";
+    iprMovedNow = true;
+    const t = document.createElement("span"); t.textContent = "The IPR Tracker has moved to your NLO Cases login, and this page no longer saves. Open the new one to chart.";
     const b = document.createElement("button"); b.type = "button"; b.textContent = "Open the new IPR Tracker";
     b.style.cssText = "padding:7px 16px;border-radius:999px;border:0;background:#64F4C9;color:#11203A;font:700 13px system-ui,sans-serif;cursor:pointer;";
     b.addEventListener("click", iprGoNew);

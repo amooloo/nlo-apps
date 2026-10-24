@@ -1,4 +1,4 @@
-// ─── Data layer: the sbGet / sbPost / sbPatch the IPR Tracker has always used, now over the sealed records ───
+// ─── Data layer: the sbGet / sbPost the IPR Tracker has always used, now over the sealed records ───
 // backend.js: IP holds every patient, opened, while someone is signed in; a patient's visits are read when they're opened.
 // The Supabase-style query strings (eq., ilike., or=(), order=, limit=) are evaluated here, on the opened records.
 function fbParseCond(field, spec) {
@@ -65,27 +65,22 @@ async function sbGet(path) {
   }
   throw new Error("Unknown table: " + table);
 }
+// (a visit is saved by IP.putVisit, under the id it got when it started — see the App's save)
 async function sbPost(table, body) {
   if (table === "patients") return [await IP.createPatient({ chart: body.patient_id, name: body.name })];
-  if (table === "visits") {
-    if (!body.patient_uuid) throw new Error("Visit missing patient_uuid");
-    const { patient_uuid, ...rest } = body;
-    return [await IP.createVisit(patient_uuid, rest)];
-  }
   throw new Error("Unknown table: " + table);
 }
-async function sbPatch(path, body) {
-  const q = path.split("?");
-  const table = q[0];
-  const params = new URLSearchParams(q[1] || "");
-  const id = (params.get("id") || "").replace(/^eq\./, "");
-  if (!id) throw new Error("PATCH needs id=eq.<id>");
-  if (table === "visits") { const { patient_uuid, ...rest } = body || {}; return [await IP.saveVisit(id, rest)]; }
-  if (table === "patients") return [await IP.savePatient(id, { chart: body.patient_id, name: body.name })];
-  throw new Error("Unknown table: " + table);
+// The patient on file for a chart # who is the patient typed (Amir's review, 23 Oct 2026: a mistyped chart # must never put one
+// patient's visit on another's record): the same full name — or, on an older record kept with initials only, a name that fits
+// them. A record with no name and no initials is the patient too. [] = nobody on file with that chart #.
+function iprSamePatient(list, name) {
+  const nm = cleanName(name);
+  return (list || []).filter(p => !nm ? true : p.name ? normName(p.name) === normName(nm) : (!p.ini || fitsInitials(nm, p.ini)))
+    .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
 }
 // Today's date on this computer's clock (IPR Tracker 3 used the UTC date, so an evening visit got tomorrow's date)
-function localToday() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function localToday() { return iprDayOf(Date.now()); }
+function iprDayOf(ms) { if (!ms) return ""; const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 // What a patient is called on screen: the full name, else the initials an older record kept
 function ptLabel(p) { return (p && (p.name || p.ini)) || ""; }
 function ptSort(a, b) { return ptLabel(a).localeCompare(ptLabel(b)) || String(a.patient_id).localeCompare(String(b.patient_id)); }
@@ -989,9 +984,14 @@ function printFontFace() {
 // ─── The print window (Print, Export as PDF, Print blank form) ───
 // The printed form with Print and Cancel above it. The page's security rules (one script, by its fingerprint) don't let a
 // window run code of its own, so the two buttons are wired from here.
+// Every print window still open closes with the lock (and when this page goes away): it shows the patient's name and IPR.
+const PRINT_WINS = new Set();
+function closePrintWindows() { PRINT_WINS.forEach(w => { try { if (!w.closed) w.close(); } catch (e) { } }); PRINT_WINS.clear(); }
+window.addEventListener("pagehide", closePrintWindows);
 function openPrintWindow(html, primaryLabel, hint) {
   const w = window.open("", "_blank", "width=900,height=700");
   if (!w) { alert("The browser blocked the print window. Allow pop-ups for this page and try again."); return null; }
+  PRINT_WINS.add(w);
   w.document.write('<!DOCTYPE html><html><head><title>IPR Tracker</title><style>' + printFontFace() + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}.print-toolbar span{color:#94a3b8;font-size:13px;margin-left:8px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
   w.document.write('<div class="print-toolbar"><button type="button" id="ppGo" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">' + primaryLabel + '</button><button type="button" id="ppX" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>' + (hint || "") + '</div>');
   w.document.write(html);
@@ -999,7 +999,7 @@ function openPrintWindow(html, primaryLabel, hint) {
   w.document.close();
   const go = w.document.getElementById("ppGo"), x = w.document.getElementById("ppX");
   if (go) go.addEventListener("click", () => w.print());
-  if (x) x.addEventListener("click", () => w.close());
+  if (x) x.addEventListener("click", () => { PRINT_WINS.delete(w); w.close(); });
   return w;
 }
 
@@ -1299,11 +1299,19 @@ function App() {
   // Patient record state
   const [dbPatient, setDbPatient] = React.useState(null); // { id, name, ini, patient_id }
   const [visitHistory, setVisitHistory] = React.useState([]);
-  const [currentVisitId, setCurrentVisitId] = React.useState(() => load("ipr_visit_id", null));
+  // The visit on screen has its id from the moment it starts (a new one's is chosen here, before it's ever saved), so every save
+  // of it — the autosave, Save, the lock's last save, the first save after signing in again — goes to that one visit, and never
+  // makes a second copy of it (IPR Tracker 3 made the visit at its first save, so a save running twice could make two).
+  const [currentVisitId, setVisitIdState] = React.useState(() => load("ipr_visit_id", null) || FB.newId("vis"));
+  const setCurrentVisitId = id => setVisitIdState(id || FB.newId("vis"));
   const [showHistory, setShowHistory] = React.useState(false);
-  const [readOnly, setReadOnly] = React.useState(() => load("ipr_read_only", false) === true); // true when viewing a saved past visit
+  // true when viewing a saved past visit. A draft from an earlier day (a tab locked last night) comes back read-only: today's
+  // taps never change yesterday's visit; New visit starts today's.
+  const [readOnly, setReadOnly] = React.useState(() => load("ipr_read_only", false) === true || (!!load("ipr_db_patient", null) && !!APP_DRAFT && iprDayOf(load("ipr_at", 0)) !== localToday()));
   // after the lock or a reload: the patient whose visit was on screen, and their visits, opened again (so the next save goes to
   // the same visit, never a second copy of it)
+  // (a change that hadn't reached the database when the tab locked — no internet, say — is saved again once the patient is open)
+  const [restoreSave, setRestoreSave] = React.useState(false);
   React.useEffect(() => {
     const pid = load("ipr_db_patient", null); if (!pid) return;
     let off = false;
@@ -1312,7 +1320,7 @@ function App() {
         await IP.whenReady(); const p = IP.patient(pid); if (off || !p) return;
         setDbPatient(p);
         const vs = await sbGet(`visits?patient_uuid=eq.${pid}&order=date.desc,created_at.desc`);
-        if (!off) setVisitHistory(vs || []);
+        if (!off) { setVisitHistory(vs || []); if (load("ipr_dirty", false) === true) setRestoreSave(true); }
       } catch (e) { }
     })();
     return () => { off = true; };
@@ -1457,13 +1465,23 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     setTimeout(() => setQuickMsg(null), 3000);
   };
 
+  // What's on screen right now, for a save that runs later than the render that asked for it (the autosave's timer, Save while a
+  // save is still on its way): each save takes one of these, so the visit it saves to and what it saves always belong together.
+  const nowRef = React.useRef(null);
+  nowRef.current = { patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower, dbPatient, currentVisitId, readOnly, flowStep };
+  const autosave = React.useRef(null);                     // { timer, snap }: the autosave waiting, and what it's to save
+  const saving = React.useRef(0);                          // saves on their way
+  const lastEdit = React.useRef(load("ipr_at", 0) || Date.now());
+
   // This tab's draft — what's on screen — sealed with the office key for the person signed in (lock.js), debounced. It's opened
-  // again after the lock or a reload, only by the same person; Cancel and a finished save clear it.
+  // again after the lock or a reload, only by the same person; Cancel and a finished save clear it. ipr_dirty: a change was still
+  // on its way to the database (saved again once the patient is open after signing in); ipr_at: the last change (a draft from an
+  // earlier day comes back read-only).
   const draftObj = () => ({
     ipr_patient: patient, ipr_upper: upper, ipr_lower: lower, ipr_notes: notes, ipr_gauge: gaugeVerified,
     ipr_upper_spaces: upperSpaces, ipr_lower_spaces: lowerSpaces, ipr_upper_bt: upperBT, ipr_lower_bt: lowerBT, ipr_missing: missingTeeth,
     ipr_presc_upper: prescribedUpper, ipr_presc_lower: prescribedLower, ipr_db_patient: dbPatient ? dbPatient.id : null,
-    ipr_visit_id: currentVisitId, ipr_read_only: readOnly, ipr_tab: activeTab
+    ipr_visit_id: currentVisitId, ipr_read_only: readOnly, ipr_tab: activeTab, ipr_at: lastEdit.current, ipr_dirty: !!autosave.current || saving.current > 0
   });
   React.useEffect(() => {
     const saveTimer = setTimeout(() => {
@@ -1472,9 +1490,30 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     return () => clearTimeout(saveTimer);
   }, [patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower, dbPatient, currentVisitId, readOnly, activeTab]);
 
-  const handleSaveToRecord = async (opts = {}) => {
-    const keepOpen = opts.keepOpen === true;
-    const silent = opts.silent === true; // autosave: no wizard, no reset, quiet status
+  // Saves run one after another — a second waits for the first — each with what was on screen when it was asked for (a snapshot
+  // from nowRef): one that runs late saves its own visit's changes to that visit, never to the one on screen by then.
+  const saveChain = React.useRef(Promise.resolve());
+  const enqueueSave = (snap, opts) => {
+    const run = () => saveNow(snap, opts || {});
+    const p = saveChain.current.then(run, run);
+    saveChain.current = p.catch(() => { });
+    return p;
+  };
+  // Save (the button), Print and Export save what's on screen now; the autosave still waiting isn't needed after that
+  const handleSaveToRecord = (opts) => {
+    const o = { keepOpen: !!(opts && opts.keepOpen === true) };
+    if (autosave.current) { clearTimeout(autosave.current.timer); autosave.current = null; }
+    return enqueueSave(nowRef.current, o);
+  };
+  const saveNow = async (snap, opts) => {
+    const { patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower } = snap;
+    const visitId = snap.currentVisitId, keepOpen = opts.keepOpen === true, silent = opts.silent === true; // silent: the autosave — no wizard, no reset, quiet status
+    const onScreen = () => !!nowRef.current && nowRef.current.currentVisitId === visitId;
+    // (a new patient's record may have been made by the save just before this one: the visit on screen has it by now)
+    let dbPatient = snap.dbPatient;
+    if (!dbPatient && onScreen() && nowRef.current.dbPatient) dbPatient = nowRef.current.dbPatient;
+    if (silent && !dbPatient) return false;
+    saving.current++;
     setSyncStatus("saving");
     setSyncMsg("");
     try {
@@ -1483,34 +1522,39 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       // Create patient if needed
       if (!patientId) {
         if (!(patient.patientId || "").trim()) {
-          if (silent) { setSyncStatus("idle"); return false; }
-          // No patient loaded — open wizard so they can select/create one, then auto-save
           setSyncStatus("idle");
+          if (silent) return false;
+          // No patient loaded — open wizard so they can select/create one, then auto-save
           setPendingSave(true);
           setFlowStep("choose");
           return false;
         }
-        // a record with this chart # already (letters and digits compared) is the patient — it gets the name typed, if it had none
-        const existing = await IP.byChart(patient.patientId);
-        if (existing && existing.length > 0) {
-          let ex = existing[0];
+        // the patient on file with this chart # (letters and digits compared) is this one — when the name is theirs (it gets the
+        // name typed if it had none); one on file under another name stops the save: a mistyped chart # never puts this visit on
+        // someone else's record
+        const existing = await IP.byChart(patient.patientId), same = iprSamePatient(existing, patient.name);
+        if (same.length) {
+          let ex = same[0];
           if (!ex.name && cleanName(patient.name)) { try { ex = await IP.savePatient(ex.id, { name: patient.name }, { a: "name" }); } catch (e) { } }
-          setDbPatient(ex);
+          if (onScreen()) setDbPatient(ex);
           pushRecentPatient(ex);
           patientId = ex.id;
+        } else if (existing.length) {
+          setSyncStatus("error");
+          setSyncMsg("Not saved: chart # " + patient.patientId.trim() + " is on file as " + (ptLabel(existing[0]) || "another patient") + ". Check the chart # (Edit), or open that patient’s visits.");
+          return false;
         } else {
           const created = await sbPost("patients", {
             name: cleanName(patient.name),
             patient_id: patient.patientId.trim()
           });
           const newPat = created[0];
-          setDbPatient(newPat);
+          if (onScreen()) setDbPatient(newPat);
           pushRecentPatient(newPat);
           patientId = newPat.id;
         }
       }
       const visitData = {
-        patient_uuid: patientId,
         date: patient.date,
         assistant_initials: patient.assistantInitials,
         gauge_verified: gaugeVerified,
@@ -1534,18 +1578,11 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       if (window.__missingTeethColumnExists !== false) {
         visitData.missing_teeth = missingTeeth;
       }
+      // the visit under its own id: its first save makes it, every save after updates it
       const doSave = async (data) => {
-        if (currentVisitId) {
-          await sbPatch(`visits?id=eq.${currentVisitId}`, data);
-          setVisitHistory(prev => prev.map(v => v.id === currentVisitId ? { ...v, ...data } : v));
-          setSyncMsg("Visit updated ✓");
-        } else {
-          const created = await sbPost("visits", data);
-          const newVisit = created[0];
-          setCurrentVisitId(newVisit.id);
-          setVisitHistory(prev => [newVisit, ...prev]);
-          setSyncMsg("Saved to patient record ✓");
-        }
+        const row = await IP.putVisit(visitId, patientId, data);
+        if (onScreen()) setVisitHistory(prev => prev.some(v => v.id === visitId) ? prev.map(v => v.id === visitId ? { ...v, ...row } : v) : [row, ...prev]);
+        setSyncMsg(row.made ? "Saved to patient record ✓" : "Visit updated ✓");
       };
       // Save, progressively stripping optional columns the DB may not have yet
       for (let attempt = 0; ; attempt++) {
@@ -1599,31 +1636,40 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         setSyncMsg("");
       }, 8000);
       return false;
-    }
+    } finally { saving.current--; }
   };
 
-  // ─── Autosave: debounced save 2.5s after the last edit, once a patient is loaded ───
+  // ─── Autosave: 2.5 s after the last change, once the patient has a record. A change still waiting when another visit or patient
+  // comes on screen is saved at once, to the visit it was made on (IPR Tracker 3 dropped it). ───
   const autosaveSkipRef = React.useRef(true);
-  const autosaveWaiting = React.useRef(false);
   React.useEffect(() => {
     // skip the very first run (initial mount / draft restore)
     if (autosaveSkipRef.current) { autosaveSkipRef.current = false; return; }
-    if (!dbPatient || readOnly || flowStep !== null) return;
-    autosaveWaiting.current = true;
-    const t = setTimeout(() => {
-      autosaveWaiting.current = false;
-      if (syncStatus === "saving") return;
-      handleSaveToRecord({ silent: true });
+    const N = nowRef.current, w = autosave.current;
+    if (w) { clearTimeout(w.timer); autosave.current = null; if (w.snap.currentVisitId !== N.currentVisitId) enqueueSave(w.snap, { silent: true }); }
+    lastEdit.current = Date.now();
+    if (!N.dbPatient || N.readOnly || N.flowStep !== null) return;
+    const snap = N;
+    const timer = setTimeout(() => {
+      if (autosave.current && autosave.current.timer === timer) autosave.current = null;
+      enqueueSave(snap, { silent: true });
     }, 2500);
-    return () => clearTimeout(t);
-  }, [upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, patient.date, patient.assistantInitials]);
+    autosave.current = { timer, snap };
+  }, [upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, patient.date, patient.assistantInitials, currentVisitId]);
+  // after signing in again: a change that hadn't reached the database before the lock is saved now
+  React.useEffect(() => {
+    if (!restoreSave || !dbPatient) return;
+    setRestoreSave(false);
+    enqueueSave(nowRef.current, { silent: true });
+  }, [restoreSave, dbPatient]);
 
-  // the lock (lock.js) asks the app to put what's on screen in the draft, and to save a change still waiting to autosave
+  // the lock (lock.js) asks the app to put what's on screen in the draft, and to save a change still waiting to autosave (and
+  // waits for a save already on its way)
   APP_HOOKS.flush = async () => {
-    const waiting = autosaveWaiting.current && dbPatient && !readOnly;
-    autosaveWaiting.current = false;
-    await draftSave(draftObj());
-    if (waiting) await handleSaveToRecord({ silent: true });
+    const w = autosave.current; if (w) { clearTimeout(w.timer); autosave.current = null; }
+    await draftSave(Object.assign(draftObj(), { ipr_dirty: !!w || saving.current > 0 }));
+    if (w) await enqueueSave(w.snap, { silent: true });
+    await saveChain.current;
   };
 
   const handleChange = setter => (key, val) => setter(prev => ({
@@ -1906,9 +1952,24 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setFlowStep(null);
     };
 
-    const createNewPatient = () => {
+    const createNewPatient = async () => {
       if (!tempPatientId.trim() || !cleanName(tempName)) {
         setWizMsg('Enter the chart # and the patient’s full name.');
+        return;
+      }
+      // a chart # on file already: that patient's record (and visits), never a second one — and never this name on a record that
+      // has another one (a mistyped chart #)
+      let onFile = [];
+      try { onFile = await IP.byChart(tempPatientId); } catch (e) { onFile = []; }
+      if (onFile.length) {
+        const same = iprSamePatient(onFile, tempName);
+        if (!same.length) {
+          setWizMsg('Chart # ' + tempPatientId.trim() + ' is on file as ' + (ptLabel(onFile[0]) || 'another patient') + ', not ' + cleanName(tempName) + '. Check the chart #, or open that patient’s visits.');
+          return;
+        }
+        let p = same[0];
+        if (!p.name) { try { p = await IP.savePatient(p.id, { name: tempName }, { a: 'name' }); } catch (e) { } }
+        go('search'); selectPatientForVisit(p);
         return;
       }
       setPatient({
@@ -2013,7 +2074,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         el("h2", { className: "ip-dlg-h" }, "Search patient"),
         el("p", { className: "ip-dlg-s" }, "Type a name, chart #, or initials."),
         el("div", { className: "ip-search" },
-          el("input", { type: "text", className: "ip-text", autoFocus: true, placeholder: "Name, chart #, or initials…", "aria-label": "Patient name, chart #, or initials", value: searchInputVal, onChange: e => setSearchInputVal(e.target.value), onKeyDown: e => { if (e.key === 'Enter') doSearch(); } }),
+          el("input", { type: "text", className: "ip-text", autoFocus: true, autoComplete: "off", spellCheck: false, placeholder: "Name, chart #, or initials…", "aria-label": "Patient name, chart #, or initials", value: searchInputVal, onChange: e => setSearchInputVal(e.target.value), onKeyDown: e => { if (e.key === 'Enter') doSearch(); } }),
           el("button", { type: "button", className: "ip-btn soft", onClick: doSearch, disabled: isSearching2 }, isSearching2 ? 'Searching…' : 'Search')),
         el("button", { type: "button", className: "ip-btn quiet sm", onClick: listAllPatients, disabled: isSearching2 }, "List all patients"),
         noteLine(),
@@ -2141,7 +2202,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
             el("h2", { className: "ip-dlg-h" }, "Patient records"),
             el("p", { className: "ip-dlg-s" }, "Open any saved visit to review it."),
             el("div", { className: "ip-search" },
-              el("input", { type: "text", className: "ip-text", autoFocus: true, placeholder: "Search by name or chart #…", "aria-label": "Search by name or chart #", value: recSearch, onChange: e => setRecSearch(e.target.value), onKeyDown: e => { if (e.key === 'Enter') searchRecords(recSearch.trim()); } }),
+              el("input", { type: "text", className: "ip-text", autoFocus: true, autoComplete: "off", spellCheck: false, placeholder: "Search by name or chart #…", "aria-label": "Search by name or chart #", value: recSearch, onChange: e => setRecSearch(e.target.value), onKeyDown: e => { if (e.key === 'Enter') searchRecords(recSearch.trim()); } }),
               el("button", { type: "button", className: "ip-btn soft", onClick: () => searchRecords(recSearch.trim()), disabled: recLoading }, recLoading ? 'Searching…' : 'Search')),
             el("button", { type: "button", className: "ip-btn quiet sm", onClick: () => { setRecSearch(''); searchRecords(''); } }, "List all patients"),
             recResults.length > 0 && el("div", { className: "ip-results", style: { maxHeight: 320 } }, recResults.map(p =>

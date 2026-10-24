@@ -40,7 +40,7 @@ confusing."*).
 | collection | what | plain fields |
 |---|---|---|
 | `iprPts/<id>` | a patient: sealed `{ chart, name, ini?, at, oh? }` (AAD `iprpt:<id>`) | `v rev by sid createdAt updatedAt pc` |
-| `iprVis/<id>` | a visit: sealed, the fields 3.x kept (`date, assistant_initials, gauge_verified, upper_ipr, lower_ipr, upper_spaces, lower_spaces, upper_bt, lower_bt, notes, prescribed_upper, prescribed_lower, missing_teeth, created_at`, `oh?`) (AAD `iprvis:<id>`) | `p v rev by sid createdAt updatedAt` |
+| `iprVis/<id>` | a visit: sealed, the fields 3.x kept (`date, assistant_initials, gauge_verified, upper_ipr, lower_ipr, upper_spaces, lower_spaces, upper_bt, lower_bt, notes, prescribed_upper, prescribed_lower, missing_teeth, created_at`, `oh?`) (AAD `iprvis:<id>:<p>` — bound to its patient's record too, so a sealed visit copied onto another patient doesn't open) | `p v rev by sid createdAt updatedAt` |
 | `iprPtLog/<id>_<rev>`, `iprVisLog/<id>_<rev>` | every save's history entry: sealed action, and `prev` — the sealed copy it replaced | append-only |
 | `iprMeta/moved`, `iprMeta/oldRemoved` | the move, and the old copy removed (Dr. A, once each) | counts only |
 
@@ -50,29 +50,56 @@ patient record id (random). `oh` is a fingerprint of the 3.x record a moved one 
 The rules are in `../nlo-cases-src/firestore.rules` (the IPR block; tests in `../nlo-cases-src/test/rules.test.mjs`); the
 marker `meta/rules_ipr_1` tells the page whether they're live.
 
-The tab's draft (what's on screen, kept across the lock and a reload) is sealed for the person signed in (AAD `iprdraft:<uid>`)
-in `sessionStorage['iprDraft.v4']`; someone else signing in on that tab can't open it. Recent patients are record ids only
-(`localStorage['ipr_recent_ids']`). 3.x's readable `sessionStorage` draft and `localStorage['ipr_recent']` are removed at start.
+The tab's draft (what's on screen, kept across the lock and a reload) is sealed with the office key (AAD `iprdraft:<uid>`) in
+`sessionStorage['iprDraft.v4']`: nothing in it is readable without the key, and the page restores it only for the same login (another
+login on that tab starts clean — though anyone with the office key could open it, as they can the records themselves). It carries
+`ipr_at` (the last change: a draft from an earlier day comes back read-only) and `ipr_dirty` (a change still on its way at the
+lock: saved again once the patient is open). Recent patients are record ids only (`localStorage['ipr_recent_ids']`). 3.x's readable
+`sessionStorage` draft and `localStorage['ipr_recent']` are removed at start.
+
+**Saving a visit.** The visit on screen gets its record id when it starts (`FB.newId`), before its first save; every save of it —
+the autosave (2.5 s after a change), Save, Print/Export, the lock's last save, the first save after signing in again — goes to that
+id through `IP.putVisit` (made by the first, updated by the rest, one at a time). Saves run in order, each with the snapshot of the
+screen it was asked for, so a late one can't put one visit's changes on another (3.x's waiting autosave could make a second copy of
+a visit Save had just made). A change still waiting when another visit comes on screen is saved at once, to its own visit. A chart #
+already on file is that patient only when the name is theirs (or fits the initials an older record kept): New patient opens their
+visits instead, and a save never attaches a visit to a record with another name. Print windows close with the lock.
 
 ## The move (once) and the old copy
 
 Before the move, staff signing in see *moving to your NLO Cases login* with a button to the old IPR Tracker (kept at
-`IPR_Tracker_old.html`, unchanged), and Dr. A sees the rules card and then the move card: **Connect to the old IPR Tracker**
-(Google, his account or the office one) → it reads `nlo/ipr/patients` and `nlo/ipr/visits`, looks up the full name NLO Cases has
-for each chart # (used only when it fits the initials), and shows what it found → **Move it now** reads everything again (and
-stops if anything changed), seals each patient and visit under its old id with its history entry, opens every one again to
-check it, marks `iprMeta/moved`, and leaves `nlo/ipr/moved` in the old database — which makes the old page send everyone here.
-Running it again saves the same records under the same ids.
+`IPR_Tracker_old.html`), and Dr. A sees the rules card and then the move card: **Connect to the old IPR Tracker** (Google, his
+account or the office one) → it reads `nlo/ipr` (one read, with its ETag), looks up the full name NLO Cases has for each chart #
+(used only when it fits the initials), and shows what it found → **Move it now** reads everything again (and stops if anything
+changed), seals each patient and visit under its old id with its history entry, opens every one again to check it, marks
+`iprMeta/moved`, and leaves `nlo/ipr/moved` in the old database — which makes the old page send everyone here, and stop saving
+(an old page left open says so). Running it again saves the same records under the same ids. A visit goes with the patient record
+3.x filed it under (its key, or the record's own `id` field); one with no patient anywhere (3.x never showed it) isn't moved; a
+record whose old id has characters Firestore can't take gets the same new id every time (`m` + a hash of the old one).
 
-Afterwards, **⋯ → Remove the old copy** (Dr. A): reads the old database again, brings over anything an old page saved there
-since the move (a record changed in both places keeps this one's version; the old one goes into its history), checks every
-record, then deletes `nlo/ipr/patients` and `nlo/ipr/visits` (the `moved` mark stays). It can be run again any time.
+The done card has the two steps left, for the same sitting:
+1. **Remove the old copy** (also ⋯ → Remove the old copy, Dr. A): reads `nlo/ipr` again, brings over anything saved there since
+   the move — a visit whose patient is already here comes to them, one changed in both places keeps this one's version (the old
+   one goes into its history) — checks every record, then replaces `nlo/ipr` with just the `moved` mark **only if it is still the
+   copy it read** (a conditional REST write with the ETag: a save there in the meantime and nothing is deleted; it shows, and the
+   button brings it over next). Visits with no patient anywhere are listed and deleted with it (the confirmation says so). It can
+   be run again any time (*Old copy: check again*): a visit an old page saves after the removal comes over to its patient here.
+   The old database's daily backups (Cloud Storage, kept a year) still hold the copy from before the removal; they age out.
+2. **Lock the old copy** (recommended) — `../tools/rtdb-rules-ipr-lock.py` in Cloud Shell (the card copies the command):
+   `nlo/ipr` becomes readable and writable by Dr. A's verified Google account only, with `nlo/ipr/moved` still readable by whoever
+   could read `nlo/ipr` before (it sends an old page here). An IPR Tracker 3 page loaded before the update and left open somewhere
+   then can't keep saving where nobody would see it (the patched old page already refuses once moved). Nothing else in the rules
+   changes; the script shows the change, asks first, keeps the rules as they were (`undo`), and stops on anything it doesn't
+   expect. `test/lock_test.py` checks it; `test/e2e.py` runs the locked rules on the emulator. (Amir has found Cloud Shell
+   steps a chore: Claude can make the same change in his Chrome, Firebase console → Realtime Database → Rules, with his OK.)
 
 ## Build and test
 
-    node test/unit.js           # which name goes with which patient: initials, chart # forms, search
+    node test/unit.js           # which name goes with which patient: initials, chart # forms, search, the move's plan
+    python3 test/lock_test.py   # the old copy's lock (../tools/rtdb-rules-ipr-lock.py) on the rules, no database
     python3 build.py            # and ../nlo-cases-src: python3 build.py (the e2e test sets the office up there)
-    npx firebase emulators:exec --only firestore,auth,database --project demo-nlo-cases --config ../nlo-cases-src/firebase.json "python3 test/e2e.py"
+    ../nlo-cases-src/node_modules/.bin/firebase emulators:exec --only firestore,auth,database --project demo-nlo-cases \
+        --config ../nlo-cases-src/firebase.json "python3 test/e2e.py"     # (firebase-tools from nlo-cases-src: npm ci there)
 
 Needs Python Playwright with Chromium, and the pinned Firebase files in `test/vendor/firebasejs-10.12.2/` (`npm pack
 firebase@10.12.2`: `firebase-app-compat.js`, `-auth-`, `-firestore-`, `-database-`; the page's integrity hashes must match).

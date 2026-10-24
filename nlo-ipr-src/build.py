@@ -50,6 +50,8 @@ def swap(s, a, b):
     assert s.count(a) == 1, a[:80]
     return s.replace(a, b)
 old = swap(old, '<title>IPR Tracker</title>', '<title>IPR Tracker (old)</title>')
+for f in ['async function sbPost(table, body) {\n', 'async function sbPatch(path, body) {\n', 'async function sbDelete(path) {\n']:
+    old = swap(old, f, f + '  iprNoSave();\n')
 old = swap(old, '''    if (!appMounted) {
       appMounted = true;
       root.render(/*#__PURE__*/React.createElement(App, null));
@@ -72,6 +74,10 @@ old = swap(old, '''    if (!appMounted) {
     });''')
 old = swap(old, '''// ─── Auth gate: mount the app only after an allowed Google sign-in''', '''// ─── IPR Tracker 4: the records moved to the NLO Cases logins (IPR_Tracker.html) ───
 function iprGoNew() { location.replace("IPR_Tracker.html" + location.search + location.hash); }
+// once the records have moved, this page saves nothing more here (Amir's review, 23 Oct 2026: a page left open kept saving where
+// nobody would see it)
+let iprMovedNow = false;
+function iprNoSave() { if (iprMovedNow) throw new Error("The IPR Tracker has moved to your NLO Cases login: this old page no longer saves. Open the new one."); }
 let iprMovedRef = null;
 function iprWatchMoved() {
   if (iprMovedRef) return;
@@ -80,7 +86,8 @@ function iprWatchMoved() {
     if (!s.exists() || document.getElementById("iprMovedBar")) return;
     const bar = document.createElement("div"); bar.id = "iprMovedBar"; bar.setAttribute("role", "alert");
     bar.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:100000;background:#1B2F4C;color:#fff;padding:12px 18px;font:600 14px system-ui,sans-serif;display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;";
-    const t = document.createElement("span"); t.textContent = "The IPR Tracker has moved to your NLO Cases login. Finish this visit, then switch.";
+    iprMovedNow = true;
+    const t = document.createElement("span"); t.textContent = "The IPR Tracker has moved to your NLO Cases login, and this page no longer saves. Open the new one to chart.";
     const b = document.createElement("button"); b.type = "button"; b.textContent = "Open the new IPR Tracker";
     b.style.cssText = "padding:7px 16px;border-radius:999px;border:0;background:#64F4C9;color:#11203A;font:700 13px system-ui,sans-serif;cursor:pointer;";
     b.addEventListener("click", iprGoNew);

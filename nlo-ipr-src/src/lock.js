@@ -229,6 +229,7 @@ const IP_SUBS = new Set();
 async function lockOut(msg) {
   if (!S.inApp || S.locking) return;
   S.locking = true; clearInterval(S.idleTimer);
+  if (typeof closePrintWindows === 'function') closePrintWindows();   // (a print window left open shows the patient too)
   $('#root').classList.add('hidden'); $('#gateWrap').classList.add('hidden'); $$('.lkModal').forEach(m => m.remove());
   $('#lockCard').innerHTML = '<div class="lsub" style="text-align:center">Locking…</div>'; $('#lockWrap').classList.remove('hidden');
   // what was on screen goes in the draft, and a change still waiting to autosave is saved (a few seconds at most)

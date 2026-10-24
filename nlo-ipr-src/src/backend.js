@@ -170,14 +170,17 @@ const FB = {
   ptRow(id, body, d) {
     return { id, patient_id: String(body.chart || ''), name: cleanName(body.name), ini: String(body.ini || ''), created_at: body.at || '', rev: d.rev, by: d.sid || '', updatedAt: FB.tsMs(d.updatedAt) };
   },
+  /* what a record's sealed copy is bound to: its own id — and a visit also to its patient's record (p), so a sealed visit can't be
+     passed off as another patient's (the rules keep p from changing) */
+  aad(kind, id, p) { return kind === 'pt' ? 'iprpt:' + id : 'iprvis:' + id + ':' + p; },
   async openPt(id, d) {
-    try { return FB.ptRow(id, await FB.openBox(d, 'iprpt:' + id), d); }
+    try { return FB.ptRow(id, await FB.openBox(d, FB.aad('pt', id)), d); }
     catch (e) { return { id, locked: true, patient_id: '', name: '', ini: '', created_at: '', rev: d.rev }; }
   },
   visRow(id, body, d) { return Object.assign({}, body, { id, patient_uuid: d.p, rev: d.rev, by: d.sid || '', updatedAt: FB.tsMs(d.updatedAt) }); },
   async visitsOf(pid) {
     const snap = await FB.db.collection('iprVis').where('p', '==', pid).get(), out = [];
-    for (const doc of snap.docs) { const d = doc.data(); try { out.push(FB.visRow(doc.id, await FB.openBox(d, 'iprvis:' + doc.id), d)); } catch (e) { } }
+    for (const doc of snap.docs) { const d = doc.data(); try { out.push(FB.visRow(doc.id, await FB.openBox(d, FB.aad('vis', doc.id, d.p)), d)); } catch (e) { } }
     return out;
   },
   /* (fields the page keeps on a row, never saved inside the sealed copy) */
@@ -250,7 +253,7 @@ const FB = {
     opts = opts || {};
     const b = FB.db.batch();
     const add = async (k, rid, bd, p) => {
-      const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], bd, (k === 'pt' ? 'iprpt:' : 'iprvis:') + rid);
+      const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], bd, FB.aad(k, rid, p));
       const doc = { v, iv: box.iv, ct: box.ct, rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts() };
       if (k === 'pt') { const pc = await FB.iprPc(bd.chart); if (pc) doc.pc = pc; } else doc.p = p;
       b.set(FB.db.doc((k === 'pt' ? 'iprPts/' : 'iprVis/') + rid), doc);
@@ -266,22 +269,23 @@ const FB = {
     }
     return id;
   },
-  /* fn(body) edits the latest sealed copy in place (return false: nothing to save); one person's saves to the same record run
-     one after another, never racing each other. Resolves to { body, rev } (or { body, skipped }) */
-  mutate(kind, id, fn, action) {
-    const k = kind + '/' + id, run = () => FB._mutate(kind, id, fn, action, 0);
-    const p = (FB.queues[k] || Promise.resolve()).then(run, run);
+  /* one person's saves to the same record run one after another, never racing each other */
+  queued(k, fn) {
+    const p = (FB.queues[k] || Promise.resolve()).then(fn, fn);
     FB.queues[k] = p.catch(() => { });
     return p;
   },
+  /* fn(body, doc) edits the latest sealed copy in place (return false: nothing to save). Resolves to { body, rev, d } (or { body,
+     skipped }) */
+  mutate(kind, id, fn, action) { return FB.queued(kind + '/' + id, () => FB._mutate(kind, id, fn, action, 0)); },
   async _mutate(kind, id, fn, action, tries) {
-    const aad = (kind === 'pt' ? 'iprpt:' : 'iprvis:') + id, ref = FB.db.doc((kind === 'pt' ? 'iprPts/' : 'iprVis/') + id);
+    const ref = FB.db.doc((kind === 'pt' ? 'iprPts/' : 'iprVis/') + id);
     let out = null;
     try {
       await FB.track(FB.db.runTransaction(async tx => {
         const s = await tx.get(ref); if (!s.exists) throw errCode('gone', 'That record isn’t there any more.');
-        const d = s.data(), body = await FB.openBox(d, aad);
-        if (fn(body) === false) { out = { body, rev: d.rev, skipped: true, d }; return; }
+        const d = s.data(), aad = FB.aad(kind, id, d.p), body = await FB.openBox(d, aad);
+        if (fn(body, d) === false) { out = { body, rev: d.rev, skipped: true, d }; return; }
         const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], body, aad);
         const upd = { v, iv: box.iv, ct: box.ct, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts() };
         if (kind === 'pt') { const pc = await FB.iprPc(body.chart); upd.pc = pc || FB.del(); }
@@ -304,8 +308,8 @@ const FB = {
   async everything() {
     const [ps, vs] = await Promise.all([FB.db.collection('iprPts').get(), FB.db.collection('iprVis').get()]);
     const pts = new Map(), vis = new Map(), bad = [];
-    for (const doc of ps.docs) { const d = doc.data(); try { pts.set(doc.id, { body: await FB.openBox(d, 'iprpt:' + doc.id), d }); } catch (e) { bad.push(doc.id); } }
-    for (const doc of vs.docs) { const d = doc.data(); try { vis.set(doc.id, { body: await FB.openBox(d, 'iprvis:' + doc.id), d }); } catch (e) { bad.push(doc.id); } }
+    for (const doc of ps.docs) { const d = doc.data(); try { pts.set(doc.id, { body: await FB.openBox(d, FB.aad('pt', doc.id)), d }); } catch (e) { bad.push(doc.id); } }
+    for (const doc of vs.docs) { const d = doc.data(); try { vis.set(doc.id, { body: await FB.openBox(d, FB.aad('vis', doc.id, d.p)), d }); } catch (e) { bad.push(doc.id); } }
     return { pts, vis, bad };
   },
   /* what each save to a record was (its history), oldest first: [{ rev, a, sid, at }] */
@@ -344,8 +348,8 @@ const FB = {
 /* ---------- the records the app works with, opened, in memory while signed in ----------
    Every patient (live from iprPts); a patient's visits when they're opened. Gone at the lock. */
 const IP = {
-  pts: new Map(), ready: false, waiters: [], err: null, vis: new Map(),
-  reset() { IP.pts = new Map(); IP.vis = new Map(); IP.ready = false; IP.err = null; const w = IP.waiters; IP.waiters = []; w.forEach(([, rej]) => rej(errCode('locked'))); },
+  pts: new Map(), ready: false, waiters: [], err: null, vis: new Map(), made: new Set(),
+  reset() { IP.pts = new Map(); IP.vis = new Map(); IP.made = new Set(); IP.ready = false; IP.err = null; const w = IP.waiters; IP.waiters = []; w.forEach(([, rej]) => rej(errCode('locked'))); },
   apply(up, gone) {
     up.forEach(r => IP.pts.set(r.id, r)); gone.forEach(id => IP.pts.delete(id));
     if (!IP.ready) { IP.ready = true; const w = IP.waiters; IP.waiters = []; w.forEach(([res]) => res()); }
@@ -379,19 +383,32 @@ const IP = {
     }, action || { a: 'save' });
     const row = FB.ptRow(id, r.body, r.d); IP.pts.set(id, row); return row;
   },
-  async createVisit(pid, fields) {
-    const id = FB.newId('vis'), body = FB.cleanVis(Object.assign({}, fields, { created_at: new Date().toISOString() }));
-    await FB.create('vis', id, body, { p: pid });
-    const row = FB.visRow(id, body, { p: pid, rev: 1, sid: FB.me.staffId, updatedAt: Date.now() });
+  /* the visit on screen, saved under the id it was given when it started (app.js): made by its first save, updated by every save
+     after — so a save that runs twice (an autosave and Save, the lock's last save, a save after signing in again) can only ever
+     update that one visit, never make a second copy. Fields replace the ones of the same name; the rest stays as it is. Saves to
+     one visit run one after another. Resolves to the visit's row (made: true when this save made it). */
+  async putVisit(id, pid, fields) {
+    if (!id || !pid) throw errCode('no-visit', 'No visit to save.');
+    const patch = FB.cleanVis(fields), known = () => IP.made.has(id) || (IP.vis.has(pid) && IP.vis.get(pid).has(id));
+    const update = () => FB._mutate('vis', id, (b, d) => {
+      if (d.p !== pid) throw errCode('wrong-patient', 'This visit belongs to another patient’s record.');
+      const before = canonJSON(b); Object.assign(b, patch); return canonJSON(b) !== before;
+    }, null, 0);
+    const r = await FB.queued('vis/' + id, async () => {
+      if (known()) return update();
+      const body = FB.cleanVis(Object.assign({}, fields, { created_at: new Date().toISOString() }));
+      try { await FB.create('vis', id, body, { p: pid }); }
+      catch (e) {
+        // refused: is it there already (saved by this tab before the lock, its answer lost on the way)? Then it's updated instead
+        const s = await FB.db.doc('iprVis/' + id).get().catch(() => null);
+        if (!s || !s.exists) throw e;
+        return update();
+      }
+      return { body, rev: 1, made: true, d: { p: pid, rev: 1, sid: FB.me.staffId, updatedAt: Date.now() } };
+    });
+    IP.made.add(id);
+    const row = Object.assign(FB.visRow(id, r.body, r.d), { made: !!r.made });
     if (IP.vis.has(pid)) IP.vis.get(pid).set(id, row);
-    return Object.assign({}, row);
-  },
-  /* fields replace the ones of the same name; the rest of the visit stays as it is */
-  async saveVisit(id, fields) {
-    const patch = FB.cleanVis(fields);
-    const r = await FB.mutate('vis', id, b => { const before = canonJSON(b); Object.assign(b, patch); return canonJSON(b) !== before; });
-    const row = FB.visRow(id, r.body, r.d);
-    if (IP.vis.has(row.patient_uuid)) IP.vis.get(row.patient_uuid).set(id, row);
     return Object.assign({}, row);
   }
 };

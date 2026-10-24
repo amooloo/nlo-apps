@@ -325,7 +325,8 @@ const IPR_DEMO = {
   }
 };
 /* ---------- IPR Tracker 4: its records, sealed here (iprPts: a patient { chart, name, ini? }; iprVis: a visit, the same fields the
-   IPR Tracker always kept; each patient carries pc — the patient index's keyed hash of its chart #, letters and digits only) ----------
+   IPR Tracker always kept, sealed for its id and its patient's record p; each patient carries pc — the patient index's keyed hash of
+   its chart #, letters and digits only) ----------
    Read once Dr. A has moved them (iprMeta/moved — the rules before IPR Tracker 4 refuse even the look, which reads as "not yet"). */
 const IPR_MOVED = { on: false, at: 0 };
 async function iprMovedCheck(force) {
@@ -356,7 +357,8 @@ const IPRS = {
   },
   async visits(pid) {
     const s = await FB.db.collection('iprVis').where('p', '==', pid).get(), out = [];
-    for (const doc of s.docs) { try { out.push(await IPRS.open(doc.id, doc.data(), 'iprvis:')); } catch (e) { } }
+    // (a visit's sealed copy is bound to its id and its patient's record: one copied onto another patient doesn't open)
+    for (const doc of s.docs) { const d = doc.data(); if (d.p !== pid) continue; try { out.push(await IPRS.open(doc.id + ':' + d.p, d, 'iprvis:')); } catch (e) { } }
     return out;
   },
   async answer(pts) {
