@@ -13,4 +13,5 @@ __pycache__/
 samples/*.pts
 training/
 assets/models_prev_*
-models/        # the print folder when none is set: patient-named model files, local output
+# the print folder when none is set: patient-named model files, local output
+models/
