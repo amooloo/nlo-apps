@@ -95,6 +95,92 @@ def drop_ghosts(V, labels, info, c, lingual_mm=3.0, low_mm=2.0, short_mm=3.5):
     return labels, new, dropped
 
 
+def anchor_six(V, labels, info, contact, arch="lower", seven_arc_mm=None, tip_share=0.45, molar_mm2=50.0, log=None):
+    """Phase I: the count on each side is anchored on the first molar, not only on the midline. Counted from the
+    midline with every space of 2.5 mm or more taken for a tooth already gone, a 3.9 mm space behind a lateral made
+    the first molar a "7" - and the retainer stopped at the E and left the 6 bare (Josiah's lower, 10/27/2026). In
+    the mixed dentition a side holds at most six teeth in front of the 12-year molar (1, 2, C, D, E, 6), so:
+      * a side with six real teeth or fewer: the last tooth is the 6, the one in front of it the 5 (the E), and the
+        teeth between the 2 and the E take 3 and 4 from the front; the 1 and 2 keep their count from the midline;
+      * a side with seven: the last is a 7 only when it is a small tip behind a full molar (its footprint under
+        `tip_share` of the tooth in front - a 7 just breaking through) or the arch is long enough for one (the last
+        tooth's centre more than `seven_arc_mm` of arch from the midline: 48 mm on a lower, 49 on an upper - a child's
+        6 sits at ~41-45 mm, a 7 at ~52-56); otherwise the last is the 6 and the smallest extra label between the 2
+        and the E is a bump of gum taken for a tooth (an erupting tip) and is made gum again.
+    Nothing is moved on a side with fewer than four teeth, with eight or more (a split label), or whose last tooth is
+    no molar (footprint under `molar_mm2` seen from above, or under 32 mm of arch from the midline: a partial scan).
+    A "6 is here" dot (phase1_trimline) still has the last word. Returns (labels, info, notes)."""
+    V = np.asarray(V); labels = np.asarray(labels).copy(); info = {int(t): (int(s), int(p)) for t, (s, p) in info.items()}
+    if seven_arc_mm is None:
+        seven_arc_mm = 48.0 if arch == "lower" else 49.0
+    contact = np.asarray(contact, float)[:2]
+    notes = []
+    cent = {t: V[labels == t][:, :2].mean(0) for t in info if (labels == t).sum() >= 30}
+    area = {}
+    for t in cent:
+        xy = V[labels == t][:, :2]
+        area[t] = float(len(np.unique(np.floor(xy / 0.5).astype(np.int64), axis=0))) * 0.25     # footprint seen from above, mm2
+    for side in (-1, 1):
+        seq = [t for p, t in sorted((p, t) for t, (s, p) in info.items() if s == side and t in cent)]
+        n = len(seq)
+        if n < 4 or n >= 8:
+            if n >= 8:
+                notes.append(f"{patient_side(side, arch)}: {n} teeth counted on one side - the count from the midline is kept; check the tooth split")
+            continue
+        # the arch length to each tooth's centre: chords from the incisor contact through the centres
+        arc, last = [], contact
+        for t in seq:
+            arc.append((arc[-1] if arc else 0.0) + float(np.linalg.norm(cent[t] - last))); last = cent[t]
+        # a small tip behind a full molar is a 7 breaking through: the molar in front of it is the last whole tooth
+        tip = area[seq[-1]] < tip_share * area[seq[-2]] and area[seq[-2]] >= molar_mm2 and arc[-2] >= 32.0
+        if not tip and (area[seq[-1]] < molar_mm2 or arc[-1] < 32.0):
+            notes.append(f"{patient_side(side, arch)}: the last tooth is no molar ({area[seq[-1]]:.0f} mm2 seen from above, {arc[-1]:.0f} mm of arch from the midline) - "
+                         "the count from the midline is kept; is the scan whole?")
+            continue
+        last_is_7 = tip
+        if tip:
+            notes.append(f"{patient_side(side, arch)}: the small tooth behind the last molar ({area[seq[-1]]:.0f} mm2 seen from above) is a 7 breaking through")
+            if n < 5:
+                continue
+        elif n == 7:
+            last_is_7 = arc[-1] >= seven_arc_mm
+            if last_is_7:
+                notes.append(f"{patient_side(side, arch)}: the last tooth is a 7 ({arc[-1]:.0f} mm of arch from the midline)")
+            else:
+                # six teeth at most in front of the 6: the smallest label between the 2 and the E is not a tooth
+                ghost = min(seq[2:-2], key=lambda t: area[t])
+                labels[labels == ghost] = 0
+                info.pop(ghost, None)
+                seq = [t for t in seq if t != ghost]
+                n = len(seq)
+                notes.append(f"{patient_side(side, arch)}: seven teeth counted in front of a molar only {arc[-1]:.0f} mm of arch from the midline - the smallest "
+                             f"between the 2 and the E ({area[ghost]:.0f} mm2 seen from above) is gum, not a tooth")
+        six_k = n - 2 if last_is_7 else n - 1          # index of the 6 in seq
+        new = {}
+        for k, t in enumerate(seq):
+            if k >= six_k:
+                new[t] = 6 + (k - six_k)
+            elif k == six_k - 1:
+                new[t] = 5
+            else:
+                new[t] = k + 1                           # 1, 2, then 3 and 4 from the front
+        # one tooth between the 2 and the E: the C (3) unless a space in front of it was counted as a tooth gone
+        # (edentulous_gaps left its position at 4 or more) - then it is the D and the C's place stays empty
+        between = seq[2:six_k - 1]
+        if len(between) == 1 and info[between[0]][1] >= 4:
+            new[between[0]] = 4
+        moved = [(info[t][1], new[t]) for t in seq if info[t][1] != new[t]]
+        for t in seq:
+            info[t] = (side, int(new[t]))
+        if moved:
+            notes.append(f"{patient_side(side, arch)}: counted from the first molar ({arc[-1]:.0f} mm of arch from the midline) - "
+                         + ", ".join(f"the {a} is the {b}" for a, b in moved))
+    if log and notes:
+        for w in notes:
+            log(f"Phase I: {w}")
+    return labels, info, notes
+
+
 def _sides(margin_f, c):
     """facial / lingual by arch angle: the line crosses every angle twice, facial at the larger radius."""
     bins = np.linspace(-np.pi, np.pi, NB + 1)
@@ -295,7 +381,7 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                     picks=None, buccal_mm=1.25, plate_mm=0.0, apex_shift_mm=0.0, open_round_mm=6.0, cut_palatal_mm=1.25, cut_lingual_mm=1.5, min_bridge=5.0,
                     keep_mm=0.0, notch_round_mm=2.0, crown_mm=4.5, bridge_mm=5.0, flange_inset=1.5, flange_min=4.0, flange_max=10.0,
                     frenum_depth=3.0, frenum_width=6.0, smooth=False, scoop=True, scoop_depth_mm=1.0, scoop_ramp_mm=2.0, window_start_mm=0.0, window_e_frac=0.3,
-                    round_mm=2.5, scallop_mm=1.0, span_idx=None, end_idx=None, six_idx=None, log=None):
+                    round_mm=2.5, scallop_mm=1.0, span_idx=None, end_idx=None, six_idx=None, path_idx=None, log=None):
     """The Phase I retainer's line. Returns (cut_line, body_line, info, mesh): `cut_line` is what the Trimlign cuts
     (with the C/D cutouts on CUTT); `body_line` is the same outline without them - the model is built round it, so the
     sheet forms over the whole arch as on the first trim (and BOTT cuts along it); `mesh` is the scan the model is
@@ -425,6 +511,44 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
             res.setdefault("window", {})[patient_side(sd, arch)] = f"between your dots ({np.linalg.norm(V[d_near, :2] - V[d_far, :2]):.1f} mm apart)"
         elif len(d) == 1:
             res.setdefault("warnings", []).append(f"one cutout dot on the {'right' if patient_side(sd, arch) == 'R' else 'left'} - two are needed (the near and the far end of the cutout): the automatic extent used there")
+    # ... or the doctor's traced outline of the cutout (the Phase I tab, 10/27/2026: "start by clicking on the distal of
+    # the 2, trace around the lingual aspect, then go to the E/5, and you connect it to the rest of the trim line"): an
+    # ordered run of dots per side. Its first and last dots are the cutout's walls, as a span's are, and the run between
+    # them is the cutout's edge on the tongue side - everything on the side between the walls that lies farther out
+    # (toward the cheek) than the traced line is the window, teeth and gum alike; the tooth in front of the first dot
+    # (the 2) stays whole, its distal face is the wall, and the tooth under the last dot is cut at it (the E at its
+    # quarter). The lines then run along the traced edge and up the walls onto the first-trim line by themselves.
+    r_v0 = np.linalg.norm(V[:, :2] - c, axis=1)
+    for run in (path_idx or []):
+        d = np.asarray(run if run is not None else [], dtype=int).ravel()
+        d = d[(d >= 0) & (d < len(V))]
+        if len(d) < 2:
+            continue
+        sd = int(np.sign(np.median(V[d, 0] - c[0])) or 1)
+        a = sd * ang_v[d]
+        start, end = float(a.min()), float(a.max())
+        if end - start < 1.0 / r_arch:
+            res.setdefault("warnings", []).append(f"the cutout outline on the {'right' if patient_side(sd, arch) == 'R' else 'left'} is all in one spot - the automatic extent used there")
+            continue
+        # the traced edge as radius from the arch centre by arch angle; where the run doubles back the innermost wins
+        order = np.argsort(a, kind="stable")
+        a_s, r_s = a[order], r_v0[d][order]
+        a_u, inv = np.unique(np.round(a_s, 4), return_inverse=True)
+        r_u = np.full(len(a_u), np.inf)
+        np.minimum.at(r_u, inv, r_s)
+        # the tooth in front of the window (the 2): the nearest tooth whose middle lies before the first dot
+        mids = [(float(np.median(sd * ang_v[labels == t])), int(t)) for t in info if info[t][0] == sd and (labels == t).sum() >= 30]
+        before = [(am, t) for am, t in mids if am < start + 0.5 / r_arch]
+        keep_t = max(before)[1] if before else None
+        # ... and the teeth whose middle lies behind the last dot (the 6 behind the E's quarter) stay whole too: a label
+        # that spilled a few vertices forward of the dot would be scooped with the window
+        behind_t = [t for am, t in mids if am > end and t != keep_t]
+        segs[sd] = dict(start=start, end=end, tooth_a=None, tooth_e=None, e_edge=end + 0.3 / r_arch, manual=True, traced=True,
+                        r_path=(a_u, r_u), keep_tooth=keep_t, keep_behind=behind_t, dots=[int(i) for i in d])
+        manual[sd] = int(len(d))
+        length = float(np.sum(np.linalg.norm(np.diff(V[d], axis=0), axis=1)))
+        res.setdefault("window", {})[patient_side(sd, arch)] = f"your outline ({len(d)} dots, {length:.0f} mm, from {'the ' + str(info[keep_t][1]) + chr(39) + 's distal' if keep_t else 'the first dot'} round the tongue side to the last dot)"
+        res.setdefault("traced_sides", []).append(patient_side(sd, arch))
     if manual:
         res["manual_sides"] = [patient_side(sd, arch) for sd in manual]
     # ... and where the retainer ends ("Ends here", one dot per side): nothing is covered behind the dot, the 7 rule
@@ -671,10 +795,26 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         # the bridge of flange under the windows must be min_bridge wide (the doctor, 10/20/2026: "min 5 mm - if below
         # that reject the cutouts and just do block-out"): what the scan holds below the window's edge on the tongue
         # side, over the 10th percentile along the window
-        zone = in_seg & lin_v
-        held = float(np.percentile(flange_v[zone], 10)) if zone.any() else 0.0
-        bridge_avail = max(0.0, held - cut_lingual_mm)
-        res["bridge_mm"] = round(bridge_avail, 1)
+        # (a side with a traced outline is the doctor's call: its edge is where he put it, whatever flange is left)
+        auto_sides = np.zeros(len(V), bool)
+        for sd, g in segs.items():
+            if not g.get("traced"):
+                auto_sides |= wedge_of[int(sd)]
+        zone = in_seg & lin_v & auto_sides
+        held = float(np.percentile(flange_v[zone], 10)) if zone.any() else np.inf
+        bridge_avail = max(0.0, held - cut_lingual_mm) if np.isfinite(held) else np.inf
+        res["bridge_mm"] = round(bridge_avail, 1) if np.isfinite(bridge_avail) else None
+        for sd, g in segs.items():
+            if g.get("traced"):
+                # how much flange the traced edge leaves on the tongue side, for the record (the doctor decides)
+                # the flange left under the traced edge: at each of its dots on the tongue-side gum, the flange's depth
+                # there less how far down the gum the dot sits (the dots on teeth - the walls - do not count)
+                dots_t = [int(i) for i in g.get("dots", []) if 0 <= int(i) < len(V) and lin_v[int(i)]]
+                if dots_t:
+                    left = float(np.min(flange_v[dots_t] - dist[dots_t]))
+                    res.setdefault("traced_bridge_mm", {})[patient_side(sd, arch)] = round(max(left, 0.0), 1)
+                    if left < 3.0:
+                        res.setdefault("warnings", []).append(f"your outline on the {'right' if patient_side(sd, arch) == 'R' else 'left'} leaves only about {max(left, 0.0):.1f} mm of flange on the tongue side under the cutout - the retainer may be weak there")
         if bridge_avail < min_bridge:
             res["cutout_rejected"] = (f"only {bridge_avail:.1f} mm of flange would be left under the cutouts on the tongue side "
                                       f"({min_bridge:.0f} mm needed) - made with block-out instead")
@@ -690,6 +830,21 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
             # onto the gum) - on a lower no further than the flange less its bridge
             reach = float(cut_palatal_mm if arch == "upper" else cut_lingual_mm)
             inner = dist <= (reach if arch == "upper" else np.minimum(reach, flange_v - min_bridge))
+            if g.get("traced"):
+                # the doctor's outline: the first and last dots are the walls, the run between them the edge on the
+                # tongue side - the window is what lies farther out than that edge, out to the cheek, teeth and gum;
+                # the tooth in front of the first dot (the 2) stays whole
+                a_u, r_u = g["r_path"]
+                outside = r_v0 >= np.interp(sd * ang_v, a_u, r_u) - 0.15
+                kt = g.get("keep_tooth")
+                base_ = on_side & (tooth | fac_v | outside)
+                if kt is not None:
+                    base_ &= labels != kt
+                if g.get("keep_behind"):
+                    base_ &= ~np.isin(labels, g["keep_behind"])
+                trough |= base_ & (sd * ang_v >= g["start"]) & (sd * ang_v <= g["end"])
+                window |= base_ & (sd * ang_v >= g["start"] - 0.3 / r_arch) & (sd * ang_v <= g["e_edge"])
+                continue
             if ta is None:
                 # the doctor's span: the dots are the walls, whatever stands there (a crown is cut at the dot as the
                 # E is at its 30 %); the line lies 0.3 mm beyond each wall on what stays

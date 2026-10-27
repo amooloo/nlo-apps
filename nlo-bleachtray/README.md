@@ -51,7 +51,14 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    neighbour when a stroke started near a boundary - "sometimes it starts to paint the other tooth's colour"), the
    cursor shows the colour being painted, and painting a tooth's own colour (or plain tooth) back over a mistaken
    pick takes it back;
-   **Phase I** (on a Phase I case only) takes the doctor's own dots: **Cutout span** - Shift-click the near and the
+   **Phase I** (on a Phase I case only) takes the doctor's own dots: **Cutout outline** (the easiest way, 10/27/2026 - the
+   doctor: "start by clicking on the distal of the 2, trace around the lingual aspect, then go to the E/5, and you
+   connect it to the rest of the trim line") - three steps per side: Shift-click the distal of the 2, click your way
+   round the tongue side of the C/D area as far onto the gum as the cutout should go, click last on the E (or the 5)
+   where the cutout ends, then click that dot again or press Enter; the app cuts out everything between the outline and
+   the cheek side, keeps the 2 and the teeth behind the last dot whole, and joins both ends to the trim line (the panel
+   says which click comes next; Backspace takes a dot back, Esc drops the outline; the outline is kept with the scan
+   and shows pale once applied; Clear on the tab takes the applied ones away too) - **Cutout span** - Shift-click the near and the
    far end of the cutout on a side and it runs between the two dots, mesio-distal, whatever stands there - and
    **Ends here** - one dot per side where the retainer stops, nothing covered behind it - and **6 is here** - Shift-click
    the first molar when the app has it as a 7 (a space between the front teeth counted as a tooth gone shifts the
@@ -247,6 +254,11 @@ the name is not in the file name - then it has to be typed), and a re-run never 
 without a name takes one through the patient line only.
 
 ## If a case needs a look
+
+The dot tools (Contact, the Phase I dots and outline) and the Block-out outline show a **crosshair** lying on the
+surface instead of the brush ball (the doctor, 10/27/2026: "instead of a circle/sphere when it comes to contact points
+and the block-outs, use a cross-hair") - four arms with a gap in the middle, drawn over the model, so the exact spot
+stays visible; the ball stays for the brushes.
 
 From any office computer open `http://lab:8765` — or click **Bleach Tray** on the NLO apps home page,
 which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
@@ -657,6 +669,25 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   strip between the gum band and the plate - the line round that strip was a hairpin on one case, 10/21/2026), and a
   bare slit narrower than 3 mm between two covered parts is covered. Every line is checked for places where it doubles
   back on itself (two points under 1.6 mm apart but more than 6 mm apart along the line); the case warns when it does.
+- **Counted from the first molar** (`phase1.anchor_six`, 10/27/2026). Counted from the midline, with every space of
+  2.5 mm or more taken for a tooth already gone, a 3.9 mm space behind a lateral made the first molar a "7" - and the
+  retainer stopped at the E and left the 6 bare (Josiah's lower). In the mixed dentition a side holds at most six teeth in
+  front of the 12-year molar (1, 2, C, D, E, 6), so the count is anchored on the last tooth: with six real teeth or
+  fewer on a side the last is the 6, the one in front the 5 (the E), the teeth between the 2 and the E take 3 and 4 (a
+  lone one keeps a detected space in front of it: it is the D); with seven the last is a 7 only when it is a small tip
+  behind a full molar (a 7 breaking through) or stands more than 48 mm of arch from the midline (49 on an upper -
+  a child's 6 sits at 41-45, a 7 at 52-56), otherwise the smallest extra label between the 2 and the E is a bump of gum
+  taken for a tooth and is made gum again. Nothing moves on a side with fewer than four teeth, eight or more, or whose
+  last tooth is no molar (a partial scan) - the case says so; a "6 is here" dot and the Teeth tab still have the last word.
+- **The traced outline** (the Phase I tab's *Cutout outline*, `path_idx`): an ordered run of dots per side. Its first
+  and last dots are the cutout's walls, as a span's are; the run between them is the edge on the tongue side, taken as a
+  radius from the arch centre by arch angle (where the run doubles back the innermost wins) - the window is everything
+  on the side between the walls that lies farther out than that edge, teeth and gum, out to the cheek. The tooth in
+  front of the first dot (the 2) and the teeth whose middle lies behind the last dot (the 6 behind the E's quarter)
+  stay whole, so a label that spilled a few vertices forward is not scooped with the window. The lines then run along
+  the traced edge and up the walls onto the first-trim line by themselves. The 5 mm rule below is not applied to a
+  traced side - the edge is where the doctor put it - but the case says how much flange is left under the outline on
+  the tongue side (`traced_bridge_mm`) and warns under 3 mm.
 - **The 5 mm rule** (the doctor: "min 5 mm - if below that reject the cutouts and just do block-out"): on a lower the
   flange left under the windows on the tongue side (what the scan holds below the window's edge, the 10th percentile
   along the C/Ds) must be 5 mm or more; when it is not, the cutouts are rejected and that arch is made by block-out,
@@ -735,7 +766,23 @@ grip, the undercut between the face and the crown, then the ridge sloping away u
 ridge reaches the face, flush with the crown's width; a crown that widens all the way to the gum has its face at its
 foot. (Not yet seen on a real undercut next to a gap - the scans at hand have high ridges; check on the next case
 with a missing tooth.) The stacked notches are voxelised (0.2 mm), marching-cubed and
-Taubin-smoothed; all fills go into the body union as one extra solid and are shown teal. Settings (retainer):
+Taubin-smoothed; all fills go into the body union as one extra solid and are shown teal. **Every fill is fused into the
+model first** (`bleachtray/fuse.py`, 10/27/2026 - the doctor: "the block-outs are still floating ... they need to be
+knifed-edge into the body of the model, with NO gap between the edges of the block-out and the model"): built as solids
+of their own, the fills met the model at an angle - a wedge's top stood a little short of the height of contour (the
+0.3-0.5 mm kept "for grip" read as a crevice), its foot stood on the gum as a step, the marching-cubes surface pulled
+back a hair from the enamel it was meant to touch - and in the viewer and on the print they read as pieces stuck on
+with a dark seam round them. So on a 0.1 mm voxel grid round each fill the body's own occupancy is taken from the scan
+surface (column by column: the winding of the surface crossings above each voxel, solid under the lowest crossing), fill
+and body are closed together with a 0.6 mm ball (0.35 mm for the Phase I block, kept off the 2 and the E it must not
+bridge to), and what the closing adds - the fillets at every concave seam, every slit of air narrower than 1.2 mm
+between the two - becomes a collar carried 0.2 mm into the fill and into the body on either side, meshed and unioned
+with the fill itself (which keeps its own smooth surface; only the seams are re-made). What the body union then adds
+is a shape whose every edge ends in the model's own surface: the top at the height of contour, the foot feathered onto
+the gum, nothing coincident and no sliver of air. The retention ledges are gone with it (`fill_retention` 0.5 -> 0,
+the painted fill's `taper_start` 0.3 -> 0). Settings: `fuse_blockout` (on), `fuse_radius` 0.6, `fuse_overlap` 0.2,
+`p1_fuse_radius` 0.35; the report's `blockout.fused` says how much fillet went in. Checked on a lower with seven contact
+fills and on a Phase I block: the notches at the seams are gone from the cross-sections, the bodies watertight. Settings (retainer):
 **Interproximal fill** on/off (**off by default** - it is rarely wanted on every contact; the usual case is a chosen
 spot, outlined on the Block-outs tab), **Reach out of the embrasure** (uLab's Buccal / Lingual, 1.25 mm),
 **Fill height above the gum** (20 = to the contact). The report says "N of M contacts filled, K faces next to

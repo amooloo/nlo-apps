@@ -22,7 +22,8 @@ DEFAULTS = dict(
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
     blockout=False, blockout_depth=0.75,          # automatic interproximal fill (a wedge under every contact, the way aligner labs do it): off by default here, on for the retainer in the app
     fill_reach=1.25, fill_top=20.0,  # the fill: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how far up from the papilla (20 = to the contact)
-    fill_retention=0.5,    # next to an edentulous space: the fill's straight face starts this far below the tooth's height of contour (that much undercut stays for grip)
+    fill_retention=0.0,    # next to an edentulous space: the fill's straight face starts this far below the tooth's height of contour (was 0.5 - that much undercut stayed for grip, and showed as a crevice between fill and tooth; 0 since 10/27/2026: the fill meets the contour, no gap)
+    fuse_blockout=True, fuse_radius=0.6, fuse_overlap=0.2, p1_fuse_radius=0.35,   # every fill fused into the model before the union (fuse.py): fillet radius at its seams, how deep it keeps the body's shell
     blockout_proud=0.0,    # mm: where a PAINTED block-out's wall stands relative to the tooth's contour seen from above - 0 flush with it, > 0 that much further out, < 0 that much of the undercut left for grip
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials (J.D) raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
@@ -556,6 +557,14 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                                              ridge_band=1.0 if P1 else None, log=lambda m: log(f"[{name}] {m}"))
     if gaps:
         rep["gaps"] = gaps
+    if P1:
+        # ... but the count is anchored on the first molar: a space counted as a tooth gone pushed the 6 to "7" and the
+        # retainer stopped at the E (Josiah's lower, 10/27/2026) - the last tooth on a side is the 6 (phase1.anchor_six)
+        from .phase1 import anchor_six
+        labels, info, six_notes = anchor_six(np.asarray(mesh.vertices), labels, info, contact, arch=arch_hint, log=lambda m: log(f"[{name}] {m}"))
+        if six_notes:
+            mask = labels > 0
+            rep["phase1_count"] = six_notes
     # ... and a tooth missing with the space closed (a lower incisor, an upper lateral): the teeth behind it
     # are numbered by what they are, so the first molar is not a "5" with a reservoir on one side only
     # (not on a Phase I retainer: the mixed dentition's C/D/E are not the permanent canine and premolars the widths are
@@ -766,7 +775,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 picks=P.get("p1_teeth"), buccal_mm=float(P["trimline_offset"] or 1.25), plate_mm=float(P.get("p1_plate_mm", 0.0)),
                 apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 1.25)),
                 flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)),
-                span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, six_idx=P.get("p1_six_idx") or None, log=lambda m: log(f"[{name}] {m}"))
+                span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, six_idx=P.get("p1_six_idx") or None,
+                path_idx=P.get("p1_path_idx") or None, log=lambda m: log(f"[{name}] {m}"))
             p1_span = p1_info.pop("_span", None); p1_wedge = p1_info.pop("_wedge", None)
             rep["phase1"] = p1_info
             if p1_info.get("positions"):
@@ -916,7 +926,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 if rep.get("gaps"):
                     try:
                         from .interprox import gap_fills
-                        gsolids, ginfo = gap_fills(plain, labels, info, rep["gaps"], rc_bo, retention=float(P.get("fill_retention") or 0.5), log=lambda m: log(f"[{name}] {m}"))
+                        gsolids, ginfo = gap_fills(plain, labels, info, rep["gaps"], rc_bo, retention=float(P["fill_retention"] if P.get("fill_retention") is not None else 0.0), log=lambda m: log(f"[{name}] {m}"))
                         if gsolids:
                             fills.extend(gsolids)
                             binfo.update(gap_faces=len(ginfo), gap_fills=ginfo, spots=int(binfo.get("spots", 0)) + len(ginfo),
@@ -947,6 +957,19 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                     (f"a part of the app is missing on this PC ({', '.join(missing)}) - run the update, then re-run this case"
                      if missing else "re-run the case; if it happens again, the tray will grip the undercuts there"))
             rep["blockout"] = binfo
+            if fills and P.get("fuse_blockout", True):
+                # every fill is fused into the model before the union (fuse.py): fillets at its seams, its top at the
+                # height of contour, its foot feathered onto the gum, 0.2 mm into the body - no piece stuck on, no crevice
+                # (the doctor, 10/27/2026: "still floating ... knifed-edge into the body, NO gap")
+                from .fuse import fuse_many
+                fused = []
+                for f_ in fills:
+                    m_, finfo = fuse_many(f_, mesh_f, radius=float(P.get("fuse_radius") or 0.6), overlap=float(P.get("fuse_overlap") or 0.2),
+                                          log=lambda m: log(f"[{name}] {m}"))
+                    binfo.setdefault("fused", []).append(finfo)
+                    if m_ is not None:
+                        fused.append(m_)
+                fills = fused or fills
             if fills:
                 fill = trimesh.util.concatenate(fills) if len(fills) > 1 else fills[0]
                 fill_at = len(extra_solids)
@@ -1024,6 +1047,16 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rep["phase1_blockout"] = cinfo
             if cinfo.get("warning"):
                 rep.setdefault("warnings", []).append(f"Phase I block-out: {cinfo['warning']}")
+            if cap is not None and P.get("fuse_blockout", True):
+                # fused into the model like every other fill (fuse.py) - its foot and its ends run into the surface
+                # with a fillet; the fillets stay off the 2 and the E it must not bridge to (keep_mm 0.8)
+                from .fuse import fuse_many
+                others_v = np.asarray(mesh_f.vertices)[(np.asarray(labels) > 0) & ~np.isin(np.asarray(labels), sorted(under_b))]
+                cap2, finfo = fuse_many(cap, mesh_f, radius=float(P.get("p1_fuse_radius") or 0.35), overlap=float(P.get("fuse_overlap") or 0.2),
+                                        avoid=others_v, avoid_mm=0.6, log=lambda m: log(f"[{name}] {m}"))
+                cinfo["fused"] = finfo
+                if cap2 is not None:
+                    cap = cap2
             if cap is not None:
                 p1_cap_at = cap                     # after the outline cut, like the mouthguard's band: the block stands out past the crowns
                 after_solids.append(cap)
