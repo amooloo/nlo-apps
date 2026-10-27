@@ -789,15 +789,35 @@ with the fill itself (which keeps its own smooth surface; only the seams are re-
 is a shape whose every edge ends in the model's own surface: the top at the height of contour, the foot feathered onto
 the gum, nothing coincident and no sliver of air. The retention ledges are gone with it (`fill_retention` 0.5 -> 0,
 the painted fill's `taper_start` 0.3 -> 0). Settings: `fuse_blockout` (on), `fuse_radius` 0.6, `fuse_overlap` 0.2,
-`p1_fuse_radius` 0.35; the report's `blockout.fused` says how much fillet went in. Checked on a lower with seven contact
-fills and on a Phase I block: the notches at the seams are gone from the cross-sections, the bodies watertight. Settings (retainer):
+`p1_fuse_radius` 0.35; the report's `blockout.fused` says how much fillet went in. **The foot reaches the body** (`_foot_to_body`,
+`foot_mm` 3): under every column of a fill, the air between the fill's lowest voxel and the body's top below it is the
+fill's too - a contact wedge stood on the papilla's tip and its full-reach foot hung a millimetre or two over the gum
+sloping away on either side, a flat underside with a gap beneath (Anvalina Faltz's lower incisors, 10/27/2026: the
+cross-sections showed the plank standing off the gum with air behind it). Checked on three lowers and an upper (Josiah,
+Anvalina) with 7-13 contact fills each and on a Phase I block: the notches and the air behind the fills are gone from the
+cross-sections, the bodies watertight. Settings (retainer):
 **Interproximal fill** on/off (**off by default** - it is rarely wanted on every contact; the usual case is a chosen
 spot, outlined on the Block-outs tab), **Reach out of the embrasure** (uLab's Buccal / Lingual, 1.25 mm),
 **Fill height above the gum** (20 = to the contact). The report says "N of M contacts filled, K faces next to
 a gap" and lists the contacts left out and why. The whitening tray gets none (soft tray). Anything else - under a pontic, round an
 implant crown - is painted on the Block-outs tab and filled by the column method below.
 
-**Painted block-out.** The space under an overhang the doctor marks out - a bridge pontic, the emergence of an implant
+**Painted block-out - built in 3D** (`fuse.paint_fill`, 10/27/2026). The painted fill was a column heightfield (below):
+its top had to follow the overhang's underside, and on a lingually leaning molar that underside is the crown's own
+steep lingual face, where a 0.1 mm step sideways is half a millimetre up or down - the fill came out as a lace of slivers
+lying on the enamel and the gum along the whole lingual cervical of the back teeth (Anvalina Faltz's lower; the doctor:
+"distorts it and makes it unusable", first blamed on the 1.5 mm reach, which was not it - 1.25 and 1.5 give the same
+wedges on both her arches). Now the fill IS the undercut's air: on a 0.1 mm voxel grid, every voxel that has body above
+it and body below it in its column (the space between a crown's bulge, a pontic, an implant crown's emergence and the
+gum under it), within the painted footprint grown 0.4 mm, out to the crown's own silhouette - a wall straight down from
+the height of contour, flush with the contour, standing on the gum; nothing over gum that has no body above it. The
+sloped face of the doctor's sketch is cut into that volume per piece (`blockout_taper_foot` 0.65, from the contour
+itself - `taper_start` 0); the Block-out amount pushes the wall out into the air beside it or pulls it in. A piece
+under 0.15 mm deep (no real undercut) or 0.3 mm thick is dropped and named in the report (`blockout.painted_dropped`),
+and the case says so when nothing is left. Then fused like every fill. The heightfield method stays for the automatic
+mode (off by default):
+
+**Painted block-out (heightfield, the automatic mode).** The space under an overhang the doctor marks out - a bridge pontic, the emergence of an implant
 crown, a black triangle - is filled like block-out resin (`bleachtray/blockout.py`). Marking it out is the **Outline**
 tool on the Block-outs tab (the default there): Shift-click corner after corner round the area - each corner is joined
 to the last along the surface as a thin painted line - and click the first dot again to close; everything the loop

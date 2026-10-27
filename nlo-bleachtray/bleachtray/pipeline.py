@@ -936,15 +936,21 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                         failed.append(("the fill beside the gaps", ex))
             if paint is not None:
                 try:
-                    pfill, pinfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=False,
-                                                 paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), centre=rc_bo, log=lambda m: log(f"[{name}] {m}"))
-                    binfo.update(painted_cells=pinfo.get("painted_cells"), proud_mm=pinfo.get("proud_mm"), painted_spots=pinfo.get("spots", 0))
+                    # built in 3D from the undercut's own air (fuse.paint_fill, 10/27/2026): the column heightfield came out
+                    # as a lace of slivers on a steep lingual face (Anvalina Faltz's lower)
+                    from .fuse import paint_fill
+                    pfill, pinfo = paint_fill(plain, paint, taper_foot=float(P.get("blockout_taper_foot", 0.65) or 0.0), taper_start=0.0,
+                                              proud=float(P.get("blockout_proud") or 0.0), log=lambda m: log(f"[{name}] {m}"))
+                    binfo.update(painted_vertices=pinfo.get("painted_vertices"), proud_mm=float(P.get("blockout_proud") or 0.0), painted_spots=pinfo.get("spots", 0),
+                                 painted_dropped=pinfo.get("dropped") or [], painted_error=pinfo.get("error"))
                     binfo["spots"] = int(binfo.get("spots", 0)) + int(pinfo.get("spots", 0) or 0)
                     binfo["volume_ml"] = round(float(binfo.get("volume_ml", 0.0)) + float(pinfo.get("volume_ml", 0.0) or 0.0), 3)
                     if pfill is not None:
                         fills.append(pfill)
                     else:
-                        log(f"[{name}] painted block-out: no undercut under the painted area (nothing to fill)")
+                        log(f"[{name}] painted block-out: {pinfo.get('error') or 'no undercut under the painted area (nothing to fill)'}")
+                        if pinfo.get("dropped"):
+                            rep.setdefault("warnings", []).append(f"painted block-out: {pinfo.get('error')} - paint where the crown really overhangs the gum")
                 except Exception as ex:  # noqa
                     failed.append(("the painted block-out", ex))
             if failed:
