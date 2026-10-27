@@ -41,24 +41,28 @@ def model_filename(first, last, arch, tag, when=None, n=1):
     return base + ("" if n <= 1 else f"_{n}") + ".stl"
 
 
-def write_print_folder(root, first, last, pieces, when=None, own=()):
+def write_print_folder(root, first, last, pieces, when=None, own=(), dry=False):
     """pieces: [{arch, tag, stl}]. Copies each model into root\\<Last>, <First>\\ and returns
     (folder, [paths]). A file that is already there from an earlier Send of the same case (`own`)
-    is replaced; one from another case keeps its name and the new one is numbered."""
+    is replaced; one from another case keeps its name and the new one is numbered. `dry`: only the
+    names the files will get (nothing is written) - the page hands them to PreForm on another PC
+    the moment the button is clicked, then has them written."""
     first, last = _clean(first), _clean(last)
     if not (first and last):
         raise ValueError("patient first + last name needed to file the models")
     folder = os.path.join(root, f"{last}, {first}")
-    os.makedirs(folder, exist_ok=True)
+    if not dry:
+        os.makedirs(folder, exist_ok=True)
     own = {os.path.normcase(os.path.abspath(p)) for p in own}
     out = []
     for p in pieces:
         n = 1
         while True:
             dst = os.path.join(folder, model_filename(first, last, p["arch"], p.get("tag"), when, n))
-            if not os.path.exists(dst) or os.path.normcase(os.path.abspath(dst)) in own:
+            if dst not in out and (not os.path.exists(dst) or os.path.normcase(os.path.abspath(dst)) in own):
                 break
             n += 1
-        shutil.copyfile(p["stl"], dst)
+        if not dry:
+            shutil.copyfile(p["stl"], dst)
         out.append(dst)
     return folder, out

@@ -81,6 +81,45 @@ def _scan_tag(sc):
                              else "TT" if (sc.get("kind") or "T").upper().startswith("A") else "WT")
 
 
+def _pick_scans(job, scans):
+    """The scans a request names (`scans`: comma-separated indices, "" / None = every finished one): the Export
+    and Send dialogs let the staff tick the pieces (the doctor, 10/27/2026). Returns a sorted list of indices."""
+    n = len(job.get("scans") or [])
+    if scans is None or str(scans).strip() == "":
+        return list(range(n))
+    out = []
+    for tok in str(scans).split(","):
+        tok = tok.strip()
+        if tok.isdigit() and int(tok) < n:
+            out.append(int(tok))
+    return sorted(set(out))
+
+
+_NET_USE = {"when": 0.0, "map": {}}
+
+
+def _mapped_drives():
+    """Drive letter -> \\\\server\\share for this Windows user's mapped drives, from `net use` (cached a minute).
+    The fallback when WNetGetConnection has nothing - it does when the app was started under another
+    account or session than the one that mapped the drive."""
+    if os.name != "nt":
+        return {}
+    if time.time() - _NET_USE["when"] < 60:
+        return _NET_USE["map"]
+    out = {}
+    try:
+        import subprocess
+        txt = subprocess.run(["net", "use"], capture_output=True, text=True, timeout=10).stdout or ""
+        for ln in txt.splitlines():
+            m = re.search(r"\b([A-Za-z]):\s+(\\\\\S+)", ln)
+            if m:
+                out[m.group(1).upper()] = m.group(2).rstrip("\\")
+    except Exception:
+        pass
+    _NET_USE.update(when=time.time(), map=out)
+    return out
+
+
 def _to_unc(path):
     """A path on a mapped drive (O:\\clinical\\...) as the other PCs can reach it (\\\\server\\share\\clinical\\...).
     Returns the path unchanged when it is already UNC or the drive is a local disk."""
@@ -93,6 +132,9 @@ def _to_unc(path):
             return buf.value.rstrip("\\") + path[2:]
     except Exception:
         pass
+    share = _mapped_drives().get(path[0].upper())
+    if share:
+        return share + path[2:]
     return path
 
 
@@ -119,16 +161,19 @@ def _is_local(request):
         return False
 
 
-def _write_prints(job, log=print):
+def _write_prints(job, log=print, only=None):
     """Copy the case's finished models into the print folder, filed by patient (see printfolder.py).
-    Returns the list of files there (empty when the case has no patient name or the copy failed)."""
+    `only`: the scan indices to file (None = all). Returns the list of files there (empty when the case has
+    no patient name or the copy failed)."""
     job["print_error"] = None
     first, last = job["params"].get("patient_first"), job["params"].get("patient_last")
     if not (first and last):
         job["print_error"] = "patient first + last name needed to file the models in the print folder"
         return []
     pieces = []
-    for sc in job["scans"]:
+    for k, sc in enumerate(job["scans"]):
+        if only is not None and k not in only:
+            continue
         m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
         if m and os.path.isfile(m):
             pieces.append(dict(arch=sc.get("arch"), tag=_scan_tag(sc), stl=m))
@@ -868,7 +913,7 @@ def _run(job):
                         r[ok] = remap2[remap[ok]]; remap = r
             # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
             path = job["scans"][k0]["path"]       # (a take-off / cut gave the scan a new file)
-            if "p1path" in me or any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
+            if "p1path" in me or any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "nosplit", "unnosplit", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
                 entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
                 # the Teeth tab: the number the doctor gave a tooth ({label: [position, primary]}, position 0 = not a
                 # tooth, null = back to the app's count), kept by the tooth's label - the labels are frozen for the
@@ -882,7 +927,7 @@ def _run(job):
                             ids[str(k_)] = [int(v_[0]), bool(v_[1])] if isinstance(v_, (list, tuple)) else [int(v_), False]
                     entry["tooth_ids"] = ids
                     log(f"teeth numbered by hand: {len(ids)} on this scan")
-                    if path not in fixed and not (me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact")):
+                    if path not in fixed and not (me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact") or me.get("nosplit") or me.get("unnosplit")):
                         try:
                             st_ = np.load(os.path.join(job["dir"], f"{job['scans'][k0]['name']}_state.npz"))
                             if remap is None:
@@ -899,7 +944,7 @@ def _run(job):
                         entry.setdefault("outlines", []).append([int(i) for i in idx])
                 if me.get("outlines"):
                     log(f"block-out outlines: {len(me['outlines'])} drawn, {len(entry.get('outlines', []))} on this scan")
-                for key in ("noreservoir", "blockout", "reservoir", "contact", "p1span", "p1end", "p1six"):
+                for key in ("noreservoir", "blockout", "reservoir", "contact", "nosplit", "p1span", "p1end", "p1six"):
                     idx = np.asarray(me.get(key) or [], dtype=int)
                     if remap is not None and len(idx):
                         idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
@@ -948,6 +993,16 @@ def _run(job):
                     log(f"contact dots: {before - len(entry['contact'])} taken away, {len(entry['contact'])} kept")
                 if me.get("contact"):
                     log(f"contact dots: {len(entry['contact'])} on this scan")
+                # a "no split here" dot taken away again (the split comes back on this Apply)
+                if me.get("unnosplit"):
+                    idx = np.asarray(me["unnosplit"], dtype=int)
+                    if remap is not None and len(idx):
+                        idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
+                    before = len(entry.get("nosplit", []))
+                    entry["nosplit"] = sorted(set(entry.get("nosplit", [])) - set(int(i) for i in idx))
+                    log(f"no-split dots: {before - len(entry['nosplit'])} taken away, {len(entry['nosplit'])} kept")
+                if me.get("nosplit"):
+                    log(f"no-split dots: {len(entry['nosplit'])} on this scan (two colours made one tooth)")
                 log(f"painted: {len(entry['noreservoir'])} vertices without reservoir, {len(entry.get('reservoir', []))} with one added, {len(entry['blockout'])} to block out")
             remaps[path] = remap; edits_by_path[path] = (k0, me)
         for i, k in enumerate(todo):
@@ -956,7 +1011,7 @@ def _run(job):
                 job["progress"] = dict(frac=round((i + frac) / n, 3), label=label, scan=k, of=len(job["scans"]), step=i, steps=n)
             if scan["path"] in edits_by_path and scan["path"] not in overrides:
                 k0, me = edits_by_path[scan["path"]]
-                if me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact"):
+                if me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact") or me.get("nosplit") or me.get("unnosplit"):
                     progress(0.02, "applying your brush fixes")
                     old_lab = fixed.get(scan["path"])
                     if old_lab is None:
@@ -1009,9 +1064,10 @@ def _run(job):
         _save_case(job)                        # the case, its scans and what went wrong survive a restart
 
 
-def _write_order(job, log=print, preform_here=True):
+def _write_order(job, log=print, preform_here=True, only=None):
     """Write (or replace) this job's OrthoFactory order folder from its finished pieces. preform_here:
-    the click came from this PC, so the models may open in PreForm on this screen (Settings)."""
+    the click came from this PC, so the models may open in PreForm on this screen (Settings). `only`: the
+    scan indices to send (None = every piece) - the Send dialog's ticks; the case remembers which went."""
     site = site_config()
     root = (job["params"].get("order_root") or "").strip() or site["order_root"]
     prev = job.get("order_folder")
@@ -1042,8 +1098,12 @@ def _write_order(job, log=print, preform_here=True):
         job["order_error"] = "patient first + last name needed for an OrthoFactory order"
         return False
     pieces = [dict(arch=sc["arch"], stl=sc["report"]["outputs"]["model"], pts=sc["report"]["outputs"]["trimline"],
-                   stage=int(sc.get("stage", job["params"].get("stage", 0))), kind=sc.get("kind", job["params"].get("kind", "T")))
-              for sc in job["scans"]]
+                   stage=int(sc.get("stage", job["params"].get("stage", 0))), kind=sc.get("kind", job["params"].get("kind", "T")), scan=k)
+              for k, sc in enumerate(job["scans"]) if only is None or k in only]
+    if not pieces:
+        job["order_error"] = "no piece ticked to send"
+        return False
+    job["sent_scans"] = [p["scan"] for p in pieces]
     try:
         folder = write_order_folder(root, job["params"]["patient_first"], job["params"]["patient_last"], pieces,
                                     patient_id=job["params"].get("patient_id") or None,
@@ -1073,7 +1133,7 @@ def _write_order(job, log=print, preform_here=True):
         log(f"order folder failed: {ex}")
         return False
     # the printable models are filed by patient in the print folder (Settings -> Print folder) ...
-    _write_prints(job, log=log)
+    _write_prints(job, log=log, only=only)
     # ... and go straight to the printer's software from there (Settings -> PreForm), so printing is the next click
     if site.get("preform_on_send", True) and preform_here:
         ok, msg = _open_in_preform(job, log=log)
@@ -1476,8 +1536,15 @@ def _apply_mask_edit(job, k=0, edit=None, remap=None):
     if remap is not None and len(remap) == len(st["labels"]) and len(con):
         con = remap[con[(con >= 0) & (con < len(remap))]]; con = con[con >= 0]
     dots |= set(int(i) for i in con)
+    # and the "no split here" dots (a click on a split the app made inside one tooth)
+    nos = set(int(i) for i in ((job.get("paint") or {}).get(scan["path"]) or {}).get("nosplit", []))
+    nn = np.array(edit.get("nosplit", []), dtype=int)
+    if remap is not None and len(remap) == len(st["labels"]) and len(nn):
+        nn = remap[nn[(nn >= 0) & (nn < len(remap))]]; nn = nn[nn >= 0]
+    nos |= set(int(i) for i in nn)
+    nos -= set(int(i) for i in np.asarray(edit.get("unnosplit", []), dtype=int))
     log_lines = []
-    labels2 = separate_teeth(mesh, mask, p_ip, A, aux, arch, log=log_lines.append, contacts=sorted(dots))
+    labels2 = separate_teeth(mesh, mask, p_ip, A, aux, arch, log=log_lines.append, contacts=sorted(dots), nosplits=sorted(nos))
     if len(rel_v):
         # the picked colours are the page's labels (the earlier run's): each maps to the new label it mostly became;
         # the painted vertices take that label, so a neighbour's bleed is given back to the tooth it belongs to
@@ -1490,7 +1557,7 @@ def _apply_mask_edit(job, k=0, edit=None, remap=None):
             labels2[v] = newid[int(k)]
         log_lines.append(f"tooth colour painted on {len(rel_v)} vertices ({len(newid)} teeth picked)")
     for ln in log_lines:
-        if "contact dots" in ln or "tooth colour" in ln:
+        if "contact dots" in ln or "no-split dots" in ln or "tooth colour" in ln or "loose pieces" in ln:
             job.setdefault("log", []).append(f"[{scan['name']}] {ln}")
     return labels2
 
@@ -1776,7 +1843,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
         # any painted vertex is just a re-run: it must not count as a brush correction
         mes = me if isinstance(me, list) else ([me] if me else [])
-        mes = [e for e in mes if isinstance(e, dict) and ("p1path" in e or any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")))]
+        mes = [e for e in mes if isinstance(e, dict) and ("p1path" in e or any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "nosplit", "unnosplit", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")))]
     except Exception:
         mes = []
     # strokes are vertex numbers of the scan file as the page showed it: while the case is waiting or being made, the
@@ -2138,14 +2205,19 @@ def _name_from_form(job, first, last):
 
 
 @app.post("/api/jobs/{jid}/approve")
-def approve(jid: str, request: Request, patient_first: str = Form(""), patient_last: str = Form("")):
+def approve(jid: str, request: Request, patient_first: str = Form(""), patient_last: str = Form(""), scans: str = Form("")):
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
     job.setdefault("log", [])
     _name_from_form(job, patient_first, patient_last)
+    only = _pick_scans(job, scans)
+    if not only:
+        raise HTTPException(400, "tick at least one piece to send")
+    if len(only) < len(job["scans"]):
+        job["log"].append(f"sending {len(only)} of {len(job['scans'])} pieces: " + ", ".join(f"{job['scans'][k].get('arch')} {_scan_tag(job['scans'][k])}" for k in only))
     _rebase(job, log=lambda m: job["log"].append(m))
-    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
+    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request), only=only if len(only) < len(job["scans"]) else None)
     if _save_training(job, log=lambda m: job["log"].append(m)):
         job["learned"] = _learned_note(job)
     if job.get("review") == "sent":
@@ -2274,16 +2346,48 @@ def open_preform(jid: str):
     return {"ok": ok, "message": msg}
 
 
+@app.get("/api/jobs/{jid}/printpaths")
+def print_paths(jid: str, scans: str = ""):
+    """The paths the case's print files will have (as the other PCs see them), without writing anything: the page
+    hands them to PreForm on its own PC the moment the button is clicked (the browser lets a page start a program
+    only right after a click - filing the models first took longer than that window, and nothing opened), then has
+    them written with /prints; the handler on that PC waits for the files to appear. `scans` as in /prints."""
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    first, last = job["params"].get("patient_first"), job["params"].get("patient_last")
+    if not (first and last):
+        raise HTTPException(400, "patient first + last name needed to file the models in the print folder")
+    only = _pick_scans(job, scans)
+    pieces = []
+    for k, sc in enumerate(job["scans"]):
+        if only and k not in only:
+            continue
+        m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
+        if m and os.path.isfile(m):
+            pieces.append(dict(arch=sc.get("arch"), tag=_scan_tag(sc), stl=m))
+    if not pieces:
+        raise HTTPException(400, "no finished model to file")
+    try:
+        folder, files = write_print_folder(_print_root(), first, last, pieces, own=job.get("print_files") or [], dry=True)
+    except Exception as ex:  # noqa
+        raise HTTPException(400, f"models cannot be filed in the print folder: {ex}")
+    unc = [_to_unc(f) for f in files]
+    return {"files": unc, "folder": _to_unc(folder), "reachable": all(re.match(r"^\\\\", f) for f in unc)}
+
+
 @app.post("/api/jobs/{jid}/prints")
-def file_prints(jid: str):
+def file_prints(jid: str, scans: str = Form("")):
     """File the case's models in the print folder (no PreForm here) and return their paths as the
-    other PCs see them - the page then opens them in PreForm on its own PC."""
+    other PCs see them - the page then opens them in PreForm on its own PC. `scans`: the pieces ticked in the
+    Export dialog (all when empty)."""
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
     job.setdefault("log", [])
+    only = _pick_scans(job, scans)
     _rebase(job, log=lambda m: job["log"].append(m))
-    files = _write_prints(job, log=lambda m: job["log"].append(m))      # always fresh copies (a fix since the last copy)
+    files = _write_prints(job, log=lambda m: job["log"].append(m), only=only if len(only) < len(job["scans"]) else None)      # always fresh copies (a fix since the last copy)
     if not files:
         raise HTTPException(400, job.get("print_error") or "no finished model to file")
     _tell_tracker(job, how="printer")          # opened in PreForm on another PC: on its way to the printer
@@ -2343,14 +2447,18 @@ def whoami(request: Request):
 
 
 @app.post("/api/jobs/{jid}/resend")
-def resend(jid: str, request: Request):
-    """Write the OrthoFactory order again from the models as they are (a lost print, a second set)."""
+def resend(jid: str, request: Request, scans: str = Form("")):
+    """Write the OrthoFactory order again from the models as they are (a lost print, a second set). `scans`: the
+    pieces ticked in the Send dialog (all when empty)."""
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
-    job.setdefault("log", []).append("sent again")
+    only = _pick_scans(job, scans)
+    if not only:
+        raise HTTPException(400, "tick at least one piece to send")
+    job.setdefault("log", []).append("sent again" + (f" ({len(only)} of {len(job['scans'])} pieces)" if len(only) < len(job["scans"]) else ""))
     _rebase(job, log=lambda m: job["log"].append(m))
-    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
+    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request), only=only if len(only) < len(job["scans"]) else None)
     if job.get("review") == "sent":
         job["sent_at"] = time.time()
         _tell_tracker(job)
@@ -2524,6 +2632,63 @@ def job_status(jid: str):
     return out
 
 
+@app.get("/api/jobs/{jid}/pieces")
+def job_pieces(jid: str):
+    """What the case holds, piece by piece, for the Export and Send dialogs: arch, type, whether its model is made,
+    the file name it gets in the print folder, the OrthoFactory piece name it had last, and its warnings."""
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    from bleachtray.printfolder import model_filename
+    first, last = job["params"].get("patient_first") or "", job["params"].get("patient_last") or ""
+    words = {"WT": "Whitening tray", "TT": "Retainer", "MG": "Mouthguard", "P1": "Phase I retainer"}
+    out = []
+    sent_pieces = job.get("order_pieces") or []
+    sent_scans = job.get("sent_scans")
+    for k, sc in enumerate(job["scans"]):
+        rep_ = sc.get("report") or {}
+        m = (rep_.get("outputs") or {}).get("model")
+        tag = _scan_tag(sc)
+        code = None
+        if sent_scans is not None and k in sent_scans and len(sent_pieces) == len(sent_scans):
+            code = sent_pieces[sent_scans.index(k)]
+        elif sent_scans is None and k < len(sent_pieces):
+            code = sent_pieces[k]
+        out.append(dict(scan=k, arch=sc.get("arch"), tag=tag, label=f"{(sc.get('arch') or 'arch').capitalize()} · {words.get(tag, tag)} ({tag})",
+                        made=bool(m and os.path.isfile(m)), file=model_filename(first, last, sc.get("arch"), tag) if first and last else None,
+                        piece=code, warnings=len(rep_.get("warnings") or []), watertight=rep_.get("body_watertight"),
+                        holes=next((w for w in (rep_.get("warnings") or []) if "locating hole" in w and "Trimlign base" not in w), None)))
+    return {"pieces": out, "print_folder": _to_unc(job.get("print_folder") or "") or _to_unc(os.path.join(_print_root(), f"{last}, {first}")) if first and last else "",
+            "patient": f"{first} {last}".strip(), "review": job.get("review")}
+
+
+@app.get("/api/jobs/{jid}/export")
+def job_export(jid: str, scans: str = ""):
+    """The chosen pieces' print files in one zip, named as the print folder names them (the Export dialog's Download)."""
+    import zipfile
+    job = JOBS.get(jid)
+    if not job or job.get("status") != "done":
+        raise HTTPException(404)
+    from bleachtray.printfolder import model_filename
+    first, last = job["params"].get("patient_first") or "Patient", job["params"].get("patient_last") or job.get("name") or "Case"
+    only = _pick_scans(job, scans)
+    buf = io.BytesIO()
+    n = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for k in only:
+            sc = job["scans"][k]
+            m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
+            if not (m and os.path.isfile(m)):
+                continue
+            z.write(m, model_filename(first, last, sc.get("arch"), _scan_tag(sc)))
+            n += 1
+    if not n:
+        raise HTTPException(400, "no finished model among the ticked pieces")
+    job.setdefault("log", []).append(f"exported {n} print file{'s' if n != 1 else ''} as a zip")
+    fn = f"{re.sub(r'[^A-Za-z0-9_-]', '', last)}_{re.sub(r'[^A-Za-z0-9_-]', '', first)}_models.zip"
+    return Response(content=buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{fn}"', "Cache-Control": "no-store"})
+
+
 @app.get("/api/jobs/{jid}/file/{kind}")
 def job_file(jid: str, kind: str, scan: int = 0):
     job = JOBS.get(jid)
@@ -2671,7 +2836,8 @@ def p1_dots(jid: str, scan: int = 0):
         raise HTTPException(404)
     pe = (job.get("paint") or {}).get(job["scans"][scan]["path"]) or {}
     return {"span": [int(i) for i in pe.get("p1span") or []], "end": [int(i) for i in pe.get("p1end") or []], "six": [int(i) for i in pe.get("p1six") or []],
-            "path": [[int(i) for i in r] for r in (pe.get("p1path") or []) if isinstance(r, (list, tuple))]}
+            "path": [[int(i) for i in r] for r in (pe.get("p1path") or []) if isinstance(r, (list, tuple))],
+            "nosplit": [int(i) for i in pe.get("nosplit") or []]}
 
 
 @app.get("/api/jobs/{jid}/teeth")
