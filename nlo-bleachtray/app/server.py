@@ -885,7 +885,7 @@ def _run(job):
                         r[ok] = remap2[remap[ok]]; remap = r
             # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
             path = job["scans"][k0]["path"]       # (a take-off / cut gave the scan a new file)
-            if "p1path" in me or any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
+            if "p1path" in me or any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "nosplit", "unnosplit", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
                 entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
                 # the Teeth tab: the number the doctor gave a tooth ({label: [position, primary]}, position 0 = not a
                 # tooth, null = back to the app's count), kept by the tooth's label - the labels are frozen for the
@@ -899,7 +899,7 @@ def _run(job):
                             ids[str(k_)] = [int(v_[0]), bool(v_[1])] if isinstance(v_, (list, tuple)) else [int(v_), False]
                     entry["tooth_ids"] = ids
                     log(f"teeth numbered by hand: {len(ids)} on this scan")
-                    if path not in fixed and not (me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact")):
+                    if path not in fixed and not (me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact") or me.get("nosplit") or me.get("unnosplit")):
                         try:
                             st_ = np.load(os.path.join(job["dir"], f"{job['scans'][k0]['name']}_state.npz"))
                             if remap is None:
@@ -916,7 +916,7 @@ def _run(job):
                         entry.setdefault("outlines", []).append([int(i) for i in idx])
                 if me.get("outlines"):
                     log(f"block-out outlines: {len(me['outlines'])} drawn, {len(entry.get('outlines', []))} on this scan")
-                for key in ("noreservoir", "blockout", "reservoir", "contact", "p1span", "p1end", "p1six"):
+                for key in ("noreservoir", "blockout", "reservoir", "contact", "nosplit", "p1span", "p1end", "p1six"):
                     idx = np.asarray(me.get(key) or [], dtype=int)
                     if remap is not None and len(idx):
                         idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
@@ -965,6 +965,16 @@ def _run(job):
                     log(f"contact dots: {before - len(entry['contact'])} taken away, {len(entry['contact'])} kept")
                 if me.get("contact"):
                     log(f"contact dots: {len(entry['contact'])} on this scan")
+                # a "no split here" dot taken away again (the split comes back on this Apply)
+                if me.get("unnosplit"):
+                    idx = np.asarray(me["unnosplit"], dtype=int)
+                    if remap is not None and len(idx):
+                        idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
+                    before = len(entry.get("nosplit", []))
+                    entry["nosplit"] = sorted(set(entry.get("nosplit", [])) - set(int(i) for i in idx))
+                    log(f"no-split dots: {before - len(entry['nosplit'])} taken away, {len(entry['nosplit'])} kept")
+                if me.get("nosplit"):
+                    log(f"no-split dots: {len(entry['nosplit'])} on this scan (two colours made one tooth)")
                 log(f"painted: {len(entry['noreservoir'])} vertices without reservoir, {len(entry.get('reservoir', []))} with one added, {len(entry['blockout'])} to block out")
             remaps[path] = remap; edits_by_path[path] = (k0, me)
         for i, k in enumerate(todo):
@@ -973,7 +983,7 @@ def _run(job):
                 job["progress"] = dict(frac=round((i + frac) / n, 3), label=label, scan=k, of=len(job["scans"]), step=i, steps=n)
             if scan["path"] in edits_by_path and scan["path"] not in overrides:
                 k0, me = edits_by_path[scan["path"]]
-                if me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact"):
+                if me.get("add") or me.get("remove") or me.get("relabel") or me.get("contact") or me.get("uncontact") or me.get("nosplit") or me.get("unnosplit"):
                     progress(0.02, "applying your brush fixes")
                     old_lab = fixed.get(scan["path"])
                     if old_lab is None:
@@ -1498,8 +1508,15 @@ def _apply_mask_edit(job, k=0, edit=None, remap=None):
     if remap is not None and len(remap) == len(st["labels"]) and len(con):
         con = remap[con[(con >= 0) & (con < len(remap))]]; con = con[con >= 0]
     dots |= set(int(i) for i in con)
+    # and the "no split here" dots (a click on a split the app made inside one tooth)
+    nos = set(int(i) for i in ((job.get("paint") or {}).get(scan["path"]) or {}).get("nosplit", []))
+    nn = np.array(edit.get("nosplit", []), dtype=int)
+    if remap is not None and len(remap) == len(st["labels"]) and len(nn):
+        nn = remap[nn[(nn >= 0) & (nn < len(remap))]]; nn = nn[nn >= 0]
+    nos |= set(int(i) for i in nn)
+    nos -= set(int(i) for i in np.asarray(edit.get("unnosplit", []), dtype=int))
     log_lines = []
-    labels2 = separate_teeth(mesh, mask, p_ip, A, aux, arch, log=log_lines.append, contacts=sorted(dots))
+    labels2 = separate_teeth(mesh, mask, p_ip, A, aux, arch, log=log_lines.append, contacts=sorted(dots), nosplits=sorted(nos))
     if len(rel_v):
         # the picked colours are the page's labels (the earlier run's): each maps to the new label it mostly became;
         # the painted vertices take that label, so a neighbour's bleed is given back to the tooth it belongs to
@@ -1512,7 +1529,7 @@ def _apply_mask_edit(job, k=0, edit=None, remap=None):
             labels2[v] = newid[int(k)]
         log_lines.append(f"tooth colour painted on {len(rel_v)} vertices ({len(newid)} teeth picked)")
     for ln in log_lines:
-        if "contact dots" in ln or "tooth colour" in ln:
+        if "contact dots" in ln or "no-split dots" in ln or "tooth colour" in ln or "loose pieces" in ln:
             job.setdefault("log", []).append(f"[{scan['name']}] {ln}")
     return labels2
 
@@ -1798,7 +1815,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
         # any painted vertex is just a re-run: it must not count as a brush correction
         mes = me if isinstance(me, list) else ([me] if me else [])
-        mes = [e for e in mes if isinstance(e, dict) and ("p1path" in e or any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")))]
+        mes = [e for e in mes if isinstance(e, dict) and ("p1path" in e or any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "nosplit", "unnosplit", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")))]
     except Exception:
         mes = []
     # strokes are vertex numbers of the scan file as the page showed it: while the case is waiting or being made, the
@@ -2760,7 +2777,8 @@ def p1_dots(jid: str, scan: int = 0):
         raise HTTPException(404)
     pe = (job.get("paint") or {}).get(job["scans"][scan]["path"]) or {}
     return {"span": [int(i) for i in pe.get("p1span") or []], "end": [int(i) for i in pe.get("p1end") or []], "six": [int(i) for i in pe.get("p1six") or []],
-            "path": [[int(i) for i in r] for r in (pe.get("p1path") or []) if isinstance(r, (list, tuple))]}
+            "path": [[int(i) for i in r] for r in (pe.get("p1path") or []) if isinstance(r, (list, tuple))],
+            "nosplit": [int(i) for i in pe.get("nosplit") or []]}
 
 
 @app.get("/api/jobs/{jid}/teeth")

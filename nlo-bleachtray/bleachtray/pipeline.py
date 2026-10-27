@@ -188,12 +188,13 @@ def connect_line_pieces(mesh, A, mask, max_gap=6.0, width=0.8, min_piece=300):
     return mask | added, bridges
 
 
-def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print, contacts=None):
+def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print, contacts=None, nosplits=None):
     """Per-tooth labels: arch-profile boundaries (contacts from the interproximal classifier, incisal
     height dips, footprint pinches, facial grooves) + downhill flood. Falls back to the older
     gum-line erosion split if that yields fewer than 6 teeth. `contacts`: vertex indices of the
-    doctor's contact dots - boundaries that override the automatic ones near them."""
-    aux = dict(aux); aux["p_ip"] = p_ip; aux["contact_idx"] = list(contacts or [])
+    doctor's contact dots - boundaries that override the automatic ones near them; `nosplits`: vertex
+    indices of the doctor's "no split here" dots - the automatic boundary nearest each one goes."""
+    aux = dict(aux); aux["p_ip"] = p_ip; aux["contact_idx"] = list(contacts or []); aux["nosplit_idx"] = list(nosplits or [])
     labels, bounds = split_teeth_arch(mesh, mask, A, aux, arch=arch, log=log)
     labels = merge_small_teeth(mesh, labels, A)
     labels = drop_retromolar_pads(mesh, labels, arch, log=log)

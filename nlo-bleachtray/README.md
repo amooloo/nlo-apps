@@ -43,12 +43,19 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    colour that is painted"); started on gum - no colour - the stroke is gum, so a stroke from the gum onto a tooth
    takes the bleed off and a stroke from the tooth onto the gum takes the tooth's colour out over it, with no switching
    between brushes (the doctor, 10/21/2026: "use the same logic - if you start on gum then your strokes will be no
-   teeth"; **Gum** is still there for a stroke that must be gum whatever it starts on) - and has the **Contact** dot:
-   Shift-click once where two teeth touch and the split between them is put there - for crowded lower incisors,
-   where one colour runs across two teeth and the reservoir ends mid-tooth instead of at the contact - the view turns
-   to look from above when the tool is picked, a dot on gum is refused (teeth with a space between them need none;
-   most arches need no dot at all, a crowded one two or three), Backspace takes the last dot back, a click on a dot
-   takes it away (an applied dot shows pale, red once marked to go), Shift-drag moves one, applied or not. The Tooth
+   teeth"; **Gum** is still there for a stroke that must be gum whatever it starts on) - and has the **Contact** tool
+   (10/27/2026, the doctor: "show the detected contacts so they can be moved / deleted / added"; "contact dots from
+   the occlusal view misbehave - multiple shades in one tooth - better placed from the facial for the anteriors"):
+   every split the app made between two colours shows as a **ring** lying on the surface at the facial-most point of
+   the boundary (`findContacts`, from the label adjacency the page already builds), and the view no longer turns to
+   look from above when the tool is picked - the anteriors are done from the front. Three things: Shift-click where two
+   teeth touch and no ring is, and a **yellow dot** puts the split there (crowded lower incisors, where one colour runs
+   across two teeth and the reservoir ends mid-tooth); Shift-click a ring and it gets a cross - **no split** there, the
+   two colours are one tooth after Apply (a partially erupted tooth the app took for two); Shift-drag a ring (or a
+   dot) and the split moves (a no-split where the ring was, a dot where it was dropped). A dot on gum is refused
+   (teeth with a space between them need none; most arches need no dot at all, a crowded one two or three), Backspace
+   takes the last one back, a click on a dot or a crossed ring takes it back; applied dots show pale, an applied
+   no-split shows as a pale crossed ring and a click on it brings the split back on Apply. The Tooth
    brush picks the colour of the vertex under the click itself (the commonest colour within the brush picked the
    neighbour when a stroke started near a boundary - "sometimes it starts to paint the other tooth's colour"), the
    cursor shows the colour being painted, and painting a tooth's own colour (or plain tooth) back over a mistaken
@@ -304,15 +311,25 @@ the base. Close islands are joined by a bridge along the shortest surface path b
 two teeth, 0.8 mm wide; `connect_line_pieces`, "gum line carried across N gaps"); if the line still breaks, the
 edge zone is thinned and the band widened step by step, and a model that is still partial, or not watertight,
 carries a red warning on the result line (`rep["warnings"]`). A **contact dot** from the doctor is
-a boundary of its own: where there are dots they are the only boundaries on that stretch of the arch (automatic ones
-inside it, and within 3.2 mm beyond its ends, go), and round each dot (2.5 mm in plan) the tooth vertices are given to
-one side or the other of the vertical plane through the dot across the contact - the plane normal to the surface's
-horizontal tangent there, which is the embrasure however the tooth is turned - before the flood, so the split passes
-through the dot rather than where the height happens to dip. A dot's place along the arch is read where that plane
-meets the facial surface (the arch coordinate is only dependable outside the arch curve), so a dot on the incisal
-edge or the lingual side lands on the same boundary as one on the facial side. Dots are kept per scan file with the
-other strokes (`paint[path]["contact"]`, shown as bit 32 in the brush mesh) and go into every later re-split; the
-corrected labels train the interproximal classifier like any other lesson. The gum line
+a boundary of its own: the automatic boundaries within 3.2 mm of a dot go, and so does everything between two dots
+that stand less than 1.5 tooth widths apart (the two sides of one tooth) - dots further apart leave the automatic
+boundaries between them alone (10/27/2026: before, every automatic boundary inside the dotted stretch went, so a dot
+at the midline and one dragged to the 6 wiped out the four contacts between). Round each dot (2.5 mm in plan) the
+tooth vertices are given to one side or the other of the vertical plane through the dot across the arch before the
+flood, so the split passes through the dot rather than where the height happens to dip. That plane is normal to the
+**arch curve's tangent** at the dot's position (`ArchCurve`, the even quartic the arch coordinate is measured along) -
+the plane taken from the local surface normal before 10/27/2026 tipped with every bump of enamel, and a dot put on
+the incisal edge from above could split a tooth into pieces ("multiple shades in one tooth"). A dot's place along
+the arch is read where that plane meets the facial surface (the arch coordinate is only dependable outside the arch
+curve), so a dot on the incisal edge or the lingual side lands on the same boundary as one on the facial side. A
+**no-split dot** (a click on one of the rings) names the split it sits on - the two labels round it after a first
+labelling pass - and that boundary is dropped and the labels made again without it (a contact dot's own boundary
+never goes this way: take the dot away instead). After the flood every tooth is made **one piece**
+(`one_piece_per_tooth`): each label keeps its biggest connected patch, a loose patch that touches another tooth is
+cleared and flooded again from its neighbours (a loose patch touching no other tooth is an island of the mask - a
+tooth the gum line crosses - and keeps its colour). Dots are kept per scan file with the other strokes
+(`paint[path]["contact"]` shown as bit 32 in the brush mesh, `paint[path]["nosplit"]` served with the scan's dots)
+and go into every later re-split; the corrected labels train the interproximal classifier like any other lesson. The gum line
 is the 0.5 iso-contour of the tooth mask; papillae are bridged with a 2D closing and snapped onto the surface.
 Reservoirs are a feathered normal displacement on the facial surfaces, kept 0.5 mm from the gum line and 0.4 mm from the incisal edges, the neighbouring teeth and the facial-lingual transition (full height ~0.6 mm further in). The solid: clipped surface closed below the floor, unioned with a
 steep skirt below the scan's edge, cut by vertical walls that stand under the scan's own edge (`hug_region`, see
