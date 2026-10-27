@@ -669,6 +669,14 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   strip between the gum band and the plate - the line round that strip was a hairpin on one case, 10/21/2026), and a
   bare slit narrower than 3 mm between two covered parts is covered. Every line is checked for places where it doubles
   back on itself (two points under 1.6 mm apart but more than 6 mm apart along the line); the case warns when it does.
+- **The mixed dentition's widths** (`segment.EXPECTED_WIDTH["lower_mixed"]` / `upper_mixed`, 10/27/2026). The tooth split
+  checks every segment against the width expected at its place along the arch, and with the permanent widths (three 7 mm
+  premolars behind the canine) a 10.5 mm lower E at 25-36 mm from the midline read as "far too wide for its position" and
+  was split at its central groove into two teeth - the retainer's cutout then ended in the middle of it (Josiah's LRE,
+  10/27/2026; the doctor: "where there is a partially erupted tooth it keeps thinking LRE is 2 different teeth"). On a
+  Phase I scan the split uses the C / D / E widths (6.5, 8, 11 mm on a lower; 7, 7.5, 10 on an upper) and a weak
+  boundary inside a single back tooth is dropped from 16 mm out, so the E stays one tooth; an erupting tip beside it
+  stays its own small label.
 - **Counted from the first molar** (`phase1.anchor_six`, 10/27/2026). Counted from the midline, with every space of
   2.5 mm or more taken for a tooth already gone, a 3.9 mm space behind a lateral made the first molar a "7" - and the
   retainer stopped at the E and left the 6 bare (Josiah's lower). In the mixed dentition a side holds at most six teeth in

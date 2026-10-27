@@ -523,7 +523,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     prog(0.30, "separating the teeth")
     # the tooth split is the same for the same scan + arch, so the retainer made right after the
     # whitening tray (and a base nudge later) reuses it
-    lkey = (scan_path, "labels", arch_hint, len(mesh.vertices))   # (the mouthguard finds teeth on a cleaned copy: its own mesh, its own split)
+    lkey = (scan_path, "labels", f"{arch_hint}_mixed" if P1 else arch_hint, len(mesh.vertices))   # (the mouthguard finds teeth on a cleaned copy: its own mesh, its own split; a Phase I split has its own widths)
     if label_override is not None:
         labels = np.asarray(label_override)
         mask = labels > 0
@@ -535,7 +535,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         thr = float(P["tooth_threshold"]) if P.get("tooth_threshold") else tooth_threshold(models)
         # the gum line follows the gingival crease through the model's unsure band (see snap_to_crease)
         mask = clean_mask(snap_to_crease(mesh, A, smooth_field(A, p_tooth, 4), aux["Hs"], thr=thr), A)
-        labels = separate_teeth(mesh, mask, p_ip, A, aux, arch_hint, log=log)
+        # (a Phase I scan: the mixed dentition's widths behind the incisors - C, D, E - so a 10-11 mm E is one tooth)
+        labels = separate_teeth(mesh, mask, p_ip, A, aux, f"{arch_hint}_mixed" if P1 else arch_hint, log=log)
         mask = labels > 0          # separation may have dropped soft tissue mistaken for a tooth
         if feat_cache is not None:
             feat_cache[lkey] = labels
