@@ -719,6 +719,7 @@ def _scan_params(job, scan):
             pass
     params["force_on_idx"] = pe.get("reservoir") or []
     params["p1_span_idx"] = pe.get("p1span") or []; params["p1_end_idx"] = pe.get("p1end") or []; params["p1_six_idx"] = pe.get("p1six") or []   # the Phase I tab's dots
+    params["p1_path_idx"] = [list(r) for r in (pe.get("p1path") or []) if isinstance(r, (list, tuple)) and len(r) >= 2]   # ... and its traced cutout outlines (ordered runs of dots)
     params["tooth_ids"] = pe.get("tooth_ids") or {}      # the Teeth tab: {label: [position, primary]}
     params["adjust"] = _adjust_by_arch(job["params"], job["scans"]).get(scan.get("arch") or "", dict(ADJUST_ZERO))
     params.pop("adjust_by_arch", None)
@@ -867,7 +868,7 @@ def _run(job):
                         r[ok] = remap2[remap[ok]]; remap = r
             # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
             path = job["scans"][k0]["path"]       # (a take-off / cut gave the scan a new file)
-            if any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
+            if "p1path" in me or any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
                 entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
                 # the Teeth tab: the number the doctor gave a tooth ({label: [position, primary]}, position 0 = not a
                 # tooth, null = back to the app's count), kept by the tooth's label - the labels are frozen for the
@@ -912,6 +913,18 @@ def _run(job):
                         entry[key] = sorted(set(entry.get(key, [])) - set(int(i) for i in idx))
                 if any(me.get(k_) for k_ in ("p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six")):
                     log(f"Phase I dots: {len(entry.get('p1span', []))} for the cutout spans, {len(entry.get('p1end', []))} where the retainer ends, {len(entry.get('p1six', []))} on the 6s")
+                # the Phase I tab's traced cutout outlines (ordered runs of dots: the 2's distal, round the tongue side, the
+                # E/5): the page sends every outline it holds for the scan, so the list replaces the kept one ([] clears)
+                if "p1path" in me and isinstance(me["p1path"], list):
+                    runs = []
+                    for run in me["p1path"]:
+                        idx = np.asarray(run or [], dtype=int)
+                        if remap is not None and len(idx):
+                            idx = remap[idx[(idx >= 0) & (idx < len(remap))]]; idx = idx[idx >= 0]
+                        if len(idx) >= 2:
+                            runs.append([int(i) for i in idx])
+                    entry["p1path"] = runs
+                    log(f"Phase I cutout outlines: {len(runs)} traced" + (" (the earlier ones replaced)" if runs else " - cleared"))
                 # the two reservoir brushes cancel each other where they overlap: the later stroke wins
                 if me.get("reservoir"):
                     entry["noreservoir"] = sorted(set(entry["noreservoir"]) - set(entry["reservoir"]))
@@ -1097,12 +1110,12 @@ def _remap_entry(pe, remap, skip=()):
     for key, vals in (pe or {}).items():
         if key in skip or not isinstance(vals, list):
             continue
-        if key == "outlines":
+        if key in ("outlines", "p1path"):
             outl = []
             for o in vals:
                 o = np.asarray(o or [], dtype=int); o = o[(o >= 0) & (o < len(remap))]
                 o = [int(i) for i in remap[o] if i >= 0]
-                if len(o) >= 3:
+                if len(o) >= (3 if key == "outlines" else 2):
                     outl.append(o)
             out[key] = outl
             continue
@@ -1286,7 +1299,7 @@ def _take_off_braces(job, path, log=print, painted=None, exclude_pts=None, add_p
         moved = _remap_entry(old_entry, remap, skip=("large",))
         patched |= set(moved.pop("removed", []))
         for key, vals in moved.items():
-            if key == "outlines":
+            if key in ("outlines", "p1path"):
                 entry[key] = (entry.get(key) or []) + vals
             else:
                 entry[key] = sorted(set(entry.get(key, [])) | set(vals))
@@ -1390,7 +1403,7 @@ def _redo_take_off(job, k, not_idx, log=print, add_idx=None, on_raw=False):
         c2n = np.where(d2 < 1e-3, j2, -1).astype(np.int64)
         ne = paint.setdefault(new, {"noreservoir": [], "blockout": []})
         for key, vals in _remap_entry(pe, c2n, skip=("removed", "large")).items():
-            ne[key] = (ne.get(key) or []) + vals if key == "outlines" else sorted(set(ne.get(key, [])) | set(vals))
+            ne[key] = (ne.get(key) or []) + vals if key in ("outlines", "p1path") else sorted(set(ne.get(key, [])) | set(vals))
     log((f"not a bracket: {len(idx)} painted vertices" if len(idx) else "take off") + (f", take off: {len(aidx)} painted vertices" if len(aidx) and len(idx) else (f": {len(aidx)} painted vertices on the scan as scanned" if len(aidx) else ""))
         + f" - braces taken off the scan as scanned again{', those areas left as scanned' if len(idx) else ''} ({os.path.basename(new)})")
     return np.where(d2 < 1e-3, j2, -1).astype(np.int64)
@@ -1763,7 +1776,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
         # any painted vertex is just a re-run: it must not count as a brush correction
         mes = me if isinstance(me, list) else ([me] if me else [])
-        mes = [e for e in mes if isinstance(e, dict) and any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth"))]
+        mes = [e for e in mes if isinstance(e, dict) and ("p1path" in e or any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")))]
     except Exception:
         mes = []
     # strokes are vertex numbers of the scan file as the page showed it: while the case is waiting or being made, the
@@ -2657,7 +2670,8 @@ def p1_dots(jid: str, scan: int = 0):
     if not job or not (0 <= scan < len(job["scans"])):
         raise HTTPException(404)
     pe = (job.get("paint") or {}).get(job["scans"][scan]["path"]) or {}
-    return {"span": [int(i) for i in pe.get("p1span") or []], "end": [int(i) for i in pe.get("p1end") or []], "six": [int(i) for i in pe.get("p1six") or []]}
+    return {"span": [int(i) for i in pe.get("p1span") or []], "end": [int(i) for i in pe.get("p1end") or []], "six": [int(i) for i in pe.get("p1six") or []],
+            "path": [[int(i) for i in r] for r in (pe.get("p1path") or []) if isinstance(r, (list, tuple))]}
 
 
 @app.get("/api/jobs/{jid}/teeth")

@@ -1087,11 +1087,19 @@ def split_teeth_footprint(mesh, tooth_mask, A, px=0.1, min_peak=1.2, peak_sep_mm
 EXPECTED_WIDTH = {   # (|s| upper bound along the arch from the midline, mesiodistal width) in mm
     "upper": [(8.5, 8.5), (15.0, 6.5), (22.5, 7.5), (36.5, 7.0), (99.0, 10.0)],
     "lower": [(5.5, 5.5), (11.5, 6.0), (18.5, 7.0), (32.5, 7.0), (99.0, 11.0)],
+    # the mixed dentition (a Phase I scan, arch "upper_mixed" / "lower_mixed"): behind the incisors stand the C (6-7 mm),
+    # the D (7-8 mm) and the E (9-11 mm) in front of the 6 - not three 7 mm premolars. With the permanent widths the
+    # 10.5 mm lower E at s = 25-36 read as "far too wide for its position" and was split at its central groove into
+    # two teeth, and the retainer's cutout then ended in the middle of it (Josiah's lower, 10/27/2026)
+    "upper_mixed": [(8.5, 8.5), (15.0, 6.5), (22.0, 7.0), (30.0, 7.5), (99.0, 10.0)],
+    "lower_mixed": [(5.5, 5.5), (11.5, 6.0), (17.5, 6.5), (25.5, 8.0), (99.0, 11.0)],
 }
 
 
 def expected_width(s, arch):
-    for hi, w in EXPECTED_WIDTH["lower" if arch == "lower" else "upper"]:
+    arch = str(arch or "")
+    table = EXPECTED_WIDTH.get(arch) or EXPECTED_WIDTH["lower" if arch.startswith("lower") else "upper"]
+    for hi, w in table:
         if abs(s) < hi:
             return w
     return 10.0
@@ -1203,7 +1211,7 @@ def arch_boundaries(s, z, hw, conc_facial, arch, p_ip=None, b=0.25, prominence=0
             sc = score[np.argmin(np.abs(sgrid - edges[i]))]
             mid = 0.5 * (a + c)
             limit = 1.25 * expected_width(mid, arch)
-            if abs(mid) >= 20:       # back teeth: any single tooth is at most ~12 mm, whatever the count
+            if abs(mid) >= 20 or (str(arch).endswith("_mixed") and abs(mid) >= 16):       # back teeth: any single tooth is at most ~12 mm, whatever the count (the mixed dentition's D/E from s = 16)
                 limit = max(limit, 12.0)
             if sc < 3.2 and (c - a) <= limit:
                 if log: log(f"  drop weak boundary at s={edges[i]:+.1f} (score {sc:.1f}) inside a {c - a:.1f} mm span")
