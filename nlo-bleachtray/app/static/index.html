@@ -1355,7 +1355,22 @@ $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#e
 let WHO = { local: true, pc: '', print_root_unc: '' }, PREFORM_ON_SEND = true;
 const PF_SETUP = `powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/preform_link.ps1' -UseBasicParsing).Content"`;
 fetch('/api/whoami').then(r => r.json()).then(w => { WHO = w; if (currentJob) refreshJobs(); }).catch(() => {});
-const copySetup = el => { navigator.clipboard.writeText(PF_SETUP).then(() => { el.textContent = 'copied — Win+R, paste, Enter'; }).catch(() => { prompt('Copy this line, then Win+R, paste, Enter:', PF_SETUP); }); };
+// (the page is plain http://lab:8765, where the browser has no navigator.clipboard - "Cannot read properties of undefined
+// (reading 'writeText')", 10/27/2026: the old copy command still works there, and a box with the line selected is the last resort)
+function copySetup(el){
+  const done = () => { el.textContent = 'copied — Win+R, paste, Enter'; };
+  const byBox = () => {
+    let box = document.getElementById('pfsetupbox');
+    if (!box) { box = document.createElement('textarea'); box.id = 'pfsetupbox'; box.readOnly = true; box.style.cssText = 'display:block;width:100%;height:64px;margin-top:6px;font:11.5px ui-monospace,Menlo,Consolas,monospace;padding:6px;border:1.5px solid var(--grey-300);border-radius:8px'; box.value = PF_SETUP; el.insertAdjacentElement('afterend', box); }
+    box.focus(); box.select(); el.textContent = 'select the line below and press Ctrl+C';
+  };
+  const legacy = () => { try { const t = document.createElement('textarea'); t.value = PF_SETUP; t.style.cssText = 'position:fixed;left:-9999px;top:0'; document.body.appendChild(t); t.focus(); t.select(); const ok = document.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; } };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(PF_SETUP).then(done).catch(() => { if (legacy()) done(); else byBox(); });
+    else if (legacy()) done();
+    else byBox();
+  } catch (e) { byBox(); }
+}
 // Open in PreForm on this PC (the doctor, 10/27/2026: "a PowerShell prompt, and nothing happens"). The browser lets a
 // page start a program only in the few seconds after a click: filing the models first (a rebase and the copies to the
 // share) used up that window and the nlobt: link was dropped without a word. Now the link goes out at once with the
