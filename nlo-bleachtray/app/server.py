@@ -81,6 +81,20 @@ def _scan_tag(sc):
                              else "TT" if (sc.get("kind") or "T").upper().startswith("A") else "WT")
 
 
+def _pick_scans(job, scans):
+    """The scans a request names (`scans`: comma-separated indices, "" / None = every finished one): the Export
+    and Send dialogs let the staff tick the pieces (the doctor, 10/27/2026). Returns a sorted list of indices."""
+    n = len(job.get("scans") or [])
+    if scans is None or str(scans).strip() == "":
+        return list(range(n))
+    out = []
+    for tok in str(scans).split(","):
+        tok = tok.strip()
+        if tok.isdigit() and int(tok) < n:
+            out.append(int(tok))
+    return sorted(set(out))
+
+
 def _to_unc(path):
     """A path on a mapped drive (O:\\clinical\\...) as the other PCs can reach it (\\\\server\\share\\clinical\\...).
     Returns the path unchanged when it is already UNC or the drive is a local disk."""
@@ -119,16 +133,19 @@ def _is_local(request):
         return False
 
 
-def _write_prints(job, log=print):
+def _write_prints(job, log=print, only=None):
     """Copy the case's finished models into the print folder, filed by patient (see printfolder.py).
-    Returns the list of files there (empty when the case has no patient name or the copy failed)."""
+    `only`: the scan indices to file (None = all). Returns the list of files there (empty when the case has
+    no patient name or the copy failed)."""
     job["print_error"] = None
     first, last = job["params"].get("patient_first"), job["params"].get("patient_last")
     if not (first and last):
         job["print_error"] = "patient first + last name needed to file the models in the print folder"
         return []
     pieces = []
-    for sc in job["scans"]:
+    for k, sc in enumerate(job["scans"]):
+        if only is not None and k not in only:
+            continue
         m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
         if m and os.path.isfile(m):
             pieces.append(dict(arch=sc.get("arch"), tag=_scan_tag(sc), stl=m))
@@ -1009,9 +1026,10 @@ def _run(job):
         _save_case(job)                        # the case, its scans and what went wrong survive a restart
 
 
-def _write_order(job, log=print, preform_here=True):
+def _write_order(job, log=print, preform_here=True, only=None):
     """Write (or replace) this job's OrthoFactory order folder from its finished pieces. preform_here:
-    the click came from this PC, so the models may open in PreForm on this screen (Settings)."""
+    the click came from this PC, so the models may open in PreForm on this screen (Settings). `only`: the
+    scan indices to send (None = every piece) - the Send dialog's ticks; the case remembers which went."""
     site = site_config()
     root = (job["params"].get("order_root") or "").strip() or site["order_root"]
     prev = job.get("order_folder")
@@ -1042,8 +1060,12 @@ def _write_order(job, log=print, preform_here=True):
         job["order_error"] = "patient first + last name needed for an OrthoFactory order"
         return False
     pieces = [dict(arch=sc["arch"], stl=sc["report"]["outputs"]["model"], pts=sc["report"]["outputs"]["trimline"],
-                   stage=int(sc.get("stage", job["params"].get("stage", 0))), kind=sc.get("kind", job["params"].get("kind", "T")))
-              for sc in job["scans"]]
+                   stage=int(sc.get("stage", job["params"].get("stage", 0))), kind=sc.get("kind", job["params"].get("kind", "T")), scan=k)
+              for k, sc in enumerate(job["scans"]) if only is None or k in only]
+    if not pieces:
+        job["order_error"] = "no piece ticked to send"
+        return False
+    job["sent_scans"] = [p["scan"] for p in pieces]
     try:
         folder = write_order_folder(root, job["params"]["patient_first"], job["params"]["patient_last"], pieces,
                                     patient_id=job["params"].get("patient_id") or None,
@@ -1073,7 +1095,7 @@ def _write_order(job, log=print, preform_here=True):
         log(f"order folder failed: {ex}")
         return False
     # the printable models are filed by patient in the print folder (Settings -> Print folder) ...
-    _write_prints(job, log=log)
+    _write_prints(job, log=log, only=only)
     # ... and go straight to the printer's software from there (Settings -> PreForm), so printing is the next click
     if site.get("preform_on_send", True) and preform_here:
         ok, msg = _open_in_preform(job, log=log)
@@ -2138,14 +2160,19 @@ def _name_from_form(job, first, last):
 
 
 @app.post("/api/jobs/{jid}/approve")
-def approve(jid: str, request: Request, patient_first: str = Form(""), patient_last: str = Form("")):
+def approve(jid: str, request: Request, patient_first: str = Form(""), patient_last: str = Form(""), scans: str = Form("")):
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
     job.setdefault("log", [])
     _name_from_form(job, patient_first, patient_last)
+    only = _pick_scans(job, scans)
+    if not only:
+        raise HTTPException(400, "tick at least one piece to send")
+    if len(only) < len(job["scans"]):
+        job["log"].append(f"sending {len(only)} of {len(job['scans'])} pieces: " + ", ".join(f"{job['scans'][k].get('arch')} {_scan_tag(job['scans'][k])}" for k in only))
     _rebase(job, log=lambda m: job["log"].append(m))
-    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
+    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request), only=only if len(only) < len(job["scans"]) else None)
     if _save_training(job, log=lambda m: job["log"].append(m)):
         job["learned"] = _learned_note(job)
     if job.get("review") == "sent":
@@ -2275,15 +2302,17 @@ def open_preform(jid: str):
 
 
 @app.post("/api/jobs/{jid}/prints")
-def file_prints(jid: str):
+def file_prints(jid: str, scans: str = Form("")):
     """File the case's models in the print folder (no PreForm here) and return their paths as the
-    other PCs see them - the page then opens them in PreForm on its own PC."""
+    other PCs see them - the page then opens them in PreForm on its own PC. `scans`: the pieces ticked in the
+    Export dialog (all when empty)."""
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
     job.setdefault("log", [])
+    only = _pick_scans(job, scans)
     _rebase(job, log=lambda m: job["log"].append(m))
-    files = _write_prints(job, log=lambda m: job["log"].append(m))      # always fresh copies (a fix since the last copy)
+    files = _write_prints(job, log=lambda m: job["log"].append(m), only=only if len(only) < len(job["scans"]) else None)      # always fresh copies (a fix since the last copy)
     if not files:
         raise HTTPException(400, job.get("print_error") or "no finished model to file")
     _tell_tracker(job, how="printer")          # opened in PreForm on another PC: on its way to the printer
@@ -2343,14 +2372,18 @@ def whoami(request: Request):
 
 
 @app.post("/api/jobs/{jid}/resend")
-def resend(jid: str, request: Request):
-    """Write the OrthoFactory order again from the models as they are (a lost print, a second set)."""
+def resend(jid: str, request: Request, scans: str = Form("")):
+    """Write the OrthoFactory order again from the models as they are (a lost print, a second set). `scans`: the
+    pieces ticked in the Send dialog (all when empty)."""
     job = JOBS.get(jid)
     if not job or job.get("status") != "done":
         raise HTTPException(404)
-    job.setdefault("log", []).append("sent again")
+    only = _pick_scans(job, scans)
+    if not only:
+        raise HTTPException(400, "tick at least one piece to send")
+    job.setdefault("log", []).append("sent again" + (f" ({len(only)} of {len(job['scans'])} pieces)" if len(only) < len(job["scans"]) else ""))
     _rebase(job, log=lambda m: job["log"].append(m))
-    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request))
+    _write_order(job, log=lambda m: job["log"].append(m), preform_here=_is_local(request), only=only if len(only) < len(job["scans"]) else None)
     if job.get("review") == "sent":
         job["sent_at"] = time.time()
         _tell_tracker(job)
@@ -2522,6 +2555,62 @@ def job_status(jid: str):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]
         out["report"] = out["reports"][0]
     return out
+
+
+@app.get("/api/jobs/{jid}/pieces")
+def job_pieces(jid: str):
+    """What the case holds, piece by piece, for the Export and Send dialogs: arch, type, whether its model is made,
+    the file name it gets in the print folder, the OrthoFactory piece name it had last, and its warnings."""
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    from bleachtray.printfolder import model_filename
+    first, last = job["params"].get("patient_first") or "", job["params"].get("patient_last") or ""
+    words = {"WT": "Whitening tray", "TT": "Retainer", "MG": "Mouthguard", "P1": "Phase I retainer"}
+    out = []
+    sent_pieces = job.get("order_pieces") or []
+    sent_scans = job.get("sent_scans")
+    for k, sc in enumerate(job["scans"]):
+        rep_ = sc.get("report") or {}
+        m = (rep_.get("outputs") or {}).get("model")
+        tag = _scan_tag(sc)
+        code = None
+        if sent_scans is not None and k in sent_scans and len(sent_pieces) == len(sent_scans):
+            code = sent_pieces[sent_scans.index(k)]
+        elif sent_scans is None and k < len(sent_pieces):
+            code = sent_pieces[k]
+        out.append(dict(scan=k, arch=sc.get("arch"), tag=tag, label=f"{(sc.get('arch') or 'arch').capitalize()} · {words.get(tag, tag)} ({tag})",
+                        made=bool(m and os.path.isfile(m)), file=model_filename(first, last, sc.get("arch"), tag) if first and last else None,
+                        piece=code, warnings=len(rep_.get("warnings") or []), watertight=rep_.get("body_watertight")))
+    return {"pieces": out, "print_folder": _to_unc(job.get("print_folder") or "") or _to_unc(os.path.join(_print_root(), f"{last}, {first}")) if first and last else "",
+            "patient": f"{first} {last}".strip(), "review": job.get("review")}
+
+
+@app.get("/api/jobs/{jid}/export")
+def job_export(jid: str, scans: str = ""):
+    """The chosen pieces' print files in one zip, named as the print folder names them (the Export dialog's Download)."""
+    import zipfile
+    job = JOBS.get(jid)
+    if not job or job.get("status") != "done":
+        raise HTTPException(404)
+    from bleachtray.printfolder import model_filename
+    first, last = job["params"].get("patient_first") or "Patient", job["params"].get("patient_last") or job.get("name") or "Case"
+    only = _pick_scans(job, scans)
+    buf = io.BytesIO()
+    n = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for k in only:
+            sc = job["scans"][k]
+            m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
+            if not (m and os.path.isfile(m)):
+                continue
+            z.write(m, model_filename(first, last, sc.get("arch"), _scan_tag(sc)))
+            n += 1
+    if not n:
+        raise HTTPException(400, "no finished model among the ticked pieces")
+    job.setdefault("log", []).append(f"exported {n} print file{'s' if n != 1 else ''} as a zip")
+    fn = f"{re.sub(r'[^A-Za-z0-9_-]', '', last)}_{re.sub(r'[^A-Za-z0-9_-]', '', first)}_models.zip"
+    return Response(content=buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{fn}"', "Cache-Control": "no-store"})
 
 
 @app.get("/api/jobs/{jid}/file/{kind}")

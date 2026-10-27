@@ -92,6 +92,16 @@
   button.small,button.primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:6px 14px;border-radius:999px;font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;line-height:1.1;white-space:nowrap;background:#fff;border:1.5px solid var(--grey-300);color:var(--navy);transition:background .14s var(--ease),transform .14s var(--ease)}
   button.small:hover{background:var(--grey-100)}
   button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.primary.create{background:var(--teal, #0d9488);border-color:var(--teal, #0d9488);color:#fff;margin-right:8px}
+  button.primary.create:hover{background:#0f766e}
+  .pieces{display:flex;flex-direction:column;gap:6px}
+  .pieces label.pc{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:9px 12px;border:1.5px solid var(--grey-300);border-radius:12px;cursor:pointer;background:#fff}
+  .pieces label.pc.off{opacity:.55;cursor:not-allowed}
+  .pieces label.pc b{font-weight:600;color:var(--navy)}
+  .pieces label.pc .fn{font-size:11.5px;color:var(--grey-500);font-family:ui-monospace,Menlo,Consolas,monospace}
+  .pieces label.pc .st{font-size:11.5px;color:var(--grey-500);text-align:right;white-space:nowrap}
+  .pieces label.pc .st.warn{color:#b45309}
+  .pieces label.pc .st.bad{color:var(--err)}
   button.primary:hover{background:var(--blue-700)}
   button.primary:disabled,button.small:disabled{opacity:.55;cursor:not-allowed}
   button:active{transform:scale(.985)}
@@ -315,26 +325,19 @@
     </div>
   </aside>
   <div id="main">
-    <div class="topBar"><h2>Tray Maker</h2><span class="sub">Drop a scan — whitening tray + retainer models go to the Trimlign after you check them.</span>
-      <span class="hint" style="margin:0 0 0 auto" id="setsum"></span><button class="small" id="openSettings" title="Model settings and office settings">&#9881; Settings</button></div>
+    <div class="topBar"><h2>Tray Maker</h2><span class="sub">Create a case (or drop a scan anywhere) — the models go to the Trimlign after you check them.</span>
+      <span class="hint" style="margin:0 0 0 auto" id="setsum"></span><button class="primary create" id="createcase" title="Start a case: drop the scan files, say what to make">&#43; Create a case</button><button class="small" id="openSettings" title="Model settings and office settings">&#9881; Settings</button></div>
     <main id="view">
       <div class="leftCol">
-        <div class="card">
-          <div class="cardHd"><h3>New case</h3></div>
-          <div class="cardBd">
-            <div class="drop" id="drop"><b>Drop the scan STL here</b>anywhere on this page works · one arch at a time — the app then asks what to make and whether the opposing arch is coming. A whole day's scans at once run with the defaults. Or click to choose.</div>
-            <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
-            <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
-            <div class="hint" style="margin-top:10px">Patient: <a href="#" id="patientline" title="The patient of the open case - click to change the name">—</a></div>
-            <div class="hint" id="filehint">No file yet.</div>
-            <div id="rerunbox" style="display:none;margin-top:10px"><button class="small" id="go">Run again with these settings</button></div>
-          </div>
-        </div>
+        <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
+        <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
         <div class="card" id="detail" style="display:none">
-          <div class="cardHd"><h3>Check &amp; send</h3></div>
+          <div class="cardHd"><h3>Check &amp; send</h3><span class="sub">Patient: <a href="#" id="patientline" title="The patient of the open case - click to change the name">—</a></span></div>
           <div class="cardBd">
             <div class="review" id="review"></div>
-            <div class="dl" id="dl"></div>
+            <div class="hint" id="filehint" style="margin-top:6px"></div>
+            <div id="rerunbox" style="display:none;margin-top:10px"><button class="small" id="go">Run again with these settings</button></div>
+            <details class="logbox" style="margin-top:10px"><summary>Advanced files — this model only (the order’s own files, for a check; Export is the button above)</summary><div class="dl" id="dl"></div></details>
             <details class="logbox"><summary>Processing log</summary>
               <div style="display:flex;gap:6px;align-items:center;margin:6px 0 4px"><button class="small" id="copylog" title="Copy the whole log to the clipboard">Copy log</button><button class="small" id="savelog" title="Save the whole log as a text file">Save as .txt</button><span class="hint" id="logmsg" style="margin:0"></span></div>
               <div class="log" id="log" tabindex="0" title="Click to select it all"></div></details>
@@ -387,7 +390,7 @@
         <div class="brush" id="brush"></div>
         <button class="pchip" id="brushchip" title="Show the brush tools">&#9998; Brush &#9656;</button>
         <button class="pchip" id="placechip" title="Fine steps for the base, underside view, Apply / Reset">&#10021; Position on the base &#9656;</button>
-        <button class="pchip" id="textchip" title="The text on the model: where it goes, what it says, raised or cut in">T&#1090; Text &#9656;</button>
+        <button class="pchip" id="textchip" title="The label on the model: where it goes, what it says, raised or cut in">T&#1090; Label &#9656;</button>
         <div class="place" id="place">
           <div class="phead"><h4>Position on the base</h4><span class="sp"></span><button class="ibtn" id="placehelp" title="How to move the base">?</button><button class="ibtn" id="placehide" title="Hide this box - the Position chip brings it back">&ndash;</button></div>
           <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. The <b>mark</b> on the model (the raised initials - J.D - that form into the tray) shows as a small card on the model: <b>drag it</b> onto any tooth or onto the side of the model, turn it and size it with the Mark buttons, choose what it says, raised or cut in; <b>Auto</b> puts it back on a first molar. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> moves this arch's models on the base (a few seconds - a height change rebuilds them, ~1 min) and replaces the Trimlign order; the other arch stays as it is. <b>Reset</b> goes back to the automatic placement.</div>
@@ -400,9 +403,9 @@
           <div class="hint" id="placestate"></div>
         </div>
         <div class="textbox" id="textbox">
-          <div class="phead"><h4>Text on the model</h4><span class="sp"></span><button class="ibtn" id="texthelp" title="How the text works">?</button><button class="ibtn" id="texthide" title="Hide this box - the Text chip brings it back">&ndash;</button></div>
-          <div class="hint phelp" id="texthelptext">The text is part of the model: <b>raised</b> it forms into the tray and reads on it (the way aligner makers mark theirs), <b>cut in</b> it stays on the model only. <b>Place</b>: click a start point and an end point on the model and the letters are laid along the surface between them, sized to fit; or drag the yellow card. Turn and size with the buttons. <b>Auto</b> puts it back on a first molar. Apply makes it (a few seconds - the model itself is kept).</div>
-          <div class="prow" style="margin-top:8px;grid-template-columns:76px 1fr 64px"><span>Says</span><select id="mktext" class="small" style="width:100%;min-width:0" title="What the text says"><option value="initials">Initials (J.D)</option><option value="last">Last name</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button></div>
+          <div class="phead"><h4>Label on the model</h4><span class="sp"></span><button class="ibtn" id="texthelp" title="How the label works">?</button><button class="ibtn" id="texthide" title="Hide this box - the Label chip brings it back">&ndash;</button></div>
+          <div class="hint phelp" id="texthelptext">The label is part of the model: <b>raised</b> it forms into the tray and reads on it (the way aligner makers mark theirs), <b>cut in</b> it stays on the model only. <b>Place</b>: click a start point and an end point on the model and the letters are laid along the surface between them, sized to fit; or drag the yellow card. Turn and size with the buttons. <b>Auto</b> puts it back on a first molar. Apply makes it (a few seconds - the model itself is kept).</div>
+          <div class="prow" style="margin-top:8px;grid-template-columns:76px 1fr 64px"><span>Says</span><select id="mktext" class="small" style="width:100%;min-width:0" title="What the label says"><option value="initials">Initials (J.D)</option><option value="last">Last name</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button></div>
           <div class="prow" style="margin-top:6px;grid-template-columns:76px 1fr 64px"><span>Place</span><button class="primary small" id="mkplace" title="Click a start point and an end point on the model">Start &rarr; end on the model</button><button class="small" id="mkauto" title="Back to the automatic spot: the cheek of a first molar">Auto</button></div>
           <div class="prow" style="margin-top:6px;grid-template-columns:76px 1fr 1fr 1fr 1fr"><span>Adjust</span><button data-mk="angle_deg" data-d="-15" title="Turn">&#8634; 15&deg;</button><button data-mk="angle_deg" data-d="15" title="Turn">15&deg; &#8635;</button><button data-mk="cap" data-d="-0.3" title="Smaller letters">A&minus;</button><button data-mk="cap" data-d="0.3" title="Bigger letters">A+</button></div>
           <div class="hint" id="markstate" style="margin:6px 0 0"></div>
@@ -417,14 +420,15 @@
           <button data-view="back" title="From behind (the tongue / palate side)">Back</button>
           <button data-view="below" title="From below (the base plate, see-through)">Below</button>
         </div>
-        <div class="stats" id="stats">Drop a scan to begin.</div>
+        <div class="stats" id="stats">Create a case, or drop a scan anywhere on this page, to begin.</div>
         <div id="fatal"></div>
         <div id="errline"></div>
 <!-- NEW CASE pop-up: a dropped scan asks what to make before anything runs -->
 <div class="modalBg" id="casemodal">
   <div class="modal">
-    <h3 id="modaltitle">New case</h3>
+    <h3 id="modaltitle">Create a case</h3>
     <div class="hint" id="modalintro" style="margin:0 0 10px">What should be made from this scan? Tick the trays, check the arch, add the opposing arch if it is coming — nothing runs until you click <b>Start</b>.</div>
+    <div class="drop" id="drop" style="margin:0 0 12px"><b>Drop the scan files here</b>PLY from the scanner (STL works too) · upper, lower or both · or click to choose</div>
     <div class="row">
       <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="First"></div>
       <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Last"></div>
@@ -434,6 +438,16 @@
       <div class="hint" id="setuphint"></div>
     </div>
     <div class="btns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="primary small" id="startcase">Start</button><button class="small" id="addopp">Add the opposing arch…</button><button class="small" id="cancelcase">Cancel</button></div>
+  </div>
+</div>
+<!-- EXPORT / SEND pop-up: the case's pieces as a checklist - what goes out, and where -->
+<div class="modalBg" id="piecesmodal">
+  <div class="modal">
+    <h3 id="piecestitle">Export</h3>
+    <div class="hint" id="piecesintro" style="margin:0 0 10px"></div>
+    <div id="pieceslist" class="pieces"></div>
+    <div class="hint" id="pieceshint" style="margin:8px 0 0"></div>
+    <div class="btns" id="piecesbtns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"></div>
   </div>
 </div>
         <canvas id="c"></canvas>
@@ -961,6 +975,11 @@ $('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => 
 let files = [];
 const drop = $('#drop');
 drop.onclick = () => $('#file').click();
+// Create a case (the doctor, 10/27/2026: "remove the new case and create a 'create a case' button in teal to make it
+// pop up"): the pop-up opens empty with the drop zone; files dropped anywhere on the page open it too
+let creating = false;
+function openCreate(){ creating = true; nameOnly = false; if (!TRACKER) { $('#pfirst').value = ''; $('#plast').value = ''; } renderSetup(); }
+$('#createcase').onclick = () => { if (!TRACKER && !pending.length) { QUEUE.picked = ''; renderQueue(); } openCreate(); };
 $('#file').onchange = e => setFiles([...e.target.files], true);
 // A scan dropped ANYWHERE on the page is taken by the app (otherwise the browser would just download it).
 ['dragenter','dragover'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
@@ -1012,6 +1031,7 @@ let TRACKER = (() => {
   return { first: q.get('first') || '', last: q.get('last') || '', case: q.get('case') || '', arches: (q.get('arches') || '').split(',').filter(Boolean),
            wt: makes.includes('WT'), tt: makes.includes('TT'), mg: makes.includes('MG'), p1: makes.includes('P1'), p1_method: (q.get('p1') || '').toLowerCase() === 'bott' ? 'bott' : 'cott', origin };
 })();
+function setupHint(html){ const el = $('#filehint'); if (el) el.innerHTML = html; }
 function trackerHint(){
   if (!TRACKER) return;
   $('#pfirst').value = TRACKER.first; $('#plast').value = TRACKER.last;
@@ -1043,7 +1063,9 @@ function pickQueue(cid){
   TRACKER = { first: parts[0] || '', last: parts.slice(1).join(' ') || '', case: cid, arches: it.arches, wt: it.make.includes('WT'), tt: it.make.includes('TT'), mg: it.make.includes('MG'),
               p1: it.make.includes('P1'), p1_method: /BOTT/i.test(it.kinds || '') ? 'bott' : 'cott', origin: null, remake: it.remake || '', due: it.due || '' };
   QUEUE.picked = cid; renderQueue(); trackerHint();
-  $('#filehint').scrollIntoView({ block: 'nearest' }); $('#drop').classList.add('pulse'); setTimeout(() => $('#drop').classList.remove('pulse'), 1600);
+  $('#pfirst').value = TRACKER.first; $('#plast').value = TRACKER.last;
+  openCreate();
+  setTimeout(() => { $('#drop').classList.add('pulse'); setTimeout(() => $('#drop').classList.remove('pulse'), 1600); }, 80);
 }
 const NOCACHE = { cache: 'no-store' };   // the case's files are rewritten at the same URL on every re-run: never the browser's copy
 async function refreshQueue(){
@@ -1076,7 +1098,7 @@ function notifyTracker(j, event){
 }
 function setFiles(fs, auto){
   fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name) || (/\.pts$/i.test(f.name) && isTitan(f.name)));
-  if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
+  if(!fs.length) { showErr('That was not a scan file (PLY or STL).'); return; }
   const titanFiles = fs.filter(f => isTitan(f.name)); fs = fs.filter(f => !isTitan(f.name));
   if (titanFiles.length) fileTitan(titanFiles);
   if (!fs.length) return;
@@ -1087,7 +1109,7 @@ function setFiles(fs, auto){
   const patients = new Set(who.map((k, i) => k || '?' + i));
   bulk = fs.length > 2 || new Set(who.filter(Boolean)).size > 1;
   if (bulk) {
-    files = fs; pending = []; renderSetup();
+    files = fs; pending = []; creating = false; renderSetup();
     $('#filehint').textContent = `${fs.length} files · ${patients.size} patient${patients.size > 1 ? 's' : ''} — one case each, upper + lower paired by name (or iTero order number) — processing with the defaults (${$('#preset').selectedOptions[0].text}), braces left on (drop one patient's scans on their own to have them taken off)…`;
     $('#rerunbox').style.display = 'none';
     if (auto) $('#go').click();
@@ -1120,18 +1142,29 @@ let bulk = false;
 let nameOnly = false;
 function updatePatientLine(){ const f = $('#pfirst').value.trim(), l = $('#plast').value.trim(); $('#patientline').textContent = f || l ? `${f} ${l}`.trim() : '— (click to set)'; }
 function openCaseModal(){ $('#casemodal').classList.add('on'); setTimeout(() => { if (!$('#pfirst').value.trim()) $('#pfirst').focus(); }, 50); }
-function closeCaseModal(){ $('#casemodal').classList.remove('on'); nameOnly = false; updatePatientLine(); }
+function closeCaseModal(){ $('#casemodal').classList.remove('on'); nameOnly = false; creating = false; updatePatientLine(); }
 $('#patientline').onclick = ev => { ev.preventDefault(); if (pending.length) { openCaseModal(); return; } nameOnly = true; renderSetup(); };
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#casemodal').classList.contains('on')) $('#cancelcase').click(); });
 $('#casemodal').addEventListener('mousedown', ev => { if (ev.target === $('#casemodal')) $('#cancelcase').click(); });
 function renderSetup(){
   const box = $('#setup');
-  if (!pending.length && !nameOnly) { closeCaseModal(); return; }
+  if (!pending.length && !nameOnly && !creating) { closeCaseModal(); return; }
+  $('#drop').style.display = nameOnly ? 'none' : '';
   if (nameOnly) {      // just the patient's name for the open case
     box.style.display = 'none'; $('#addopp').style.display = 'none'; $('#modaltitle').textContent = 'Patient name';
-    $('#modalintro').innerHTML = 'The name the order, the print files and the lesson are filed under.'; $('#startcase').textContent = 'OK'; openCaseModal(); return;
+    $('#modalintro').innerHTML = 'The name the order, the print files and the lesson are filed under.'; $('#startcase').textContent = 'OK'; $('#startcase').style.display = ''; openCaseModal(); return;
   }
-  box.style.display = 'block'; $('#modaltitle').textContent = 'New case';
+  $('#modaltitle').textContent = 'Create a case';
+  if (!pending.length) {    // the pop-up opened from the button or from To make: no scan yet
+    box.style.display = 'none'; $('#addopp').style.display = 'none'; $('#startcase').style.display = 'none';
+    $('#modalintro').innerHTML = TRACKER
+      ? `<b>From NLO Cases:</b> ${TRACKER.first} ${TRACKER.last} · ${TRACKER.arches.length ? TRACKER.arches.join(' + ') : 'arch as scanned'} · ${[TRACKER.wt ? 'whitening tray' : '', TRACKER.tt ? 'retainer' : '', TRACKER.mg ? 'mouthguard' : '', TRACKER.p1 ? 'Phase I' : ''].filter(Boolean).join(' + ') || 'as set up'}${TRACKER.remake ? ' · ' + TRACKER.remake : ''}${TRACKER.due ? ' · due ' + TRACKER.due : ''}. Drop the scan file${TRACKER.arches.length > 1 ? 's' : ''} below - the case is told when the models are sent.`
+      : 'Drop the patient\'s scan files below - the upper, the lower or both (PLY from the scanner; STL works too). The app reads the name from the file names, then asks what to make. Nothing runs until you click <b>Start</b>.';
+    $('#drop').innerHTML = `<b>Drop the scan file${TRACKER && TRACKER.arches.length > 1 ? 's' : 's'} here</b>or click to choose`;
+    openCaseModal(); return;
+  }
+  box.style.display = 'block'; $('#startcase').style.display = '';
+  $('#drop').innerHTML = pending.length < 2 ? '<b>Opposing arch too?</b> drop it here, or click to choose' : '<b>Both arches are in.</b> Drop a file here to replace one';
   $('#modalintro').innerHTML = 'What should be made from this scan? Tick the trays, check the arch, add the opposing arch if it is coming — nothing runs until you click <b>Start</b>.';
   openCaseModal();
   // upper first, then lower, then anything still unknown - the order the viewer's model buttons use
@@ -1179,7 +1212,7 @@ function setupCount(){
   $('#startcase').textContent = `Start — make ${nModels} model${nModels > 1 ? 's' : ''}` + (new Set(what).size === 1 ? ` (${what[0]})` : '');
 }
 $('#addopp').onclick = () => $('#file').click();
-$('#cancelcase').onclick = () => { if (nameOnly) { closeCaseModal(); return; } pending = []; files = []; renderSetup(); $('#filehint').textContent = 'No file yet.'; };
+$('#cancelcase').onclick = () => { if (nameOnly) { closeCaseModal(); return; } pending = []; files = []; creating = false; if (TRACKER) { TRACKER = null; QUEUE.picked = ''; renderQueue(); } renderSetup(); };
 $('#startcase').onclick = () => {
   if (nameOnly) { closeCaseModal(); return; }
   if (!pending.length) return;
@@ -1309,6 +1342,58 @@ async function openPreformHere(id, box, b){
   l.querySelector('#pfsetup').onclick = ev => { ev.preventDefault(); copySetup(ev.target); };
   location.href = link;
 }
+// ---------- Export / Send: the case's pieces as a checklist (the doctor, 10/27/2026: "it has to be more clear what is
+// being exported, upper? lower? retainer? whitening trays? ... a clear EXPORT button ... Send to Trimlign should ask
+// which one you want to send") ----------
+let piecesCtx = null;
+function closePieces(){ $('#piecesmodal').classList.remove('on'); piecesCtx = null; }
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#piecesmodal').classList.contains('on')) closePieces(); });
+$('#piecesmodal').addEventListener('mousedown', ev => { if (ev.target === $('#piecesmodal')) closePieces(); });
+async function openPieces(id, mode, j){
+  let d; try { d = await (await fetch(`/api/jobs/${id}/pieces`, NOCACHE)).json(); } catch (e) { showErr('Could not read the case\'s pieces.'); return; }
+  piecesCtx = { id, mode, j, pieces: d.pieces || [] };
+  const resend = mode === 'send' && (j && j.review === 'sent');
+  $('#piecestitle').textContent = mode === 'send' ? (resend ? 'Send to Trimlign again' : 'Send to Trimlign') : 'Export the models';
+  $('#piecesintro').innerHTML = mode === 'send'
+    ? `Tick the pieces that go to OrthoFactory as one order for <b>${d.patient || 'this patient'}</b>. Every piece ticked is written; one sent before gets the next letter (AL1A &rarr; AL1B) so the Trimlign cuts along this line, not the old one.`
+    : `Tick the models to export for <b>${d.patient || 'this patient'}</b>. The files are the print files - the model with its base, named like the print folder names them. Download them as one zip, or write them straight to the print folder on the office share${d.print_folder ? ` (<span class="fn">${d.print_folder}</span>)` : ''}.`;
+  $('#pieceslist').innerHTML = piecesCtx.pieces.map(p => {
+    const st = !p.made ? ['not made yet', 'bad'] : p.watertight === false ? ['NOT watertight', 'bad'] : p.warnings ? [`${p.warnings} warning${p.warnings > 1 ? 's' : ''}`, 'warn'] : ['ready', ''];
+    const sentNote = mode === 'send' && p.piece ? ` · sent before as ${p.piece}` : '';
+    return `<label class="pc ${p.made ? '' : 'off'}"><input type="checkbox" data-scan="${p.scan}" ${p.made ? 'checked' : 'disabled'}><span><b>${p.label}</b>${p.file ? `<br><span class="fn">${p.file}</span>` : ''}</span><span class="st ${st[1]}">${st[0]}${sentNote}</span></label>`;
+  }).join('') || '<div class="hint">This case has no models yet.</div>';
+  const count = () => [...$('#pieceslist').querySelectorAll('input:checked')].map(i => +i.dataset.scan);
+  const btns = $('#piecesbtns');
+  if (mode === 'send') btns.innerHTML = `<button class="primary small" id="pcsend">Send</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
+  else btns.innerHTML = `<button class="primary small" id="pcdl" title="One zip with the ticked print files">Download (zip)</button><button class="small" id="pcfile" title="Copy the ticked print files into the print folder on the office share, filed by patient">Write to the print folder</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
+  const label = () => { const k = count().length; const b = $('#pcsend') || $('#pcdl'); if (b) b.textContent = (mode === 'send' ? 'Send ' : 'Download ') + (k ? `${k} piece${k > 1 ? 's' : ''}` : 'nothing') + (mode === 'send' ? ' to Trimlign' : ' (zip)'); if (b) b.disabled = !k; if ($('#pcfile')) $('#pcfile').disabled = !k; };
+  $('#pieceslist').querySelectorAll('input').forEach(i => i.onchange = label); label();
+  $('#pccancel').onclick = closePieces;
+  $('#pcall').onclick = () => { $('#pieceslist').querySelectorAll('input:not(:disabled)').forEach(i => i.checked = true); label(); };
+  $('#pieceshint').textContent = '';
+  if (mode === 'send') $('#pcsend').onclick = async () => {
+    const sel = count(); if (!sel.length) return;
+    $('#pcsend').disabled = true; $('#pcsend').textContent = 'Sending…';
+    const fd = nameForm(); fd.append('scans', sel.join(','));
+    const rs = await fetch(`/api/jobs/${id}/${resend ? 'resend' : 'approve'}`, { method: 'POST', body: fd }); const r = await rs.json().catch(() => ({}));
+    if (!rs.ok || !r.review) { $('#pcsend').disabled = false; label(); showErr('Not sent: ' + (r.detail || rs.status) + ' — the case is not ready (still being made, or no longer open). Open it again from the list.'); refreshJobs(); return; }
+    closePieces(); refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800);
+    if (r.order_error) showErr(r.order_error); else if (r.review === 'sent' && !resend) { notifyTracker(Object.assign({}, j || {}, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); }
+  };
+  else {
+    $('#pcdl').onclick = () => { const sel = count(); if (!sel.length) return; const a = document.createElement('a'); a.href = `/api/jobs/${id}/export?scans=${sel.join(',')}&t=${Date.now()}`; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); $('#pieceshint').textContent = `Downloading ${sel.length} file${sel.length > 1 ? 's' : ''} as one zip - check the browser's downloads.`; };
+    $('#pcfile').onclick = async () => {
+      const sel = count(); if (!sel.length) return; $('#pcfile').disabled = true; $('#pcfile').textContent = 'Writing…';
+      const fd = new FormData(); fd.append('scans', sel.join(','));
+      const rs = await fetch(`/api/jobs/${id}/prints`, { method: 'POST', body: fd }); const r = await rs.json().catch(() => ({}));
+      $('#pcfile').disabled = false; $('#pcfile').textContent = 'Write to the print folder';
+      if (!rs.ok) { $('#pieceshint').innerHTML = `<span style="color:var(--err)">${r.detail || 'Could not write the files.'}</span>`; return; }
+      $('#pieceshint').innerHTML = `Written to <span class="fn">${r.folder}</span>: ${(r.files || []).map(f => f.split(/[\\/]/).pop()).join(', ')}.`;
+      refreshJobs();
+    };
+  }
+  $('#piecesmodal').classList.add('on');
+}
 // the PreForm button(s) for a case box: here when the page is on the app's PC, else "on this PC" + "on the lab PC"
 const preformBtns = () => WHO.local
   ? `<button class="small" id="preformbtn" title="Open the finished models in PreForm on this PC">Open in PreForm</button>`
@@ -1378,7 +1463,7 @@ $('#go').onclick = async () => {
   $('#go').disabled = false; $('#startcase').disabled = false;
   if (!r.ok) { showErr(j.detail || 'Upload failed'); renderSetup(); return; }
   P1_CHOICE = null;                      // (this case's; the next pop-up makes its own)
-  pending = []; renderSetup(); $('#rerunbox').style.display = bulk ? 'none' : 'block';
+  pending = []; creating = false; renderSetup(); $('#rerunbox').style.display = bulk ? 'none' : 'block';
   $('#filehint').textContent = files.map(f => f.name).join(' + ') + ' — processing…';
   // the case from NLO Cases is on its way: the next drop is a new case of its own
   if (TRACKER) { TRACKER_ORIGIN = TRACKER.origin || TRACKER_ORIGIN; TRACKER = null; QUEUE.picked = ''; setTimeout(refreshQueue, 1500); }
@@ -1494,7 +1579,7 @@ window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev
 // the viewer goes blank: no model, no boxes, no case selected (after Discard, or moving a case out of the list)
 function clearViewer(msg){
   clearInterval(pollTimer); currentJob = null;
-  $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Drop a scan to begin.'; $('#modeltog').classList.remove('on'); $('#viewpick').classList.remove('on');
+  $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Create a case, or drop a scan anywhere on this page, to begin.'; $('#modeltog').classList.remove('on'); $('#viewpick').classList.remove('on');
   clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; markMesh = null; pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null;
   forgetEdits(); renderPanel(); syncPanels(); requestRender(); refreshJobs(); searchHistory();
 }
@@ -1537,18 +1622,19 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
     const when = j.sent_at ? ` ${new Date(j.sent_at * 1000).toLocaleDateString()} ${new Date(j.sent_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
     const printLine = (j.print_files || []).length ? `<div class="hint">Models filed in <b>${j.print_folder}</b>: ${j.print_files.map(f => f.split(/[\\/]/).pop()).join(', ')}</div>` : (j.print_error ? `<div class="hint" style="color:var(--err)">${j.print_error}</div>` : '');
     box.innerHTML = `<div class="anim" id="animCut"></div><b>Sent to the Trimlign${when}.</b> ${(j.order_pieces || []).length ? `Pieces in OrthoFactory: <b>${j.order_pieces.join(', ')}</b>. ` : ''}Whitening trays are Template pieces (TU0/TL0), retainers Aligner pieces (AU1/AL1); the last letter moves on (A, B, C…) each time a piece is sent again, so OrthoFactory makes a new cut path instead of reusing the old one.<div class="hint">${j.order_folder || ''}</div>${j.order_note ? `<div class="hint" style="color:#b45309"><b>Two orders for this patient:</b> ${j.order_note}</div>` : ''}${printLine}${learnedLine}` +
-      `<div class="btns"><button class="small" id="resendbtn" title="Write the order again from these models - a lost print, a second set. The earlier order folder is replaced, and the pieces get the next letter (AL1A becomes AL1B) so OrthoFactory cuts along this line, not the earlier one's. Delete the earlier pieces in OrthoFactory.">Send to Trimlign again</button>${preformBtns()}</div>` +
+      `<div class="btns"><button class="small" id="resendbtn" title="Write the order again from these models - a lost print, a second set. The earlier order folder is replaced, and the pieces get the next letter (AL1A becomes AL1B) so OrthoFactory cuts along this line, not the earlier one's. Delete the earlier pieces in OrthoFactory.">Send to Trimlign again</button><button class="small" id="exportbtn" title="Download the print files (model + base) as one zip, or write them to the print folder - you choose which pieces">Export</button>${preformBtns()}</div>` +
       (j.preform ? `<div class="hint" id="preformline" style="color:${j.preform.ok ? 'var(--teal, #0d9488)' : 'var(--err)'}">${j.preform.message}</div>` : '') +
       (addLine ? addLine.replace('Also make', 'Need more? Also make') + `<div class="hint">(the case comes back for a check; Send then replaces the order with every model)</div>` : '');
     wireAdd();
-    $('#resendbtn').onclick = async () => { $('#resendbtn').disabled = true; $('#resendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/resend`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); };
+    $('#resendbtn').onclick = () => openPieces(id, 'send', j);
+    box.querySelector('#exportbtn').onclick = () => openPieces(id, 'export', j);
     box.insertAdjacentHTML('beforeend', closeLine);
   } else if (j.review === 'discarded') {
     box.innerHTML = `<div class="anim" id="animTrash"></div><b>Discarded</b> — nothing went to the Trimlign.` + closeLine;
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
     box.innerHTML = `<b>Check the 3D result${what}.</b> Looks right? Send it. Not right? Go through the steps in order - clean-up, segmentation, tooth numbers, then the rest - and Apply:` +
-      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button>${preformBtns()}<button class="small" id="stepsbtn" title="Step 1: clean-up. Each step keeps your edits; Apply & re-run makes the models with them all">Fix it step by step &rarr;</button><button class="small" id="discardbtn">Discard</button></div>` +
+      `<div class="btns"><button class="primary small" id="sendbtn" title="Choose the pieces, then they go to OrthoFactory as one order">Send to Trimlign</button><button class="small" id="exportbtn" title="Download the print files (model + base) as one zip, or write them to the print folder - you choose which pieces">Export</button>${preformBtns()}<button class="small" id="stepsbtn" title="Step 1: clean-up. Each step keeps your edits; Apply & re-run makes the models with them all">Fix it step by step &rarr;</button><button class="small" id="discardbtn">Discard</button></div>` +
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine +
       // Send files the case for the retraining by itself; this link is for a corrected case that is not going to be sent
       ((j.fixed || []).length && !j.learned ? `<div class="hint" style="margin-top:8px"><a href="#" id="learnlink" title="Keep this brush-corrected case as a lesson for the retraining without sending it anywhere (Send does this on its own)">Save as lesson without sending</a></div>` : '');
@@ -1556,7 +1642,8 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
     if (box.querySelector('#stepsbtn')) box.querySelector('#stepsbtn').onclick = () => { const on = stepTabs(); showTab(on[0] || 'clean'); };
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
     const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Send or Save as lesson.'); if (t) showTab(t); return true; } return false; };
-    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const rs = await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() }); const r = await rs.json().catch(() => ({})); if (!rs.ok || !r.review) { $('#sendbtn').disabled = false; $('#sendbtn').textContent = 'Send to Trimlign'; showErr('Not sent: ' + (r.detail || rs.status) + ' — the case is not ready (still being made, or no longer open). Open it again from the list.'); refreshJobs(); return; } refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800); if (r.order_error) showErr(r.order_error); else if (r.review === 'sent') { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
+    $('#sendbtn').onclick = () => { if (unapplied()) return; openPieces(id, 'send', j); };
+    box.querySelector('#exportbtn').onclick = () => { if (unapplied()) return; openPieces(id, 'export', j); };
     const ll = box.querySelector('#learnlink');
     if (ll) ll.onclick = async ev => {
       ev.preventDefault(); if (unapplied()) return; ll.textContent = 'Saving…';
