@@ -101,6 +101,8 @@
   .pieces label.pc .fn{font-size:11.5px;color:var(--grey-500);font-family:ui-monospace,Menlo,Consolas,monospace}
   .pieces label.pc .st{font-size:11.5px;color:var(--grey-500);text-align:right;white-space:nowrap}
   .pieces label.pc .st.warn{color:#b45309}
+  .warnstrip{margin:0 0 10px;padding:9px 12px;border-radius:10px;background:#fef3c7;border:1.5px solid #fcd34d;color:#78350f;font-size:13px;line-height:1.45;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .warnstrip button{margin-left:auto}
   .pieces label.pc .st.bad{color:var(--err)}
   button.primary:hover{background:var(--blue-700)}
   button.primary:disabled,button.small:disabled{opacity:.55;cursor:not-allowed}
@@ -401,6 +403,7 @@
           <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
           <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
           <div class="hint" id="placestate"></div>
+          <div class="hint" id="holestate" style="display:none"></div>
         </div>
         <div class="textbox" id="textbox">
           <div class="phead"><h4>Label on the model</h4><span class="sp"></span><button class="ibtn" id="texthelp" title="How the label works">?</button><button class="ibtn" id="texthide" title="Hide this box - the Label chip brings it back">&ndash;</button></div>
@@ -445,6 +448,7 @@
   <div class="modal">
     <h3 id="piecestitle">Export</h3>
     <div class="hint" id="piecesintro" style="margin:0 0 10px"></div>
+    <div id="pieceswarn" class="warnstrip" style="display:none"></div>
     <div id="pieceslist" class="pieces"></div>
     <div class="hint" id="pieceshint" style="margin:8px 0 0"></div>
     <div class="btns" id="piecesbtns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"></div>
@@ -799,6 +803,24 @@ function allEdits(){
 }
 const otherEditCount = () => { stashEdits(); return Object.keys(editsByFile).filter(k => k !== curFile).reduce((a, k) => a + EDIT_KEYS.reduce((b, x) => b + editsByFile[k][x].size, 0) + Object.keys(editsByFile[k].teeth || {}).length + (editsByFile[k].p1paths || []).length, 0); };
 let toothIds = {};   // the Teeth tab: {label: [position, primary]} given by hand this time (null = back to the app's count)
+// ---------- unapplied work: one place that knows what would be lost (the doctor, 10/27/2026: "a warning / confirmation
+// for unsaved changes before send or export, and before anything destructive") ----------
+function pendingWork(){
+  stashEdits();
+  let n = 0;
+  for (const k in editsByFile) { const e = editsByFile[k]; n += EDIT_KEYS.reduce((a, x) => a + (e[x] ? e[x].size : 0), 0) + Object.keys(e.teeth || {}).length + (e.outlines || []).length + (e.p1paths || []).length + (e.p1pathClear ? 1 : 0); }
+  const parts = [];
+  if (n) parts.push(`${n} edit${n > 1 ? 's' : ''} on the steps not applied`);
+  if (typeof pendingAdj !== 'undefined' && Object.keys(pendingAdj).length) parts.push('the base moved on screen but not applied');
+  if (typeof pendingMark !== 'undefined' && Object.keys(pendingMark).length) parts.push('a label changed but not applied');
+  return parts;
+}
+// true = go on; false = the staff chose to stay with the case (Apply & re-run first)
+function confirmLeave(doing){
+  const parts = pendingWork(); if (!parts.length) return true;
+  return confirm(`This case has ${parts.join(', and ')}. ${doing} drops them.\n\nOK = go on without them.   Cancel = stay here (Apply & re-run makes the models with them first).`);
+}
+window.addEventListener('beforeunload', ev => { if (currentJob && pendingWork().length) { ev.preventDefault(); ev.returnValue = ''; } });
 let resMesh = null, resHeat = null;   // the Reservoirs view: its mesh and its heat colours
 // one brush tab per job: which view it paints on, its modes, what Clear empties, the words
 const PANELS = {
@@ -1219,6 +1241,8 @@ $('#startcase').onclick = () => {
   if (nameOnly) { closeCaseModal(); return; }
   if (!pending.length) return;
   if (!($('#pfirst').value.trim() && $('#plast').value.trim())) { $('#modalintro').innerHTML = '<span style="color:var(--err)">Type the patient\'s first and last name first.</span>'; $('#pfirst').focus(); return; }
+  if (currentJob && !confirmLeave('Starting a new case')) return;
+  if (currentJob) { forgetEdits(); pendingAdj = {}; pendingMark = {}; }     // (said yes: not asked again when the new case opens)
   files = pending.map(p => p.file);
   $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null, p.mg ? 'MG' : null, p.p1 ? 'P1' : null].filter(Boolean), braces: !!p.braces })));
   // the Phase I choice (how, which teeth) is a case setting: one per case, from the first scan that makes one
@@ -1332,17 +1356,42 @@ let WHO = { local: true, pc: '', print_root_unc: '' }, PREFORM_ON_SEND = true;
 const PF_SETUP = `powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/preform_link.ps1' -UseBasicParsing).Content"`;
 fetch('/api/whoami').then(r => r.json()).then(w => { WHO = w; if (currentJob) refreshJobs(); }).catch(() => {});
 const copySetup = el => { navigator.clipboard.writeText(PF_SETUP).then(() => { el.textContent = 'copied — Win+R, paste, Enter'; }).catch(() => { prompt('Copy this line, then Win+R, paste, Enter:', PF_SETUP); }); };
+// Open in PreForm on this PC (the doctor, 10/27/2026: "a PowerShell prompt, and nothing happens"). The browser lets a
+// page start a program only in the few seconds after a click: filing the models first (a rebase and the copies to the
+// share) used up that window and the nlobt: link was dropped without a word. Now the link goes out at once with the
+// names the files WILL have (/printpaths, nothing written), the models are filed right after, and the handler on this PC
+// waits for them. Whether anything happened here is watched too: a handler that runs takes the focus off the page
+// (the browser's "Open …?" question, or PreForm itself); when nothing does within a few seconds the line says so, with
+// the setup line - instead of a silent nothing
+const PF_SETUP_LINE = () => `This PC needs the one-time setup (or the handler's newer version) — <a href="#" class="pfsetup">copy the line</a>, then Win+R, paste, Enter, and click the button again. Already set up? Its log is in <span class="fn">%LOCALAPPDATA%\\nlo-bleachtray\\preform_open.log</span>. The <b>Export</b> button's zip is the way round it.`;
+const preformLine = box => { let l = box.querySelector('#preformline'); if (!l) { l = document.createElement('div'); l.className = 'hint'; l.id = 'preformline'; (box.querySelector('.btns') || box).insertAdjacentElement('afterend', l); } return l; };
+async function handPreformLink(id, scans, wait){
+  let p; try { const rs = await fetch(`/api/jobs/${id}/printpaths?scans=${scans || ''}`, NOCACHE); p = await rs.json().catch(() => ({})); if (!rs.ok) throw new Error(p.detail || 'no print files'); } catch (e) { return { error: `Could not work out the print files: ${e.message}` }; }
+  let answered = false; const onBlur = () => { answered = true; }; window.addEventListener('blur', onBlur); document.addEventListener('visibilitychange', onBlur);
+  const names = p.files.map(f => f.split(/[\\/]/).pop()).join(', ');
+  location.href = 'nlobt://preform?' + p.files.map(f => 'f=' + encodeURIComponent(f)).join('&') + `&wait=${wait || 60}`;   // (inside the click's window: nothing slow before this line)
+  return { names, folder: p.folder, reachable: p.reachable,
+    report(l, extra) {
+      // the line under the buttons, once the files are written: did this PC answer the link?
+      setTimeout(() => {
+        window.removeEventListener('blur', onBlur); document.removeEventListener('visibilitychange', onBlur);
+        l.style.color = answered ? '' : 'var(--err)';
+        l.innerHTML = (answered ? `Handed to PreForm on this PC: ${names} (from <span class="fn">${p.folder}</span>). PreForm not open? ` : `Nothing on this PC answered the link (the models are filed in <span class="fn">${p.folder}</span>). `) + PF_SETUP_LINE()
+          + (!p.reachable ? `<br><span style="color:var(--err)">These are the lab PC's own drive letters, not share paths — this PC may not reach them. On the lab PC, Settings → Print folder: type the folder as \\\\server\\share\\… .</span>` : '') + (extra || '');
+        l.querySelectorAll('.pfsetup').forEach(a => a.onclick = ev => { ev.preventDefault(); copySetup(ev.target); });
+      }, 4000);
+    } };
+}
 async function openPreformHere(id, box, b){
   if (b) { b.disabled = true; b.textContent = 'Opening…'; }
-  const rs = await fetch(`/api/jobs/${id}/prints`, { method: 'POST' }); const r = await rs.json().catch(() => ({}));
-  if (b) { b.disabled = false; b.textContent = 'Open in PreForm on this PC'; }
-  let l = box.querySelector('#preformline'); if (!l) { l = document.createElement('div'); l.className = 'hint'; l.id = 'preformline'; (box.querySelector('.btns') || box).insertAdjacentElement('afterend', l); }
+  const l = preformLine(box), done = () => { if (b) { b.disabled = false; b.textContent = 'Open in PreForm on this PC'; } };
+  const h = await handPreformLink(id, '', 60);
+  if (h.error) { done(); l.style.color = 'var(--err)'; l.textContent = h.error; return; }
+  l.style.color = ''; l.innerHTML = `Handing ${h.names} to PreForm on this PC…`;
+  const rs = await fetch(`/api/jobs/${id}/prints`, { method: 'POST' }); const r = await rs.json().catch(() => ({}));    // the files, written now; the handler is waiting for them
+  done();
   if (!rs.ok) { l.style.color = 'var(--err)'; l.textContent = r.detail || 'Could not file the models.'; return; }
-  const link = 'nlobt://preform?' + r.files.map(f => 'f=' + encodeURIComponent(f)).join('&');
-  l.style.color = '';
-  l.innerHTML = `Handed to PreForm on this PC: ${r.files.map(f => f.split(/[\\/]/).pop()).join(', ')} (from ${r.folder}).<br>Nothing opened? This PC needs the one-time setup — <a href="#" id="pfsetup">copy the line</a>, then Win+R, paste, Enter.`;
-  l.querySelector('#pfsetup').onclick = ev => { ev.preventDefault(); copySetup(ev.target); };
-  location.href = link;
+  h.report(l);
 }
 // ---------- Export / Send: the case's pieces as a checklist (the doctor, 10/27/2026: "it has to be more clear what is
 // being exported, upper? lower? retainer? whitening trays? ... a clear EXPORT button ... Send to Trimlign should ask
@@ -1362,13 +1411,19 @@ async function openPieces(id, mode, j){
   $('#pieceslist').innerHTML = piecesCtx.pieces.map(p => {
     const st = !p.made ? ['not made yet', 'bad'] : p.watertight === false ? ['NOT watertight', 'bad'] : p.warnings ? [`${p.warnings} warning${p.warnings > 1 ? 's' : ''}`, 'warn'] : ['ready', ''];
     const sentNote = mode === 'send' && p.piece ? ` · sent before as ${p.piece}` : '';
-    return `<label class="pc ${p.made ? '' : 'off'}"><input type="checkbox" data-scan="${p.scan}" ${p.made ? 'checked' : 'disabled'}><span><b>${p.label}</b>${p.file ? `<br><span class="fn">${p.file}</span>` : ''}</span><span class="st ${st[1]}">${st[0]}${sentNote}</span></label>`;
+    const holes = p.holes ? `<br><span style="color:var(--err)">&#9888; ${p.holes.split(' - ')[0]} - the pins will not seat: Position on the base, slide forward, Apply.</span>` : '';
+    return `<label class="pc ${p.made ? '' : 'off'}"><input type="checkbox" data-scan="${p.scan}" ${p.made ? 'checked' : 'disabled'}><span><b>${p.label}</b>${p.file ? `<br><span class="fn">${p.file}</span>` : ''}${holes}</span><span class="st ${st[1]}">${st[0]}${sentNote}</span></label>`;
   }).join('') || '<div class="hint">This case has no models yet.</div>';
+  // unapplied work: said here, where the decision is made - the models that go are the ones made last
+  const pend = pendingWork();
+  $('#pieceswarn').style.display = pend.length ? 'block' : 'none';
+  $('#pieceswarn').innerHTML = pend.length ? `<b>Not applied yet:</b> ${pend.join(', and ')}. The ${mode === 'send' ? 'pieces sent' : 'files exported'} are the models as they were last made - without these. <button class="small" id="pcapply">Apply &amp; re-run first</button>` : '';
+  if (pend.length) $('#pcapply').onclick = () => { closePieces(); showTab(tab in PANELS ? tab : 'seg'); applyAndRerun(); };
   const count = () => [...$('#pieceslist').querySelectorAll('input:checked')].map(i => +i.dataset.scan);
   const btns = $('#piecesbtns');
   if (mode === 'send') btns.innerHTML = `<button class="primary small" id="pcsend">Send</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
   else btns.innerHTML = `<button class="primary small" id="pcdl" title="One zip with the ticked print files">Download (zip)</button><button class="small" id="pcfile" title="Copy the ticked print files into the print folder on the office share, filed by patient">Write to the print folder</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
-  const label = () => { const k = count().length; const b = $('#pcsend') || $('#pcdl'); if (b) b.textContent = (mode === 'send' ? 'Send ' : 'Download ') + (k ? `${k} piece${k > 1 ? 's' : ''}` : 'nothing') + (mode === 'send' ? ' to Trimlign' : ' (zip)'); if (b) b.disabled = !k; if ($('#pcfile')) $('#pcfile').disabled = !k; };
+  const label = () => { const k = count().length; const b = $('#pcsend') || $('#pcdl'); if (b) b.textContent = (mode === 'send' ? 'Send ' : 'Download ') + (k ? `${k} piece${k > 1 ? 's' : ''}` : 'nothing') + (mode === 'send' ? ' to Trimlign' : ' (zip)') + (pend.length && k ? ' anyway' : ''); if (b) b.disabled = !k; if ($('#pcfile')) $('#pcfile').disabled = !k; };
   $('#pieceslist').querySelectorAll('input').forEach(i => i.onchange = label); label();
   $('#pccancel').onclick = closePieces;
   $('#pcall').onclick = () => { $('#pieceslist').querySelectorAll('input:not(:disabled)').forEach(i => i.checked = true); label(); };
@@ -1376,11 +1431,14 @@ async function openPieces(id, mode, j){
   if (mode === 'send') $('#pcsend').onclick = async () => {
     const sel = count(); if (!sel.length) return;
     $('#pcsend').disabled = true; $('#pcsend').textContent = 'Sending…';
+    // from another PC with "open in PreForm when sent" on: the link to this PC's handler goes out now, at the click (the
+    // send takes longer than the browser allows between a click and starting a program); the send files the models
+    const h = (!WHO.local && PREFORM_ON_SEND && !resend) ? await handPreformLink(id, sel.join(','), 150) : null;
     const fd = nameForm(); fd.append('scans', sel.join(','));
     const rs = await fetch(`/api/jobs/${id}/${resend ? 'resend' : 'approve'}`, { method: 'POST', body: fd }); const r = await rs.json().catch(() => ({}));
     if (!rs.ok || !r.review) { $('#pcsend').disabled = false; label(); showErr('Not sent: ' + (r.detail || rs.status) + ' — the case is not ready (still being made, or no longer open). Open it again from the list.'); refreshJobs(); return; }
     closePieces(); refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800);
-    if (r.order_error) showErr(r.order_error); else if (r.review === 'sent' && !resend) { notifyTracker(Object.assign({}, j || {}, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); }
+    if (r.order_error) showErr(r.order_error); else if (r.review === 'sent' && !resend) { notifyTracker(Object.assign({}, j || {}, r), 'sent'); if (h) { const l = preformLine($('#review')); if (h.error) { l.style.color = 'var(--err)'; l.textContent = h.error; } else { l.innerHTML = `Handing ${h.names} to PreForm on this PC…`; h.report(l); } } }
   };
   else {
     $('#pcdl').onclick = () => { const sel = count(); if (!sel.length) return; const a = document.createElement('a'); a.href = `/api/jobs/${id}/export?scans=${sel.join(',')}&t=${Date.now()}`; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); $('#pieceshint').textContent = `Downloading ${sel.length} file${sel.length > 1 ? 's' : ''} as one zip - check the browser's downloads.`; };
@@ -1516,6 +1574,7 @@ let pollTimer = null, selTok = 0;     // selTok: which selection is current - a 
 async function selectJob(id){
   if (!id) return;                         // (a row without a case id is never a case to open)
   $('#rerunbox').style.display = 'none';   // "Run again with these settings" belongs to the scan just dropped, never to an opened case
+  if (id !== currentJob && currentJob && !confirmLeave('Opening another case')) { refreshJobs(); return; }   // (the other case keeps running; it is in the list)
   if (id !== currentJob) { pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null; forgetEdits(); if (typeof stopPlacing === 'function') stopPlacing(); }   // a pending move and unapplied strokes belong to the case they were made on
   currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
   clearInterval(pollTimer);
@@ -1642,10 +1701,12 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
       ((j.fixed || []).length && !j.learned ? `<div class="hint" style="margin-top:8px"><a href="#" id="learnlink" title="Keep this brush-corrected case as a lesson for the retraining without sending it anywhere (Send does this on its own)">Save as lesson without sending</a></div>` : '');
     wireAdd();
     if (box.querySelector('#stepsbtn')) box.querySelector('#stepsbtn').onclick = () => { const on = stepTabs(); showTab(on[0] || 'clean'); };
-    // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
-    const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Send or Save as lesson.'); if (t) showTab(t); return true; } return false; };
-    $('#sendbtn').onclick = () => { if (unapplied()) return; openPieces(id, 'send', j); };
-    box.querySelector('#exportbtn').onclick = () => { if (unapplied()) return; openPieces(id, 'export', j); };
+    // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them.
+    // Send and Export say so in their dialog (a strip, "Apply & re-run first" / "Send anyway" - the doctor, 10/27/2026);
+    // the lesson link still insists, a lesson without the strokes would teach the wrong thing
+    const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Save as lesson.'); if (t) showTab(t); return true; } return false; };
+    $('#sendbtn').onclick = () => openPieces(id, 'send', j);
+    box.querySelector('#exportbtn').onclick = () => openPieces(id, 'export', j);
     const ll = box.querySelector('#learnlink');
     if (ll) ll.onclick = async ev => {
       ev.preventDefault(); if (unapplied()) return; ll.textContent = 'Saving…';
@@ -1659,7 +1720,10 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
       box.querySelector('#movecase').onclick = async () => { await fetch(`/api/jobs/${id}/close`, { method: 'POST' }); clearViewer('Moved to Past cases.'); };
     };
     // a discarded case leaves the screen altogether, so the next case can be picked without the old model in the way
-    $('#discardbtn').onclick = async () => { await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() }); clearViewer('Discarded — nothing went to the Trimlign. Pick a case from the list, or drop a scan.'); };
+    $('#discardbtn').onclick = async () => {
+      const parts = pendingWork();
+      if (!confirm(`Discard this case? Nothing goes to the Trimlign and it leaves the list${parts.length ? ` - and its ${parts.join(', and ')} go with it` : ''}.\n\nOK = discard.   Cancel = keep it.`)) return;
+      await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() }); clearViewer('Discarded — nothing went to the Trimlign. Pick a case from the list, or drop a scan.'); };
   }
 }
 
@@ -1798,7 +1862,7 @@ async function loadResult(id, j){
   // not applied yet survives a look at the other models of the case
   curReports = j.reports || []; curArch = r.arch || null;
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
-  adjust = pendingAdj[curArch] ? { ...pendingAdj[curArch] } : { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false;
+  adjust = pendingAdj[curArch] ? { ...pendingAdj[curArch] } : { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false; footOutline = r.foot_outline || null;
   markInfo = r.mark || null; markError = r.mark_error || null; markApplied = r.mark_param || null; markNow = curArch in pendingMark ? pendingMark[curArch] : undefined; curScanIdx = scanIdx;
   makeMarkCard();
   if (baseBuf) {
@@ -1830,6 +1894,33 @@ async function loadResult(id, j){
 // where the plate, with its locating holes, sits under this arch. Dragging the plate slides it, dragging
 // the blue ring turns it; the step buttons do the same in fixed amounts.
 let archGroup = null, baseGroup = null, baseMesh = null, baseMat = null, ringMesh = null, ringParts = [], pivot = [0, 0];
+// the model's foot at the automatic placement (from the report) and the base's locating holes: while the plate is
+// moved the box says live whether the holes stay clear (the doctor, 10/27/2026: "warn, or move the base, when the
+// locating holes are covered by the arch") - the same test the server makes when the model is finished
+let footOutline = null;
+const HOLES = [[7.47, -19.0], [-7.47, -19.0]], HOLE_R = 2.0, HOLE_CLEAR = 0.4;   // (the server wants 0.5 off the rim; the page's outline is simplified to 0.08 mm, so a hair less here keeps the two from disagreeing)
+function holeClearance(a){
+  if (!footOutline || footOutline.length < 4) return null;
+  const c = Math.cos(a.yaw_deg * Math.PI / 180), sn = Math.sin(a.yaw_deg * Math.PI / 180);
+  const P = footOutline.map(([x, y]) => { const u = x - pivot[0], v = y - pivot[1]; return [pivot[0] + u * c - v * sn + a.dx, pivot[1] + u * sn + v * c + a.dy]; });
+  return HOLES.map(([hx, hy]) => {
+    let inside = false, d = 1e9;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const [x1, y1] = P[i], [x2, y2] = P[j];
+      if ((y1 > hy) !== (y2 > hy) && hx < (x2 - x1) * (hy - y1) / (y2 - y1) + x1) inside = !inside;
+      const ex = x2 - x1, ey = y2 - y1, L = ex * ex + ey * ey || 1e-9, t = Math.max(0, Math.min(1, ((hx - x1) * ex + (hy - y1) * ey) / L));
+      d = Math.min(d, Math.hypot(hx - (x1 + t * ex), hy - (y1 + t * ey)));
+    }
+    return (inside ? -d : d) - HOLE_R;
+  });
+}
+function holeWords(a){
+  const cl = holeClearance(a); if (!cl) return '';
+  const bad = cl.map((c, i) => [c, i]).filter(([c]) => c < HOLE_CLEAR);
+  if (!bad.length) return `<span style="color:var(--teal, #0d9488)">Locating holes clear (${cl.map(c => c.toFixed(1)).join(' / ')} mm).</span>`;
+  const worst = Math.min(...bad.map(([c]) => c)), where = bad.map(([, i]) => HOLES[i][0] > 0 ? 'right' : 'left').join(' and ');
+  return `<span style="color:var(--err)">&#9888; The ${where} locating hole${bad.length > 1 ? 's' : ''} ${worst < -0.05 ? `sit${bad.length > 1 ? '' : 's'} under the model (${(-worst).toFixed(1)} mm past the rim)` : `${bad.length > 1 ? 'are' : 'is'} only ${Math.max(worst, 0).toFixed(1)} mm from the model (0.5 needed)`} - the pins will not seat. Slide the arch forward (&uarr;) ${Math.ceil((HOLE_CLEAR - worst) * 4) / 4} mm or so, then Apply.</span>`;
+}
 // the base handles (ring + grips, plate dragging) exist only while "Position on the base" is open - otherwise the
 // view is just the model, and a drag is always an orbit
 const handlesOn = () => tab === 'result' && panelOpen.place && !!baseGroup;
@@ -1998,6 +2089,7 @@ function updatePlacement(){
   $('#placestate').textContent = moved ? (dzMoved ? `Preview only — Apply rebuilds the ${curArch || ''} models at this height (~1 min).` : `Preview only — Apply moves the ${curArch || ''} models on the base (a few seconds).`)
     : (markMoved ? 'Apply places the mark (a few seconds).' : (auto ? 'Automatic placement.' : 'Applied.'));
   $('#placestate').style.color = pending ? 'var(--warn)' : 'var(--muted)';
+  const hw = holeWords(adjust); const hl = $('#holestate'); hl.style.display = hw ? 'block' : 'none'; hl.innerHTML = hw;
   $('#applyplace').disabled = !pending; const at = $('#applytext'); if (at) at.disabled = !pending;
   updateMarkState();
 }
@@ -2666,6 +2758,8 @@ const nameForm = () => { const fd = new FormData(); fd.append('patient_first', $
 // Clean-up: the scan back to before the first cut (the doctor, 10/19/2026: a mistaken cut could not be taken back)
 async function bringBackCut(){
   if (!currentJob) return;
+  const parts = pendingWork();
+  if (!confirm(`Bring back what was cut? The scan goes back to as it was before the first cut and its models are re-made${parts.length ? ` - the ${parts.join(', and ')} are dropped` : ''}.\n\nOK = bring it back.   Cancel = leave it.`)) return;
   const fd = new FormData(); fd.append('scan', String(scanIdx));
   const resp = await fetch(`/api/jobs/${currentJob}/uncut`, { method: 'POST', body: fd }); const r = await resp.json().catch(() => ({}));
   if (!resp.ok) { showErr('Could not bring it back: ' + (r.detail || resp.status)); return; }

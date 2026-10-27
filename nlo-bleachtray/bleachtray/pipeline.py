@@ -832,12 +832,40 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     T_place = np.eye(4)
     T_place[1, 3] = FACIAL_MARGIN_Y_AT_MIDLINE[arch] - facial_y
     T_place[2, 3] = -z_floor
+    # the base's two locating holes must stay clear of the model's foot: a narrow arch (a child's, a crowded one)
+    # reaches over them at Titan's placement and the printed model blocks the pins (the doctor, 10/27/2026: "warn, or
+    # move the base, when the locating holes are covered"). The automatic placement slides the arch forward, up to
+    # 6 mm, until both holes are 0.5 mm clear of the rim; when that is not enough the model carries a red warning
+    # (_finish_model checks the final foot, the manual placement included)
+    rep["hole_slide_mm"] = 0.0
+    if P["add_base"] and not MG:
+        try:
+            from .basebuild import slide_for_holes, hole_clearance
+            foot0 = horseshoe_outline(trimesh.transform_points(margin_f, T_place)[:, :2], P["facial_offset"], P["lingual_offset"])
+            dx, dy, ok = slide_for_holes(foot0)
+            if dy > 0 or abs(dx) > 0:
+                T_place[0, 3] += dx
+                T_place[1, 3] += dy
+                rep["hole_slide_mm"] = round(dy, 2)
+                rep["hole_nudge_mm"] = round(dx, 2)
+                how = (f"{dy:.2f} mm forward" if dy > 0 else "") + (" and " if dy > 0 and abs(dx) > 0 else "") + (f"{abs(dx):.2f} mm to the {'right' if dx > 0 else 'left'}" if abs(dx) > 0 else "")
+                log(f"[{name}] placement: the arch moved {how} so the base's locating holes stay clear of the model"
+                    + ("" if ok else f" - not enough: still only {min(hole_clearance(horseshoe_outline(trimesh.transform_points(margin_f, T_place)[:, :2], P['facial_offset'], P['lingual_offset']))):.1f} mm from a hole's rim"))
+        except Exception as ex:  # noqa
+            log(f"[{name}] locating-hole check skipped: {ex}")
     mesh_f.apply_transform(T_place)
     margin_f = trimesh.transform_points(margin_f, T_place)
     if gum_line_f is not None:
         gum_line_f = trimesh.transform_points(gum_line_f, T_place)
     if p1_cut is not None:
         p1_cut = trimesh.transform_points(p1_cut, T_place)
+    # the foot's outline at the automatic placement (before the manual one), for the page's live check of the
+    # holes while the base is dragged (it applies the move it previews to this outline)
+    try:
+        foot_auto = horseshoe_outline(margin_f[:, :2], P["facial_offset"], P["lingual_offset"]).simplify(0.08)   # (close enough that the page and the server agree to 0.1 mm)
+        rep["foot_outline"] = [[round(float(x), 2), round(float(y), 2)] for x, y in foot_auto.exterior.coords]
+    except Exception:
+        pass
     # manual correction of the placement on the base (from the app): rotate about the trimline
     # centroid, then shift. Zero by default; the app's Reset puts it back to the automatic placement.
     pivot = margin_f[:, :2].mean(0)
@@ -1351,11 +1379,23 @@ def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path,
     if P["add_base"]:
         model, how = add_base(body)
         rep["base"] = how
-        from .basebuild import base_sig, base_problem
+        from .basebuild import base_sig, base_problem, hole_clearance, hole_note
         rep["base_sig"] = base_sig(os.path.dirname(ASSET_DIR_BASE))      # which Trimlign base it has (Send re-makes a model whose base was replaced since)
         bp = base_problem(os.path.dirname(ASSET_DIR_BASE))
         if bp:
             rep.setdefault("warnings", []).append(bp)
+        # the foot over the locating holes, as the model stands now (the manual placement included): the result line,
+        # the Send / Export list and the page's Position box all say so
+        try:
+            clear = hole_clearance(outline)
+            rep["hole_clear_mm"] = clear
+            rep["warnings"] = [w for w in (rep.get("warnings") or []) if "locating hole" not in w or "Trimlign base" in w]
+            note = hole_note(clear)
+            if note:
+                rep["warnings"].append(note)
+                log(f"[{name}] {note}")
+        except Exception as ex:  # noqa
+            log(f"[{name}] locating-hole check skipped: {ex}")
         if P.get("engrave", True):
             from .engrave import engrave_model
             model, einfo = engrave_model(model, P, outline=outline, log=lambda m: log(f"[{name}] {m}"))

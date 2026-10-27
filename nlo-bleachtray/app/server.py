@@ -95,6 +95,31 @@ def _pick_scans(job, scans):
     return sorted(set(out))
 
 
+_NET_USE = {"when": 0.0, "map": {}}
+
+
+def _mapped_drives():
+    """Drive letter -> \\\\server\\share for this Windows user's mapped drives, from `net use` (cached a minute).
+    The fallback when WNetGetConnection has nothing - it does when the app was started under another
+    account or session than the one that mapped the drive."""
+    if os.name != "nt":
+        return {}
+    if time.time() - _NET_USE["when"] < 60:
+        return _NET_USE["map"]
+    out = {}
+    try:
+        import subprocess
+        txt = subprocess.run(["net", "use"], capture_output=True, text=True, timeout=10).stdout or ""
+        for ln in txt.splitlines():
+            m = re.search(r"\b([A-Za-z]):\s+(\\\\\S+)", ln)
+            if m:
+                out[m.group(1).upper()] = m.group(2).rstrip("\\")
+    except Exception:
+        pass
+    _NET_USE.update(when=time.time(), map=out)
+    return out
+
+
 def _to_unc(path):
     """A path on a mapped drive (O:\\clinical\\...) as the other PCs can reach it (\\\\server\\share\\clinical\\...).
     Returns the path unchanged when it is already UNC or the drive is a local disk."""
@@ -107,6 +132,9 @@ def _to_unc(path):
             return buf.value.rstrip("\\") + path[2:]
     except Exception:
         pass
+    share = _mapped_drives().get(path[0].upper())
+    if share:
+        return share + path[2:]
     return path
 
 
@@ -2318,6 +2346,36 @@ def open_preform(jid: str):
     return {"ok": ok, "message": msg}
 
 
+@app.get("/api/jobs/{jid}/printpaths")
+def print_paths(jid: str, scans: str = ""):
+    """The paths the case's print files will have (as the other PCs see them), without writing anything: the page
+    hands them to PreForm on its own PC the moment the button is clicked (the browser lets a page start a program
+    only right after a click - filing the models first took longer than that window, and nothing opened), then has
+    them written with /prints; the handler on that PC waits for the files to appear. `scans` as in /prints."""
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    first, last = job["params"].get("patient_first"), job["params"].get("patient_last")
+    if not (first and last):
+        raise HTTPException(400, "patient first + last name needed to file the models in the print folder")
+    only = _pick_scans(job, scans)
+    pieces = []
+    for k, sc in enumerate(job["scans"]):
+        if only and k not in only:
+            continue
+        m = ((sc.get("report") or {}).get("outputs") or {}).get("model")
+        if m and os.path.isfile(m):
+            pieces.append(dict(arch=sc.get("arch"), tag=_scan_tag(sc), stl=m))
+    if not pieces:
+        raise HTTPException(400, "no finished model to file")
+    try:
+        folder, files = write_print_folder(_print_root(), first, last, pieces, own=job.get("print_files") or [], dry=True)
+    except Exception as ex:  # noqa
+        raise HTTPException(400, f"models cannot be filed in the print folder: {ex}")
+    unc = [_to_unc(f) for f in files]
+    return {"files": unc, "folder": _to_unc(folder), "reachable": all(re.match(r"^\\\\", f) for f in unc)}
+
+
 @app.post("/api/jobs/{jid}/prints")
 def file_prints(jid: str, scans: str = Form("")):
     """File the case's models in the print folder (no PreForm here) and return their paths as the
@@ -2598,7 +2656,8 @@ def job_pieces(jid: str):
             code = sent_pieces[k]
         out.append(dict(scan=k, arch=sc.get("arch"), tag=tag, label=f"{(sc.get('arch') or 'arch').capitalize()} · {words.get(tag, tag)} ({tag})",
                         made=bool(m and os.path.isfile(m)), file=model_filename(first, last, sc.get("arch"), tag) if first and last else None,
-                        piece=code, warnings=len(rep_.get("warnings") or []), watertight=rep_.get("body_watertight")))
+                        piece=code, warnings=len(rep_.get("warnings") or []), watertight=rep_.get("body_watertight"),
+                        holes=next((w for w in (rep_.get("warnings") or []) if "locating hole" in w and "Trimlign base" not in w), None)))
     return {"pieces": out, "print_folder": _to_unc(job.get("print_folder") or "") or _to_unc(os.path.join(_print_root(), f"{last}, {first}")) if first and last else "",
             "patient": f"{first} {last}".strip(), "review": job.get("review")}
 
