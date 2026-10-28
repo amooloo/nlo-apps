@@ -199,9 +199,9 @@ const DEMO = {
     if (!p.bytes) p.bytes = await demoFace(p.face);
     return { pv: p.pv, bytes: p.bytes };
   },
-  async setPhoto(id, bytes, action) {
+  async setPhoto(id, bytes, action, at) {
     const pv = bytes ? 'dv' + uid8() : '';
-    await DEMO.mutateCase(id, d => { if (!bytes && !d.photo) return 'skip'; d.photo = pv; }, action || { a: 'photo', how: bytes ? 'add' : 'remove' });
+    await DEMO.mutateCase(id, d => { if (!bytes && !d.photo) return 'skip'; d.photo = pv; if (bytes) d.photoAt = Number(at) || Date.now(); else delete d.photoAt; }, action || { a: 'photo', how: bytes ? 'add' : 'remove' });
     if (bytes) DEMO.photos.set(id, { pv, bytes }); else DEMO.photos.delete(id);
     return pv;
   },
@@ -348,7 +348,7 @@ const DEMO = {
   async restoreVersion(id, data) { return DEMO.mutateCase(id, d => { Object.keys(d).forEach(k => { if (!['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'closedAt'].includes(k)) delete d[k]; }); Object.assign(d, JSON.parse(JSON.stringify(data))); }, { a: 'restore' }); },
   // (one brought back already — from here or a backup — isn't offered again, as in FB.deletedCases)
   async deletedCases() { const here = new Set(Array.from(DEMO.cases.values()).map(caseSig).filter(Boolean)); return DEMO.deleted.filter(x => !here.has(caseSig(x.data))).reverse(); },
-  async undelete(item) { DEMO.deleted = DEMO.deleted.filter(x => x !== item); const data = Object.assign({}, item.data); delete data.photo; return DEMO.createCases([{ data, action: { a: 'restore' } }]); },
+  async undelete(item) { DEMO.deleted = DEMO.deleted.filter(x => x !== item); const data = Object.assign({}, item.data); delete data.photo; delete data.photoAt; return DEMO.createCases([{ data, action: { a: 'restore' } }]); },
   versions: {}, deleted: [],
   async changePassword() { },
   get curV_() { return DEMO.curV; }

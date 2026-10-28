@@ -1,9 +1,11 @@
 /* =====================================================================
    Firebase backend (the NLO Cases project, Firestore). Nothing readable
    about a patient ever leaves the browser:
-     iprPts/<id>   a patient: sealed { chart, name, ini?, at, oh? }
+     iprPts/<id>   a patient: sealed { chart, name, ini?, at, oh?, photo?, photoAt? }
      iprVis/<id>   a visit:   sealed { date, assistant_initials, upper_ipr, … } (the same fields the IPR Tracker always kept)
      iprPtLog / iprVisLog   every save's history entry, holding the sealed copy it replaced (append-only)
+     photos/<id>   the patient's photo (27 Oct 2026), sealed — NLO Cases' patient-photo collection, at the patient record's id;
+                   the record's `photo` names its version, `photoAt` when it was taken into the records
    Plain fields: the key version, revision, who saved and when, a visit's patient record (p, a random id), and a patient's pc —
    the keyed hash of the chart # (NLO Cases' patient index, keyed off the office key) — so NLO Cases finds a patient's visits,
    and this page a patient's cases, without opening every record. firestore.rules (in nlo-cases-src) holds them to this.
@@ -168,7 +170,8 @@ const FB = {
   /* a patient as the app has always seen one: patient_id is the chart #, name the full name ('' until someone adds it), ini the
      initials an older record kept */
   ptRow(id, body, d) {
-    return { id, patient_id: String(body.chart || ''), name: cleanName(body.name), ini: String(body.ini || ''), created_at: body.at || '', rev: d.rev, by: d.sid || '', updatedAt: FB.tsMs(d.updatedAt) };
+    return { id, patient_id: String(body.chart || ''), name: cleanName(body.name), ini: String(body.ini || ''), created_at: body.at || '', rev: d.rev, by: d.sid || '', updatedAt: FB.tsMs(d.updatedAt),
+      photo: typeof body.photo === 'string' ? body.photo : '', photoAt: Number(body.photoAt) || 0 };
   },
   /* what a record's sealed copy is bound to: its own id — and a visit also to its patient's record (p), so a sealed visit can't be
      passed off as another patient's (the rules keep p from changing) */
@@ -213,9 +216,16 @@ const FB = {
   /* the names NLO Cases has for these chart #s: Map(iprNorm(chart) → [{ name, at }], newest first) — from the cases whose own
      chart # is the same one (letters and digits); a case removed as a duplicate doesn't count */
   async caseNames(charts, progress) {
+    const out = new Map();
+    (await FB.caseInfo(charts, progress)).forEach((list, a) => { const l = list.filter(c => c.name).map(c => ({ name: c.name, at: c.at })); if (l.length) out.set(a, l); });
+    return out;
+  },
+  /* NLO Cases' cases for these chart #s, newest first: Map(iprNorm(chart) → [{ id, name, at, open, photo, photoAt }]) — the name
+     the case has, and its patient photo's version id (photos/{case id}) with when it was taken (27 Oct 2026) */
+  async caseInfo(charts, progress) {
     const want = new Map(); // index key → iprNorm(chart)
     for (const ch of charts) { const a = iprNorm(ch); if (!a) continue; for (const f of FB.chartForms(ch)) want.set(await FB.idxHash('c:' + f), a); }
-    const keys = Array.from(want.keys()), docs = new Map(), out = new Map();
+    const keys = Array.from(want.keys()), docs = new Map(), out = new Map(), wanted = new Set(want.values());
     for (let i = 0; i < keys.length; i += 30) {
       const s = await FB.db.collection('cases').where('pc', 'in', keys.slice(i, i + 30)).get();
       s.docs.forEach(d => docs.set(d.id, d));
@@ -224,13 +234,19 @@ const FB = {
     for (const doc of docs.values()) {
       const x = doc.data(); let body; try { body = await FB.openBox(x, 'case:' + doc.id); } catch (e) { continue; }
       if (!body || body.dup) continue;
-      const a = iprNorm(body.chart), name = cleanName(body.patient);
-      if (!a || !name || !Array.from(want.values()).includes(a)) continue;
+      const a = iprNorm(body.chart); if (!a || !wanted.has(a)) continue;
       if (!out.has(a)) out.set(a, []);
-      out.get(a).push({ name, at: FB.tsMs(x.updatedAt) || 0 });
+      out.get(a).push({ id: doc.id, name: cleanName(body.patient), at: FB.tsMs(x.updatedAt) || 0, open: x.status !== 'done',
+        photo: typeof body.photo === 'string' ? body.photo : '', photoAt: Number(body.photoAt) || 0 });
     }
     out.forEach(list => list.sort((p, q) => q.at - p.at));
     return out;
+  },
+  /* the newest photo NLO Cases has for a chart #: { id (the case), pv, at } or null */
+  async casePhotoOf(chart) {
+    const list = (await FB.caseInfo([chart])).get(iprNorm(chart)) || [];
+    const c = list.filter(x => x.photo).sort((p, q) => (q.photoAt - p.photoAt) || (q.at - p.at))[0];
+    return c ? { id: c.id, pv: c.photo, at: c.photoAt || c.at } : null;
   },
   /* the one name NLO Cases has for a chart # ('' when it has none, or two different ones) */
   oneName(list) {
@@ -248,26 +264,29 @@ const FB = {
   },
   newId(kind) { return FB.db.collection(kind === 'pt' ? 'iprPts' : 'iprVis').doc().id; },
   /* a new patient or visit (with its first history entry) under `id`; a visit needs its patient (`p`) saved already, or in the
-     same batch (`with`: another record to create alongside, e.g. a new patient with its first visit) */
+     same batch (`with`: another record to create alongside, e.g. a new patient with its first visit). `photo` (bytes): a new
+     patient's picture, in the same batch under the version id its record names */
   async create(kind, id, body, opts, retried) {
     opts = opts || {};
     const b = FB.db.batch();
-    const add = async (k, rid, bd, p) => {
+    const add = async (k, rid, bd, p, photo) => {
+      if (k === 'pt' && photo) { bd = Object.assign({}, bd, { photo: uid8(), photoAt: Number(opts.photoAt) || Date.now() }); b.set(FB.db.doc('photos/' + rid), await FB.photoBox(rid, photo, bd.photo)); }
       const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], bd, FB.aad(k, rid, p));
       const doc = { v, iv: box.iv, ct: box.ct, rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts() };
       if (k === 'pt') { const pc = await FB.iprPc(bd.chart); if (pc) doc.pc = pc; } else doc.p = p;
       b.set(FB.db.doc((k === 'pt' ? 'iprPts/' : 'iprVis/') + rid), doc);
       await FB.logOps(b, k, rid, 1, null, opts.action || { a: 'create' });
+      return bd;
     };
-    if (opts.with) await add(opts.with.kind, opts.with.id, opts.with.body, opts.with.p);
-    await add(kind, id, body, opts.p);
+    if (opts.with) await add(opts.with.kind, opts.with.id, opts.with.body, opts.with.p, opts.with.photo);
+    body = await add(kind, id, body, opts.p, opts.photo);
     try { await FB.track(b.commit()); }
     catch (e) {
       // refused: the office key may have changed a moment ago (take the newest, try once more) — or this record exists already
       if (retried || !FB.isPerm(e) || !(await FB.refreshKeys())) throw e;
       return FB.create(kind, id, body, opts, true);
     }
-    return id;
+    return opts.photo ? body : id;
   },
   /* one person's saves to the same record run one after another, never racing each other */
   queued(k, fn) {
@@ -276,9 +295,9 @@ const FB = {
     return p;
   },
   /* fn(body, doc) edits the latest sealed copy in place (return false: nothing to save). Resolves to { body, rev, d } (or { body,
-     skipped }) */
-  mutate(kind, id, fn, action) { return FB.queued(kind + '/' + id, () => FB._mutate(kind, id, fn, action, 0)); },
-  async _mutate(kind, id, fn, action, tries) {
+     skipped }). ops(tx, body), if given, adds other writes that must land together with this save (the patient's photo) */
+  mutate(kind, id, fn, action, ops) { return FB.queued(kind + '/' + id, () => FB._mutate(kind, id, fn, action, 0, ops)); },
+  async _mutate(kind, id, fn, action, tries, ops) {
     const ref = FB.db.doc((kind === 'pt' ? 'iprPts/' : 'iprVis/') + id);
     let out = null;
     try {
@@ -291,16 +310,32 @@ const FB = {
         if (kind === 'pt') { const pc = await FB.iprPc(body.chart); upd.pc = pc || FB.del(); }
         tx.update(ref, upd);
         await FB.logOps(tx, kind, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, action || { a: 'save' });
+        if (ops) await ops(tx, body);
         out = { body, rev: d.rev + 1, d: Object.assign({}, d, { rev: d.rev + 1, sid: FB.me.staffId, updatedAt: Date.now() }) };
       }));
     } catch (e) {
       if (tries < 2 && FB.isPerm(e) && await FB.refreshKeys().catch(() => false)) {
         await new Promise(r => setTimeout(r, 150 + Math.random() * 350));
-        return FB._mutate(kind, id, fn, action, tries + 1);
+        return FB._mutate(kind, id, fn, action, tries + 1, ops);
       }
       throw e;
     }
     return out;
+  },
+
+  /* ---------- patient photos (27 Oct 2026, Amir: "the IPR tracker and case tracker should be fully sharing the same data … their
+     photo, exactly how we have it in case tracker"): NLO Cases' photos collection — a case's at photos/{case id}, this app's at
+     photos/{patient record id} — each sealed with the office key (as NLO Cases seals them: AAD 'photo:' + id), changed only
+     together with a save of its record. Either app reads both. ---------- */
+  async photoBox(id, bytes, pv) {
+    const v = FB.curV; const box = await Crypto.seal(FB.keys[v], bytes, 'photo:' + id);
+    return { v, iv: box.iv, ct: box.ct, pv, at: FB.ts(), by: FB.uid };
+  },
+  /* { pv, bytes, at } or null — a case's photo, or an IPR patient's */
+  async getPhoto(id) {
+    const s = await FB.db.doc('photos/' + id).get(); if (!s.exists) return null;
+    const x = s.data(); if (!FB.keys[x.v]) throw errCode('no-key', 'Missing key version ' + x.v);
+    return { pv: x.pv, bytes: await Crypto.open(FB.keys[x.v], x, 'photo:' + id), at: FB.tsMs(x.at) || 0 };
   },
 
   /* ---------- the move, and Dr. A's "Remove the old copy" (move.js) ---------- */
@@ -326,7 +361,10 @@ const FB = {
     const one = async w => {
       try {
         if (w.mode === 'create') await FB.create(w.kind, w.id, w.body, { p: w.p, action: w.action });
-        else await FB.mutate(w.kind, w.id, b => { Object.keys(b).forEach(k => delete b[k]); Object.assign(b, JSON.parse(JSON.stringify(w.body))); }, w.action);
+        else await FB.mutate(w.kind, w.id, b => {
+          const photo = w.kind === 'pt' && b.photo ? { photo: b.photo, photoAt: b.photoAt } : null; // (a photo added here stays: the old copy never had one)
+          Object.keys(b).forEach(k => delete b[k]); Object.assign(b, JSON.parse(JSON.stringify(w.body))); if (photo) Object.assign(b, photo);
+        }, w.action);
       } catch (e) { failed.push({ w, e }); }
       done++; if (progress) progress(done, writes.length);
     };
@@ -365,13 +403,24 @@ const IP = {
   },
   /* the patients with this chart # (letters and digits compared) */
   async byChart(chart) { const a = iprNorm(chart); if (!a) return []; return (await IP.patients()).filter(p => iprNorm(p.patient_id) === a); },
+  /* fields: { chart, name, ini?, photo? (bytes), photoAt? } */
   async createPatient(fields) {
-    const id = FB.newId('pt'), body = { chart: String(fields.chart || '').trim(), name: cleanName(fields.name), at: new Date().toISOString() };
+    const id = FB.newId('pt'); let body = { chart: String(fields.chart || '').trim(), name: cleanName(fields.name), at: new Date().toISOString() };
     if (fields.ini) body.ini = String(fields.ini);
-    await FB.create('pt', id, body);
+    const r = await FB.create('pt', id, body, fields.photo ? { photo: fields.photo, photoAt: fields.photoAt } : null);
+    if (fields.photo && r && r.photo) body = r;
     const row = FB.ptRow(id, body, { rev: 1, sid: FB.me.staffId, updatedAt: Date.now() });
     if (!IP.pts.has(id)) IP.pts.set(id, row);
     return row;
+  },
+  /* the patient's photo: set (bytes) or remove (null), together with a save of the record (its history says so). `at`: when the
+     picture was taken into the records (a picture brought over from NLO Cases keeps its own time). Resolves to the row. */
+  async setPhoto(id, bytes, how, at) {
+    const pv = bytes ? uid8() : '', when = bytes ? (Number(at) || Date.now()) : 0;
+    const r = await FB.mutate('pt', id, b => { if (!bytes && !b.photo) return false; if (bytes) { b.photo = pv; b.photoAt = when; } else { delete b.photo; delete b.photoAt; } return true; },
+      { a: 'photo', how: how || (bytes ? 'add' : 'remove') },
+      async tx => { const ref = FB.db.doc('photos/' + id); if (bytes) tx.set(ref, await FB.photoBox(id, bytes, pv)); else tx.delete(ref); });
+    const row = FB.ptRow(id, r.body, r.d); IP.pts.set(id, row); return row;
   },
   /* patch: { chart?, name? } */
   async savePatient(id, patch, action) {

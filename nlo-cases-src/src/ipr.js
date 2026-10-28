@@ -305,6 +305,7 @@ const IPR = {
 /* demo mode: a made-up visit so the link can be tried without the real database */
 const IPR_DEMO = {
   user() { return { email: 'demo' }; }, async connect() { }, async disconnect() { }, init() { return true; }, waitUser: async () => ({ email: 'demo' }),
+  async photosMany() { return new Map(); },
   async latest(chart) {
     if (!IPR.norm(chart)) return { status: 'not-found' };
     return Object.assign({ status: 'ok', initials: 'DM' }, iprNoteFromVisits([
@@ -340,7 +341,8 @@ const IPRS = {
   init() { return true; }, user() { return { sealed: true, email: '' }; }, waitUser: async () => ({ sealed: true }), async connect() { }, async disconnect() { },
   norm: IPR.norm,
   async open(id, d, aad) { const key = FB.keys && FB.keys[d.v]; if (!key) throw errCode('no-key'); return Crypto.openJSON(key, d, aad + id); },
-  /* the patients with these chart #s: Map(normalized chart # → [{ id, name, ini }]) */
+  /* the patients with these chart #s: Map(normalized chart # → [{ id, name, ini, photo, photoAt }]) — photo: the version id of
+     the picture the IPR Tracker keeps for the patient (photos/{id}, 27 Oct 2026), photoAt: when it was taken into the records */
   async patients(norms) {
     const want = new Map(); for (const n of norms) want.set(await FB.idxHash('c:' + n), n);
     const keys = Array.from(want.keys()), out = new Map();
@@ -350,9 +352,17 @@ const IPRS = {
         let b; try { b = await IPRS.open(doc.id, doc.data(), 'iprpt:'); } catch (e) { continue; }
         const n = IPR.norm(b.chart); if (!n || !norms.includes(n)) continue;
         if (!out.has(n)) out.set(n, []);
-        out.get(n).push({ id: doc.id, name: String(b.name || ''), ini: String(b.ini || '') });
+        out.get(n).push({ id: doc.id, name: String(b.name || ''), ini: String(b.ini || ''), photo: typeof b.photo === 'string' ? b.photo : '', photoAt: Number(b.photoAt) || 0 });
       }
     }
+    return out;
+  },
+  /* the IPR Tracker's photo of each of these patients, when it has one: Map(normalized chart # → { id, pv, at }) — the newest
+     among the records with that chart # */
+  async photosMany(charts) {
+    const want = Array.from(new Set((charts || []).map(IPR.norm).filter(Boolean))), out = new Map(); if (!want.length) return out;
+    const byN = await IPRS.patients(want);
+    for (const [n, pts] of byN) { const p = pts.filter(x => x.photo).sort((a, b) => b.photoAt - a.photoAt)[0]; if (p) out.set(n, { id: p.id, pv: p.photo, at: p.photoAt }); }
     return out;
   },
   async visits(pid) {
@@ -365,7 +375,8 @@ const IPRS = {
     if (!pts || !pts.length) return { status: 'not-found' };
     let visits = []; for (const p of pts) visits = visits.concat(await IPRS.visits(p.id));
     const who = pts[0].name || pts[0].ini || '';
-    return visits.length ? Object.assign({ status: 'ok', initials: who }, iprNoteFromVisits(visits)) : { status: 'no-visits', initials: who };
+    const ph = pts.filter(x => x.photo).sort((a, b) => b.photoAt - a.photoAt)[0], photo = ph ? { id: ph.id, pv: ph.photo, at: ph.photoAt } : null;
+    return visits.length ? Object.assign({ status: 'ok', initials: who, photo }, iprNoteFromVisits(visits)) : { status: 'no-visits', initials: who, photo };
   },
   async latest(chart) { const n = IPR.norm(chart); if (!n) return { status: 'not-found' }; return IPRS.answer((await IPRS.patients([n])).get(n)); },
   async latestMany(charts) {

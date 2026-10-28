@@ -482,6 +482,37 @@ await no('owner: no other IPR marker', setDoc(doc(db, 'iprMeta/other'), { at: se
 await no('owner: delete without a history entry', iprWrite(db, 'vis', 'v2', null, null, 'delete'));
 await ok('owner: deletes a visit (history keeps it)', iprWrite(db, 'vis', 'v2', null, iprHist('vis', 'owner', 'amir', 'v2', 2, IPR_PREV), 'delete'));
 
+console.log('\n# The IPR Tracker’s patient photos (27 Oct 2026): photos/{patient record id}, changed only with a save of the record');
+// (p1 is at rev 3 now, p2 at rev 1 — both with their history; the office key is version 2)
+const iprPhotoWrite = (db, uid, sid, id, rev, ph, mode) => iprWrite(db, 'pt', id, iprDoc('pt', uid, sid, rev, { pc: iprPC }), iprHist('pt', uid, sid, id, rev, IPR_PREV), null,
+  b => { if (mode === 'delete') b.delete(doc(db, 'photos/' + id)); else b.set(doc(db, 'photos/' + id), ph); });
+db = env.authenticatedContext('gwen').firestore();
+await no('staff: a photo on an IPR patient without saving the record', setDoc(doc(db, 'photos/p1'), PH('gwen')));
+await ok('staff: adds a photo together with a save of the IPR patient', iprPhotoWrite(db, 'gwen', 'gwen', 'p1', 4, PH('gwen')));
+await ok('staff: reads an IPR patient’s photo', getDoc(doc(db, 'photos/p1')));
+await ok('staff: changes it with a save of the record', iprPhotoWrite(db, 'gwen', 'gwen', 'p1', 5, PH('gwen', { pv: 'p2' })));
+await no('staff: cannot swap the picture quietly (no record save)', updateDoc(doc(db, 'photos/p1'), { ct: 'b3RoZXI=', at: serverTimestamp(), by: 'gwen' }));
+await no('staff: cannot delete it without saving the record', deleteDoc(doc(db, 'photos/p1')));
+await no('staff: a photo on an IPR patient can’t carry anything else', iprPhotoWrite(db, 'gwen', 'gwen', 'p1', 6, PH('gwen', { patient: 'Leak Example' })));
+await no('staff: …nor use an old key version', iprPhotoWrite(db, 'gwen', 'gwen', 'p1', 6, PH('gwen', { v: 1 })));
+await no('staff: …nor be signed as someone else', iprPhotoWrite(db, 'gwen', 'gwen', 'p1', 6, PH('owner')));
+await no('staff: a photo saved with the wrong patient’s record', iprWrite(db, 'pt', 'p2', iprDoc('pt', 'gwen', 'gwen', 2, { pc: iprPC }), iprHist('pt', 'gwen', 'gwen', 'p2', 2, IPR_PREV), null, b => b.set(doc(db, 'photos/p1'), PH('gwen', { pv: 'p3' }))));
+await no('staff: a photo for a record that doesn’t exist', setDoc(doc(db, 'photos/p-none'), PH('gwen')));
+await ok('staff: a new IPR patient and their photo go in together', (async () => { const b = writeBatch(db);
+  b.set(doc(db, 'iprPts/p8'), iprDoc('pt', 'gwen', 'gwen', 1, { pc: iprPC })); b.set(doc(db, 'iprPtLog/p8_1'), iprHist('pt', 'gwen', 'gwen', 'p8', 1, null)); b.set(doc(db, 'photos/p8'), PH('gwen'));
+  return b.commit(); })());
+await ok('staff: removes the photo with a save of the record', iprPhotoWrite(db, 'gwen', 'gwen', 'p1', 6, null, 'delete'));
+db = env.authenticatedContext('kay').firestore();
+await no('removed staff: cannot read an IPR patient’s photo', getDoc(doc(db, 'photos/p8')));
+await no('stranger: cannot read it', getDoc(doc(env.authenticatedContext('stranger').firestore(), 'photos/p8')));
+db = env.authenticatedContext('owner').firestore();
+await ok('owner: changes the office key', updateDoc(doc(db, 'meta/keys'), { current: 3 }));
+await ok('owner: re-seals an IPR patient’s photo unchanged under the new key', updateDoc(doc(db, 'photos/p8'), { v: 3, iv: 'bmV3', ct: 'bmV3', at: serverTimestamp(), by: 'owner' }));
+await no('owner: …but not as a new picture without a record save', updateDoc(doc(db, 'photos/p8'), { v: 3, iv: 'bmV3', ct: 'bmV3', pv: 'p9', at: serverTimestamp(), by: 'owner' }));
+await ok('owner: a deleted IPR patient takes its photo with it', (async () => { const b = writeBatch(db);
+  b.delete(doc(db, 'iprPts/p8')); b.set(doc(db, 'iprPtLog/p8_2'), iprHist('pt', 'owner', 'amir', 'p8', 2, IPR_PREV)); b.delete(doc(db, 'photos/p8'));
+  return b.commit(); })());
+
 console.log('\n# First-time office setup');
 await env.clearFirestore();
 const OWNER = { email: 'dr.test@example.com', email_verified: true };

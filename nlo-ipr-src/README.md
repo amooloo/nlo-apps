@@ -17,6 +17,17 @@ confusing."*).
   has a line for it.
 - **NLO Cases reads the visits directly** once the records have moved (its IPR section, *Get from IPR Tracker*, *Sync all
   patients*) — no Google sign-in. NLO Cases' IPR button opens `IPR_Tracker.html#chart=<chart #>` (the chart # only).
+- **Patient photos, the same as NLO Cases' (27 Oct 2026**, Amir: *"the IPR tracker and case tracker should be fully sharing
+  the same data … enter patient's full name and also their photo, kind of like exactly how we have it in case tracker"*).
+  A patient shows the newest picture the office has of them: the one on this record, or the one on their NLO Cases case
+  (found by the chart #), whichever was taken into the records last. The picture next to the name in the patient strip is a
+  button: take a photo (a camera on an iPad), choose a file, paste one (Ctrl+V anywhere) or drop one on it, then fit the face
+  in the circle — NLO Cases' editor. New patient has the same slot (the picture goes in with the record at the first Save;
+  it rides in the sealed draft meanwhile), and shows NLO Cases' picture for the chart # typed. Search, Recent patients and
+  Patient records show the pictures too. The eye in the header blurs them and shortens names to "Jane D." on that computer
+  (screens patients can see), as NLO Cases' eye does. A picture taken here goes on this record with a save of it (its history
+  says so); NLO Cases copies it onto the patient's open cases the next time it reads them (a case opened, Sync all, or its
+  sync that runs by itself), and a newer picture taken in NLO Cases shows here.
 
 ## Files
 
@@ -26,6 +37,8 @@ confusing."*).
   NLO Cases' patient index, the names NLO Cases has (`caseNames`), the move's writes, and the sealed draft. `IP` is the opened
   records in memory (every patient; a patient's visits when opened).
 - `src/lock.js` — the page around the app: sign-in / lock screens, the cards before the app opens, the idle lock, the draft.
+- `src/photos.js` — the patient photos: which picture a patient shows (`iphPick`: the record's own or NLO Cases', the newest),
+  the pictures in memory, NLO Cases' editor (`phEditor`), the eye, and the React pieces (`PtAvatar`, `PtName`, `PhHideBtn`).
 - `src/move.js` — the one-time move (Dr. A) and *Remove the old copy*.
 - `src/app.js` — the charting app (React, from 3.x), with its old `sbGet / sbPost / sbPatch` calls now over the sealed records.
 - `src/style.css`, `src/template.html` — the page (strict CSP: the one inline script by its SHA-256; print windows get their
@@ -33,13 +46,15 @@ confusing."*).
 - `old/IPR_Tracker_v3.html` — IPR Tracker 3 exactly as it was published; the build makes `IPR_Tracker_old.html` from it.
 - `build.py` → `dist/IPR_Tracker.html` (published as `../IPR_Tracker.html`, the same address as before),
   `dist/IPR_Tracker_old.html` (published as `../IPR_Tracker_old.html`), `dist/firestore.rules`.
-- `test/e2e.py` — end to end on the emulators (see below).
+- `test/e2e.py` — end to end on the emulators (see below; the photos section runs the real editor on made-up faces drawn by
+  NLO Cases' demo, and NLO Cases' copy of a picture onto the patient's case).
 
 ## Records
 
 | collection | what | plain fields |
 |---|---|---|
-| `iprPts/<id>` | a patient: sealed `{ chart, name, ini?, at, oh? }` (AAD `iprpt:<id>`) | `v rev by sid createdAt updatedAt pc` |
+| `iprPts/<id>` | a patient: sealed `{ chart, name, ini?, at, oh?, photo?, photoAt? }` (AAD `iprpt:<id>`; `photo` = the picture's version id, `photoAt` = when it was taken into the records, ms) | `v rev by sid createdAt updatedAt pc` |
+| `photos/<id>` | the patient's picture, at the record's id — NLO Cases' patient-photo collection (a case's sits at the case's id): sealed bytes (AAD `photo:<id>`), a 160 px JPEG | `v iv ct pv at by` |
 | `iprVis/<id>` | a visit: sealed, the fields 3.x kept (`date, assistant_initials, gauge_verified, upper_ipr, lower_ipr, upper_spaces, lower_spaces, upper_bt, lower_bt, notes, prescribed_upper, prescribed_lower, missing_teeth, created_at`, `oh?`) (AAD `iprvis:<id>:<p>` — bound to its patient's record too, so a sealed visit copied onto another patient doesn't open) | `p v rev by sid createdAt updatedAt` |
 | `iprPtLog/<id>_<rev>`, `iprVisLog/<id>_<rev>` | every save's history entry: sealed action, and `prev` — the sealed copy it replaced | append-only |
 | `iprMeta/moved`, `iprMeta/oldRemoved` | the move, and the old copy removed (Dr. A, once each) | counts only |
@@ -47,6 +62,11 @@ confusing."*).
 `pc` = NLO Cases' patient index for the chart # with letters and digits only: `HMAC(HKDF(office key v-first, 'patient-index'),
 'c:' + chart)` → 22 characters, so NLO Cases finds a patient's visits however either app wrote the dashes. `p` is the visit's
 patient record id (random). `oh` is a fingerprint of the 3.x record a moved one came from (for *Remove the old copy*).
+A picture changes only together with a save of its record (the rules: `photoRecordSaved` — a case saved in the same write,
+else an IPR patient record), so the record's history shows who added or changed it; a move run again keeps a picture added
+since. NLO Cases' key change re-seals these pictures with the cases' (and removes one whose record is gone). `photoAt` lives in
+the sealed body on both sides (NLO Cases keeps it on the case), so the two apps agree on which of a patient's pictures is the
+newest whatever either one re-seals; a picture copied across keeps its own time.
 The rules are in `../nlo-cases-src/firestore.rules` (the IPR block; tests in `../nlo-cases-src/test/rules.test.mjs`); the
 marker `meta/rules_ipr_1` tells the page whether they're live.
 

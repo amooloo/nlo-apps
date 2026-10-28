@@ -12,7 +12,7 @@ carry except the pinned Firebase SDK."""
 import base64, hashlib, json, os, pathlib, shutil
 root = pathlib.Path(__file__).parent
 src = root / 'src'
-FILES = ['react.js', 'core.js', 'backend.js', 'lock.js', 'move.js', 'app.js']
+FILES = ['react.js', 'core.js', 'backend.js', 'lock.js', 'move.js', 'photos.js', 'app.js']
 t = (src / 'template.html').read_text()
 js = '\n'.join((src / f).read_text() for f in FILES)
 js += "\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();\n"
@@ -20,7 +20,7 @@ js += "\nif (document.readyState === 'loading') document.addEventListener('DOMCo
 # the shared rules (Dr. A's "publish the rules" card)
 rules = (root.parent / 'nlo-cases-src' / 'firestore.rules').read_text()
 assert rules.count('__OWNER_EMAIL__') == 1
-for need in ['match /iprPts/{id}', 'match /iprVis/{id}', 'match /iprPtLog/{lid}', 'match /iprVisLog/{lid}', 'match /iprMeta/{id}', 'match /meta/rules_ipr_1',
+for need in ['match /iprPts/{id}', 'match /iprVis/{id}', 'match /iprPtLog/{lid}', 'match /iprVisLog/{lid}', 'match /iprMeta/{id}', 'match /meta/rules_ipr_1', 'function iprPtSavedNow(id)',
              'match /invItems/{id}', 'match /tcPunch/{id}', 'match /toReq/{id}', 'match /cases/{id}']:
     assert need in rules, need
 assert js.count('const IPR_RULES = "";') == 1

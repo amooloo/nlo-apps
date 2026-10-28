@@ -67,7 +67,7 @@ async function sbGet(path) {
 }
 // (a visit is saved by IP.putVisit, under the id it got when it started — see the App's save)
 async function sbPost(table, body) {
-  if (table === "patients") return [await IP.createPatient({ chart: body.patient_id, name: body.name })];
+  if (table === "patients") return [await IP.createPatient({ chart: body.patient_id, name: body.name, photo: body.photo || null, photoAt: body.photoAt || 0 })];
   throw new Error("Unknown table: " + table);
 }
 // The patient on file for a chart # who is the patient typed (Amir's review, 23 Oct 2026: a mistyped chart # must never put one
@@ -83,6 +83,8 @@ function localToday() { return iprDayOf(Date.now()); }
 function iprDayOf(ms) { if (!ms) return ""; const d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 // What a patient is called on screen: the full name, else the initials an older record kept
 function ptLabel(p) { return (p && (p.name || p.ini)) || ""; }
+// …as an element that follows the eye (photos.js: "Jane D." while photos are hidden); `fallback` when there's no name at all
+function ptNameEl(p, fallback) { return p && p.name ? React.createElement(PtName, { name: p.name }) : ((p && p.ini) || fallback || ""); }
 function ptSort(a, b) { return ptLabel(a).localeCompare(ptLabel(b)) || String(a.patient_id).localeCompare(String(b.patient_id)); }
 // Find patients: by chart # (dashes and spaces don't matter, part of one is fine), by name (any part of it, in any order —
 // "doe", "jan", "jane d"), or by initials ("JD"). Best matches first.
@@ -475,6 +477,7 @@ const ICON_PATHS = {
   file: ["M14 3H6v18h12V7z", "M14 3v4h4"],
   reset: ["M3 12a9 9 0 1 0 3-6.7", "M3 4v5h5"],
   trash: ["M4 7h16", "M9 7V4h6v3", "M6 7l1 13h10l1-13"],
+  camera: ["M4 8h3.2l1.6-2.5h6.4L16.8 8H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z", "M12 16.9a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4z"],
   alert: ["M12 9v4M12 17h.01", "M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"]
 };
 function Icon({ name, size }) {
@@ -1297,7 +1300,10 @@ function App() {
   };
 
   // Patient record state
-  const [dbPatient, setDbPatient] = React.useState(null); // { id, name, ini, patient_id }
+  const [dbPatient, setDbPatient] = React.useState(null); // { id, name, ini, patient_id, photo, photoAt }
+  // a new patient's photo (chosen before the record exists): saved with the record at the first Save; in the draft meanwhile
+  const [newPhoto, setNewPhotoState] = React.useState(() => { const d = load("ipr_photo", null); try { return d && d.b64 ? { bytes: unb64(d.b64), url: "data:image/jpeg;base64," + d.b64, at: Number(d.at) || 0 } : null; } catch (e) { return null; } });
+  const setNewPhoto = v => setNewPhotoState(v && v.bytes ? { bytes: v.bytes, url: v.url || phUrl(v.bytes), at: Number(v.at) || Date.now() } : null);
   const [visitHistory, setVisitHistory] = React.useState([]);
   // The visit on screen has its id from the moment it starts (a new one's is chosen here, before it's ever saved), so every save
   // of it — the autosave, Save, the lock's last save, the first save after signing in again — goes to that one visit, and never
@@ -1327,7 +1333,7 @@ function App() {
   }, []);
   // another computer changed this patient (their name, say): the record on screen follows
   React.useEffect(() => {
-    const f = () => setDbPatient(cur => { if (!cur) return cur; const n = IP.patient(cur.id); return n && (n.name !== cur.name || n.patient_id !== cur.patient_id) ? n : cur; });
+    const f = () => setDbPatient(cur => { if (!cur) return cur; const n = IP.patient(cur.id); return n && (n.name !== cur.name || n.patient_id !== cur.patient_id || n.photo !== cur.photo || n.photoAt !== cur.photoAt) ? n : cur; });
     IP_SUBS.add(f); return () => { IP_SUBS.delete(f); };
   }, []);
   React.useEffect(() => {
@@ -1468,7 +1474,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   // What's on screen right now, for a save that runs later than the render that asked for it (the autosave's timer, Save while a
   // save is still on its way): each save takes one of these, so the visit it saves to and what it saves always belong together.
   const nowRef = React.useRef(null);
-  nowRef.current = { patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower, dbPatient, currentVisitId, readOnly, flowStep };
+  nowRef.current = { patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower, dbPatient, currentVisitId, readOnly, flowStep, newPhoto };
   const autosave = React.useRef(null);                     // { timer, snap }: the autosave waiting, and what it's to save
   const saving = React.useRef(0);                          // saves on their way
   const lastEdit = React.useRef(load("ipr_at", 0) || Date.now());
@@ -1481,14 +1487,15 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     ipr_patient: patient, ipr_upper: upper, ipr_lower: lower, ipr_notes: notes, ipr_gauge: gaugeVerified,
     ipr_upper_spaces: upperSpaces, ipr_lower_spaces: lowerSpaces, ipr_upper_bt: upperBT, ipr_lower_bt: lowerBT, ipr_missing: missingTeeth,
     ipr_presc_upper: prescribedUpper, ipr_presc_lower: prescribedLower, ipr_db_patient: dbPatient ? dbPatient.id : null,
-    ipr_visit_id: currentVisitId, ipr_read_only: readOnly, ipr_tab: activeTab, ipr_at: lastEdit.current, ipr_dirty: !!autosave.current || saving.current > 0
+    ipr_visit_id: currentVisitId, ipr_read_only: readOnly, ipr_tab: activeTab, ipr_at: lastEdit.current, ipr_dirty: !!autosave.current || saving.current > 0,
+    ipr_photo: newPhoto && !dbPatient ? { b64: b64(newPhoto.bytes), at: newPhoto.at } : null
   });
   React.useEffect(() => {
     const saveTimer = setTimeout(() => {
       draftSave(draftObj()).then(ok => { if (ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); } });
     }, 500);
     return () => clearTimeout(saveTimer);
-  }, [patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower, dbPatient, currentVisitId, readOnly, activeTab]);
+  }, [patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, prescribedUpper, prescribedLower, dbPatient, currentVisitId, readOnly, activeTab, newPhoto]);
 
   // Saves run one after another — a second waits for the first — each with what was on screen when it was asked for (a snapshot
   // from nowRef): one that runs late saves its own visit's changes to that visit, never to the one on screen by then.
@@ -1533,10 +1540,12 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         // name typed if it had none); one on file under another name stops the save: a mistyped chart # never puts this visit on
         // someone else's record
         const existing = await IP.byChart(patient.patientId), same = iprSamePatient(existing, patient.name);
+        const photo = snap.newPhoto; // (a picture chosen before the record existed)
         if (same.length) {
           let ex = same[0];
           if (!ex.name && cleanName(patient.name)) { try { ex = await IP.savePatient(ex.id, { name: patient.name }, { a: "name" }); } catch (e) { } }
-          if (onScreen()) setDbPatient(ex);
+          if (photo && photo.bytes) { try { ex = await IP.setPhoto(ex.id, photo.bytes, ex.photo ? "change" : "add", photo.at); iphPut(ex.id, ex.photo, photo.bytes, photo.at); } catch (e) { } }
+          if (onScreen()) { setDbPatient(ex); if (photo) setNewPhoto(null); }
           pushRecentPatient(ex);
           patientId = ex.id;
         } else if (existing.length) {
@@ -1546,10 +1555,12 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         } else {
           const created = await sbPost("patients", {
             name: cleanName(patient.name),
-            patient_id: patient.patientId.trim()
+            patient_id: patient.patientId.trim(),
+            photo: photo && photo.bytes ? photo.bytes : null, photoAt: photo ? photo.at : 0
           });
           const newPat = created[0];
-          if (onScreen()) setDbPatient(newPat);
+          if (photo && photo.bytes && newPat.photo) iphPut(newPat.id, newPat.photo, photo.bytes, newPat.photoAt);
+          if (onScreen()) { setDbPatient(newPat); if (photo) setNewPhoto(null); }
           pushRecentPatient(newPat);
           patientId = newPat.id;
         }
@@ -1736,7 +1747,6 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
 
   // ── view helpers for the redesigned screen (plain functions that return elements) ──
   const initialsOf = s => ((s || "").toString().trim().slice(0, 3).toUpperCase()) || "•";
-  const avatarOf = p => nameInitials(p.name) || initialsOf(p.initials) ;
   const saveLabel = { idle: "Save to patient record", saving: "Saving…", saved: "Saved", error: "Save failed" }[syncStatus] || "Save to patient record";
   const saveTone = { idle: "primary", saving: "primary", saved: "ok", error: "danger" }[syncStatus] || "primary";
   const stat = (label, v, cls) => el("div", { key: label, className: cn("ip-stat", cls) },
@@ -1773,6 +1783,29 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     }, 150);
   };
 
+  // The patient's photo (photos.js): the picture on this record, or NLO Cases' — the editor takes a new one, which goes on this
+  // record (saved at once for a patient on file, with the first Save for a new one). The eye's note says where the one shown is from.
+  const openPhotoEditor = file => {
+    const now = nowRef.current, row = now.dbPatient, pend = !row && now.newPhoto;
+    if (!row && !(now.patient.patientId || "").trim()) return;
+    const pick = pend ? { url: pend.url, src: "new" } : iphPick(row || { id: "", patient_id: now.patient.patientId, photo: "", photoAt: 0 });
+    phEditor({
+      name: row ? (ptLabel(row) || row.patient_id) : (cleanName(now.patient.name) || now.patient.patientId), current: pick.url || "", file,
+      note: pick.src === "case" ? "From NLO Cases (the patient’s case)" : pick.src === "own" ? "Saved here — NLO Cases shows it too" : pick.src === "new" ? "Chosen here — saved with the first Save" : "",
+      onSave: async bytes => {
+        const at = Date.now();
+        if (row) { const r = await IP.setPhoto(row.id, bytes, pick.src === "own" ? "change" : "add", at); iphPut(row.id, r.photo, bytes, at); if (nowRef.current.dbPatient && nowRef.current.dbPatient.id === row.id) setDbPatient(r); }
+        else setNewPhoto({ bytes, at });
+      },
+      onRemove: pend || pick.src === "own" ? async () => {
+        if (row && pick.src === "own") { const r = await IP.setPhoto(row.id, null, "remove"); if (nowRef.current.dbPatient && nowRef.current.dbPatient.id === row.id) setDbPatient(r); }
+        setNewPhoto(null);
+      } : null
+    });
+  };
+  React.useEffect(() => { APP_HOOKS.paste = f => { const now = nowRef.current; if (!now || now.flowStep !== null || !(now.dbPatient || (now.patient.patientId || "").trim())) return false; openPhotoEditor(f); return true; }; return () => { APP_HOOKS.paste = null; }; }, []);
+  const onPhotoDrop = e => { e.preventDefault(); e.currentTarget.classList.remove("over"); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) openPhotoEditor(f); };
+
   // Wizard Flow Overlay Component
   // WizardImpl is rebuilt on every App render so it always sees fresh state; it is *called* from a
   // stable wrapper (see the end of this block), so its own state survives those re-renders. Previously
@@ -1789,6 +1822,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     const tempNameRef = React.useRef(''); tempNameRef.current = tempName;
     const nameAuto = React.useRef('');                 // the name put in from NLO Cases (a new chart # replaces it; a typed one stays)
     const [chartInfo, setChartInfo] = React.useState(null); // for the chart # typed: { name NLO Cases has, IPR records with it }
+    const [tempPhoto, setTempPhoto] = React.useState(null);  // New patient: the picture chosen here ({ bytes, url, at }); else NLO Cases' shows
+    React.useSyncExternalStore(iphSubscribe, iphVersion);    // (the pictures arriving redraw the lists)
     const [tempDate, setTempDate] = React.useState(patient.date);
     const [tempAssistantInitials, setTempAssistantInitials] = React.useState('');
     const [selectedPatient, setSelectedPatient] = React.useState(null);
@@ -1907,7 +1942,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         date: localToday(),
         assistantInitials: iprDefaultAssistant()
       });
-      setDbPatient(selectedPatient);
+      setDbPatient(selectedPatient); setNewPhoto(null);
       setVisitHistory(visitHistoryForSelected);   // earlier visits feed the "earlier visits" tags and cumulative totals
       setCurrentVisitId(null);
       setUpper(initContacts(UPPER));
@@ -1940,7 +1975,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         date: v.date || v.visit_date || '',
         assistantInitials: v.assistant_initials || ''
       });
-      setDbPatient(selectedPatient);
+      setDbPatient(selectedPatient); setNewPhoto(null);
       setVisitHistory(visitHistoryForSelected);
       setCurrentVisitId(v.id);
       setUpper(canonContacts(UPPER, jp(v.upper_ipr, null), ""));
@@ -1958,6 +1993,13 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setFlowStep(null);
     };
 
+    const npPhotoEdit = file => {
+      const casePick = iphPick({ id: '', patient_id: tempPatientId, photo: '', photoAt: 0 });
+      phEditor({ name: cleanName(tempName) || tempPatientId.trim(), current: tempPhoto ? tempPhoto.url : casePick.url || '', file,
+        note: tempPhoto ? 'Chosen here — saved with the first Save' : casePick.url ? 'From NLO Cases (the patient’s case)' : '',
+        onSave: async bytes => setTempPhoto({ bytes, url: phUrl(bytes), at: Date.now() }),
+        onRemove: tempPhoto ? async () => setTempPhoto(null) : null });
+    };
     const createNewPatient = async () => {
       if (!tempPatientId.trim() || !cleanName(tempName)) {
         setWizMsg('Enter the chart # and the patient’s full name.');
@@ -1975,6 +2017,9 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         }
         let p = same[0];
         if (!p.name) { try { p = await IP.savePatient(p.id, { name: tempName }, { a: 'name' }); } catch (e) { } }
+        // (a picture chosen for them goes on their record now)
+        if (tempPhoto) { try { p = await IP.setPhoto(p.id, tempPhoto.bytes, p.photo ? 'change' : 'add', tempPhoto.at); iphPut(p.id, p.photo, tempPhoto.bytes, tempPhoto.at); } catch (e) { setWizMsg('The photo couldn’t be saved: ' + errText(e)); } }
+        setTempPhoto(null);
         go('search'); selectPatientForVisit(p);
         return;
       }
@@ -1988,6 +2033,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       // a new patient: nothing of the one on screen before stays behind (IPR Tracker 3 kept that patient's record here, so a
       // visit charted next could be saved to them)
       setDbPatient(null);
+      setNewPhoto(tempPhoto); setTempPhoto(null);
       setVisitHistory([]);
       setCurrentVisitId(null);
       setUpper(initContacts(UPPER));
@@ -2039,7 +2085,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         recents.length > 0 && el("div", { className: "ip-recents" },
           el("div", { className: "lab" }, "Recent patients"),
           el("div", { className: "ip-recent-grid" }, recents.map(rp =>
-            el("button", { key: rp.id, type: "button", className: "ip-recent", disabled: opening, onClick: () => openRecent(rp) }, ptLabel(rp) || rp.patient_id, ptLabel(rp) && el("span", null, rp.patient_id))))),
+            el("button", { key: rp.id, type: "button", className: "ip-recent", disabled: opening, onClick: () => openRecent(rp) }, el(PtAvatar, { p: rp, size: 28 }), el("span", { className: "ip-rtxt" }, ptNameEl(rp, rp.patient_id), ptLabel(rp) && el("span", null, rp.patient_id)))))),
         el("div", { className: "ip-opts" },
           el("button", { type: "button", className: "ip-opt", onClick: () => go('search') },
             el("span", { className: "ico" }, el(Icon, { name: "search", size: 22 })),
@@ -2063,7 +2109,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       if (selectedPatient && !selectedVisit) {
         return shell("",
           el("h2", { className: "ip-dlg-h" }, "Select visit"),
-          el("p", { className: "ip-dlg-s" }, el("b", { style: { color: "var(--ink)" } }, ptLabel(selectedPatient) || "Patient"), "  ·  Chart # ", selectedPatient.patient_id),
+          el("div", { className: "ip-who-hd" }, el(PtAvatar, { p: selectedPatient, size: 44, force: true }),
+            el("p", { className: "ip-dlg-s", style: { margin: 0 } }, el("b", { style: { color: "var(--ink)" } }, ptNameEl(selectedPatient, "Patient")), "  ·  Chart # ", selectedPatient.patient_id)),
           visitHistoryForSelected.length > 0 && el("div", { className: "ip-sumgrid" },
             [["Total visits", String(visitHistoryForSelected.length)], ["Cumulative upper", cumUpperTotal.toFixed(1) + " mm"], ["Cumulative lower", cumLowerTotal.toFixed(1) + " mm"], ["Combined total", cumGrandTotal.toFixed(1) + " mm"]].map(([l, v]) =>
               el("div", { key: l }, el("div", { className: "lab" }, l), el("div", { className: "val" }, v)))),
@@ -2085,16 +2132,24 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         el("button", { type: "button", className: "ip-btn quiet sm", onClick: listAllPatients, disabled: isSearching2 }, "List all patients"),
         noteLine(),
         searchRes.length > 0 && el("div", { className: "ip-results" }, searchRes.map(p =>
-          el("button", { key: p.id, type: "button", className: "ip-result", onClick: () => selectPatientForVisit(p) }, el("b", null, ptLabel(p) || p.patient_id), el("span", null, (ptLabel(p) ? "Chart # " + p.patient_id : "") + (!p.name ? (ptLabel(p) ? " · " : "") + "no full name yet" : ""))))),
+          el("button", { key: p.id, type: "button", className: "ip-result", onClick: () => selectPatientForVisit(p) }, el(PtAvatar, { p, size: 32 }), el("span", { className: "ip-rtxt" }, el("b", null, ptNameEl(p, p.patient_id)), el("span", null, (ptLabel(p) ? "Chart # " + p.patient_id : "") + (!p.name ? (ptLabel(p) ? " · " : "") + "no full name yet" : "")))))),
         searched && !isSearching2 && searchRes.length === 0 && !wizMsg && el("p", { className: "ip-empty" }, "No patients found."),
         el("div", { className: "ip-dlg-foot" }, backBtn(() => go('choose')), closeBtn));
     }
 
     if (flowStep === 'newPatient') {
       const submitOnEnter = e => { if (e.key === 'Enter') createNewPatient(); };
+      const casePick = iphPick({ id: '', patient_id: tempPatientId, photo: '', photoAt: 0 }); // NLO Cases' picture for the chart # typed
+      const slotLabel = tempPhoto ? 'Change photo' : casePick.url ? 'From NLO Cases' : 'Add photo';
       return shell("",
         el("h2", { className: "ip-dlg-h" }, "New patient"),
-        el("p", { className: "ip-dlg-s" }, "Add the chart # and the patient’s full name."),
+        el("p", { className: "ip-dlg-s" }, "Add the chart #, the patient’s full name and a photo."),
+        el("div", { className: "ip-np-row" },
+          el("button", { type: "button", className: cn("phSlot", (tempPhoto || casePick.url) && "set"), id: "ip-np-photo", "aria-label": "Patient photo", title: tempPhoto ? "Change or remove the photo" : "Add a photo of the patient (take, choose, paste or drop one)",
+              onClick: () => npPhotoEdit(), onDragOver: e => { e.preventDefault(); e.currentTarget.classList.add("over"); }, onDragLeave: e => e.currentTarget.classList.remove("over"),
+              onDrop: e => { e.preventDefault(); e.currentTarget.classList.remove("over"); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) npPhotoEdit(f); } },
+            el(PtAvatar, { p: { id: '', patient_id: tempPatientId, photo: '', photoAt: 0 }, pending: tempPhoto, size: 64 }),
+            el("span", { className: "phSlotL" }, el(Icon, { name: "camera", size: 13 }), el("span", null, slotLabel))),
         el("div", { className: "ip-form" },
           el("div", null,
             el("label", { className: "ip-label", htmlFor: "ip-np-id" }, "Chart #"),
@@ -2102,9 +2157,9 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
           el("div", null,
             el("label", { className: "ip-label", htmlFor: "ip-np-name" }, "Full name"),
             el("input", { id: "ip-np-name", type: "text", className: "ip-input", autoComplete: "off", spellCheck: false, value: tempName, onChange: e => setTempName(e.target.value), onKeyDown: submitOnEnter, placeholder: "First and last name" }),
-            chartInfo && chartInfo.name && cleanName(tempName) === chartInfo.name && el("div", { className: "ip-hint", style: { marginTop: 6 } }, "From NLO Cases (chart # " + chartInfo.chart + ")"))),
+            chartInfo && chartInfo.name && cleanName(tempName) === chartInfo.name && el("div", { className: "ip-hint", style: { marginTop: 6 } }, "From NLO Cases (chart # " + chartInfo.chart + ")")))),
         chartInfo && chartInfo.existing.length > 0 && el("div", { className: "ip-exists", role: "status" },
-          el("span", null, "Chart # ", el("b", null, chartInfo.chart), " is on file already" + (ptLabel(chartInfo.existing[0]) ? ": " : "."), ptLabel(chartInfo.existing[0]) && el("b", null, ptLabel(chartInfo.existing[0]))),
+          el("span", { style: { display: "inline-flex", alignItems: "center", gap: 8 } }, el(PtAvatar, { p: chartInfo.existing[0], size: 28 }), el("span", null, "Chart # ", el("b", null, chartInfo.chart), " is on file already" + (ptLabel(chartInfo.existing[0]) ? ": " : "."), ptLabel(chartInfo.existing[0]) && el("b", null, ptNameEl(chartInfo.existing[0])))),
           el("button", { type: "button", className: "ip-btn soft sm", onClick: () => { go('search'); selectPatientForVisit(chartInfo.existing[0]); } }, "Open their visits")),
         noteLine(),
         el("div", { className: "ip-dlg-foot" },
@@ -2183,7 +2238,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
           date: v.date || v.visit_date || '',
           assistantInitials: v.assistant_initials || ''
         });
-        setDbPatient(p);
+        setDbPatient(p); setNewPhoto(null);
         setCurrentVisitId(v.id);
         setUpper(canonContacts(UPPER, jp(v.upper_ipr, null), ""));
         setLower(canonContacts(LOWER, jp(v.lower_ipr, null), ""));
@@ -2212,13 +2267,14 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
               el("button", { type: "button", className: "ip-btn soft", onClick: () => searchRecords(recSearch.trim()), disabled: recLoading }, recLoading ? 'Searching…' : 'Search')),
             el("button", { type: "button", className: "ip-btn quiet sm", onClick: () => { setRecSearch(''); searchRecords(''); } }, "List all patients"),
             recResults.length > 0 && el("div", { className: "ip-results", style: { maxHeight: 320 } }, recResults.map(p =>
-              el("button", { key: p.id, type: "button", className: "ip-result", onClick: () => selectRecPatient(p) }, el("b", null, ptLabel(p) || p.patient_id), el("span", null, (ptLabel(p) ? "Chart # " + p.patient_id : "") + (!p.name ? (ptLabel(p) ? " · " : "") + "no full name yet" : ""))))),
+              el("button", { key: p.id, type: "button", className: "ip-result", onClick: () => selectRecPatient(p) }, el(PtAvatar, { p, size: 32 }), el("span", { className: "ip-rtxt" }, el("b", null, ptNameEl(p, p.patient_id)), el("span", null, (ptLabel(p) ? "Chart # " + p.patient_id : "") + (!p.name ? (ptLabel(p) ? " · " : "") + "no full name yet" : "")))))),
             recResults.length === 0 && !recLoading && el("p", { className: "ip-empty" }, recSearched ? "No patients found." : "Search, or list all, to find patient records."),
             el("div", { className: "ip-dlg-foot" }, closeBtn))
         :
           el(React.Fragment, null,
             el("h2", { className: "ip-dlg-h" }, "Visit history"),
-            el("p", { className: "ip-dlg-s" }, el("b", { style: { color: "var(--ink)" } }, ptLabel(recPatient) || "Patient"), "  ·  Chart # ", el("b", { style: { color: "var(--ink)" } }, recPatient.patient_id)),
+            el("div", { className: "ip-who-hd" }, el(PtAvatar, { p: recPatient, size: 44, force: true }),
+              el("p", { className: "ip-dlg-s", style: { margin: 0 } }, el("b", { style: { color: "var(--ink)" } }, ptNameEl(recPatient, "Patient")), "  ·  Chart # ", el("b", { style: { color: "var(--ink)" } }, recPatient.patient_id))),
             recVisitsLoading && el("p", { className: "ip-empty" }, "Loading visits…"),
             !recVisitsLoading && recVisits.length === 0 && el("p", { className: "ip-empty" }, "No visits recorded for this patient."),
             !recVisitsLoading && recVisits.length > 0 && el("div", { style: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflow: "auto" } }, recVisits.map(v => {
@@ -2303,7 +2359,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     setLowerBT(initBT(LOWER));
     setPrescribedUpper(initContacts(UPPER));
     setPrescribedLower(initContacts(LOWER));
-    setDbPatient(null);
+    setDbPatient(null); setNewPhoto(null);
     setVisitHistory([]);
     setCurrentVisitId(null);
     setShowHistory(false);
@@ -2314,7 +2370,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   };
 
   const handleCancel = () => {
-    const hasWork = !!patient.patientId || !!dbPatient || sumContacts(upper) > 0 || sumContacts(lower) > 0 || notes.trim().length > 0;
+    const hasWork = !!patient.patientId || !!dbPatient || !!newPhoto || sumContacts(upper) > 0 || sumContacts(lower) > 0 || notes.trim().length > 0;
     if (hasWork && !readOnly && !window.confirm("Cancel and discard this entry?\n\nThis will clear the current charting data and return to the patient picker. Any unsaved changes will be lost.")) return;
     // (discarded, as it says: the change still waiting to autosave isn't saved on the way out)
     if (autosave.current) { clearTimeout(autosave.current.timer); autosave.current = null; }
@@ -2361,7 +2417,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   else if (flowStep === null && wizSeq.current.open) { wizSeq.current.open = false; }
 
   const hasEarlier = !!((prevUpper && sumContacts(prevUpper) > 0) || (prevLower && sumContacts(prevLower) > 0));
-  const whereOf = p => ptLabel(p) ? ptLabel(p) + " (chart # " + p.patient_id + ")" : "chart # " + p.patient_id;
+  React.useSyncExternalStore(iphSubscribe, iphVersion); // (the eye: names in plain text follow it)
+  const whereOf = p => ptLabel(p) ? (p.name ? ptShown(p.name) : p.ini) + " (chart # " + p.patient_id + ")" : "chart # " + p.patient_id;
   const spacesFlag = upperSpacesTotal > 0 || lowerSpacesTotal > 0 || upperBTCount > 0 || lowerBTCount > 0;
   const btAll = upperBTCount + lowerBTCount;
   const online = dbConnected === null ? null : dbConnected;
@@ -2480,6 +2537,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
           el("div", { className: "ip-actions" },
             el("button", { type: "button", className: "ip-btn primary", onClick: () => setFlowStep('choose'), title: "Start a new visit or load a patient" }, el(Icon, { name: "plus", size: 18 }), "New visit"),
             el("button", { type: "button", className: "ip-btn", onClick: () => handleSaveAndPreview('print') }, el(Icon, { name: "print", size: 17 }), "Print"),
+            el(PhHideBtn, null),
             el("div", { className: "ip-menu-wrap" },
               el("button", { type: "button", className: "ip-btn icon", onClick: () => setShowMenu(m => !m), "aria-haspopup": "menu", "aria-expanded": showMenu, "aria-label": "More actions", title: "More: Records, Export PDF, Blank form, Lock" }, el(Icon, { name: "more", size: 20 })),
               showMenu && el(React.Fragment, null,
@@ -2498,9 +2556,12 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         // ── patient strip ──
         patient.patientId ? el("div", { className: "ip-strip" },
           el("div", { className: "ip-who" },
-            el("div", { className: "ip-avatar", "aria-hidden": "true" }, avatarOf(patient)),
+            el("button", { type: "button", className: "ip-pbtn", onClick: () => openPhotoEditor(), title: "Patient photo: add, change or remove it (take, choose, paste or drop a picture)", "aria-label": "Patient photo: add or change",
+                onDragOver: e => { e.preventDefault(); e.currentTarget.classList.add("over"); }, onDragLeave: e => e.currentTarget.classList.remove("over"), onDrop: onPhotoDrop },
+              el(PtAvatar, { p: dbPatient || { id: "", patient_id: patient.patientId, photo: "", photoAt: 0 }, pending: dbPatient ? null : newPhoto, size: 44, force: true }),
+              el("span", { className: "ip-pcam", "aria-hidden": "true" }, el(Icon, { name: "camera", size: 12 }))),
             el("div", { className: "ip-who-t" },
-              el("b", null, patient.name || (patient.initials ? "Initials " + patient.initials : "Chart # " + patient.patientId)),
+              el("b", null, patient.name ? el(PtName, { name: patient.name }) : (patient.initials ? "Initials " + patient.initials : "Chart # " + patient.patientId)),
               el("span", null, (patient.name || patient.initials) ? "Chart # " + patient.patientId : "No name yet",
                 !readOnly && el("button", { type: "button", className: "ip-link", onClick: () => setFlowStep('details'), title: "Change the chart # or the patient’s name" }, patient.name ? "Edit" : "Add full name")))),
           el("div", { className: "ip-field" },
@@ -2577,6 +2638,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
 // ─── Mounting: lock.js opens the app once the office key is open and the records have moved (the lock reloads the page) ───
 function mountApp(draft, deep) {
   APP_DRAFT = draft || null; APP_DEEP = deep || null;
+  iphInit();
   const rootEl = document.getElementById("root");
   rootEl.classList.remove("hidden");
   ReactDOM.createRoot(rootEl).render(React.createElement(App, null));

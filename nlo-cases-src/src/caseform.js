@@ -1075,7 +1075,7 @@ function newCaseModal() {
         if (data.txStart || data.txEnd) data.txAt = Date.now();
         const btn = quick ? $('#ncQuick', w) : $('#ncSave', w); busyBtn(btn, true, 'Saving…');
         try {
-          await B.createCase(data, w._ph ? w._ph.bytes : null); closeModal();
+          await B.createCase(data, w._ph ? w._ph.bytes : null, w._ph ? w._ph.at : 0); closeModal();
           if (quick) toast('Case added for ' + ptNameText(data.patient) + ' — it shows Finish details until the rest is in');
           else {
             toast('Case created for ' + ptNameText(data.patient), { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });

@@ -27,7 +27,8 @@ function ptAv(c, size) {
   return '<span class="pav s' + (size || 32) + (has ? ' has' : '') + '"' + (c && c.id ? ' data-pav="' + esc(c.id) + '"' : '') + (has ? ' data-pv="' + esc(c.photo) + '"' : '') + ' aria-hidden="true">' + PH_SIL + '</span>';
 }
 function phUrl(bytes) { return 'data:image/jpeg;base64,' + b64(bytes); }
-function phPut(id, pv, bytes) { const e = { pv, seen: pv, bytes, url: phUrl(bytes) }; PH.cache.set(id, e); return e; }
+/* `at`: when the picture was taken into the records (the case's photoAt; an IPR Tracker picture's own time) */
+function phPut(id, pv, bytes, at) { const e = { pv, seen: pv, bytes, url: phUrl(bytes), at: Number(at) || 0 }; PH.cache.set(id, e); return e; }
 function phCached(id, pv) { const x = PH.cache.get(id); return x && x.url && (x.pv === pv || x.seen === pv) ? x : null; }
 function phShow(el, url) {
   el.innerHTML = ''; const im = document.createElement('img'); im.alt = ''; im.decoding = 'async'; im.src = url;
@@ -68,7 +69,7 @@ function phLoad(id, pv) {
       const r = await B.getPhoto(id);
       if (gen !== PH.gen) return null; // locked meanwhile
       // (a case restored to an older version can name an older version id than the picture it has: keep showing that picture)
-      const e = r ? Object.assign(phPut(id, r.pv, r.bytes), { seen: pv }) : { pv: '', seen: pv, url: '' };
+      const e = r ? Object.assign(phPut(id, r.pv, r.bytes, r.at), { seen: pv }) : { pv: '', seen: pv, url: '' };
       PH.cache.set(id, e); phFill(id); return e.url ? e : null;
     } catch (err) { return null; }
     finally { phFree(); PH.loading.delete(lk); }
@@ -251,26 +252,27 @@ function phCaseEdit(c, file) {
 const skipOk = e => { if (!(e && e.code === 'skip')) throw e; };
 async function phSaveCase(id, bytes) {
   const c = findCase(id); if (!c) throw errCode('gone');
-  const old = c.photo ? (phCached(id, c.photo) || await phLoad(id, c.photo)) : null, oldBytes = old && old.bytes;
-  const pv = await B.setPhoto(id, bytes, { a: 'photo', how: c.photo ? 'change' : 'add' });
-  phPut(id, pv, bytes); c.photo = pv;
+  const old = c.photo ? (phCached(id, c.photo) || await phLoad(id, c.photo)) : null, oldBytes = old && old.bytes, oldAt = Number(c.photoAt) || 0;
+  const at = Date.now();
+  const pv = await B.setPhoto(id, bytes, { a: 'photo', how: c.photo ? 'change' : 'add' }, at);
+  phPut(id, pv, bytes, at); c.photo = pv; c.photoAt = at;
   // the same patient's other open cases that have no photo yet get it too
   const copied = [];
   for (const o of openCases().filter(o => o.id !== id && !o.photo && !o.locked && samePatient(o, c))) {
-    try { const p2 = await B.setPhoto(o.id, bytes, { a: 'photo', how: 'copy' }); phPut(o.id, p2, bytes); o.photo = p2; copied.push(o.id); } catch (e) { }
+    try { const p2 = await B.setPhoto(o.id, bytes, { a: 'photo', how: 'copy' }, at); phPut(o.id, p2, bytes, at); o.photo = p2; o.photoAt = at; copied.push(o.id); } catch (e) { }
   }
   queueRender(); if (S.openId === id && !S.editing) renderDrawer();
   toast((old ? 'Photo changed' : 'Photo added') + (copied.length ? ' (also on ' + copied.length + ' other open case' + (copied.length > 1 ? 's' : '') + ' for this patient)' : ''), { action: 'Undo', ms: 9000, onAction: () => act(async () => {
-    if (oldBytes) { const p = await B.setPhoto(id, oldBytes, { a: 'photo', how: 'undo' }); phPut(id, p, oldBytes); }
+    if (oldBytes) { const p = await B.setPhoto(id, oldBytes, { a: 'photo', how: 'undo' }, oldAt); phPut(id, p, oldBytes, oldAt); const n = findCase(id); if (n) n.photoAt = oldAt; }
     else await B.setPhoto(id, null, { a: 'photo', how: 'remove' }).catch(skipOk);
     for (const oid of copied) await B.setPhoto(oid, null, { a: 'photo', how: 'remove' }).catch(skipOk);
   }, 'Undone') });
 }
 async function phRemoveCase(id) {
-  const c = findCase(id); const x = c && c.photo ? (phCached(id, c.photo) || await phLoad(id, c.photo)) : null, keep = x && x.bytes;
+  const c = findCase(id); const x = c && c.photo ? (phCached(id, c.photo) || await phLoad(id, c.photo)) : null, keep = x && x.bytes, keepAt = Number(c && c.photoAt) || 0;
   await B.setPhoto(id, null, { a: 'photo', how: 'remove' }).catch(skipOk);
-  if (c) c.photo = ''; queueRender(); if (S.openId === id && !S.editing) renderDrawer();
-  toast('Photo removed', keep ? { action: 'Undo', onAction: () => act(async () => { const p = await B.setPhoto(id, keep, { a: 'photo', how: 'undo' }); phPut(id, p, keep); }, 'Photo put back') } : {});
+  if (c) { c.photo = ''; delete c.photoAt; } queueRender(); if (S.openId === id && !S.editing) renderDrawer();
+  toast('Photo removed', keep ? { action: 'Undo', onAction: () => act(async () => { const p = await B.setPhoto(id, keep, { a: 'photo', how: 'undo' }, keepAt); phPut(id, p, keep, keepAt); const n = findCase(id); if (n) n.photoAt = keepAt; }, 'Photo put back') } : {});
 }
 /* the drawer's photo also takes a picture dropped on it */
 function phWireDrawer(d) {
@@ -305,20 +307,31 @@ function phFormShow(root) {
   const slot = $('#cf-photo', root); if (!slot) return; const p = root._ph, av = $('.pav', slot);
   if (p) phShow(av, p.url); else phBlank(av);
   slot.classList.toggle('set', !!p);
-  $('.phSlotL span', slot).textContent = p ? (p.from === 'reuse' ? 'From their other case' : 'Change photo') : 'Add photo';
+  $('.phSlotL span', slot).textContent = p ? (p.from === 'reuse' ? 'From their other case' : p.from === 'ipr' ? 'From the IPR Tracker' : 'Change photo') : 'Add photo';
 }
+/* the picture the patient already has: on their other cases (by name or chart #), and — 27 Oct 2026 — in the IPR Tracker (by
+   the chart #); the newest of the two goes in the slot */
 function phFormReuse(root) {
   if (!root.isConnected || (root._ph && root._ph.from === 'new')) return; // a photo picked here wins
   const probe = { patient: (($('#cf-patient', root) || {}).value || '').trim(), chart: (($('#cf-chart', root) || {}).value || '').trim() };
   // their completed cases too: once those are in, look again
   if (probe.patient && !histReady(probe)) ensureHist([probe]).then(ok => { if (ok && root.isConnected) phFormReuse(root); });
   const src = probe.patient ? casePool().filter(x => x && x.id && x.photo && !x.locked && samePatient(x, probe)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] : null;
-  if (!src) { if (root._ph) { root._ph = null; phFormShow(root); } return; }
-  if ((root._phOff && root._phOff === normName(probe.patient)) || (root._ph && root._ph.srcId === src.id)) return;
-  phLoad(src.id, src.photo).then(x => {
-    if (!x || !x.bytes || !root.isConnected || (root._ph && root._ph.from === 'new')) return;
-    root._ph = { bytes: x.bytes, url: x.url, from: 'reuse', srcId: src.id }; phFormShow(root);
-  });
+  const off = root._phOff && root._phOff === normName(probe.patient);
+  const take = (bytes, url, from, srcId, at) => { if (!root.isConnected || (root._ph && root._ph.from === 'new')) return; root._ph = { bytes, url, from, srcId, at }; phFormShow(root); };
+  if (src && !off && !(root._ph && root._ph.srcId === src.id)) phLoad(src.id, src.photo).then(x => { if (x && x.bytes && !(root._ph && root._ph.from === 'ipr' && root._ph.at > (Number(src.photoAt) || 0))) take(x.bytes, x.url, 'reuse', src.id, Number(src.photoAt) || 0); });
+  if (!src && root._ph && root._ph.from === 'reuse') { root._ph = null; phFormShow(root); }
+  // the IPR Tracker's picture for the chart #, when it's newer than the case's (or there's no case photo)
+  const n = IPR.norm(probe.chart);
+  if (root._ph && root._ph.from === 'ipr' && (!n || off || root._phIpr !== n)) { root._ph = null; phFormShow(root); } // (another chart # typed)
+  if (!n || off || !IPR_MOVED.on) return;
+  if (root._phIpr === n) return; root._phIpr = n;
+  const L = iprLink(); if (!L.photosMany) return;
+  L.photosMany([probe.chart]).then(async m => {
+    const ph = m.get(n); if (!ph || !root.isConnected || root._phIpr !== n) return;
+    if (src && (Number(src.photoAt) || 0) >= ph.at) return;
+    const x = await phLoad(ph.id, ph.pv); if (x && x.bytes) take(x.bytes, x.url, 'ipr', ph.id, ph.at);
+  }).catch(() => { });
 }
 
 /* ---------- pasting a picture: into the photo editor, the New case form, or the open case ---------- */

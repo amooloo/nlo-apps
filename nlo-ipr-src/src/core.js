@@ -44,6 +44,8 @@ function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replac
 function firstName(n) { return String(n || '').replace(/^dr\.?\s+/i, '').split(/\s+/)[0] || ''; }
 function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
 function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(.{4})(?=.)/g, '$1-'); }
+/* a short random id (a photo's version id, as NLO Cases makes them) */
+function uid8() { return Array.from(rnd(6), b => b.toString(16).padStart(2, '0')).join(''); }
 function fmtWhen(ms) { if (!ms) return ''; const d = new Date(ms); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
 
 /* ---------- patients: chart #s and names ---------- */

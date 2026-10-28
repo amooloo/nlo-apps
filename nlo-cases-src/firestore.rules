@@ -208,11 +208,20 @@ service cloud.firestore {
     }
 
     // ---------- patient photos ----------
-    // One small picture per case, sealed in the browser with the office key like the case itself.
-    // It changes only together with a save of its case (so the case's history shows who added or
-    // changed it), or with a brand-new case; the owner re-seals pictures unchanged after a key change.
+    // One small picture per case — and, since the IPR Tracker joined this database (Amir, 27 Oct 2026: "the IPR tracker and
+    // case tracker should be fully sharing the same data … their photo, exactly how we have it in case tracker"), one per
+    // IPR Tracker patient record, at photos/{that record's id} — sealed in the browser with the office key like the record
+    // itself. It changes only together with a save of its record (so the record's history shows who added or changed it),
+    // or with a brand-new record; the owner re-seals pictures unchanged after a key change. Record ids are random, so a
+    // picture is a case's or an IPR patient's, never both.
     function caseDoc(id) { return /databases/$(db)/documents/cases/$(id); }
     function caseSavedNow(id) { return exists(caseDoc(id)) && existsAfter(caseDoc(id)) && getAfter(caseDoc(id)).data.rev == get(caseDoc(id)).data.rev + 1; }
+    function iprPtSavedNow(id) { return exists(iprPtDoc(id)) && existsAfter(iprPtDoc(id)) && getAfter(iprPtDoc(id)).data.rev == get(iprPtDoc(id)).data.rev + 1; }
+    // the picture's record is saved in this same write: made now, or its revision moved on (a case, else an IPR Tracker patient)
+    function photoRecordSaved(id) {
+      return (existsAfter(caseDoc(id)) && (!exists(caseDoc(id)) || caseSavedNow(id)))
+        || (!exists(caseDoc(id)) && !existsAfter(caseDoc(id)) && existsAfter(iprPtDoc(id)) && (!exists(iprPtDoc(id)) || iprPtSavedNow(id)));
+    }
     match /photos/{id} {
       function okPhoto() {
         let d = request.resource.data;
@@ -223,10 +232,14 @@ service cloud.firestore {
       }
       allow get: if isMember();
       allow list: if isOwner();
-      allow create: if isMember() && okPhoto() && existsAfter(caseDoc(id)) && (!exists(caseDoc(id)) || caseSavedNow(id));
-      allow update: if isMember() && okPhoto() && existsAfter(caseDoc(id))
-        && (caseSavedNow(id) || (isOwner() && request.resource.data.pv == resource.data.pv));
-      allow delete: if isMember() && (!existsAfter(caseDoc(id)) || caseSavedNow(id));
+      allow create: if isMember() && okPhoto() && photoRecordSaved(id);
+      allow update: if isMember() && okPhoto()
+        && (photoRecordSaved(id) || (isOwner() && request.resource.data.pv == resource.data.pv && (existsAfter(caseDoc(id)) || existsAfter(iprPtDoc(id)))));
+      // taken off together with a save of its record, with the record itself, or when it has no record at all
+      allow delete: if isMember() && (
+        (exists(caseDoc(id)) && (!existsAfter(caseDoc(id)) || caseSavedNow(id)))
+        || (!exists(caseDoc(id)) && exists(iprPtDoc(id)) && (!existsAfter(iprPtDoc(id)) || iprPtSavedNow(id)))
+        || (!exists(caseDoc(id)) && !exists(iprPtDoc(id))));
     }
 
     // ---------- lab-email updates ----------
@@ -1501,6 +1514,8 @@ service cloud.firestore {
     // replaced (iprPtLog / iprVisLog, append-only), as leads do. Plain fields: the key version, the revision, who saved and
     // when, a visit's patient record (a random id) and pc — the keyed hash of the chart # that NLO Cases' patient index uses —
     // so NLO Cases finds a patient's IPR visits, and the IPR Tracker a patient's cases, without opening every record.
+    // A patient's photo (27 Oct 2026) sits in photos/{record id}, under the patient-photo rules above, changed only with a
+    // save of the record (its sealed copy names the picture's version, as a case's does).
     function iprPtDoc(id) { return /databases/$(db)/documents/iprPts/$(id); }
     function iprSealed(d, max) {
       return d.v == curV() && d.iv is string && d.ct is string && d.ct.size() < max && d.rev is int

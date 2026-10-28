@@ -431,7 +431,7 @@ const FB = {
     batchOrTx.set(ref, Object.assign({ caseId, rev, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct, prev: prev || null }, extra || {}));
   },
   async createCases(list, progress) {
-    // list: [{data, status:'open'|'done', closedAt:ms, photo?:bytes}]; small batches keep each one well inside the rules' lookup limit
+    // list: [{data, status:'open'|'done', closedAt:ms, photo?:bytes, photoAt?:ms}]; small batches keep each one well inside the rules' lookup limit
     const PER = 5; let n = 0;
     for (let i = 0; i < list.length; i += PER) {
       const ops = [], rec = { set: (r, d) => ops.push([r, d]) }; // (kept, so the batch can be sent again without the patient index)
@@ -439,7 +439,7 @@ const FB = {
         const ref = FB.db.collection('cases').doc();
         const v = FB.curV, body = FB.clean(item.data);
         // a patient photo goes in with the new case (same batch), under its own version id
-        let ph = null; if (item.photo) { body.photo = uid8(); ph = await FB.photoBox(ref.id, item.photo, body.photo); }
+        let ph = null; if (item.photo) { body.photo = uid8(); body.photoAt = Number(item.photoAt) || Date.now(); ph = await FB.photoBox(ref.id, item.photo, body.photo); }
         const box = await Crypto.sealJSON(FB.keys[v], body, 'case:' + ref.id);
         const done = item.status === 'done';
         const doc = { v, iv: box.iv, ct: box.ct, status: done ? 'done' : 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: done ? firebase.firestore.Timestamp.fromMillis(item.closedAt || Date.now()) : null };
@@ -460,7 +460,7 @@ const FB = {
     }
     return list.map(x => x.id);
   },
-  async createCase(data, photo) { const ids = await FB.createCases([{ data, status: 'open', photo: photo || null }]); return ids[0]; },
+  async createCase(data, photo, photoAt) { const ids = await FB.createCases([{ data, status: 'open', photo: photo || null, photoAt: photoAt || 0 }]); return ids[0]; },
   /* fn(data) edits the latest decrypted copy in place; return 'done' / 'open' to change status.
      ops(tx), if given, adds other writes that must land together with this save (e.g. the case's photo) */
   /* one person's writes to the same case run one after another, never racing each other */
@@ -629,16 +629,18 @@ const FB = {
     }
     return { seen: snap.size, fixed: done, missed };
   },
-  /* { pv, bytes } or null */
+  /* { pv, bytes, at } or null (a case's photo, or an IPR Tracker patient's: the same shape at photos/{its record id}) */
   async getPhoto(id) {
     const s = await FB.db.doc('photos/' + id).get(); if (!s.exists) return null;
     const x = s.data(); if (!FB.keys[x.v]) throw errCode('no-key');
-    return { pv: x.pv, bytes: await Crypto.open(FB.keys[x.v], x, 'photo:' + id) };
+    return { pv: x.pv, bytes: await Crypto.open(FB.keys[x.v], x, 'photo:' + id), at: FB.tsMs(x.at) || 0 };
   },
-  /* set (bytes) or remove (null) a case's photo; returns the new version id ('' when removed) */
-  async setPhoto(id, bytes, action) {
+  /* set (bytes) or remove (null) a case's photo; returns the new version id ('' when removed). The case keeps photoAt — when
+     the picture was taken into the office's records (27 Oct 2026: the IPR Tracker keeps one too, so the two apps agree on
+     which of a patient's pictures is the newest; `at` carries that time over when the picture comes from the other app) */
+  async setPhoto(id, bytes, action, at) {
     const pv = bytes ? uid8() : '';
-    await FB.mutateCase(id, d => { if (!bytes && !d.photo) return 'skip'; d.photo = pv; }, action || { a: 'photo', how: bytes ? 'add' : 'remove' },
+    await FB.mutateCase(id, d => { if (!bytes && !d.photo) return 'skip'; d.photo = pv; if (bytes) d.photoAt = Number(at) || Date.now(); else delete d.photoAt; }, action || { a: 'photo', how: bytes ? 'add' : 'remove' },
       async tx => { const ref = FB.db.doc('photos/' + id); if (bytes) tx.set(ref, await FB.photoBox(id, bytes, pv)); else tx.delete(ref); });
     return pv;
   },
@@ -687,7 +689,7 @@ const FB = {
     return out.sort((a, b) => b.at - a.at);
   },
   // (a restored case comes back as a new case; its photo was removed with it)
-  async undelete(item) { const data = Object.assign({}, item.data); delete data.photo; return FB.createCases([{ data, status: 'open', action: { a: 'restore' } }]); },
+  async undelete(item) { const data = Object.assign({}, item.data); delete data.photo; delete data.photoAt; return FB.createCases([{ data, status: 'open', action: { a: 'restore' } }]); },
   async saveSettings(patch) { await FB.track(FB.db.doc('meta/settings').set(patch, { merge: true })); },
 
   /* ---------- backups (owner; Amir, 4 Oct 2026: "how can this app back it self up?") ----------
@@ -809,7 +811,8 @@ const FB = {
     await FB.track(FB.db.doc('meta/keys').update({ current: newV }));
     FB.ring = ring2; FB.keys = await Crypto.ringKeys(ring2); FB.curV = newV; FB.ringV = newV;
     const all = (await FB.db.collection('cases').get()).docs.filter(d => d.data().v < newV);
-    // patient photos are re-sealed too (same picture, same version id); one whose case is gone is removed
+    // patient photos are re-sealed too (same picture, same version id) — a case's, or an IPR Tracker patient's (27 Oct 2026:
+    // the same photos collection, at the patient record's id); one whose case or record is gone is removed
     const pics = (await FB.db.collection('photos').get()).docs.filter(d => d.data().v < newV);
     const total = all.length + pics.length;
     let n = 0, failed = 0;
@@ -821,7 +824,7 @@ const FB = {
       await Promise.all(pics.slice(i, i + 15).map(async d => {
         try {
           const x = d.data(), bytes = await Crypto.open(FB.keys[x.v], x, 'photo:' + d.id), box = await Crypto.seal(FB.keys[newV], bytes, 'photo:' + d.id);
-          if (!(await FB.db.doc('cases/' + d.id).get()).exists) { await d.ref.delete(); return; }
+          if (!(await FB.db.doc('cases/' + d.id).get()).exists && !(await FB.db.doc('iprPts/' + d.id).get()).exists) { await d.ref.delete(); return; }
           await FB.track(d.ref.update({ v: newV, iv: box.iv, ct: box.ct, at: FB.ts(), by: FB.uid }));
         } catch (e) { failed++; }
       }));

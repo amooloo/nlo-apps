@@ -361,7 +361,7 @@ async function lockOut(msg) {
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; histReset(); wkReset(); dupReset();
   // (completed cases are loaded again for the next sign-in — a load still running is thrown away — and Completed's own choices start over)
-  Object.assign(S, { closedLoaded: false, closedGen: (S.closedGen || 0) + 1, closedDays: 90, doneDays: 90, df: null, dsort: null }); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
+  Object.assign(S, { closedLoaded: false, closedGen: (S.closedGen || 0) + 1, closedDays: 90, doneDays: 90, df: null, dsort: null }); S.members = []; S.roster = []; S.iprCache = {}; S.iprPhotoTried = null; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
   labReset(); // (lab orders waiting, the lab PC's setup code — lab.js)
@@ -1576,7 +1576,7 @@ function historyHTML(c) {
     else if (x.a === 'restore') t = 'restored an earlier version';
     else if (x.a === 'noship') t = 'emailed the front desk' + (x.addr ? ' (' + x.addr + ')' : '') + ': not marked shipped, with the ' + delWord(c || {}).toLowerCase() + ' on ' + fmtDay(x.appt);
     else if (x.a === 'dup' || x.a === 'undup' || x.a === 'notdup' || x.a === 'dupcopy') t = dupHistText(x); // (dupes.js)
-    else if (x.a === 'photo') t = { add: 'added a photo', change: 'changed the photo', remove: 'removed the photo', copy: 'added the photo from another of the patient’s cases', undo: 'put the earlier photo back' }[x.how] || 'changed the photo';
+    else if (x.a === 'photo') t = { add: 'added a photo', change: 'changed the photo', remove: 'removed the photo', copy: 'added the photo from another of the patient’s cases', ipr: 'added the patient’s photo from the IPR Tracker', undo: 'put the earlier photo back' }[x.how] || 'changed the photo';
     else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
       const f = Array.from(new Set((x.fields || []).filter(k => k !== 'mailIds').map(k => FIELD_LABELS[k] || k)));
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
@@ -1737,7 +1737,17 @@ function renderDrawer() {
   dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
   stkAfterDraw(c, sKeep); // (a sticker that just arrived pops on; the stickers to pick from stay open — stickers.js)
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
+  else if (c.chart && !done && !c.photo) iprPhotoAuto(c); // (a retainer, an appliance…: the IPR Tracker's photo of the patient, if it has one)
   if (c.type === 'nla') ensureHist([c]);
+}
+/* a case opened without a photo: the IPR Tracker's picture of the patient, read by the chart # (once per case per sitting) */
+async function iprPhotoAuto(c) {
+  S.iprPhotoTried = S.iprPhotoTried || new Set(); if (S.iprPhotoTried.has(c.id)) return; S.iprPhotoTried.add(c.id);
+  try {
+    if (!(await iprMovedCheck())) return;
+    const L = iprLink(); if (!L.photosMany) return;
+    const ph = (await L.photosMany([c.chart])).get(IPR.norm(c.chart)); if (ph) await iprPhotoKeep(findCase(c.id) || c, ph);
+  } catch (e) { }
 }
 /* ---------- in-house treatment timeline (Amir, 3 Oct 2026: "show a graph for each patient on where they are in treatment") ----------
    From the patient's Start and Expected removal (txOf): the bar is the treatment, mint up to today (coral past the expected
@@ -2088,12 +2098,40 @@ async function iprAutoLoad(c, force) {
   S.iprLoading = null;
   paint();
   try { await iprKeep(findCase(c.id) || c, S.iprCache[k]); } catch (e) { } // (kept on the case, so the chart stays)
+  try { await iprPhotoKeep(findCase(c.id) || c, S.iprCache[k] && S.iprCache[k].photo); } catch (e) { }
+}
+/* the IPR Tracker's photo of the patient onto the case (Amir, 27 Oct 2026: "the IPR tracker and case tracker should be fully
+   sharing the same data … their photo"): a case with no photo, or one taken into the records before the IPR Tracker's, gets the
+   IPR Tracker's picture — a normal photo save of the case (its history says so), with the picture's own time, so the two apps
+   agree on which of a patient's pictures is the newest. `ph`: { id, pv, at } from the IPR Tracker, or nothing. True when saved. */
+async function iprPhotoKeep(c, ph) {
+  if (!c || !c.id || c.locked || c.status === 'done' || !ph || !ph.pv || !ph.at || !IPR_MOVED.on) return false;
+  if (c.photo && (Number(c.photoAt) || 0) >= ph.at) return false;
+  const r = await B.getPhoto(ph.id); if (!r || !r.bytes || !S.inApp) return false;
+  const cur = findCase(c.id); if (!cur || (cur.photo && (Number(cur.photoAt) || 0) >= ph.at)) return false;
+  const pv = await B.setPhoto(c.id, r.bytes, { a: 'photo', how: 'ipr' }, ph.at);
+  phPut(c.id, pv, r.bytes, ph.at); const now = findCase(c.id); if (now) { now.photo = pv; now.photoAt = ph.at; }
+  queueRender(); if (S.openId === c.id && !S.editing) renderDrawer();
+  return true;
+}
+/* every open case with a chart #: the IPR Tracker's photos onto the cases that have none, or an older one (Sync all, and the sync
+   that runs by itself). Patients only — no visits are read for it. */
+async function iprPhotoSyncAll() {
+  const L = iprLink(); if (!L.photosMany || !IPR_MOVED.on) return 0;
+  const list = openCases().filter(c => !c.locked && IPR.norm(c.chart)); if (!list.length) return 0;
+  const res = await L.photosMany(list.map(c => c.chart)); let n = 0;
+  for (const c of list) { const ph = res.get(IPR.norm(c.chart)); if (!ph) continue; try { if (await iprPhotoKeep(findCase(c.id) || c, ph)) n++; } catch (e) { } }
+  return n;
 }
 /* every open aligner case with a chart #, from the IPR Tracker at once; each new reading kept on its case. `quiet`: no message (the
    sync that runs by itself once the link is on — the charts just update) */
 async function iprSyncAll(quiet, btn) {
   const L = iprLink(); if (!L.init() || !L.user() || S.iprSyncing) return;
-  const list = openCases().filter(c => iprLive(c) && IPR.norm(c.chart)); if (!list.length) { if (!quiet) toast('No open aligner cases with a chart # to sync'); return; }
+  const list = openCases().filter(c => iprLive(c) && IPR.norm(c.chart));
+  if (!list.length) { // (the photos still come over for the other open cases with a chart #)
+    S.iprSyncing = true; try { await iprPhotoSyncAll(); } catch (e) { } finally { S.iprSyncing = false; }
+    if (!quiet) toast('No open aligner cases with a chart # to sync'); return;
+  }
   S.iprSyncing = true; if (btn) busyBtn(btn, true, 'Syncing…');
   let got = 0, kept = 0, missing = 0, failed = 0;
   try {
@@ -2104,7 +2142,9 @@ async function iprSyncAll(quiet, btn) {
       try { if (await iprKeep(findCase(c.id) || c, r)) kept++; } catch (e) { failed++; }
     }
     try { localStorage.setItem('nloCases.iprSyncAt', String(Date.now())); } catch (e) { }
+    let photos = 0; try { photos = await iprPhotoSyncAll(); } catch (e) { }
     if (!quiet) toast('IPR Tracker synced: ' + got + ' patient' + (got === 1 ? '' : 's') + (kept ? ' · ' + kept + ' chart' + (kept === 1 ? '' : 's') + ' updated' : ' · nothing new') +
+      (photos ? ' · ' + photos + ' photo' + (photos === 1 ? '' : 's') + ' from the IPR Tracker' : '') +
       (missing ? ' · ' + missing + ' chart #' + (missing === 1 ? '' : 's') + ' not in the IPR Tracker' : '') + (failed ? ' · ' + failed + ' couldn’t be saved' : ''), { ms: 7000 });
   } catch (e) { if (!quiet) toast(/permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.', { bad: true }); }
   finally { S.iprSyncing = false; if (btn) busyBtn(btn, false); const c = S.openId && findCase(S.openId); if (c) iprPaint(c); if (S.view === 'account') renderView(); }

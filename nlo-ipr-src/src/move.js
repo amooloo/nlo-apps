@@ -233,16 +233,18 @@ ACT.mvGo = async () => {
   MV.busy = false; renderGate();
 };
 /* what's here already for each planned record: the same (skip), different (save it over, with history), or missing (create) */
+/* a patient record compared without its photo (added here, never in the old copy: a move run again leaves it be — backend.js) */
+function sansPhoto(b) { if (!b || !('photo' in b || 'photoAt' in b)) return b; const o = Object.assign({}, b); delete o.photo; delete o.photoAt; return o; }
 function moveWrites(P, have, action) {
   const writes = [];
-  P.pts.forEach(x => { const h = have.pts.get(x.id); if (!h) writes.push({ kind: 'pt', id: x.id, body: x.body, mode: 'create', action }); else if (canonJSON(h.body) !== canonJSON(x.body)) writes.push({ kind: 'pt', id: x.id, body: x.body, mode: 'update', action }); });
+  P.pts.forEach(x => { const h = have.pts.get(x.id); if (!h) writes.push({ kind: 'pt', id: x.id, body: x.body, mode: 'create', action }); else if (canonJSON(sansPhoto(h.body)) !== canonJSON(x.body)) writes.push({ kind: 'pt', id: x.id, body: x.body, mode: 'update', action }); });
   P.vis.forEach(x => { const h = have.vis.get(x.id); if (!h) writes.push({ kind: 'vis', id: x.id, p: x.p, body: x.body, mode: 'create', action }); else if (canonJSON(h.body) !== canonJSON(x.body)) writes.push({ kind: 'vis', id: x.id, p: x.p, body: x.body, mode: 'update', action }); });
   return writes;
 }
 /* every planned record is here, opens, and is exactly what was planned */
 function moveCheck(P, after) {
   const bad = [];
-  const miss = (list, m) => list.filter(x => { const h = m.get(x.id); return !h || canonJSON(h.body) !== canonJSON(x.body) || (x.p && h.d.p !== x.p); }).length;
+  const miss = (list, m) => list.filter(x => { const h = m.get(x.id); return !h || canonJSON(x.p ? h.body : sansPhoto(h.body)) !== canonJSON(x.body) || (x.p && h.d.p !== x.p); }).length;
   const mp = miss(P.pts, after.pts), mvv = miss(P.vis, after.vis);
   if (mp) bad.push(plural(mp, 'patient') + ' missing or different');
   if (mvv) bad.push(plural(mvv, 'visit') + ' missing or different');
