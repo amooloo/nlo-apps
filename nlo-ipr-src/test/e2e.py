@@ -227,8 +227,8 @@ def run(b):
     c, j = rt('PUT', '/nlo/ipr', OLD); assert c == 200, j
 
     section('Before the rules are published (the live rules are the ones without the IPR Tracker)')
-    # (the rules live before this update: the ones in main — on GitHub Pages — until it's merged; LIVE_RULES_REF=<ref> to pick)
-    old_rules = subprocess.run(['git', 'show', os.environ.get('LIVE_RULES_REF', 'origin/main') + ':nlo-cases-src/firestore.rules'], cwd=str(SRC.parent), capture_output=True, text=True, check=True).stdout.replace('__OWNER_EMAIL__', OWNER_EMAIL)
+    # (the rules live before this update: main as it was before the IPR Tracker was merged, 28 Oct 2026 — 71cf92b; LIVE_RULES_REF=<ref> to pick)
+    old_rules = subprocess.run(['git', 'show', os.environ.get('LIVE_RULES_REF', '71cf92b') + ':nlo-cases-src/firestore.rules'], cwd=str(SRC.parent), capture_output=True, text=True, check=True).stdout.replace('__OWNER_EMAIL__', OWNER_EMAIL)
     assert 'iprPts' not in old_rules
     set_rules(old_rules)
     gc, gwen, ge = new_page(b, 'gwen', quiet_perm=True)
