@@ -205,9 +205,10 @@
   .modal .scanrow{margin-top:10px}
   .setTabs{margin-left:6px;flex:none;flex-wrap:nowrap;white-space:nowrap} .setTab{display:none} .setTab.on{display:block}
   #sethint{flex:1 1 auto;min-width:0} @media (max-width:1400px){#sethint{display:none}}
-  .settings{display:none;position:absolute;inset:4px 28px 22px 28px;z-index:4;background:var(--grey-50);overflow:auto;border-radius:var(--r);border:1px solid var(--grey-100);box-shadow:var(--sh-xs)}
-  @media (max-width:1100px){.settings{inset:4px 14px 20px 14px}}
-  .settings.on{display:block}
+  /* Settings is a pop-up over a slightly blurred page (the doctor, 10/28/2026), like Create a case and Export: a wide card, scrolls inside, header stays put */
+  .modalBg.setBg{backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+  .settings{background:var(--grey-50);width:min(1240px,94vw);max-height:92vh;overflow:auto;border-radius:18px;border:1px solid var(--grey-100);box-shadow:var(--sh-lg)}
+  @media (max-width:1100px){.settings{width:96vw;max-height:94vh;border-radius:14px}}
   .setHd{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;padding:9px 16px;background:rgba(247,248,249,.96);border-bottom:1px solid var(--grey-100);backdrop-filter:blur(6px)}
   .setHd h3{font-family:var(--fd);font-weight:600;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:0}
   .setBd{padding:2px 16px 22px}
@@ -457,15 +458,16 @@
         <canvas id="c"></canvas>
         <div id="teethov"><svg></svg></div>
       </section>
-<!-- SETTINGS PANEL (illustrated): opened from the gear at the top right; sits over the whole work area -->
-<div class="settings" id="settings">
+<!-- SETTINGS pop-up (illustrated): opened from the gear at the top right; a card over the blurred page. Save keeps the settings and closes (Esc or a click outside does the same) -->
+<div class="modalBg setBg" id="settingsbg">
+<div class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
   <div class="setHd">
-    <h3>Settings</h3>
+    <h3 id="settingsTitle">Settings</h3>
     <div class="seg setTabs"><button class="on" data-settab="model">Model settings</button><button data-settab="office">Office</button></div>
     <div class="hint" id="sethint" style="margin:0 auto 0 14px">Each number has a picture of what it means. Changes apply to the next case — or to the case that is open, with <b>Apply to this case</b>.</div>
     <button class="small" id="setDefaults">Back to defaults</button>
-    <button class="small primary" id="setApply" style="display:none" title="Re-make every model of the open case with these settings (brush fixes and painted areas are kept)">Apply to this case &amp; re-run</button>
-    <button class="small" id="setClose">Done</button>
+    <button class="small" id="setApply" style="display:none" title="Re-make every model of the open case with these settings (brush fixes and painted areas are kept)">Apply to this case &amp; re-run</button>
+    <button class="small primary" id="setClose" title="Keep these settings for the next cases and close">Save</button>
   </div>
   <div class="setBd">
    <div class="setTab on" data-settab="model">
@@ -706,6 +708,7 @@
     <div class="hint" id="appversion" style="margin:14px 0 0 2px"></div>
    </div>
   </div>
+</div>
 </div>
     </main>
   </div>
@@ -1327,22 +1330,28 @@ function showSetTab(t){
                                  : 'Office-wide: the folders, the printer software and the learning. Saved on the PC that runs the app.';
 }
 document.querySelectorAll('.setTabs button').forEach(b => b.onclick = () => showSetTab(b.dataset.settab));
-$('#learnline').style.cursor = 'pointer'; $('#learnline').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); showSetTab('office'); };
+// the pop-up: every change is kept as it is made (saveSettings on change), so Save, Esc and a click on the blurred
+// page all do the same - keep what is there and close; the scroll goes back to the top for the next visit
+function openSettings(tab){ $('#settingsbg').classList.add('on'); $('#settings').scrollTop = 0; drawRegion(); loadPics(); showSetTab(tab); if (tab === 'model') showVersion(); }
+function closeSettings(){ if (!$('#settingsbg').classList.contains('on')) return; saveSettings(); $('#settingsbg').classList.remove('on'); requestRender(); }
+$('#learnline').style.cursor = 'pointer'; $('#learnline').onclick = () => openSettings('office');
 updatePatientLine();
-$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); showSetTab('model'); showVersion(); };
+$('#openSettings').onclick = () => openSettings('model');
+$('#settingsbg').addEventListener('mousedown', ev => { if (ev.target === $('#settingsbg')) closeSettings(); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#settingsbg').classList.contains('on')) closeSettings(); });
 // which build of the app this PC runs (a hash of its program files and the date of the newest one): the way to tell
 // whether the update reached the lab PC
 async function showVersion(){ try { const v = await (await fetch('/api/version')).json(); $('#appversion').textContent = `App version: ${v.build} · files of ${v.newest}`; } catch (e) { /* an older server has no version */ } }
 $('#setApply').onclick = async () => {
   if (!currentJob) return;
-  saveSettings(); $('#settings').classList.remove('on'); requestRender();
+  closeSettings();
   const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', JSON.stringify(params()));
   const resp = await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); const r = await resp.json().catch(() => ({}));
   if (!resp.ok) { showErr('Could not re-run: ' + (r.detail || resp.status) + (resp.status === 404 ? ' — the case is not open any more; pick it from the list or Past cases and try again' : '')); return; }
   if (r.nothing) { showErr('Nothing changed for this case — the models already match these settings.', 6000); return; }
   forgetEdits(); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
-$('#setClose').onclick = () => { $('#settings').classList.remove('on'); saveSettings(); requestRender(); };
+$('#setClose').onclick = closeSettings;
 $('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
 document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => { const inp = $('#' + b.dataset.for); const step = +b.dataset.step; const dec = (String(step).split('.')[1] || '').length;
   let v = +inp.value + step; v = Math.min(+inp.max, Math.max(+inp.min, v)); inp.value = v.toFixed(dec); inp.dispatchEvent(new Event('change')); });
