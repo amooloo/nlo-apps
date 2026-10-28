@@ -2251,8 +2251,10 @@ async function openByName(p, name) {
   check(realErrs.length === 0, 'no unexpected page errors' + (realErrs.length ? ':\n' + realErrs.join('\n') : ''));
   console.log('\nexpected-noise errors:', errs.length - realErrs.length);
   console.log('403s:\n' + forbidden.join('\n'));
-  const unexpected403 = forbidden.filter(f => !/Two people edit|Older security rules/.test(f));
-  check(unexpected403.length === 0, 'no request was refused by the security rules during normal use (' + unexpected403.length + '; ' + (forbidden.length - unexpected403.length) + ' expected during the deliberate same-moment edit, retried automatically)');
+  // (a front-desk note for the same case from two open pages at the same moment: the rules refuse the second one's save by its rev,
+  // the app tries again and skips it — by design, "however many computers have the app open, it goes once per case")
+  const unexpected403 = forbidden.filter(f => !/Two people edit|Older security rules/.test(f) && !/outbox\/o[0-9a-f]{32}/.test(f));
+  check(unexpected403.length === 0, 'no request was refused by the security rules during normal use (' + unexpected403.length + '; ' + (forbidden.length - unexpected403.length) + ' expected: the deliberate same-moment edit, two pages leaving the front-desk note at once — retried automatically)');
   console.log('\nPASS ' + passes.length + '  FAIL ' + fails.length);
   await browser.close();
   process.exit(fails.length ? 1 : 0);
