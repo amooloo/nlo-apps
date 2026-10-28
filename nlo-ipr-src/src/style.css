@@ -422,7 +422,7 @@ details.help textarea{width:100%;height:220px;margin-top:8px;font:12px/1.4 ui-mo
 .pav svg{width:80%;height:80%;fill:currentColor;}
 .pav img{width:100%;height:100%;object-fit:cover;display:block;transition:filter .15s,transform .15s;}
 .pav.on{background:var(--sunken);}
-.pav.s28{--s:28px;}.pav.s32{--s:32px;}.pav.s36{--s:36px;}.pav.s44{--s:44px;}.pav.s64{--s:64px;}.pav.s96{--s:96px;}
+.pav.s28{--s:28px;}.pav.s32{--s:32px;}.pav.s36{--s:36px;}.pav.s44{--s:44px;}.pav.s64{--s:64px;}.pav.s66{--s:66px;}.pav.s96{--s:96px;}
 .pav.none{opacity:.75;}
 /* the eye: blurred until hovered (the editor always shows the picture), and "Jane D." names */
 body.phHide .pav.on img{filter:blur(7px) saturate(.5);transform:scale(1.35);}
@@ -432,7 +432,7 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s);}
 .phTgl[aria-pressed="true"]{color:var(--danger);background:var(--danger-soft);border-color:var(--danger-line);}
 /* the patient strip: the picture is a button (change or add the photo); a picture dropped on it is taken */
 .ip-pbtn{position:relative;flex:none;border:0;background:none;padding:0;border-radius:50%;cursor:pointer;display:inline-flex;}
-.ip-pbtn .ip-pcam{position:absolute;right:-4px;bottom:-4px;width:22px;height:22px;border-radius:50%;background:#fff;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;box-shadow:var(--sh-1);border:1px solid var(--line-2);}
+.ip-pbtn .ip-pcam{position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:#fff;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;box-shadow:var(--sh-1);border:1px solid var(--line-2);}
 .ip-pbtn:hover .pav,.ip-pbtn:focus-visible .pav{box-shadow:0 0 0 3px var(--accent-line);}
 .ip-pbtn.over .pav,.phSlot.over .pav{box-shadow:0 0 0 3px var(--accent);}
 .ip-pbtn:disabled{cursor:default;}
