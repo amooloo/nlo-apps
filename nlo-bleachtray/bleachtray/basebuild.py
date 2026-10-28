@@ -24,7 +24,54 @@ import trimesh
 
 LOCATING_HOLES = [(7.47, -19.0), (-7.47, -19.0)]   # the Trimlign base's two locating holes (Titan's frame)
 HOLE_DEPTH = 3.5                                    # clear from the bottom up to here (Titan's ceiling: 3.51 mm)
+HOLE_RADIUS = 2.0                                   # the hole's rim, from the centre (the depth check samples a 1.8 mm disc inside it)
+HOLE_CLEAR = 0.5                                    # the model's foot stays at least this far off the rim
 LOCK = threading.Lock()                             # held while the base is checked / rebuilt (load_base waits)
+
+
+# ---------------------------------------------------------------- the model's foot over the holes
+def hole_clearance(outline, holes=LOCATING_HOLES, radius=HOLE_RADIUS):
+    """Per locating hole: how far the model's foot (its outline polygon on the base, Titan's frame) stays off the
+    hole's rim, mm - negative when the foot reaches over the hole by that much. A narrow arch (a child's, a crowded
+    one) sits over the holes and the printed model blocks the pins (the doctor, 10/27/2026)."""
+    from shapely.geometry import Point
+    out = []
+    for (cx, cy) in holes:
+        p = Point(cx, cy)
+        d = float(outline.boundary.distance(p))
+        out.append(round((-d if outline.contains(p) else d) - radius, 2))
+    return out
+
+
+def slide_for_holes(outline, need=HOLE_CLEAR, max_mm=6.0, step=0.25, max_side=1.5):
+    """How far the arch must move for both holes to be clear by `need`: (dx, dy, ok). Forward (+y) first: the holes
+    sit behind the front teeth where the horseshoe is narrowest, and forward puts a wider part of it over them; a
+    small sideways nudge (up to `max_side`) is allowed with it, for an arch that is not symmetric about the base's
+    midline (one hole 3 mm clear, the other under the wall). The smallest forward slide that works wins, and within
+    it the smallest nudge. Up to `max_mm` forward; ok=False when that is not enough (then the best of the last row)."""
+    from shapely import affinity
+    sides = [0.0] + [sgn * d for d in np.arange(step, max_side + 1e-9, step) for sgn in (-1.0, 1.0)]
+    best = (0.0, float(max_mm), -1e9)
+    for dy in np.arange(0.0, max_mm + 1e-9, step):
+        for dx in sides:
+            c = min(hole_clearance(affinity.translate(outline, float(dx), float(dy))))
+            if c >= need:
+                return float(dx), float(dy), True
+            if dy >= max_mm - 1e-9 and c > best[2]:
+                best = (float(dx), float(dy), c)
+    return best[0], best[1], False
+
+
+def hole_note(clear, need=HOLE_CLEAR):
+    """The warning for a model whose foot sits over (or too close to) a locating hole, else None."""
+    bad = [(("right" if cx > 0 else "left"), c) for (cx, _), c in zip(LOCATING_HOLES, clear) if c < need]
+    if not bad:
+        return None
+    worst = min(c for _, c in bad)
+    where = " and ".join(w for w, _ in bad)
+    return (f"the model sits over the base's {where} locating hole{'s' if len(bad) > 1 else ''} ({-worst:.1f} mm past the rim)"
+            if worst < -0.05 else f"the model comes within {max(worst, 0.0):.1f} mm of the base's {where} locating hole{'s' if len(bad) > 1 else ''} (0.5 needed)") + \
+           " - the pins will not seat: slide the arch forward on the Result tab (Position on the base) before printing"
 
 
 # ---------------------------------------------------------------- sections

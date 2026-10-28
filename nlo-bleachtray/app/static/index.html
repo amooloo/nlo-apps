@@ -92,6 +92,18 @@
   button.small,button.primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:6px 14px;border-radius:999px;font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;line-height:1.1;white-space:nowrap;background:#fff;border:1.5px solid var(--grey-300);color:var(--navy);transition:background .14s var(--ease),transform .14s var(--ease)}
   button.small:hover{background:var(--grey-100)}
   button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.primary.create{background:var(--teal, #0d9488);border-color:var(--teal, #0d9488);color:#fff;margin-right:8px}
+  button.primary.create:hover{background:#0f766e}
+  .pieces{display:flex;flex-direction:column;gap:6px}
+  .pieces label.pc{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:9px 12px;border:1.5px solid var(--grey-300);border-radius:12px;cursor:pointer;background:#fff}
+  .pieces label.pc.off{opacity:.55;cursor:not-allowed}
+  .pieces label.pc b{font-weight:600;color:var(--navy)}
+  .pieces label.pc .fn{font-size:11.5px;color:var(--grey-500);font-family:ui-monospace,Menlo,Consolas,monospace}
+  .pieces label.pc .st{font-size:11.5px;color:var(--grey-500);text-align:right;white-space:nowrap}
+  .pieces label.pc .st.warn{color:#b45309}
+  .warnstrip{margin:0 0 10px;padding:9px 12px;border-radius:10px;background:#fef3c7;border:1.5px solid #fcd34d;color:#78350f;font-size:13px;line-height:1.45;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .warnstrip button{margin-left:auto}
+  .pieces label.pc .st.bad{color:var(--err)}
   button.primary:hover{background:var(--blue-700)}
   button.primary:disabled,button.small:disabled{opacity:.55;cursor:not-allowed}
   button:active{transform:scale(.985)}
@@ -315,26 +327,19 @@
     </div>
   </aside>
   <div id="main">
-    <div class="topBar"><h2>Tray Maker</h2><span class="sub">Drop a scan — whitening tray + retainer models go to the Trimlign after you check them.</span>
-      <span class="hint" style="margin:0 0 0 auto" id="setsum"></span><button class="small" id="openSettings" title="Model settings and office settings">&#9881; Settings</button></div>
+    <div class="topBar"><h2>Tray Maker</h2><span class="sub">Create a case (or drop a scan anywhere) — the models go to the Trimlign after you check them.</span>
+      <span class="hint" style="margin:0 0 0 auto" id="setsum"></span><button class="primary create" id="createcase" title="Start a case: drop the scan files, say what to make">&#43; Create a case</button><button class="small" id="openSettings" title="Model settings and office settings">&#9881; Settings</button></div>
     <main id="view">
       <div class="leftCol">
-        <div class="card">
-          <div class="cardHd"><h3>New case</h3></div>
-          <div class="cardBd">
-            <div class="drop" id="drop"><b>Drop the scan STL here</b>anywhere on this page works · one arch at a time — the app then asks what to make and whether the opposing arch is coming. A whole day's scans at once run with the defaults. Or click to choose.</div>
-            <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
-            <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
-            <div class="hint" style="margin-top:10px">Patient: <a href="#" id="patientline" title="The patient of the open case - click to change the name">—</a></div>
-            <div class="hint" id="filehint">No file yet.</div>
-            <div id="rerunbox" style="display:none;margin-top:10px"><button class="small" id="go">Run again with these settings</button></div>
-          </div>
-        </div>
+        <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
+        <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
         <div class="card" id="detail" style="display:none">
-          <div class="cardHd"><h3>Check &amp; send</h3></div>
+          <div class="cardHd"><h3>Check &amp; send</h3><span class="sub">Patient: <a href="#" id="patientline" title="The patient of the open case - click to change the name">—</a></span></div>
           <div class="cardBd">
             <div class="review" id="review"></div>
-            <div class="dl" id="dl"></div>
+            <div class="hint" id="filehint" style="margin-top:6px"></div>
+            <div id="rerunbox" style="display:none;margin-top:10px"><button class="small" id="go">Run again with these settings</button></div>
+            <details class="logbox" style="margin-top:10px"><summary>Advanced files — this model only (the order’s own files, for a check; Export is the button above)</summary><div class="dl" id="dl"></div></details>
             <details class="logbox"><summary>Processing log</summary>
               <div style="display:flex;gap:6px;align-items:center;margin:6px 0 4px"><button class="small" id="copylog" title="Copy the whole log to the clipboard">Copy log</button><button class="small" id="savelog" title="Save the whole log as a text file">Save as .txt</button><span class="hint" id="logmsg" style="margin:0"></span></div>
               <div class="log" id="log" tabindex="0" title="Click to select it all"></div></details>
@@ -387,7 +392,7 @@
         <div class="brush" id="brush"></div>
         <button class="pchip" id="brushchip" title="Show the brush tools">&#9998; Brush &#9656;</button>
         <button class="pchip" id="placechip" title="Fine steps for the base, underside view, Apply / Reset">&#10021; Position on the base &#9656;</button>
-        <button class="pchip" id="textchip" title="The text on the model: where it goes, what it says, raised or cut in">T&#1090; Text &#9656;</button>
+        <button class="pchip" id="textchip" title="The label on the model: where it goes, what it says, raised or cut in">T&#1090; Label &#9656;</button>
         <div class="place" id="place">
           <div class="phead"><h4>Position on the base</h4><span class="sp"></span><button class="ibtn" id="placehelp" title="How to move the base">?</button><button class="ibtn" id="placehide" title="Hide this box - the Position chip brings it back">&ndash;</button></div>
           <div class="hint phelp" id="placehelptext">While this box is open the base has handles: <b>drag the plate</b> to slide it, <b>drag the thin blue ring</b> to turn it - the arch stays where it is. The <b>mark</b> on the model (the raised initials - J.D - that form into the tray) shows as a small card on the model: <b>drag it</b> onto any tooth or onto the side of the model, turn it and size it with the Mark buttons, choose what it says, raised or cut in; <b>Auto</b> puts it back on a first molar. Fold the box and they go away. The buttons are fine steps (mm and degrees); the base moves live under the arch. <b>Underneath</b> looks up at the underside: the locating holes in the base plate must stay clear of the arch. <b>Apply</b> moves this arch's models on the base (a few seconds - a height change rebuilds them, ~1 min) and replaces the Trimlign order; the other arch stays as it is. <b>Reset</b> goes back to the automatic placement.</div>
@@ -398,11 +403,12 @@
           <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
           <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
           <div class="hint" id="placestate"></div>
+          <div class="hint" id="holestate" style="display:none"></div>
         </div>
         <div class="textbox" id="textbox">
-          <div class="phead"><h4>Text on the model</h4><span class="sp"></span><button class="ibtn" id="texthelp" title="How the text works">?</button><button class="ibtn" id="texthide" title="Hide this box - the Text chip brings it back">&ndash;</button></div>
-          <div class="hint phelp" id="texthelptext">The text is part of the model: <b>raised</b> it forms into the tray and reads on it (the way aligner makers mark theirs), <b>cut in</b> it stays on the model only. <b>Place</b>: click a start point and an end point on the model and the letters are laid along the surface between them, sized to fit; or drag the yellow card. Turn and size with the buttons. <b>Auto</b> puts it back on a first molar. Apply makes it (a few seconds - the model itself is kept).</div>
-          <div class="prow" style="margin-top:8px;grid-template-columns:76px 1fr 64px"><span>Says</span><select id="mktext" class="small" style="width:100%;min-width:0" title="What the text says"><option value="initials">Initials (J.D)</option><option value="last">Last name</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button></div>
+          <div class="phead"><h4>Label on the model</h4><span class="sp"></span><button class="ibtn" id="texthelp" title="How the label works">?</button><button class="ibtn" id="texthide" title="Hide this box - the Label chip brings it back">&ndash;</button></div>
+          <div class="hint phelp" id="texthelptext">The label is part of the model: <b>raised</b> it forms into the tray and reads on it (the way aligner makers mark theirs), <b>cut in</b> it stays on the model only. <b>Place</b>: click a start point and an end point on the model and the letters are laid along the surface between them, sized to fit; or drag the yellow card. Turn and size with the buttons. <b>Auto</b> puts it back on a first molar. Apply makes it (a few seconds - the model itself is kept).</div>
+          <div class="prow" style="margin-top:8px;grid-template-columns:76px 1fr 64px"><span>Says</span><select id="mktext" class="small" style="width:100%;min-width:0" title="What the label says"><option value="initials">Initials (J.D)</option><option value="last">Last name</option><option value="full">Full name</option></select><button class="small" id="mkraised" title="Raised (forms into the tray) or cut into the model">Raised</button></div>
           <div class="prow" style="margin-top:6px;grid-template-columns:76px 1fr 64px"><span>Place</span><button class="primary small" id="mkplace" title="Click a start point and an end point on the model">Start &rarr; end on the model</button><button class="small" id="mkauto" title="Back to the automatic spot: the cheek of a first molar">Auto</button></div>
           <div class="prow" style="margin-top:6px;grid-template-columns:76px 1fr 1fr 1fr 1fr"><span>Adjust</span><button data-mk="angle_deg" data-d="-15" title="Turn">&#8634; 15&deg;</button><button data-mk="angle_deg" data-d="15" title="Turn">15&deg; &#8635;</button><button data-mk="cap" data-d="-0.3" title="Smaller letters">A&minus;</button><button data-mk="cap" data-d="0.3" title="Bigger letters">A+</button></div>
           <div class="hint" id="markstate" style="margin:6px 0 0"></div>
@@ -417,14 +423,15 @@
           <button data-view="back" title="From behind (the tongue / palate side)">Back</button>
           <button data-view="below" title="From below (the base plate, see-through)">Below</button>
         </div>
-        <div class="stats" id="stats">Drop a scan to begin.</div>
+        <div class="stats" id="stats">Create a case, or drop a scan anywhere on this page, to begin.</div>
         <div id="fatal"></div>
         <div id="errline"></div>
 <!-- NEW CASE pop-up: a dropped scan asks what to make before anything runs -->
 <div class="modalBg" id="casemodal">
   <div class="modal">
-    <h3 id="modaltitle">New case</h3>
+    <h3 id="modaltitle">Create a case</h3>
     <div class="hint" id="modalintro" style="margin:0 0 10px">What should be made from this scan? Tick the trays, check the arch, add the opposing arch if it is coming — nothing runs until you click <b>Start</b>.</div>
+    <div class="drop" id="drop" style="margin:0 0 12px"><b>Drop the scan files here</b>PLY from the scanner (STL works too) · upper, lower or both · or click to choose</div>
     <div class="row">
       <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="First"></div>
       <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Last"></div>
@@ -434,6 +441,17 @@
       <div class="hint" id="setuphint"></div>
     </div>
     <div class="btns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="primary small" id="startcase">Start</button><button class="small" id="addopp">Add the opposing arch…</button><button class="small" id="cancelcase">Cancel</button></div>
+  </div>
+</div>
+<!-- EXPORT / SEND pop-up: the case's pieces as a checklist - what goes out, and where -->
+<div class="modalBg" id="piecesmodal">
+  <div class="modal">
+    <h3 id="piecestitle">Export</h3>
+    <div class="hint" id="piecesintro" style="margin:0 0 10px"></div>
+    <div id="pieceswarn" class="warnstrip" style="display:none"></div>
+    <div id="pieceslist" class="pieces"></div>
+    <div class="hint" id="pieceshint" style="margin:8px 0 0"></div>
+    <div class="btns" id="piecesbtns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"></div>
   </div>
 </div>
         <canvas id="c"></canvas>
@@ -756,7 +774,7 @@ let currentJob = null, tab = 'result';
 const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new THREE.Group() };
 Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null, segAdj = null;
-const edits = { relabel: new Set(), p1span: new Set(), unp1span: new Set(), p1end: new Set(), unp1end: new Set(), p1six: new Set(), unp1six: new Set(), add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), unblockout: new Set(), takeoff: new Set(), notbracket: new Set(), reservoir: new Set(), contact: new Set(), uncontact: new Set() };
+const edits = { relabel: new Set(), p1span: new Set(), unp1span: new Set(), p1end: new Set(), unp1end: new Set(), p1six: new Set(), unp1six: new Set(), add: new Set(), remove: new Set(), cut: new Set(), noreservoir: new Set(), blockout: new Set(), unblockout: new Set(), takeoff: new Set(), notbracket: new Set(), reservoir: new Set(), contact: new Set(), uncontact: new Set(), nosplit: new Set(), unnosplit: new Set() };
 // strokes are kept per scan file while the case is open: paint the upper, switch to the lower and paint that
 // too - one Apply sends both. The whitening tray and the retainer of an arch are made from the same file, so
 // they share its strokes (a mouthguard with the braces on is made from the scan as scanned: its own set)
@@ -764,40 +782,64 @@ const EDIT_KEYS = Object.keys(edits);
 let editsByFile = {}, curFile = null, curScans = [];
 const fileKeyOf = sc => sc ? `${sc.filename}|${sc.preset === 'mouthguard' ? 'mg' : 'std'}` : null;
 let outlines = [];   // closed outlines on the current file: lists of corner vertices (sent with the strokes, kept with the case)
-function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length || Object.keys(toothIds).length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].teeth = Object.assign({}, toothIds); editsByFile[curFile].outlines = outlines.map(o => o.slice()); editsByFile[curFile].raw = rawView && (edits.takeoff.size + edits.notbracket.size) > 0; } else delete editsByFile[curFile]; }
-function restoreEdits(key){ const e = editsByFile[key]; toothIds = e && e.teeth ? Object.assign({}, e.teeth) : {}; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); outlines = e && e.outlines ? e.outlines.map(o => o.slice()) : []; }
-function forgetEdits(){ editsByFile = {}; curFile = null; toothIds = {}; EDIT_KEYS.forEach(k => edits[k].clear()); if (typeof relabelOf !== 'undefined') relabelOf = new Map(); outlines = []; if (typeof dropOutline === 'function') dropOutline(); }
+let p1paths = [], p1pathClear = false;   // the Phase I tab's traced cutout outlines drawn this time (ordered vertex runs), and whether the applied ones were cleared
+let p1AppliedByFile = {};                // per scan file: the traced outlines already applied (from /p1dots when the file was shown)
+function stashEdits(){ if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length || p1paths.length || p1pathClear || Object.keys(toothIds).length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].teeth = Object.assign({}, toothIds); editsByFile[curFile].outlines = outlines.map(o => o.slice()); editsByFile[curFile].p1paths = p1paths.map(o => o.slice()); editsByFile[curFile].p1pathClear = p1pathClear; editsByFile[curFile].raw = rawView && (edits.takeoff.size + edits.notbracket.size) > 0; } else delete editsByFile[curFile]; }
+function restoreEdits(key){ const e = editsByFile[key]; toothIds = e && e.teeth ? Object.assign({}, e.teeth) : {}; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); outlines = e && e.outlines ? e.outlines.map(o => o.slice()) : []; p1paths = e && e.p1paths ? e.p1paths.map(o => o.slice()) : []; p1pathClear = !!(e && e.p1pathClear); }
+function forgetEdits(){ editsByFile = {}; curFile = null; toothIds = {}; p1AppliedByFile = {}; EDIT_KEYS.forEach(k => edits[k].clear()); if (typeof relabelOf !== 'undefined') relabelOf = new Map(); outlines = []; if (typeof dropOutline === 'function') dropOutline(); p1paths = []; p1pathClear = false; if (typeof dropP1Path === 'function') dropP1Path(); }
 // every file's strokes, as the server takes them: one entry per scan file, with the index of a scan made from it
 function allEdits(){
   stashEdits();
   const out = [];
   for (const key in editsByFile) {
     const k = curScans.findIndex(sc => fileKeyOf(sc) === key); if (k < 0) continue;
-    const e = editsByFile[key]; out.push(Object.assign({ scan: k, outlines: (e.outlines || []).map(o => o.slice()), teeth: e.teeth && Object.keys(e.teeth).length ? e.teeth : undefined, raw: e.raw || undefined }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
+    const e = editsByFile[key];
+    // the traced cutout outlines go as the whole set the page holds for the file (the applied ones that were not
+    // cleared, plus the new ones), so the server replaces what it kept; the key is left out when nothing changed
+    const p1all = (e.p1paths && e.p1paths.length) || e.p1pathClear ? ((e.p1pathClear ? [] : (p1AppliedByFile[key] || [])).concat(e.p1paths || [])).map(o => o.slice()) : undefined;
+    out.push(Object.assign({ scan: k, outlines: (e.outlines || []).map(o => o.slice()), teeth: e.teeth && Object.keys(e.teeth).length ? e.teeth : undefined, raw: e.raw || undefined, p1path: p1all }, Object.fromEntries(EDIT_KEYS.map(x => [x, [...e[x]]]))));
   }
   return out;
 }
-const otherEditCount = () => { stashEdits(); return Object.keys(editsByFile).filter(k => k !== curFile).reduce((a, k) => a + EDIT_KEYS.reduce((b, x) => b + editsByFile[k][x].size, 0) + Object.keys(editsByFile[k].teeth || {}).length, 0); };
+const otherEditCount = () => { stashEdits(); return Object.keys(editsByFile).filter(k => k !== curFile).reduce((a, k) => a + EDIT_KEYS.reduce((b, x) => b + editsByFile[k][x].size, 0) + Object.keys(editsByFile[k].teeth || {}).length + (editsByFile[k].p1paths || []).length, 0); };
 let toothIds = {};   // the Teeth tab: {label: [position, primary]} given by hand this time (null = back to the app's count)
+// ---------- unapplied work: one place that knows what would be lost (the doctor, 10/27/2026: "a warning / confirmation
+// for unsaved changes before send or export, and before anything destructive") ----------
+function pendingWork(){
+  stashEdits();
+  let n = 0;
+  for (const k in editsByFile) { const e = editsByFile[k]; n += EDIT_KEYS.reduce((a, x) => a + (e[x] ? e[x].size : 0), 0) + Object.keys(e.teeth || {}).length + (e.outlines || []).length + (e.p1paths || []).length + (e.p1pathClear ? 1 : 0); }
+  const parts = [];
+  if (n) parts.push(`${n} edit${n > 1 ? 's' : ''} on the steps not applied`);
+  if (typeof pendingAdj !== 'undefined' && Object.keys(pendingAdj).length) parts.push('the base moved on screen but not applied');
+  if (typeof pendingMark !== 'undefined' && Object.keys(pendingMark).length) parts.push('a label changed but not applied');
+  return parts;
+}
+// true = go on; false = the staff chose to stay with the case (Apply & re-run first)
+function confirmLeave(doing){
+  const parts = pendingWork(); if (!parts.length) return true;
+  return confirm(`This case has ${parts.join(', and ')}. ${doing} drops them.\n\nOK = go on without them.   Cancel = stay here (Apply & re-run makes the models with them first).`);
+}
+window.addEventListener('beforeunload', ev => { if (currentJob && pendingWork().length) { ev.preventDefault(); ev.returnValue = ''; } });
 let resMesh = null, resHeat = null;   // the Reservoirs view: its mesh and its heat colours
 // one brush tab per job: which view it paints on, its modes, what Clear empties, the words
 const PANELS = {
   clean:  { group: 'seg', title: 'Scan clean-up — cut away what is not the arch', modes: [['cut', 'Cut away', 'Tongue, cheek, a flap, the pad behind the last molar: that part of the scan is deleted before the model is built', 'brush'], ['uncut', 'Erase', 'Painted too much? Paint over it again with this to take the cut stroke back (before Apply)', 'eraser']],
             sets: ['cut'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over what the scanner caught that is not the arch; rotate with the mouse otherwise. <b>Erase</b> takes a stroke back where you paint over it, before Apply. The painted part leaves the scan file itself - every model from it, every later re-run; <b>Bring back what was cut</b> (shown once something has been cut away) puts the scan back as it was before the first cut and re-makes its models.' },
-  seg:    { group: 'seg', title: 'Segmentation — fix tooth / gum labels', modes: [['tooth', 'Tooth', 'Paints what the stroke starts on. Start on a tooth and the stroke is that tooth\'s colour (over the neighbour\'s bleed, or over gum, it is that tooth); start on gum - no colour - and the stroke is gum', 'brush'], ['gum', 'Gum', 'Gum, whatever the stroke starts on', 'eraser'], ['contact', 'Contact', 'Shift-click once where two teeth touch: the split between them is put there (crowded incisors where one colour runs over two teeth). Click a dot again to take it away', 'dot']],
-            sets: ['add', 'remove', 'relabel', 'contact', 'uncontact'], hint: 'Each tooth has its own colour, gum is plain. Hold <kbd class="key">Shift</kbd> and drag to repaint; rotate with the mouse otherwise. <b>Tooth</b> paints the colour of the tooth the stroke starts on: where one colour has run over onto the next tooth, start on the right tooth and paint over the bleed - it is that tooth again, with a clean split; started on gum it paints plain tooth, for the app to sort. <b>Contact</b> is a dot, not a brush: the view turns to look from above; Shift-click once where two teeth touch and the split between them is moved there - only where one colour runs across two teeth (crowded lower incisors, where the reservoir ends mid-tooth). Teeth that already have their own colour need no dot, and teeth with a space between them never do - most arches need none, a crowded one two or three. Click a dot to take it away, Backspace takes the last one back, Shift-drag moves one; an applied dot shows pale. The dots are kept with the scan, and a corrected case that is sent or saved as a lesson teaches the model where teeth meet.' },
+  seg:    { group: 'seg', title: 'Segmentation — fix tooth / gum labels', modes: [['tooth', 'Tooth', 'Paints what the stroke starts on. Start on a tooth and the stroke is that tooth\'s colour (over the neighbour\'s bleed, or over gum, it is that tooth); start on gum - no colour - and the stroke is gum', 'brush'], ['gum', 'Gum', 'Gum, whatever the stroke starts on', 'eraser'], ['contact', 'Contact', 'The splits the app made show as rings. Shift-click where two teeth touch and no ring is: a split goes there (a yellow dot). Shift-click a ring: no split there - the two colours become one tooth. Shift-drag a ring or a dot to move the split. Click a dot again to take it away', 'dot']],
+            sets: ['add', 'remove', 'relabel', 'contact', 'uncontact', 'nosplit', 'unnosplit'], hint: 'Each tooth has its own colour, gum is plain. Hold <kbd class="key">Shift</kbd> and drag to repaint; rotate with the mouse otherwise. <b>Tooth</b> paints the colour of the tooth the stroke starts on: where one colour has run over onto the next tooth, start on the right tooth and paint over the bleed - it is that tooth again, with a clean split; started on gum it paints plain tooth, for the app to sort. <b>Contact</b> is a dot, not a brush. Every split the app made between two colours shows as a <b>ring</b> on the cheek side, where it is easiest to see (look from the front for the incisors). Three things to do with it: where one colour runs across two teeth and no ring is, Shift-click where the teeth touch - a <b>yellow dot</b> puts the split there; where one tooth has two colours, Shift-click the ring between them - it gets a cross, <b>no split</b> there, and the two colours are one tooth after Apply; where a split sits in the wrong place, Shift-drag the ring (or a dot) to where the teeth really meet. Teeth that already have their own colour need nothing, and teeth with a space between them never do - most arches need no dots, a crowded one two or three. Click a dot or a crossed ring again to take it back, Backspace takes the last one back; applied dots show pale. The dots are kept with the scan, and a corrected case that is sent or saved as a lesson teaches the model where teeth meet.' },
   res:    { group: 'scan', title: 'Reservoirs — paint or erase', modes: [['reservoir', 'Paint', 'A reservoir here: on a tooth the automatic one skipped (behind the 5s, a tooth set back for recession) or a part it missed. Still 1 mm off the gum line and 0.4 mm off the edge', 'brush'], ['noreservoir', 'Erase', 'No reservoir here (recession, an exposed root, a crown margin) - the reservoir ends at the edge of your stroke, with its 0.6 mm slope on the side you kept', 'eraser']],
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
   block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['outline', 'Outline', 'Click round the undercut, corner by corner (Shift-click): the corners are joined along the surface; click the first dot again to close and everything inside is blocked out. Esc drops an unfinished outline', 'poly'], ['blockout', 'Block out', 'Brush: fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats', 'brush'], ['unblockout', 'Clear', 'Take a painted block-out away here (an applied one shows pale green) - the next Apply re-makes the model without it', 'eraser']],
             sets: ['blockout', 'unblockout'], hint: '<b>Outline</b>: Shift-click corner after corner round the undercut and click the first dot again to close it - the inside is blocked out and the outline is kept with the case (it teaches the automatic block-out where you want them). <b>Block out</b> is the brush instead: hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
-  p1:     { group: 'seg', title: 'Phase I — where the cutouts go and where the retainer ends', modes: [['p1span', 'Cutout span', 'Shift-click twice on a side - the near end and the far end of the cutout, mesio-distal - and the cutout runs between the two dots, whatever teeth stand there. Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1end', 'Ends here', 'Shift-click once on a side where the retainer ends: nothing is covered behind the dot (instead of the app finding the 12-year molar). Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1six', '6 is here', 'Shift-click on the first molar on a side: that tooth is the 6, the side is counted from it (the tooth in front is the E, anything behind is a 7). For when the app has the 6 as a 7 and cuts it off', 'dot']],
-            sets: ['p1span', 'unp1span', 'p1end', 'unp1end', 'p1six', 'unp1six'], hint: '<b>6 is here</b>: Shift-click the first molar on a side when the app has it wrong (a space between the front teeth counted as a tooth gone makes the 6 a "7", and the retainer stops short of it): that tooth is the 6, the side is counted from it. <b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (the lateral\'s distal face to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
+  p1:     { group: 'seg', title: 'Phase I — where the cutouts go and where the retainer ends', modes: [['p1path', 'Cutout outline', 'Shift-click the distal of the 2, then along the tongue side of the C/D area (as far onto the gum as the cutout should go), and last on the E or 5 where the cutout ends; click the last dot again (or press Enter) to finish - the app joins both ends to the trim line. Backspace takes the last dot back, Esc drops the outline', 'poly'], ['p1span', 'Cutout span', 'Shift-click twice on a side - the near end and the far end of the cutout, mesio-distal - and the cutout runs between the two dots, whatever teeth stand there. Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1end', 'Ends here', 'Shift-click once on a side where the retainer ends: nothing is covered behind the dot (instead of the app finding the 12-year molar). Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1six', '6 is here', 'Shift-click on the first molar on a side: that tooth is the 6, the side is counted from it (the tooth in front is the E, anything behind is a 7). For when the app has the 6 as a 7 and cuts it off', 'dot']],
+            sets: ['p1span', 'unp1span', 'p1end', 'unp1end', 'p1six', 'unp1six'], hint: '<b>Cutout outline</b> (the easiest way): three steps per side - <b>1</b> Shift-click the distal of the 2 (where the cutout starts), <b>2</b> click your way round the tongue side of the C/D area, as far onto the gum as the cutout should go, <b>3</b> click on the E (or the 5) where the cutout ends - then click the last dot again or press Enter. The app cuts out everything between your outline and the cheek side and joins both ends to the trim line; the 2 and the teeth behind your last dot stay whole. One outline per side. <b>6 is here</b>: Shift-click the first molar on a side when the app has it wrong (a space between the front teeth counted as a tooth gone makes the 6 a "7", and the retainer stops short of it): that tooth is the 6, the side is counted from it. <b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (the lateral\'s distal face to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
   teeth:  { group: 'seg', title: 'Teeth — the number of every tooth', modes: [['number', 'Number', 'Click a tooth\'s badge and pick its number (1-8, or A-E for a primary tooth); the other teeth on that side are counted from it. × = not a tooth', 'dot']],
             sets: [], hint: 'Every tooth carries a badge with the number the app gave it (counted from the midline). Click a badge and pick the right number - <b>Perm</b> 1-8 or <b>Primary</b> A-E - and the rest of that side is counted from it (one more going back, one less going forward), so one click puts a whole side right; <b>× not a tooth</b> makes a label gum again; <b>auto</b> gives the app\'s count back. Badges given by hand show orange. Apply &amp; re-run makes the models with these numbers; they are kept with the scan.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed, keep what is not a bracket', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the band)', 'brush'], ['notbracket', 'Not a bracket', 'Tooth or gum the app took for a bracket: left as scanned on the next run (on a mouthguard it is kept out of the band). Saved with the case, to teach the detector', 'eraser']],
             sets: ['takeoff', 'notbracket'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard band; blue = marked not a bracket. Hold <kbd class="key">Shift</kbd> and drag; rotate with the mouse otherwise. <b>Take off</b> over anything that was missed: on a retainer it comes off and the enamel is rebuilt, on a mouthguard it joins the band. <b>Not a bracket</b> over anything taken for one that is not: on a retainer the braces are taken off the scan as scanned again, leaving those areas as they were scanned; on a mouthguard the band leaves them out. The strokes are kept with the case and saved with its lesson. <b>Scan as scanned</b> (below) shows the scan exactly as it came with what comes off marked, to fix the outline before it is cut.' },
 };
-const tabMode = { clean: 'cut', seg: 'tooth', res: 'reservoir', block: 'outline', braces: 'takeoff', p1: 'p1span', teeth: 'number' };
+const tabMode = { clean: 'cut', seg: 'tooth', res: 'reservoir', block: 'outline', braces: 'takeoff', p1: 'p1path', teeth: 'number' };
 const ICONS = {
   brush: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M14 3l7 7-8.5 8.5a3 3 0 0 1-4.2 0L7 17.2a3 3 0 0 1 0-4.2L14 3z"/><path d="M11 16c-2 0-3 1-3.5 3.5S5 21 3 21c1.5-1 2-2 2-3.5S6 14 8 14"/></svg>',
   eraser: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M20 20H9"/><path d="M4.5 15.5l9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8l-7 7H9l-4.5-4.5a2 2 0 0 1 0-2.8z"/><path d="M10 10l5 5"/></svg>',
@@ -838,7 +880,7 @@ function renderPanel(){
     <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button>${tab === 'clean' && curScans[scanIdx] && curScans[scanIdx].cut ? '<button class="small" id="uncut" title="Puts the scan back as it was before the first cut and re-makes its models">Bring back what was cut</button>' : ''}</div>
     <div class="hint" id="fixcount">No edits.</div>
     <div class="stepnav"><span class="where" id="stepwhere"></span><button class="small" id="stepback" title="The step before">&larr; Back</button><button class="small" id="stepnext" title="The next step - your edits here are kept and go with the next Apply">Next &rarr;</button></div>`;
-  box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); if (isDotMode(b.dataset.mode)) viewFrom('top'); });
+  box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); drawDots(); requestRender(); });
   $('#radius').oninput = () => { brushR = +$('#radius').value; $('#rv').textContent = brushR; brushCursor.scale.setScalar(cursorR()); if (brushCursor.visible) requestRender(); };
   const rv = $('#rawview');
   if (rv) rv.onchange = async () => {
@@ -854,7 +896,7 @@ function renderPanel(){
   // should ask you to confirm if you want to undo everything")
   $('#clearfix').onclick = () => {
     const btn = $('#clearfix');
-    const n = P.sets.reduce((a, k) => a + edits[k].size, 0) + (tab === 'teeth' ? Object.keys(toothIds).length : 0) + (tab === 'block' ? outlines.length : 0);
+    const n = P.sets.reduce((a, k) => a + edits[k].size, 0) + (tab === 'teeth' ? Object.keys(toothIds).length : 0) + (tab === 'block' ? outlines.length : 0) + (tab === 'p1' ? p1paths.length + (p1cur ? 1 : 0) + (p1pathClear ? 0 : p1Dots.path.length) : 0);
     if (!n) { btn.textContent = 'Nothing to clear'; setTimeout(() => { btn.textContent = 'Clear'; }, 1500); return; }
     if (!btn.dataset.armed) {
       btn.dataset.armed = '1'; btn.textContent = `Clear ${n} edit${n > 1 ? 's' : ''}? click again`; btn.style.color = 'var(--err)';
@@ -862,8 +904,8 @@ function renderPanel(){
       return;
     }
     clearTimeout(btn._t); delete btn.dataset.armed; btn.style.color = '';
-    lastCleared = { tab, sets: Object.fromEntries(P.sets.map(k => [k, new Set(edits[k])])), teeth: Object.assign({}, toothIds), outlines: outlines.map(o => o.slice()) };
-    P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'teeth') { toothIds = {}; drawBadges(); } if (tab === 'block') { outlines = []; dropOutline(); } paintColors(); paintResColors(); updateFixCount();
+    lastCleared = { tab, sets: Object.fromEntries(P.sets.map(k => [k, new Set(edits[k])])), teeth: Object.assign({}, toothIds), outlines: outlines.map(o => o.slice()), p1paths: p1paths.map(o => o.slice()), p1pathClear };
+    P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'teeth') { toothIds = {}; drawBadges(); } if (tab === 'block') { outlines = []; dropOutline(); } if (tab === 'p1') { p1paths = []; dropP1Path(); p1pathClear = p1Dots.path.length > 0; } paintColors(); paintResColors(); updateFixCount();
     btn.textContent = `Undo clear (${n})`; btn.dataset.undo = '1';
     btn._t = setTimeout(() => { if (btn.dataset.undo) { delete btn.dataset.undo; btn.textContent = 'Clear'; lastCleared = null; } }, 20000);
     btn.onclick = () => {
@@ -889,7 +931,9 @@ function renderPanel(){
 }
 let segPaint = null;   // painted areas already applied on earlier runs (bit 1 = no reservoir, bit 2 = block out, bit 4 = brackets removed, bit 8 = bracket shield, bit 32 = contact dot)
 let segDots = [];      // the contact dots already applied (vertex indices), from bit 32
-let p1Dots = { span: [], end: [], six: [] };   // the Phase I tab's dots already applied (vertex indices), from /p1dots
+let segNoSplit = [];   // the "no split here" dots already applied (vertex indices), from /p1dots
+let segContacts = [];  // the splits the app made: [{a, b, v}] - the two labels and the facial-most vertex of their boundary
+let p1Dots = { span: [], end: [], six: [], path: [] };   // the Phase I tab's dots already applied (vertex indices) and its traced cutout outlines (vertex runs), from /p1dots
 let segRGB = null;     // the scanner's own colour per vertex (PLY scans), shown under the labels
 // The brush is a sphere of the chosen radius around the point under the mouse - the cursor shows exactly
 // that: a translucent ball (blue = paint tooth, amber = paint gum) with an outline that stays visible
@@ -899,6 +943,23 @@ const brushRingOut = new THREE.Mesh(new THREE.RingGeometry(0.94, 1.0, 64), new T
 const brushRingIn = new THREE.Mesh(new THREE.RingGeometry(0.88, 0.94, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
 brushRingOut.renderOrder = brushRingIn.renderOrder = 12; brushCursor.renderOrder = 11;
 brushCursor.add(brushRingOut, brushRingIn); brushCursor.visible = false; scene.add(brushCursor);
+// The dot tools (Contact, the Phase I dots) and the outline tools (Block-out outline, Cutout outline) place a point,
+// not a brush: their cursor is a crosshair lying on the surface - four arms with a gap in the middle, so the exact
+// spot stays visible - instead of the ball (the doctor, 10/27/2026: "instead of a circle/sphere when it comes to
+// contact points and the block-outs, use a cross-hair"). Drawn over the model, whatever is in front.
+const crossCursor = new THREE.Group();
+{
+  const arm = 1.6, gap = 0.35, pts = [];
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) pts.push(new THREE.Vector3(dx * gap, dy * gap, 0), new THREE.Vector3(dx * arm, dy * arm, 0));
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  const dark = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x1B2F4C, depthTest: false, depthWrite: false, transparent: true, opacity: 0.9 }));
+  const lite = new THREE.LineSegments(g.clone().scale(1.0, 1.0, 1.0), new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, depthWrite: false, transparent: true, opacity: 0.9 }));
+  lite.position.set(0, 0, 0.02); lite.scale.setScalar(0.92);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(gap * 0.75, gap, 32), new THREE.MeshBasicMaterial({ color: 0x1d4ed8, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+  dark.renderOrder = lite.renderOrder = ring.renderOrder = 13;
+  crossCursor.add(dark, lite, ring); crossCursor.userData.ring = ring; crossCursor.visible = false; scene.add(crossCursor);
+}
+const isPointMode = m => (typeof isDotMode === 'function' && isDotMode(m)) || m === 'outline' || m === 'p1path';
 
 function showTab(t){
   if (t === 'braces' && !bracesTab) return;
@@ -938,6 +999,11 @@ $('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => 
 let files = [];
 const drop = $('#drop');
 drop.onclick = () => $('#file').click();
+// Create a case (the doctor, 10/27/2026: "remove the new case and create a 'create a case' button in teal to make it
+// pop up"): the pop-up opens empty with the drop zone; files dropped anywhere on the page open it too
+let creating = false;
+function openCreate(){ creating = true; nameOnly = false; if (!TRACKER) { $('#pfirst').value = ''; $('#plast').value = ''; } renderSetup(); }
+$('#createcase').onclick = () => { if (!TRACKER && !pending.length) { QUEUE.picked = ''; renderQueue(); } openCreate(); };
 $('#file').onchange = e => setFiles([...e.target.files], true);
 // A scan dropped ANYWHERE on the page is taken by the app (otherwise the browser would just download it).
 ['dragenter','dragover'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
@@ -989,6 +1055,7 @@ let TRACKER = (() => {
   return { first: q.get('first') || '', last: q.get('last') || '', case: q.get('case') || '', arches: (q.get('arches') || '').split(',').filter(Boolean),
            wt: makes.includes('WT'), tt: makes.includes('TT'), mg: makes.includes('MG'), p1: makes.includes('P1'), p1_method: (q.get('p1') || '').toLowerCase() === 'bott' ? 'bott' : 'cott', origin };
 })();
+function setupHint(html){ const el = $('#filehint'); if (el) el.innerHTML = html; }
 function trackerHint(){
   if (!TRACKER) return;
   $('#pfirst').value = TRACKER.first; $('#plast').value = TRACKER.last;
@@ -1020,7 +1087,9 @@ function pickQueue(cid){
   TRACKER = { first: parts[0] || '', last: parts.slice(1).join(' ') || '', case: cid, arches: it.arches, wt: it.make.includes('WT'), tt: it.make.includes('TT'), mg: it.make.includes('MG'),
               p1: it.make.includes('P1'), p1_method: /BOTT/i.test(it.kinds || '') ? 'bott' : 'cott', origin: null, remake: it.remake || '', due: it.due || '' };
   QUEUE.picked = cid; renderQueue(); trackerHint();
-  $('#filehint').scrollIntoView({ block: 'nearest' }); $('#drop').classList.add('pulse'); setTimeout(() => $('#drop').classList.remove('pulse'), 1600);
+  $('#pfirst').value = TRACKER.first; $('#plast').value = TRACKER.last;
+  openCreate();
+  setTimeout(() => { $('#drop').classList.add('pulse'); setTimeout(() => $('#drop').classList.remove('pulse'), 1600); }, 80);
 }
 const NOCACHE = { cache: 'no-store' };   // the case's files are rewritten at the same URL on every re-run: never the browser's copy
 async function refreshQueue(){
@@ -1053,7 +1122,7 @@ function notifyTracker(j, event){
 }
 function setFiles(fs, auto){
   fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name) || (/\.pts$/i.test(f.name) && isTitan(f.name)));
-  if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
+  if(!fs.length) { showErr('That was not a scan file (PLY or STL).'); return; }
   const titanFiles = fs.filter(f => isTitan(f.name)); fs = fs.filter(f => !isTitan(f.name));
   if (titanFiles.length) fileTitan(titanFiles);
   if (!fs.length) return;
@@ -1064,7 +1133,7 @@ function setFiles(fs, auto){
   const patients = new Set(who.map((k, i) => k || '?' + i));
   bulk = fs.length > 2 || new Set(who.filter(Boolean)).size > 1;
   if (bulk) {
-    files = fs; pending = []; renderSetup();
+    files = fs; pending = []; creating = false; renderSetup();
     $('#filehint').textContent = `${fs.length} files · ${patients.size} patient${patients.size > 1 ? 's' : ''} — one case each, upper + lower paired by name (or iTero order number) — processing with the defaults (${$('#preset').selectedOptions[0].text}), braces left on (drop one patient's scans on their own to have them taken off)…`;
     $('#rerunbox').style.display = 'none';
     if (auto) $('#go').click();
@@ -1097,18 +1166,29 @@ let bulk = false;
 let nameOnly = false;
 function updatePatientLine(){ const f = $('#pfirst').value.trim(), l = $('#plast').value.trim(); $('#patientline').textContent = f || l ? `${f} ${l}`.trim() : '— (click to set)'; }
 function openCaseModal(){ $('#casemodal').classList.add('on'); setTimeout(() => { if (!$('#pfirst').value.trim()) $('#pfirst').focus(); }, 50); }
-function closeCaseModal(){ $('#casemodal').classList.remove('on'); nameOnly = false; updatePatientLine(); }
+function closeCaseModal(){ $('#casemodal').classList.remove('on'); nameOnly = false; creating = false; updatePatientLine(); }
 $('#patientline').onclick = ev => { ev.preventDefault(); if (pending.length) { openCaseModal(); return; } nameOnly = true; renderSetup(); };
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#casemodal').classList.contains('on')) $('#cancelcase').click(); });
 $('#casemodal').addEventListener('mousedown', ev => { if (ev.target === $('#casemodal')) $('#cancelcase').click(); });
 function renderSetup(){
   const box = $('#setup');
-  if (!pending.length && !nameOnly) { closeCaseModal(); return; }
+  if (!pending.length && !nameOnly && !creating) { closeCaseModal(); return; }
+  $('#drop').style.display = nameOnly ? 'none' : '';
   if (nameOnly) {      // just the patient's name for the open case
     box.style.display = 'none'; $('#addopp').style.display = 'none'; $('#modaltitle').textContent = 'Patient name';
-    $('#modalintro').innerHTML = 'The name the order, the print files and the lesson are filed under.'; $('#startcase').textContent = 'OK'; openCaseModal(); return;
+    $('#modalintro').innerHTML = 'The name the order, the print files and the lesson are filed under.'; $('#startcase').textContent = 'OK'; $('#startcase').style.display = ''; openCaseModal(); return;
   }
-  box.style.display = 'block'; $('#modaltitle').textContent = 'New case';
+  $('#modaltitle').textContent = 'Create a case';
+  if (!pending.length) {    // the pop-up opened from the button or from To make: no scan yet
+    box.style.display = 'none'; $('#addopp').style.display = 'none'; $('#startcase').style.display = 'none';
+    $('#modalintro').innerHTML = TRACKER
+      ? `<b>From NLO Cases:</b> ${TRACKER.first} ${TRACKER.last} · ${TRACKER.arches.length ? TRACKER.arches.join(' + ') : 'arch as scanned'} · ${[TRACKER.wt ? 'whitening tray' : '', TRACKER.tt ? 'retainer' : '', TRACKER.mg ? 'mouthguard' : '', TRACKER.p1 ? 'Phase I' : ''].filter(Boolean).join(' + ') || 'as set up'}${TRACKER.remake ? ' · ' + TRACKER.remake : ''}${TRACKER.due ? ' · due ' + TRACKER.due : ''}. Drop the scan file${TRACKER.arches.length > 1 ? 's' : ''} below - the case is told when the models are sent.`
+      : 'Drop the patient\'s scan files below - the upper, the lower or both (PLY from the scanner; STL works too). The app reads the name from the file names, then asks what to make. Nothing runs until you click <b>Start</b>.';
+    $('#drop').innerHTML = `<b>Drop the scan file${TRACKER && TRACKER.arches.length > 1 ? 's' : 's'} here</b>or click to choose`;
+    openCaseModal(); return;
+  }
+  box.style.display = 'block'; $('#startcase').style.display = '';
+  $('#drop').innerHTML = pending.length < 2 ? '<b>Opposing arch too?</b> drop it here, or click to choose' : '<b>Both arches are in.</b> Drop a file here to replace one';
   $('#modalintro').innerHTML = 'What should be made from this scan? Tick the trays, check the arch, add the opposing arch if it is coming — nothing runs until you click <b>Start</b>.';
   openCaseModal();
   // upper first, then lower, then anything still unknown - the order the viewer's model buttons use
@@ -1156,11 +1236,13 @@ function setupCount(){
   $('#startcase').textContent = `Start — make ${nModels} model${nModels > 1 ? 's' : ''}` + (new Set(what).size === 1 ? ` (${what[0]})` : '');
 }
 $('#addopp').onclick = () => $('#file').click();
-$('#cancelcase').onclick = () => { if (nameOnly) { closeCaseModal(); return; } pending = []; files = []; renderSetup(); $('#filehint').textContent = 'No file yet.'; };
+$('#cancelcase').onclick = () => { if (nameOnly) { closeCaseModal(); return; } pending = []; files = []; creating = false; if (TRACKER) { TRACKER = null; QUEUE.picked = ''; renderQueue(); } renderSetup(); };
 $('#startcase').onclick = () => {
   if (nameOnly) { closeCaseModal(); return; }
   if (!pending.length) return;
   if (!($('#pfirst').value.trim() && $('#plast').value.trim())) { $('#modalintro').innerHTML = '<span style="color:var(--err)">Type the patient\'s first and last name first.</span>'; $('#pfirst').focus(); return; }
+  if (currentJob && !confirmLeave('Starting a new case')) return;
+  if (currentJob) { forgetEdits(); pendingAdj = {}; pendingMark = {}; }     // (said yes: not asked again when the new case opens)
   files = pending.map(p => p.file);
   $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null, p.mg ? 'MG' : null, p.p1 ? 'P1' : null].filter(Boolean), braces: !!p.braces })));
   // the Phase I choice (how, which teeth) is a case setting: one per case, from the first scan that makes one
@@ -1273,18 +1355,119 @@ $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#e
 let WHO = { local: true, pc: '', print_root_unc: '' }, PREFORM_ON_SEND = true;
 const PF_SETUP = `powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/preform_link.ps1' -UseBasicParsing).Content"`;
 fetch('/api/whoami').then(r => r.json()).then(w => { WHO = w; if (currentJob) refreshJobs(); }).catch(() => {});
-const copySetup = el => { navigator.clipboard.writeText(PF_SETUP).then(() => { el.textContent = 'copied — Win+R, paste, Enter'; }).catch(() => { prompt('Copy this line, then Win+R, paste, Enter:', PF_SETUP); }); };
+// (the page is plain http://lab:8765, where the browser has no navigator.clipboard - "Cannot read properties of undefined
+// (reading 'writeText')", 10/27/2026: the old copy command still works there, and a box with the line selected is the last resort)
+function copySetup(el){
+  const done = () => { el.textContent = 'copied — Win+R, paste, Enter'; };
+  const byBox = () => {
+    let box = document.getElementById('pfsetupbox');
+    if (!box) { box = document.createElement('textarea'); box.id = 'pfsetupbox'; box.readOnly = true; box.style.cssText = 'display:block;width:100%;height:64px;margin-top:6px;font:11.5px ui-monospace,Menlo,Consolas,monospace;padding:6px;border:1.5px solid var(--grey-300);border-radius:8px'; box.value = PF_SETUP; el.insertAdjacentElement('afterend', box); }
+    box.focus(); box.select(); el.textContent = 'select the line below and press Ctrl+C';
+  };
+  const legacy = () => { try { const t = document.createElement('textarea'); t.value = PF_SETUP; t.style.cssText = 'position:fixed;left:-9999px;top:0'; document.body.appendChild(t); t.focus(); t.select(); const ok = document.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; } };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(PF_SETUP).then(done).catch(() => { if (legacy()) done(); else byBox(); });
+    else if (legacy()) done();
+    else byBox();
+  } catch (e) { byBox(); }
+}
+// Open in PreForm on this PC (the doctor, 10/27/2026: "a PowerShell prompt, and nothing happens"). The browser lets a
+// page start a program only in the few seconds after a click: filing the models first (a rebase and the copies to the
+// share) used up that window and the nlobt: link was dropped without a word. Now the link goes out at once with the
+// names the files WILL have (/printpaths, nothing written), the models are filed right after, and the handler on this PC
+// waits for them. Whether anything happened here is watched too: a handler that runs takes the focus off the page
+// (the browser's "Open …?" question, or PreForm itself); when nothing does within a few seconds the line says so, with
+// the setup line - instead of a silent nothing
+const PF_SETUP_LINE = () => `This PC needs the one-time setup (or the handler's newer version) — <a href="#" class="pfsetup">copy the line</a>, then Win+R, paste, Enter, and click the button again. Already set up? Its log is in <span class="fn">%LOCALAPPDATA%\\nlo-bleachtray\\preform_open.log</span>. The <b>Export</b> button's zip is the way round it.`;
+const preformLine = box => { let l = box.querySelector('#preformline'); if (!l) { l = document.createElement('div'); l.className = 'hint'; l.id = 'preformline'; (box.querySelector('.btns') || box).insertAdjacentElement('afterend', l); } return l; };
+async function handPreformLink(id, scans, wait){
+  let p; try { const rs = await fetch(`/api/jobs/${id}/printpaths?scans=${scans || ''}`, NOCACHE); p = await rs.json().catch(() => ({})); if (!rs.ok) throw new Error(p.detail || 'no print files'); } catch (e) { return { error: `Could not work out the print files: ${e.message}` }; }
+  let answered = false; const onBlur = () => { answered = true; }; window.addEventListener('blur', onBlur); document.addEventListener('visibilitychange', onBlur);
+  const names = p.files.map(f => f.split(/[\\/]/).pop()).join(', ');
+  location.href = 'nlobt://preform?' + p.files.map(f => 'f=' + encodeURIComponent(f)).join('&') + `&wait=${wait || 60}`;   // (inside the click's window: nothing slow before this line)
+  return { names, folder: p.folder, reachable: p.reachable,
+    report(l, extra) {
+      // the line under the buttons, once the files are written: did this PC answer the link?
+      setTimeout(() => {
+        window.removeEventListener('blur', onBlur); document.removeEventListener('visibilitychange', onBlur);
+        l.style.color = answered ? '' : 'var(--err)';
+        l.innerHTML = (answered ? `Handed to PreForm on this PC: ${names} (from <span class="fn">${p.folder}</span>). PreForm not open? ` : `Nothing on this PC answered the link (the models are filed in <span class="fn">${p.folder}</span>). `) + PF_SETUP_LINE()
+          + (!p.reachable ? `<br><span style="color:var(--err)">These are the lab PC's own drive letters, not share paths — this PC may not reach them. On the lab PC, Settings → Print folder: type the folder as \\\\server\\share\\… .</span>` : '') + (extra || '');
+        l.querySelectorAll('.pfsetup').forEach(a => a.onclick = ev => { ev.preventDefault(); copySetup(ev.target); });
+      }, 4000);
+    } };
+}
 async function openPreformHere(id, box, b){
   if (b) { b.disabled = true; b.textContent = 'Opening…'; }
-  const rs = await fetch(`/api/jobs/${id}/prints`, { method: 'POST' }); const r = await rs.json().catch(() => ({}));
-  if (b) { b.disabled = false; b.textContent = 'Open in PreForm on this PC'; }
-  let l = box.querySelector('#preformline'); if (!l) { l = document.createElement('div'); l.className = 'hint'; l.id = 'preformline'; (box.querySelector('.btns') || box).insertAdjacentElement('afterend', l); }
+  const l = preformLine(box), done = () => { if (b) { b.disabled = false; b.textContent = 'Open in PreForm on this PC'; } };
+  const h = await handPreformLink(id, '', 60);
+  if (h.error) { done(); l.style.color = 'var(--err)'; l.textContent = h.error; return; }
+  l.style.color = ''; l.innerHTML = `Handing ${h.names} to PreForm on this PC…`;
+  const rs = await fetch(`/api/jobs/${id}/prints`, { method: 'POST' }); const r = await rs.json().catch(() => ({}));    // the files, written now; the handler is waiting for them
+  done();
   if (!rs.ok) { l.style.color = 'var(--err)'; l.textContent = r.detail || 'Could not file the models.'; return; }
-  const link = 'nlobt://preform?' + r.files.map(f => 'f=' + encodeURIComponent(f)).join('&');
-  l.style.color = '';
-  l.innerHTML = `Handed to PreForm on this PC: ${r.files.map(f => f.split(/[\\/]/).pop()).join(', ')} (from ${r.folder}).<br>Nothing opened? This PC needs the one-time setup — <a href="#" id="pfsetup">copy the line</a>, then Win+R, paste, Enter.`;
-  l.querySelector('#pfsetup').onclick = ev => { ev.preventDefault(); copySetup(ev.target); };
-  location.href = link;
+  h.report(l);
+}
+// ---------- Export / Send: the case's pieces as a checklist (the doctor, 10/27/2026: "it has to be more clear what is
+// being exported, upper? lower? retainer? whitening trays? ... a clear EXPORT button ... Send to Trimlign should ask
+// which one you want to send") ----------
+let piecesCtx = null;
+function closePieces(){ $('#piecesmodal').classList.remove('on'); piecesCtx = null; }
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#piecesmodal').classList.contains('on')) closePieces(); });
+$('#piecesmodal').addEventListener('mousedown', ev => { if (ev.target === $('#piecesmodal')) closePieces(); });
+async function openPieces(id, mode, j){
+  let d; try { d = await (await fetch(`/api/jobs/${id}/pieces`, NOCACHE)).json(); } catch (e) { showErr('Could not read the case\'s pieces.'); return; }
+  piecesCtx = { id, mode, j, pieces: d.pieces || [] };
+  const resend = mode === 'send' && (j && j.review === 'sent');
+  $('#piecestitle').textContent = mode === 'send' ? (resend ? 'Send to Trimlign again' : 'Send to Trimlign') : 'Export the models';
+  $('#piecesintro').innerHTML = mode === 'send'
+    ? `Tick the pieces that go to OrthoFactory as one order for <b>${d.patient || 'this patient'}</b>. Every piece ticked is written; one sent before gets the next letter (AL1A &rarr; AL1B) so the Trimlign cuts along this line, not the old one.`
+    : `Tick the models to export for <b>${d.patient || 'this patient'}</b>. The files are the print files - the model with its base, named like the print folder names them. Download them as one zip, or write them straight to the print folder on the office share${d.print_folder ? ` (<span class="fn">${d.print_folder}</span>)` : ''}.`;
+  $('#pieceslist').innerHTML = piecesCtx.pieces.map(p => {
+    const st = !p.made ? ['not made yet', 'bad'] : p.watertight === false ? ['NOT watertight', 'bad'] : p.warnings ? [`${p.warnings} warning${p.warnings > 1 ? 's' : ''}`, 'warn'] : ['ready', ''];
+    const sentNote = mode === 'send' && p.piece ? ` · sent before as ${p.piece}` : '';
+    const holes = p.holes ? `<br><span style="color:var(--err)">&#9888; ${p.holes.split(' - ')[0]} - the pins will not seat: Position on the base, slide forward, Apply.</span>` : '';
+    return `<label class="pc ${p.made ? '' : 'off'}"><input type="checkbox" data-scan="${p.scan}" ${p.made ? 'checked' : 'disabled'}><span><b>${p.label}</b>${p.file ? `<br><span class="fn">${p.file}</span>` : ''}${holes}</span><span class="st ${st[1]}">${st[0]}${sentNote}</span></label>`;
+  }).join('') || '<div class="hint">This case has no models yet.</div>';
+  // unapplied work: said here, where the decision is made - the models that go are the ones made last
+  const pend = pendingWork();
+  $('#pieceswarn').style.display = pend.length ? 'block' : 'none';
+  $('#pieceswarn').innerHTML = pend.length ? `<b>Not applied yet:</b> ${pend.join(', and ')}. The ${mode === 'send' ? 'pieces sent' : 'files exported'} are the models as they were last made - without these. <button class="small" id="pcapply">Apply &amp; re-run first</button>` : '';
+  if (pend.length) $('#pcapply').onclick = () => { closePieces(); showTab(tab in PANELS ? tab : 'seg'); applyAndRerun(); };
+  const count = () => [...$('#pieceslist').querySelectorAll('input:checked')].map(i => +i.dataset.scan);
+  const btns = $('#piecesbtns');
+  if (mode === 'send') btns.innerHTML = `<button class="primary small" id="pcsend">Send</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
+  else btns.innerHTML = `<button class="primary small" id="pcdl" title="One zip with the ticked print files">Download (zip)</button><button class="small" id="pcfile" title="Copy the ticked print files into the print folder on the office share, filed by patient">Write to the print folder</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
+  const label = () => { const k = count().length; const b = $('#pcsend') || $('#pcdl'); if (b) b.textContent = (mode === 'send' ? 'Send ' : 'Download ') + (k ? `${k} piece${k > 1 ? 's' : ''}` : 'nothing') + (mode === 'send' ? ' to Trimlign' : ' (zip)') + (pend.length && k ? ' anyway' : ''); if (b) b.disabled = !k; if ($('#pcfile')) $('#pcfile').disabled = !k; };
+  $('#pieceslist').querySelectorAll('input').forEach(i => i.onchange = label); label();
+  $('#pccancel').onclick = closePieces;
+  $('#pcall').onclick = () => { $('#pieceslist').querySelectorAll('input:not(:disabled)').forEach(i => i.checked = true); label(); };
+  $('#pieceshint').textContent = '';
+  if (mode === 'send') $('#pcsend').onclick = async () => {
+    const sel = count(); if (!sel.length) return;
+    $('#pcsend').disabled = true; $('#pcsend').textContent = 'Sending…';
+    // from another PC with "open in PreForm when sent" on: the link to this PC's handler goes out now, at the click (the
+    // send takes longer than the browser allows between a click and starting a program); the send files the models
+    const h = (!WHO.local && PREFORM_ON_SEND && !resend) ? await handPreformLink(id, sel.join(','), 150) : null;
+    const fd = nameForm(); fd.append('scans', sel.join(','));
+    const rs = await fetch(`/api/jobs/${id}/${resend ? 'resend' : 'approve'}`, { method: 'POST', body: fd }); const r = await rs.json().catch(() => ({}));
+    if (!rs.ok || !r.review) { $('#pcsend').disabled = false; label(); showErr('Not sent: ' + (r.detail || rs.status) + ' — the case is not ready (still being made, or no longer open). Open it again from the list.'); refreshJobs(); return; }
+    closePieces(); refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800);
+    if (r.order_error) showErr(r.order_error); else if (r.review === 'sent' && !resend) { notifyTracker(Object.assign({}, j || {}, r), 'sent'); if (h) { const l = preformLine($('#review')); if (h.error) { l.style.color = 'var(--err)'; l.textContent = h.error; } else { l.innerHTML = `Handing ${h.names} to PreForm on this PC…`; h.report(l); } } }
+  };
+  else {
+    $('#pcdl').onclick = () => { const sel = count(); if (!sel.length) return; const a = document.createElement('a'); a.href = `/api/jobs/${id}/export?scans=${sel.join(',')}&t=${Date.now()}`; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); $('#pieceshint').textContent = `Downloading ${sel.length} file${sel.length > 1 ? 's' : ''} as one zip - check the browser's downloads.`; };
+    $('#pcfile').onclick = async () => {
+      const sel = count(); if (!sel.length) return; $('#pcfile').disabled = true; $('#pcfile').textContent = 'Writing…';
+      const fd = new FormData(); fd.append('scans', sel.join(','));
+      const rs = await fetch(`/api/jobs/${id}/prints`, { method: 'POST', body: fd }); const r = await rs.json().catch(() => ({}));
+      $('#pcfile').disabled = false; $('#pcfile').textContent = 'Write to the print folder';
+      if (!rs.ok) { $('#pieceshint').innerHTML = `<span style="color:var(--err)">${r.detail || 'Could not write the files.'}</span>`; return; }
+      $('#pieceshint').innerHTML = `Written to <span class="fn">${r.folder}</span>: ${(r.files || []).map(f => f.split(/[\\/]/).pop()).join(', ')}.`;
+      refreshJobs();
+    };
+  }
+  $('#piecesmodal').classList.add('on');
 }
 // the PreForm button(s) for a case box: here when the page is on the app's PC, else "on this PC" + "on the lab PC"
 const preformBtns = () => WHO.local
@@ -1355,7 +1538,7 @@ $('#go').onclick = async () => {
   $('#go').disabled = false; $('#startcase').disabled = false;
   if (!r.ok) { showErr(j.detail || 'Upload failed'); renderSetup(); return; }
   P1_CHOICE = null;                      // (this case's; the next pop-up makes its own)
-  pending = []; renderSetup(); $('#rerunbox').style.display = bulk ? 'none' : 'block';
+  pending = []; creating = false; renderSetup(); $('#rerunbox').style.display = bulk ? 'none' : 'block';
   $('#filehint').textContent = files.map(f => f.name).join(' + ') + ' — processing…';
   // the case from NLO Cases is on its way: the next drop is a new case of its own
   if (TRACKER) { TRACKER_ORIGIN = TRACKER.origin || TRACKER_ORIGIN; TRACKER = null; QUEUE.picked = ''; setTimeout(refreshQueue, 1500); }
@@ -1406,6 +1589,7 @@ let pollTimer = null, selTok = 0;     // selTok: which selection is current - a 
 async function selectJob(id){
   if (!id) return;                         // (a row without a case id is never a case to open)
   $('#rerunbox').style.display = 'none';   // "Run again with these settings" belongs to the scan just dropped, never to an opened case
+  if (id !== currentJob && currentJob && !confirmLeave('Opening another case')) { refreshJobs(); return; }   // (the other case keeps running; it is in the list)
   if (id !== currentJob) { pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null; forgetEdits(); if (typeof stopPlacing === 'function') stopPlacing(); }   // a pending move and unapplied strokes belong to the case they were made on
   currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
   clearInterval(pollTimer);
@@ -1471,7 +1655,7 @@ window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev
 // the viewer goes blank: no model, no boxes, no case selected (after Discard, or moving a case out of the list)
 function clearViewer(msg){
   clearInterval(pollTimer); currentJob = null;
-  $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Drop a scan to begin.'; $('#modeltog').classList.remove('on'); $('#viewpick').classList.remove('on');
+  $('#review').innerHTML = ''; $('#dl').innerHTML = ''; $('#detail').style.display = 'none'; $('#stats').innerHTML = msg || 'Create a case, or drop a scan anywhere on this page, to begin.'; $('#modeltog').classList.remove('on'); $('#viewpick').classList.remove('on');
   clear(groups.result); clear(groups.seg); clear(groups.scan); segMesh = null; resMesh = null; archGroup = null; baseGroup = null; baseMesh = null; ringMesh = null; ringParts = []; markMesh = null; pendingAdj = {}; pendingMark = {}; curReports = []; curArch = null;
   forgetEdits(); renderPanel(); syncPanels(); requestRender(); refreshJobs(); searchHistory();
 }
@@ -1514,26 +1698,30 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
     const when = j.sent_at ? ` ${new Date(j.sent_at * 1000).toLocaleDateString()} ${new Date(j.sent_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
     const printLine = (j.print_files || []).length ? `<div class="hint">Models filed in <b>${j.print_folder}</b>: ${j.print_files.map(f => f.split(/[\\/]/).pop()).join(', ')}</div>` : (j.print_error ? `<div class="hint" style="color:var(--err)">${j.print_error}</div>` : '');
     box.innerHTML = `<div class="anim" id="animCut"></div><b>Sent to the Trimlign${when}.</b> ${(j.order_pieces || []).length ? `Pieces in OrthoFactory: <b>${j.order_pieces.join(', ')}</b>. ` : ''}Whitening trays are Template pieces (TU0/TL0), retainers Aligner pieces (AU1/AL1); the last letter moves on (A, B, C…) each time a piece is sent again, so OrthoFactory makes a new cut path instead of reusing the old one.<div class="hint">${j.order_folder || ''}</div>${j.order_note ? `<div class="hint" style="color:#b45309"><b>Two orders for this patient:</b> ${j.order_note}</div>` : ''}${printLine}${learnedLine}` +
-      `<div class="btns"><button class="small" id="resendbtn" title="Write the order again from these models - a lost print, a second set. The earlier order folder is replaced, and the pieces get the next letter (AL1A becomes AL1B) so OrthoFactory cuts along this line, not the earlier one's. Delete the earlier pieces in OrthoFactory.">Send to Trimlign again</button>${preformBtns()}</div>` +
+      `<div class="btns"><button class="small" id="resendbtn" title="Write the order again from these models - a lost print, a second set. The earlier order folder is replaced, and the pieces get the next letter (AL1A becomes AL1B) so OrthoFactory cuts along this line, not the earlier one's. Delete the earlier pieces in OrthoFactory.">Send to Trimlign again</button><button class="small" id="exportbtn" title="Download the print files (model + base) as one zip, or write them to the print folder - you choose which pieces">Export</button>${preformBtns()}</div>` +
       (j.preform ? `<div class="hint" id="preformline" style="color:${j.preform.ok ? 'var(--teal, #0d9488)' : 'var(--err)'}">${j.preform.message}</div>` : '') +
       (addLine ? addLine.replace('Also make', 'Need more? Also make') + `<div class="hint">(the case comes back for a check; Send then replaces the order with every model)</div>` : '');
     wireAdd();
-    $('#resendbtn').onclick = async () => { $('#resendbtn').disabled = true; $('#resendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/resend`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); };
+    $('#resendbtn').onclick = () => openPieces(id, 'send', j);
+    box.querySelector('#exportbtn').onclick = () => openPieces(id, 'export', j);
     box.insertAdjacentHTML('beforeend', closeLine);
   } else if (j.review === 'discarded') {
     box.innerHTML = `<div class="anim" id="animTrash"></div><b>Discarded</b> — nothing went to the Trimlign.` + closeLine;
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
     box.innerHTML = `<b>Check the 3D result${what}.</b> Looks right? Send it. Not right? Go through the steps in order - clean-up, segmentation, tooth numbers, then the rest - and Apply:` +
-      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button>${preformBtns()}<button class="small" id="stepsbtn" title="Step 1: clean-up. Each step keeps your edits; Apply & re-run makes the models with them all">Fix it step by step &rarr;</button><button class="small" id="discardbtn">Discard</button></div>` +
+      `<div class="btns"><button class="primary small" id="sendbtn" title="Choose the pieces, then they go to OrthoFactory as one order">Send to Trimlign</button><button class="small" id="exportbtn" title="Download the print files (model + base) as one zip, or write them to the print folder - you choose which pieces">Export</button>${preformBtns()}<button class="small" id="stepsbtn" title="Step 1: clean-up. Each step keeps your edits; Apply & re-run makes the models with them all">Fix it step by step &rarr;</button><button class="small" id="discardbtn">Discard</button></div>` +
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine +
       // Send files the case for the retraining by itself; this link is for a corrected case that is not going to be sent
       ((j.fixed || []).length && !j.learned ? `<div class="hint" style="margin-top:8px"><a href="#" id="learnlink" title="Keep this brush-corrected case as a lesson for the retraining without sending it anywhere (Send does this on its own)">Save as lesson without sending</a></div>` : '');
     wireAdd();
     if (box.querySelector('#stepsbtn')) box.querySelector('#stepsbtn').onclick = () => { const on = stepTabs(); showTab(on[0] || 'clean'); };
-    // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
-    const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Send or Save as lesson.'); if (t) showTab(t); return true; } return false; };
-    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const rs = await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: nameForm() }); const r = await rs.json().catch(() => ({})); if (!rs.ok || !r.review) { $('#sendbtn').disabled = false; $('#sendbtn').textContent = 'Send to Trimlign'; showErr('Not sent: ' + (r.detail || rs.status) + ' — the case is not ready (still being made, or no longer open). Open it again from the list.'); refreshJobs(); return; } refreshJobs(); searchHistory(); renderReview(id, r); setTimeout(refreshQueue, 800); if (r.order_error) showErr(r.order_error); else if (r.review === 'sent') { notifyTracker(Object.assign({}, j, r), 'sent'); if (!WHO.local && PREFORM_ON_SEND) openPreformHere(id, $('#review'), null); } };
+    // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them.
+    // Send and Export say so in their dialog (a strip, "Apply & re-run first" / "Send anyway" - the doctor, 10/27/2026);
+    // the lesson link still insists, a lesson without the strokes would teach the wrong thing
+    const unapplied = () => { const t = Object.keys(PANELS).find(k => PANELS[k].sets.some(x => edits[x].size)); if (t || otherEditCount()) { showErr('You have brush edits that are not applied yet' + (t ? '' : ' (on the other arch)') + ' — click "Apply & re-run" first, then Save as lesson.'); if (t) showTab(t); return true; } return false; };
+    $('#sendbtn').onclick = () => openPieces(id, 'send', j);
+    box.querySelector('#exportbtn').onclick = () => openPieces(id, 'export', j);
     const ll = box.querySelector('#learnlink');
     if (ll) ll.onclick = async ev => {
       ev.preventDefault(); if (unapplied()) return; ll.textContent = 'Saving…';
@@ -1547,7 +1735,10 @@ const play = () => { const t = box.querySelector('#animTrash'); if (t) t.innerHT
       box.querySelector('#movecase').onclick = async () => { await fetch(`/api/jobs/${id}/close`, { method: 'POST' }); clearViewer('Moved to Past cases.'); };
     };
     // a discarded case leaves the screen altogether, so the next case can be picked without the old model in the way
-    $('#discardbtn').onclick = async () => { await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() }); clearViewer('Discarded — nothing went to the Trimlign. Pick a case from the list, or drop a scan.'); };
+    $('#discardbtn').onclick = async () => {
+      const parts = pendingWork();
+      if (!confirm(`Discard this case? Nothing goes to the Trimlign and it leaves the list${parts.length ? ` - and its ${parts.join(', and ')} go with it` : ''}.\n\nOK = discard.   Cancel = keep it.`)) return;
+      await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() }); clearViewer('Discarded — nothing went to the Trimlign. Pick a case from the list, or drop a scan.'); };
   }
 }
 
@@ -1686,7 +1877,7 @@ async function loadResult(id, j){
   // not applied yet survives a look at the other models of the case
   curReports = j.reports || []; curArch = r.arch || null;
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
-  adjust = pendingAdj[curArch] ? { ...pendingAdj[curArch] } : { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false;
+  adjust = pendingAdj[curArch] ? { ...pendingAdj[curArch] } : { ...applied }; pivot = r.adjust_pivot || [0, 0]; autoFlipped = false; footOutline = r.foot_outline || null;
   markInfo = r.mark || null; markError = r.mark_error || null; markApplied = r.mark_param || null; markNow = curArch in pendingMark ? pendingMark[curArch] : undefined; curScanIdx = scanIdx;
   makeMarkCard();
   if (baseBuf) {
@@ -1718,6 +1909,33 @@ async function loadResult(id, j){
 // where the plate, with its locating holes, sits under this arch. Dragging the plate slides it, dragging
 // the blue ring turns it; the step buttons do the same in fixed amounts.
 let archGroup = null, baseGroup = null, baseMesh = null, baseMat = null, ringMesh = null, ringParts = [], pivot = [0, 0];
+// the model's foot at the automatic placement (from the report) and the base's locating holes: while the plate is
+// moved the box says live whether the holes stay clear (the doctor, 10/27/2026: "warn, or move the base, when the
+// locating holes are covered by the arch") - the same test the server makes when the model is finished
+let footOutline = null;
+const HOLES = [[7.47, -19.0], [-7.47, -19.0]], HOLE_R = 2.0, HOLE_CLEAR = 0.4;   // (the server wants 0.5 off the rim; the page's outline is simplified to 0.08 mm, so a hair less here keeps the two from disagreeing)
+function holeClearance(a){
+  if (!footOutline || footOutline.length < 4) return null;
+  const c = Math.cos(a.yaw_deg * Math.PI / 180), sn = Math.sin(a.yaw_deg * Math.PI / 180);
+  const P = footOutline.map(([x, y]) => { const u = x - pivot[0], v = y - pivot[1]; return [pivot[0] + u * c - v * sn + a.dx, pivot[1] + u * sn + v * c + a.dy]; });
+  return HOLES.map(([hx, hy]) => {
+    let inside = false, d = 1e9;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const [x1, y1] = P[i], [x2, y2] = P[j];
+      if ((y1 > hy) !== (y2 > hy) && hx < (x2 - x1) * (hy - y1) / (y2 - y1) + x1) inside = !inside;
+      const ex = x2 - x1, ey = y2 - y1, L = ex * ex + ey * ey || 1e-9, t = Math.max(0, Math.min(1, ((hx - x1) * ex + (hy - y1) * ey) / L));
+      d = Math.min(d, Math.hypot(hx - (x1 + t * ex), hy - (y1 + t * ey)));
+    }
+    return (inside ? -d : d) - HOLE_R;
+  });
+}
+function holeWords(a){
+  const cl = holeClearance(a); if (!cl) return '';
+  const bad = cl.map((c, i) => [c, i]).filter(([c]) => c < HOLE_CLEAR);
+  if (!bad.length) return `<span style="color:var(--teal, #0d9488)">Locating holes clear (${cl.map(c => c.toFixed(1)).join(' / ')} mm).</span>`;
+  const worst = Math.min(...bad.map(([c]) => c)), where = bad.map(([, i]) => HOLES[i][0] > 0 ? 'right' : 'left').join(' and ');
+  return `<span style="color:var(--err)">&#9888; The ${where} locating hole${bad.length > 1 ? 's' : ''} ${worst < -0.05 ? `sit${bad.length > 1 ? '' : 's'} under the model (${(-worst).toFixed(1)} mm past the rim)` : `${bad.length > 1 ? 'are' : 'is'} only ${Math.max(worst, 0).toFixed(1)} mm from the model (0.5 needed)`} - the pins will not seat. Slide the arch forward (&uarr;) ${Math.ceil((HOLE_CLEAR - worst) * 4) / 4} mm or so, then Apply.</span>`;
+}
 // the base handles (ring + grips, plate dragging) exist only while "Position on the base" is open - otherwise the
 // view is just the model, and a drag is always an orbit
 const handlesOn = () => tab === 'result' && panelOpen.place && !!baseGroup;
@@ -1886,6 +2104,7 @@ function updatePlacement(){
   $('#placestate').textContent = moved ? (dzMoved ? `Preview only — Apply rebuilds the ${curArch || ''} models at this height (~1 min).` : `Preview only — Apply moves the ${curArch || ''} models on the base (a few seconds).`)
     : (markMoved ? 'Apply places the mark (a few seconds).' : (auto ? 'Automatic placement.' : 'Applied.'));
   $('#placestate').style.color = pending ? 'var(--warn)' : 'var(--muted)';
+  const hw = holeWords(adjust); const hl = $('#holestate'); hl.style.display = hw ? 'block' : 'none'; hl.innerHTML = hw;
   $('#applyplace').disabled = !pending; const at = $('#applytext'); if (at) at.disabled = !pending;
   updateMarkState();
 }
@@ -2014,8 +2233,9 @@ async function loadSeg(id, k=0){
   segRGB = buf.byteLength >= o + nV*3 ? new Uint8Array(buf.slice(o, o+nV*3)) : null;   // the scanner's colour, when the scan is a PLY
   segPos = V;
   segDots = []; if (segPaint) for (let i = 0; i < nV; i++) if (segPaint[i] & 32) segDots.push(i);
-  p1Dots = { span: [], end: [], six: [] };
-  try { const pd = await (await fetch(`/api/jobs/${id}/p1dots?scan=${k}`)).json(); p1Dots = { span: pd.span || [], end: pd.end || [], six: pd.six || [] }; } catch (e) {}
+  segNoSplit = []; p1Dots = { span: [], end: [], six: [], path: [] };
+  try { const pd = await (await fetch(`/api/jobs/${id}/p1dots?scan=${k}`)).json(); p1Dots = { span: pd.span || [], end: pd.end || [], six: pd.six || [], path: pd.path || [] }; segNoSplit = pd.nosplit || []; } catch (e) {}
+  if (curScans[k]) p1AppliedByFile[fileKeyOf(curScans[k])] = p1Dots.path;   // (Apply sends a file's outlines as a whole set: the applied ones are needed for a file that is not on screen)
   teethInfo = { teeth: {}, ids: {}, arch: null };
   try { teethInfo = await (await fetch(`/api/jobs/${id}/teeth?scan=${k}`)).json(); } catch (e) {}
   // each tooth's middle and the arch's centre, for the Teeth tab's badges
@@ -2030,6 +2250,7 @@ async function loadSeg(id, k=0){
     for (let k = 0; k < F.length; k += 3) { const a = F[k], b = F[k+1], c = F[k+2];
       nb[off[a] + fill[a]++] = b; nb[off[a] + fill[a]++] = c; nb[off[b] + fill[b]++] = a; nb[off[b] + fill[b]++] = c; nb[off[c] + fill[c]++] = a; nb[off[c] + fill[c]++] = b; }
     segAdj = { off, nb }; }
+  findContacts();
   clear(groups.seg); clear(groups.scan);
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(V.slice(), 3)); g.setIndex(new THREE.BufferAttribute(F.slice(), 1)); g.computeVertexNormals();
   segColors = new Float32Array(nV*3); paintColors();
@@ -2096,6 +2317,41 @@ const DOT_KINDS = { contact: { tab: 'seg', un: 'uncontact', applied: () => segDo
                     p1span: { tab: 'p1', un: 'unp1span', applied: () => p1Dots.span, on: 'spanOn', old: 'spanOld' },
                     p1end: { tab: 'p1', un: 'unp1end', applied: () => p1Dots.end, on: 'endOn', old: 'endOld' },
                     p1six: { tab: 'p1', un: 'unp1six', applied: () => p1Dots.six, on: 'sixOn', old: 'sixOld' } };
+// the splits the app made: a ring lying on the surface at the facial-most point of the boundary between two
+// colours (the doctor, 10/26/2026: "show the detected contacts so they can be moved / deleted / added"). A ring with
+// a cross is a split taken away - the two colours are one tooth
+const ringGeo = new THREE.RingGeometry(0.55, 0.9, 28), haloGeo = new THREE.RingGeometry(0.9, 1.08, 28), barGeo = new THREE.PlaneGeometry(1.8, 0.26);
+const haloMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+const ringMats = { seen: new THREE.MeshBasicMaterial({ color: 0x334155, side: THREE.DoubleSide }), no: new THREE.MeshBasicMaterial({ color: 0xdc2626, side: THREE.DoubleSide }),
+                   noOld: new THREE.MeshBasicMaterial({ color: 0xf9a8a8, side: THREE.DoubleSide }), back: new THREE.MeshBasicMaterial({ color: 0x0ea5e9, side: THREE.DoubleSide }) };
+function findContacts(){
+  segContacts = [];
+  if (!segAdj || !segLabels || !segPos) return;
+  const { off, nb } = segAdj, nV = segLabels.length, pairs = new Map();
+  for (let i = 0; i < nV; i++) { const a = segLabels[i]; if (!a) continue;
+    for (let k = off[i]; k < off[i + 1]; k++) { const b = segLabels[nb[k]]; if (!b || b === a) continue;
+      const key = Math.min(a, b) * 65536 + Math.max(a, b); let P = pairs.get(key); if (!P) { P = { a: Math.min(a, b), b: Math.max(a, b), vs: new Set() }; pairs.set(key, P); } P.vs.add(i); } }
+  const cx = archCent[0], cy = archCent[1];
+  for (const P of pairs.values()) {
+    const vs = [...P.vs]; if (vs.length < 6) continue;   // a corner where three colours meet is not a split
+    let mx = 0, my = 0; const zs = []; for (const v of vs) { mx += segPos[v*3]; my += segPos[v*3+1]; zs.push(segPos[v*3+2]); } mx /= vs.length; my /= vs.length;
+    zs.sort((p, q) => p - q); const zmid = zs[Math.floor(zs.length / 2)];
+    let ox = mx - cx, oy = my - cy; const on = Math.hypot(ox, oy) || 1; ox /= on; oy /= on;   // outwards from the arch's centre: the cheek side
+    let best = -1, bs = -1e9;
+    for (const v of vs) { if (segPos[v*3+2] < zmid) continue; const sc = (segPos[v*3] - cx) * ox + (segPos[v*3+1] - cy) * oy; if (sc > bs) { bs = sc; best = v; } }
+    if (best >= 0) segContacts.push({ a: P.a, b: P.b, v: best, n: vs.length });
+  }
+}
+function putRing(group, i, mat, crossed){
+  const nrm = segMesh && segMesh.geometry.getAttribute('normal'), n = new THREE.Vector3(0, 0, 1);
+  if (nrm) n.set(nrm.array[i*3], nrm.array[i*3+1], nrm.array[i*3+2]).normalize();
+  const g = new THREE.Group(); g.position.set(segPos[i*3] + n.x * 0.25, segPos[i*3+1] + n.y * 0.25, segPos[i*3+2] + n.z * 0.25);
+  g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+  const r = new THREE.Mesh(ringGeo, mat); r.renderOrder = 5; g.add(r);
+  const hl = new THREE.Mesh(haloGeo, haloMat); hl.renderOrder = 5; g.add(hl);   // a pale rim, so the ring shows on a dark tooth colour too
+  if (crossed) for (const a of [Math.PI / 4, -Math.PI / 4]) { const b = new THREE.Mesh(barGeo, mat); b.rotation.z = a; b.renderOrder = 5; g.add(b); }
+  group.add(g);
+}
 function drawDots(){
   if (dotGroup) { groups.seg.remove(dotGroup); dotGroup = null; }
   if (!segPos || !(tab === 'seg' || tab === 'p1')) return;
@@ -2106,8 +2362,17 @@ function drawDots(){
     edits[kind].forEach(i => put(i, dotMats[K.on], kind !== 'p1span'));
     K.applied().forEach(i => put(i, edits[K.un].has(i) ? dotMats.off : dotMats[K.old], kind !== 'p1span'));
   }
+  if (tab === 'seg' && modeNow() === 'contact') {
+    // the app's splits as rings; crossed where the doctor said no split (red = this time, pale = applied; an
+    // applied one clicked again shows plain - the split comes back on Apply)
+    const dragged = dotDrag && dotDrag.ring >= 0 && dotDrag.moved ? dotDrag.ring : -1;
+    segContacts.forEach(c => { if (edits.nosplit.has(c.v) || c.v === dragged) return; putRing(dotGroup, c.v, ringMats.seen, false); });
+    edits.nosplit.forEach(i => putRing(dotGroup, i, ringMats.no, true));
+    segNoSplit.forEach(i => { if (edits.unnosplit.has(i)) putRing(dotGroup, i, ringMats.back, false); else putRing(dotGroup, i, ringMats.noOld, true); });
+  }
   if (dotDrag && dotDrag.at >= 0) put(dotDrag.at, dotMats.drag, dotDrag.kind !== 'p1span');
   groups.seg.add(dotGroup);
+  if (typeof drawP1Paths === 'function') drawP1Paths();
 }
 // one click = one dot: the vertex nearest the click; a click on a dot takes it away again (a placed one goes,
 // an applied one is marked to go on Apply)
@@ -2122,12 +2387,20 @@ const nearDot = (p, i) => { const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, 
 // a click on a dot takes it away (a placed one goes, an applied one is marked to go on Apply - click again to keep
 // it); a click elsewhere places one. A dot can be dragged to a new spot instead (the doctor, 10/21/2026: "it's helpful
 // to be able to move them after they were processed")
-let dotDrag = null;   // { kind, from, mine, at, moved } while a dot is being dragged
+let dotDrag = null;   // { kind, from, mine, at, moved, ring, ringKind } while a dot (or one of the app's split rings) is being dragged
 function dotDown(ev){
   const kind = modeNow(); const K = DOT_KINDS[kind]; const h = dotHit(ev); if (!h) return;
   const mine = [...edits[kind]].find(i => nearDot(h.p, i));
   const old = mine === undefined ? K.applied().find(i => nearDot(h.p, i)) : undefined;
-  dotDrag = { kind, from: mine !== undefined ? mine : (old !== undefined ? old : -1), mine: mine !== undefined, at: -1, moved: false, p0: h.p.clone(), best: h.best };
+  dotDrag = { kind, from: mine !== undefined ? mine : (old !== undefined ? old : -1), mine: mine !== undefined, at: -1, moved: false, p0: h.p.clone(), best: h.best, ring: -1, ringKind: '' };
+  if (kind === 'contact' && dotDrag.from < 0) {
+    // not on a dot: on one of the rings? mine (a no-split placed now), an applied one, or a split the app made
+    const myNo = [...edits.nosplit].find(i => nearDot(h.p, i)), oldNo = myNo === undefined ? segNoSplit.find(i => nearDot(h.p, i)) : undefined;
+    const seen = myNo === undefined && oldNo === undefined ? segContacts.find(c => nearDot(h.p, c.v)) : undefined;
+    if (myNo !== undefined) { dotDrag.ring = myNo; dotDrag.ringKind = 'mine'; }
+    else if (oldNo !== undefined) { dotDrag.ring = oldNo; dotDrag.ringKind = 'old'; }
+    else if (seen) { dotDrag.ring = seen.v; dotDrag.ringKind = 'seen'; dotDrag.from = seen.v; }   // (from: a ring can be dragged like a dot)
+  }
   controls.enabled = false;
 }
 function dotMove(ev){
@@ -2138,8 +2411,15 @@ function dotMove(ev){
 }
 function dotUp(){
   if (!dotDrag) return;
-  const { kind, from, mine, at, moved, best } = dotDrag; const K = DOT_KINDS[kind]; dotDrag = null;
-  if (from >= 0 && moved && at >= 0) {
+  const { kind, from, mine, at, moved, best, ring, ringKind } = dotDrag; const K = DOT_KINDS[kind]; dotDrag = null;
+  if (ring >= 0) {
+    if (ringKind === 'seen' && moved && at >= 0) {
+      // the app's split dragged: no split where it was, a contact dot where it was put
+      edits.nosplit.add(ring); edits.contact.add(at); lastDots.push(['contact', at], ['nosplit', ring]);
+    } else if (ringKind === 'seen') { edits.nosplit.add(ring); lastDots.push(['nosplit', ring]); }         // the app's split clicked: no split there
+    else if (ringKind === 'mine') edits.nosplit.delete(ring);                                              // a no-split placed now, clicked again: the split stays
+    else { if (edits.unnosplit.has(ring)) edits.unnosplit.delete(ring); else edits.unnosplit.add(ring); } // an applied no-split: the split comes back on Apply (click again to keep it away)
+  } else if (from >= 0 && moved && at >= 0) {
     // moved: the old spot goes (a placed one is dropped, an applied one is marked to go), the new one is placed
     if (mine) edits[kind].delete(from); else edits[K.un].add(from);
     edits[kind].add(at);
@@ -2231,10 +2511,13 @@ function syncBrush(){
   if (tab === 'res') brushCursor.material.color.setHSL(0, m === 'reservoir' ? 0.9 : 0, m === 'reservoir' ? 0.55 : 0.45);
   else if (m === 'tooth' && pickLabel) brushCursor.material.color.setHex(palette[pickLabel % palette.length]);
   else if (m === 'tooth' && stroke && stroke.mode === 'gum') brushCursor.material.color.setHex(0xd97706);
-  else brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'uncut' ? 0x64748b : m === 'blockout' || m === 'outline' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : m === 'notbracket' ? 0x2563eb : m === 'contact' ? 0xeab308 : m === 'p1span' ? 0x16a34a : m === 'p1end' ? 0x7c3aed : m === 'p1six' ? 0x1d4ed8 : 0x1d4ed8);
+  else brushCursor.material.color.setHex(m === 'gum' ? 0xd97706 : m === 'cut' ? 0x991b1b : m === 'uncut' ? 0x64748b : m === 'blockout' || m === 'outline' ? 0x0d9488 : m === 'takeoff' ? 0xf97316 : m === 'notbracket' ? 0x2563eb : m === 'contact' ? 0xeab308 : m === 'p1span' ? 0x16a34a : m === 'p1path' ? 0x15803d : m === 'p1end' ? 0x7c3aed : m === 'p1six' ? 0x1d4ed8 : 0x1d4ed8);
   brushCursor.scale.setScalar(cursorR());
+  crossCursor.userData.ring.material.color.copy(brushCursor.material.color);
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
-  if (!brushOn() && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
+  if (!brushOn() && (brushCursor.visible || crossCursor.visible)) { brushCursor.visible = false; crossCursor.visible = false; requestRender(); }
+  if (brushOn() && isPointMode(m) && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
+  if (brushOn() && !isPointMode(m) && crossCursor.visible) { crossCursor.visible = false; requestRender(); }
 }
 function hitAt(ev){
   const m = brushMeshNow(); if (!m) return null;
@@ -2243,12 +2526,19 @@ function hitAt(ev){
 }
 const tmpN = new THREE.Vector3();
 function placeCursor(hit){
-  if (!hit) { if (brushCursor.visible) { brushCursor.visible = false; requestRender(); } return; }
-  brushCursor.position.copy(hit.point);
+  if (!hit) { if (brushCursor.visible || crossCursor.visible) { brushCursor.visible = false; crossCursor.visible = false; requestRender(); } return; }
   tmpN.copy(hit.face ? hit.face.normal : new THREE.Vector3(0, 0, 1)).transformDirection(brushMeshNow().matrixWorld);
+  if (isPointMode(modeNow())) {
+    // a point tool: the crosshair, flat on the surface, lifted a hair so it is not z-fought by the model
+    crossCursor.position.copy(hit.point).addScaledVector(tmpN, 0.15);
+    crossCursor.lookAt(tmpN.clone().add(crossCursor.position));
+    crossCursor.visible = true; brushCursor.visible = false; requestRender();
+    return;
+  }
+  brushCursor.position.copy(hit.point);
   brushCursor.lookAt(tmpN.add(hit.point));           // the outline ring lies flat on the surface
   brushCursor.scale.setScalar(cursorR());
-  brushCursor.visible = true; requestRender();
+  brushCursor.visible = true; crossCursor.visible = false; requestRender();
 }
 function applyMode(mode, i){
   if (mode === 'cut'){ edits.add.delete(i); edits.remove.delete(i); edits.cut.add(i); }
@@ -2380,7 +2670,61 @@ function closeOutline(){
   if (!filled) showErr('The outline did not enclose anything - make it a little bigger, or add corners where the surface curves.');
 }
 window.addEventListener('keydown', ev => { if (ev.key === 'Escape' && outl) dropOutline(); });
-canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (isDotMode(modeNow())) { dotDown(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } painting = true; controls.enabled = false; startStroke(ev); paintAt(ev); } });
+// ---------- Phase I: the traced cutout outline (the doctor, 10/27/2026: "start by clicking on the distal of the 2, then
+// trace around the lingual aspect, then go to the E/5, and you connect it to the rest of the trim line") ----------
+// An ordered run of dots per side: the first is the cutout's near wall (the 2's distal), the last its far wall (on the
+// E / 5), the dots between are its edge on the tongue side. Clicking the last dot again, or Enter, finishes the run; it
+// is kept with the scan (the server cuts out everything between the run and the cheek side and joins the ends to the
+// trim line). Applied runs show pale; Clear on the tab takes them all away on the next Apply.
+let p1cur = null;   // { pts: [Vector3], ids: [vertex], ns: [Vector3] } while a run is being traced
+const p1Group = new THREE.Group(); groups.seg.add(p1Group);
+const P1_STEPS = ['Click 1 of 3: the distal of the 2 - where the cutout starts', 'now click round the tongue side of the C/D area, as far onto the gum as the cutout should go', 'last: click on the E (or the 5) where the cutout ends - then click that dot again, or press Enter, to finish'];
+function p1Guide(){ if (!p1cur) return P1_STEPS[0]; return p1cur.pts.length === 1 ? P1_STEPS[1] : P1_STEPS[2] + ` (${p1cur.pts.length} dots so far)`; }
+function dropP1Path(){ p1cur = null; drawP1Paths(); updateFixCount(); }
+function finishP1Path(){
+  if (!p1cur) return;
+  if (p1cur.ids.length < 2) { showErr('An outline needs at least two dots: the distal of the 2 and the E/5, with the tongue-side edge between them.', 6000); return; }
+  const ids = p1cur.ids.filter((v, i, a) => i === 0 || v !== a[i - 1]);
+  p1paths.push(ids); p1cur = null; drawP1Paths(); updateFixCount();
+}
+function p1PathClick(ev){
+  const hit = hitAt(ev); if (!hit || !hit.face) return;
+  const p = hit.point.clone(), n = hit.face.normal.clone().transformDirection(brushMeshNow().matrixWorld);
+  if (p1cur && p1cur.pts.length >= 2 && p.distanceTo(p1cur.pts[p1cur.pts.length - 1]) < 1.2) { finishP1Path(); return; }
+  if (!p1cur) p1cur = { pts: [], ids: [], ns: [] };
+  const i = dotHit(ev); p1cur.pts.push(p); p1cur.ns.push(n); p1cur.ids.push(i ? i.best : nearestVertex(p));
+  drawP1Paths(); updateFixCount();
+}
+const p1Mats = { cur: new THREE.LineBasicMaterial({ color: 0x15803d, linewidth: 2, depthTest: false }), mine: new THREE.LineBasicMaterial({ color: 0x16a34a, linewidth: 2, depthTest: false }), old: new THREE.LineBasicMaterial({ color: 0x86efac, linewidth: 2, depthTest: false }),
+                 dotCur: new THREE.MeshBasicMaterial({ color: 0x15803d, depthTest: false }), dotFirst: new THREE.MeshBasicMaterial({ color: 0xf59e0b, depthTest: false }), dotMine: new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }), dotOld: new THREE.MeshBasicMaterial({ color: 0xbbf7d0, depthTest: false }) };
+function drawP1Paths(){
+  while (p1Group.children.length) p1Group.remove(p1Group.children[0]);
+  if (!segPos || tab !== 'p1') { requestRender(); return; }
+  const vAt = i => new THREE.Vector3(segPos[i*3], segPos[i*3+1], segPos[i*3+2]);
+  const lift = (v, i) => { const nn = segNormalAt(i); return v.clone().addScaledVector(nn, 0.3); };
+  const draw = (ids, lineMat, dotMat, firstMat) => {
+    const pts = ids.map(i => lift(vAt(i), i)); if (!pts.length) return;
+    if (pts.length >= 2) { const g = new THREE.BufferGeometry().setFromPoints(pts); const ln = new THREE.Line(g, lineMat); ln.renderOrder = 8; p1Group.add(ln); }
+    pts.forEach((q, k) => { const d = new THREE.Mesh(new THREE.SphereGeometry(k === 0 || k === pts.length - 1 ? 0.5 : 0.32, 12, 8), k === 0 ? (firstMat || dotMat) : dotMat); d.renderOrder = 9; d.position.copy(q); p1Group.add(d); });
+  };
+  if (!p1pathClear) p1Dots.path.forEach(ids => draw(ids, p1Mats.old, p1Mats.dotOld, p1Mats.dotOld));
+  p1paths.forEach(ids => draw(ids, p1Mats.mine, p1Mats.dotMine, p1Mats.dotFirst));
+  if (p1cur) draw(p1cur.ids, p1Mats.cur, p1Mats.dotCur, p1Mats.dotFirst);
+  requestRender();
+}
+// a vertex's normal from the segmentation mesh (for lifting the drawn runs just off the surface)
+function segNormalAt(i){ const a = segMesh && segMesh.geometry.attributes.normal; if (!a) return new THREE.Vector3(0, 0, 1); return new THREE.Vector3(a.getX(i), a.getY(i), a.getZ(i)).normalize(); }
+window.addEventListener('keydown', ev => {
+  if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+  if (tab !== 'p1' || modeNow() !== 'p1path') return;
+  if (ev.key === 'Escape' && p1cur) { dropP1Path(); ev.preventDefault(); }
+  else if (ev.key === 'Enter' && p1cur) { finishP1Path(); ev.preventDefault(); }
+  else if (ev.key === 'Backspace' || ev.key === 'Delete') {
+    if (p1cur && p1cur.pts.length) { p1cur.pts.pop(); p1cur.ids.pop(); p1cur.ns.pop(); if (!p1cur.pts.length) p1cur = null; drawP1Paths(); updateFixCount(); ev.preventDefault(); }
+    else if (p1paths.length) { p1paths.pop(); drawP1Paths(); updateFixCount(); ev.preventDefault(); }
+  }
+});
+canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (isDotMode(modeNow())) { dotDown(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } if (modeNow() === 'p1path') { p1PathClick(ev); return; } painting = true; controls.enabled = false; startStroke(ev); paintAt(ev); } });
 // hovering: one pick per frame at most (a pick walks every triangle of the scan)
 let hoverEv = null, hoverQueued = false;
 canvas.addEventListener('pointermove', ev => {
@@ -2396,12 +2740,17 @@ function updateFixCount(){
   const el = $('#fixcount'); if (!el) return;
   const words = { add: '→ tooth', remove: '→ gum', relabel: 'given a picked tooth\'s colour', cut: 'cut away', noreservoir: 'reservoir erased', reservoir: 'reservoir painted', blockout: 'block out', unblockout: 'block-out cleared', takeoff: 'take off', notbracket: 'not a bracket' };
   const P = PANELS[tab]; const mine = P ? P.sets : [];
-  const dotName = { contact: 'contact dot', p1span: 'cutout-span dot', p1end: 'end dot', p1six: '"6 is here" dot' };
+  const dotName = { contact: 'contact dot', nosplit: 'no-split ring', p1span: 'cutout-span dot', p1end: 'end dot', p1six: '"6 is here" dot' };
   const dotWord = (k, n) => { const un = k.startsWith('un'); const nm = dotName[un ? k.slice(2) : k]; return `${n} ${nm}${n > 1 ? 's' : ''}${un ? ' taken away' : ''}`; };
   const here = mine.filter(k => edits[k].size).map(k => (k in dotName || k.slice(2) in dotName) ? dotWord(k, edits[k].size) : `${edits[k].size} ${words[k]} (vertices)`);
   if (tab === 'teeth') { const n = Object.keys(toothIds).length; if (n) here.unshift(`${n} tooth number${n > 1 ? 's' : ''} given`); }
   if (tab === 'block' && outl && outl.pts.length) here.unshift(`outline: ${outl.pts.length} corner${outl.pts.length > 1 ? 's' : ''} - click the first dot to close`);
   else if (tab === 'block' && outlines.length) here.unshift(`${outlines.length} outline${outlines.length > 1 ? 's' : ''}`);
+  if (tab === 'p1') {
+    if (p1paths.length) here.unshift(`${p1paths.length} cutout outline${p1paths.length > 1 ? 's' : ''} traced`);
+    if (p1pathClear && p1Dots.path.length) here.unshift(`${p1Dots.path.length} applied outline${p1Dots.path.length > 1 ? 's' : ''} to be cleared`);
+    if (modeNow() === 'p1path') here.unshift(`Cutout outline - ${p1Guide()}`);
+  }
   const other = Object.keys(edits).filter(k => !mine.includes(k)).reduce((a, k) => a + edits[k].size, 0);
   const elsewhere = otherEditCount();
   el.textContent = (here.length ? here.join(', ') : 'No edits here.') + (other ? ` · ${other} more painted on other tabs` : '') + (elsewhere ? ` · ${elsewhere} more on the other arch` : '') + (other || elsewhere ? ' - Apply sends them all' : '');
@@ -2424,6 +2773,8 @@ const nameForm = () => { const fd = new FormData(); fd.append('patient_first', $
 // Clean-up: the scan back to before the first cut (the doctor, 10/19/2026: a mistaken cut could not be taken back)
 async function bringBackCut(){
   if (!currentJob) return;
+  const parts = pendingWork();
+  if (!confirm(`Bring back what was cut? The scan goes back to as it was before the first cut and its models are re-made${parts.length ? ` - the ${parts.join(', and ')} are dropped` : ''}.\n\nOK = bring it back.   Cancel = leave it.`)) return;
   const fd = new FormData(); fd.append('scan', String(scanIdx));
   const resp = await fetch(`/api/jobs/${currentJob}/uncut`, { method: 'POST', body: fd }); const r = await resp.json().catch(() => ({}));
   if (!resp.ok) { showErr('Could not bring it back: ' + (r.detail || resp.status)); return; }
@@ -2467,7 +2818,8 @@ window.__view = { camera, controls, requestRender, markFrame, labelAt: (x, y) =>
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
   placement: () => ({ adjust: { ...adjust }, applied: { ...applied }, pivot, arch: curArch, map: adjustMap(), pending: JSON.parse(JSON.stringify(pendingAdj)), marks: markMap() }), archGroup: () => archGroup,
   editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }), allEdits, refreshQueue, tracker: () => TRACKER, queue: () => QUEUE, renderQueue,
-  handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; } };   // for automated checks
+  handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; },
+  contacts: () => ({ seen: segContacts.map(c => ({ ...c })), noSplit: segNoSplit.slice(), nosplit: [...edits.nosplit], unnosplit: [...edits.unnosplit], contact: [...edits.contact], uncontact: [...edits.uncontact], rings: dotGroup ? dotGroup.children.filter(o => o.type === 'Group').length : 0, mode: modeNow() }), viewFrom };   // for automated checks
 window.__appReady = true;
 </script>
 </body>

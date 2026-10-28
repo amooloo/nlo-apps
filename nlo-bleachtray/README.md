@@ -8,7 +8,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
 1. Export the patient's scan from the scanner, with the patient's name in the file name (the scanner does this on
    its own, e.g. `Jane_Doe_20261015_09-20-31_upper.ply`). **PLY when the scanner offers it** - it carries the colour,
    which the app uses to find the gum line; STL works too.
-2. Drop the file on the **Tray Maker** app page (any office computer; home page → Tray Maker). A pop-up in the middle of the screen asks what
+2. Click the teal **Create a case** button at the top of the **Tray Maker** page (any office computer; home page → Tray Maker)
+   and drop the scan files into the pop-up - or drop them anywhere on the page, which opens the same pop-up (10/27/2026: the
+   old New case card is gone; a case waiting under **To make** opens the pop-up pre-filled when clicked). The pop-up asks what
    to make of it - **whitening tray**, **retainer (TT)**, **mouthguard (MG, braces on)** and/or **Phase I (P1)** retainer - whether the scan has
    **braces on** that should come off first (never assumed) - and whether the opposing arch is coming: drop that
    one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once
@@ -41,17 +43,31 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    colour that is painted"); started on gum - no colour - the stroke is gum, so a stroke from the gum onto a tooth
    takes the bleed off and a stroke from the tooth onto the gum takes the tooth's colour out over it, with no switching
    between brushes (the doctor, 10/21/2026: "use the same logic - if you start on gum then your strokes will be no
-   teeth"; **Gum** is still there for a stroke that must be gum whatever it starts on) - and has the **Contact** dot:
-   Shift-click once where two teeth touch and the split between them is put there - for crowded lower incisors,
-   where one colour runs across two teeth and the reservoir ends mid-tooth instead of at the contact - the view turns
-   to look from above when the tool is picked, a dot on gum is refused (teeth with a space between them need none;
-   most arches need no dot at all, a crowded one two or three), Backspace takes the last dot back, a click on a dot
-   takes it away (an applied dot shows pale, red once marked to go), Shift-drag moves one, applied or not. The Tooth
+   teeth"; **Gum** is still there for a stroke that must be gum whatever it starts on) - and has the **Contact** tool
+   (10/27/2026, the doctor: "show the detected contacts so they can be moved / deleted / added"; "contact dots from
+   the occlusal view misbehave - multiple shades in one tooth - better placed from the facial for the anteriors"):
+   every split the app made between two colours shows as a **ring** lying on the surface at the facial-most point of
+   the boundary (`findContacts`, from the label adjacency the page already builds), and the view no longer turns to
+   look from above when the tool is picked - the anteriors are done from the front. Three things: Shift-click where two
+   teeth touch and no ring is, and a **yellow dot** puts the split there (crowded lower incisors, where one colour runs
+   across two teeth and the reservoir ends mid-tooth); Shift-click a ring and it gets a cross - **no split** there, the
+   two colours are one tooth after Apply (a partially erupted tooth the app took for two); Shift-drag a ring (or a
+   dot) and the split moves (a no-split where the ring was, a dot where it was dropped). A dot on gum is refused
+   (teeth with a space between them need none; most arches need no dot at all, a crowded one two or three), Backspace
+   takes the last one back, a click on a dot or a crossed ring takes it back; applied dots show pale, an applied
+   no-split shows as a pale crossed ring and a click on it brings the split back on Apply. The Tooth
    brush picks the colour of the vertex under the click itself (the commonest colour within the brush picked the
    neighbour when a stroke started near a boundary - "sometimes it starts to paint the other tooth's colour"), the
    cursor shows the colour being painted, and painting a tooth's own colour (or plain tooth) back over a mistaken
    pick takes it back;
-   **Phase I** (on a Phase I case only) takes the doctor's own dots: **Cutout span** - Shift-click the near and the
+   **Phase I** (on a Phase I case only) takes the doctor's own dots: **Cutout outline** (the easiest way, 10/27/2026 - the
+   doctor: "start by clicking on the distal of the 2, trace around the lingual aspect, then go to the E/5, and you
+   connect it to the rest of the trim line") - three steps per side: Shift-click the distal of the 2, click your way
+   round the tongue side of the C/D area as far onto the gum as the cutout should go, click last on the E (or the 5)
+   where the cutout ends, then click that dot again or press Enter; the app cuts out everything between the outline and
+   the cheek side, keeps the 2 and the teeth behind the last dot whole, and joins both ends to the trim line (the panel
+   says which click comes next; Backspace takes a dot back, Esc drops the outline; the outline is kept with the scan
+   and shows pale once applied; Clear on the tab takes the applied ones away too) - **Cutout span** - Shift-click the near and the
    far end of the cutout on a side and it runs between the two dots, mesio-distal, whatever stands there - and
    **Ends here** - one dot per side where the retainer stops, nothing covered behind it - and **6 is here** - Shift-click
    the first molar when the app has it as a 7 (a space between the front teeth counted as a tooth gone shifts the
@@ -74,7 +90,12 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    the tooth split is reused, and Send writes the order with every model. The **mouthguard** (upper only, for now) is
    the fifth icon in the model row at the bottom right: grey while the case has none - a click asks whether to make
    one from the upper scan - and a model like the other four once it is made.
-4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
+4. Click **Send to Trimlign** and tick the pieces that go (all are ticked; the box names each one - *Lower · Retainer (TT)* - with
+   its state and the OrthoFactory name it had if it was sent before). **Export** is the other way out (10/27/2026 - the doctor: "there
+   should be a clear EXPORT button"): the same checklist, then **Download (zip)** - one zip with the print files, the model with its
+   base, named as the print folder names them (`2026-10-27_Jeffers_Josiah_Lower_TT.stl`) - or **Write to the print folder** on the
+   office share. The order's own files (the Titan-named STL / .pts, the body, the trim line, the scan with reservoirs) are under
+   **Advanced files** in the Check & send box, for a check only. Only Send puts the case in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`), a mouthguard as a stage-2 Template piece (`TU2A`), a Phase I retainer as a stage-3 Aligner piece (`AU3A` / `AL3A`).
    **The last letter moves on** (`AL1B`, `AL1C`, …) whenever that piece has been sent for the patient before - from
    this case, another case, or Titan - the way Titan marks a new version. OrthoFactory takes a repeated name for the
@@ -195,6 +216,23 @@ beside it), and a Send made from that PC opens the models there rather than on t
 which hands the model files on the office share to the PreForm installed there. The first click shows the browser's
 "Open …?" question; tick *Always allow*. The print folder must be on the office share for this (the default is).
 
+How the click works (10/27/2026, the doctor: "a PowerShell prompt, and nothing happens"): a browser lets a page start a
+program only in the few seconds after a click, and filing the models first - a rebase and the copies to the share - used
+up that window, so the link was dropped without a word. Now the page asks for the names the files *will* have
+(`GET /api/jobs/{id}/printpaths`, nothing written), sends the `nlobt:` link at once, and has the models filed right after
+(`POST /prints`; on a Send, the order's own filing); the handler on that PC waits for the files to appear (up to the
+link's `wait=` seconds; a file still being copied is waited for until its size holds still) and starts PreForm with
+them. The handler is started through a `wscript` launcher, so no console window flashes; every run is written to
+`%LOCALAPPDATA%\nlo-bleachtray\preform_open.log` (the link, the files found and missing, the PreForm found, what was
+started), and anything that stops it - no PreForm here, files not reachable, drive-letter paths that are not share paths -
+is said in a message box kept on top of every window, never silently. The page watches whether anything on that PC
+answered the link (a handler takes the focus off the page - the browser's question, or PreForm itself): the line under
+the buttons says "handed to PreForm" or, in red, that nothing answered, with the setup line and the log's place either
+way; the Export zip is the way round it. The paths are share paths: a print folder on a mapped drive is turned into
+`\\server\share\…` (`_to_unc`: WNetGetConnection, else `net use` - the first has nothing when the app was started under
+another account or session than the one that mapped the drive), and the page warns when they are still drive letters.
+Re-running the setup line replaces the handler with the current one.
+
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 
 Settings → *Scanner export folder* → Save (once, for the whole office). The app lists the scans exported in
@@ -248,11 +286,16 @@ without a name takes one through the patient line only.
 
 ## If a case needs a look
 
+The dot tools (Contact, the Phase I dots and outline) and the Block-out outline show a **crosshair** lying on the
+surface instead of the brush ball (the doctor, 10/27/2026: "instead of a circle/sphere when it comes to contact points
+and the block-outs, use a cross-hair") - four arms with a gap in the middle, drawn over the model, so the exact spot
+stays visible; the ball stays for the brushes.
+
 From any office computer open `http://lab:8765` — or click **Bleach Tray** on the NLO apps home page,
 which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
 it processes on its own and writes the OrthoFactory order (the green line under the result confirms it). See the
 result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation* tab),
-re-run. The trim line is drawn as a thin tube lifted 0.16 mm off the model along the body's surface normal at each point (the pipeline keeps the normals in the state file and the report notes how far the line sits from the surface, `trimline_off_surface_mm`), so it lies on the model like a thread from every angle and never shows through it; the far side is only a faint whisper. The boxes over the viewer stay small: controls only, the explanation behind **?**, and **–** folds a box to a chip in the corner that brings it back. **Position on the base** (Result tab, folded by default - the chip opens it, and the base's handles - the thin blue ring and the draggable plate - exist only while it is open, so the plain view is just the model): the arch stays where it is and the *base plate* moves under it - drag the plate to slide it, drag the ring to turn it (or use the step buttons); the first touch flips the view to the underside with the plate see-through, so the locating holes are checked against the arch footprint (*Underneath (holes)* / *From above* switch the view). *Apply* re-makes the order, *Reset to automatic* goes back. The placement is kept **per arch** (`params.adjust_by_arch`): moving the lower touches the lower's two models only, the upper stays where it is, and a move that is not applied yet survives a look at the other models of the case. A turn / shift at the same height does not re-run the pipeline: the finished body (tooth mark included - it is put on the body before the base now) is moved as one rigid piece and only the base plate, the engraving and the files are made again (`replace_placement`, ~3 s a model instead of ~45); a height change (*Down / up*) rebuilds that arch's models. A brush fix likewise re-makes only the models made from the scan it was painted on. The page fetches the case's files (body, block-outs, trim line, brush mesh) with the browser cache bypassed and the server sends them `Cache-Control: no-store`: they are rewritten at the same URL on every re-run, and Chrome's heuristic freshness (a `Last-Modified` minutes old, no cache header) used to serve the previous body for a while after a move - the moved arch's trim line over the unmoved body, "the base shifted back and the trim line moved". (The numbers sent to the server are the arch's move relative to the base, as before.) **Text** (Result tab, its own chip under *Position on the base*): the text on the model shows the moment the box opens - a yellow card where it is now, and the letters themselves in yellow once made, so they are found at a glance; *Start → end on the model* then two clicks on the model lay the text between them (Titan's way: the middle of the text at the middle of the span, reading from the first click to the second, letters sized to the span), or drag the card; what it says (initials as J.D, last name, full name - no W / R since 10/22/2026: the material says which tray it is, and the base carries it), *Raised* / *Cut in*, turn and size buttons, *Auto* for the molar again, *Apply* (seconds - the model itself is kept). *Make*: *Whitening tray + retainer* (default, both per arch), *Whitening tray 5-5 only* (reservoirs 5-5, line 1 mm onto the gum), *Whitening 3-3 only*, *Retainer only*
+re-run. The trim line is drawn as a thin tube lifted 0.16 mm off the model along the body's surface normal at each point (the pipeline keeps the normals in the state file and the report notes how far the line sits from the surface, `trimline_off_surface_mm`), so it lies on the model like a thread from every angle and never shows through it; the far side is only a faint whisper. The boxes over the viewer stay small: controls only, the explanation behind **?**, and **–** folds a box to a chip in the corner that brings it back. **Position on the base** (Result tab, folded by default - the chip opens it, and the base's handles - the thin blue ring and the draggable plate - exist only while it is open, so the plain view is just the model): the arch stays where it is and the *base plate* moves under it - drag the plate to slide it, drag the ring to turn it (or use the step buttons); the first touch flips the view to the underside with the plate see-through, so the locating holes are checked against the arch footprint (*Underneath (holes)* / *From above* switch the view), and the box says live whether the two **locating holes stay clear** of the model's foot - green with the clearance, red with how far to slide when a hole is under the model (`holeClearance`: the foot outline from the report, moved as the preview moves it, against the holes at ±7.47, -19.0 with a 2.0 mm rim and 0.5 mm needed - the same test the server makes). *Apply* re-makes the order, *Reset to automatic* goes back. The placement is kept **per arch** (`params.adjust_by_arch`): moving the lower touches the lower's two models only, the upper stays where it is, and a move that is not applied yet survives a look at the other models of the case. A turn / shift at the same height does not re-run the pipeline: the finished body (tooth mark included - it is put on the body before the base now) is moved as one rigid piece and only the base plate, the engraving and the files are made again (`replace_placement`, ~3 s a model instead of ~45); a height change (*Down / up*) rebuilds that arch's models. A brush fix likewise re-makes only the models made from the scan it was painted on. The page fetches the case's files (body, block-outs, trim line, brush mesh) with the browser cache bypassed and the server sends them `Cache-Control: no-store`: they are rewritten at the same URL on every re-run, and Chrome's heuristic freshness (a `Last-Modified` minutes old, no cache header) used to serve the previous body for a while after a move - the moved arch's trim line over the unmoved body, "the base shifted back and the trim line moved". (The numbers sent to the server are the arch's move relative to the base, as before.) **Label** (Result tab, its own chip under *Position on the base*; called Text until 10/27/2026): the label on the model shows the moment the box opens - a yellow card where it is now, and the letters themselves in yellow once made, so they are found at a glance; *Start → end on the model* then two clicks on the model lay the text between them (Titan's way: the middle of the text at the middle of the span, reading from the first click to the second, letters sized to the span), or drag the card; what it says (initials as J.D, last name, full name - no W / R since 10/22/2026: the material says which tray it is, and the base carries it), *Raised* / *Cut in*, turn and size buttons, *Auto* for the molar again, *Apply* (seconds - the model itself is kept). *Make*: *Whitening tray + retainer* (default, both per arch), *Whitening tray 5-5 only* (reservoirs 5-5, line 1 mm onto the gum), *Whitening 3-3 only*, *Retainer only*
 (line 1.25 mm onto the gums, semi-scallop), *Plain model*. The whitening tray's line sits 1 mm onto the gum by default (Settings → *Whitening tray line*, 19 Oct 2026): the Trimlign's bur is ~1 mm wide and runs centred on the line, so a line right at the gum line cut into the tray over the teeth; the extra millimetre leaves room for the bur and for finishing with scissors. A browser that had the old default (at the gum line) saved is moved to 1 mm once; the other choices stay as chosen.
 
 ---
@@ -285,15 +328,25 @@ the base. Close islands are joined by a bridge along the shortest surface path b
 two teeth, 0.8 mm wide; `connect_line_pieces`, "gum line carried across N gaps"); if the line still breaks, the
 edge zone is thinned and the band widened step by step, and a model that is still partial, or not watertight,
 carries a red warning on the result line (`rep["warnings"]`). A **contact dot** from the doctor is
-a boundary of its own: where there are dots they are the only boundaries on that stretch of the arch (automatic ones
-inside it, and within 3.2 mm beyond its ends, go), and round each dot (2.5 mm in plan) the tooth vertices are given to
-one side or the other of the vertical plane through the dot across the contact - the plane normal to the surface's
-horizontal tangent there, which is the embrasure however the tooth is turned - before the flood, so the split passes
-through the dot rather than where the height happens to dip. A dot's place along the arch is read where that plane
-meets the facial surface (the arch coordinate is only dependable outside the arch curve), so a dot on the incisal
-edge or the lingual side lands on the same boundary as one on the facial side. Dots are kept per scan file with the
-other strokes (`paint[path]["contact"]`, shown as bit 32 in the brush mesh) and go into every later re-split; the
-corrected labels train the interproximal classifier like any other lesson. The gum line
+a boundary of its own: the automatic boundaries within 3.2 mm of a dot go, and so does everything between two dots
+that stand less than 1.5 tooth widths apart (the two sides of one tooth) - dots further apart leave the automatic
+boundaries between them alone (10/27/2026: before, every automatic boundary inside the dotted stretch went, so a dot
+at the midline and one dragged to the 6 wiped out the four contacts between). Round each dot (2.5 mm in plan) the
+tooth vertices are given to one side or the other of the vertical plane through the dot across the arch before the
+flood, so the split passes through the dot rather than where the height happens to dip. That plane is normal to the
+**arch curve's tangent** at the dot's position (`ArchCurve`, the even quartic the arch coordinate is measured along) -
+the plane taken from the local surface normal before 10/27/2026 tipped with every bump of enamel, and a dot put on
+the incisal edge from above could split a tooth into pieces ("multiple shades in one tooth"). A dot's place along
+the arch is read where that plane meets the facial surface (the arch coordinate is only dependable outside the arch
+curve), so a dot on the incisal edge or the lingual side lands on the same boundary as one on the facial side. A
+**no-split dot** (a click on one of the rings) names the split it sits on - the two labels round it after a first
+labelling pass - and that boundary is dropped and the labels made again without it (a contact dot's own boundary
+never goes this way: take the dot away instead). After the flood every tooth is made **one piece**
+(`one_piece_per_tooth`): each label keeps its biggest connected patch, a loose patch that touches another tooth is
+cleared and flooded again from its neighbours (a loose patch touching no other tooth is an island of the mask - a
+tooth the gum line crosses - and keeps its colour). Dots are kept per scan file with the other strokes
+(`paint[path]["contact"]` shown as bit 32 in the brush mesh, `paint[path]["nosplit"]` served with the scan's dots)
+and go into every later re-split; the corrected labels train the interproximal classifier like any other lesson. The gum line
 is the 0.5 iso-contour of the tooth mask; papillae are bridged with a 2D closing and snapped onto the surface.
 Reservoirs are a feathered normal displacement on the facial surfaces, kept 0.5 mm from the gum line and 0.4 mm from the incisal edges, the neighbouring teeth and the facial-lingual transition (full height ~0.6 mm further in). The solid: clipped surface closed below the floor, unioned with a
 steep skirt below the scan's edge, cut by vertical walls that stand under the scan's own edge (`hug_region`, see
@@ -301,6 +354,31 @@ steep skirt below the scan's edge, cut by vertical walls that stand under the sc
 placement (facial gum line of the centrals 6.0 / 4.5 mm in front of the locating hole for upper / lower; floor
 3 mm below the lowest trim-line point). The model is one solid: anything the floor or the outline cuts loose from the
 arch (cheek or lip tissue, scan islands) is dropped instead of printing as a slab lying next to the model.
+
+**The model's foot over the locating holes** (10/27/2026, the doctor: "warn, or move the base, when the locating holes
+are covered by the arch"). A narrow arch - a child's Phase I lower, a crowded one - reaches over the holes at Titan's
+placement (Josiah's lower: the inner wall 1.5 mm past the rim on both sides), and the printed model blocks the pins. The
+automatic placement now checks the foot outline (`horseshoe_outline` of the trim line, as the body will stand) against
+the holes (`hole_clearance`: distance from each hole's centre to the outline, negative inside, less the 2.0 mm rim) and
+moves the arch until both are 0.5 mm clear (`slide_for_holes`): forward first, up to 6 mm - the holes sit behind the
+front teeth where the horseshoe is narrowest, forward puts a wider part over them - with a sideways nudge of up to
+1.5 mm allowed, for an arch that is not symmetric about the base's midline (one hole 3 mm clear, the other under the
+wall: Josiah's retainer needed 1 mm forward and 1.25 mm left instead of 6 mm forward that was still short). The move is
+part of the automatic placement (`rep["hole_slide_mm"]`, `rep["hole_nudge_mm"]`; the manual placement composes on top
+as before) and is logged. Every finished model, the manually placed one included, is checked again in `_finish_model`
+(`rep["hole_clear_mm"]`); a foot over or within 0.5 mm of a hole is a red warning on the result line, under the piece in
+the Send / Export list, and on the lab's log - "slide the arch forward on the Result tab". The page's Position box shows
+the same test live while the plate is dragged (`rep["foot_outline"]`, the foot at the automatic placement).
+
+**Unapplied work** (10/27/2026). One function, `pendingWork()`, knows what would be lost - brush edits, dots and
+outlines on any of the case's files that were not applied, a base moved on screen but not applied, a label changed but
+not applied - and everything that would lose it asks first: Send and Export open with a yellow strip in their dialog
+("Not applied yet: …, the pieces sent are the models as they were last made - without these", with *Apply & re-run
+first* and the main button reading "… anyway"; the hard block that used to refuse Send and Export is gone, the
+*Save as lesson* link still insists, a lesson without the strokes would teach the wrong thing), opening another case or
+starting a new one asks (OK drops them, Cancel stays), *Discard* always asks (and names what goes with it), *Bring back
+what was cut* asks, and closing or reloading the page brings up the browser's leave-page question. Clear already asked
+(click twice) and can be undone for 20 s.
 
 **The Trimlign base and its locating holes** (`bleachtray/basebuild.py`, 19 Oct 2026). The base is taken once from a
 Titan export (`tools/import_base.py`, at install) and rebuilt as a manifold by stacking horizontal cross-sections
@@ -657,6 +735,33 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   strip between the gum band and the plate - the line round that strip was a hairpin on one case, 10/21/2026), and a
   bare slit narrower than 3 mm between two covered parts is covered. Every line is checked for places where it doubles
   back on itself (two points under 1.6 mm apart but more than 6 mm apart along the line); the case warns when it does.
+- **The mixed dentition's widths** (`segment.EXPECTED_WIDTH["lower_mixed"]` / `upper_mixed`, 10/27/2026). The tooth split
+  checks every segment against the width expected at its place along the arch, and with the permanent widths (three 7 mm
+  premolars behind the canine) a 10.5 mm lower E at 25-36 mm from the midline read as "far too wide for its position" and
+  was split at its central groove into two teeth - the retainer's cutout then ended in the middle of it (Josiah's LRE,
+  10/27/2026; the doctor: "where there is a partially erupted tooth it keeps thinking LRE is 2 different teeth"). On a
+  Phase I scan the split uses the C / D / E widths (6.5, 8, 11 mm on a lower; 7, 7.5, 10 on an upper) and a weak
+  boundary inside a single back tooth is dropped from 16 mm out, so the E stays one tooth; an erupting tip beside it
+  stays its own small label.
+- **Counted from the first molar** (`phase1.anchor_six`, 10/27/2026). Counted from the midline, with every space of
+  2.5 mm or more taken for a tooth already gone, a 3.9 mm space behind a lateral made the first molar a "7" - and the
+  retainer stopped at the E and left the 6 bare (Josiah's lower). In the mixed dentition a side holds at most six teeth in
+  front of the 12-year molar (1, 2, C, D, E, 6), so the count is anchored on the last tooth: with six real teeth or
+  fewer on a side the last is the 6, the one in front the 5 (the E), the teeth between the 2 and the E take 3 and 4 (a
+  lone one keeps a detected space in front of it: it is the D); with seven the last is a 7 only when it is a small tip
+  behind a full molar (a 7 breaking through) or stands more than 48 mm of arch from the midline (49 on an upper -
+  a child's 6 sits at 41-45, a 7 at 52-56), otherwise the smallest extra label between the 2 and the E is a bump of gum
+  taken for a tooth and is made gum again. Nothing moves on a side with fewer than four teeth, eight or more, or whose
+  last tooth is no molar (a partial scan) - the case says so; a "6 is here" dot and the Teeth tab still have the last word.
+- **The traced outline** (the Phase I tab's *Cutout outline*, `path_idx`): an ordered run of dots per side. Its first
+  and last dots are the cutout's walls, as a span's are; the run between them is the edge on the tongue side, taken as a
+  radius from the arch centre by arch angle (where the run doubles back the innermost wins) - the window is everything
+  on the side between the walls that lies farther out than that edge, teeth and gum, out to the cheek. The tooth in
+  front of the first dot (the 2) and the teeth whose middle lies behind the last dot (the 6 behind the E's quarter)
+  stay whole, so a label that spilled a few vertices forward is not scooped with the window. The lines then run along
+  the traced edge and up the walls onto the first-trim line by themselves. The 5 mm rule below is not applied to a
+  traced side - the edge is where the doctor put it - but the case says how much flange is left under the outline on
+  the tongue side (`traced_bridge_mm`) and warns under 3 mm.
 - **The 5 mm rule** (the doctor: "min 5 mm - if below that reject the cutouts and just do block-out"): on a lower the
   flange left under the windows on the tongue side (what the scan holds below the window's edge, the 10th percentile
   along the C/Ds) must be 5 mm or more; when it is not, the cutouts are rejected and that arch is made by block-out,
@@ -735,14 +840,50 @@ grip, the undercut between the face and the crown, then the ridge sloping away u
 ridge reaches the face, flush with the crown's width; a crown that widens all the way to the gum has its face at its
 foot. (Not yet seen on a real undercut next to a gap - the scans at hand have high ridges; check on the next case
 with a missing tooth.) The stacked notches are voxelised (0.2 mm), marching-cubed and
-Taubin-smoothed; all fills go into the body union as one extra solid and are shown teal. Settings (retainer):
+Taubin-smoothed; all fills go into the body union as one extra solid and are shown teal. **Every fill is fused into the
+model first** (`bleachtray/fuse.py`, 10/27/2026 - the doctor: "the block-outs are still floating ... they need to be
+knifed-edge into the body of the model, with NO gap between the edges of the block-out and the model"): built as solids
+of their own, the fills met the model at an angle - a wedge's top stood a little short of the height of contour (the
+0.3-0.5 mm kept "for grip" read as a crevice), its foot stood on the gum as a step, the marching-cubes surface pulled
+back a hair from the enamel it was meant to touch - and in the viewer and on the print they read as pieces stuck on
+with a dark seam round them. So on a 0.1 mm voxel grid round each fill the body's own occupancy is taken from the scan
+surface (column by column: the winding of the surface crossings above each voxel, solid under the lowest crossing), fill
+and body are closed together with a 0.6 mm ball (0.35 mm for the Phase I block, kept off the 2 and the E it must not
+bridge to), and what the closing adds - the fillets at every concave seam, every slit of air narrower than 1.2 mm
+between the two - becomes a collar carried 0.2 mm into the fill and into the body on either side, meshed and unioned
+with the fill itself (which keeps its own smooth surface; only the seams are re-made). What the body union then adds
+is a shape whose every edge ends in the model's own surface: the top at the height of contour, the foot feathered onto
+the gum, nothing coincident and no sliver of air. The retention ledges are gone with it (`fill_retention` 0.5 -> 0,
+the painted fill's `taper_start` 0.3 -> 0). Settings: `fuse_blockout` (on), `fuse_radius` 0.6, `fuse_overlap` 0.2,
+`p1_fuse_radius` 0.35; the report's `blockout.fused` says how much fillet went in. **The foot reaches the body** (`_foot_to_body`,
+`foot_mm` 3): under every column of a fill, the air between the fill's lowest voxel and the body's top below it is the
+fill's too - a contact wedge stood on the papilla's tip and its full-reach foot hung a millimetre or two over the gum
+sloping away on either side, a flat underside with a gap beneath (Anvalina Faltz's lower incisors, 10/27/2026: the
+cross-sections showed the plank standing off the gum with air behind it). Checked on three lowers and an upper (Josiah,
+Anvalina) with 7-13 contact fills each and on a Phase I block: the notches and the air behind the fills are gone from the
+cross-sections, the bodies watertight. Settings (retainer):
 **Interproximal fill** on/off (**off by default** - it is rarely wanted on every contact; the usual case is a chosen
 spot, outlined on the Block-outs tab), **Reach out of the embrasure** (uLab's Buccal / Lingual, 1.25 mm),
 **Fill height above the gum** (20 = to the contact). The report says "N of M contacts filled, K faces next to
 a gap" and lists the contacts left out and why. The whitening tray gets none (soft tray). Anything else - under a pontic, round an
 implant crown - is painted on the Block-outs tab and filled by the column method below.
 
-**Painted block-out.** The space under an overhang the doctor marks out - a bridge pontic, the emergence of an implant
+**Painted block-out - built in 3D** (`fuse.paint_fill`, 10/27/2026). The painted fill was a column heightfield (below):
+its top had to follow the overhang's underside, and on a lingually leaning molar that underside is the crown's own
+steep lingual face, where a 0.1 mm step sideways is half a millimetre up or down - the fill came out as a lace of slivers
+lying on the enamel and the gum along the whole lingual cervical of the back teeth (Anvalina Faltz's lower; the doctor:
+"distorts it and makes it unusable", first blamed on the 1.5 mm reach, which was not it - 1.25 and 1.5 give the same
+wedges on both her arches). Now the fill IS the undercut's air: on a 0.1 mm voxel grid, every voxel that has body above
+it and body below it in its column (the space between a crown's bulge, a pontic, an implant crown's emergence and the
+gum under it), within the painted footprint grown 0.4 mm, out to the crown's own silhouette - a wall straight down from
+the height of contour, flush with the contour, standing on the gum; nothing over gum that has no body above it. The
+sloped face of the doctor's sketch is cut into that volume per piece (`blockout_taper_foot` 0.65, from the contour
+itself - `taper_start` 0); the Block-out amount pushes the wall out into the air beside it or pulls it in. A piece
+under 0.15 mm deep (no real undercut) or 0.3 mm thick is dropped and named in the report (`blockout.painted_dropped`),
+and the case says so when nothing is left. Then fused like every fill. The heightfield method stays for the automatic
+mode (off by default):
+
+**Painted block-out (heightfield, the automatic mode).** The space under an overhang the doctor marks out - a bridge pontic, the emergence of an implant
 crown, a black triangle - is filled like block-out resin (`bleachtray/blockout.py`). Marking it out is the **Outline**
 tool on the Block-outs tab (the default there): Shift-click corner after corner round the area - each corner is joined
 to the last along the surface as a thin painted line - and click the first dot again to close; everything the loop

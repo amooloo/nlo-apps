@@ -1594,5 +1594,94 @@ service cloud.firestore {
     match /meta/rules_ipr_1 {
       allow get: if isMember();
     }
+    // =====================================================================
+    // CADANCe (cadence.html, 24 Oct 2026; Amir said yes to moving Cadence onto the NLO Cases system, the day after its
+    // sign-in became the NLO Cases login): the office's recurring checklists, each day's lists and their ticks, the
+    // out-of-office board and Cadence's activity log, moved here once from Cadence's own copy in the nlo-inventory Realtime
+    // Database (nlo/cadence/state). Same logins, roster and idle lock as NLO Cases. Nothing here is patient data, so nothing
+    // is sealed.
+    // - How Cadence is set up (cadState/config: checklists, roles, areas, staff, duties and rotations, settings) and the
+    //   copies it keeps of Staff Hub's roster, the office calendar's closed days and NLO Time Off's feed key (cadMirror) are
+    //   changed only by Dr. A. Everyone signed in reads all of Cadence.
+    // - Each day's lists (cadInst, one record per list) are made, ticked and certified by whoever is signed in; every save
+    //   says who and when (upBy = their staff id, up = the database's time). A list keeps its checklist and day, and once
+    //   certified it keeps that it was (certifiedAt): such a list is taken off only by Dr. A (one never certified may go:
+    //   someone out that day, a checklist archived).
+    // - Which day it is (cadState/day, with the quarter) and the out-of-office board (cadState/timeoff) are kept up by
+    //   everyone's screens; the day is never one that hasn't begun yet (a device whose clock runs ahead).
+    // - Cadence's activity log (cadAudit) only grows: one record per entry, in the saver's name, never changed, with its
+    //   text fields text and its time (the saving device's clock) at most a day ahead of the database's.
+    // - cadMeta/moved says whether Cadence lives here, and pauses Cadence's screens while Dr. A moves it; the pages read it
+    //   before anyone signs in, so it holds nothing else.
+    // =====================================================================
+    function cadOk(d) { return isMember() && d.up == request.time && d.upBy == mySid(); }
+    function cadDone(d) { return d.get('status', '') in ['certified', 'in-review', 'failed']; }
+    function cadStr(v, n) { return v == null || (v is string && v.size() <= n); }
+    // 'YYYY-MM-DD' that has begun in the office's time zone (US Eastern: its midnight is at least 4 hours before now in UTC)
+    function cadNotAhead(t) { return timestamp.date(int(t[0:4]), int(t[5:7]), int(t[8:10])) <= request.time - duration.value(3, 'h'); }
+    match /cadState/{id} {
+      allow read: if isMember();
+      allow create, update: if cadOk(request.resource.data) && (
+        (id == 'config' && isOwner() && request.resource.data.size() <= 40)
+        || (id == 'day' && request.resource.data.keys().hasOnly(['today', 'currentQuarter', 'up', 'upBy'])
+          && request.resource.data.get('today', '') is string && request.resource.data.get('today', '').matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && cadNotAhead(request.resource.data.today)
+          && request.resource.data.get('currentQuarter', '') is string && request.resource.data.get('currentQuarter', '').size() <= 12)
+        || (id == 'timeoff' && request.resource.data.keys().hasOnly(['e', 'up', 'upBy'])
+          && request.resource.data.get('e', {}) is map && request.resource.data.get('e', {}).size() <= 5000));
+      allow delete: if false;
+    }
+    match /cadInst/{id} {
+      function okInst(d) {
+        return cadOk(d) && d.get('id', '') == id && d.size() <= 40 && d.get('date', '') is string && d.get('date', '').size() <= 20
+          && d.get('checklistId', '') is string && d.get('items', {}) is map && d.get('items', {}).size() <= 400
+          && d.get('status', 'pending') in ['pending', 'in-progress', 'certified', 'in-review', 'failed']
+          && cadStr(d.get('assigneeId', null), 100) && cadStr(d.get('certifiedBy', null), 100) && cadStr(d.get('certifiedAt', null), 40);
+      }
+      function wasCertified(d) { return d.get('certifiedAt', null) != null || cadDone(d); }
+      allow read: if isMember();
+      allow create: if okInst(request.resource.data);
+      allow update: if okInst(request.resource.data)
+        && request.resource.data.get('checklistId', '') == resource.data.get('checklistId', '')
+        && request.resource.data.get('date', '') == resource.data.get('date', '')
+        && (resource.data.get('certifiedAt', null) == null || request.resource.data.get('certifiedAt', null) != null || isOwner());
+      allow delete: if isOwner() || (isMember() && (resource == null || !wasCertified(resource.data)));
+    }
+    match /cadAudit/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && request.resource.data.get('id', '') == id
+        && request.resource.data.ts == request.time && request.resource.data.by == mySid()
+        && request.resource.data.keys().hasOnly(['id', 'tone', 'actor', 'message', 'detail', 'at', 't0', 'ts', 'by'])
+        && request.resource.data.get('message', '') is string && request.resource.data.get('message', '').size() <= 4000
+        && cadStr(request.resource.data.get('tone', null), 40) && cadStr(request.resource.data.get('actor', null), 200)
+        && cadStr(request.resource.data.get('detail', null), 2000) && cadStr(request.resource.data.get('at', null), 60)
+        && request.resource.data.get('t0', 0) is number && request.resource.data.get('t0', 0) <= request.time.toMillis() + 86400000;
+      allow update, delete: if false;
+    }
+    match /cadMirror/{id} {
+      allow read: if isMember();
+      allow create, update: if cadOk(request.resource.data) && isOwner() && id in ['roster', 'closures', 'tofeed'];
+      allow delete: if false;
+    }
+    match /cadMeta/moved {
+      allow get: if true;
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['on', 'pause', 'at'])
+        && request.resource.data.get('on', null) is bool && request.resource.data.get('pause', false) is bool
+        && request.resource.data.get('at', null) == request.time;
+      allow delete: if false;
+    }
+    match /cadMeta/info {
+      allow get: if isMember();
+      allow create, update: if cadOk(request.resource.data) && isOwner();
+      allow delete: if false;
+    }
+    // which set of these rules is live (Cadence reads these; older rules refuse them): 1 = Cadence's block (24 Oct 2026, the
+    // move), 2 = a log entry dated by a device's clock may run up to a day ahead (24 Oct 2026, the same afternoon)
+    match /meta/rules_cad_1 {
+      allow get: if isMember();
+    }
+    match /meta/rules_cad_2 {
+      allow get: if isMember();
+    }
   }
 }

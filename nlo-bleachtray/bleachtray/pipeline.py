@@ -22,7 +22,8 @@ DEFAULTS = dict(
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
     blockout=False, blockout_depth=0.75,          # automatic interproximal fill (a wedge under every contact, the way aligner labs do it): off by default here, on for the retainer in the app
     fill_reach=1.25, fill_top=20.0,  # the fill: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how far up from the papilla (20 = to the contact)
-    fill_retention=0.5,    # next to an edentulous space: the fill's straight face starts this far below the tooth's height of contour (that much undercut stays for grip)
+    fill_retention=0.0,    # next to an edentulous space: the fill's straight face starts this far below the tooth's height of contour (was 0.5 - that much undercut stayed for grip, and showed as a crevice between fill and tooth; 0 since 10/27/2026: the fill meets the contour, no gap)
+    fuse_blockout=True, fuse_radius=0.6, fuse_overlap=0.2, p1_fuse_radius=0.35,   # every fill fused into the model before the union (fuse.py): fillet radius at its seams, how deep it keeps the body's shell
     blockout_proud=0.0,    # mm: where a PAINTED block-out's wall stands relative to the tooth's contour seen from above - 0 flush with it, > 0 that much further out, < 0 that much of the undercut left for grip
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials (J.D) raised on a molar: shows on the tray
     facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
@@ -187,12 +188,13 @@ def connect_line_pieces(mesh, A, mask, max_gap=6.0, width=0.8, min_piece=300):
     return mask | added, bridges
 
 
-def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print, contacts=None):
+def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print, contacts=None, nosplits=None):
     """Per-tooth labels: arch-profile boundaries (contacts from the interproximal classifier, incisal
     height dips, footprint pinches, facial grooves) + downhill flood. Falls back to the older
     gum-line erosion split if that yields fewer than 6 teeth. `contacts`: vertex indices of the
-    doctor's contact dots - boundaries that override the automatic ones near them."""
-    aux = dict(aux); aux["p_ip"] = p_ip; aux["contact_idx"] = list(contacts or [])
+    doctor's contact dots - boundaries that override the automatic ones near them; `nosplits`: vertex
+    indices of the doctor's "no split here" dots - the automatic boundary nearest each one goes."""
+    aux = dict(aux); aux["p_ip"] = p_ip; aux["contact_idx"] = list(contacts or []); aux["nosplit_idx"] = list(nosplits or [])
     labels, bounds = split_teeth_arch(mesh, mask, A, aux, arch=arch, log=log)
     labels = merge_small_teeth(mesh, labels, A)
     labels = drop_retromolar_pads(mesh, labels, arch, log=log)
@@ -522,7 +524,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     prog(0.30, "separating the teeth")
     # the tooth split is the same for the same scan + arch, so the retainer made right after the
     # whitening tray (and a base nudge later) reuses it
-    lkey = (scan_path, "labels", arch_hint, len(mesh.vertices))   # (the mouthguard finds teeth on a cleaned copy: its own mesh, its own split)
+    lkey = (scan_path, "labels", f"{arch_hint}_mixed" if P1 else arch_hint, len(mesh.vertices))   # (the mouthguard finds teeth on a cleaned copy: its own mesh, its own split; a Phase I split has its own widths)
     if label_override is not None:
         labels = np.asarray(label_override)
         mask = labels > 0
@@ -534,7 +536,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         thr = float(P["tooth_threshold"]) if P.get("tooth_threshold") else tooth_threshold(models)
         # the gum line follows the gingival crease through the model's unsure band (see snap_to_crease)
         mask = clean_mask(snap_to_crease(mesh, A, smooth_field(A, p_tooth, 4), aux["Hs"], thr=thr), A)
-        labels = separate_teeth(mesh, mask, p_ip, A, aux, arch_hint, log=log)
+        # (a Phase I scan: the mixed dentition's widths behind the incisors - C, D, E - so a 10-11 mm E is one tooth)
+        labels = separate_teeth(mesh, mask, p_ip, A, aux, f"{arch_hint}_mixed" if P1 else arch_hint, log=log)
         mask = labels > 0          # separation may have dropped soft tissue mistaken for a tooth
         if feat_cache is not None:
             feat_cache[lkey] = labels
@@ -556,6 +559,14 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                                              ridge_band=1.0 if P1 else None, log=lambda m: log(f"[{name}] {m}"))
     if gaps:
         rep["gaps"] = gaps
+    if P1:
+        # ... but the count is anchored on the first molar: a space counted as a tooth gone pushed the 6 to "7" and the
+        # retainer stopped at the E (Josiah's lower, 10/27/2026) - the last tooth on a side is the 6 (phase1.anchor_six)
+        from .phase1 import anchor_six
+        labels, info, six_notes = anchor_six(np.asarray(mesh.vertices), labels, info, contact, arch=arch_hint, log=lambda m: log(f"[{name}] {m}"))
+        if six_notes:
+            mask = labels > 0
+            rep["phase1_count"] = six_notes
     # ... and a tooth missing with the space closed (a lower incisor, an upper lateral): the teeth behind it
     # are numbered by what they are, so the first molar is not a "5" with a reservoir on one side only
     # (not on a Phase I retainer: the mixed dentition's C/D/E are not the permanent canine and premolars the widths are
@@ -766,7 +777,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 picks=P.get("p1_teeth"), buccal_mm=float(P["trimline_offset"] or 1.25), plate_mm=float(P.get("p1_plate_mm", 0.0)),
                 apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 1.25)),
                 flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)),
-                span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, six_idx=P.get("p1_six_idx") or None, log=lambda m: log(f"[{name}] {m}"))
+                span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, six_idx=P.get("p1_six_idx") or None,
+                path_idx=P.get("p1_path_idx") or None, log=lambda m: log(f"[{name}] {m}"))
             p1_span = p1_info.pop("_span", None); p1_wedge = p1_info.pop("_wedge", None)
             rep["phase1"] = p1_info
             if p1_info.get("positions"):
@@ -820,12 +832,40 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     T_place = np.eye(4)
     T_place[1, 3] = FACIAL_MARGIN_Y_AT_MIDLINE[arch] - facial_y
     T_place[2, 3] = -z_floor
+    # the base's two locating holes must stay clear of the model's foot: a narrow arch (a child's, a crowded one)
+    # reaches over them at Titan's placement and the printed model blocks the pins (the doctor, 10/27/2026: "warn, or
+    # move the base, when the locating holes are covered"). The automatic placement slides the arch forward, up to
+    # 6 mm, until both holes are 0.5 mm clear of the rim; when that is not enough the model carries a red warning
+    # (_finish_model checks the final foot, the manual placement included)
+    rep["hole_slide_mm"] = 0.0
+    if P["add_base"] and not MG:
+        try:
+            from .basebuild import slide_for_holes, hole_clearance
+            foot0 = horseshoe_outline(trimesh.transform_points(margin_f, T_place)[:, :2], P["facial_offset"], P["lingual_offset"])
+            dx, dy, ok = slide_for_holes(foot0)
+            if dy > 0 or abs(dx) > 0:
+                T_place[0, 3] += dx
+                T_place[1, 3] += dy
+                rep["hole_slide_mm"] = round(dy, 2)
+                rep["hole_nudge_mm"] = round(dx, 2)
+                how = (f"{dy:.2f} mm forward" if dy > 0 else "") + (" and " if dy > 0 and abs(dx) > 0 else "") + (f"{abs(dx):.2f} mm to the {'right' if dx > 0 else 'left'}" if abs(dx) > 0 else "")
+                log(f"[{name}] placement: the arch moved {how} so the base's locating holes stay clear of the model"
+                    + ("" if ok else f" - not enough: still only {min(hole_clearance(horseshoe_outline(trimesh.transform_points(margin_f, T_place)[:, :2], P['facial_offset'], P['lingual_offset']))):.1f} mm from a hole's rim"))
+        except Exception as ex:  # noqa
+            log(f"[{name}] locating-hole check skipped: {ex}")
     mesh_f.apply_transform(T_place)
     margin_f = trimesh.transform_points(margin_f, T_place)
     if gum_line_f is not None:
         gum_line_f = trimesh.transform_points(gum_line_f, T_place)
     if p1_cut is not None:
         p1_cut = trimesh.transform_points(p1_cut, T_place)
+    # the foot's outline at the automatic placement (before the manual one), for the page's live check of the
+    # holes while the base is dragged (it applies the move it previews to this outline)
+    try:
+        foot_auto = horseshoe_outline(margin_f[:, :2], P["facial_offset"], P["lingual_offset"]).simplify(0.08)   # (close enough that the page and the server agree to 0.1 mm)
+        rep["foot_outline"] = [[round(float(x), 2), round(float(y), 2)] for x, y in foot_auto.exterior.coords]
+    except Exception:
+        pass
     # manual correction of the placement on the base (from the app): rotate about the trimline
     # centroid, then shift. Zero by default; the app's Reset puts it back to the automatic placement.
     pivot = margin_f[:, :2].mean(0)
@@ -916,7 +956,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 if rep.get("gaps"):
                     try:
                         from .interprox import gap_fills
-                        gsolids, ginfo = gap_fills(plain, labels, info, rep["gaps"], rc_bo, retention=float(P.get("fill_retention") or 0.5), log=lambda m: log(f"[{name}] {m}"))
+                        gsolids, ginfo = gap_fills(plain, labels, info, rep["gaps"], rc_bo, retention=float(P["fill_retention"] if P.get("fill_retention") is not None else 0.0), log=lambda m: log(f"[{name}] {m}"))
                         if gsolids:
                             fills.extend(gsolids)
                             binfo.update(gap_faces=len(ginfo), gap_fills=ginfo, spots=int(binfo.get("spots", 0)) + len(ginfo),
@@ -925,15 +965,21 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                         failed.append(("the fill beside the gaps", ex))
             if paint is not None:
                 try:
-                    pfill, pinfo = undercut_fill(plain, z_floor=0.0, min_depth=float(P.get("blockout_depth") or 1.0), auto=False,
-                                                 paint=paint, near=(labels > 0), proud=float(P.get("blockout_proud") or 0.0), centre=rc_bo, log=lambda m: log(f"[{name}] {m}"))
-                    binfo.update(painted_cells=pinfo.get("painted_cells"), proud_mm=pinfo.get("proud_mm"), painted_spots=pinfo.get("spots", 0))
+                    # built in 3D from the undercut's own air (fuse.paint_fill, 10/27/2026): the column heightfield came out
+                    # as a lace of slivers on a steep lingual face (Anvalina Faltz's lower)
+                    from .fuse import paint_fill
+                    pfill, pinfo = paint_fill(plain, paint, taper_foot=float(P.get("blockout_taper_foot", 0.65) or 0.0), taper_start=0.0,
+                                              proud=float(P.get("blockout_proud") or 0.0), log=lambda m: log(f"[{name}] {m}"))
+                    binfo.update(painted_vertices=pinfo.get("painted_vertices"), proud_mm=float(P.get("blockout_proud") or 0.0), painted_spots=pinfo.get("spots", 0),
+                                 painted_dropped=pinfo.get("dropped") or [], painted_error=pinfo.get("error"))
                     binfo["spots"] = int(binfo.get("spots", 0)) + int(pinfo.get("spots", 0) or 0)
                     binfo["volume_ml"] = round(float(binfo.get("volume_ml", 0.0)) + float(pinfo.get("volume_ml", 0.0) or 0.0), 3)
                     if pfill is not None:
                         fills.append(pfill)
                     else:
-                        log(f"[{name}] painted block-out: no undercut under the painted area (nothing to fill)")
+                        log(f"[{name}] painted block-out: {pinfo.get('error') or 'no undercut under the painted area (nothing to fill)'}")
+                        if pinfo.get("dropped"):
+                            rep.setdefault("warnings", []).append(f"painted block-out: {pinfo.get('error')} - paint where the crown really overhangs the gum")
                 except Exception as ex:  # noqa
                     failed.append(("the painted block-out", ex))
             if failed:
@@ -947,6 +993,19 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                     (f"a part of the app is missing on this PC ({', '.join(missing)}) - run the update, then re-run this case"
                      if missing else "re-run the case; if it happens again, the tray will grip the undercuts there"))
             rep["blockout"] = binfo
+            if fills and P.get("fuse_blockout", True):
+                # every fill is fused into the model before the union (fuse.py): fillets at its seams, its top at the
+                # height of contour, its foot feathered onto the gum, 0.2 mm into the body - no piece stuck on, no crevice
+                # (the doctor, 10/27/2026: "still floating ... knifed-edge into the body, NO gap")
+                from .fuse import fuse_many
+                fused = []
+                for f_ in fills:
+                    m_, finfo = fuse_many(f_, mesh_f, radius=float(P.get("fuse_radius") or 0.6), overlap=float(P.get("fuse_overlap") or 0.2),
+                                          log=lambda m: log(f"[{name}] {m}"))
+                    binfo.setdefault("fused", []).append(finfo)
+                    if m_ is not None:
+                        fused.append(m_)
+                fills = fused or fills
             if fills:
                 fill = trimesh.util.concatenate(fills) if len(fills) > 1 else fills[0]
                 fill_at = len(extra_solids)
@@ -1024,6 +1083,16 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rep["phase1_blockout"] = cinfo
             if cinfo.get("warning"):
                 rep.setdefault("warnings", []).append(f"Phase I block-out: {cinfo['warning']}")
+            if cap is not None and P.get("fuse_blockout", True):
+                # fused into the model like every other fill (fuse.py) - its foot and its ends run into the surface
+                # with a fillet; the fillets stay off the 2 and the E it must not bridge to (keep_mm 0.8)
+                from .fuse import fuse_many
+                others_v = np.asarray(mesh_f.vertices)[(np.asarray(labels) > 0) & ~np.isin(np.asarray(labels), sorted(under_b))]
+                cap2, finfo = fuse_many(cap, mesh_f, radius=float(P.get("p1_fuse_radius") or 0.35), overlap=float(P.get("fuse_overlap") or 0.2),
+                                        avoid=others_v, avoid_mm=0.6, log=lambda m: log(f"[{name}] {m}"))
+                cinfo["fused"] = finfo
+                if cap2 is not None:
+                    cap = cap2
             if cap is not None:
                 p1_cap_at = cap                     # after the outline cut, like the mouthguard's band: the block stands out past the crowns
                 after_solids.append(cap)
@@ -1310,11 +1379,23 @@ def _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path,
     if P["add_base"]:
         model, how = add_base(body)
         rep["base"] = how
-        from .basebuild import base_sig, base_problem
+        from .basebuild import base_sig, base_problem, hole_clearance, hole_note
         rep["base_sig"] = base_sig(os.path.dirname(ASSET_DIR_BASE))      # which Trimlign base it has (Send re-makes a model whose base was replaced since)
         bp = base_problem(os.path.dirname(ASSET_DIR_BASE))
         if bp:
             rep.setdefault("warnings", []).append(bp)
+        # the foot over the locating holes, as the model stands now (the manual placement included): the result line,
+        # the Send / Export list and the page's Position box all say so
+        try:
+            clear = hole_clearance(outline)
+            rep["hole_clear_mm"] = clear
+            rep["warnings"] = [w for w in (rep.get("warnings") or []) if "locating hole" not in w or "Trimlign base" in w]
+            note = hole_note(clear)
+            if note:
+                rep["warnings"].append(note)
+                log(f"[{name}] {note}")
+        except Exception as ex:  # noqa
+            log(f"[{name}] locating-hole check skipped: {ex}")
         if P.get("engrave", True):
             from .engrave import engrave_model
             model, einfo = engrave_model(model, P, outline=outline, log=lambda m: log(f"[{name}] {m}"))

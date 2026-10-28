@@ -151,7 +151,7 @@ def _unpinch(region):
 
 def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=True, paint=None,
                   paint_min_depth=0.15, proud=0.0, bevel=0.5, upsample=3, near=None, near_mm=1.5, below_mm=2.0, centre=None,
-                  taper_foot=0.65, taper_start=0.3, log=print):
+                  taper_foot=0.65, taper_start=0.0, log=print):
     """Return (solid or None, info). `paint`: per-vertex bool mask of areas the user asked to block
     out (filled whatever their depth). `near`: per-vertex bool mask (the teeth): an automatic fill
     only goes under an overhang within `near_mm` of it - the vestibule's own overhangs (the scan's
@@ -164,7 +164,9 @@ def undercut_fill(mesh, z_floor=0.0, min_depth=1.0, min_gap=0.3, cell=0.3, auto=
     pontic or an implant crown): it starts `taper_start` mm under the height of contour and runs
     straight down and in to the gum, with its foot `taper_foot` of the way in from the contour
     towards the neck - the tray formed over it still has some grip under the contour, and nothing
-    stands proud of the tooth. `taper_foot=0` gives the old vertical wall. `proud` moves the
+    stands proud of the tooth. `taper_foot=0` gives the old vertical wall. `taper_start` was 0.3 mm
+    until 10/27/2026: that strip under the contour showed as a crevice between the fill and the tooth
+    ("floating"); the face now starts at the contour itself (and fuse.py fillets the seam). `proud` moves the
     contour the fill reaches to: > 0 mm out beyond it (more block-out), < 0 mm in from it."""
     V = np.asarray(mesh.vertices); N = np.asarray(mesh.vertex_normals)
     g = _grid_fields(V, N, cell)

@@ -1087,40 +1087,81 @@ def split_teeth_footprint(mesh, tooth_mask, A, px=0.1, min_peak=1.2, peak_sep_mm
 EXPECTED_WIDTH = {   # (|s| upper bound along the arch from the midline, mesiodistal width) in mm
     "upper": [(8.5, 8.5), (15.0, 6.5), (22.5, 7.5), (36.5, 7.0), (99.0, 10.0)],
     "lower": [(5.5, 5.5), (11.5, 6.0), (18.5, 7.0), (32.5, 7.0), (99.0, 11.0)],
+    # the mixed dentition (a Phase I scan, arch "upper_mixed" / "lower_mixed"): behind the incisors stand the C (6-7 mm),
+    # the D (7-8 mm) and the E (9-11 mm) in front of the 6 - not three 7 mm premolars. With the permanent widths the
+    # 10.5 mm lower E at s = 25-36 read as "far too wide for its position" and was split at its central groove into
+    # two teeth, and the retainer's cutout then ended in the middle of it (Josiah's lower, 10/27/2026)
+    "upper_mixed": [(8.5, 8.5), (15.0, 6.5), (22.0, 7.0), (30.0, 7.5), (99.0, 10.0)],
+    "lower_mixed": [(5.5, 5.5), (11.5, 6.0), (17.5, 6.5), (25.5, 8.0), (99.0, 11.0)],
 }
 
 
 def expected_width(s, arch):
-    for hi, w in EXPECTED_WIDTH["lower" if arch == "lower" else "upper"]:
+    arch = str(arch or "")
+    table = EXPECTED_WIDTH.get(arch) or EXPECTED_WIDTH["lower" if arch.startswith("lower") else "upper"]
+    for hi, w in table:
         if abs(s) < hi:
             return w
     return 10.0
 
 
-def arch_coordinate(xy, weight=None):
-    """Arc-length position along a parabola fitted to the arch (0 at the parabola axis = midline).
-    `weight` (e.g. footprint half-width) concentrates the fit on the crown centre-line, so that
-    positions are not compressed near the front of the arch."""
+class ArchCurve:
+    """The arch's centre-line: an even quartic fitted in the arch's symmetry frame, parametrised by arc
+    length (0 at the midline). `coordinate` gives a point's position along it (nearest point on the
+    curve), `tangent` the curve's direction at a position - the plane straight across the arch there is
+    the one normal to it."""
+
+    def __init__(self, T, xs, ys, arc):
+        from scipy.spatial import cKDTree
+        self.T = np.asarray(T, dtype=float)
+        self.R = self.T[:2, :2]               # the rotation xy -> frame (rigid: its transpose takes a direction back)
+        self.xs, self.ys, self.arc = xs, ys, arc
+        self._tree = cKDTree(np.c_[xs, ys])
+
+    def coordinate(self, xy):
+        import trimesh
+        xy = np.asarray(xy, dtype=float)
+        Q = trimesh.transform_points(np.c_[xy[:, :2], np.zeros(len(xy))], self.T)[:, :2]
+        return self.arc[self._tree.query(Q)[1]]
+
+    def point(self, s):
+        """The curve's point at arc position s, in the input xy frame."""
+        q = np.array([np.interp(s, self.arc, self.xs), np.interp(s, self.arc, self.ys)])
+        return self.R.T @ (q - self.T[:2, 3])
+
+    def tangent(self, s):
+        """Unit tangent at arc position s (input xy frame), pointing towards +s."""
+        d = self.point(s + 0.5) - self.point(s - 0.5)
+        return d / max(np.linalg.norm(d), 1e-9)
+
+
+def arch_curve(xy, weight=None):
+    """Fit the arch's centre-line (see ArchCurve). `weight` (e.g. footprint half-width) concentrates the
+    fit on the crown centre-line, so that positions are not compressed near the front of the arch."""
     from .orient import symmetry_frame
     import trimesh
-    from scipy.spatial import cKDTree
+    xy = np.asarray(xy, dtype=float)[:, :2]
     T, _, _ = symmetry_frame(xy)
     Q = trimesh.transform_points(np.c_[xy, np.zeros(len(xy))], T)[:, :2]
+    Qf = Q
     if weight is not None:
         sel = weight >= 0.6 * np.percentile(weight, 95)
         if sel.sum() > 200:
-            Q = Q[sel]
+            Qf = Q[sel]
     # even quartic: follows tapered (V-shaped) arches that a parabola rounds off at the front
-    X = np.c_[Q[:, 0] ** 4, Q[:, 0] ** 2, np.ones(len(Q))]
-    cf = np.linalg.lstsq(X, Q[:, 1], rcond=None)[0]
+    X = np.c_[Qf[:, 0] ** 4, Qf[:, 0] ** 2, np.ones(len(Qf))]
+    cf = np.linalg.lstsq(X, Qf[:, 1], rcond=None)[0]
     coef = np.array([cf[0], 0.0, cf[1], 0.0, cf[2]])
-    Q = trimesh.transform_points(np.c_[xy, np.zeros(len(xy))], T)[:, :2]
     xs = np.linspace(Q[:, 0].min() - 2, Q[:, 0].max() + 2, 3000)
     ys = np.polyval(coef, xs)
     arc = np.r_[0, np.cumsum(np.hypot(np.diff(xs), np.diff(ys)))]
-    s0 = np.interp(0, xs, arc)
-    s = arc[cKDTree(np.c_[xs, ys]).query(Q)[1]] - s0
-    return s
+    arc = arc - np.interp(0, xs, arc)
+    return ArchCurve(T, xs, ys, arc)
+
+
+def arch_coordinate(xy, weight=None):
+    """Arc-length position along the arch's centre-line (0 at the midline) - see `arch_curve`."""
+    return arch_curve(xy, weight=weight).coordinate(xy)
 
 
 def footprint_halfwidth(xy, px=0.1):
@@ -1203,7 +1244,7 @@ def arch_boundaries(s, z, hw, conc_facial, arch, p_ip=None, b=0.25, prominence=0
             sc = score[np.argmin(np.abs(sgrid - edges[i]))]
             mid = 0.5 * (a + c)
             limit = 1.25 * expected_width(mid, arch)
-            if abs(mid) >= 20:       # back teeth: any single tooth is at most ~12 mm, whatever the count
+            if abs(mid) >= 20 or (str(arch).endswith("_mixed") and abs(mid) >= 16):       # back teeth: any single tooth is at most ~12 mm, whatever the count (the mixed dentition's D/E from s = 16)
                 limit = max(limit, 12.0)
             if sc < 3.2 and (c - a) <= limit:
                 if log: log(f"  drop weak boundary at s={edges[i]:+.1f} (score {sc:.1f}) inside a {c - a:.1f} mm span")
@@ -1238,51 +1279,55 @@ def split_teeth_arch(mesh, tooth_mask, A, aux, arch="upper", log=None):
     V = mesh.vertices
     xy = V[idx, :2]; z = V[idx, 2]
     hw = footprint_halfwidth(xy)
-    s = arch_coordinate(xy, weight=hw)
+    curve = arch_curve(xy, weight=hw)
+    s = curve.coordinate(xy)
     nrm = mesh.vertex_normals[idx]
     n_out = (nrm[:, :2] * aux["out_dir"][idx]).sum(1)
     H_s = smooth_field(A, aux["Hs"], 3)[idx]
     conc = np.where(n_out > 0.3, H_s, np.nan)
     p_ip = aux.get("p_ip")
     bounds, sgrid, score = arch_boundaries(s, z, hw, conc, arch, p_ip=(p_ip[idx] if p_ip is not None else None), log=log)
-    # contact dots from the doctor: each is a boundary where two teeth meet. Where the dots are, they are
-    # the only boundaries: every automatic one inside the dotted stretch of the arch goes, and so does one
-    # within 3.2 mm beyond its ends - the wrong split of a crowded incisor sits mid-crown, 2.5-3 mm from
-    # the contact (a lower incisor is 5-5.5 mm wide), while the next real contact is a tooth away
+    facial = n_out > 0.3                             # the facial surfaces: outside the arch curve, where s is trustworthy
+    od = aux["out_dir"][idx]
+
+    def dot_place(v):
+        """Where a dot sits along the arch, and the plane straight across the arch through it.
+        The plane is normal to the arch curve's tangent at the dot's position (the way the automatic
+        boundaries divide the arch - a plane taken from the local surface normal tipped with every
+        bump of enamel and split a tooth into pieces). Its place along the arch is read where that plane
+        meets the facial surface (the arch coordinate is only dependable outside the arch curve): the dot
+        itself when it was put on the facial side, the facial embrasure on the same plane for a dot on
+        the incisal edge or the lingual."""
+        p = V[v]
+        d2 = ((xy - p[:2]) ** 2).sum(1)
+        sd = float(s[np.argmin(d2)])
+        t = curve.tangent(sd)
+        near_f = np.where(facial & (d2 < 7.0 ** 2))[0]
+        for _ in range(2):
+            t = curve.tangent(sd)
+            proj_f = (xy[near_f] - p[:2]) @ t
+            on_plane = near_f[np.abs(proj_f) < 0.6]
+            if len(on_plane) < 3:
+                break
+            out_mean = od[on_plane].mean(0)
+            sd = float(s[on_plane[np.argmax((xy[on_plane] - p[:2]) @ out_mean)]])
+        return p[:2], t, d2, sd
+
+    # contact dots from the doctor: each is a boundary where two teeth meet, and where a dot is, it is the
+    # boundary: the automatic ones within 3.2 mm of it go (the wrong split of a crowded incisor sits mid-crown,
+    # 2.5-3 mm from the contact - a lower incisor is 5-5.5 mm wide), and so does everything between two dots
+    # that stand a tooth apart (less than 1.5 tooth widths: the two sides of one tooth). Dots further apart
+    # than that leave the automatic boundaries between them alone (a dot at the midline and one dragged to
+    # the 6 must not wipe out the four contacts between)
     dots = np.asarray(aux.get("contact_idx") or [], dtype=int)
     dots = dots[(dots >= 0) & (dots < len(V))]
     dot_planes = []       # per dot: (p_xy, t, nearby local indices, proj, boundary s)
+    is_dot = np.zeros(len(bounds), bool)
     if len(dots):
-        nrm_all = np.asarray(mesh.vertex_normals)
-        facial = n_out > 0.3                             # the facial surfaces: outside the arch curve, where s is trustworthy
-        od = aux["out_dir"][idx]
         for v in dots:
-            p = V[v]
-            d2 = ((xy - p[:2]) ** 2).sum(1)
-            # the contact plane: vertical, through the dot, normal to the surface's horizontal tangent there
-            # (the embrasure groove runs up the contact, so this is the contact itself however the tooth is
-            # turned); on an incisal edge the surface is flat and the plane goes straight across the arch
-            n_avg = nrm_all[idx[d2 < 1.0]].mean(0) if (d2 < 1.0).sum() >= 3 else nrm_all[v]
-            t = np.array([-n_avg[1], n_avg[0]])
-            if np.linalg.norm(t) < 0.3:
-                o_v = aux["out_dir"][v] if "out_dir" in aux else np.array([0.0, 1.0])
-                t = np.array([-o_v[1], o_v[0]])
-            t = t / max(np.linalg.norm(t), 1e-9)
-            # the contact's place along the arch: where that plane meets the facial surface (the arch
-            # coordinate is only dependable outside the arch curve) - the dot itself when it was put on the
-            # facial side, the facial embrasure on the same plane for a dot on the incisal edge or lingual
-            near_f = np.where(facial & (d2 < 7.0 ** 2))[0]
-            proj_f = (xy[near_f] - p[:2]) @ t
-            if len(near_f) >= 10 and np.corrcoef(proj_f, s[near_f])[0, 1] < 0:
-                t = -t; proj_f = -proj_f
-            on_plane = near_f[np.abs(proj_f) < 0.6]
-            if len(on_plane) >= 3:
-                out_mean = od[on_plane].mean(0)
-                sd = float(s[on_plane[np.argmax((xy[on_plane] - p[:2]) @ out_mean)]])
-            else:
-                sd = float(s[np.argmin(d2)])
+            pxy, t, d2, sd = dot_place(v)
             nearby = np.where(d2 < 2.5 ** 2)[0]
-            dot_planes.append((p[:2], t, nearby, (xy[nearby] - p[:2]) @ t, sd))
+            dot_planes.append((pxy, t, nearby, (xy[nearby] - pxy) @ t, sd))
         dot_s = np.array([q[4] for q in dot_planes])
         order_d = np.argsort(dot_s); dot_planes = [dot_planes[i] for i in order_d]; dot_s = dot_s[order_d]
         # two dots on the same contact (one facial, one lingual) are one boundary, but each splits round itself
@@ -1291,46 +1336,124 @@ def split_teeth_arch(mesh, tooth_mask, A, aux, arch="upper", log=None):
         dot_s = rep_s[grp - 1]
         dot_planes = [(pxy, t, nb, pr, float(sg)) for (pxy, t, nb, pr, _), sg in zip(dot_planes, dot_s)]   # one boundary per group
         n_before = len(bounds)
-        keep = (bounds < rep_s.min() - 3.2) | (bounds > rep_s.max() + 3.2)
-        bounds = np.sort(np.r_[bounds[keep], rep_s])
+        keep = np.abs(bounds[:, None] - rep_s[None, :]).min(1) > 3.2 if len(bounds) else np.zeros(0, bool)
+        for a, b in zip(rep_s[:-1], rep_s[1:]):
+            if b - a < 1.5 * expected_width(0.5 * (a + b), arch):
+                keep &= ~((bounds > a) & (bounds < b))
+        bounds = np.r_[bounds[keep], rep_s]; is_dot = np.r_[np.zeros(int(keep.sum()), bool), np.ones(len(rep_s), bool)]
+        order_b = np.argsort(bounds); bounds, is_dot = bounds[order_b], is_dot[order_b]
         if log:
             gone = n_before - int(keep.sum())
             log(f"contact dots: {len(rep_s)} placed, {gone} automatic boundar{'y' if gone == 1 else 'ies'} replaced")
-    edges = np.r_[s.min() - 1, bounds, s.max() + 1]
-    seg = np.searchsorted(bounds, s)            # segment index per vertex
-    centers = 0.5 * (edges[:-1] + edges[1:])
-    # seeds: the centre band of each segment
-    labels_t = np.zeros(len(idx), int)
-    for k, c in enumerate(centers):
-        band = (seg == k) & (np.abs(s - c) <= 1.0)
-        if band.sum() < 5:
-            band = (seg == k) & (np.abs(s - c) <= 2.0)
-        labels_t[band] = k + 1
-    # a contact dot is where the split IS, not just where the arch is divided: round the dot (2.5 mm in plan)
-    # the tooth vertices go to one side or the other of its contact plane before the flood, which otherwise
-    # meets wherever the height dips - mid-crown on crowded incisors
-    for (pxy, t, nearby, proj, sd) in dot_planes:
-        if len(nearby) < 10:
-            continue
-        j = int(np.searchsorted(bounds, sd))             # the dot's own boundary: segment j below it, j+1 above
-        labels_t[nearby[proj < 0]] = j + 1
-        labels_t[nearby[proj >= 0]] = j + 2
     # priority flood downhill along z within the tooth sub-graph
     h = z
     sub = A[idx][:, idx].tocsr()
     indptr, indices = sub.indptr, sub.indices
-    heap = [(-h[i], i) for i in np.where(labels_t > 0)[0]]
-    heapq.heapify(heap)
-    while heap:
-        _, i = heapq.heappop(heap)
-        li = labels_t[i]
-        for j in indices[indptr[i]:indptr[i + 1]]:
-            if labels_t[j] == 0:
-                labels_t[j] = li
-                heapq.heappush(heap, (-h[j], j))
+
+    def flood(lab):
+        heap = [(-h[i], i) for i in np.where(lab > 0)[0]]
+        heapq.heapify(heap)
+        while heap:
+            _, i = heapq.heappop(heap)
+            li = lab[i]
+            for j in indices[indptr[i]:indptr[i + 1]]:
+                if lab[j] == 0:
+                    lab[j] = li
+                    heapq.heappush(heap, (-h[j], j))
+        return lab
+
+    def label_pass(bounds):
+        """Labels from a set of boundaries: seeds in the centre band of every segment (and on each side of a
+        contact dot's plane), then the flood."""
+        edges = np.r_[s.min() - 1, bounds, s.max() + 1]
+        seg = np.searchsorted(bounds, s)            # segment index per vertex
+        centers = 0.5 * (edges[:-1] + edges[1:])
+        lab = np.zeros(len(idx), int)
+        for k, c in enumerate(centers):
+            band = (seg == k) & (np.abs(s - c) <= 1.0)
+            if band.sum() < 5:
+                band = (seg == k) & (np.abs(s - c) <= 2.0)
+            lab[band] = k + 1
+        # a contact dot is where the split IS, not just where the arch is divided: round the dot (2.5 mm in plan)
+        # the tooth vertices go to one side or the other of its contact plane before the flood, which otherwise
+        # meets wherever the height dips - mid-crown on crowded incisors
+        for (pxy, t, nearby, proj, sd) in dot_planes:
+            if len(nearby) < 10:
+                continue
+            j = int(np.searchsorted(bounds, sd))             # the dot's own boundary: segment j below it, j+1 above
+            lab[nearby[proj < 0]] = j + 1
+            lab[nearby[proj >= 0]] = j + 2
+        return flood(lab)
+
+    labels_t = label_pass(bounds)
+    # "no split here" dots from the doctor (a click on the split the app made between two parts of one tooth):
+    # the split the dot sits on - between the two labels round it - goes, and the labels are made again
+    # without it. Only automatic boundaries go: a contact dot's own never does (take the dot away instead)
+    nos = np.asarray(aux.get("nosplit_idx") or [], dtype=int)
+    nos = nos[(nos >= 0) & (nos < len(V))]
+    if len(nos) and len(bounds):
+        drop = np.zeros(len(bounds), bool)
+        for v in nos:
+            d2 = ((xy - V[v, :2]) ** 2).sum(1)
+            near = labels_t[(d2 < 2.0 ** 2)]
+            near = near[near > 0]
+            if not len(near):
+                continue
+            la_, cnt = np.unique(near, return_counts=True)
+            if len(la_) < 2:
+                # not on a boundary now (the split already moved?): the boundary nearest along the arch, within 3 mm
+                _, _, _, sd = dot_place(v)
+                j = int(np.argmin(np.abs(bounds - sd)))
+                if abs(bounds[j] - sd) <= 3.0 and not is_dot[j]:
+                    drop[j] = True
+                continue
+            two = np.sort(la_[np.argsort(cnt)[-2:]])          # the two labels the dot sits between
+            for j in range(two[0] - 1, two[1] - 1):          # the boundaries between segment two[0] and two[1]
+                if 0 <= j < len(bounds) and not is_dot[j]:
+                    drop[j] = True
+        if log:
+            log(f"no-split dots: {len(nos)} placed, {int(drop.sum())} automatic boundar{'y' if drop.sum() == 1 else 'ies'} taken away")
+        if drop.any():
+            bounds, is_dot = bounds[~drop], is_dot[~drop]
+            labels_t = label_pass(bounds)
+    # one piece per tooth: a flood from seeds on both sides of a contact plane, or round a bump, can leave a
+    # tooth in two colours (the doctor, 10/26/2026: "multiple shades in one tooth"). Each label keeps its
+    # biggest connected piece; a loose piece that touches another tooth is given up and flooded again from
+    # its neighbours, so every tooth ends as one connected patch (a loose piece touching no other tooth is an
+    # island of the mask - a tooth the gum line crosses - and keeps its colour)
+    labels_t, loose = one_piece_per_tooth(labels_t, indptr, indices, flood)
+    if loose and log:
+        log(f"  {loose} vertices in loose pieces of a tooth's colour given to the tooth they sit on")
     labels = np.zeros(len(tooth_mask), int)
     labels[idx] = labels_t
     return labels, bounds
+
+
+def one_piece_per_tooth(labels_t, indptr, indices, flood):
+    """Keep each label's biggest connected piece; loose pieces that touch another label are cleared and
+    re-flooded with `flood` (grows labels by adjacency, so a connected seed stays connected). Returns
+    (labels, number of vertices re-flooded)."""
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import connected_components
+    n = len(labels_t)
+    rows = np.repeat(np.arange(n), np.diff(indptr)); cols = np.asarray(indices)
+    tooth = labels_t > 0
+    same = tooth[rows] & (labels_t[rows] == labels_t[cols])
+    G = csr_matrix((np.ones(int(same.sum()), bool), (rows[same], cols[same])), shape=(n, n))
+    ncomp, comp = connected_components(G, directed=False)
+    comp_lab = np.zeros(ncomp, int); comp_lab[comp] = labels_t
+    comp_n = np.bincount(comp, minlength=ncomp)
+    keep = np.zeros(ncomp, bool)
+    for L in np.unique(labels_t[tooth]):
+        cs = np.where(comp_lab == L)[0]
+        keep[cs[np.argmax(comp_n[cs])]] = True
+    diff = tooth[rows] & tooth[cols] & (labels_t[rows] != labels_t[cols])
+    touches = np.zeros(ncomp, bool); touches[comp[rows[diff]]] = True
+    loose = tooth & ~keep[comp] & touches[comp]
+    if not loose.any():
+        return labels_t, 0
+    out = labels_t.copy(); out[loose] = 0
+    return flood(out), int(loose.sum())
 
 
 def refine_mask_crease(mesh, mask, A, aux, tau=0.6, band_mm=5.0, col_mm=0.5, facial_min=0.2, keep_mm=0.3):
