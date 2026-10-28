@@ -104,6 +104,16 @@
   .warnstrip{margin:0 0 10px;padding:9px 12px;border-radius:10px;background:#fef3c7;border:1.5px solid #fcd34d;color:#78350f;font-size:13px;line-height:1.45;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .warnstrip button{margin-left:auto}
   .pieces label.pc .st.bad{color:var(--err)}
+  /* Export: the print folder's address up front (readonly box - a click selects it - plus Copy), and a green strip
+     once the files are written, with the button turned green too (the doctor, 10/28/2026: "nothing changing") */
+  .folderbox{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 10px;border:1.5px solid var(--grey-300);border-radius:10px;background:var(--grey-50)}
+  .folderbox .fl{flex:none;font-family:var(--fd);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy-600)}
+  .folderbox input{flex:1;min-width:0;margin:0;min-height:30px;padding:3px 8px;font:12px ui-monospace,Menlo,Consolas,monospace;color:var(--navy);background:#fff;border:1.5px solid var(--grey-200);border-radius:8px}
+  .folderbox button.small{flex:none;min-height:30px;padding:4px 12px}
+  .okstrip{margin:0 0 10px;padding:9px 12px;border-radius:10px;background:#d1fae5;border:1.5px solid #6ee7b7;color:#065f46;font-size:13px;line-height:1.45}
+  .okstrip .fn{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all}
+  button.small.done,button.primary.done{background:var(--mint);border-color:var(--mint);color:var(--navy-900)}
+  button.small.done:hover,button.primary.done:hover{background:var(--mint-600, #34d399)}
   button.primary:hover{background:var(--blue-700)}
   button.primary:disabled,button.small:disabled{opacity:.55;cursor:not-allowed}
   button:active{transform:scale(.985)}
@@ -449,6 +459,8 @@
   <div class="modal">
     <h3 id="piecestitle">Export</h3>
     <div class="hint" id="piecesintro" style="margin:0 0 10px"></div>
+    <div id="piecesfolder" class="folderbox" style="display:none"><span class="fl">Print folder</span><input type="text" id="piecespath" readonly title="Where the print files are filed - click to select, then Ctrl+C"><button class="small" id="piecescopy" title="Copy the folder's address, to paste into File Explorer or PreForm">Copy</button></div>
+    <div id="piecesok" class="okstrip" style="display:none"></div>
     <div id="pieceswarn" class="warnstrip" style="display:none"></div>
     <div id="pieceslist" class="pieces"></div>
     <div class="hint" id="pieceshint" style="margin:8px 0 0"></div>
@@ -1366,6 +1378,18 @@ const PF_SETUP = `powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command
 fetch('/api/whoami').then(r => r.json()).then(w => { WHO = w; if (currentJob) refreshJobs(); }).catch(() => {});
 // (the page is plain http://lab:8765, where the browser has no navigator.clipboard - "Cannot read properties of undefined
 // (reading 'writeText')", 10/27/2026: the old copy command still works there, and a box with the line selected is the last resort)
+// Copy the text of a readonly box (the print folder's address): clipboard API, else the old copy command on the box
+// itself, else leave it selected for Ctrl+C. The button says what happened for a moment.
+function copyPath(box, btn){
+  const text = box.value; if (!text) return;
+  const say = (t) => { const was = btn.textContent; btn.textContent = t; btn.disabled = true; setTimeout(() => { btn.textContent = 'Copy'; btn.disabled = false; }, 1800); return was; };
+  const legacy = () => { try { box.focus(); box.select(); box.setSelectionRange(0, text.length); return document.execCommand('copy'); } catch (e) { return false; } };
+  const fallback = () => { if (legacy()) say('Copied'); else { box.focus(); box.select(); say('Press Ctrl+C'); } };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => say('Copied')).catch(fallback);
+    else fallback();
+  } catch (e) { fallback(); }
+}
 function copySetup(el){
   const done = () => { el.textContent = 'copied — Win+R, paste, Enter'; };
   const byBox = () => {
@@ -1431,7 +1455,12 @@ async function openPieces(id, mode, j){
   $('#piecestitle').textContent = mode === 'send' ? (resend ? 'Send to Trimlign again' : 'Send to Trimlign') : 'Export the models';
   $('#piecesintro').innerHTML = mode === 'send'
     ? `Tick the pieces that go to OrthoFactory as one order for <b>${d.patient || 'this patient'}</b>. Every piece ticked is written; one sent before gets the next letter (AL1A &rarr; AL1B) so the Trimlign cuts along this line, not the old one.`
-    : `Tick the models to export for <b>${d.patient || 'this patient'}</b>. The files are the print files - the model with its base, named like the print folder names them. Download them as one zip, or write them straight to the print folder on the office share${d.print_folder ? ` (<span class="fn">${d.print_folder}</span>)` : ''}.`;
+    : `Tick the models to export for <b>${d.patient || 'this patient'}</b>. The files are the print files - the model with its base. They are written to the print folder on the office share, filed by patient (or downloaded as one zip).`;
+  // the print folder's address up front, so it can be copied into File Explorer or PreForm before or after the write
+  $('#piecesfolder').style.display = mode === 'send' ? 'none' : 'flex';
+  $('#piecespath').value = d.print_folder || '';
+  $('#piecespath').placeholder = d.print_folder ? '' : 'Not set - Settings → Office → Print folder';
+  $('#piecesok').style.display = 'none'; $('#piecesok').innerHTML = '';
   $('#pieceslist').innerHTML = piecesCtx.pieces.map(p => {
     const st = !p.made ? ['not made yet', 'bad'] : p.watertight === false ? ['NOT watertight', 'bad'] : p.warnings ? [`${p.warnings} warning${p.warnings > 1 ? 's' : ''}`, 'warn'] : ['ready', ''];
     const sentNote = mode === 'send' && p.piece ? ` · sent before as ${p.piece}` : '';
@@ -1446,8 +1475,12 @@ async function openPieces(id, mode, j){
   const count = () => [...$('#pieceslist').querySelectorAll('input:checked')].map(i => +i.dataset.scan);
   const btns = $('#piecesbtns');
   if (mode === 'send') btns.innerHTML = `<button class="primary small" id="pcsend">Send</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
-  else btns.innerHTML = `<button class="primary small" id="pcdl" title="One zip with the ticked print files">Download (zip)</button><button class="small" id="pcfile" title="Copy the ticked print files into the print folder on the office share, filed by patient">Write to the print folder</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
-  const label = () => { const k = count().length; const b = $('#pcsend') || $('#pcdl'); if (b) b.textContent = (mode === 'send' ? 'Send ' : 'Download ') + (k ? `${k} piece${k > 1 ? 's' : ''}` : 'nothing') + (mode === 'send' ? ' to Trimlign' : ' (zip)') + (pend.length && k ? ' anyway' : ''); if (b) b.disabled = !k; if ($('#pcfile')) $('#pcfile').disabled = !k; };
+  // Export: writing to the print folder is the main button (the doctor, 10/28/2026); the zip is the backup
+  else btns.innerHTML = `<button class="primary small" id="pcfile" title="Copy the ticked print files into the print folder on the office share, filed by patient">Write to the print folder</button><button class="small" id="pcdl" title="One zip with the ticked print files, through the browser's downloads">Download (zip)</button><button class="small" id="pcall">Tick all</button><button class="small" id="pccancel">Cancel</button>`;
+  const label = () => { const k = count().length, n = k ? `${k} piece${k > 1 ? 's' : ''}` : 'nothing';
+    const b = $('#pcsend') || $('#pcfile');
+    if (b) { b.classList.remove('done'); b.textContent = mode === 'send' ? `Send ${n} to Trimlign${pend.length && k ? ' anyway' : ''}` : `Write ${n} to the print folder${pend.length && k ? ' anyway' : ''}`; b.disabled = !k; }
+    if ($('#pcdl')) $('#pcdl').disabled = !k; };
   $('#pieceslist').querySelectorAll('input').forEach(i => i.onchange = label); label();
   $('#pccancel').onclick = closePieces;
   $('#pcall').onclick = () => { $('#pieceslist').querySelectorAll('input:not(:disabled)').forEach(i => i.checked = true); label(); };
@@ -1466,13 +1499,19 @@ async function openPieces(id, mode, j){
   };
   else {
     $('#pcdl').onclick = () => { const sel = count(); if (!sel.length) return; const a = document.createElement('a'); a.href = `/api/jobs/${id}/export?scans=${sel.join(',')}&t=${Date.now()}`; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); $('#pieceshint').textContent = `Downloading ${sel.length} file${sel.length > 1 ? 's' : ''} as one zip - check the browser's downloads.`; };
+    $('#piecescopy').onclick = () => copyPath($('#piecespath'), $('#piecescopy'));
+    $('#piecespath').onclick = () => $('#piecespath').select();
     $('#pcfile').onclick = async () => {
-      const sel = count(); if (!sel.length) return; $('#pcfile').disabled = true; $('#pcfile').textContent = 'Writing…';
+      const sel = count(); if (!sel.length) return; $('#pcfile').disabled = true; $('#pcfile').textContent = 'Writing…'; $('#piecesok').style.display = 'none';
       const fd = new FormData(); fd.append('scans', sel.join(','));
       const rs = await fetch(`/api/jobs/${id}/prints`, { method: 'POST', body: fd }); const r = await rs.json().catch(() => ({}));
-      $('#pcfile').disabled = false; $('#pcfile').textContent = 'Write to the print folder';
-      if (!rs.ok) { $('#pieceshint').innerHTML = `<span style="color:var(--err)">${r.detail || 'Could not write the files.'}</span>`; return; }
-      $('#pieceshint').innerHTML = `Written to <span class="fn">${r.folder}</span>: ${(r.files || []).map(f => f.split(/[\\/]/).pop()).join(', ')}.`;
+      if (!rs.ok) { $('#pcfile').disabled = false; label(); $('#pieceshint').innerHTML = `<span style="color:var(--err)">${r.detail || 'Could not write the files.'}</span>`; return; }
+      // said plainly: the button goes green and stays "Written" until the ticks change, and a green strip names the folder and the files
+      const names = (r.files || []).map(f => f.split(/[\\/]/).pop());
+      $('#pcfile').disabled = false; $('#pcfile').classList.add('done'); $('#pcfile').textContent = `✓ Written - ${names.length} file${names.length > 1 ? 's' : ''} in the print folder`;
+      if (r.folder) $('#piecespath').value = r.folder;
+      $('#piecesok').innerHTML = `<b>✓ Done.</b> ${names.length} file${names.length > 1 ? 's are' : ' is'} in the print folder, ready for PreForm:<br><span class="fn">${r.folder || ''}</span>${names.length ? `<br>${names.map(n => `<span class="fn">${n}</span>`).join(' \u00b7 ')}` : ''}`;
+      $('#piecesok').style.display = 'block'; $('#pieceshint').textContent = ''; $('#pccancel').textContent = 'Close';
       refreshJobs();
     };
   }

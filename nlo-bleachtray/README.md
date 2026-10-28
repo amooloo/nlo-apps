@@ -92,9 +92,11 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    one from the upper scan - and a model like the other four once it is made.
 4. Click **Send to Trimlign** and tick the pieces that go (all are ticked; the box names each one - *Lower · Retainer (TT)* - with
    its state and the OrthoFactory name it had if it was sent before). **Export** is the other way out (10/27/2026 - the doctor: "there
-   should be a clear EXPORT button"): the same checklist, then **Download (zip)** - one zip with the print files, the model with its
-   base, named as the print folder names them (`2026-10-27_Jeffers_Josiah_Lower_TT.stl`) - or **Write to the print folder** on the
-   office share. The order's own files (the Titan-named STL / .pts, the body, the trim line, the scan with reservoirs) are under
+   should be a clear EXPORT button"): the same checklist, with the print folder's address shown at the top (click it or **Copy**
+   to paste it into File Explorer or PreForm), then **Write to the print folder** - the main button (10/28/2026): the print files,
+   the model with its base, go to the office share filed by patient, and the button turns green *✓ Written* with a green strip
+   naming the folder and the files - or **Download (zip)**, the same files as one zip through the browser, named as the print
+   folder names them (`2026-10-27_Jeffers_Josiah_Lower_TT.stl`). The order's own files (the Titan-named STL / .pts, the body, the trim line, the scan with reservoirs) are under
    **Advanced files** in the Check & send box, for a check only. Only Send puts the case in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`), a mouthguard as a stage-2 Template piece (`TU2A`), a Phase I retainer as a stage-3 Aligner piece (`AU3A` / `AL3A`).
    **The last letter moves on** (`AL1B`, `AL1C`, …) whenever that piece has been sent for the patient before - from
@@ -956,7 +958,7 @@ not watertight, with no text and no base engraving; the repair reads pymeshfix's
 
 **New case pop-up.** Each dropped scan is a row with the arch icon the viewer uses (upper / lower, greyed until the arch is known), upper listed first and lower second whatever the order they were dropped in; changing a row's arch moves it and its icon.
 
-**Settings.** The gear at the top right of the page opens a panel over the whole work area (compact cards, five across on a lab screen; the two tabs never wrap) with two tabs - *Model settings* (reservoirs, trim lines, base, marks, bulk-drop defaults) and *Office* (learning, the Trimlign / scanner / print folders, PreForm) - where every number has a picture of what it means;
+**Settings.** The gear at the top right of the page opens a pop-up over the blurred page (10/28/2026; **Save** keeps the settings and closes - so do Esc and a click outside, every change being kept as it is made; compact cards, five across on a lab screen; the two tabs never wrap) with two tabs - *Model settings* (reservoirs, trim lines, base, marks, bulk-drop defaults) and *Office* (learning, the Trimlign / scanner / print folders, PreForm) - where every number has a picture of what it means;
 *Apply to this case & re-run* re-makes the open case with the changed settings - only the models the change touches
 (a retainer-line change leaves the whitening trays alone), brush fixes and painted areas kept
 (reservoir region / depth / distance to the gum / leeway at exposed roots, the two trim lines, interproximal fill (reach, height) / painted block-out wall,
