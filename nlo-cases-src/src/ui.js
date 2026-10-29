@@ -1615,6 +1615,8 @@ function renderDrawer() {
     (S.editWiz ? '<div class="dFt wizFt"><button class="btn btn-sec" data-act="cancelEdit">Cancel</button><span class="wizSp"></span><button class="btn btn-sec" type="button" id="dWizBack">' + ic('back', 16) + 'Back</button>' +
       '<button class="btn btn-pri" type="button" id="dWizNext">Next' + ic('next', 16) + '</button><button class="btn btn-teal" data-act="saveEdit" id="dWizSave">' + ic('done', 16) + 'Save details</button></div>'
       : '<div class="dFt"><button class="btn btn-pri" data-act="saveEdit">Save changes</button><button class="btn btn-sec" data-act="cancelEdit">Cancel</button></div>');
+    // (the panel keeps its element while a case is open: a plain Edit right after Finish details mustn't repaint that one's steps)
+    if (!S.editWiz) d._wiz = null;
     d.dataset.mode = 'edit'; wireCaseForm(d, false); phPaint(); savPaint(d);
     if (S.editWiz) { const bd = $('.dBd', d);
       wizInit(d, { mode: 'finish', start: S.editWiz, bar: () => $('#dWizBar', d), errBox: () => $('#drawerNotice', d),
@@ -2461,6 +2463,9 @@ async function saveEdit() {
   if (now.titanUrl && !safeUrl(now.titanUrl)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Titan link must start with https://</div>'; return; }
   const txBad = !!now.txStart !== !!now.txEnd ? 'Enter both the treatment start and the expected removal (or leave both empty).' : now.txStart && now.txEnd <= now.txStart ? 'The expected removal has to be after the treatment start.' : '';
   if (txBad) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + txBad + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
+  // the stage at the scan typed but not a whole number 1–99: said, not saved quietly as empty (29 Oct 2026)
+  if (scanStAsked(now) && !now.scanStNone && [now.treatArch !== 'L' && '#cf-scanStU', now.treatArch !== 'U' && '#cf-scanStL'].filter(Boolean).some(s => stBad(($(s, d) || {}).value))) {
+    $('#drawerNotice').innerHTML = '<div class="notice bad">Enter the stage at the scan as a whole number from 1 to 99 (or clear the box).</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const base = S.editBase; const changed = FORM_KEYS.filter(k => !sameVal(now[k], base[k])).concat((now.variant || '') !== (base.variant || '') ? ['variant'] : []);
   const finish = wiz && !!base.quick; // Finish details: saving the steps takes the Quick add tag off
   if (!changed.length && !finish) { S.editing = false; S.editWiz = null; renderDrawer(); return; }
@@ -2468,6 +2473,7 @@ async function saveEdit() {
   // (in-house: the form has the aligner counts and attachment templates, so only missing ones stop the save)
   const needs = (changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [])
     .filter(x => x !== 'aligners' || alignersMissing(now));
+  if (needs.length && wiz && needs.includes('aligners')) wizGo(d, 'case'); // (Finish details: the counts are on the Case step)
   if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter ' + alAskText(now) + ' and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   // a step this case skips now (Ship to patient switched after it got there): the next of its own steps. (Shipped to the patient
   // no longer completes it — Checked into Milestones comes after, 7 Oct 2026.)

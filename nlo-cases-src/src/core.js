@@ -281,6 +281,10 @@ function alignerSets(c, pool) {
    on the case (a badge under the name), in the New case review, the scan visit's chart note and the export. */
 const ST_MAX = 99;
 function scanStAsked(c) { return !!c && !!(TYPE[c.type] || {}).aligner && (c.initial === 'no' || c.initial === 'mid' || (c.type === 'nla' && c.variant === 'finishing')); }
+/* a stage typed in a box: a whole number 1–99, else '' — and stBad: something typed that isn't one (the form's reading, its hint
+   and Edit's save all go by these, so a box that says it's wrong is never saved quietly as empty) */
+function stVal(t) { t = String(t == null ? '' : t).trim(); return /^\d{1,2}$/.test(t) && Number(t) >= 1 ? Number(t) : ''; }
+function stBad(t) { t = String(t == null ? '' : t).trim(); return t !== '' && stVal(t) === ''; }
 function scanStNums(c) { const n = v => { v = Number(v); return v >= 1 && v <= ST_MAX ? Math.floor(v) : 0; }; return { u: n(c && c.scanStU), l: n(c && c.scanStL) }; }
 /* "U 14 · L 12", "U 14", "Not wearing aligners" — '' while nothing is saved */
 function scanStText(c) {
@@ -605,6 +609,6 @@ function caseToCSVRow(c) {
   return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.dup ? 'Removed (duplicate)' : c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial, c.refN) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
     oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '',
-    c.txStart || '', c.txEnd || '', scanStText(c)]
+    c.txStart || '', c.txEnd || '', scanStAsked(c) ? scanStText(c) : '']
     .map(csvCell).join(',');
 }

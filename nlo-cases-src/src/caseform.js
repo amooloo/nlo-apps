@@ -723,7 +723,7 @@ function readCaseForm(root) {
   o.alU = o.treatArch === 'L' ? '' : num('#cf-alU'); o.alL = o.treatArch === 'U' ? '' : num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
   // the stage the patient is in at the scan (a set that isn't a first set): a number per treated arch, or Not wearing aligners
   // ('' when it isn't asked — a first set, another kind of case — see FORM_KEYS)
-  const stAsk = scanStAsked(o), stNo = $('#cf-scanStNone', root), stN = id => { const v = parseInt(($(id, root) || {}).value, 10); return v >= 1 && v <= ST_MAX ? v : ''; };
+  const stAsk = scanStAsked(o), stNo = $('#cf-scanStNone', root), stN = id => stVal(($(id, root) || {}).value);
   o.scanStNone = stAsk && !!stNo && stNo.getAttribute('aria-pressed') === 'true' ? true : '';
   o.scanStU = stAsk && !o.scanStNone && o.treatArch !== 'L' ? stN('#cf-scanStU') : '';
   o.scanStL = stAsk && !o.scanStNone && o.treatArch !== 'U' ? stN('#cf-scanStL') : '';
@@ -834,13 +834,13 @@ function wireCaseForm(root, isNew) {
     if (fu) fu.hidden = ta === 'L'; if (fl) fl.hidden = ta === 'U';
     [stU, stL].forEach(el => { if (el) el.disabled = !!o.scanStNone; });
     const hint = $r('#cf-stHint'); if (!hint) return;
-    const shown = [ta !== 'L' && stU, ta !== 'U' && stL].filter(Boolean), bad = !o.scanStNone && shown.some(el => String(el.value).trim() !== '' && !(Number(el.value) >= 1 && Number(el.value) <= ST_MAX && Number.isInteger(Number(el.value))));
+    const shown = [ta !== 'L' && stU, ta !== 'U' && stL].filter(Boolean), bad = !o.scanStNone && shown.some(el => stBad(el.value));
     o.id = (($('.cf', root) || root).dataset.id) || '';
     const pt = o.type === 'nla' && !!(o.patient || o.chart); if (pt) ensureHist([o]); // (their completed sets too; this runs again once they're in)
     const prev = pt ? setBefore(o, casePool()) : null;
     const over = prev && !o.scanStNone ? [o.scanStU > prev.u && prev.u ? 'upper' : '', o.scanStL > prev.lo && prev.lo ? 'lower' : ''].filter(Boolean) : [];
     const prevN = prev ? [ta !== 'L' && prev.u ? prev.u + ' upper' : '', ta !== 'U' && prev.lo ? prev.lo + ' lower' : ''].filter(Boolean).join(' · ') : '';
-    hint.textContent = [bad ? 'Enter the stage as a number from 1 to ' + ST_MAX + '.' : '',
+    hint.textContent = [bad ? 'Enter the stage as a whole number from 1 to ' + ST_MAX + '.' : '',
       prevN ? 'Last set on file (' + prev.l + '): ' + prevN + ' aligners.' : '',
       over.length ? 'The ' + over.join(' and ') + (over.length > 1 ? ' stages are' : ' stage is') + ' past the end of that set — check ' + (over.length > 1 ? 'them.' : 'it.') : '',
       !o.scanStNone && ta === '' && stL && stL.dataset.auto === '1' && stL.value ? 'Lower filled in from upper — change it if it’s different.' : ''].filter(Boolean).join(' ');
@@ -858,7 +858,7 @@ function wireCaseForm(root, isNew) {
   const alSecSync = () => {
     const sec = $r('#cf-alSec'), fin = !isNew && !!S.editWiz && root.id === 'drawer'; if (!sec || (!isNew && !fin)) return; // (Edit: always there)
     const o = readCaseForm(root), need = o.type === 'nla' && !!o.stage && stageNeeds(Object.assign({}, o, { stage: firstStage(o.type) }), o.stage).includes('aligners');
-    const has = fin && (Number(o.alU) > 0 || Number(o.alL) > 0 || !!o.atTemplates);
+    const b = fin ? (S.editBase || {}) : {}, has = fin && (Number(b.alU) > 0 || Number(b.alL) > 0 || !!b.atTemplates); // (as saved: untapping an answer keeps it there)
     sec.hidden = !(need || has); const n = $r('#cf-alSecN'); if (n) n.textContent = need && isNew ? 'from Titan · needed to start it at ' + stageLabel(o) : 'count each arch from Titan';
   };
   const refresh = (typeChanged) => {
@@ -946,6 +946,9 @@ function wireCaseForm(root, isNew) {
         if (off) toast('Switched to ' + pk.dataset.v + ' (one of Herbst, MARA, MSE, MARPE or RPE per case)'); }
       if (row.dataset.g === 'lab') row.dataset.manual = '1';
       if (row.dataset.g === 'refN') { row.dataset.manual = '1'; if (refOther) refOther.value = ''; }
+      // the stage at the scan on an arch switch: a lower box still copying the upper copies it again once both arches are treated,
+      // and a copy nobody typed goes when only the lower is (on the tap itself, so opening Edit never changes a saved case)
+      if (row.dataset.g === 'treatArch' && stU && stL && stL.dataset.auto === '1') { if (pk.dataset.v === 'UL') stL.value = stU.value; else if (pk.dataset.v === 'L') stL.value = ''; }
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       if (row.dataset.g === 'instrPicks' && pk.dataset.v === NO_POST_MOVE) lockPosteriors(pk, !was);
       refresh(false); return;

@@ -83,6 +83,7 @@ const DM = 'https://dental-monitoring.com/doctor/login';
   const L = c.note.split('\n');
   check(/^Scanned with Allied Star for Oliv aligners - refinement 1\.$/.test(L[0]) && L[1] === 'Stage at scan: upper 14, lower 12.', 'the scan visit’s chart note, second line: “Stage at scan: upper 14, lower 12.”');
   check(c.csv.endsWith(',"U 14 · L 12"') || c.csv.endsWith(',U 14 · L 12'), 'the export’s last column: U 14 · L 12');
+  check(await p.evaluate(id => !/U 14/.test(caseToCSVRow(Object.assign({}, findCase(id), { initial: 'yes' }))), c.id), '… and nothing there for a case that doesn’t ask it');
   await p.screenshot({ path: OUT + '/v63-panel.png', clip: { x: 760, y: 0, width: 600, height: 300 } });
   await p.evaluate(() => closeDrawer());
 
@@ -96,6 +97,20 @@ const DM = 'https://dental-monitoring.com/doctor/login';
   check(c && c.u === 9 && c.l === '' && c.note.split('\n')[1] === 'Stage at scan: upper 9.', 'saved upper 9 only; chart note “Stage at scan: upper 9.”');
   await p.evaluate(id => openDrawer(id), c.id); await p.waitForSelector('#drawer .dHd'); await p.waitForTimeout(100);
   check(await badge() === 'Stage at scan: U 9', 'badge “Stage at scan: U 9”'); await p.evaluate(() => closeDrawer());
+
+  console.log('\n# Switching arches after typing: the lower box that was copying the upper');
+  await newCase('Ari Archswitch', '61-0008', 'oliv'); await pick('treatArch', 'U'); await pick('initial', 'no'); await p.fill(F + '#cf-scanStU', '14');
+  await pick('treatArch', 'UL'); await p.waitForTimeout(60); s = await st();
+  check(s.up && s.lo && s.u === '14' && s.l === '14' && /Lower filled in/.test(s.hint), 'Upper only, 14 typed, then Upper & lower: the lower box copies 14 (and says so)');
+  await p.fill(F + '#cf-scanStU', '9'); await pick('treatArch', 'L'); await p.waitForTimeout(60); s = await st();
+  check(!s.up && s.lo && s.l === '' && s.o.l === '', 'then Lower only: the copy nobody typed goes (the lower stage is asked for itself)');
+  await p.fill(F + '#cf-scanStL', '7'); await pick('treatArch', 'UL'); await p.waitForTimeout(60); s = await st();
+  check(s.l === '7' && s.o.l === 7, 'a lower stage typed by hand stays through a switch (7)');
+  await p.fill(F + '#cf-scanStU', '14.5'); await p.waitForTimeout(60); s = await st();
+  check(s.bad && /whole number from 1 to 99/.test(s.hint) && s.o.u === '', '14.5: the hint says whole numbers only, and it isn’t taken');
+  await p.click('#ncNext'); await p.waitForTimeout(100);
+  check(/Enter the stage the patient is in at the scan/.test(await err()), '… so Next still asks for it');
+  await closeModal_();
 
   console.log('\n# Mid-course correction, not wearing aligners');
   await newCase('Noel Notwearing', '61-0003', 'angel'); await pick('initial', 'mid'); await p.waitForTimeout(60); s = await st();
@@ -174,6 +189,9 @@ const DM = 'https://dental-monitoring.com/doctor/login';
   check(s.l === '20', 'editing a saved case: the lower box keeps its own number');
   await p.click('#drawer [data-act=saveEdit]'); await p.waitForSelector('.toast:has-text("Saved")', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
   check(await p.evaluate(id => findCase(id).scanStU, ip.id) === 22 && await badge() === 'Stage at scan: U 22 · L 20', 'saved: U 22 · L 20');
+  await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-stWrap'); await p.fill('#drawer #cf-scanStU', '140'); await p.click('#drawer [data-act=saveEdit]'); await p.waitForTimeout(250);
+  check(/whole number from 1 to 99/.test(await p.textContent('#drawerNotice')) && await p.evaluate(id => findCase(id).scanStU, ip.id) === 22 && await p.isVisible('#drawer #cf-scanStU'), 'Edit: a mistyped stage (140) is stopped with a note — the saved 22 isn’t lost');
+  await p.click('#drawer [data-act=cancelEdit]'); await p.waitForTimeout(100);
   const lg = await p.evaluate(id => B.caseLog(id), ip.id), last = lg[lg.length - 1];
   // (the demo case's older fields — its aligner total, its typed instructions — are counted in the same edit, as for any older case)
   check(last && last.a === 'edit' && (last.fields || []).includes('scanStU') && !(last.fields || []).includes('scanStL'), 'the history: an edit of the stage (' + JSON.stringify(last && last.fields) + ')');
@@ -217,8 +235,25 @@ const DM = 'https://dental-monitoring.com/doctor/login';
   await p.click('#dWizSave'); await p.waitForSelector('.toast:has-text("Details saved")', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
   check(await p.evaluate(id => { const c = findCase(id); return !c.quick && c.initial === 'yes' && !c.alU && !c.alL; }, iq), '… and Save details saves without them');
   await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-alSec', { state: 'attached' });
-  check(await p.evaluate(() => !document.querySelector('#drawer #cf-alSec').hidden), 'a plain Edit afterwards has them');
+  check(await p.evaluate(() => { const s = document.querySelector('#drawer #cf-alSec'); return !s.hidden && !!document.querySelector('#drawer #cf-alU').offsetParent && !document.querySelector('#drawer .cf').classList.contains('wiz') && !!document.querySelector('#drawer #cf-patient').offsetParent; }), 'a plain Edit afterwards has them — the whole form on one page, not the steps Finish details left behind');
   await p.click('#drawer [data-act=cancelEdit]'); await p.evaluate(() => closeDrawer());
+
+  // Finish details on an in-house set that already has an attachment-template answer: the section stays while it's changed
+  await p.click('.topBar [data-act=newCase]'); await p.waitForSelector('#ncForm');
+  await p.fill(F + '#cf-patient', 'Ada Answered'); await p.fill(F + '#cf-chart', '61-0010'); await p.click(F + '.tt[data-tile=nla]');
+  await p.click('#ncQuick'); await p.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
+  const aa = await p.evaluate(() => { const c = openCases().find(x => x.patient === 'Ada Answered'); c.atTemplates = 'UL'; DEMO.cases.get(c.id).atTemplates = 'UL'; return c.id; });
+  await p.evaluate(id => openDrawer(id), aa); await p.waitForSelector('#drawer [data-act=quickFinish]'); await p.click('#drawer [data-act=quickFinish]');
+  await p.waitForSelector('#drawer #cf-alSec', { state: 'attached' }); await p.click('#drawer .pickRow[data-g=initial] .pick[data-v=yes]'); await p.waitForTimeout(60);
+  check(await p.evaluate(() => !document.querySelector('#drawer #cf-alSec').hidden), 'Finish details on a set that already has an answer: the section is there');
+  await p.click('#drawer .pickRow[data-g=atTemplates] .pick[data-v=UL]'); await p.waitForTimeout(60);
+  check(await p.evaluate(() => !document.querySelector('#drawer #cf-alSec').hidden && !document.querySelector('#drawer .pickRow[data-g=atTemplates] .pick[aria-pressed=true]')), '… and stays while its answer is untapped, to pick another');
+  // … and moved to TxP approved there without counts: back on Case, where they are
+  for (let i = 0; i < 6 && !(await p.isVisible('#dWizSave')); i++) { await p.click('#dWizNext'); await p.waitForTimeout(100); }
+  await p.evaluate(() => { const d = document.querySelector('#drawer details.cfMore'); if (d) d.open = true; });
+  await p.selectOption('#drawer #cf-stage', 'txpok'); await p.click('#dWizSave'); await p.waitForTimeout(250);
+  check(await p.evaluate(() => document.querySelector('#drawer')._wiz.cur) === 'case' && /pick Attachment templates before moving it to TxP approved/.test(await p.textContent('#drawerNotice')) && await p.isVisible('#drawer #cf-alU'), 'Finish details moved to TxP approved without the counts: back on Case with them, saying so');
+  await p.click('#drawer [data-act=cancelEdit]').catch(() => {}); await p.evaluate(() => closeDrawer());
 
   console.log('\n# Dental Monitoring on every Oliv patient');
   await p.click('#nav-list'); await p.waitForSelector('#listBody'); await p.waitForTimeout(150);
