@@ -102,9 +102,14 @@ const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
    (Amir: "make sure the as connect link is for US and north america"; the address AlliedStar's own "Log in to AS Connect"
    gives for US & Canada); like the portals, opening one copies the patient's name */
 const SCAN_SITE = { 'Allied Star': { l: 'AS Connect (US & Canada)', u: 'https://asconnect-us.allied-star.com/login' }, iTero: { l: 'MyiTero', u: 'https://myitero.com/' } };
+/* Dental Monitoring's doctor sign-in (its instructions for use: dental-monitoring.com/doctor). Every Oliv patient is on DM, so
+   every Oliv case links to it — the case panel's portals, and the case's row in the lists and its card on the board (Amir,
+   29 Oct 2026: "there should be a link to dentalmonitoring for all the oliv pts"); like the portals, it copies the patient's name */
+const DM_URL = 'https://dental-monitoring.com/doctor/login';
+function dmOn(c) { return !!c && c.type === 'oliv'; }
 const PORTALS = {
   nla: [{ l: 'Titan (web)', u: 'https://client.titandentaldesign.com/Live/index.html' }, { l: 'Titan beta (web)', u: 'https://client.titandentaldesign.com/EA/index.html' }],
-  oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: 'https://dental-monitoring.com/doctor/login' }],
+  oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: DM_URL }],
   invisalign: [{ l: 'Invisalign Doctor Site', u: 'https://vip.invisalign.com/' }],
   angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/cas/login?service=https://iortho.angelalign.com/OPM/shiro-cas' }],
   ulab: [{ l: 'uDesign Cloud', u: 'https://udesign.cloud/' }]
@@ -267,6 +272,37 @@ function alignerSets(c, pool) {
   let ref = 0;
   return list.map(x => ({ id: x.id || '', me: x === c, n: alN(x), done: x.status === 'done',
     l: x.variant === 'finishing' ? 'Finishing' : x.initial === 'yes' ? 'Initial' : x.initial === 'no' ? 'Refinement ' + (ref = Number(x.refN) || ref + 1) : x.initial === 'mid' ? 'Mid-course' : 'Set' }));
+}
+
+/* ---------- the stage the patient is in at the scan ----------
+   Amir, 29 Oct 2026: "for submitting aligners, it should ask for which stage they are in at the scan appointment". Asked on
+   every aligner set that isn't a first set — a refinement, a mid-course correction, finishing aligners: the aligner the patient
+   is wearing that day, one number per treated arch (scanStU / scanStL, 1–99), or "Not wearing aligners" (scanStNone). It shows
+   on the case (a badge under the name), in the New case review, the scan visit's chart note and the export. */
+const ST_MAX = 99;
+function scanStAsked(c) { return !!c && !!(TYPE[c.type] || {}).aligner && (c.initial === 'no' || c.initial === 'mid' || (c.type === 'nla' && c.variant === 'finishing')); }
+function scanStNums(c) { const n = v => { v = Number(v); return v >= 1 && v <= ST_MAX ? Math.floor(v) : 0; }; return { u: n(c && c.scanStU), l: n(c && c.scanStL) }; }
+/* "U 14 · L 12", "U 14", "Not wearing aligners" — '' while nothing is saved */
+function scanStText(c) {
+  if (!c) return ''; if (c.scanStNone) return 'Not wearing aligners';
+  const s = scanStNums(c); return [s.u ? 'U ' + s.u : '', s.l ? 'L ' + s.l : ''].filter(Boolean).join(' · ');
+}
+/* the chart note's line: "Stage at scan: upper 14, lower 12." */
+function scanStNote(c) {
+  if (!c) return ''; if (c.scanStNone) return 'Not wearing aligners at the scan.';
+  const s = scanStNums(c), p = [s.u ? 'upper ' + s.u : '', s.l ? 'lower ' + s.l : ''].filter(Boolean);
+  return p.length ? 'Stage at scan: ' + p.join(', ') + '.' : '';
+}
+/* in-house: the patient's set before this one that has its aligner counts (the stage at the scan is usually inside it) —
+   { l: 'Initial', u, lo } or null */
+function setBefore(c, pool) {
+  if (!c || c.type !== 'nla') return null;
+  const sets = alignerSets(c, pool), i = sets.findIndex(x => x.me);
+  for (let j = i - 1; j >= 0; j--) {
+    const x = (pool || []).find(y => y && y.id && y.id === sets[j].id);
+    if (x && (Number(x.alU) > 0 || Number(x.alL) > 0)) return { l: sets[j].l, u: Number(x.alU) || 0, lo: Number(x.alL) || 0 };
+  }
+  return null;
 }
 
 /* ---------- in-house aligner treatment: Start and Expected removal ----------
@@ -569,6 +605,6 @@ function caseToCSVRow(c) {
   return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.dup ? 'Removed (duplicate)' : c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial, c.refN) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
     oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '',
-    c.txStart || '', c.txEnd || '']
+    c.txStart || '', c.txEnd || '', scanStText(c)]
     .map(csvCell).join(',');
 }

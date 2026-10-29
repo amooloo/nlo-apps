@@ -672,6 +672,19 @@ function trackLinks(c) {
   return trackList(c).filter(t => t.url).map(t => '<a class="flag trk" data-act="track" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer" title="Track ' + esc((t.carrier ? t.carrier + ' ' : '') + t.n) + '">' +
     ic('ext', 12) + 'Track' + (t.carrier ? ' ' + esc(t.carrier) : '') + '</a>').join('');
 }
+/* Dental Monitoring one click away on every Oliv patient — the case's row in the lists and its card on the board, as well as the
+   case panel's portals (Amir, 29 Oct 2026: "there should be a link to dentalmonitoring for all the oliv pts"). It opens DM's
+   doctor sign-in in a new tab and copies the patient's name for its search, without opening the case */
+function dmChip(c) {
+  if (!dmOn(c)) return '';
+  return '<a class="flag dm" data-act="dmLink" data-id="' + esc(c.id) + '" href="' + esc(DM_URL) + '" target="_blank" rel="noopener noreferrer" title="Open Dental Monitoring (copies the patient’s name for its search)">' +
+    ic('ext', 12) + 'Dental Monitoring</a>';
+}
+/* a portal (or Dental Monitoring) opened: the patient's name copied for its search */
+function copyPtName(c, where) {
+  if (!c || !c.patient) return;
+  copyText(c.patient).then(ok => toast(ok ? (PH.hide ? 'Copied the patient’s name' : 'Copied “' + c.patient + '”') + ' — paste it in ' + (where || 'the portal’s search') : 'Couldn’t copy the name — type it in ' + (where ? where.replace(/’s search$/, '') : 'the portal'), ok ? {} : { bad: true }));
+}
 /* while a MARPE case is gathering its records: what's still missing, or that both are on file */
 function recFlag(c) {
   if (typeOf(c).flow !== 'marpe' || stageIndex(c) > 0) return '';
@@ -762,6 +775,7 @@ function chartNote(c, visit) {
   if (c.type === 'retainer' && c.remake === 'model') { const d = retDetail(c); L.push('Retainer remake from the model on file' + (d ? ': ' + d : '') + '.'); }
   else if (c.type === 'retainer' && c.scanOnFile) { const d = retDetail(c); L.push('Retainers from the scan on file' + (c.scanner ? ' (' + c.scanner + ')' : '') + (d ? ': ' + d : '') + '.'); }
   else L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
+  if (scanStAsked(c) && scanStNote(c)) L.push(scanStNote(c)); // the stage the patient was in at the scan (Amir, 29 Oct 2026)
   if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
   const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
   if (c.instructions) L.push("Dr. A's instructions: " + end(c.instructions));
@@ -998,7 +1012,7 @@ function alignerTotalHTML(c, inForm) {
   const one = oneArch(c), arches = c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper arch only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower arch only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '';
   const counts = one === 'U' ? 'the upper count' : one === 'L' ? 'the lower count' : 'the upper and lower counts';
   return '<div class="alThis">' + (me.n ? '<b>' + me.n + '</b> aligners in this set' + (inForm ? '' : arches + ' · ' + esc(me.l)) + (est != null ? ' <span class="alEst">est. ' + money(est) + '</span>' : '')
-      : '<span class="muted">' + (inForm ? 'Enter ' + alAskText(c) + ' from Titan.' : 'Aligners in this set not entered yet — add ' + counts + ' from Titan with Edit.') + '</span>') + '</div>' +
+      : '<span class="muted">' + (inForm ? 'Enter ' + alAskText(c) + ' from Titan.' : 'Aligners in this set not entered yet — they’re asked when the TxP is approved (or add ' + counts + ' from Titan with Edit).') + '</span>') + '</div>' +
     (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when the TxP is approved</span>') + '</div>') +
     '<div class="alSum"><span class="alT">Patient total: <b>' + total + '</b> aligners' + (estAll != null && total ? ' <span class="alEst">est. ' + money(estAll) + '</span>' : '') + '</span>' + (sets.length > 1 || inForm ? parts : '') + '</div>' +
     (missing ? '<div class="small muted">' + missing + ' set' + (missing > 1 ? 's have' : ' has') + ' no count yet, so the total may be low.</div>' : '') +
@@ -1153,7 +1167,7 @@ function kcard(c, last, steps) {
   const nx = last ? null : nextStage(c);
   const tip = last ? 'Mark complete' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
-    '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + ptName(c.patient) + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
+    '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + ptName(c.patient) + '</div></div>' + (c.detail || alN(c) || dmOn(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + dmChip(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     labCardHTML(c) + // in-house: where the set is in the lab (Ortho Factory, from the lab PC), and its next step with one tap (lab.js)
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div>' + labStepIcon(c, 15, true) + '<b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
@@ -1412,7 +1426,7 @@ function listBodyHTML(base) {
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
       const df = quickFlag(c) + dupFlag(c);
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
+      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + dmChip(c) + '</div>' +
       (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
@@ -1500,7 +1514,7 @@ function viewDone() {
     (keep ? '' : '<button class="thHide" data-act="hideCol" data-k="' + k + '" title="Hide this column" aria-label="Hide the ' + esc(l) + ' column">' + ic('eyeOff', 14) + '</button>') + '</span></th>';
   return h + '<div class="card tblWrap"><table class="tbl doneTbl"><thead><tr>' + th('patient', 'Patient', '', true) + (on('type') ? th('type', 'Type', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') +
     (on('appt') ? th('appt', 'Delivery appt', 'hideM') : '') + th('closed', 'Completed', '', true) + (on('stage') ? th('stage', 'Last stage', 'hideM') : '') + '</tr></thead><tbody>' +
-    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td>' +
+    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + dmChip(c) + '</div></div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('who') ? '<td class="hideM small">' + esc(staffName(c.assignee, c.assigneeName) || '—') + '</td>' : '') +
       (on('appt') ? '<td class="hideM small">' + esc(c.deliveryDate ? fmtDate(c.deliveryDate) : '—') + '</td>' : '') +
@@ -1553,7 +1567,7 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
+const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', scanStU: 'stage at scan', scanStL: 'stage at scan', scanStNone: 'stage at scan', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -1840,9 +1854,14 @@ function txGraphSVG(t, marks, p, W, cls) {
   g += '<text class="tl" x="' + r(Math.min(R - 24, Math.max(L + 24, tx))) + '" y="13">Today</text>';
   return g + '</svg>';
 }
-/* what the case is, as badges under the patient's name: arch treated, appliances, lab, kind of submission, extras */
+/* the stage the patient was in at the scan (a set that isn't a first set — Amir, 29 Oct 2026), as a badge under the name */
+function scanStBadge(c) {
+  const t = scanStAsked(c) ? scanStText(c) : ''; if (!t) return '';
+  return '<span class="badge t-stage" title="The aligner the patient was wearing at the scan appointment">Stage at scan: ' + esc(c.scanStNone ? t.toLowerCase() : t) + '</span>';
+}
+/* what the case is, as badges under the patient's name: arch treated, the stage at the scan, appliances, lab, kind of submission, extras */
 function caseBadges(c, titled) {
-  return (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + (x === HAWLEY ? acrylicSw(c.acrylic) : '') + esc(applText(c, x)) + '</span>').join('') +
+  return (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + scanStBadge(c) + (c.appliances || []).map(x => '<span class="badge t-appl">' + (x === HAWLEY ? acrylicSw(c.acrylic) : '') + esc(applText(c, x)) + '</span>').join('') +
     (c.lab ? '<span class="badge">' + esc(labName(c.lab)) + '</span>' : '') + (c.initial && !titled ? '<span class="badge">' + esc(submissionLabel(c.initial, c.refN)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('');
 }
 /* what the case is, in words, at the top of the case panel (Amir, 5 Oct 2026: "what case it is should be on the top of the card.
@@ -2334,8 +2353,9 @@ function onClick(e) {
     case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
     case 'noshipF': S.f.noship = S.f.noship ? '' : '1'; renderView(); break;
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
-    case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
-      if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? (PH.hide ? 'Copied the patient’s name' : 'Copied “' + c.patient + '”') + ' — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
+    case 'portal': copyPtName(findCase(S.openId)); break; // the link itself opens the portal in a new tab
+    // an Oliv patient's row or card: the link itself opens Dental Monitoring in a new tab (and doesn't open the case)
+    case 'dmLink': copyPtName(findCase(id), 'Dental Monitoring’s search'); break;
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
     case 'assignTo': { const to = t.dataset.v || '', id = S.openId, c = findCase(id); if (!c || (c.assignee || '') === to) break;
       $$('#drawer .dAssign .aTile').forEach(b => b.setAttribute('aria-pressed', String(b === t)));

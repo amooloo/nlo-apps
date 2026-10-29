@@ -293,7 +293,8 @@ function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v =
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'scanOnFile', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
+  'scanStU', 'scanStL', 'scanStNone'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -531,6 +532,7 @@ function caseFormHTML(c, isNew) {
   // Mid-course correction used to be an "Also" choice; it is now a kind of submission
   const extras = (c.extras || []).filter(x => x !== 'Mid-course correction'), oldExtras = extras.filter(x => !PICK.extras.includes(x));
   const initialVal = c.type === 'nla' && c.variant === 'finishing' ? FIN : !c.initial && (c.extras || []).includes('Mid-course correction') ? 'mid' : (c.initial || '');
+  const stOn0 = g === 'aligner' && ['no', 'mid', FIN].includes(initialVal); // (the stage at the scan: not on a first set)
   const teeth0 = canonTeeth(c.teeth), scope0 = noattScopeOf(teeth0);
   const rxTile = (v, ic, l) => '<button type="button" class="pick rxTile" data-v="' + esc(v) + '" aria-pressed="' + extras.includes(v) + '">' + rxArt(ic) + '<span><b>' + esc(l) + '</b></span></button>';
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '" data-id="' + esc(c.id || '') + '">' +
@@ -569,9 +571,20 @@ function caseFormHTML(c, isNew) {
         '<div class="pickRow" role="group" aria-labelledby="cf-refNLbl" data-g="refN" data-multi="0">' + REF_NS.map(n => '<button type="button" class="pick sm" data-v="' + n + '" aria-pressed="' + (Number(c.refN) === n) + '" aria-label="Refinement ' + n + '">' + n + '</button>').join('') +
         '<label class="txOther"><input id="cf-refNOther" type="number" min="1" max="' + REF_MAX + '" step="1" inputmode="numeric" placeholder="Other" aria-label="Another refinement number" value="' + (Number(c.refN) > REF_NS.length ? Number(c.refN) : '') + '"></label></div>' +
         '<div class="small refNHint" id="cf-refNHint" aria-live="polite"></div></div>' +
+      // the stage the patient is in at the scan (Amir, 29 Oct 2026: "for submitting aligners, it should ask for which stage they are in
+      // at the scan appointment"): a set that isn't a first set — one box per treated arch, or Not wearing aligners (see stSync)
+      '<div class="refNWrap stWrap" id="cf-stWrap"' + (stOn0 ? '' : ' hidden') + '><span class="flabel" id="cf-stLbl">Stage at the scan appointment<span class="stN">the aligner the patient is wearing today</span></span>' +
+        '<div class="stRow" role="group" aria-labelledby="cf-stLbl">' + ['U', 'L'].map(a => { const nm = a === 'U' ? 'Upper' : 'Lower';
+          return '<label class="stF" id="cf-stF' + a + '"' + (oneArch(c) && oneArch(c) !== a ? ' hidden' : '') + '>' + archIc(a) + '<span class="stA">' + nm + '</span>' +
+            '<input id="cf-scanSt' + a + '" type="number" min="1" max="' + ST_MAX + '" step="1" inputmode="numeric" placeholder="#" aria-label="' + nm + ' stage at the scan" value="' + esc(String(c['scanSt' + a] || '')) + '"' + (c.scanStNone ? ' disabled' : '') + '></label>'; }).join('') +
+          '<button type="button" class="pick sm stNone" id="cf-scanStNone" aria-pressed="' + !!c.scanStNone + '">Not wearing aligners</button></div>' +
+        '<div class="small stHint" id="cf-stHint" aria-live="polite"></div></div>' +
       '</div>' +
-    // in-house: one count per treated arch (the untreated arch's field is hidden, see wireCaseForm)
-    '<div class="cfSec" data-step="case"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
+    // in-house: one count per treated arch (the untreated arch's field is hidden, see wireCaseForm). Not in New case (Amir, 29 Oct 2026:
+    // "it asks, what are the aligners in this set. that question actually need to be removed because we won't know that until the case
+    // is planned"): TxP approved asks for the counts and the attachment templates, and Edit keeps them. A new case started at TxP
+    // approved or later (More → Stage) needs them there and then, so they show for that (alSecSync)
+    '<div class="cfSec" data-step="case" id="cf-alSec"' + showTiles(INHOUSE_TILES.join(' ')) + (isNew ? ' hidden' : '') + '><h5>Aligners in this set <span class="h5n" id="cf-alSecN">count each arch from Titan</span></h5><div class="alRow">' +
       '<div class="field"' + (oneArch(c) === 'L' ? ' style="display:none"' : '') + '><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
       '<div class="field"' + (oneArch(c) === 'U' ? ' style="display:none"' : '') + '><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
@@ -708,6 +721,12 @@ function readCaseForm(root) {
   const num = id => { const v = parseInt(($(id, root) || {}).value, 10); return o.type === 'nla' && v > 0 ? Math.min(v, 99) : ''; };
   o.atTemplates = o.type === 'nla' ? atFor(pressed(root, 'atTemplates')[0] || '', o.treatArch) : '';
   o.alU = o.treatArch === 'L' ? '' : num('#cf-alU'); o.alL = o.treatArch === 'U' ? '' : num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
+  // the stage the patient is in at the scan (a set that isn't a first set): a number per treated arch, or Not wearing aligners
+  // ('' when it isn't asked — a first set, another kind of case — see FORM_KEYS)
+  const stAsk = scanStAsked(o), stNo = $('#cf-scanStNone', root), stN = id => { const v = parseInt(($(id, root) || {}).value, 10); return v >= 1 && v <= ST_MAX ? v : ''; };
+  o.scanStNone = stAsk && !!stNo && stNo.getAttribute('aria-pressed') === 'true' ? true : '';
+  o.scanStU = stAsk && !o.scanStNone && o.treatArch !== 'L' ? stN('#cf-scanStU') : '';
+  o.scanStL = stAsk && !o.scanStNone && o.treatArch !== 'U' ? stN('#cf-scanStL') : '';
   o.instructions = goalText(o.goals).concat(o.instrPicks, o.instrOther ? [o.instrOther] : []).join('; ');
   o.rx = rxFromForm(root, o); // Specialty's Herbst Rx: kept while a Herbst goes to Specialty ('' otherwise, see FORM_KEYS)
   o.rxRet = rxFromForm(root, o, RX_RET); // Specialty's Retainer Rx: kept while Hawley retainers (or a finger spring) go to Specialty
@@ -803,8 +822,47 @@ function wireCaseForm(root, isNew) {
       $$('.pick', refRow).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); if (refOther) refOther.value = f.next > REF_NS.length ? v : ''; }
     if (hint) hint.textContent = !f ? '' : f.last ? 'Refinement ' + f.last + ' is the latest on file for this patient' + co + '.' : 'No earlier refinement on file for this patient' + co + '.';
   };
+  // the stage at the scan (Amir, 29 Oct 2026): shown for a refinement, a mid-course correction or finishing aligners — one box per
+  // treated arch. While both arches are treated, the lower box follows the upper until it's typed into (most patients are on the
+  // same stage top and bottom). Not wearing aligners sets the boxes aside. In-house: the patient's set before this one, to go by
+  const stU = $r('#cf-scanStU'), stL = $r('#cf-scanStL');
+  if (stL) stL.dataset.auto = stL.value ? '0' : '1';
+  const stSync = () => {
+    const wrap = $r('#cf-stWrap'); if (!wrap) return;
+    const o = readCaseForm(root), on = scanStAsked(o); wrap.hidden = !on; if (!on) return;
+    const ta = o.treatArch, fu = $r('#cf-stFU'), fl = $r('#cf-stFL');
+    if (fu) fu.hidden = ta === 'L'; if (fl) fl.hidden = ta === 'U';
+    [stU, stL].forEach(el => { if (el) el.disabled = !!o.scanStNone; });
+    const hint = $r('#cf-stHint'); if (!hint) return;
+    const shown = [ta !== 'L' && stU, ta !== 'U' && stL].filter(Boolean), bad = !o.scanStNone && shown.some(el => String(el.value).trim() !== '' && !(Number(el.value) >= 1 && Number(el.value) <= ST_MAX && Number.isInteger(Number(el.value))));
+    o.id = (($('.cf', root) || root).dataset.id) || '';
+    const pt = o.type === 'nla' && !!(o.patient || o.chart); if (pt) ensureHist([o]); // (their completed sets too; this runs again once they're in)
+    const prev = pt ? setBefore(o, casePool()) : null;
+    const over = prev && !o.scanStNone ? [o.scanStU > prev.u && prev.u ? 'upper' : '', o.scanStL > prev.lo && prev.lo ? 'lower' : ''].filter(Boolean) : [];
+    const prevN = prev ? [ta !== 'L' && prev.u ? prev.u + ' upper' : '', ta !== 'U' && prev.lo ? prev.lo + ' lower' : ''].filter(Boolean).join(' · ') : '';
+    hint.textContent = [bad ? 'Enter the stage as a number from 1 to ' + ST_MAX + '.' : '',
+      prevN ? 'Last set on file (' + prev.l + '): ' + prevN + ' aligners.' : '',
+      over.length ? 'The ' + over.join(' and ') + (over.length > 1 ? ' stages are' : ' stage is') + ' past the end of that set — check ' + (over.length > 1 ? 'them.' : 'it.') : '',
+      !o.scanStNone && ta === '' && stL && stL.dataset.auto === '1' && stL.value ? 'Lower filled in from upper — change it if it’s different.' : ''].filter(Boolean).join(' ');
+    hint.classList.toggle('bad', bad || over.length > 0);
+  };
+  // a stage typed or Not wearing aligners tapped takes away the outline New case put on it
+  const stOk = () => { const wrap = $r('#cf-stWrap'); if (wrap && wrap.classList.contains('need')) { wrap.classList.remove('need'); const box = root._wiz && root._wiz.errBox && root._wiz.errBox(); if (box) box.innerHTML = ''; } };
+  if (stU) stU.addEventListener('input', () => {
+    if (stL && stL.dataset.auto === '1' && pressed(root, 'treatArch')[0] !== 'U') stL.value = stU.value;
+    stOk(); stSync(); }, { signal: off.signal });
+  if (stL) stL.addEventListener('input', () => { stL.dataset.auto = stL.value ? '0' : '1'; stOk(); stSync(); }, { signal: off.signal });
+  // in-house, New case: the aligners in the set aren't asked — they're only known once the case is planned, and TxP approved asks
+  // for them (Amir, 29 Oct 2026) — unless the new case is started at TxP approved or later (More → Stage), which needs them now
+  // (Finish details on a Quick add case goes through the same New case steps: hidden there too, unless the case already has them)
+  const alSecSync = () => {
+    const sec = $r('#cf-alSec'), fin = !isNew && !!S.editWiz && root.id === 'drawer'; if (!sec || (!isNew && !fin)) return; // (Edit: always there)
+    const o = readCaseForm(root), need = o.type === 'nla' && !!o.stage && stageNeeds(Object.assign({}, o, { stage: firstStage(o.type) }), o.stage).includes('aligners');
+    const has = fin && (Number(o.alU) > 0 || Number(o.alL) > 0 || !!o.atTemplates);
+    sec.hidden = !(need || has); const n = $r('#cf-alSecN'); if (n) n.textContent = need && isNew ? 'from Titan · needed to start it at ' + stageLabel(o) : 'count each arch from Titan';
+  };
   const refresh = (typeChanged) => {
-    refNSync();
+    refNSync(); stSync();
     const tile = $r('#cf-tile').value; const g = groupOfTile(tile); const o = readCaseForm(root);
     $$('[data-show]', root).forEach(el => { el.style.display = el.dataset.show.split(' ').includes(g) ? '' : 'none'; });
     $$('[data-tiles]', root).forEach(el => { el.style.display = el.dataset.tiles.split(' ').includes(tile) ? '' : 'none'; });
@@ -849,7 +907,7 @@ function wireCaseForm(root, isNew) {
       autoIds.forEach(id => { const el = $r('#' + id); if (el.dataset.auto === '1') el.value = plan[id]; });
     }
     if (det.dataset.auto === '1') det.value = autoDetail(o, tile);
-    assignTilesSync(root); alTot();
+    assignTilesSync(root); alTot(); alSecSync();
     if (isNew && root._dupSync) root._dupSync(); // the patient's open cases under the name: a case like this one already? (dupes.js)
     if (root._wiz) wizPaint(root); // New case in steps: the steps that apply to this case type
   };
@@ -862,10 +920,10 @@ function wireCaseForm(root, isNew) {
     box.innerHTML = alignerTotalHTML(o, true); ensureHist([o]);
   };
   const refFollow = () => { if (pressed(root, 'initial')[0] !== 'no') return; refNSync(); if (det.dataset.auto === '1') det.value = autoDetail(readCaseForm(root), $r('#cf-tile').value); };
-  cfEl._alTot = alTot; cfEl._syncTx = () => { syncTx(); refFollow(); }; // (again once the patient's earlier sets are in)
+  cfEl._alTot = alTot; cfEl._syncTx = () => { syncTx(); refFollow(); stSync(); }; // (again once the patient's earlier sets are in)
   root._cfRefresh = refresh; // (the Rx editor's Done: the "what's being made" line follows what the Metal Rx says)
   ['cf-patient', 'cf-chart', 'cf-alU', 'cf-alL'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', alTot); });
-  ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => { syncTx(); refFollow(); }); });
+  ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => { syncTx(); refFollow(); stSync(); }); });
   if (refOther) refOther.addEventListener('input', () => { refRow.dataset.manual = '1'; if (refOther.value) $$('.pick', refRow).forEach(b => b.setAttribute('aria-pressed', 'false')); refresh(false); });
   root.addEventListener('click', e => {
     if (rxFormClick(e, root)) return; // Fill out the Rx / PDF (rx.js)
@@ -906,6 +964,9 @@ function wireCaseForm(root, isNew) {
       const st = $r('#cf-txStart'); if (st && !txDateOk(st.value)) st.focus();
       return;
     }
+    // the stage at the scan: Not wearing aligners (tap again to take it back; the numbers typed come back with it)
+    const stn = e.target.closest('#cf-scanStNone');
+    if (stn && root.contains(stn)) { stn.setAttribute('aria-pressed', String(stn.getAttribute('aria-pressed') !== 'true')); stOk(); stSync(); return; }
     const ship = e.target.closest('#cf-ship');
     if (ship && root.contains(ship)) {
       const on = ship.getAttribute('aria-pressed') !== 'true'; ship.setAttribute('aria-pressed', String(on));
@@ -988,7 +1049,7 @@ function wireCaseForm(root, isNew) {
     const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
     if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   }, { signal: off.signal });
-  $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; }); // (Assigned to: marked by its tiles)
+  $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; alSecSync(); }); // (Assigned to: marked by its tiles)
   // editing: a lab already on the case stays unless someone taps another one
   const labRow = $('.pickRow[data-g="lab"]', root); if (!isNew && labRow && pressed(root, 'lab').length) labRow.dataset.manual = '1';
   $r('#cf-scanDate').addEventListener('change', () => refresh(false));
@@ -1061,7 +1122,8 @@ function newCaseModal() {
           const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
           if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
           if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
-          if (needs.includes('aligners') && alignersMissing(data)) return err('Enter ' + alAskText(data) + ' and pick Attachment templates to start it at ' + stageLabel(data) + '.');
+          // (a new in-house case started at TxP approved or later: its counts show on the Case step for it — alSecSync)
+          if (needs.includes('aligners') && alignersMissing(data)) { if (w._wiz) wizGo(w, 'case'); return err('Enter ' + alAskText(data) + ' and pick Attachment templates under Aligners in this set to start it at ' + stageLabel(data) + '.'); }
         } else {
           // Quick add (Amir, 6 Oct 2026: "enter the basics and then we can add to it later"): the case starts at its first step with the
           // scan date and assistant filled in, and stays tagged "Finish details" until someone goes through the steps
@@ -1111,6 +1173,9 @@ function wizCheck(root, k) {
     if (d.type === 'appliance' && !d.appliances.length) return { msg: 'Pick the appliance (MSE, Herbst, D2…).', el: row('appliances') };
     if (d.type === 'appliance' && d.appliances.includes(HAWLEY) && !(d.arches || []).length) return { msg: 'Pick the arch for the Hawley retainers (upper, lower or both).', el: row('hawleyArch') };
     if (d.type === 'nla' && !d.initial && d.variant !== 'finishing') return { msg: 'Pick what this set is: first set, refinement, mid-course correction or finishing aligners.', el: row('initial') };
+    // a set that isn't a first set: the stage the patient is in at the scan (Amir, 29 Oct 2026)
+    if (scanStAsked(d) && !d.scanStNone && ((d.treatArch !== 'L' && !d.scanStU) || (d.treatArch !== 'U' && !d.scanStL)))
+      return { msg: 'Enter the stage the patient is in at the scan (' + (d.treatArch === 'U' ? 'upper' : d.treatArch === 'L' ? 'lower' : 'upper and lower') + '), or tap Not wearing aligners.', el: $('#cf-stWrap', root) };
     if (!!d.txStart !== !!d.txEnd) return { msg: 'Enter both the treatment start and the expected removal (or leave both empty).', el: f(d.txStart ? 'cf-txEnd' : 'cf-txStart') };
     if (d.txStart && d.txEnd <= d.txStart) return { msg: 'The expected removal has to be after the treatment start.', el: f('cf-txEnd') };
   }
@@ -1122,6 +1187,8 @@ function wizSay(root, x) {
   if (!x || !x.el) return;
   const fld = x.el.closest && x.el.closest('.field.req'); if (fld) fld.classList.add('bad');
   if (x.el.classList && x.el.classList.contains('pickRow')) x.el.classList.add('need');
+  if (x.el.classList && x.el.classList.contains('stWrap')) { // the stage at the scan: outlined, the first empty box ready to type in
+    x.el.classList.add('need'); const box = $$('.stF:not([hidden]) input', x.el).find(i => !i.disabled && !String(i.value).trim()); if (box) box.focus({ preventScroll: true }); }
   if (x.el.tagName === 'INPUT') x.el.focus({ preventScroll: true });
   x.el.scrollIntoView({ block: 'center' });
 }
@@ -1171,6 +1238,7 @@ function wizSumHTML(o, tile) {
   return '<div class="wsList">' +
     row('Patient', '<b>' + esc(o.patient || '') + '</b>' + (o.chart ? ' <span class="muted">· chart # ' + esc(o.chart) + '</span>' : '')) +
     row('Case', esc(what) + (lab ? ' <span class="muted">· ' + esc(lab) + '</span>' : '')) +
+    row('Stage at scan', scanStAsked(o) ? esc(scanStText(o)) : '') +
     row('Scan', esc([o.scanner, o.scanDate ? fmtDay(o.scanDate) : '', o.assistant ? 'by ' + firstName(staffName(o.assistant, '')) : ''].filter(Boolean).join(' · '))) +
     row('Lab completion', esc(o.labDate ? fmtDay(o.labDate) : '')) +
     row(o.shipToPatient ? 'Expected delivery' : 'Delivery appt', esc(del) + (o.shipToPatient ? ' <span class="muted">· shipped to the patient</span>' : '')) +

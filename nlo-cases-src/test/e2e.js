@@ -54,6 +54,8 @@ async function newCase(p, o) {
   await p.click('#ncForm .tt[data-tile=' + o.type + ']'); await p.fill('#cf-patient', o.patient);
   // New case asks what an in-house set is, and an appliance case for its appliance (3 Oct 2026)
   if (o.type === 'nla') await p.click('#ncForm .pickRow[data-g=initial] .pick[data-v=' + (o.initial || 'yes') + ']');
+  // (a set that isn't a first set asks the stage the patient is in at the scan — 29 Oct 2026)
+  if (o.type === 'nla' && o.initial && o.initial !== 'yes') await p.fill('#cf-scanStU', String(o.stage || 10));
   if (o.type === 'appliance') await p.click('#ncForm .pickRow[data-g=appliances] .pick[data-v="' + (o.appliance || 'Schwartz') + '"]');
   if (o.instructions) await p.fill('#cf-instrOther', o.instructions);
   if (o.delivery) await p.fill('#cf-deliveryDate', o.delivery);
@@ -581,6 +583,7 @@ async function openByName(p, name) {
   await owner.click('#ncSave'); await owner.waitForSelector('#ncErr .lockErr'); check(/patient’s name/i.test(await owner.textContent('#ncErr')), 'asks for the patient’s name first (6 Oct 2026: name and chart # come first, then the case type)');
   await owner.click('#ncForm .tt[data-tile=oliv]'); await owner.fill('#cf-patient', 'Petra Tapform');
   await owner.click('.pickRow[data-g=initial] .pick[data-v=no]');
+  await owner.fill('#cf-scanStU', '14'); await owner.fill('#cf-scanStL', '12'); // the stage at the scan (29 Oct 2026)
   await owner.click('.pickRow[data-g=assistant] .pick:has-text("Gwen")');
   await owner.click('.pickRow[data-g=instrPicks] .pick[data-v="Resolve black triangles"]');
   await owner.click('.pickRow[data-g=goal_midline] .pick[data-v=improve]');
@@ -596,6 +599,8 @@ async function openByName(p, name) {
   check(/Gwen/.test(await owner.textContent('#drawer .kv')), 'assistant saved from a tap');
   check(await owner.isVisible('#drawer .ccBox:has-text("My bite feels off")') && /from last visit/.test(await owner.textContent('#drawer .ccBox')), 'the patient’s words saved as typed (a refinement: CC from last visit)');
   check(await owner.getAttribute('#drawer a.scanLink', 'href') === 'https://myitero.com/' && /iTero/.test(await owner.textContent('#drawer a.scanLink')), 'the iTero picked from its drawer: the case’s Scanner links to MyiTero');
+  check(await owner.textContent('#drawer .dHd .badge.t-stage') === 'Stage at scan: U 14 · L 12' && /\nStage at scan: upper 14, lower 12\.\n/.test(await owner.evaluate(() => chartNote(openCases().find(c => c.patient === 'Petra Tapform'), 'scan'))), 'the stage at the scan saved: a badge on the case and a line in the chart note');
+  check(await owner.isVisible('#drawer .portals a[href="https://dental-monitoring.com/doctor/login"]'), 'an Oliv case opens Dental Monitoring from its panel');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
   check((await owner.locator('#drawer .pickRow[data-g=instrPicks] .pick[aria-pressed=true]').count()) === 1
     && (await owner.getAttribute('#drawer .pickRow[data-g=goal_midline] .pick[data-v=improve]', 'aria-pressed')) === 'true'
@@ -606,7 +611,7 @@ async function openByName(p, name) {
   check(!(await owner.isVisible('#drawer .txt:has-text("Midline")')), 'un-tapping an instruction removes it');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   dump = JSON.stringify(await fsDump());
-  check(!dump.includes('Petra Tapform') && !dump.includes('Resolve black') && !dump.includes('My bite feels off'), 'tapped details (and the patient’s words) are encrypted too');
+  check(!dump.includes('Petra Tapform') && !dump.includes('Resolve black') && !dump.includes('My bite feels off') && !dump.includes('scanSt'), 'tapped details (the patient’s words, the stage at the scan) are encrypted too');
 
   console.log('\n# Finishing aligners: an answer under In-house (it replaced Reset; its own tile until 3 Oct 2026)');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
@@ -617,6 +622,7 @@ async function openByName(p, name) {
   await owner.click('#ncForm .tt[data-tile=nla]');
   check(await owner.isVisible('#ncForm .pickRow[data-g=initial] .pick[data-v=fin]'), 'In-house offers Finishing aligners next to Yes / No / Mid-course');
   await owner.click('#ncForm .pickRow[data-g=initial] .pick[data-v=fin]'); await owner.fill('#cf-patient', 'Fiona Finisher');
+  await owner.click('#cf-scanStNone'); // the stage at the scan: finishing aligners after braces, say (29 Oct 2026)
   check(await owner.inputValue('#cf-detail') === 'Finishing aligners', 'detail reads Finishing aligners');
   check(!(await owner.isVisible('#cf-titanUrl')), 'no Titan link asked (in-house finishing)');
   check(await owner.inputValue('#cf-labDate') === await owner.evaluate(() => addDays(todayISO(), 21)) && await owner.inputValue('#cf-deliveryDate') === await owner.evaluate(() => addDays(todayISO(), 28)), 'aligner dates fill in (lab completion +21, delivery +28)');
@@ -642,7 +648,7 @@ async function openByName(p, name) {
   console.log('\n# Teeth: No IPR, No attachments, crowns, implants, pontics');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=oliv]'); await owner.fill('#cf-patient', 'Theo Toothchart');
-  await owner.click('.pickRow[data-g=initial] .pick[data-v=mid]');
+  await owner.click('.pickRow[data-g=initial] .pick[data-v=mid]'); await owner.fill('#cf-scanStU', '8'); // (the stage at the scan, 29 Oct 2026)
   check(await owner.inputValue('#cf-detail') === 'Aligners (Oliv) – mid-course correction', 'mid-course correction is a kind of submission');
   check(!(await owner.isVisible('#cf-noattScope')), 'no attachment choices until the tile is tapped');
   await owner.click('#cf-noatt'); await owner.click('#cf-noattScope [data-scope=uant]');
@@ -962,14 +968,17 @@ async function openByName(p, name) {
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   check((await owner.locator('#cf-dueDate').count()) === 0 && await owner.isVisible('#cf-scanDate') && await owner.isVisible('#cf-labDate') && await owner.isVisible('#cf-deliveryDate'), 'dates are scan, lab completion and delivery — no due date');
   await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Nadia Setcount'); await owner.fill('#cf-chart', '77-1234');
-  await owner.click('.pickRow[data-g=initial] .pick[data-v=yes]'); await owner.fill('#cf-alU', '20'); await owner.fill('#cf-alL', '20');
-  check(/40 aligners in this set/.test(await owner.textContent('#cf-alTotal')), 'aligners, not stages: upper 20 + lower 20 = 40 in this set');
+  await owner.click('.pickRow[data-g=initial] .pick[data-v=yes]');
+  // (Amir, 29 Oct 2026: the aligners in the set aren't known until the case is planned — TxP approved asks for them)
+  check(await owner.evaluate(() => { const s = document.querySelector('#ncForm #cf-alSec'); return !!s && s.hidden && !document.querySelector('#ncForm #cf-alU').offsetParent && !document.querySelector('#ncForm .pickRow[data-g=atTemplates]').offsetParent; }), 'New case (in-house) doesn’t ask the aligners in the set or the attachment templates');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Nadia Setcount');
   check((await owner.locator('#drawer .stepGrp:has-text("In fabrication")').count()) === 1 && (await owner.locator('#drawer .step.sub').count()) === 5, 'the stepper shows the five fabrication steps under In fabrication (Ready to print … Polish, wash & dry — 6 Oct 2026)');
   // TxP approved (3 Oct 2026): the plan is done and the counts go in, even if the export waits
   await owner.click('#drawer .step[data-k=txpok]'); await owner.waitForSelector('#gAl', { timeout: 10000 });
-  check(await owner.textContent('#modalWrap h3') === 'TxP approved' && await owner.inputValue('#gAlU') === '20' && await owner.inputValue('#gAlL') === '20' && await owner.isDisabled('#gGo'), 'TxP approved asks for the aligners (filled in: U 20 · L 20) and waits for the attachment-template answer');
+  check(await owner.textContent('#modalWrap h3') === 'TxP approved' && await owner.inputValue('#gAlU') === '' && await owner.inputValue('#gAlL') === '' && await owner.isDisabled('#gGo'), 'TxP approved asks for the aligners (none yet: they come with the plan) and the attachment-template answer');
+  await owner.fill('#gAlU', '20'); await owner.fill('#gAlL', '20');
+  check(await owner.isDisabled('#gGo'), '… and waits for the attachment-template answer');
   await owner.click('.pickRow[data-g=gAt] .pick[data-v=UL]'); await owner.click('#gGo');
   await owner.waitForSelector('#drawer .step.cur[data-k=txpok]', { timeout: 15000 });
   check(await owner.evaluate(() => { const c = findCase(S.openId); return c.stage === 'txpok' && c.atTemplates === 'UL' && c.aligners === 40; }), 'saved at TxP approved with the counts and the template answer (before any export)');
@@ -1012,12 +1021,21 @@ async function openByName(p, name) {
   check(costOk, 'Dr. A sets the cost per aligner in Team & security');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Nadia Setcount'); await owner.fill('#cf-chart', '77-1234');
-  await owner.click('.pickRow[data-g=initial] .pick[data-v=no]'); await owner.fill('#cf-alU', '12'); await owner.fill('#cf-alL', '10');
-  await owner.waitForSelector('#cf-alTotal:has-text("Patient total: 62 aligners")', { timeout: 20000 });
-  check(await owner.isVisible('#cf-alTotal .alSet:has-text("Initial 40")') && await owner.isVisible('#cf-alTotal .alSet.me:has-text("Refinement 1 22")'), 'New case adds the earlier set: Initial 40 + Refinement 1 22 = 62 aligners');
-  await owner.waitForSelector('#cf-alTotal:has-text("est. $99.00")', { timeout: 15000 }).catch(() => {}); // the new cost reaches the form with the settings update
-  check(/est\. \$99\.00/.test(await owner.textContent('#cf-alTotal')) && /est\. \$279\.00/.test(await owner.textContent('#cf-alTotal')), 'estimated cost: this set 22 × $4.50 = $99.00; patient 62 × $4.50 = $279.00');
+  await owner.click('.pickRow[data-g=initial] .pick[data-v=no]');
+  // the stage at the scan (29 Oct 2026): the set before this one is named, to go by
+  await owner.waitForSelector('#cf-stHint:has-text("Last set on file (Initial): 20 upper · 20 lower aligners.")', { timeout: 10000 }).catch(() => {});
+  check(/^Last set on file \(Initial\): 20 upper · 20 lower aligners\.$/.test(await owner.textContent('#cf-stHint')), 'the stage at the scan names the patient’s set before this one (from the database)');
+  await owner.fill('#cf-scanStU', '20');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  // the refinement's counts once it's planned (Edit; TxP approved would ask too)
+  await openByName(owner, 'Nadia Setcount'); await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer #cf-alU');
+  await owner.fill('#drawer #cf-alU', '12'); await owner.fill('#drawer #cf-alL', '10');
+  await owner.waitForSelector('#drawer #cf-alTotal:has-text("Patient total: 62 aligners")', { timeout: 20000 });
+  check(await owner.isVisible('#drawer #cf-alTotal .alSet:has-text("Initial 40")') && await owner.isVisible('#drawer #cf-alTotal .alSet.me:has-text("Refinement 1 22")'), 'Edit adds the earlier set: Initial 40 + Refinement 1 22 = 62 aligners');
+  await owner.waitForSelector('#drawer #cf-alTotal:has-text("est. $99.00")', { timeout: 15000 }).catch(() => {}); // the new cost reaches the form with the settings update
+  check(/est\. \$99\.00/.test(await owner.textContent('#drawer #cf-alTotal')) && /est\. \$279\.00/.test(await owner.textContent('#drawer #cf-alTotal')), 'estimated cost: this set 22 × $4.50 = $99.00; patient 62 × $4.50 = $279.00');
+  await owner.click('#drawer [data-act=saveEdit]'); await owner.waitForSelector('#drawer #alBox:has-text("22")', { timeout: 20000 }).catch(() => {});
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#nav-list'); await owner.fill('#q', 'Nadia Setcount'); await owner.waitForSelector('tr.click:has-text("Nadia Setcount") .alMini:has-text("62 total")', { timeout: 20000 });
   check(/22 aligners/.test(await owner.textContent('tr.click:has-text("Nadia Setcount") .alMini')), 'list: 22 aligners · 62 total');
   await owner.click('tr.click:has-text("Nadia Setcount")'); await owner.waitForSelector('#alBox'); await owner.waitForSelector('#alBox:has-text("est. $99.00")', { timeout: 15000 }).catch(() => {});
@@ -1306,7 +1324,7 @@ async function openByName(p, name) {
   console.log('\n# Which refinement, and what the case is at the top of its panel (Amir, 5 Oct 2026)');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Rory Refinewell');
-  await owner.click('#ncForm .pickRow[data-g=initial] .pick[data-v=no]');
+  await owner.click('#ncForm .pickRow[data-g=initial] .pick[data-v=no]'); await owner.fill('#cf-scanStU', '16'); // (the stage at the scan, 29 Oct 2026)
   await owner.waitForSelector('#ncForm .pickRow[data-g=refN] .pick[data-v="2"][aria-pressed=true]', { timeout: 10000 });
   check(/^Refinement 1 is the latest on file/.test(await owner.textContent('#cf-refNHint')), 'New case: a patient with one refinement on file starts on refinement 2');
   // (refinement 1 is still open, so Create case asks first — dupes.js, 6 Oct 2026)
