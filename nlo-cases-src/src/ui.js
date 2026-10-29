@@ -478,7 +478,7 @@ function renderShell() {
     '<div class="sideFoot"><div class="whoBox"><span class="av" data-sav="' + esc(B.me.staffId || '') + '">' + esc(initials(B.me.name)) + '</span><div><b>' + esc(B.me.name) + '</b>' + (owner ? 'Owner' : 'Staff') + '</div></div>' +
     '<button class="sideLock" data-act="lock">' + ic('lock', 16) + 'Lock</button><div class="syncLine" id="syncLine"></div></div>';
   $('#mobTop').innerHTML = '<img src="logo-white.png" alt="NLO"><span class="appTag" style="font-size:11px;letter-spacing:.24em">Cases</span><span style="flex:1"></span>' +
-    '<button class="iconBtn" style="color:#fff" data-act="newCase" aria-label="New case">' + ic('plus') + '</button><button class="iconBtn" style="color:#fff" data-act="lock" aria-label="Lock">' + ic('lock') + '</button>';
+    '<button class="iconBtn" style="color:#fff" data-act="newCase" aria-label="New submission">' + ic('plus') + '</button><button class="iconBtn" style="color:#fff" data-act="lock" aria-label="Lock">' + ic('lock') + '</button>';
   $('#mobNav').innerHTML = navBtns(true);
   renderSync(); renderNav(); savPaint($('#side'));
 }
@@ -499,7 +499,7 @@ const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: '
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
-    (extra || '') + (['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view) ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
+    (extra || '') + (['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view) ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New submission</button></div>'; // (it was New case — Amir, 29 Oct 2026)
 }
 function renderView() {
   // the search box keeps its cursor and selection through a redraw (it used to jump to the end, so a live update landing just

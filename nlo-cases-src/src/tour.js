@@ -20,7 +20,7 @@ function tourSteps(kind) {
   const st = [
     { id: 'hi', t: 'Welcome to NLO Cases', b: 'This is practice mode: made-up patients, and nothing you do here is saved. Most steps wait for you to do them, then move on by themselves. Click around anytime, go Back, or End the tour.' },
     { id: 'today', enter: () => tourGoView('today'), at: () => tVis('.tiles'), t: 'Today', b: 'Your starting page: what’s late, what’s due in the next 7 days, what needs Dr. A and what’s being made. Tap a tile any time to see those cases.' },
-    { id: 'new', at: () => tVis('.topBar [data-act=newCase]', '#mobTop [data-act=newCase]'), t: 'Add a case', b: 'Every case starts here, right after the scan.', act: 'Tap New case.', done: () => !!form() },
+    { id: 'new', at: () => tVis('.topBar [data-act=newCase]', '#mobTop [data-act=newCase]'), t: 'Add a case', b: 'Every case starts here, right after the scan.', act: 'Tap New submission.', done: () => !!form() },
     { id: 'type', need: inForm, at: () => $('#ncForm .tt[data-tile=oliv]'), t: 'Pick the kind of case', b: 'One tile for each kind of case. For practice, make an Oliv case.', act: 'Tap Oliv.',
       done: () => { const t = $('#ncForm .tt[data-tile=oliv]'); return !!t && t.getAttribute('aria-checked') === 'true'; } },
     { id: 'name', need: inForm, at: () => $('#cf-patient'), t: 'The patient', b: 'The only thing you type. Use a made-up name here, like Practice Patient.', act: 'Type a name.',
@@ -30,7 +30,7 @@ function tourSteps(kind) {
     { id: 'scanner', need: inForm, at: () => $('#ncForm .scanRow'), t: 'Scanner', b: 'Allied Star is picked to start — tap iTero if that’s the one that took the scans.' + (owner ? '' : ' The assistant above it is already you.') },
     { id: 'instr', need: inForm, at: () => { const g = $('#ncForm .goalGrid'); return g && g.closest('.cfSec'); }, t: 'Dr. A’s instructions', b: 'Tap what Dr. A asked for instead of typing it: Maintain or Improve for midline and overbite, and a picture tile for each instruction. They all go into the case and its chart note.' },
     { id: 'dates', need: inForm, at: () => { const d = $('#cf-scanDate'); return d && d.closest('.grid3'); }, t: 'Dates', b: 'The scan date is today, and the lab completion (3 weeks) and delivery appt (4 weeks) fill in from it — change them to the real ones. They’re what the Lab date and Delivery appt columns show.' },
-    { id: 'create', need: inForm, at: () => $('#ncSave'), t: 'Create it', b: 'It’s encrypted before it leaves the computer. If something’s missing, the form says what.', act: 'Tap Create case.',
+    { id: 'create', need: inForm, at: () => $('#ncSave'), t: 'Submit it', b: 'It’s encrypted before it leaves the computer, and nothing goes to the lab yet. If something’s missing, the form says what.', act: 'Tap Submit.',
       track: () => { const i = $('#cf-patient'); if (i) TOUR.name = i.value.trim(); },
       done: () => { if (form()) return false; const c = Array.from(S.cases.values()).filter(x => x.patient === TOUR.name && x.status === 'open').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
         if (c) TOUR.id = c.id; return !!c; } },

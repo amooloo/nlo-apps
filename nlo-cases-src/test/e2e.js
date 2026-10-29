@@ -1930,7 +1930,8 @@ async function openByName(p, name) {
   check(exp.includes('Digital enhancement 2 (DE2)') && exp.includes('Mouthguard (U)'), 'export carries DE and mouthguard details');
   check(/Aligners in set/.test(exp.split('\n')[0]) && !/,"?Due"?,/.test(exp.split('\n')[0]), 'export has aligners per set and no due-date column');
   check((exp.split('\n').find(l => l.includes('Rhea Labelworth')) || '').includes('"' + tmr + ' 13:30"'), 'export: the Delivery column carries the delivery time');
-  check(exp.split('\n')[0].endsWith('Arches treated,Treatment start,Expected removal') && (exp.split('\n').find(l => l.includes('Nadia Setcount') && l.includes('"' + txS + '"')) || '').endsWith('"' + txS + '","' + txE + '"'), 'export: Treatment start and Expected removal columns (the in-house refinement carries its dates)');
+  // (the stage at the scan is the last column since 29 Oct 2026: Nadia's refinement was scanned at U 20 · L 20)
+  check(exp.split('\n')[0].endsWith('Arches treated,Treatment start,Expected removal,Stage at scan') && (exp.split('\n').find(l => l.includes('Nadia Setcount') && l.includes('"' + txS + '"')) || '').endsWith('"' + txS + '","' + txE + '","U 20 · L 20"'), 'export: Treatment start, Expected removal and Stage at scan columns (the in-house refinement carries its dates and its stage)');
   check(exp.split('\n')[0].includes('Ship to patient,Records on file,Zoom call') && exp.includes('STL scan; CBCT (upper & lower jaws)') && /"Yes"/.test(exp.split('\n').find(l => l.includes('Shelby Shipwell')) || ''), 'export carries Ship to patient, MARPE records and the Zoom call');
 
   console.log('\n# Activity');
@@ -2073,9 +2074,11 @@ async function openByName(p, name) {
   const st0 = await owner.evaluate(() => ({ pidx: S.settings.pidx, pidx0: S.settings.pidx0, lv: S.rulesLv, on: FB.idxOn }));
   check(st0.pidx > 0 && st0.pidx0 > 0 && st0.lv >= 2 && st0.on, 'the owner’s app indexed the office once the newer rules were live (here: at setup)');
   let docs = await fsDump(); const caseDocs = docs.filter(d => /\/cases\//.test(d.name));
-  check(caseDocs.length > 20 && caseDocs.every(d => d.fields.pn && d.fields.pn.stringValue.length === 22), 'every case carries its keyed name (' + caseDocs.length + ' cases)');
+  const noPn = caseDocs.filter(d => !(d.fields.pn && d.fields.pn.stringValue && d.fields.pn.stringValue.length === 22));
+  if (noPn.length) console.log('   (cases without a keyed name: ' + JSON.stringify(noPn.map(d => ({ id: d.name.split('/').pop(), keys: Object.keys(d.fields).sort(), status: (d.fields.status || {}).stringValue, rev: (d.fields.rev || {}).integerValue, by: (d.fields.by || {}).stringValue }))) + ')');
+  check(caseDocs.length > 20 && !noPn.length, 'every case carries its keyed name (' + caseDocs.length + ' cases)');
   const nadiaIx = await owner.evaluate(() => FB.idxFields({ patient: 'Nadia Setcount', chart: '77-1234' }));
-  const nadia = caseDocs.filter(d => d.fields.pn.stringValue === nadiaIx.pn);
+  const nadia = caseDocs.filter(d => (d.fields.pn || {}).stringValue === nadiaIx.pn);
   check(nadia.length >= 2 && nadia.every(d => d.fields.pc && d.fields.pc.stringValue === nadiaIx.pc), 'Nadia Setcount’s sets share their keyed name and chart # (' + nadia.length + ' sets)');
   check(!JSON.stringify(docs).includes('Nadia') && !JSON.stringify(docs).includes('77-1234'), 'the index stores no names or chart #s');
   await gwen.evaluate(() => histReset()); await gwen.click('#nav-today'); await gwen.click('#nav-list'); await gwen.fill('#q', '');

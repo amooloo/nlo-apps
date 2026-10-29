@@ -1094,12 +1094,14 @@ function editDirty() {
 function newCaseModal() {
   const roster = activeRoster().filter(r => r.role !== 'owner');
   const base = { scanDate: todayISO(), assistant: roster.some(r => r.sid === meSid()) ? meSid() : '' };
-  openModal('<h3>New case</h3><div class="lsub">One step at a time, then Create case — or Quick add with just the patient and the case type, and finish the details later. Encrypted before it leaves this computer.</div>' +
+  // "New submission", its last button Submit (Amir, 29 Oct 2026: "instead of 'new case' it should be 'new submission'"); everything after it
+  // still calls it a case (and a new submission sends nothing to the lab: To submit / Submitted to lab are about the lab's portal)
+  openModal('<h3>New submission</h3><div class="lsub">One step at a time, then Submit — or Quick add with just the patient and the case type, and finish the details later. Encrypted before it leaves this computer.</div>' +
     '<ol class="wizBar" id="ncWizBar" aria-label="Steps"></ol><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
     '<div id="ncDup"></div><div class="mFt wizFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><span class="wizSp"></span>' +
     '<button class="btn btn-sec" type="button" id="ncQuick" title="Create the case with just the patient and the case type, and finish the details later">' + ic('plus', 16) + 'Quick add</button>' +
     '<button class="btn btn-sec" type="button" id="ncBack">' + ic('back', 16) + 'Back</button><button class="btn btn-pri" type="button" id="ncNext">Next' + ic('next', 16) + '</button>' +
-    '<button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
+    '<button class="btn btn-teal" type="submit" id="ncSave">' + ic('done', 16) + 'Submit</button></div></form>', w => {
       w.querySelector('.modal').classList.add('wide');
       wireCaseForm(w, true); phWireForm(w); ptWire(w); savPaint(w); // (ptWire: the name looks up the patients already in — dupes.js)
       const body = w.querySelector('.modal');

@@ -522,7 +522,7 @@ function rxEditor(c, rx, onDone, form) {
   const lg = typeof LOGOS !== 'undefined' && LOGOS['lab-specialty'];
   w.innerHTML = '<div class="rxBox" role="dialog" aria-modal="true" aria-labelledby="rxTitle">' +
     '<div class="rxHd">' + (lg ? '<img class="rxLogo" data-logo="lab-specialty" alt="Specialty Appliances" width="' + lg.w + '" height="' + lg.h + '">' : '') +
-      '<div class="rxHdT"><h3 id="rxTitle">' + esc(K.title) + '</h3><span>' + esc(c.patient || 'New case') + ' · fills in Specialty’s own form</span></div>' +
+      '<div class="rxHdT"><h3 id="rxTitle">' + esc(K.title) + '</h3><span>' + esc(c.patient || 'New submission') + ' · fills in Specialty’s own form</span></div>' +
       '<span class="rxTot" id="rxTot"></span>' +
       '<button type="button" class="btn btn-sec btn-sm" data-rxa="open">' + ic('ext', 15) + 'Open PDF</button><button type="button" class="btn btn-sec btn-sm" data-rxa="dl">' + ic('download', 15) + 'Download</button>' +
       '<button type="button" class="btn btn-teal btn-sm" data-rxa="done">' + ic('done', 15) + 'Done</button><button type="button" class="iconBtn" data-rxa="close" aria-label="Close without saving">' + ic('x') + '</button></div>' +

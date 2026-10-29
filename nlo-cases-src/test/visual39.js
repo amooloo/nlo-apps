@@ -44,7 +44,7 @@ const OUT = process.argv[2] || 'shots';
   await shot('2-today');
   await p.click('#tourCard [data-tour=next]');
   check(await waitStep('new'), 'Next → Add a case');
-  c = await card(); check(/Tap New case/.test(c.act) && !c.ok, 'it waits for “Tap New case.”');
+  c = await card(); check(/Tap New submission/.test(c.act) && !c.ok, 'it waits for “Tap New submission.” (the button was New case until 29 Oct 2026)');
   await shot('3-new');
   await p.click('.topBar [data-act=newCase]');
   check(await waitStep('type'), 'tapping New case moves the tour on by itself');

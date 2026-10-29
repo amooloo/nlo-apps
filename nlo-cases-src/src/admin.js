@@ -31,7 +31,7 @@ function viewAdmin() {
     '<li>Google BAA accepted for this Firebase project (Google Cloud console → IAM &amp; Admin → HIPAA Business Associate Addendum → Review and accept)</li>' +
     '<li>Every person has their own login — no shared passwords</li><li>Patient cases no longer kept in Asana or Tally</li><li>Recovery code printed and stored safely</li></ul></div>' +
     '</div></div>';
-  const defaults = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Who gets new cases</h3><span class="sub">Default “assigned to” on the New case form</span></div><div class="cardBd"><div class="grid2">' +
+  const defaults = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Who gets new cases</h3><span class="sub">Default “assigned to” on the New submission form</span></div><div class="cardBd"><div class="grid2">' +
     TYPES.filter(t => !t.legacy).map(t => '<div class="field"><label for="def-' + t.k + '">' + esc(t.l) + '</label><select id="def-' + t.k + '" data-act-def="' + t.k + '"><option value="">Automatic</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (((S.settings.defaults || {})[t.k]) === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></div>').join('') +
     '</div><div class="small muted">Automatic: Oliv, Angel, Invisalign, appliances and MARPE go to Sarah; uLab, InSmile, retainers, mouthguards and study models to whoever creates the case; in-house aligners to Dr. A.</div></div></div>';
   const cost = v => v == null || v === '' ? '' : esc(String(v));
