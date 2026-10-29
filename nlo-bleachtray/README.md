@@ -20,6 +20,14 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    are one patient's: the pop-up asks as for any drop, with the arches filled in from `_u` / `_l` - type the name
    (until 10/19/2026 the two were taken for two patients and ran as a whole day's drop: no questions, braces on).
    Several people can drop at the same time: cases run one after another and the list shows who is waiting.
+   **Made recently?** (10/29/2026, the doctor: "if someone is adding the same person, please add a warning that this pt
+   was recently processed ... or continue anyway"): before anything is made - Start, a whole day's drop, Make tray - the
+   app checks every case on file. The same patient made in the last 14 days, or a case made from these very scan files
+   (the scanner's date-and-time name, at any age), brings up **Made recently — a duplicate?** with each such case (what
+   was made, when, sent or not) and its **Open** button; **Go back** keeps the scans in the pop-up, **Continue anyway**
+   makes it. The opposing arch that joins a case started minutes ago is not asked about, nor are discarded or failed
+   cases. (`POST /api/recent`; names compared without case, accents or extra spaces; a plain `upper.stl` is anyone's
+   and never counts as "the same scans".)
 3. A few minutes later the case shows **"check & send"** in the app, with **four models**: whitening tray (WT) and
    thermoformed retainer (TT) for each arch. Look at the 3D result (trim line, reservoirs, position on the base) and
    nudge the base if needed. Each thing you might fix has its own tab, each with one brush (the ball on the model;
@@ -214,9 +222,29 @@ beside it), and a Send made from that PC opens the models there rather than on t
 
     powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/preform_link.ps1' -UseBasicParsing).Content"
 
-(Settings → PreForm has a *copy the line* link.) It registers a small `nlobt:` link handler for that Windows user - no admin -
-which hands the model files on the office share to the PreForm installed there. The first click shows the browser's
-"Open …?" question; tick *Always allow*. The print folder must be on the office share for this (the default is).
+(Settings → PreForm has a *copy the line* link.) What it does, and says, line by line (10/29/2026 - the doctor: "when I
+click open, nothing happens"; the old handler was a PowerShell script behind a `wscript` launcher, and on his PC Windows
+never let it run: its log had the setup in it and not one click):
+
+1. **builds the handler** - `nlobt.exe`, from `nlobt.cs` in this folder, with the C# compiler that comes with Windows
+   (.NET Framework 4, `csc.exe`): no admin, no program downloaded, no script in the click's path. When it cannot be built
+   the PowerShell handler is used instead, as before.
+2. **registers `nlobt:`** for that Windows user (HKCU), named *NLO Tray Maker* - the name the browser shows ("…trying to
+   open NLO Tray Maker", no longer "Microsoft Windows Script Host").
+3. **checks that Windows starts it from a link** - a self-test link (`nlobt://selftest?t=…`) with no browser involved -
+   and says *[OK]*, or in red what stops it: the handler blocked from running (antivirus or a Windows policy: the
+   line names the file for the IT person), or Windows not starting it from the link.
+4. **stops the browser asking "Open NLO Tray Maker?" on every click.** The page is `http://lab:8765` - not https - and
+   for such a page Edge and Chrome never offer *Always allow*: they ask every time. The setup sets the browser policy
+   `AutoLaunchProtocolsFromOrigins` so that `nlobt:` links from the Tray Maker (`http://lab:8765`, host `lab`) open
+   without the question - only `nlobt:`, only from there; any other protocols already in the policy (Teams, Zoom…) are
+   kept. Policies live in HKLM, so Windows asks for an administrator's OK once (one `.reg` file imported by `regedit /s`;
+   no script runs elevated). Cancel it and the browser just keeps asking - click **Open**. Still asks after an OK? Open
+   `edge://policy` and click *Reload policies*, or restart the browser. (Any machine policy makes Edge show "Managed by
+   your organization" in its menu.)
+
+It ends with **DONE** (or **NOT WORKING YET**, pointing at the *[!!]* line). The print folder must be on the office share
+for this (the default is). Re-running the line replaces the handler with the current one and changes nothing else.
 
 How the click works (10/27/2026, the doctor: "a PowerShell prompt, and nothing happens"): a browser lets a page start a
 program only in the few seconds after a click, and filing the models first - a rebase and the copies to the share - used
@@ -224,16 +252,20 @@ up that window, so the link was dropped without a word. Now the page asks for th
 (`GET /api/jobs/{id}/printpaths`, nothing written), sends the `nlobt:` link at once, and has the models filed right after
 (`POST /prints`; on a Send, the order's own filing); the handler on that PC waits for the files to appear (up to the
 link's `wait=` seconds; a file still being copied is waited for until its size holds still) and starts PreForm with
-them. The handler is started through a `wscript` launcher, so no console window flashes; every run is written to
-`%LOCALAPPDATA%\nlo-bleachtray\preform_open.log` (the link, the files found and missing, the PreForm found, what was
-started), and anything that stops it - no PreForm here, files not reachable, drive-letter paths that are not share paths -
-is said in a message box kept on top of every window, never silently. The page watches whether anything on that PC
-answered the link (a handler takes the focus off the page - the browser's question, or PreForm itself): the line under
-the buttons says "handed to PreForm" or, in red, that nothing answered, with the setup line and the log's place either
-way; the Export zip is the way round it. The paths are share paths: a print folder on a mapped drive is turned into
-`\\server\share\…` (`_to_unc`: WNetGetConnection, else `net use` - the first has nothing when the app was started under
-another account or session than the one that mapped the drive), and the page warns when they are still drive letters.
-Re-running the setup line replaces the handler with the current one.
+them. Every run is written to `%LOCALAPPDATA%\nlo-bleachtray\preform_open.log` (the link, the files found and missing,
+the PreForm found, what was started), and anything that stops it - no PreForm here, files not reachable, drive-letter
+paths that are not share paths - is said in a message box kept on top of every window, never silently.
+
+**What the page says comes from the handler** (10/29/2026): the link carries a one-time token and the app's address
+(`&t=…&cb=http://lab:8765`), and the handler reports back - `GET /api/preform/ack?t=…&s=started|opened|error&pc=…` -
+which the page reads (`GET /api/preform/status/{t}`): "*DRA got it — waiting for the files*", then "**✓ Opened in
+PreForm on DRA**", or "*PreForm did not open on DRA:* <the reason>". Nothing heard within 8 s: "No answer from this PC"
+with the setup line - and still listening until the handler's wait is over, for a browser question answered late.
+(Before, the page guessed from the window losing focus, and the browser's own question did that: it said "handed to
+PreForm" while nothing had run.) The handler only ever calls back the app's own address (http/https, the host and port
+only). The paths are share paths: a print folder on a mapped drive is turned into `\\server\share\…` (`_to_unc`:
+WNetGetConnection, else `net use` - the first has nothing when the app was started under another account or session
+than the one that mapped the drive), and the page warns when they are still drive letters.
 
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 
