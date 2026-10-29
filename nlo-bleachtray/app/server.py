@@ -450,6 +450,8 @@ def _summary(case):
     return dict(id=case["id"], name=case.get("name"), patient=f"{p.get('patient_first', '')} {p.get('patient_last', '')}".strip(),
                 created=case.get("created"), review=case.get("review"), sent_at=case.get("sent_at"), thinned=case.get("thinned"), backfilled=case.get("backfilled"),
                 models=[f"{sc.get('arch') or '?'} {sc.get('tag') or ''}".strip() for sc in case.get("scans", [])],
+                # the scan files the case was made from (the duplicate check: the same scans dropped twice)
+                files=sorted({os.path.basename(sc.get("filename") or "") for sc in case.get("scans", []) if sc.get("filename")}),
                 filename=case.get("filename"), fixed=len(case.get("fixed") or []), source=case.get("source"),
                 status=case.get("status"), restarts=case.get("restarts"))
 
@@ -2376,6 +2378,33 @@ def print_paths(jid: str, scans: str = ""):
     return {"files": unc, "folder": _to_unc(folder), "reachable": all(re.match(r"^\\\\", f) for f in unc)}
 
 
+PREFORM_ACKS = {}      # token -> what a PC's nlobt: handler said about one click (kept an hour)
+
+
+@app.get("/api/preform/ack")
+def preform_ack(t: str = "", s: str = "", pc: str = "", n: int = 0, msg: str = "", v: str = ""):
+    """Called by the nlobt: handler on the PC that opens PreForm (the doctor, 10/29/2026: "when I click open, nothing
+    happens" - the page could only guess from the window losing focus, and said "Handed to PreForm" while nothing had
+    run): it got the link ("started"), PreForm is opening ("opened", n files), or what stopped it ("error", msg)."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{6,40}", t or "") or s not in ("started", "opened", "error"):
+        raise HTTPException(400, "bad ack")
+    now = time.time()
+    for k in [k for k, a in list(PREFORM_ACKS.items()) if now - a["when"] > 3600]:
+        PREFORM_ACKS.pop(k, None)
+    a = PREFORM_ACKS.setdefault(t, dict(token=t, status=None, pc="", n=0, msg="", version="", when=now))
+    if a["status"] in ("opened", "error") and s == "started":
+        return {"ok": True}                 # (a late "started" never hides the outcome)
+    a.update(status=s, pc=(pc or "")[:64], n=max(0, min(int(n or 0), 99)), msg=(msg or "")[:600], version=(v or "")[:16], when=now)
+    return {"ok": True}
+
+
+@app.get("/api/preform/status/{t}")
+def preform_status(t: str):
+    """What the PC's handler has said about this click so far (status None: nothing yet - the page waits, then says
+    the PC did not answer)."""
+    return PREFORM_ACKS.get(t) or {"token": t, "status": None}
+
+
 @app.post("/api/jobs/{jid}/prints")
 def file_prints(jid: str, scans: str = Form("")):
     """File the case's models in the print folder (no PreForm here) and return their paths as the
@@ -2589,6 +2618,75 @@ def history(q: str = "", limit: int = 60):
         if len(out) >= limit:
             break
     return dict(cases=out, total=len(HISTORY))
+
+
+def _name_key(s):
+    """A patient's name as compared for the duplicate check: case, accents, underscores and extra spaces ignored."""
+    import unicodedata
+    s = unicodedata.normalize("NFKD", str(s or ""))
+    return " ".join("".join(c for c in s if not unicodedata.combining(c)).lower().replace("_", " ").split())
+
+
+def _telling_file(fn):
+    """A scan file name that says whose scan it is, at what moment (the scanner's date and time, an iTero order
+    number): only such names count as "the same scans". A plain upper.stl is anyone's."""
+    return bool(re.search(r"\d{6,}", os.path.basename(fn or "")))
+
+
+@app.post("/api/recent")
+def recent_cases(items: str = Form("[]"), days: float = Form(14)):
+    """The cases already made lately for the patients about to be started - asked by the page before Start, so
+    nobody makes the same patient twice by accident (the doctor, 10/29/2026: "if someone is adding the same person,
+    please add a warning that this pt was recently processed ... or continue anyway"). Never blocks: it only tells.
+    `items`: [{first, last, files: [scan file names], arches: [upper|lower|null], join: true}]. A case counts when it
+    is this patient's and was made in the last `days` days, or was made from one of these very scan files. Left out:
+    discarded and failed cases, and the open case a lone arch joins on its own (`join`: the upload path does that -
+    the opposing arch of a case started minutes ago is not a duplicate)."""
+    try:
+        want = json.loads(items or "[]")
+    except Exception:
+        raise HTTPException(400, "bad items")
+    from bleachtray.watch import parse_name
+    now, out = time.time(), []
+    # every case on file, and any live one not saved to the history yet (whatever path started it)
+    pool = dict(HISTORY)
+    for jid, j in list(JOBS.items()):
+        if jid not in pool:
+            p = j.get("params") or {}
+            pool[jid] = dict(id=jid, patient=f"{p.get('patient_first', '')} {p.get('patient_last', '')}".strip(), created=j.get("created"),
+                             review=j.get("review"), sent_at=j.get("sent_at"), status=j.get("status"),
+                             models=[f"{sc.get('arch') or '?'} {sc.get('tag') or ''}".strip() for sc in j.get("scans", [])],
+                             files=sorted({os.path.basename(sc.get("filename") or "") for sc in j.get("scans", []) if sc.get("filename")}))
+    for it in want if isinstance(want, list) else []:
+        if not isinstance(it, dict):
+            continue
+        first, last = str(it.get("first") or "").strip(), str(it.get("last") or "").strip()
+        files = [os.path.basename(str(f)) for f in (it.get("files") or []) if f]
+        mine_files = {f.lower() for f in files if _telling_file(f)}
+        key = _name_key(f"{first} {last}") if first and last else ""
+        joins = None
+        if it.get("join", True) and first and last and len(files) == 1:
+            arches = it.get("arches") or []
+            arch = (arches[0] if arches and arches[0] in ("upper", "lower") else None) or parse_name(files[0])[2]
+            other = _open_case_for(first, last, arch)
+            joins = other["id"] if other is not None else None
+        matches = []
+        for h in sorted(pool.values(), key=lambda h: -(h.get("created") or 0)):
+            live = JOBS.get(h["id"]) or {}
+            review, status = live.get("review", h.get("review")), live.get("status", h.get("status"))
+            if h["id"] == joins or review == "discarded" or status == "error":
+                continue
+            same = bool(mine_files & {f.lower() for f in (h.get("files") or [])})
+            mine = bool(key) and _name_key(h.get("patient")) == key and now - (h.get("created") or 0) <= days * 86400
+            if not (same or mine):
+                continue
+            matches.append(dict(id=h["id"], patient=h.get("patient") or h.get("name"), created=h.get("created"),
+                                sent_at=live.get("sent_at") or h.get("sent_at"), review=review, status=status,
+                                models=h.get("models") or [], same_files=same, open=h["id"] in JOBS))
+            if len(matches) >= 6:
+                break
+        out.append(dict(first=first, last=last, matches=matches, joins=joins))
+    return {"patients": out, "days": days}
 
 
 @app.post("/api/history/{jid}/open")

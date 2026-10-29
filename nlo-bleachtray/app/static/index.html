@@ -112,6 +112,15 @@
   .folderbox button.small{flex:none;min-height:30px;padding:4px 12px}
   .okstrip{margin:0 0 10px;padding:9px 12px;border-radius:10px;background:#d1fae5;border:1.5px solid #6ee7b7;color:#065f46;font-size:13px;line-height:1.45}
   .okstrip .fn{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all}
+  /* Made recently pop-up (the doctor, 10/29/2026): above the Create a case pop-up it is asked from */
+  .modalBg.dupBg{z-index:70}
+  .dupic{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#f59e0b;color:#fff;font:700 14px/1 var(--fb);margin-right:9px;vertical-align:-3px}
+  .duplist{display:flex;flex-direction:column;gap:6px}
+  .duppt{font-weight:700;color:var(--navy);font-size:13px;margin:6px 0 0}
+  .duprow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 12px;border:1.5px solid #fcd34d;border-radius:12px;background:#fffbeb}
+  .duprow b{color:var(--navy);font-weight:600} .duprow .hint{margin:2px 0 0;font-size:12px}
+  .duprow .same{color:var(--err);font-weight:700}
+  button.small.dupgo{border-color:#f59e0b;color:#92400e} button.small.dupgo:hover{background:#fef3c7}
   button.small.done,button.primary.done{background:var(--mint);border-color:var(--mint);color:var(--navy-900)}
   button.small.done:hover,button.primary.done:hover{background:var(--mint-600, #34d399)}
   button.primary:hover{background:var(--blue-700)}
@@ -467,6 +476,15 @@
     <div class="btns" id="piecesbtns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"></div>
   </div>
 </div>
+<!-- MADE RECENTLY pop-up: the patient (or these very scans) was made lately - check it isn't a duplicate, or continue anyway -->
+<div class="modalBg dupBg" id="dupmodal" role="dialog" aria-modal="true" aria-labelledby="duptitle">
+  <div class="modal">
+    <h3 id="duptitle"><span class="dupic">!</span>Made recently — a duplicate?</h3>
+    <div class="hint" id="dupintro" style="margin:0 0 10px"></div>
+    <div id="duplist" class="duplist"></div>
+    <div class="btns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="primary small" id="dupback">Go back</button><button class="small dupgo" id="dupgo">Continue anyway</button></div>
+  </div>
+</div>
         <canvas id="c"></canvas>
         <div id="teethov"><svg></svg></div>
       </section>
@@ -714,7 +732,7 @@
         <label class="ck" style="margin:4px 0 8px"><input type="checkbox" id="preform_on_send"> Open the models in PreForm when a case is sent</label>
         <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="preform" placeholder="found by itself when PreForm is installed in the usual place"><button class="small" id="preform_save">Save</button></div>
         <div class="hint" id="preform_hint"></div>
-        <div class="hint" style="margin-top:6px"><b>Other PCs:</b> any PC with PreForm can open the models on its own screen - the button says <i>Open in PreForm on this PC</i> there. Once per PC, Win+R and run: <a href="#" id="pfsetup2">copy the line</a>. The first click asks "Open NLO Tray Maker?" - tick <i>Always allow</i>.</div>
+        <div class="hint" style="margin-top:6px"><b>Other PCs:</b> any PC with PreForm can open the models on its own screen - the button says <i>Open in PreForm on this PC</i> there. Once per PC, Win+R and run: <a href="#" id="pfsetup2">copy the line</a>. It checks itself (it ends with DONE) and asks Windows once for an admin OK, so the browser stops asking "Open NLO Tray Maker?" on every click.</div>
       </div>
     </div>
     <div class="hint" id="appversion" style="margin:14px 0 0 2px"></div>
@@ -1151,7 +1169,15 @@ function setFiles(fs, auto){
     files = fs; pending = []; creating = false; renderSetup();
     $('#filehint').textContent = `${fs.length} files · ${patients.size} patient${patients.size > 1 ? 's' : ''} — one case each, upper + lower paired by name (or iTero order number) — processing with the defaults (${$('#preset').selectedOptions[0].text}), braces left on (drop one patient's scans on their own to have them taken off)…`;
     $('#rerunbox').style.display = 'none';
-    if (auto) $('#go').click();
+    if (auto) {
+      // made recently? one question for the whole drop, every patient in it that matches listed
+      const groups = {};
+      fs.forEach(f => { const k = patientOf(f.name) || f.name, n = nameOf(f.name);
+        const g = groups[k] = groups[k] || { first: n ? n[0] : '', last: n ? n[1] : '', files: [], arches: [] };
+        g.files.push(f.name); g.arches.push(archOf(f.name) || null); });
+      checkRecent(Object.values(groups), { back: "Don't make them", go: 'Make them anyway', onOpen: () => { files = []; bulk = false; } })
+        .then(go => { if (go && files.length) $('#go').click(); else { files = []; bulk = false; $('#filehint').textContent = 'Not started — nothing was made from that drop.'; } });
+    }
     return;
   }
   const preset = $('#preset').value;
@@ -1250,12 +1276,81 @@ function setupCount(){
   const what = pending.map(p => [p.wt ? 'whitening' : '', p.tt ? 'retainer' : '', p.mg ? 'mouthguard' : '', p.p1 ? (p.p1_method === 'bott' ? 'Phase I block-out' : 'Phase I cutouts') : ''].filter(Boolean).join(' + ') || 'plain model');
   $('#startcase').textContent = `Start — make ${nModels} model${nModels > 1 ? 's' : ''}` + (new Set(what).size === 1 ? ` (${what[0]})` : '');
 }
+// ---------- Made recently? (the doctor, 10/29/2026: "if someone is adding the same person, please add a warning that
+// this pt was recently processed. please check to make sure its not being duplicated or continue anyway"). Asked
+// before anything is made - Create a case's Start, a whole-day drop, Make tray. The lab PC answers from every case on
+// file: the same patient in the last 14 days, or these very scan files (any age). The opposing arch that joins a case
+// started minutes ago is not a duplicate and is not asked about; discarded and failed cases do not count. An app that
+// does not answer (an older one) never holds anything up ----------
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+let dupResolve = null;
+const DUP_WORDS = { WT: 'whitening tray', TT: 'retainer', MG: 'mouthguard', P1: 'Phase I retainer' };
+function dupWhen(t){
+  if (!t) return '';
+  const d = new Date(t * 1000), y = d.getFullYear() !== new Date().getFullYear() ? '/' + String(d.getFullYear()).slice(2) : '';
+  return `${d.getMonth() + 1}/${d.getDate()}${y} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
+function dupState(m){
+  if (m.review === 'sent') return `sent to the Trimlign ${dupWhen(m.sent_at)}`.trim();
+  if (m.status === 'queued' || m.status === 'running') return 'being made right now';
+  return m.open ? 'made — in Cases, not sent yet' : 'made, not sent (Past cases)';
+}
+function dupModels(ms){ return (ms || []).map(x => { const [a, t] = String(x).split(' '); return `${a && a !== '?' ? a[0].toUpperCase() + a.slice(1) : ''} ${DUP_WORDS[t] || t || ''}`.trim(); }).filter(Boolean).join(' · ') || 'models'; }
+async function recentFor(items){
+  try {
+    const fd = new FormData(); fd.append('items', JSON.stringify(items)); fd.append('days', '14');
+    const rs = await fetch('/api/recent', { method: 'POST', body: fd });
+    if (!rs.ok) return [];
+    return ((await rs.json()).patients || []).filter(p => (p.matches || []).length);
+  } catch (e) { return []; }
+}
+// true: go ahead; false: stop. The pop-up shows only when something matches
+async function checkRecent(items, opts){
+  opts = opts || {};
+  const hits = await recentFor(items.filter(it => (it.first && it.last) || (it.files || []).length));
+  if (!hits.length) return true;
+  return new Promise(resolve => {
+    dupResolve = resolve;
+    const who = p => `${p.first || ''} ${p.last || ''}`.trim(), one = hits.length === 1, p0 = hits[0];
+    const sameOnly = p0.matches.every(m => m.same_files);
+    $('#dupintro').innerHTML = one
+      ? `<b>${esc(who(p0) || 'This scan')}</b> ${sameOnly ? 'was already made from these same scan files' : 'was processed recently'}. Check it isn't the same case being made twice — open it below — or continue if this one is new (a remake, the other arch, another tray).`
+      : 'These patients were processed recently. Check none of them is being made twice — or continue if they are new.';
+    $('#duplist').innerHTML = hits.map(p => (one ? '' : `<div class="duppt">${esc(who(p) || 'A scan with no name in its file name')}</div>`) + p.matches.map(m => {
+      const under = m.patient && who(p) && m.patient.toLowerCase() !== who(p).toLowerCase() ? ` · under <b>${esc(m.patient)}</b>` : '';
+      return `<div class="duprow"><span><b>${esc(dupModels(m.models))}</b> · made ${esc(dupWhen(m.created))}<div class="hint">${esc(dupState(m))}${m.same_files ? ' · <span class="same">same scan files</span>' : ''}${under}</div></span><button class="small" data-dupopen="${esc(m.id)}" title="Open that case instead">Open</button></div>`;
+    }).join('')).join('');
+    $('#dupgo').textContent = opts.go || 'Continue anyway';
+    $('#dupback').textContent = opts.back || 'Go back';
+    $('#duplist').querySelectorAll('[data-dupopen]').forEach(b => b.onclick = () => { dupAnswer(false); if (opts.onOpen) opts.onOpen(); openPastCase(b.dataset.dupopen); });
+    $('#dupmodal').classList.add('on');
+    setTimeout(() => $('#dupback').focus(), 30);
+  });
+}
+function dupAnswer(go){ $('#dupmodal').classList.remove('on'); const r = dupResolve; dupResolve = null; if (r) r(go); }
+$('#dupgo').onclick = () => dupAnswer(true);
+$('#dupback').onclick = () => dupAnswer(false);
+$('#dupmodal').addEventListener('mousedown', ev => { if (ev.target === $('#dupmodal')) dupAnswer(false); });
+// (in the capture phase: Esc closes this pop-up only, not the Create a case pop-up under it)
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#dupmodal').classList.contains('on')) { ev.stopImmediatePropagation(); ev.preventDefault(); dupAnswer(false); } }, true);
+async function openPastCase(id){
+  const rs = await fetch(`/api/history/${encodeURIComponent(id)}/open`, { method: 'POST' }); const o = await rs.json().catch(() => ({}));
+  if (!rs.ok) { showErr(o.detail || 'Could not open that case.'); return; }
+  await refreshJobs(); selectJob(o.id);
+}
 $('#addopp').onclick = () => $('#file').click();
 $('#cancelcase').onclick = () => { if (nameOnly) { closeCaseModal(); return; } pending = []; files = []; creating = false; if (TRACKER) { TRACKER = null; QUEUE.picked = ''; renderQueue(); } renderSetup(); };
-$('#startcase').onclick = () => {
+$('#startcase').onclick = async () => {
   if (nameOnly) { closeCaseModal(); return; }
   if (!pending.length) return;
   if (!($('#pfirst').value.trim() && $('#plast').value.trim())) { $('#modalintro').innerHTML = '<span style="color:var(--err)">Type the patient\'s first and last name first.</span>'; $('#pfirst').focus(); return; }
+  // made recently? asked first; "Go back" returns here with the scans still in, "Open" opens that case instead
+  const sb = $('#startcase'); if (sb.disabled) return;
+  const label = sb.textContent; sb.disabled = true; sb.textContent = 'Checking…';
+  const go = await checkRecent([{ first: $('#pfirst').value.trim(), last: $('#plast').value.trim(), files: pending.map(p => p.file.name), arches: pending.map(p => p.arch || null) }],
+                              { onOpen: () => $('#cancelcase').click() });
+  sb.disabled = false; sb.textContent = label;
+  if (!go || !pending.length) return;
   if (currentJob && !confirmLeave('Starting a new case')) return;
   if (currentJob) { forgetEdits(); pendingAdj = {}; pendingMark = {}; }     // (said yes: not asked again when the new case opens)
   files = pending.map(p => p.file);
@@ -1408,27 +1503,41 @@ function copySetup(el){
 // page start a program only in the few seconds after a click: filing the models first (a rebase and the copies to the
 // share) used up that window and the nlobt: link was dropped without a word. Now the link goes out at once with the
 // names the files WILL have (/printpaths, nothing written), the models are filed right after, and the handler on this PC
-// waits for them. Whether anything happened here is watched too: a handler that runs takes the focus off the page
-// (the browser's "Open …?" question, or PreForm itself); when nothing does within a few seconds the line says so, with
-// the setup line - instead of a silent nothing
-const PF_SETUP_LINE = () => `This PC needs the one-time setup (or the handler's newer version) — <a href="#" class="pfsetup">copy the line</a>, then Win+R, paste, Enter, and click the button again. Already set up? Its log is in <span class="fn">%LOCALAPPDATA%\\nlo-bleachtray\\preform_open.log</span>. The <b>Export</b> button's zip is the way round it.`;
+// waits for them. What happened is not guessed any more (10/29/2026: the line said "Handed to PreForm" because the
+// browser's own "Open …?" question took the focus off the page, while nothing had run): the handler reports back to
+// the app - got the link / PreForm opening / what stopped it - and the line says exactly that
+const PF_SETUP_LINE = () => `This PC needs the one-time setup (new version of 10/29) — <a href="#" class="pfsetup">copy the line</a>, then Win+R, paste, Enter: it checks itself and says DONE. Then click the button again.`;
 const preformLine = box => { let l = box.querySelector('#preformline'); if (!l) { l = document.createElement('div'); l.className = 'hint'; l.id = 'preformline'; (box.querySelector('.btns') || box).insertAdjacentElement('afterend', l); } return l; };
 async function handPreformLink(id, scans, wait){
   let p; try { const rs = await fetch(`/api/jobs/${id}/printpaths?scans=${scans || ''}`, NOCACHE); p = await rs.json().catch(() => ({})); if (!rs.ok) throw new Error(p.detail || 'no print files'); } catch (e) { return { error: `Could not work out the print files: ${e.message}` }; }
-  let answered = false; const onBlur = () => { answered = true; }; window.addEventListener('blur', onBlur); document.addEventListener('visibilitychange', onBlur);
   const names = p.files.map(f => f.split(/[\\/]/).pop()).join(', ');
-  location.href = 'nlobt://preform?' + p.files.map(f => 'f=' + encodeURIComponent(f)).join('&') + `&wait=${wait || 60}`;   // (inside the click's window: nothing slow before this line)
-  return { names, folder: p.folder, reachable: p.reachable,
-    report(l, extra) {
-      // the line under the buttons, once the files are written: did this PC answer the link?
-      setTimeout(() => {
-        window.removeEventListener('blur', onBlur); document.removeEventListener('visibilitychange', onBlur);
-        l.style.color = answered ? '' : 'var(--err)';
-        l.innerHTML = (answered ? `Handed to PreForm on this PC: ${names} (from <span class="fn">${p.folder}</span>). PreForm not open? ` : `Nothing on this PC answered the link (the models are filed in <span class="fn">${p.folder}</span>). `) + PF_SETUP_LINE()
-          + (!p.reachable ? `<br><span style="color:var(--err)">These are the lab PC's own drive letters, not share paths — this PC may not reach them. On the lab PC, Settings → Print folder: type the folder as \\\\server\\share\\… .</span>` : '') + (extra || '');
-        l.querySelectorAll('.pfsetup').forEach(a => a.onclick = ev => { ev.preventDefault(); copySetup(ev.target); });
-      }, 4000);
-    } };
+  // t: this click's token, cb: where the handler reports back (this app)
+  const token = (Math.random().toString(36).slice(2, 10) + Date.now().toString(36)).slice(0, 16);
+  location.href = 'nlobt://preform?' + p.files.map(f => 'f=' + encodeURIComponent(f)).join('&') + `&wait=${wait || 60}&t=${token}&cb=${encodeURIComponent(location.origin)}`;   // (inside the click's window: nothing slow before this line)
+  return { names, folder: p.folder, reachable: p.reachable, report(l, extra) { watchPreform(l, token, names, p, wait || 60, extra || ''); } };
+}
+// The line under the buttons follows what this PC's handler reports. No word within 8 s: the setup is missing or the
+// old one - said, and still watched until the handler's own wait is over, in case the browser's question was
+// answered late (without the setup's browser policy the browser asks "Open NLO Tray Maker?" on every click)
+function watchPreform(l, token, names, p, wait, extra){
+  const t0 = Date.now();
+  const drive = !p.reachable ? `<br><span style="color:var(--err)">These are the lab PC's own drive letters, not share paths — this PC may not reach them. On the lab PC, Settings → Print folder: type the folder as \\\\server\\share\\… .</span>` : '';
+  const say = (html, err) => { l.style.color = err ? 'var(--err)' : ''; l.innerHTML = html + drive + extra; l.querySelectorAll('.pfsetup').forEach(a => a.onclick = ev => { ev.preventDefault(); copySetup(ev.target); }); };
+  let shown = '';
+  const tick = async () => {
+    let a = null;
+    try { const rs = await fetch(`/api/preform/status/${token}`, NOCACHE); if (rs.ok) a = await rs.json(); } catch (e) {}
+    const st = a && a.status, pc = esc((a && a.pc) || 'this PC');
+    if (st === 'opened') { say(`<b style="color:var(--ok)">✓ Opened in PreForm on ${pc}</b> — ${esc(names)}`); return; }
+    if (st === 'error') { say(`<b>PreForm did not open on ${pc}:</b> ${esc(a.msg).replace(/\n+/g, ' ')}`, true); return; }
+    if (st === 'started') { if (shown !== 'started') { shown = 'started'; say(`${pc} got it — waiting for the files on the share, then PreForm opens…`); } }
+    else if (Date.now() - t0 > 8000 && shown !== 'quiet') {
+      shown = 'quiet';
+      say(`No answer from this PC. If the browser asked <i>Open NLO Tray Maker?</i>, click <b>Open</b>. Nothing asked, or nothing happened? ${PF_SETUP_LINE()} Meanwhile <b>Export</b> or <b>on ${esc(WHO.pc || 'lab')}</b> still work.`, true);
+    }
+    if (Date.now() - t0 < (wait + 25) * 1000) setTimeout(tick, 800);
+  };
+  tick();
 }
 async function openPreformHere(id, box, b){
   if (b) { b.disabled = true; b.textContent = 'Opening…'; }
@@ -1563,7 +1672,11 @@ async function refreshScanner(){
   if (!d.patients.length) { $('#scanner').innerHTML = warn + '<div class="hint">No scans in the last 14 days.</div>'; return; }
   $('#scanner').innerHTML = warn + d.patients.map((p, i) => `<div class="job"><span class="nm">${p.first} ${p.last}<br><span class="hint" style="margin:0">${p.date} · ${p.files.map(f => f.arch || 'scan').join(' + ')}</span></span><button class="small primary" data-make="${i}">Make tray</button></div>`).join('');
   document.querySelectorAll('[data-make]').forEach(b => b.onclick = async () => {
-    const p = d.patients[+b.dataset.make]; b.disabled = true; b.textContent = 'Starting…';
+    const p = d.patients[+b.dataset.make]; b.disabled = true; b.textContent = 'Checking…';
+    // made recently? (Make tray never joins an open case: every open one of this patient counts)
+    const go = await checkRecent([{ first: p.first, last: p.last, files: p.files.map(f => String(f.path || '').split(/[\\/]/).pop()), arches: p.files.map(f => f.arch || null), join: false }]);
+    if (!go) { b.textContent = 'Make tray'; b.disabled = false; return; }
+    b.textContent = 'Starting…';
     $('#pfirst').value = p.first; $('#plast').value = p.last;
     const fd = new FormData(); fd.append('paths', JSON.stringify(p.files.map(f => f.path))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(params()));
     const r = await (await fetch('/api/scanner/make', { method:'POST', body: fd })).json();
