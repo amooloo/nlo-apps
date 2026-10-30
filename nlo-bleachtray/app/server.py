@@ -1916,13 +1916,18 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         only = set()
         # a brush edit is on a scan file: the models made from it are re-made, an arch not painted on is left alone
         painted_paths = {job["scans"][int(e.get("scan", 0) or 0)]["path"] for e in (me or []) if 0 <= int(e.get("scan", 0) or 0) < len(job["scans"])}
+        from bleachtray.fuse import PAINT_FILL_VERSION
         for k, sc in enumerate(job["scans"]):
             typed = per_type.get({"WT": "wt", "TT": "tt", "P1": "p1"}.get(sc.get("tag"), ""), False)
             moved = sc.get("arch") in adj_arches
             brushed = sc["path"] in painted_paths
-            if typed or moved or brushed or not sc.get("report"):
+            # a painted block-out made by an older version of the fill is re-made too (10/29/2026: the fill was rebuilt -
+            # "Apply to this case & re-run" must not answer "nothing changed" on a case made the old way)
+            bo_ = (sc.get("report") or {}).get("blockout") or {}
+            stale_bo = bool(bo_.get("painted_vertices")) and int(bo_.get("painted_version") or 1) < PAINT_FILL_VERSION
+            if typed or moved or brushed or stale_bo or not sc.get("report"):
                 only.add(k)
-            if moved and not typed and not brushed and sc.get("report") and sc.get("arch") in fast_arches:
+            if moved and not typed and not brushed and not stale_bo and sc.get("report") and sc.get("arch") in fast_arches:
                 fast.add(k)
         if not only:
             only = None if not job.get("reports") else set()   # nothing changed: nothing to do

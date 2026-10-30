@@ -940,6 +940,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             # hunting for undercuts on the surface - that gave fins on the line angles); painted: the brush's
             # own fill under what was painted
             fills, binfo = [], dict(spots=0, volume_ml=0.0)
+            painted_fill = None
             failed = []     # each part on its own: one that cannot be made never takes the others with it
             if P.get("blockout") and not MG:
                 try:
@@ -967,15 +968,19 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 try:
                     # built in 3D from the undercut's own air (fuse.paint_fill, 10/27/2026): the column heightfield came out
                     # as a lace of slivers on a steep lingual face (Anvalina Faltz's lower)
+                    # (10/29/2026: only the undercut next to the painted surface, within its own heights - it used to fill every
+                    # undercut in the painted footprint's columns, embrasures to the contacts and down to the floor; no sloped face)
                     from .fuse import paint_fill
-                    pfill, pinfo = paint_fill(plain, paint, taper_foot=float(P.get("blockout_taper_foot", 0.65) or 0.0), taper_start=0.0,
+                    pfill, pinfo = paint_fill(plain, paint, taper_foot=float(P.get("blockout_taper_foot", 0.0) or 0.0), taper_start=0.0,
+                                              reach_mm=float(P.get("blockout_reach") or 1.0),
                                               proud=float(P.get("blockout_proud") or 0.0), log=lambda m: log(f"[{name}] {m}"))
+                    from .fuse import PAINT_FILL_VERSION
                     binfo.update(painted_vertices=pinfo.get("painted_vertices"), proud_mm=float(P.get("blockout_proud") or 0.0), painted_spots=pinfo.get("spots", 0),
-                                 painted_dropped=pinfo.get("dropped") or [], painted_error=pinfo.get("error"))
+                                 painted_dropped=pinfo.get("dropped") or [], painted_error=pinfo.get("error"), painted_version=PAINT_FILL_VERSION)
                     binfo["spots"] = int(binfo.get("spots", 0)) + int(pinfo.get("spots", 0) or 0)
                     binfo["volume_ml"] = round(float(binfo.get("volume_ml", 0.0)) + float(pinfo.get("volume_ml", 0.0) or 0.0), 3)
                     if pfill is not None:
-                        fills.append(pfill)
+                        fills.append(pfill); painted_fill = pfill
                     else:
                         log(f"[{name}] painted block-out: {pinfo.get('error') or 'no undercut under the painted area (nothing to fill)'}")
                         if pinfo.get("dropped"):
@@ -1000,8 +1005,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 from .fuse import fuse_many
                 fused = []
                 for f_ in fills:
+                    # (the painted fill already stands on the gum where the gum is close: no foot added under it - that foot
+                    # is what hung the old fill's curtains down in front of a receding gum)
                     m_, finfo = fuse_many(f_, mesh_f, radius=float(P.get("fuse_radius") or 0.6), overlap=float(P.get("fuse_overlap") or 0.2),
-                                          log=lambda m: log(f"[{name}] {m}"))
+                                          foot_mm=(0.0 if f_ is painted_fill else 3.0), log=lambda m: log(f"[{name}] {m}"))
                     binfo.setdefault("fused", []).append(finfo)
                     if m_ is not None:
                         fused.append(m_)

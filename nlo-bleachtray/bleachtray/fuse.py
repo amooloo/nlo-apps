@@ -283,6 +283,12 @@ def fuse_many(fill, surface, log=None, keep_failed=True, **kw):
     return (trimesh.util.concatenate(out) if len(out) > 1 else out[0]) if out else None, info
 
 
+# which painted block-out a model was made with (kept in its report as blockout.painted_version): 2 = the fill tied to the
+# painted surface (10/29/2026). A model made with an older one counts as changed, so "Apply to this case & re-run"
+# re-makes it with no other edit
+PAINT_FILL_VERSION = 2
+
+
 def _painted_surface_voxels(V, F, pm, lo, cell, shape, max_edge=1.2):
     """The voxels the painted surface passes through: every triangle with all three corners painted, sampled at under
     half a voxel (plus the painted vertices themselves). A long triangle is left out (over `max_edge` mm): in an
@@ -311,7 +317,7 @@ def _painted_surface_voxels(V, F, pm, lo, cell, shape, max_edge=1.2):
 
 
 def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, reach_mm=1.0, below_mm=0.3, above_mm=0.5, local_mm=1.0, foot_mm=0.6,
-               taper_foot=0.0, taper_start=0.0, min_thick=0.3, min_depth=0.15, proud=0.0, max_voxels=4.0e6, smooth_vox=0.7, taubin=6, log=None):
+               taper_foot=0.0, taper_start=0.0, min_thick=0.3, min_depth=0.15, proud=0.0, max_voxels=4.0e6, smooth_vox=1.2, taubin=20, log=None):
     """The painted block-out, built in 3D: the undercut **next to the surface the doctor painted**, filled the way
     block-out resin is - out to the crown's own contour (a wall straight down from the height of contour, flush with
     it) and down onto the gum, and nowhere else.
@@ -335,7 +341,8 @@ def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, reach_mm=1.0, bel
 
     `proud` (Settings, Painted block-out wall) pushes the wall that many mm out into the air beside it, standing on
     body, or pulls it in. Pieces whose horizontal depth is under `min_depth` mm everywhere (no real undercut) or that
-    are thinner than `min_thick` mm are dropped and named. Returns (mesh or None, info)."""
+    are thinner than `min_thick` mm are dropped and named. The surface is smoothed (`smooth_vox` 1.2, then `taubin` 20 volume-keeping
+    steps): at 0.7 / 6 the 0.1 mm grid showed as vertical grooves on the face, which would print under the sheet. Returns (mesh or None, info)."""
     V = np.asarray(surface.vertices, float); F = np.asarray(surface.faces)
     pm = np.asarray(paint, bool)
     info = dict(cell=cell, painted_vertices=int(pm.sum()), pieces=0, dropped=[], reach_mm=reach_mm)
