@@ -162,8 +162,8 @@ try {
   const dated = kase({ type: 'marpe', patient: 'Dora Dated', stage: 'submitted', lab: 'Partners Dental Solutions', records: ['stl', 'cbct'], zoomDate: day(47).iso });
   const recs = kase({ type: 'marpe', patient: 'Rita Records', stage: 'records', lab: 'Partners Dental Solutions', records: ['stl'] });
   const mn = match(nn, [waiting, dated, ready, recs]);
-  check(!mn.c && mn.check && mn.many.length === 3 && mn.many.includes(waiting) && mn.many.includes(ready) && mn.many.includes(recs) && !mn.many.includes(dated),
-    'an invite that names no one → never applied by itself; suggests the MARPE cases still waiting for a Zoom date (at Records or Submitted)');
+  check(!mn.c && mn.check === 'wait' && mn.many.map(c => c.patient).join() === 'Nell Waiting,Wendell Zoomer,Rita Records,Dora Dated',
+    'an invite that names no one → never applied by itself; suggests the MARPE cases waiting for a Zoom date (at Records or Submitted), then the one with a call booked (a call rebooked on Calendly comes as a new invite)');
   // …unless the call is on a case already (put in by hand from the same invite)
   const pasted = kase({ type: 'marpe', patient: 'Paula Pasted', stage: 'zoom', lab: 'Partners Dental Solutions', records: ['stl', 'cbct'], zoomDate: fu.iso, zoomUrl: Z, zoomAt: at + 5000 });
   check(match(nn, [waiting, pasted]).c === pasted, 'no name, but its Zoom link is on a case already (pasted in) → that case');
@@ -177,7 +177,7 @@ try {
   const dayOnly = Object.assign({}, slotCase, { zoomTime: '' }), md = match(nn, [waiting, dayOnly]);
   check(!md.c && md.check && md.many.length === 1 && md.many[0] === dayOnly, '…only the day typed in → suggested on Today, not applied by itself');
   const otherCall = match(nn, [waiting, Object.assign({}, slotCase, { zoomTime: '14:00' })]);
-  check(!otherCall.c && otherCall.many.length === 1 && otherCall.many[0] === waiting, '…a case with another call that day (2 PM) isn’t this one');
+  check(!otherCall.c && otherCall.check === 'wait' && otherCall.many[0] === waiting, '…a case with another call that day (2 PM) isn’t taken for this one (only listed after the case waiting for a date)');
   check(match(nnOn(-3), [waiting]).done, 'no name, for a call that’s over → nothing to do (nothing says which case it was)');
   // older and newer invites: a later change is never undone
   const later = Object.assign({}, ready, { zoomDate: '2026-12-11', zoomTime: '09:00', zoomAt: at + 5000 }); // (rescheduled by hand after the invite)
@@ -237,6 +237,28 @@ try {
   { const e = all(invite({ names: ' W Z', when: 'later', body: 'Friday Dec 4, 2026 ⋅ 11:30 – 12:30pm\nEastern Time - New York' }))[0]; check(e.zoomTime === '11:30', '“11:30 – 12:30pm” → 11:30 AM'); }
   { const e = all(invite({ names: ' W Z', when: 'Fri Dec 4, 2026 10:30am - 11:30am (GMT-06:00)' }))[0]; check(e.zoomTime === '11:30', 'a zone written “GMT-06:00” → 11:30 in the office'); }
   { const e = all(invite({ names: ' W Z', when: 'Fri Dec 4, 2026 10:30am - 11:30am (XYZ)', body: 'Friday Dec 4, 2026 ⋅ 10:30am – 11:30am\nCentral Time - Chicago' }))[0]; check(e.zoomTime === '11:30', 'a zone it doesn’t know in the subject: the invite’s “Central Time” line'); }
+  // (second review, 30 Oct 2026)
+  // N1. one case on a call changed by hand: the others still move; only that one waits on Today
+  { const u = Object.assign({}, nnOn(40), { at: at + 9000, upd: 1, zoomDate: day(46).iso });
+    const a1 = Object.assign({}, pasted, { id: 'q1', zoomTime: '10:30', zoomAt: at, zoomInvAt: at, zoomInv: [] }), a2 = Object.assign({}, a1, { id: 'q2' }), a3 = Object.assign({}, a1, { id: 'q3', zoomTime: '08:00', zoomAt: at + 9500 });
+    const mm = match(u, [a1, a2, a3]);
+    check(mm.cs && mm.cs.map(c => c.id).join() === 'q1,q2' && mm.many && mm.many.map(c => c.id).join() === 'q3' && mm.check === 'later', 'a call moved for three patients, one of whose time was changed by hand since: the other two move by themselves, that one waits on Today');
+    check(T.mailEffect(a3, u).ask === true && !Object.keys(T.mailEffect(a3, u).set).length, '…and if the change by hand lands after the match, writing it says so (it goes to Today, it isn’t lost)'); }
+  // N2. names as people type them
+  check(nm('\nJan Dvořák\nŁukasz Nowak') === 'Jan Dvořák|Łukasz Nowak', 'names in any alphabet are read whole (“Jan Dvořák”, “Łukasz Nowak”)');
+  check(nm('\nMax Born\nAnna Birthe Jensen') === 'Max Born|Anna Birthe Jensen', '“Born” and “Birthe” in a name stay (only “born 1/2/2012” is cut)');
+  check(nm('\n#1 Wendell Zoomer\n#2 Tobyas Quarrington') === 'Wendell Zoomer|Tobyas Quarrington', '“#1 …” numbering is taken off');
+  check(nm('\nChristopherson Montgomery-Smith DOB: 01/02/2012\nWendell Zoomer') === 'Christopherson Montgomery-Smith|Wendell Zoomer', 'a long name with a date of birth doesn’t end the list');
+  check(nm('\nWendell\nTobyas & Rita Records') === 'Wendell|Tobyas|Rita Records', 'one-word answers are kept (they wait on Today), “A & B C” gives both');
+  { const jr = all(invite({ names: '\nWendell Zoomer, Jr.' })); check(jr.length === 1 && jr[0].name === 'Wendell Zoomer' && match(jr[0], [ready]).c === ready, '“Wendell Zoomer, Jr.” → Wendell Zoomer, matched by itself'); }
+  { const one = all(invite({ names: '\nWendell' }))[0]; const m1 = match(one, [ready]); check(!m1.c, 'a one-word name is never applied by itself'); }
+  // N3. a case with only the link pasted in: the same meeting's invite gives it the day and time
+  { const lk = kase({ type: 'marpe', patient: 'Lena Linked', stage: 'submitted', lab: 'Partners Dental Solutions', records: ['stl', 'cbct'], zoomUrl: Z, zoomAt: at + 5000 });
+    const ml = match(nn, [lk]), el = T.mailEffect(lk, nn);
+    check(ml.c === lk && el.set.zoomDate === fu.iso && el.set.zoomTime === '10:30' && !el.set.zoomUrl && !el.to, 'only the Zoom link pasted in (no day): the invite for that meeting fills in the day and time (the step isn’t moved)'); }
+  // #6. a new invite with no name, a case waiting and one with a call booked: both offered, none picked for you
+  { const bk = kase({ type: 'marpe', patient: 'Bo Booked', stage: 'zoom', lab: 'Partners Dental Solutions', records: ['stl', 'cbct'], zoomDate: day(41).iso, zoomTime: '09:00', zoomUrl: 'https://us06web.zoom.us/j/81277777777', zoomAt: at - 1000 });
+    const mb = match(nnOn(40), [waiting, bk]); check(mb.many.length === 2 && mb.many[0] === waiting && mb.many[1] === bk, 'a new invite with no name while another case has a call booked: both are offered (it may be that call rebooked), none picked for you'); }
   const fpA = vm.runInContext('mailFp', ctx)(evs[0]), fpB = vm.runInContext('mailFp', ctx)(resched);
   check(fpA !== fpB && vm.runInContext('mailFp', ctx)(Object.assign({}, evs[0], { at: at + 1 })) === fpA, 'a rescheduled call is a new update; a copy of the same invite is the same one');
   check(vm.runInContext('mailFp', ctx)({ co: 'partners', kind: 'shipped', name: 'Emma S.', tracking: '1Z' }) === 'partners|shipped|emma s||1Z||', 'other updates keep the fingerprint they had (dismissed ones stay dismissed)');

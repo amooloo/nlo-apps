@@ -2,8 +2,9 @@
 // add the zoom with relevant information to the case tracker?" — Partners' Airway Department's invites (made up, in their format: a
 // Google Calendar invitation booked on their Calendly) put through the demo's inbox:
 // 1. The demo's own invite names no patient: Today's Email updates row shows the call (day, time, the event's name), says it doesn't
-//    name the patient and suggests the one MARPE case waiting for a Zoom date (picked already); MARPE cases come first in the menu.
-//    Apply → that case gets the call's date, time and link (it stays at Records: its CBCT isn't on file), Join Zoom; the row goes.
+//    name the patient, and offers the MARPE case waiting for a Zoom date and the one with a call booked (none picked: it could be that
+//    call rebooked); only MARPE cases in the menu. Pick + Apply → that case gets the call's date, time and link (it stays at Records: its
+//    CBCT isn't on file), Join Zoom; the row goes.
 // 2. An invite naming two patients: the one whose MARPE case is at Submitted to lab with both records → applied by itself (Zoom call
 //    scheduled, the date, time and link; Join Zoom on its card; the history says the Partners email did it). The other is misspelled
 //    → Today: "Matched on the last name only"; Apply → that case. The email leaves the inbox.
@@ -58,11 +59,12 @@ const invite = o => { const d = o.day, link = o.link;
   check(z0.time === '10:30' && z0.url === 'https://zoom.us/test' && z0.title === 'CBCT Consult with Dr. Akhavan', 'read: the call’s day (' + z0.date + '), 10:30, the Zoom link and the event’s name');
   check(r0.includes('Partners Dental Solutions') && r0.includes('Zoom call') && r0.includes('The invite doesn’t name the patient') && r0.includes(dayTxt + ', 10:30 AM') && r0.includes('CBCT Consult with Dr. Akhavan'),
     'the row: Partners, Zoom call, “The invite doesn’t name the patient”, the day and time, the event’s name');
-  check(r0.includes('The one MARPE case waiting for a Zoom date — check it’s this one') && z0.cands.join() === 'demo26' && await p.inputValue(row('Zoom call') + ' .mlSel') === 'demo26',
-    'it suggests the one MARPE case waiting for a Zoom date (Riley Testcase, at Records), picked already');
+  check(r0.includes('2 possible cases') && z0.cands.join() === 'demo26,demo27' && await p.inputValue(row('Zoom call') + ' .mlSel') === '' && await p.isDisabled(row('Zoom call') + ' [data-act=mailApply]'),
+    'it offers the MARPE case waiting for a Zoom date (Riley, at Records), then the one with a call booked (it could be that call rebooked): “2 possible cases”, none picked for you');
   const groups = await p.locator(row('Zoom call') + ' .mlSel').evaluate(s => Array.from(s.querySelectorAll('optgroup')).map(g => g.label + ':' + g.children.length));
-  check(groups.join() === 'MARPE cases:2', 'the menu offers only the MARPE cases whose call is still ahead (not the one past Design approved, nor other kinds of case) (' + groups.join(', ') + ')');
+  check(groups.join() === 'Possible matches:2,MARPE cases:2', 'the menu: the possible matches, then only the MARPE cases whose call is still ahead (not the one past Design approved, nor other kinds of case) (' + groups.join(', ') + ')');
   await p.locator('#mailCard').scrollIntoViewIfNeeded(); await p.locator('#mailCard').screenshot({ path: OUT + '/z66-today-noname.png' });
+  await p.selectOption(row('Zoom call') + ' .mlSel', 'demo26'); await p.waitForTimeout(150);
   await p.click(row('Zoom call') + ' [data-act=mailApply]');
   await p.waitForSelector('.toast:has-text("Applied to Riley Testcase")', { timeout: 8000 }).catch(() => { });
   await p.waitForFunction(() => !MAILS.list.some(g => g.ev.kind === 'zoom'), null, { timeout: 8000 }).catch(() => { });
@@ -150,7 +152,7 @@ const invite = o => { const d = o.day, link = o.link;
   await p.setViewportSize({ width: 390, height: 844 }); await closeAll(); await p.evaluate(() => { S.view = 'today'; renderNav(); renderView(); window.scrollTo(0, 0); });
   await p.waitForSelector(row('Zoom call'), { timeout: 8000 }).catch(() => { });
   const fit = await p.locator(row('Zoom call')).first().evaluate(r => r.getBoundingClientRect().right <= innerWidth + 1 && document.documentElement.scrollWidth <= innerWidth + 1).catch(() => false);
-  check(fit && /Pick the MARPE case it’s for/.test(await p.textContent(row('Zoom call'))), 'an invite with no name and no MARPE case waiting: “Pick the MARPE case it’s for”; the row fits a phone');
+  check(fit && /\d+ possible cases/.test(await p.textContent(row('Zoom call'))), 'an invite with no name and no MARPE case waiting for a date: the cases with a call booked are offered (“… possible cases”); the row fits a phone');
   // a case that changed since it was picked (here: an appliance case): Apply says so and the row stays
   const gz = await p.evaluate(() => (MAILS.list.find(g => g.ev.kind === 'zoom') || {}).id), aid = await p.evaluate(() => (openCases().find(c => c.type === 'appliance') || {}).id);
   await p.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
