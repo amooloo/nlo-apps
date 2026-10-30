@@ -145,6 +145,22 @@ const invite = o => { const d = o.day, link = o.link;
     'a name with an initial (“W. Zoomer”): suggested on Today, Wendell’s call unchanged');
   await p.click(row('W. Zoomer') + ' [data-act=mailSkip]'); await p.waitForTimeout(500);
 
+  // two patients on one call, both with the time typed in by hand after the invite was sent: one row; applying one keeps it for the other
+  const d5 = dayOf(33), d6 = dayOf(34), L6 = 'https://us06web.zoom.us/j/81234500071?pwd=St71.1';
+  const sa = await make({ patient: 'Sam Shared', stage: 'zoom', records: ['stl', 'cbct'], zoomDate: d5.iso, zoomTime: '09:00', zoomUrl: L6, zoomAt: Date.now() });
+  const sb = await make({ patient: 'Sue Shared', stage: 'zoom', records: ['stl', 'cbct'], zoomDate: d5.iso, zoomTime: '09:30', zoomUrl: L6, zoomAt: Date.now() });
+  await p.waitForTimeout(300);
+  await deliver('mz6', invite({ pre: 'Updated invitation', day: d6, from: '2pm', to: '3pm', link: L6, title: 'CBCT Consult with Dr. Akhavan', date: Date.now() - 3600e3 }));
+  const shared = () => p.evaluate(([a, b]) => MAILS.list.filter(g => g.ev.kind === 'zoom' && g.cands.some(c => c.id === a || c.id === b)).map(g => g.cands.map(c => c.patient).join('+')), [sa, sb]);
+  check((await shared()).join() === 'Sam Shared+Sue Shared' && /2 possible cases — their Zoom call was set by hand/.test(await p.textContent('#mailCard')), 'a moved call (no name) for two cases whose time was set by hand since: one row, both offered, nothing changed by itself');
+  const gs = await p.evaluate(a => MAILS.list.find(g => g.cands.some(c => c.id === a)).id, sa);
+  await p.selectOption('#mailCard .mlSel[data-g="' + gs + '"]', sa); await p.click('#mailCard [data-act=mailApply][data-g="' + gs + '"]');
+  await p.waitForFunction(([a, b]) => findCase(a).zoomDate !== findCase(b).zoomDate && MAILS.list.some(g => g.cands.length === 1 && g.cands[0].id === b), [sa, sb], { timeout: 8000 }).catch(() => { });
+  check((await caseOf(sa)).zoomDate === d6.iso && (await shared()).join() === 'Sue Shared', 'Apply on one: it moves, and the row stays for the other');
+  const gs2 = await p.evaluate(b => MAILS.list.find(g => g.cands.some(c => c.id === b)).id, sb);
+  await p.click('#mailCard [data-act=mailApply][data-g="' + gs2 + '"]'); await p.waitForTimeout(700);
+  check((await caseOf(sb)).zoomDate === d6.iso && (await caseOf(sb)).zoomTime === '14:00' && !(await shared()).length, '…Apply on the other: it moves too, and the row goes');
+
   // ---- 5. phone width
   console.log('\n# Phone width');
   await deliver('mz3', invite({ day: dayOf(35), from: '9am', to: '10am', link: 'https://us06web.zoom.us/j/81234500068?pwd=Mn68.1', title: 'CBCT Consult with Dr. Akhavan', date: Date.now() }));

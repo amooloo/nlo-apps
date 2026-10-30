@@ -255,7 +255,12 @@ try {
   // N3. a case with only the link pasted in: the same meeting's invite gives it the day and time
   { const lk = kase({ type: 'marpe', patient: 'Lena Linked', stage: 'submitted', lab: 'Partners Dental Solutions', records: ['stl', 'cbct'], zoomUrl: Z, zoomAt: at + 5000 });
     const ml = match(nn, [lk]), el = T.mailEffect(lk, nn);
-    check(ml.c === lk && el.set.zoomDate === fu.iso && el.set.zoomTime === '10:30' && !el.set.zoomUrl && !el.to, 'only the Zoom link pasted in (no day): the invite for that meeting fills in the day and time (the step isn’t moved)'); }
+    const eh = T.mailEffect(lk, Object.assign({}, nn, { hand: 1 }));
+    check(!ml.c && ml.check === 'later' && ml.many[0] === lk && !Object.keys(el.set).length && eh.set.zoomDate === fu.iso && eh.set.zoomTime === '10:30',
+      'only this meeting’s Zoom link on a case (no day): Today (“…Apply adds the day and time”), and Apply there does');
+    const cleared = Object.assign({}, lk, { zoomAt: at + 8000 }); // (its day cleared by hand — “Clear the date” keeps the link — after the invite was sent)
+    check(!Object.keys(T.mailEffect(cleared, nn).set).length && match(nn, [cleared]).check === 'later', 'a call cleared by hand (link kept): an older invite for it never puts the day back by itself'); }
+  check(nm('\nRobert (Bob) Quarrington\nN/A') === 'Robert Quarrington', 'a nickname in brackets is taken out (“Robert (Bob) Quarrington” → Robert Quarrington); “N/A” isn’t a name');
   // #6. a new invite with no name, a case waiting and one with a call booked: both offered, none picked for you
   { const bk = kase({ type: 'marpe', patient: 'Bo Booked', stage: 'zoom', lab: 'Partners Dental Solutions', records: ['stl', 'cbct'], zoomDate: day(41).iso, zoomTime: '09:00', zoomUrl: 'https://us06web.zoom.us/j/81277777777', zoomAt: at - 1000 });
     const mb = match(nnOn(40), [waiting, bk]); check(mb.many.length === 2 && mb.many[0] === waiting && mb.many[1] === bk, 'a new invite with no name while another case has a call booked: both are offered (it may be that call rebooked), none picked for you'); }

@@ -191,12 +191,12 @@ function zoomNames(text) {
   const qi = lines.findIndex(l => ZOOM_Q.test(l)); if (qi < 0) return null;
   const out = [];
   const nm = x => cleanName(((String(x || '').replace(/^\s*(?:#\s*\d+|\d+)\s*[.):\-–]?\s*|^\s*[-•*]\s*/, '')
-    .replace(/\s+d\.?o\.?b\b\.?.*$/i, '').replace(/\s+(?:born|birth(?:day|date)?|age|chart)\s*[:#-]?\s*\d.*$/i, '').replace(/\s+[#(].*$/, '').replace(/\s+[-–—]\s+.*$/, '')
+    .replace(/\s*\([^()]*\)/g, ' ').replace(/\s+d\.?o\.?b\b\.?.*$/i, '').replace(/\s+(?:born|birth(?:day|date)?|age|chart)\s*[:#-]?\s*\d.*$/i, '').replace(/\s+[#(].*$/, '').replace(/\s+[-–—]\s+.*$/, '')
     .replace(/,?\s+(?:jr|sr|ii|iii|iv)\.?\s*$/i, '').match(/^[\p{L}\p{M}'’., -]+/u)) || [''])[0]);
   const two = n => nameTokens(n).length >= 2, junk = n => /^(?:d\.?o\.?b\.?|n\/?a|none|tbd|same|unknown|pt|patients?|see (?:below|above))$/i.test(n);
   const take = l => String(l || '').split(/;|\s&\s|\s+and\s+/i).forEach(part => {
     const bits = part.split(','), each = bits.length > 1 && bits.every(b => two(nm(b))) ? bits : [part];
-    each.forEach(b => { const n = nm(b); if (n && n.length <= 60 && nameTokens(n).length && !junk(n)) out.push(n); });
+    each.forEach(b => { const n = nm(b); if (n && n.length <= 60 && nameTokens(n).join('').length >= 2 && !junk(n) && !junk(String(b).trim())) out.push(n); });
   });
   take(lines[qi].replace(new RegExp('^[\\s\\S]*?' + ZOOM_Q.source, 'i'), ''));
   // (one patient per line under the question, up to a blank line or the form's next question — "…?", "Name of doctor and practice:")
@@ -326,9 +326,9 @@ function zoomPlan(c, ev) {
   const link = zoomLinkOf(c), at = Number(c.zoomAt) || 0, has = !!(c.zoomDate || c.zoomTime || link);
   if ((!has && !at) || (at && (ev.at || 0) > at)) return 'apply';
   if (at && (Number(c.zoomInvAt) || 0) >= at) return 'skip';
-  const sameMeet = !!(link && ev.meet && zoomMeet(link) === ev.meet);
-  // (the same day — or no day yet on a case that has this meeting's link — and no other time or meeting)
-  const agree = !!ev.zoomDate && (c.zoomDate ? c.zoomDate === ev.zoomDate : sameMeet) && (!c.zoomTime || !ev.zoomTime || c.zoomTime === ev.zoomTime) && (!link || !ev.meet || sameMeet);
+  // (the same day, and no other time or meeting. A case with this meeting's link and no day asks on Today: the link was pasted in
+  // alone, or the call was cleared by hand — "Clear the date" keeps the link — and that mustn't come back by itself)
+  const agree = !!ev.zoomDate && c.zoomDate === ev.zoomDate && (!c.zoomTime || !ev.zoomTime || c.zoomTime === ev.zoomTime) && (!link || !ev.meet || zoomMeet(link) === ev.meet);
   return agree ? 'fill' : 'ask';
 }
 function mailMatch(ev, open, closed) {
@@ -399,7 +399,6 @@ function zoomEffect(c, ev, set, fwd) {
     else if (ev.zoomDate && ev.zoomTime && ev.zoomTime !== (c.zoomTime || '')) set.zoomTime = ev.zoomTime;
     if (ev.zoomUrl && ev.zoomUrl !== link) set.zoomUrl = ev.zoomUrl;
   } else {
-    if (ev.zoomDate && !c.zoomDate) set.zoomDate = ev.zoomDate; // (only the link was pasted in)
     if (ev.zoomTime && !c.zoomTime) set.zoomTime = ev.zoomTime;
     if (ev.zoomUrl && !link) set.zoomUrl = ev.zoomUrl;
   }
@@ -570,6 +569,8 @@ async function mailResolve(gid, how) {
     // (a Zoom invite picked for a case here is all applied: it's a person's choice — zoomEffect)
     try { await mailApply(x.ev.kind === 'zoom' ? Object.assign({}, x.ev, { hand: 1 }) : x.ev, c); toast('Applied to ' + (ptNameText(c.patient) || 'the case')); } // (it saves the lab's case #: later emails for this patient match on it)
     catch (e) { if (!(e && e.code === 'skip')) { toast(errText(e), { bad: true }); return; } toast('Nothing to change on ' + (ptNameText(c.patient) || 'that case')); }
+    // (one of several cases on a call whose time was set by hand: the row stays for the others — the next sync shows only those)
+    if (x.ev.kind === 'zoom' && x.check === 'later' && x.cands.length > 1 && x.cands.some(k => k.id === c.id)) { delete MAILS.pick[x.id]; MAILS.sig = ''; mailSync(); return; }
   }
   await mailForget(x);
   mailSync();
@@ -608,6 +609,7 @@ function zoomRowNote(x) {
   const when = c && c.zoomDate ? fmtDay(c.zoomDate) + (c.zoomTime ? ', ' + fmtTime(c.zoomTime) : '') : '';
   // ('later': the case's call was set by hand — after the invite was sent, or before the app read invites — and says something else)
   if (x.check === 'later') return n > 1 ? n + ' possible cases — their Zoom call was set by hand: check before applying'
+    : !when && c && ev.meet && zoomMeet(zoomLinkOf(c)) === ev.meet ? 'It has this call’s Zoom link but no day (put in alone, or the day was cleared) — Apply adds the day and time'
     : (when ? 'Its Zoom call was set by hand to ' + when : c && zoomLinkOf(c) ? 'It has another Zoom link, put in by hand' : 'Its Zoom call was taken off by hand') + ' — check before applying this invite';
   if (n > 1) return n + ' possible cases';
   if (x.check === 'initial') return 'Matched on the initials only — check it’s this case';
