@@ -146,6 +146,11 @@
 
   .btn-cam{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px}
   .btn-cam svg{width:19px;height:19px}
+  @media (max-width:360px){
+    .addbar{gap:6px}
+    .addbar .btn-cam{padding-left:9px;padding-right:9px}
+    .addbar .btn-primary{padding-left:14px;padding-right:14px}
+  }
 
   /* ---------- scan sheet ---------- */
   .scan{
@@ -182,6 +187,33 @@
   .field input.verify{border-color:var(--warn);background:var(--warn-soft)}
   .sheet .actions{margin-top:14px}
   .sheet .privacy{font-size:11px;color:var(--muted);margin-top:10px;text-align:center}
+  /* ---------- bulk upload: a scan of the whole stack ---------- */
+  .sheet.wide{max-width:620px}
+  .btn:disabled{opacity:.45;cursor:default;transform:none}
+  .bk-sum{font-size:13px;color:var(--ink-2);margin:6px 0 0;line-height:1.45}
+  .bk-sum.warn{color:var(--warn)}
+  .bk-sum:empty{display:none}
+  .bk-list{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+  .bk{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);transition:opacity .15s}
+  .bk.off{opacity:.55}
+  .bk-img{display:block;width:100%;padding:0;margin:0;border:none;border-bottom:1px solid var(--line);background:#fff;cursor:zoom-in}
+  .bk-img img{display:block;width:100%;max-height:210px;object-fit:contain}
+  .bk-row{display:grid;grid-template-columns:auto 118px minmax(0,1fr);gap:8px;align-items:center;padding:10px 12px 4px}
+  .bk-row input[type=checkbox]{width:20px;height:20px;margin:0 2px;accent-color:var(--accent);cursor:pointer}
+  .bk-row input[type=number],.bk-row input[type=text]{
+    width:100%;font:inherit;font-size:15px;padding:8px 10px;text-align:left;color:var(--ink);
+    background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  }
+  .bk-row input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .bk-row input.verify{border-color:var(--warn);background:var(--warn-soft)}
+  .bk-meta{font-size:12px;color:var(--muted);padding:2px 12px 10px 44px}
+  .bk-meta.warn{color:var(--warn)}
+  .bk-foot{position:sticky;bottom:-16px;margin:14px -16px -16px;padding:12px 16px 14px;background:var(--surface);border-top:1px solid var(--line)}
+  .bk-foot .actions{margin-top:0}
+  .zoom{position:fixed;inset:0;z-index:70;background:rgba(10,14,20,.88);overflow:auto;padding:16px;cursor:zoom-out}
+  .zoom[hidden]{display:none}
+  .zoom img{display:block;max-width:100%;margin:0 auto;background:#fff;border-radius:6px}
+
   .chk .x{
     appearance:none;border:none;background:none;cursor:pointer;color:var(--muted);
     font-size:17px;line-height:1;padding:3px 6px;border-radius:6px;
@@ -248,7 +280,7 @@
   #slip{display:none}
   @media print{
     body{background:#fff;color:#000;padding:0}
-    .wrap,.scan{display:none!important}
+    .wrap,.scan,.zoom{display:none!important}
     #slip{
       display:block!important;padding:.45in;max-width:7.5in;
       font-family:-apple-system,"Segoe UI",Arial,sans-serif;color:#000;
@@ -321,9 +353,13 @@
         <button class="btn btn-ghost btn-cam" onclick="startScan()" title="Scan a check with the camera" aria-label="Scan check">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7.5 6.5H4a1 1 0 0 0-1 1V19a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7.5a1 1 0 0 0-1-1h-3.5z"/><circle cx="12" cy="13" r="3.5"/></svg>
         </button>
+        <button class="btn btn-ghost btn-cam" onclick="startBulk()" title="Upload scanned checks: one PDF of the stack (fronts and backs are fine) or several photos" aria-label="Upload scanned checks">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-7"/><path d="m9 14 3-3 3 3"/></svg>
+        </button>
         <button class="btn btn-primary" onclick="addCheck()">Add</button>
       </div>
       <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
+      <input type="file" id="bulkInput" accept="application/pdf,.pdf,image/*" multiple hidden>
 
       <div id="checkList"></div>
 
@@ -374,6 +410,24 @@
     <div class="privacy">Read on this device. The photo isn't uploaded or saved.</div>
   </div>
 </div>
+
+<div class="scan" id="bulk" role="dialog" aria-modal="true" aria-labelledby="bulkTitle" hidden>
+  <div class="sheet wide">
+    <div class="sh-head"><h3 id="bulkTitle">Scanned checks</h3><button class="close" onclick="closeBulk()" aria-label="Close">&times;</button></div>
+    <div class="scan-status" id="bulkStatus"></div>
+    <div class="bar"><i id="bulkBar"></i></div>
+    <div class="bk-sum" id="bulkSum"></div>
+    <div class="bk-list" id="bulkList"></div>
+    <div class="bk-foot">
+      <div class="actions">
+        <button class="btn btn-ghost" onclick="closeBulk()">Cancel</button>
+        <button class="btn btn-primary" id="bulkAdd" onclick="addBulk()" disabled>Add checks</button>
+      </div>
+      <div class="privacy">Read on this device. The file isn't uploaded or saved.</div>
+    </div>
+  </div>
+</div>
+<div class="zoom" id="zoom" hidden title="Tap to close"><img id="zoomImg" alt="Scanned page"></div>
 
 <div id="slip"></div>
 
@@ -452,7 +506,7 @@
 
   function renderChecks(){
     var el = $('checkList');
-    if(!checks.length){ el.innerHTML = '<div class="empty">No checks entered</div>'; return; }
+    if(!checks.length){ el.innerHTML = '<div class="empty">No checks yet. Type an amount, take a photo, or upload a scan of the whole stack.</div>'; return; }
     var html = '<div class="checks">';
     checks.forEach(function(c, i){
       html += '<div class="chk"><span class="i num">' + (i+1) + '</span>' +
@@ -984,7 +1038,7 @@
      only two things from the check: the amount and the payer name. */
 
   var TESS_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-  var workerP = null, scanUrl = null, scanSeq = 0;
+  var workerP = null, scanUrl = null, scanSeq = 0, ocrHooks = null;
 
   var PAYERS = [
     [/delta\s*dent/i,'Delta Dental'],
@@ -1033,6 +1087,7 @@
     var t = text
       .replace(/\bS(?=[*\d])/g, '$')                    /* "S412.00" -> "$412.00" */
       .replace(/(\d)[oO](?=\d|\.)/g, '$10')             /* O misread as 0 inside numbers */
+      .replace(/(\d) ?\. ?(\d{2})(?![\d.\/])/g, '$1.$2')  /* "500 . 00" -> "500.00" (spaces read around the point) */
       .replace(/(\d),(\d{2})(?!\d)/g, '$1.$2')           /* "412,00" -> "412.00" */
       .replace(/([$*]\s*)(\d{1,3})[ .](\d{3}\.\d{2})(?!\d)/g, '$1$2,$3'); /* "***1 250.50" -> "***1,250.50" */
     var re = /([$*][$*\s]*)?(\d{1,3}(?:,\d{3})+|\d{1,6})\.(\d{2})(?![\d.\/])/g;
@@ -1055,6 +1110,44 @@
     if(!keys.length) return null;
     keys.sort(function(a,b){ return (best[b] - best[a]) || (parseFloat(b) - parseFloat(a)); });
     return { value: parseFloat(keys[0]), sure: best[keys[0]] >= 4 };
+  }
+
+  /* Every printed check also writes the amount out ("FOUR HUNDRED TWELVE AND 50/100 DOLLARS"):
+     a second reading to check the box against. That's the legal amount, so it wins a disagreement. */
+  var NUMW = {zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
+    eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17, eighteen:18,
+    nineteen:19, twenty:20, thirty:30, forty:40, fourty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90};
+  var WORDS_RE = /((?:\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|fou?rty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|and)\b[\s-]*)+)(?:dollars?\s*)?(?:and\s*)?(?:(\d{1,2}|no|xx)\s*\/\s*100\b|(no|\d{1,2})\s*cents?\b)/gi;
+
+  function numberWords(s){
+    var total = 0, cur = 0, any = false;
+    s.toLowerCase().split(/[\s-]+/).forEach(function(w){
+      if(!w || w === 'and') return;
+      if(Object.prototype.hasOwnProperty.call(NUMW, w)){ cur += NUMW[w]; any = true; }
+      else if(w === 'hundred'){ cur = (cur || 1) * 100; any = true; }
+      else if(w === 'thousand'){ total += (cur || 1) * 1000; cur = 0; any = true; }
+      else if(w === 'million'){ total += (cur || 1) * 1000000; cur = 0; any = true; }
+    });
+    return any ? total + cur : null;
+  }
+  function wordsAmount(text){
+    var t = String(text).replace(/\*+/g, ' '), m;
+    WORDS_RE.lastIndex = 0;
+    while((m = WORDS_RE.exec(t))){
+      var whole = numberWords(m[1]);
+      if(whole === null) continue;
+      var c = m[2] !== undefined ? m[2] : m[3], cents = /^\d/.test(c) ? Number(c) : 0;   /* "NO/100" is no cents */
+      var v = Math.round((whole + cents / 100) * 100) / 100;
+      if(v > 0 && v <= 250000) return v;
+    }
+    return null;
+  }
+  /* The amount from the box, checked against the words when the check has them */
+  function bestAmount(text){
+    var box = findAmount(text), said = wordsAmount(text);
+    if(said === null) return box;
+    if(box && Math.abs(box.value - said) < 0.005) return { value: box.value, sure: true, words: true };
+    return { value: said, sure: false, words: true, box: box ? box.value : null };
   }
 
   function findPayer(text){
@@ -1092,8 +1185,9 @@
     }).then(function(){
       return window.Tesseract.createWorker('eng', 1, {
         logger: function(m){
-          if(m.status === 'recognizing text') setBar(m.progress);
-          else if(/loading|initializ/.test(m.status)) setStatus('Getting the check reader ready (first time only)…');
+          var h = ocrHooks || { bar: setBar, say: setStatus };   /* the photo sheet, or the bulk sheet while it reads */
+          if(m.status === 'recognizing text') h.bar(m.progress);
+          else if(/loading|initializ/.test(m.status)) h.say('Getting the check reader ready (first time only)…');
         }
       });
     });
@@ -1106,10 +1200,10 @@
   }
   function setBar(p){ $('scanBar').style.width = Math.round((p || 0) * 100) + '%'; }
 
-  /* Downscale + grayscale; optional 90° rotation for sideways shots */
-  function prepCanvas(img, rot){
-    var w = img.naturalWidth, h = img.naturalHeight;
-    var scale = Math.min(1, 2000 / Math.max(w, h));
+  /* Downscaled (longest side at most max px) and turned by rot degrees; an <img> or a canvas */
+  function orient(img, rot, max){
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    var scale = Math.min(1, (max || 2000) / Math.max(w, h));
     w = Math.round(w * scale); h = Math.round(h * scale);
     var c = document.createElement('canvas');
     var side = rot % 180 !== 0;
@@ -1118,6 +1212,12 @@
     x.translate(c.width / 2, c.height / 2);
     x.rotate(rot * Math.PI / 180);
     x.drawImage(img, -w / 2, -h / 2, w, h);
+    return c;
+  }
+
+  /* Downscale + grayscale; optional 90° rotation for sideways shots */
+  function prepCanvas(img, rot){
+    var c = orient(img, rot), x = c.getContext('2d');
     var d = x.getImageData(0, 0, c.width, c.height), p = d.data;
     for(var i = 0; i < p.length; i += 4){
       var g = p[i] * .299 + p[i+1] * .587 + p[i+2] * .114;
@@ -1138,7 +1238,7 @@
         setStatus(i === 0 ? 'Reading check…' : 'Trying another angle…'); setBar(0);
         return worker.recognize(prepCanvas(img, tries[i])).then(function(r){
           var text = r.data.text || '';
-          var res = { amt: findAmount(text), payer: findPayer(text), conf: r.data.confidence || 0 };
+          var res = { amt: bestAmount(text), payer: findPayer(text), conf: r.data.confidence || 0 };
           var good = function(z){ return (z.amt ? 2 : 0) + (z.payer.sure ? 2 : z.payer.name ? 1 : 0) + z.conf / 100; };
           if(!bestRes || good(res) > good(bestRes)) bestRes = res;
           if(res.amt && res.payer.sure && res.conf > 55) return bestRes;   /* good enough, stop early */
@@ -1217,11 +1317,429 @@
   $('scanAmt').addEventListener('input', function(){ this.classList.remove('verify'); });
   $('scanFrom').addEventListener('input', function(){ this.classList.remove('verify'); });
   document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape' && $('scan').classList.contains('open')) window.closeScan();
+    if(e.key !== 'Escape') return;
+    if(!$('zoom').hidden){ $('zoom').hidden = true; return; }
+    if($('bulk').classList.contains('open')){ window.closeBulk(); return; }
+    if($('scan').classList.contains('open')) window.closeScan();
   });
 
+  /* ================= Bulk: a scan of the whole stack =================
+     Scan the checks into one PDF (fronts and backs are fine; one check per page reads best),
+     or pick several photos, and upload it. Each page is drawn on this device (pdf.js for a PDF)
+     and read by the same on-device reader as the camera button. Backs, blank pages and EOB
+     pages are set aside; every check found is shown with its picture, amount and payer to
+     confirm, then they all go in at once. Nothing is uploaded or kept: the pictures go when the
+     sheet closes, and a check's number stays only in this page, to catch one scanned (or
+     uploaded) twice. */
+  var PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/legacy/build/';
+  var MAX_PAGES = 120;
+  var pdfP = null, bulkSeq = 0, bulkRows = [], bulkInfo = null, bulkDocs = [];
+  var BACK_RE = /endorse|do\s*not\s*write|financial\s*institution|for\s*deposit\s*only|reserved\s*for/i;
+  var EOB_RE = /explanation\s*of\s*benefits|\bEOB\b|not\s*a\s*check|non.?negotiable|remittance\s*advice|patient\s*responsib/i;
+
+  function loadPdfJs(){
+    if(pdfP) return pdfP;
+    pdfP = import(PDFJS + 'pdf.min.mjs').then(function(lib){
+      lib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.mjs';
+      return lib;
+    });
+    pdfP.catch(function(){ pdfP = null; });
+    return pdfP;
+  }
+  function release(c){ if(c){ c.width = 0; c.height = 0; } }     /* frees a canvas's memory now (phones run short) */
+
+  function isPdf(f){ return /pdf/i.test(f.type) || /\.pdf$/i.test(f.name); }
+  /* Every page of every file picked, each as a function that draws it when its turn comes */
+  function pageList(files){
+    var list = [], chain = Promise.resolve();
+    files.forEach(function(f){
+      if(!isPdf(f)){ list.push(photoPage(f)); return; }
+      chain = chain.then(function(){
+        return loadPdfJs().then(null, function(){
+          throw new Error("Couldn't load the PDF reader. Check the internet connection and try again.");
+        });
+      }).then(function(lib){
+        return f.arrayBuffer().then(function(buf){
+          return lib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+        }).then(null, function(){
+          throw new Error('"' + f.name + "\" couldn't be opened as a PDF.");
+        });
+      }).then(function(doc){
+        bulkDocs.push(doc);
+        for(var n = 1; n <= doc.numPages; n++) list.push(pdfPage(doc, n));
+      });
+    });
+    return chain.then(function(){ return list; });
+  }
+  function pdfPage(doc, n){
+    return function(){
+      return doc.getPage(n).then(function(page){
+        var v = page.getViewport({ scale: 1 });
+        var vp = page.getViewport({ scale: Math.min(4, 2200 / Math.max(v.width, v.height)) });
+        var c = document.createElement('canvas');
+        c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        var x = c.getContext('2d');
+        x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+        return page.render({ canvas: c, canvasContext: x, viewport: vp }).promise.then(function(){
+          page.cleanup();
+          return c;
+        });
+      });
+    };
+  }
+  function photoPage(f){
+    return function(){
+      return new Promise(function(resolve, reject){
+        var url = URL.createObjectURL(f), img = new Image();
+        img.onload = function(){
+          var w = img.naturalWidth, h = img.naturalHeight, s = Math.min(1, 2200 / Math.max(w, h));
+          var c = document.createElement('canvas');
+          c.width = Math.round(w * s); c.height = Math.round(h * s);
+          var x = c.getContext('2d');
+          x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+          x.drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          resolve(c);
+        };
+        img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('unreadable')); };
+        img.src = url;
+      });
+    };
+  }
+
+  /* Sheet-fed scanners with a dirty glass leave straight black lines down the whole page (the
+     front desk's Epson ES-50s do), and one through a check's amount box hides the amount from
+     the reader. A line up to 6 px wide that runs nearly the page's full length is painted out
+     with the lighter of its two sides: paper, unless the line crosses a character's stroke. */
+  function clearStreaks(c){
+    var x = c.getContext('2d'), w = c.width, h = c.height, d = x.getImageData(0, 0, w, h), p = d.data;
+    var col = new Uint32Array(w), row = new Uint32Array(h), xx, yy, i, fixed = 0;
+    for(yy = 0; yy < h; yy++) for(xx = 0; xx < w; xx++) if(p[(yy * w + xx) * 4] < 110){ col[xx]++; row[yy]++; }
+    function runs(counts, full, paint){
+      for(var a = 0; a < counts.length; a++){
+        if(counts[a] < full) continue;
+        var b = a;
+        while(b + 1 < counts.length && counts[b + 1] >= full) b++;
+        if(b - a < 6){ paint(a, b); fixed++; }
+        a = b;
+      }
+    }
+    runs(col, h * 0.85, function(a, b){
+      var L = Math.max(0, a - 2), R = Math.min(w - 1, b + 2);
+      for(yy = 0; yy < h; yy++){
+        var v = Math.max(p[(yy * w + L) * 4], p[(yy * w + R) * 4]);
+        for(xx = a; xx <= b; xx++){ i = (yy * w + xx) * 4; p[i] = p[i + 1] = p[i + 2] = v; }
+      }
+    });
+    runs(row, w * 0.85, function(a, b){
+      var T = Math.max(0, a - 2), B = Math.min(h - 1, b + 2);
+      for(xx = 0; xx < w; xx++){
+        var v = Math.max(p[(T * w + xx) * 4], p[(B * w + xx) * 4]);
+        for(yy = a; yy <= b; yy++){ i = (yy * w + xx) * 4; p[i] = p[i + 1] = p[i + 2] = v; }
+      }
+    });
+    if(fixed) x.putImageData(d, 0, 0);
+    return fixed;
+  }
+  function inkShare(c){                          /* how much of the page is ink (a blank page is almost none) */
+    var d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, dark = 0, n = 0;
+    for(var i = 0; i < d.length; i += 16){ n++; if(d[i] < 140) dark++; }
+    return n ? dark / n : 0;
+  }
+
+  function abaOk(s){                             /* a bank routing number's check digit */
+    var d = s.split('').map(Number);
+    return s !== '000000000' && (3 * (d[0] + d[3] + d[6]) + 7 * (d[1] + d[4] + d[7]) + d[2] + d[5] + d[8]) % 10 === 0;
+  }
+  /* What only a check has: "pay to the order of", protector stars, "void after", a routing number,
+     a check number, the amount in words. An EOB page has to show two of them, not one. */
+  function checkMarks(text){
+    var n = 0;
+    if(/order\s*of|pay\s*to\s*the/i.test(text)) n++;
+    if(/\*{2,}\s*\$?\s*\d|\$\s*\*+\s*\d/.test(text)) n++;
+    if(/void\s*(after|if)|not\s*valid\s*after|valid\s*for\s*\d+\s*days/i.test(text)) n++;
+    if((text.match(/\d+/g) || []).some(function(r){ return r.length === 9 && abaOk(r); })) n++;
+    if(/\bche?ck\s*(no|number|#)|\bchk\s*(no|#)/i.test(text)) n++;
+    if(/\d{1,2}\s*\/\s*100\b|\bdollars\b/i.test(text)) n++;
+    return n;
+  }
+  function checkNumber(text){
+    var m = /\bche?ck\s*(?:no|number|#)\.?\s*:?\s*#?\s*(\d{3,12})\b/i.exec(text);
+    return m ? m[1].replace(/^0+(?=\d)/, '') : '';
+  }
+  /* Where the amount sits on the page (0 top, 1 bottom), so a tall page's picture can show the check */
+  function amountAt(data, value, h){
+    var want = value.toFixed(2).replace('.', ''), best = null;
+    (data.words || []).forEach(function(wd){
+      var t = String(wd.text || ''), digits = t.replace(/\D/g, '');
+      if(digits.slice(-want.length) !== want || digits.length > want.length + 1 || !wd.bbox) return;
+      var score = (/\*/.test(t) ? 2 : 0) + (/\$/.test(t) ? 1 : 0) + wd.bbox.y0 / h;    /* the starred box; lower down */
+      if(!best || score > best.score) best = { score: score, y: (wd.bbox.y0 + wd.bbox.y1) / 2 / h };
+    });
+    return best ? best.y : null;
+  }
+
+  /* One reading of one page: a check, the back of one, maybe a check (an EOB page?), or nothing */
+  function judge(data, h){
+    var text = data.text || '', conf = data.confidence || 0;
+    var letters = (text.match(/[A-Za-z]/g) || []).length;
+    var amt = bestAmount(text), marks = checkMarks(text);
+    var kind = amt && marks >= (EOB_RE.test(text) ? 2 : 1) ? 'check'
+             : BACK_RE.test(text) ? 'back'
+             : amt && letters >= 40 ? 'maybe'
+             : 'none';
+    return {
+      kind: kind, amt: amt, payer: findPayer(text), conf: conf,
+      upright: conf >= 70 && letters >= 150,     /* plenty of clean text: the page is the right way up */
+      many: (text.match(/order\s*of/gi) || []).length > 1,
+      no: kind === 'check' ? checkNumber(text) : '',
+      focus: amt ? amountAt(data, amt.value, h) : null
+    };
+  }
+  function rank(r){
+    return { check: 4, back: 3, maybe: 2, none: 1, blank: 0 }[r.kind] + (r.amt && r.amt.sure ? 0.5 : 0) + (r.conf || 0) / 1000;
+  }
+
+  /* Reads a page the right way up first, then turned (a check fed upside down or sideways) */
+  function readPage(worker, page, n, total, seq){
+    var tries = page.height > page.width * 1.15 ? [0, 90, 270, 180] : [0, 180];
+    var best = null;
+    function run(k){
+      if(k >= tries.length || seq !== bulkSeq) return null;
+      var c = prepCanvas(page, tries[k]);
+      clearStreaks(c);
+      if(k === 0 && inkShare(c) < 0.002){ release(c); best = { kind: 'blank', conf: 0, rot: 0 }; return null; }
+      ocrHooks = { bar: function(p){ bulkBar((n + (p || 0)) / total); }, say: bulkSay };
+      return worker.recognize(c).then(function(r){
+        var res = judge(r.data, c.height);
+        res.rot = tries[k];
+        release(c);
+        if(!best || rank(res) > rank(best)) best = res;
+        if((res.kind === 'check' && res.conf >= 50) || res.kind === 'back' || res.upright) return null;
+        return run(k + 1);
+      });
+    }
+    return Promise.resolve(run(0)).then(function(){ return best || { kind: 'none', conf: 0, rot: 0 }; });
+  }
+
+  /* The page's pictures: the whole page to zoom into, and for a tall page (an EOB with the check
+     on it) a band around the amount, so the check shows in the list */
+  function pagePictures(page, rot, focus){
+    var o = orient(page, rot, 1600), zoom = o.toDataURL('image/jpeg', 0.82), thumb = zoom;
+    if(o.height > o.width * 1.15 && focus !== null && focus !== undefined){
+      var bandH = Math.min(o.height, Math.round(o.width * 0.46));
+      var top = Math.max(0, Math.min(o.height - bandH, Math.round(focus * o.height - bandH / 2)));
+      var b = document.createElement('canvas');
+      b.width = o.width; b.height = bandH;
+      b.getContext('2d').drawImage(o, 0, top, o.width, bandH, 0, 0, o.width, bandH);
+      thumb = b.toDataURL('image/jpeg', 0.82);
+      release(b);
+    }
+    release(o);
+    return { thumb: thumb, zoom: zoom };
+  }
+
+  function takePage(res, page, n){
+    bulkInfo.pages++;
+    if(res.kind !== 'check' && res.kind !== 'maybe'){
+      if(res.kind === 'back') bulkInfo.backs++; else bulkInfo.empty++;
+      return;
+    }
+    var pics = pagePictures(page, res.rot, res.focus), a = res.amt;
+    var row = {
+      page: n + 1, kind: res.kind, on: res.kind === 'check',
+      amt: a ? a.value : null, sureAmt: !!(a && a.sure),
+      other: a && a.words && !a.sure && a.box !== null && a.box !== undefined ? a.box : null,
+      from: res.payer && (res.kind === 'check' || res.payer.sure) ? res.payer.name : '',   /* no guess for an EOB page */
+      surePayer: !!(res.payer && res.payer.sure),
+      no: res.no || '', many: res.many, thumb: pics.thumb, zoom: pics.zoom
+    };
+    if(row.on && row.no){                        /* the same check twice: in this file, or already in the deposit */
+      var twin = bulkRows.filter(function(r){ return r.on && r.no === row.no && r.amt === row.amt; })[0];
+      if(twin){ row.on = false; row.dup = 'Same check number and amount as page ' + twin.page + '. Scanned twice?'; }
+      else if(checks.some(function(c){ return c.no === row.no && c.amt === row.amt; })){
+        row.on = false; row.dup = 'Already in this deposit (same check number and amount).';
+      }
+    }
+    bulkRows.push(row);
+    addBulkRow(row);
+    var found = bulkRows.filter(function(r){ return r.kind === 'check'; }).length;
+    $('bulkSum').textContent = 'Found ' + found + ' check' + (found === 1 ? '' : 's') + ' so far.';
+    paintBulk();
+  }
+
+  function addBulkRow(row){
+    var card = document.createElement('div');
+    card.className = 'bk' + (row.on ? '' : ' off');
+    var pic = document.createElement('button');
+    pic.type = 'button'; pic.className = 'bk-img'; pic.title = 'See the whole page';
+    var im = document.createElement('img');
+    im.src = row.thumb; im.alt = 'Scanned page ' + row.page;
+    pic.appendChild(im);
+    pic.addEventListener('click', function(){ $('zoomImg').src = row.zoom; $('zoom').hidden = false; });
+
+    var line = document.createElement('div');
+    line.className = 'bk-row';
+    var tick = document.createElement('input');
+    tick.type = 'checkbox'; tick.checked = row.on;
+    tick.setAttribute('aria-label', 'Add the check on page ' + row.page);
+    var amt = document.createElement('input');
+    amt.type = 'number'; amt.step = '0.01'; amt.min = '0'; amt.placeholder = 'Amount';
+    amt.setAttribute('inputmode', 'decimal');
+    amt.setAttribute('aria-label', 'Amount, page ' + row.page);
+    amt.value = row.amt !== null ? row.amt.toFixed(2) : '';
+    if(!row.sureAmt) amt.classList.add('verify');
+    var from = document.createElement('input');
+    from.type = 'text'; from.placeholder = 'From'; from.autocomplete = 'off';
+    from.setAttribute('aria-label', 'From, page ' + row.page);
+    from.value = row.from || '';
+    if(!row.surePayer) from.classList.add('verify');
+    line.appendChild(tick); line.appendChild(amt); line.appendChild(from);
+
+    var say = row.dup ||
+      (row.kind === 'maybe' ? "Doesn't look like a check (an EOB page?). Tick it to add it anyway." : '') ||
+      (row.many ? 'Looks like more than one check on this page; only this one was read. Add the others by hand.' : '') ||
+      (row.other !== null ? 'The amount in words says ' + money(row.amt) + ', the box looked like ' + money(row.other) + '. Check it.' : '') ||
+      (!row.sureAmt && !row.surePayer ? 'Check the amount and who it\'s from against the picture.'
+        : !row.sureAmt ? 'Check the amount against the picture.'
+        : !row.surePayer ? 'Check who it\'s from.' : '');
+    var meta = document.createElement('div');
+    meta.className = 'bk-meta' + (say ? ' warn' : '');
+    meta.textContent = 'Page ' + row.page + (say ? ' · ' + say : '');
+
+    tick.addEventListener('change', function(){ row.on = tick.checked; card.classList.toggle('off', !row.on); paintBulk(); });
+    amt.addEventListener('input', function(){
+      amt.classList.remove('verify');
+      var v = parseFloat(amt.value);
+      row.amt = isNaN(v) ? null : v;
+      paintBulk();
+    });
+    from.addEventListener('input', function(){ from.classList.remove('verify'); row.from = from.value; });
+    card.appendChild(pic); card.appendChild(line); card.appendChild(meta);
+    $('bulkList').appendChild(card);
+  }
+
+  function paintBulk(){
+    var take = bulkRows.filter(function(r){ return r.on && r.amt > 0; });
+    var sum = Math.round(take.reduce(function(s, r){ return s + r.amt; }, 0) * 100) / 100;
+    var btn = $('bulkAdd');
+    btn.disabled = !(bulkInfo && bulkInfo.done) || !take.length;
+    btn.textContent = take.length ? 'Add ' + take.length + ' check' + (take.length === 1 ? '' : 's') + ' · ' + money(sum) : 'Add checks';
+  }
+  function bulkSay(msg, warn){ var el = $('bulkStatus'); el.textContent = msg || ''; el.classList.toggle('warn', !!warn); }
+  function bulkBar(p){ $('bulkBar').style.width = Math.round(Math.max(0, Math.min(1, p || 0)) * 100) + '%'; }
+
+  function finishBulk(){
+    ocrHooks = null;
+    bulkInfo.done = true;
+    bulkBar(1);
+    var i = bulkInfo, s = $('bulkSum');
+    var found = bulkRows.filter(function(r){ return r.kind === 'check'; }).length;
+    var skipped = i.backs + i.empty, parts = [];
+    if(!bulkRows.length){
+      bulkSay('');
+      s.textContent = 'No checks found in ' + (i.pages === 1 ? 'this page' : 'these ' + i.pages + ' pages') +
+        '. One check per page, right side up and flat, reads best; or type them in.';
+      s.classList.add('warn');
+    } else {
+      bulkSay("Done. Untick anything that shouldn't go in, fix what's wrong, then add them.");
+      parts.push('Found ' + found + ' check' + (found === 1 ? '' : 's') + ' on ' + i.pages + ' page' + (i.pages === 1 ? '' : 's') + '.');
+      if(skipped) parts.push('Skipped ' + skipped + ' page' + (skipped === 1 ? '' : 's') + ' with no check (backs, blank pages).');
+      if(bulkRows.some(function(r){ return r.on && (!r.sureAmt || !r.surePayer); })) parts.push('Check the highlighted ones against their picture.');
+      s.textContent = parts.join(' ');
+      s.classList.remove('warn');
+    }
+    if(i.failed.length) s.textContent += " Couldn't open page " + i.failed.join(', ') + '.';
+    if(i.cut) s.textContent += ' Read the first ' + MAX_PAGES + ' of ' + i.cut + ' pages.';
+    paintBulk();
+    bulkDocs.forEach(function(d){ try { d.destroy(); } catch(e){} });
+    bulkDocs = [];
+  }
+
+  function runBulk(files){
+    var seq = ++bulkSeq, pages;
+    bulkRows = [];
+    bulkInfo = { pages: 0, backs: 0, empty: 0, failed: [], cut: 0, done: false };
+    $('bulkList').textContent = '';
+    $('bulkSum').textContent = ''; $('bulkSum').classList.remove('warn');
+    $('bulk').hidden = false; $('bulk').classList.add('open');
+    ocrHooks = { bar: bulkBar, say: bulkSay };
+    bulkSay('Opening ' + (files.length === 1 ? files[0].name : files.length + ' files') + '…');
+    bulkBar(0); paintBulk();
+    pageList(files).then(function(list){
+      if(seq !== bulkSeq) return null;
+      if(!list.length) throw new Error('Nothing to read there. Pick a PDF of the scanned checks, or photos of them.');
+      if(list.length > MAX_PAGES){ bulkInfo.cut = list.length; list = list.slice(0, MAX_PAGES); }
+      pages = list;
+      return loadTesseract();
+    }).then(function(worker){
+      if(seq !== bulkSeq || !worker) return;
+      var n = 0;
+      function next(){
+        if(seq !== bulkSeq || n >= pages.length) return;
+        var i = n++, page = null;
+        bulkSay('Reading page ' + (i + 1) + ' of ' + pages.length + '…');
+        bulkBar(i / pages.length);
+        return pages[i]().then(function(c){
+          page = c;
+          return readPage(worker, c, i, pages.length, seq);
+        }).then(function(res){
+          if(seq === bulkSeq) takePage(res, page, i);
+        }, function(){
+          if(seq === bulkSeq){ bulkInfo.pages++; bulkInfo.failed.push(i + 1); }
+        }).then(function(){ release(page); return next(); });
+      }
+      return next();
+    }).then(function(){
+      if(seq === bulkSeq) finishBulk();
+    }).catch(function(err){
+      if(seq !== bulkSeq) return;
+      ocrHooks = null;
+      bulkInfo.done = true;
+      bulkSay(err && err.message ? err.message : "Couldn't read that file.", true);
+      paintBulk();
+    });
+  }
+
+  window.startBulk = function(){ $('bulkInput').value = ''; $('bulkInput').click(); };
+  $('bulkInput').addEventListener('change', function(){
+    var files = Array.prototype.slice.call(this.files || []);
+    if(files.length) runBulk(files);
+  });
+
+  window.closeBulk = function(){
+    bulkSeq++;                                   /* stops a read in progress */
+    ocrHooks = null;
+    $('bulk').classList.remove('open');
+    $('bulk').hidden = true;
+    $('bulkList').textContent = '';
+    bulkRows = [];
+    $('zoom').hidden = true;
+    $('zoomImg').removeAttribute('src');
+    $('bulkInput').value = '';
+    bulkDocs.forEach(function(d){ try { d.destroy(); } catch(e){} });
+    bulkDocs = [];
+  };
+
+  window.addBulk = function(){
+    var take = bulkRows.filter(function(r){ return r.on && r.amt > 0; });
+    if(!take.length) return;
+    var sum = 0;
+    take.forEach(function(r){
+      var amt = Math.round(r.amt * 100) / 100;
+      sum += amt;
+      checks.push({ amt: amt, from: (r.from || '').trim(), no: r.no });
+    });
+    window.closeBulk();
+    renderChecks(); paint();
+    toast('Added ' + take.length + ' check' + (take.length === 1 ? '' : 's') + ' · ' + money(Math.round(sum * 100) / 100));
+  };
+
+  $('zoom').addEventListener('click', function(){ $('zoom').hidden = true; });
+
   /* exposed for testing the parsers */
-  window.__depositParse = { findAmount: findAmount, findPayer: findPayer };
+  window.__depositParse = { findAmount: findAmount, findPayer: findPayer, wordsAmount: wordsAmount,
+    bestAmount: bestAmount, checkMarks: checkMarks, checkNumber: checkNumber };
 
   renderChecks();
   paint();
