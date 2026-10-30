@@ -514,22 +514,23 @@ def _surface_points(V, F, lo, hi, step, margin=1.0):
     return np.vstack(pts)
 
 
-def _signed_distance(points, inside, lo, cell, cap):
-    """Distance (mm) from every voxel centre to the nearest of `points` (a densely sampled surface), negative where
-    `inside`; `cap` mm at most."""
+def _signed_distance(points, inside, lo, cell, cap, where=None):
+    """Distance (mm) from voxel centres to the nearest of `points` (a densely sampled surface), negative where
+    `inside`; `cap` mm at most. Only the voxels in `where` are measured (the rest get +-cap)."""
     from scipy.spatial import cKDTree
-    shape = inside.shape
+    out = np.where(inside, -cap, cap).astype(np.float32)
     if not len(points):
-        return np.where(inside, -cap, cap).astype(np.float32)
-    tree = cKDTree(points)
-    ii, jj, kk = np.meshgrid(*(np.arange(s) for s in shape), indexing="ij")
-    ctr = np.column_stack([ii.ravel(), jj.ravel(), kk.ravel()]) * cell + (lo + 0.5 * cell)
-    d, _ = tree.query(ctr, k=1, distance_upper_bound=cap, workers=-1)
-    d = np.minimum(d, cap).reshape(shape).astype(np.float32)
-    return np.where(inside, -d, d)
+        return out
+    idx = np.argwhere(where) if where is not None else np.argwhere(np.ones(inside.shape, bool))
+    if not len(idx):
+        return out
+    d, _ = cKDTree(points).query(idx * cell + (lo + 0.5 * cell), k=1, distance_upper_bound=cap, workers=-1)
+    d = np.minimum(d, cap).astype(np.float32)
+    out[tuple(idx.T)] = np.where(inside[tuple(idx.T)], -d, d)
+    return out
 
 
-def blend_fill(fill, surface, feather=0.8, overlap=0.2, cell=0.075, pad=1.2, max_voxels=6.0e6, taubin=6, log=None):
+def blend_fill(fill, surface, feather=0.8, overlap=0.2, cell=0.1, pad=0.6, max_voxels=6.0e6, taubin=6, log=None):
     """A block-out blended into the model: smooth, every edge feathered into the tooth and the gum (the doctor,
     10/29/2026, on the painted block-out: "its surface needs to be a lot more smooth and feathered").
 
@@ -565,8 +566,11 @@ def blend_fill(fill, surface, feather=0.8, overlap=0.2, cell=0.075, pad=1.2, max
     if not Fo.any():
         return None, dict(info, error="the fill is thinner than the grid")
     cap = R + 1.0
-    phiO = _signed_distance(_surface_points(SV, SF[fsel], lo, hi, 0.4 * cell), O, lo, cell, cap)
-    phiF = _signed_distance(_surface_points(fill.vertices, fill.faces, lo, hi, 0.4 * cell), Fo, lo, cell, cap)
+    # distances are only needed in a shell round the fill (beyond R nothing changes): measured there, +-cap elsewhere
+    band = (ndi.distance_transform_edt(~Fo) * cell) <= R + 2 * cell
+    bb = np.argwhere(band); blo = lo + bb.min(0) * cell - 2 * cell; bhi = lo + (bb.max(0) + 1) * cell + 2 * cell
+    phiO = _signed_distance(_surface_points(SV, SF[fsel], blo, bhi, 0.5 * cell, margin=0.3), O, lo, cell, cap, where=band)
+    phiF = _signed_distance(_surface_points(fill.vertices, fill.faces, blo, bhi, 0.5 * cell, margin=0.3), Fo, lo, cell, cap, where=band)
     k = max(float(feather), 1e-3)
     h = np.clip(0.5 + 0.5 * (phiF - phiO) / k, 0.0, 1.0)
     phi = phiF * (1.0 - h) + phiO * h - k * h * (1.0 - h)          # smooth union of model and fill
