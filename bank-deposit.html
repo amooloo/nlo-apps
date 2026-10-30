@@ -60,7 +60,9 @@
   .card{
     background:var(--surface);border:1px solid var(--line);
     border-radius:14px;box-shadow:var(--shadow);overflow:hidden;
+    overflow:clip;   /* clips the corners like hidden, but lets the total bar stay pinned (sticky) */
   }
+  html{scroll-padding-bottom:140px}   /* a field scrolled into view isn't left under the pinned total */
 
   header{
     padding:18px 20px 16px;border-bottom:1px solid var(--line);
@@ -213,7 +215,29 @@
   .total .amt{font-size:26px;font-weight:680;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink)}
   .total .amt.zero{color:var(--muted);font-weight:500}
   .actions{display:flex;gap:8px}
+  .actions .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding-left:13px;padding-right:13px;white-space:nowrap}
+  .actions .btn svg{width:17px;height:17px;flex:none}
   .actions .btn-primary{flex:1}
+  /* phones: the three buttons share the bar with the Ask AISA corner */
+  @media (max-width:420px){
+    .actions{gap:6px}
+    .actions .btn{padding-left:10px;padding-right:10px;gap:6px}
+    .actions .long{display:none}
+  }
+  @media (max-width:340px){ .actions .btn svg{display:none} }
+
+  /* what happened to the email (sent, sending, couldn't), with its follow-up buttons */
+  .note{
+    display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px;margin-top:9px;
+    font-size:12.5px;line-height:1.35;color:var(--ink-2);
+  }
+  .note:empty{display:none}
+  .note.ok{color:var(--ok)}
+  .note.off{color:var(--warn)}
+  .note .linkbtn{
+    appearance:none;border:none;background:none;font:inherit;font-weight:600;cursor:pointer;
+    color:var(--accent);padding:3px 0;text-decoration:underline;text-underline-offset:2px;
+  }
 
   .toast{
     margin-top:10px;padding:9px 12px;border-radius:8px;font-size:13px;text-align:center;
@@ -254,8 +278,12 @@
   }
 </style>
 <style id="nlo-aisa-room">
-/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: on narrow screens the pinned total leaves it that corner, so the total and Print stay clear. */
-@media screen and (max-width:680px){html.nlo-aisa-on .total{padding-right:var(--nlo-aisa-space)}}
+/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: on narrow screens the pinned total's buttons and notes leave it that corner, so Email and Print stay clear (the total itself sits above it). */
+@media screen and (max-width:680px){html.nlo-aisa-on .total .actions,html.nlo-aisa-on .total .note,html.nlo-aisa-on .total #toast{margin-right:calc(var(--nlo-aisa-space) - 20px)}}
+</style>
+<style id="nlo-home-room">
+/* The NLO Apps button (nlo-home.js) sits in the top-left corner: where the card would reach it, the page starts below it. */
+@media screen and (max-width:780px){html.nlo-home-on body{padding-top:var(--nlo-home-drop)}}
 </style>
 </head>
 <body>
@@ -315,15 +343,22 @@
         </div>
         <div class="actions">
           <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
-          <button class="btn btn-primary" onclick="printSlip()">Print deposit slip</button>
+          <button class="btn btn-ghost" id="mailBtn" onclick="emailDeposit()" title="Email this deposit to Dr. A">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg>Email
+          </button>
+          <button class="btn btn-primary" onclick="printSlip()" title="Print the deposit slip (on a phone: share it to Print, Files or Mail)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg><span>Print<span class="long"> slip</span></span>
+          </button>
         </div>
+        <div class="note" id="mailNote" role="status" aria-live="polite"></div>
+        <div class="note" id="printNote" role="status" aria-live="polite"></div>
         <div id="toast"></div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="scan" id="scan" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+<div class="scan" id="scan" role="dialog" aria-modal="true" aria-labelledby="scanTitle" hidden>
   <div class="sheet">
     <div class="sh-head"><h3 id="scanTitle">Scanned check</h3><button class="close" onclick="closeScan()" aria-label="Close">&times;</button></div>
     <img id="scanImg" alt="Check photo">
@@ -412,6 +447,7 @@
       el.textContent = (v > 0 ? 'Over ' : 'Short ') + money(Math.abs(v));
       el.classList.add('off');
     }
+    paintMail();
   }
 
   function renderChecks(){
@@ -448,6 +484,8 @@
     $('checkInput').value = '';
     $('daySheet').value = '';
     checks = [];
+    mail = newMail();                            /* the next deposit gets an email of its own */
+    note('mail', ''); note('print', '');
     renderChecks(); paint();
     $('toast').innerHTML = '';
     $('bill100').focus();
@@ -458,75 +496,456 @@
     setTimeout(function(){ $('toast').innerHTML = ''; }, 3000);
   }
 
-  window.printSlip = function(){
-    var c = cashTotal(), k = checksTotal(), g = Math.round((c + k) * 100) / 100;
-    if(g === 0){ toast('Enter cash or checks first'); return; }
-
-    var bills = [];
-    DENOMS.forEach(function(d){
-      if(countOf(d) > 0) bills.push({denom:d, count:countOf(d), value:countOf(d)*d});
+  /* A line under the buttons: slot 'mail' (the email) or 'print'; actions are [label, onclick] pairs. */
+  function note(slot, msg, kind, actions){
+    var el = $(slot === 'print' ? 'printNote' : 'mailNote');
+    el.className = 'note' + (kind ? ' ' + kind : '');
+    el.textContent = '';
+    if(!msg) return;
+    var span = document.createElement('span');
+    span.textContent = msg;
+    el.appendChild(span);
+    (actions || []).forEach(function(a){
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'linkbtn'; b.textContent = a[0];
+      b.addEventListener('click', a[1]);
+      el.appendChild(b);
     });
+  }
 
+  /* ================= One deposit, four ways to show it =================
+     snapshot() is what's on the screen. The printed slip (computers), the PDF (phones),
+     the email and the Mail-app text are all made from it, so they always agree. */
+  function snapshot(){
+    var bills = {};
+    DENOMS.forEach(function(d){ bills[d] = countOf(d); });
+    var c = cashTotal(), k = checksTotal();
+    return {
+      bills: bills, coin: coinOf(),
+      checks: checks.map(function(x){ return { amt: x.amt, from: x.from || '' }; }),
+      cash: c, checksTotal: k, total: Math.round((c + k) * 100) / 100,
+      daySheet: daySheet(), variance: variance(), when: new Date()
+    };
+  }
+  function stamp(d){
+    return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  }
+  function verdictText(v){
+    return v === 0 ? 'Balanced' : (v > 0 ? 'Over ' : 'Short ') + money(Math.abs(v));
+  }
+  /* Checks grouped by who they're from, biggest first; only when at least one check says who */
+  function byPayer(list){
+    if(!list.some(function(x){ return x.from; })) return [];
+    var groups = {}, order = [];
+    list.forEach(function(x){
+      var key = x.from || 'Not specified';
+      if(!groups[key]){ groups[key] = {name:key, n:0, t:0}; order.push(key); }
+      groups[key].n++; groups[key].t += x.amt;
+    });
+    order.sort(function(a,b){ return groups[b].t - groups[a].t; });
+    return order.map(function(k){ var g = groups[k]; g.t = Math.round(g.t * 100) / 100; return g; });
+  }
+
+  /* The printed slip (computers print the page; #slip only shows on paper) */
+  function slipHtml(s){
+    var bills = DENOMS.filter(function(d){ return s.bills[d] > 0; });
     var billRows = bills.length
-      ? bills.map(function(b){
-          return '<tr><td>$' + b.denom + ' bills</td><td class="r">' + b.count +
-                 '</td><td class="r">' + money(b.value) + '</td></tr>';
+      ? bills.map(function(d){
+          return '<tr><td>$' + d + ' bills</td><td class="r">' + s.bills[d] +
+                 '</td><td class="r">' + money(s.bills[d]*d) + '</td></tr>';
         }).join('')
       : '<tr><td colspan="3" style="color:#777">No bills</td></tr>';
-    var coinRow = coinOf() > 0
-      ? '<tr><td>Coin</td><td class="r">&mdash;</td><td class="r">' + money(coinOf()) + '</td></tr>' : '';
-    var checkRows = checks.length
-      ? checks.map(function(x,i){
+    var coinRow = s.coin > 0
+      ? '<tr><td>Coin</td><td class="r">&mdash;</td><td class="r">' + money(s.coin) + '</td></tr>' : '';
+    var checkRows = s.checks.length
+      ? s.checks.map(function(x,i){
           return '<tr><td>Check ' + (i+1) + '</td><td>' + esc(x.from || '—') + '</td><td class="r">' + money(x.amt) + '</td></tr>';
         }).join('')
       : '<tr><td colspan="3" style="color:#777">No checks</td></tr>';
 
-    /* By-payer subtotals, only when at least one check has a payer */
-    var byPayer = '';
-    if(checks.some(function(x){ return x.from; })){
-      var groups = {}, order = [];
-      checks.forEach(function(x){
-        var key = x.from || 'Not specified';
-        if(!groups[key]){ groups[key] = {n:0, t:0}; order.push(key); }
-        groups[key].n++; groups[key].t += x.amt;
-      });
-      order.sort(function(a,b){ return groups[b].t - groups[a].t; });
-      byPayer = '<h3>Checks by payer</h3>' +
+    var groups = byPayer(s.checks);
+    var payerTable = groups.length
+      ? '<h3>Checks by payer</h3>' +
         '<table><thead><tr><th>From</th><th class="r">Checks</th><th class="r">Amount</th></tr></thead><tbody>' +
-        order.map(function(k){
-          return '<tr><td>' + esc(k) + '</td><td class="r">' + groups[k].n + '</td><td class="r">' +
-                 money(Math.round(groups[k].t * 100) / 100) + '</td></tr>';
-        }).join('') + '</tbody></table>';
-    }
+        groups.map(function(g){
+          return '<tr><td>' + esc(g.name) + '</td><td class="r">' + g.n + '</td><td class="r">' + money(g.t) + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '';
 
-    var ds = daySheet(), v = variance();
-    var recon = ds === null ? '' :
+    var recon = s.daySheet === null ? '' :
       '<div class="recon">' +
-        '<div><span>Day sheet collected</span><span>' + money(ds) + '</span></div>' +
-        '<div><span>Variance</span><span>' +
-          (v === 0 ? 'Balanced' : (v > 0 ? 'Over ' : 'Short ') + money(Math.abs(v))) +
-        '</span></div>' +
+        '<div><span>Day sheet collected</span><span>' + money(s.daySheet) + '</span></div>' +
+        '<div><span>Variance</span><span>' + verdictText(s.variance) + '</span></div>' +
       '</div>';
 
-    $('slip').innerHTML =
-      '<h2>Deposit Slip</h2>' +
-      '<div class="meta"><span>Bank of America</span><span>' +
-        new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) +
-      '</span></div>' +
+    return '<h2>Deposit Slip</h2>' +
+      '<div class="meta"><span>Bank of America</span><span>' + stamp(s.when) + '</span></div>' +
       '<h3>Cash by denomination</h3>' +
       '<table><thead><tr><th>Denomination</th><th class="r">Count</th><th class="r">Amount</th></tr></thead>' +
       '<tbody>' + billRows + coinRow +
-      '<tr class="sub"><td>Cash subtotal</td><td></td><td class="r">' + money(c) + '</td></tr>' +
+      '<tr class="sub"><td>Cash subtotal</td><td></td><td class="r">' + money(s.cash) + '</td></tr>' +
       '</tbody></table>' +
-      '<h3>Checks (' + checks.length + ')</h3>' +
+      '<h3>Checks (' + s.checks.length + ')</h3>' +
       '<table><thead><tr><th>Item</th><th>From</th><th class="r">Amount</th></tr></thead><tbody>' + checkRows +
-      '<tr class="sub"><td>Checks subtotal</td><td></td><td class="r">' + money(k) + '</td></tr>' +
-      '</tbody></table>' + byPayer +
-      '<div class="grand"><span>TOTAL DEPOSIT</span><span>' + money(g) + '</span></div>' +
+      '<tr class="sub"><td>Checks subtotal</td><td></td><td class="r">' + money(s.checksTotal) + '</td></tr>' +
+      '</tbody></table>' + payerTable +
+      '<div class="grand"><span>TOTAL DEPOSIT</span><span>' + money(s.total) + '</span></div>' +
       recon +
       '<div class="sig"><div>Prepared by</div><div>Verified by</div><div>Bank receipt #</div></div>';
+  }
 
-    window.print();
+  /* The deposit as plain text, for the Mail-app email */
+  function slipText(s){
+    var t = ['Bank deposit · Bank of America', stamp(s.when), '', 'CASH  ' + money(s.cash)];
+    DENOMS.forEach(function(d){ if(s.bills[d]) t.push('  $' + d + ' bills x ' + s.bills[d] + '  ' + money(s.bills[d] * d)); });
+    if(s.coin) t.push('  Coin  ' + money(s.coin));
+    if(!s.cash) t.push('  No cash');
+    t.push('', 'CHECKS (' + s.checks.length + ')  ' + money(s.checksTotal));
+    s.checks.forEach(function(x, i){ t.push('  ' + (i+1) + '. ' + (x.from || 'Not specified') + '  ' + money(x.amt)); });
+    if(!s.checks.length) t.push('  No checks');
+    var groups = byPayer(s.checks);
+    if(groups.length){
+      t.push('', 'CHECKS BY PAYER');
+      groups.forEach(function(g){ t.push('  ' + g.name + ' (' + g.n + ')  ' + money(g.t)); });
+    }
+    t.push('', 'TOTAL DEPOSIT  ' + money(s.total));
+    if(s.daySheet !== null) t.push('Day sheet collected  ' + money(s.daySheet) + '  ·  ' + verdictText(s.variance));
+    return t.join('\n');
+  }
+  function subjectLine(s, update){
+    return 'Bank deposit' + (update ? ' (updated)' : '') + ' · ' + money(s.total) + ' · ' +
+      s.when.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+  }
+
+  /* ================= The slip as a PDF (iPhone, iPad, and browsers that can't print) =================
+     iPhone and iPad print through the share sheet, and a browser inside another app often can't
+     print a page at all. So there the slip is written as a PDF (Letter, in the PDF viewer's own
+     Helvetica, nothing to download) and handed to the share sheet: Print, Save to Files, Mail.
+     It reads like the printed slip and runs onto a second page when there are many checks. */
+  var HELV = {   /* Helvetica's character widths per 1000, space (32) to ~ (126) */
+    r: [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584],
+    b: [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584],
+    x: {151:1000, 150:556, 133:1000, 149:350}   /* em dash, en dash, ellipsis, bullet */
+  };
+  var WINANSI = {0x2014:151, 0x2013:150, 0x2026:133, 0x2022:149, 0x2018:145, 0x2019:146, 0x201C:147, 0x201D:148, 0x20AC:128};
+
+  function pdfChars(str){                        /* to the PDF fonts' characters; what they lack shows as ? */
+    str = String(str);
+    var out = '';
+    for(var i = 0; i < str.length; i++){
+      var c = str.codePointAt(i);
+      if(c > 0xFFFF) i++;
+      if((c >= 32 && c < 127) || (c >= 160 && c <= 255)) out += String.fromCharCode(c);
+      else if(WINANSI[c]) out += String.fromCharCode(WINANSI[c]);
+      else if(c === 9 || c === 10 || c === 13) out += ' ';
+      else out += '?';
+    }
+    return out;
+  }
+  function pdfWidth(str, bold, size){            /* str already through pdfChars */
+    var w = bold ? HELV.b : HELV.r, t = 0;
+    for(var i = 0; i < str.length; i++){
+      var c = str.charCodeAt(i);
+      t += c >= 32 && c <= 126 ? w[c - 32] : (HELV.x[c] || 556);
+    }
+    return t * size / 1000;
+  }
+
+  function slipPdf(s){
+    var PW = 612, PH = 792, L = 54, R = PW - 54, TOP = PH - 50, BOT = 50;
+    var pages = [], ops = null, y = 0, reHead = null, when = stamp(s.when);
+    function n(v){ return String(Math.round(v * 100) / 100); }
+    function text(x, yy, str, size, bold, right, gray){
+      var t = pdfChars(str);
+      if(right) x -= pdfWidth(t, bold, size);
+      ops.push((gray ? gray + ' g ' : '') + 'BT /' + (bold ? 'F2 ' : 'F1 ') + size + ' Tf ' + n(x) + ' ' + n(yy) +
+               ' Td (' + t.replace(/[\\()]/g, '\\$&') + ') Tj ET' + (gray ? ' 0 g' : ''));
+    }
+    function rule(x1, x2, yy, w, gray){
+      ops.push((gray ? gray + ' G ' : '') + w + ' w ' + n(x1) + ' ' + n(yy) + ' m ' + n(x2) + ' ' + n(yy) + ' l S' + (gray ? ' 0 G' : ''));
+    }
+    function fit(str, maxW, size){              /* shortens a name with ... to fit its column */
+      var t = String(str);
+      if(pdfWidth(pdfChars(t), false, size) <= maxW) return t;
+      while(t.length > 1 && pdfWidth(pdfChars(t + '...'), false, size) > maxW) t = t.slice(0, -1);
+      return t.replace(/\s+$/, '') + '...';
+    }
+    function newPage(){
+      ops = []; pages.push(ops); y = TOP;
+      if(pages.length > 1){
+        text(L, y - 10, 'Deposit Slip (continued)', 10, true);
+        text(R, y - 10, when, 8.5, false, true, 0.35);
+        y -= 22;
+      }
+    }
+    function need(h){ if(y - h < BOT){ newPage(); if(reHead) reHead(); } }
+    function section(label){
+      reHead = null;
+      need(64);
+      y -= 24;
+      text(L, y, label.toUpperCase(), 7.5, true, false, 0.3);
+      rule(L, R, y - 4, 0.6, 0.55);
+    }
+    function heads(cols){                        /* [label, x, right-aligned] */
+      reHead = function(){
+        y -= 15;
+        cols.forEach(function(c){ text(c[1], y, c[0].toUpperCase(), 6.8, true, c[2], 0.3); });
+        rule(L, R, y - 4.5, 0.8);
+      };
+      reHead();
+    }
+    function row(cells, sub){                    /* [text, x, right-aligned, gray] */
+      need(17);
+      y -= 15;
+      if(sub) rule(L, R, y + 10, 0.8);
+      cells.forEach(function(c){ text(c[1], y, c[0], 9.5, !!sub, c[2], c[3]); });
+      if(!sub) rule(L, R, y - 5, 0.5, 0.85);
+    }
+
+    newPage();
+    text(L, y - 14, 'Deposit Slip', 17, true);
+    y -= 22;
+    rule(L, R, y, 1.6);
+    y -= 13;
+    text(L, y, 'Bank of America', 9);
+    text(R, y, when, 9, false, true);
+
+    var COUNT = R - 130, FROM = L + 70;
+    section('Cash by denomination');
+    heads([['Denomination', L + 4], ['Count', COUNT, true], ['Amount', R - 4, true]]);
+    var bills = DENOMS.filter(function(d){ return s.bills[d] > 0; });
+    bills.forEach(function(d){
+      row([['$' + d + ' bills', L + 4], [String(s.bills[d]), COUNT, true], [money(s.bills[d] * d), R - 4, true]]);
+    });
+    if(!bills.length) row([['No bills', L + 4, false, 0.45]]);
+    if(s.coin > 0) row([['Coin', L + 4], ['—', COUNT, true], [money(s.coin), R - 4, true]]);
+    row([['Cash subtotal', L + 4], [money(s.cash), R - 4, true]], true);
+
+    section('Checks (' + s.checks.length + ')');
+    heads([['Item', L + 4], ['From', FROM], ['Amount', R - 4, true]]);
+    s.checks.forEach(function(x, i){
+      row([['Check ' + (i + 1), L + 4], [fit(x.from || '—', R - 100 - FROM, 9.5), FROM], [money(x.amt), R - 4, true]]);
+    });
+    if(!s.checks.length) row([['No checks', L + 4, false, 0.45]]);
+    row([['Checks subtotal', L + 4], [money(s.checksTotal), R - 4, true]], true);
+
+    var groups = byPayer(s.checks);
+    if(groups.length){
+      section('Checks by payer');
+      heads([['From', L + 4], ['Checks', R - 110, true], ['Amount', R - 4, true]]);
+      groups.forEach(function(g){
+        row([[fit(g.name, R - 150 - L, 9.5), L + 4], [String(g.n), R - 110, true], [money(g.t), R - 4, true]]);
+      });
+    }
+    reHead = null;
+
+    need(48);
+    y -= 36;
+    ops.push('1.6 w ' + n(L) + ' ' + n(y - 9) + ' ' + n(R - L) + ' 28 re S');
+    text(L + 10, y, 'TOTAL DEPOSIT', 12, true);
+    text(R - 10, y, money(s.total), 13, true, true);
+    y -= 9;
+
+    if(s.daySheet !== null){
+      need(36);
+      y -= 18;
+      text(L + 10, y, 'Day sheet collected', 9.5);
+      text(R - 10, y, money(s.daySheet), 9.5, false, true);
+      y -= 14;
+      text(L + 10, y, 'Variance', 9.5);
+      text(R - 10, y, verdictText(s.variance), 9.5, true, true);
+    }
+
+    need(76);
+    y -= 60;
+    var gap = 24, w = (R - L - 2 * gap) / 3;
+    ['Prepared by', 'Verified by', 'Bank receipt #'].forEach(function(label, i){
+      var x = L + i * (w + gap);
+      rule(x, x + w, y, 0.8);
+      text(x, y - 11, label, 7.5, false, false, 0.25);
+    });
+
+    if(pages.length > 1) pages.forEach(function(p, i){
+      ops = p;
+      text(R, BOT - 22, 'Page ' + (i + 1) + ' of ' + pages.length, 7.5, false, true, 0.4);
+    });
+
+    /* the file: catalog, page list, two fonts, info, then each page and its drawing */
+    var objs = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+      '<< /Title (Deposit Slip ' + pdfChars(when).replace(/[\\()]/g, '\\$&') + ') /Producer (NLO Bank Deposit) >>'
+    ];
+    var kids = [];
+    pages.forEach(function(p){
+      var body = p.join('\n');
+      objs.push('<< /Length ' + body.length + ' >>\nstream\n' + body + '\nendstream');
+      objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PW + ' ' + PH + '] ' +
+                '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + (objs.length) + ' 0 R >>');
+      kids.push(objs.length + ' 0 R');
+    });
+    objs[1] = '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + kids.length + ' >>';
+    var out = '%PDF-1.4\n%âãÏÓ\n', offsets = [];
+    objs.forEach(function(o, i){
+      offsets.push(out.length);
+      out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n';
+    });
+    var xref = out.length;
+    out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n';
+    offsets.forEach(function(o){ out += ('000000000' + o).slice(-10) + ' 00000 n \n'; });
+    out += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R /Info 5 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+    var bytes = new Uint8Array(out.length);
+    for(var i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+    return bytes;
+  }
+
+  function pdfName(d){
+    var p2 = function(v){ return (v < 10 ? '0' : '') + v; };
+    return 'Deposit-' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + '.pdf';
+  }
+  function sharePdf(s){
+    var bytes = slipPdf(s), name = pdfName(s.when), file = null, can = false;
+    try { file = new File([bytes], name, { type: 'application/pdf' }); } catch(e){}
+    try { can = !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })); } catch(e){}
+    if(can){
+      navigator.share({ files: [file], title: 'Deposit slip' }).catch(function(err){
+        if(err && err.name === 'AbortError') return;      /* the share sheet was closed */
+        openPdf(bytes, name);
+      });
+      return;
+    }
+    openPdf(bytes, name);
+  }
+  function openPdf(bytes, name){                 /* no share sheet: the PDF in a new tab (its own Print/Share), else a download */
+    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })), w = null;
+    try { w = window.open(url, '_blank'); } catch(e){}
+    if(!w){
+      var a = document.createElement('a');
+      a.href = url; a.download = name; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 120000);
+  }
+
+  function isAppleTouch(){                       /* iPhone, iPad (which can say it's a Mac), iPod */
+    var ua = navigator.userAgent || '';
+    return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  }
+  function isTouch(){
+    return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  }
+
+  window.printSlip = function(){
+    var s = snapshot();
+    if(s.total === 0){ toast('Enter cash or checks first'); return; }
+    note('print', '');
+    sendEmail(s, false);                         /* a printed deposit is emailed to Dr. A too (once) */
+    if(isAppleTouch()){ sharePdf(s); return; }   /* the share sheet has Print, Save to Files and Mail */
+    $('slip').innerHTML = slipHtml(s);
+    var opened = false;
+    var seen = function(){ opened = true; };
+    window.addEventListener('beforeprint', seen);
+    try { window.print(); } catch(e){}
+    setTimeout(function(){                       /* the print window never came up: offer the PDF */
+      window.removeEventListener('beforeprint', seen);
+      if(!opened) note('print', "Printing didn't open in this browser.", 'off',
+        [['Get it as a PDF', function(){ sharePdf(snapshot()); }]]);
+    }, 1500);
+  };
+
+  /* ================= Email it to Dr. A =================
+     api.mailUrl is the deposit email script (nlo-deposit-mail.gs in this repo): a Google Apps Script
+     web app in Dr. A's Google account that emails him the deposit, so his inbox is the record.
+     Email and Print both send it; the same deposit goes once, and a change after that goes as an
+     update. Until mailUrl is filled in, Email opens the Mail app with the deposit written out.
+     Either way this page still keeps nothing. */
+  var api = window.__deposit = {
+    mailUrl: '',                                 /* the script's web app address, ending in /exec */
+    mailTo: 'akhavan.ak@gmail.com',              /* for the Mail-app way */
+    go: function(url){ window.location.href = url; }
+  };
+  function newMail(){
+    return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), sent: null, busy: null };
+  }
+  var mail = newMail();
+
+  function depositKey(s){
+    return JSON.stringify([DENOMS.map(function(d){ return s.bills[d]; }), s.coin,
+      s.checks.map(function(x){ return [x.amt, x.from]; }), s.daySheet]);
+  }
+  function hash36(str){
+    var h = 5381;
+    for(var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+  function clockNow(){ return new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}); }
+
+  function sendEmail(s, byHand){
+    var key = depositKey(s), m = mail;
+    if(m.sent && m.sent.key === key){
+      if(byHand) toast('Already emailed to Dr. A at ' + m.sent.at);
+      return;
+    }
+    if(!api.mailUrl){ if(byHand) mailApp(s, !!m.sent); return; }
+    if(m.busy === key) return;
+    var update = !!(m.sent || m.busy);
+    m.busy = key;
+    note('mail', 'Emailing Dr. A…');
+    fetch(api.mailUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },     /* a simple request: no CORS preflight */
+      body: JSON.stringify({
+        v: 1, id: m.id + '-' + hash36(key), update: update,
+        bills: s.bills, coin: s.coin, checks: s.checks, daySheet: s.daySheet, total: s.total
+      })
+    }).then(function(r){ return r.json(); })
+      .then(function(j){
+        if(!j || !j.ok) throw new Error(j && j.error ? j.error : 'failed');
+        if(m.busy === key) m.busy = null;
+        m.sent = { key: key, at: clockNow() };
+        if(mail === m) paintMail();
+      })
+      .catch(function(err){
+        if(m.busy === key) m.busy = null;
+        if(mail !== m) return;                   /* cleared for the next deposit meanwhile */
+        var why = {
+          limit: " Today's deposit emails are used up.",
+          quota: " Gmail's sending limit for today is used up.",
+          busy: ' The email service was busy.'
+        }[err && err.message] || '';
+        note('mail', "Couldn't email it to Dr. A." + why, 'off', [
+          ['Try again', function(){ sendEmail(snapshot(), true); }],
+          ['Use the Mail app', function(){ mailApp(snapshot(), !!mail.sent); }]
+        ]);
+      });
+  }
+
+  /* After an email went: says so, or that the deposit changed since (Email or Print sends the update) */
+  function paintMail(){
+    var m = mail;
+    if(!m.sent || m.busy) return;
+    if(depositKey(snapshot()) === m.sent.key) note('mail', 'Emailed to Dr. A at ' + m.sent.at + '.', 'ok');
+    else note('mail', 'Changed since it was emailed at ' + m.sent.at + '. Email or Print sends the update.', 'off');
+  }
+
+  function mailApp(s, update){
+    var subject = subjectLine(s, update), body = slipText(s);
+    api.go('mailto:' + api.mailTo + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
+    if(isTouch()) note('mail', 'Opened in your email app. Tap Send there.');
+    else note('mail', 'Opened in your email program. Send it from there.', '', [
+      ["Didn't open? Write it in Gmail", function(){
+        window.open('https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(api.mailTo) +
+          '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body), '_blank', 'noopener');
+      }]
+    ]);
+  }
+
+  window.emailDeposit = function(){
+    var s = snapshot();
+    if(s.total === 0){ toast('Enter cash or checks first'); return; }
+    sendEmail(s, true);
   };
 
   /* wiring: Enter walks down the denominations, then coin, then the check field */
@@ -731,6 +1150,7 @@
   }
 
   function openSheet(){
+    $('scan').hidden = false;                    /* hidden while closed, so the NLO Apps and AISA buttons show */
     $('scan').classList.add('open');
     $('scanAmt').value = ''; $('scanFrom').value = '';
     $('scanAmt').classList.remove('verify'); $('scanFrom').classList.remove('verify');
@@ -743,6 +1163,7 @@
   window.closeScan = function(){
     scanSeq++;                                   /* cancel any read in progress */
     $('scan').classList.remove('open');
+    $('scan').hidden = true;
     $('scanImg').removeAttribute('src');
     if(scanUrl){ URL.revokeObjectURL(scanUrl); scanUrl = null; }
     $('camInput').value = '';
