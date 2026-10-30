@@ -148,10 +148,13 @@
     if (newer.length) {
       h += '<div class="card good"><div class="big">This browser has newer Staff Hub data ✓</div>' +
         '<div>Saved here: <b>' + esc(when(newer[0].p.updatedAt)) + '</b>. The server only has <b>' + esc(when(since)) + '</b>.</div>' +
-        '<ol><li>In this same browser, open <a href="' + HUB + '">Staff Hub</a>.</li><li>Check the bottom of the sign-in box says <b>“Updated Oct 4, 2026 · safe saving”</b> (reload if not).</li><li>Unlock and tap <b>Bring it back</b>.</li></ol>' +
+        '<ol><li>In this same browser, open <a href="' + HUB + '">Staff Hub</a>.</li><li>Check the bottom of the sign-in box mentions <b>safe saving</b> (reload if not).</li><li>Sign in and tap <b>Bring it back</b>.</li></ol>' +
         '<p class="muted" style="margin-top:10px">Or keep a copy first: download it below. It can be restored in Staff Hub under Settings → Restore, with your Staff Hub password.</p></div>';
     } else if (list.length) {
-      h += '<div class="card"><div class="big">Nothing newer in this browser</div><div>Its saved copy is from <b>' + esc(when(list[0].p.updatedAt)) + '</b>' +
+      h += since == null && srv && srv.signedOut
+        /* Staff Hub doesn't stay signed in any more (Oct 30, 2026), so there's no server date to compare with here */
+        ? '<div class="card"><div class="big">Staff Hub copies saved in this browser</div><div>Newest: <b>' + esc(when(list[0].p.updatedAt)) + '</b>. Staff Hub no longer stays signed in, so this page can’t compare them with the server. Sign in to <a href="' + HUB + '">Staff Hub</a> in this browser: if one is newer than the server’s, it offers to bring it back by itself.</div></div>'
+        : '<div class="card"><div class="big">Nothing newer in this browser</div><div>Its saved copy is from <b>' + esc(when(list[0].p.updatedAt)) + '</b>' +
         (since != null ? ', and the server already has <b>' + esc(when(since)) + '</b>.' : '.') + ' The missing data isn’t here. Try another browser or computer.</div></div>';
     } else if (cache.err) {
       h += '<div class="card warn"><div class="big">Couldn’t read this browser’s storage</div><div class="muted">' + esc(cache.err) + '</div></div>';

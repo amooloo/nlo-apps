@@ -65,6 +65,9 @@ svg.i{flex:none;display:inline-block;vertical-align:-4px}
 .lockErr{background:var(--coral-100);color:var(--coral-700);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:500;margin-bottom:14px;display:none}
 .lockFoot{margin-top:18px;font-size:12px;color:var(--mut2);text-align:center}
 .lockFoot a{color:var(--blue);font-weight:600}
+.lockOk{background:var(--mint-100);color:var(--mint-700);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:500;margin-bottom:14px}
+.linkBtn{background:none;border:0;padding:0;margin:0;color:var(--blue);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.linkBtn:hover{text-decoration:underline}
 .lockMeta{display:flex;align-items:center;gap:7px;font-size:11.5px;letter-spacing:.06em;color:var(--navy-500);text-transform:uppercase;font-family:var(--fd);font-weight:500}
 .ackBox{display:flex;gap:10px;align-items:flex-start;background:var(--amber-100);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--amber-700);margin-bottom:16px;line-height:1.5}
 .ackBox input{margin-top:2px;accent-color:var(--amber-600)}
@@ -963,8 +966,8 @@ function enterApp() {
   if (idleTimer) clearInterval(idleTimer);
   idleTimer = setInterval(() => {
     if (!S) return;
-    const min = S.settings.autoLockMin;
-    if (min > 0 && Date.now() - lastActivity > min * 60000) lockNow('Locked automatically after ' + min + ' min of inactivity.');
+    const min = ncIdleMin();   /* NLO Cases' idle minutes (its Team & security), as in every app on its login */
+    if (Date.now() - lastActivity > min * 60000) lockNow('Locked after ' + plural(min, 'minute') + ' without activity.');
   }, 15000);
   render();
   if (typeof renderSyncStatus === 'function') renderSyncStatus();
@@ -1046,7 +1049,7 @@ function renderNav() {
   $('#officeNameTop').textContent = S.settings.officeName || 'Next Level Orthodontics';
 }
 H.nav = t => go(t.dataset.id);
-H.lockNow = () => { lockNow(); };
+H.lockNow = () => { lockNow('Locked. Sign in to continue.'); };
 
 function pageHeadHTML(eyebrow, title, sub, actions) {
   return `<div class="pageHead">
@@ -2367,7 +2370,7 @@ function viewSettings() {
   <div class="grid two" style="grid-template-columns:1fr 1fr;align-items:start">
     <div class="panel"><div class="ph"><h3>${ic('gear',16)}Preferences</h3></div><div class="pb">
       <div class="setRow"><div class="st"><b>Practice name</b><span>Shown in the sidebar and on printouts</span></div><input type="text" value="${esc(S.settings.officeName)}" data-chg="setVal" data-key="officeName" style="width:220px"></div>
-      <div class="setRow"><div class="st"><b>Auto-lock after</b><span>Minutes of inactivity before the app locks itself (0 = never)</span></div><input type="number" min="0" max="120" value="${S.settings.autoLockMin}" data-chg="setVal" data-key="autoLockMin"> <span class="muted">min</span></div>
+      <div class="setRow"><div class="st"><b>Auto-lock</b><span>After ${plural(ncIdleMin(), 'minute')} without activity, the same as NLO Cases (set in NLO Cases → Team &amp; security)</span></div></div>
       <div class="setRow"><div class="st"><b>Review reminders</b><span>Flag reviews “due soon” this many days ahead</span></div><input type="number" min="7" max="90" value="${S.settings.reviewAlertDays}" data-chg="setVal" data-key="reviewAlertDays"> <span class="muted">days</span></div>
       <div class="setRow"><div class="st"><b>Certification alerts</b><span>Warn this many days before a cert expires</span></div><input type="number" min="14" max="180" value="${S.settings.certAlertDays}" data-chg="setVal" data-key="certAlertDays"> <span class="muted">days</span></div>
     </div></div>
@@ -2381,10 +2384,10 @@ function viewSettings() {
         <button class="btn btn-sec btn-sm" data-act="shVersions">${ic('clock',13)} Earlier versions…</button>
         <button class="btn btn-sec btn-sm" data-act="expPlain">Readable JSON</button>
       </div>
-      <p class="tiny" style="margin-top:12px">The encrypted backup (.json) is unreadable without your passphrase — safe to keep on a USB drive or private cloud folder. The readable export is <b>not</b> encrypted; avoid saving it anywhere shared, and never in a public GitHub repo.</p>
+      <p class="tiny" style="margin-top:12px">The encrypted backup (.json) can’t be read without Staff Hub’s key (Restore… here opens it) — safe to keep on a USB drive or private cloud folder. The readable export is <b>not</b> encrypted; avoid saving it anywhere shared, and never in a public GitHub repo.</p>
     </div></div>
     <div class="panel" style="margin-bottom:18px"><div class="ph"><h3>${ic('shield',16)}How your data is protected</h3></div><div class="pb">
-      <p class="muted">Everything is encrypted with AES-256-GCM using a key derived from your password (PBKDF2, 600,000 rounds) before it's stored, so the cloud only ever holds an unreadable blob — no one else, not even Google, can read your staff notes. It syncs automatically across every device you sign in on. The one exception is the optional AI assistant: when you click an AI button, the relevant staff summary is sent to the provider you configured — never automatically. The app locks after inactivity; sign back in with your password to continue.</p>
+      <p class="muted">Everything is encrypted with AES-256-GCM using a key derived from Staff Hub’s own password (PBKDF2, 600,000 rounds) before it's stored, so the cloud only ever holds an unreadable blob — no one else, not even Google, can read your staff notes. That password is kept sealed with your NLO Cases login, so you sign in with your NLO Cases username and password (your NLO Cases recovery code gets it back if you ever reset your password). It syncs automatically across every device you sign in on. The one exception is the optional AI assistant: when you click an AI button, the relevant staff summary is sent to the provider you configured — never automatically. The app locks after NLO Cases’ idle time; sign back in with your NLO Cases login to continue.</p>
     </div></div>
     ${accountCard()}
     ${aiSettingsCard()}
@@ -2579,9 +2582,15 @@ function init() {
     return;
   }
   fbInit();
+  ncInit();
   let firstAuth = true;
-  fbAuth.onAuthStateChanged(() => {
-    if (firstAuth) { firstAuth = false; showAuth(); return; }
+  fbAuth.onAuthStateChanged(u => {
+    if (firstAuth) {
+      firstAuth = false;
+      /* a sign-in an older Staff Hub kept in this browser: its email helps the one-time link; then it ends */
+      if (u && !S && !fbAuthing) { NC.hubEmail = u.email || ''; fbAuth.signOut().catch(() => {}); }
+      showAuth(); return;
+    }
     if (!S && !fbAuthing) showAuth();   // signed out elsewhere (ignore mid sign-in)
   });
 }
@@ -3902,7 +3911,7 @@ const FB_CONFIG = {
 };
 const FB_COLLECTION = 'staffhub';
 
-let fbAuth = null, fbDB = null, fbUser = null, fbDocRef = null, fbUnsub = null;
+let fbAuth = null, fbDB = null, fbUser = null, fbDocRef = null, fbUnsub = null, fbReady = Promise.resolve();
 let fbWriteTimer = null, fbWriteInFlight = false, fbWriteAgain = false;
 let localRev = 0, lastAppliedRev = 0;
 let syncState = 'off';        // off|synced|saving|offline|error
@@ -3914,13 +3923,14 @@ function fbConfigured() { return FB_CONFIG.apiKey && FB_CONFIG.apiKey.indexOf('_
 
 function fbInit() {
   if (!fbAvailable()) return false;
-  if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+  if (!firebase.apps || !firebase.apps.some(a => a && a.name === '[DEFAULT]')) firebase.initializeApp(FB_CONFIG);
   fbAuth = firebase.auth();
   fbDB = firebase.firestore();
   /* No offline persistence (Oct 2026): it queued saves that could go out days later and overwrite newer work.
      Saves are transactions now, and the old offline cache is left untouched so a newer copy in it can be
      recovered at unlock (see SAFE SYNC). */
-  try { if (firebase.auth.Auth) fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
+  /* never a session across reloads (Oct 30, 2026: the NLO Cases login opens Staff Hub; a reload means signing in again) */
+  try { fbReady = fbAuth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(() => {}); } catch (e) {}
   return true;
 }
 
@@ -3971,7 +3981,7 @@ H.syncClick = function () { go('settings'); setTimeout(function () { var c = $('
      offered back, merged with whatever the server has.
    ===================================================== */
 const SH_V = 2;
-const SH_BUILD = 'Updated Oct 4, 2026 · safe saving';
+const SH_BUILD = 'Updated Oct 30, 2026 · safe saving · NLO Cases login';
 let fbBaseJSON = null;      /* the record as last confirmed on the server (JSON), what local edits are measured against */
 let fbBaseWid = null;       /* id of that save */
 let fbMeta = {};            /* rf: newest pre-fix copy merged in; lb: version id of the pre-fix record */
@@ -4280,13 +4290,13 @@ function shRekeyPrompt() {
   if (shRekeyOpen && !document.querySelector('[data-shrekey]')) shRekeyOpen = false;   /* its dialog was replaced by another */
   if (shRekeyOpen || !S || !fbDocRef) return;
   shRekeyOpen = true;
-  openModal(`<div class="mh" data-shrekey="1"><h3>Your password was changed on another device</h3></div>
-  <div class="mb"><p class="muted" style="font-size:13.5px;margin-bottom:12px">Enter your new Staff Hub password to keep going. Anything you changed here is kept.</p>
+  openModal(`<div class="mh" data-shrekey="1"><h3>Staff Hub’s own password was changed on another device</h3></div>
+  <div class="mb"><p class="muted" style="font-size:13.5px;margin-bottom:12px">An older copy of Staff Hub changed it. Enter that new password to keep going; anything you changed here is kept, and your NLO Cases login opens Staff Hub with it from now on.</p>
     <div class="lockErr" id="rkErr"></div>
     <div class="field"><label>New password</label><div class="pwRow"><input type="password" id="rkPw" autocomplete="current-password"><button class="peek" data-peek="rkPw" type="button">show</button></div></div></div>
   <div class="mf"><button class="btn btn-sec" id="rkLock" type="button">${shDirty() ? 'Lock and drop the changes made here' : 'Lock'}</button><button class="btn btn-pri" id="rkGo" type="button">Continue</button></div>`);
   const err = m => { const e = $('#rkErr'); if (e) { e.textContent = m; e.style.display = 'block'; } };
-  $('#rkLock').onclick = () => { shRekeyOpen = false; closeModal(); lockNow('Locked. Unlock with your new password.'); };
+  $('#rkLock').onclick = () => { shRekeyOpen = false; closeModal(); lockNow('Locked. Sign in again; Staff Hub asks for its new password once.'); };
   $('#rkGo').onclick = async () => {
     const pw = ($('#rkPw') || {}).value || ''; if (!pw || !S || !fbDocRef) return;
     const btn = $('#rkGo'); btn.disabled = true; btn.textContent = 'Checking…';
@@ -4303,6 +4313,7 @@ function shRekeyPrompt() {
       shRekeyOpen = false; closeModal();
       shAfterReplace();
       if (shDirty()) fbQueueWrite(200); else setSyncState('synced');
+      if (NC.me && NC.uid && NC.hub && fbUser) ncSaveLink({ email: NC.hub.email, pw: pw, uid: fbUser.uid }).catch(() => {});
       toast('Unlocked with your new password');
     } catch (e) { err('Couldn’t reach the server. Check your connection and try again.'); btn.disabled = false; btn.textContent = 'Continue'; }
   };
@@ -4631,156 +4642,391 @@ document.addEventListener('visibilitychange', function () {
 });
 window.addEventListener('online', function () { if (S && fbDocRef) { if (shDirty()) fbQueueWrite(200); fbCheckRemote(); } });
 
-/* ---------- auth screen rendering ---------- */
-function showAuth() {
-  var wrap = $('#lockWrap'); if (wrap) wrap.style.display = 'flex';
-  $('#app').style.display = 'none';
-  var signedIn = !!(fbAuth && fbAuth.currentUser);
-  $('#setupCard').style.display = 'none';
-  $('#unlockCard').style.display = 'none';
-  $('#authCard').style.display = 'block';
-  if (signedIn) renderReauth(); else renderAuthForm();
-}
-function renderAuthForm() {
-  var isSignup = authMode === 'signup';
-  $('#authCard').innerHTML =
-    '<h1>' + (isSignup ? 'Create your account' : 'Welcome back') + '</h1>' +
-    '<div class="lsub">' + (isSignup ? 'Set up your encrypted staff & HR workspace' : 'Sign in to your staff & HR workspace') + '</div>' +
-    '<div class="lockErr" id="authErr"></div>' +
-    '<div class="field"><label>Email</label><input type="email" id="authEmail" autocomplete="username" placeholder="you@example.com"></div>' +
-    '<div class="field"><label>Password</label><div class="pwRow"><input type="password" id="authPw" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" placeholder="' + (isSignup ? 'At least 8 characters' : 'Your password') + '"><button class="peek" data-peek="authPw" type="button">show</button></div></div>' +
-    (isSignup ? '<div class="strength"><i id="pwStrength"></i></div><div class="field"><label>Confirm password</label><div class="pwRow"><input type="password" id="authPw2" autocomplete="new-password" placeholder="Type it again"><button class="peek" data-peek="authPw2" type="button">show</button></div></div>' +
-        '<div class="ackBox"><input type="checkbox" id="authAck"><span><b>Important:</b> your password also encrypts your data. If you ever fully reset it and have no backup, the data can’t be recovered — so keep it somewhere safe and grab a backup now and then.</span></div>' : '') +
-    '<button class="btn btn-pri btn-block" id="authGo">' + (isSignup ? 'Create account & open' : 'Sign in') + '</button>' +
-    (isSignup ? '' : '<div class="lockFoot" style="margin-top:12px"><a href="#" id="authForgot">Forgot password?</a></div>') +
-    '<div class="lockFoot" style="margin-top:14px;opacity:.65;font-size:11px">' + SH_BUILD + '</div>' +
-    '<div class="lockFoot" style="margin-top:10px">' + (isSignup ? 'Already have an account? <a href="#" id="authToggle">Sign in</a>' : 'First time here? <a href="#" id="authToggle">Create an account</a>') + '</div>';
-  var t = $('#authToggle'); if (t) t.onclick = function (e) { e.preventDefault(); authMode = isSignup ? 'signin' : 'signup'; renderAuthForm(); setTimeout(function(){ var em=$('#authEmail'); if(em) em.focus(); }, 40); };
-  var f = $('#authForgot'); if (f) f.onclick = function (e) { e.preventDefault(); fbForgot(); };
-  $('#authGo').onclick = isSignup ? fbSignUp : fbSignIn;
-  setTimeout(function () { var em = $('#authEmail'); if (em) em.focus(); }, 50);
-}
-function renderReauth() {
-  var email = (fbAuth.currentUser && fbAuth.currentUser.email) || '';
-  $('#authCard').innerHTML =
-    '<h1>Locked</h1><div class="lsub">Enter your password to unlock</div>' +
-    '<p class="desc">Signed in as <b>' + esc(email) + '</b>. Your password unlocks the encrypted data on this device.</p>' +
-    '<div class="lockErr" id="authErr"></div>' +
-    '<div class="field"><label>Password</label><div class="pwRow"><input type="password" id="authPw" autocomplete="current-password" placeholder="Your password"><button class="peek" data-peek="authPw" type="button">show</button></div></div>' +
-    '<button class="btn btn-pri btn-block" id="authGo">Unlock</button>' +
-    '<div class="lockFoot" style="margin-top:12px"><a href="#" id="authSignout">Not you? Sign out</a></div>' +
-    '<div class="lockFoot" style="margin-top:14px;opacity:.65;font-size:11px">' + SH_BUILD + '</div>';
-  $('#authGo').onclick = fbReauth;
-  var so = $('#authSignout'); if (so) so.onclick = function (e) { e.preventDefault(); fbSignOut(); };
-  setTimeout(function () { var p = $('#authPw'); if (p) p.focus(); }, 50);
-}
-function authError(msg) { var e = $('#authErr'); if (e) { e.textContent = msg; e.style.display = 'block'; } }
+/* =====================================================
+   SIGN IN WITH THE NLO CASES LOGIN (Oct 30, 2026)
+   Amir: "make the login for staff hub the same as case tracker".
+   - Staff Hub signs in with the NLO Cases username and password, on NLO Cases' own Firebase project (a named app whose
+     session is never kept across reloads), and only Dr. A's login (the NLO Cases owner) opens it. It locks after
+     NLO Cases' idle minutes; Lock (or a reload) means signing in again, as in NLO Cases.
+   - Staff Hub's data stays where it was: project nlo-staff-hub, encrypted with a key made from Staff Hub's own password.
+     That account's email and password are kept sealed to Dr. A's NLO Cases key pair, in his own NLO Cases member record
+     (members/<uid>.shLink: under NLO Cases' rules only he can read or change it), so his NLO Cases password opens them.
+     A second copy is sealed to the office recovery key, so after a password reset by email NLO Cases' recovery code gets
+     Staff Hub back too. Changing the NLO Cases password needs nothing here (his key pair stays the same).
+   - The first time, Staff Hub asks for its own password once to make the link (it links by itself when that password is
+     the same as the NLO Cases one).
+   ===================================================== */
+const NC_FB = { apiKey: 'AIzaSyAoPSh6DaKTeg-NplM-UaPoxlFdTo0u4go', authDomain: 'nlo-cases.firebaseapp.com', projectId: 'nlo-cases', appId: '1:1050188201609:web:df7890b26686b41a395058' };
+const NC_APP = 'nloCasesLogin', NC_LAST = 'nloSH.lastLogin';
+const NC = { app: null, auth: null, db: null, ready: null, uid: null, me: null, priv: null, pw: '', hub: null, idleMin: 10, unsubs: [], mode: 'login', info: {}, shown: false, busy: false, gen: 0, hubEmail: '', lastLogin: '' };
 
-/* ---------- auth actions ---------- */
-async function fbSignIn() {
-  var email = ($('#authEmail').value || '').trim(), pw = $('#authPw').value;
-  authError('');
-  if (!email || !pw) { authError('Enter your email and password.'); return; }
-  var btn = $('#authGo'); btn.disabled = true; btn.textContent = 'Signing in…'; fbAuthing = true;
-  try {
-    var cred = await fbAuth.signInWithEmailAndPassword(email, pw);
-    fbUser = cred.user;
-    fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
-    // Read the AUTHORITATIVE server copy. source:'server' throws if the server can't be
-    // reached, so a transient/offline read can never masquerade as "new user" and let an
-    // empty workspace overwrite existing data.
-    var snap;
-    try { snap = await fbDocRef.get({ source: 'server' }); }
-    catch (readErr) { throw { __loadFail: true }; }
-    if (snap.exists && snap.data() && snap.data().data) {
-      await fbLoadFromDoc(snap.data(), pw);
-      await shAfterLoad(pw);
-    } else {
-      // Server explicitly confirms there is no data doc → genuine brand-new workspace.
-      keySalt = crypto.getRandomValues(new Uint8Array(16));
-      cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
-      shFresh();
-      await shSave({ always: true });
-    }
-    fbEnter();
-    shAfterEnter();
-  } catch (e) {
-    if (e && e.__loadFail) authError('Signed in, but couldn’t reach your data on the server just now. Your data is safe — check your connection and click Sign in again.');
-    else if (e && (e.name === 'OperationError' || (e.message || '').indexOf('decrypt') > -1)) authError('That password can’t unlock this account’s data. If you recently reset your password, restore from a backup.');
-    else authError(fbErr(e));
-    fbAuthing = false; btn.disabled = false; btn.textContent = 'Sign in';
-  }
+/* the same sealing as NLO Cases (nlo-cases-src/src/core.js, Crypto): opens Dr. A's key pair and the office recovery key */
+const NCX = {
+  te: new TextEncoder(), td: new TextDecoder(),
+  EC: { name: 'ECDH', namedCurve: 'P-256' },
+  async pwKey(pw, salt, iter) {
+    const base = await crypto.subtle.importKey('raw', NCX.te.encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  async seal(key, bytes, aad) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: NCX.te.encode(aad) }, key, bytes);
+    return { iv: b64(iv), ct: b64(ct) };
+  },
+  async open(key, box, aad) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv), additionalData: NCX.te.encode(aad) }, key, unb64(box.ct));
+    return new Uint8Array(pt);
+  },
+  async pwOpen(pw, box, aad) { const k = await NCX.pwKey(pw, unb64(box.salt), box.iter || KDF_ITER); return NCX.open(k, box, aad); },
+  async importPriv(bytes) { return crypto.subtle.importKey('pkcs8', bytes, NCX.EC, false, ['deriveBits']); },
+  async boxKey(bits, info) {
+    const hk = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: NCX.te.encode(info) }, hk, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  async sealTo(pub, bytes, info) {
+    const pk = await crypto.subtle.importKey('jwk', { kty: pub.kty, crv: pub.crv, x: pub.x, y: pub.y, ext: true }, NCX.EC, false, []);
+    const eph = await crypto.subtle.generateKey(NCX.EC, true, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: pk }, eph.privateKey, 256);
+    const k = await NCX.boxKey(bits, info), box = await NCX.seal(k, bytes, info);
+    const j = await crypto.subtle.exportKey('jwk', eph.publicKey);
+    return { epk: { kty: j.kty, crv: j.crv, x: j.x, y: j.y }, iv: box.iv, ct: box.ct };
+  },
+  async openFrom(priv, box, info) {
+    const e = box.epk;
+    const epk = await crypto.subtle.importKey('jwk', { kty: e.kty, crv: e.crv, x: e.x, y: e.y, ext: true }, NCX.EC, false, []);
+    const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: epk }, priv, 256);
+    const k = await NCX.boxKey(bits, info); return NCX.open(k, box, info);
+  },
+  sealJSON(pub, obj, info) { return NCX.sealTo(pub, NCX.te.encode(JSON.stringify(obj)), info); },
+  async openJSON(priv, box, info) { return JSON.parse(NCX.td.decode(await NCX.openFrom(priv, box, info))); }
+};
+const ncSlug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30);
+const ncNormCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(.{4})(?=.)/g, '$1-');
+function ncErr(code) { const e = new Error(code); e.code = code; return e; }
+const ncCode = e => String((e && (e.code || e.message)) || '');
+const ncBadLogin = e => /invalid-credential|wrong-password|user-not-found|invalid-login|invalid-email|missing-password|user-disabled/.test(ncCode(e));
+const ncCredsOk = c => !!c && typeof c.email === 'string' && c.email.indexOf('@') > 0 && typeof c.pw === 'string' && c.pw.length > 0 && typeof c.uid === 'string' && c.uid.length > 0;
+function ncIdleMin() { const n = Number(NC.idleMin); return n > 0 ? n : 10; }
+function ncErrText(e) {
+  const c = ncCode(e);
+  if (/no-user/.test(c)) return 'No login with that username.';
+  if (/not-owner/.test(c)) return 'Staff Hub is only for Dr. A.';
+  if (/inactive/.test(c)) return 'This login has been turned off.';
+  if (/not-member/.test(c)) return 'That account isn’t part of the office.';
+  if (/first-login/.test(c)) return 'Finish setting up this login in NLO Cases first, then come back.';
+  if (/pw-reset/.test(c)) return 'Your password was reset. Sign in to NLO Cases with the new one first (it asks for your recovery code once), then come back here.';
+  if (/too-many-requests/.test(c)) return 'Too many attempts. Wait a minute and try again.';
+  if (/hub-unreachable|network|unavailable|offline|deadline/i.test(c)) return 'Can’t reach the server. Check the internet connection and try again.';
+  if (ncBadLogin(e)) return 'Username or password is incorrect.';
+  return (e && e.message) ? String(e.message).replace(/^Firebase:\s*/, '') : 'Something went wrong.';
 }
-async function fbSignUp() {
-  var email = ($('#authEmail').value || '').trim(), pw = $('#authPw').value, pw2 = $('#authPw2').value;
-  authError('');
-  if (!email) { authError('Enter your email.'); return; }
-  if (pw.length < 8) { authError('Password must be at least 8 characters.'); return; }
-  if (pw !== pw2) { authError('Passwords don’t match.'); return; }
-  if (!$('#authAck').checked) { authError('Please check the box to confirm you understand the password protects your data.'); return; }
-  var btn = $('#authGo'); btn.disabled = true; btn.textContent = 'Creating…'; fbAuthing = true;
+
+function ncInit() {
+  if (NC.app) return true;
+  /* Staff Hub's own app has to be the default one (firebase.auth() / firestore() below), so it's set up first */
+  if (!fbAvailable() || !firebase.apps.some(a => a && a.name === '[DEFAULT]')) return false;
+  try { NC.app = firebase.app(NC_APP); } catch (e) { NC.app = firebase.initializeApp(NC_FB, NC_APP); }
+  NC.auth = NC.app.auth(); NC.db = NC.app.firestore();
+  /* never a session across reloads (as NLO Cases): a reload, or Lock, means signing in again */
+  NC.ready = NC.auth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(() => {});
+  try { NC.lastLogin = localStorage.getItem(NC_LAST) || ''; } catch (e) {}
+  return true;
+}
+
+/* ---------- the sign-in screens ---------- */
+function showAuth() {
+  const w = $('#lockWrap');
+  if (NC.shown && w && w.style.display === 'flex') return;   /* a step is already showing: leave what's typed in it alone */
+  ncScreen('login', {});
+}
+function ncScreen(mode, info) {
+  info = info || {};
+  NC.mode = mode; NC.info = info; NC.shown = true;
+  const wrap = $('#lockWrap'); if (wrap) { wrap.style.display = 'flex'; wrap.scrollTop = 0; wrap.scrollLeft = 0; }   /* each step starts at the top, in the middle */
+  $('#app').style.display = 'none';
+  $('#setupCard').style.display = 'none'; $('#unlockCard').style.display = 'none';
+  const card = $('#authCard'); card.style.display = 'block';
+  const err = info.err ? '<div class="lockErr" role="alert" style="display:block">' + esc(info.err) + '</div>' : '';
+  const ok = info.ok ? '<div class="lockOk" role="status">' + esc(info.ok) + '</div>' : '';
+  const build = '<div class="lockFoot" style="margin-top:14px;opacity:.65;font-size:11px">' + esc(SH_BUILD) + '</div>';
+  let h;
+  if (mode === 'link') {
+    const em = info.email || NC.hubEmail || (NC.me && NC.me.email) || '';
+    h = '<h1>Link Staff Hub</h1><div class="lsub">One time only · after this, just your NLO Cases login</div>' + err + ok +
+      '<p class="desc">From now on Staff Hub opens with your NLO Cases username and password. To connect the two, enter the email and password you’ve been using for Staff Hub — this one last time.</p>' +
+      '<form id="ncLinkForm" autocomplete="on">' +
+      '<div class="field"><label for="ncHubEmail">Staff Hub email</label><input id="ncHubEmail" name="username" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(em) + '" required></div>' +
+      '<div class="field"><label for="ncHubPw">Staff Hub password</label><div class="pwRow"><input id="ncHubPw" name="password" type="password" autocomplete="current-password" required><button class="peek" data-peek="ncHubPw" type="button">show</button></div></div>' +
+      '<button class="btn btn-pri btn-block" id="ncGo" type="submit">Link and open</button></form>' +
+      '<div class="lockFoot"><button class="linkBtn" data-act="ncCancel" type="button">Cancel</button></div>' + build;
+  } else if (mode === 'recover') {
+    h = '<h1>Unlock with your recovery code</h1><div class="lsub">Your NLO Cases password was reset, so Staff Hub needs your recovery code once.</div>' + err + ok +
+      '<form id="ncRecForm" style="margin-top:16px"><div class="field"><label for="ncRecCode">NLO Cases recovery code</label><input id="ncRecCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required></div>' +
+      '<button class="btn btn-pri btn-block" id="ncGo" type="submit">Unlock</button></form>' +
+      '<div class="lockFoot">No recovery code? <button class="linkBtn" data-act="ncUseOld" type="button">Use Staff Hub’s old password</button><br><button class="linkBtn" data-act="ncCancel" type="button" style="margin-top:8px">Cancel</button></div>' + build;
+  } else if (mode === 'forgot') {
+    const em = NC.lastLogin.indexOf('@') > 0 ? NC.lastLogin : '';
+    h = '<h1>Reset by email</h1><div class="lsub">For Dr. A’s NLO Cases login</div>' + err + ok +
+      '<form id="ncForgotForm" style="margin-top:16px"><div class="field"><label for="ncFgEmail">Your email</label><input id="ncFgEmail" type="email" autocomplete="email" value="' + esc(em) + '" required></div>' +
+      '<button class="btn btn-pri btn-block" id="ncGo" type="submit">Send reset link</button></form>' +
+      '<p class="desc" style="margin:14px 0 0">After you pick a new password, sign in to NLO Cases with it first (it asks for your recovery code once), then come back here: Staff Hub asks for the recovery code once too.</p>' +
+      '<div class="lockFoot"><button class="linkBtn" data-act="ncToLogin" type="button">Back to sign in</button></div>' + build;
+  } else {
+    h = '<h1>Sign in</h1><div class="lsub">Next Level Orthodontics · Staff Hub</div>' + err + ok +
+      '<form id="ncLoginForm" autocomplete="on" style="margin-top:16px">' +
+      '<div class="field"><label for="ncUser">Username</label><input id="ncUser" type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(NC.lastLogin) + '" required></div>' +
+      '<div class="field"><label for="ncPw">Password</label><div class="pwRow"><input id="ncPw" name="password" type="password" autocomplete="current-password" required><button class="peek" data-peek="ncPw" type="button">show</button></div></div>' +
+      '<button class="btn btn-pri btn-block" id="ncGo" type="submit">Sign in</button></form>' +
+      '<div class="lockFoot">Same username and password as NLO Cases · Dr. A only<br><button class="linkBtn" data-act="ncForgot" type="button" style="margin-top:6px">Forgot your password? Reset by email</button></div>' + build;
+  }
+  card.innerHTML = h;
+  const bind = (id, fn) => { const f = $('#' + id); if (f) f.onsubmit = fn; };
+  bind('ncLoginForm', ncLoginSubmit); bind('ncLinkForm', ncLinkSubmit); bind('ncRecForm', ncRecSubmit); bind('ncForgotForm', ncForgotSubmit);
+  const f = mode === 'login' ? ($('#ncUser').value ? $('#ncPw') : $('#ncUser')) : mode === 'link' ? ($('#ncHubEmail').value ? $('#ncHubPw') : $('#ncHubEmail')) : $('input', card);
+  if (f) { try { f.focus(); } catch (e) {} }
+}
+function ncBusy(label) { const b = $('#ncGo'); if (b) { b.disabled = true; b.textContent = label; } }
+H.ncForgot = () => ncScreen('forgot', {});
+H.ncToLogin = () => ncScreen('login', {});
+H.ncCancel = () => {
+  if (NC.busy) return;
+  ncOutAll();
+  if (!S && fbAuth && fbAuth.currentUser) fbAuth.signOut().catch(() => {});
+  ncScreen('login', {});
+};
+H.ncUseOld = () => { if (!NC.busy) ncScreen('link', {}); };
+
+/* ---------- signing in ---------- */
+async function ncEmailFor(login) {
+  const s = String(login || '').trim();
+  if (s.indexOf('@') > 0) return s.toLowerCase();
+  const un = ncSlug(s); if (!un) throw ncErr('no-user');
+  const snap = await NC.db.doc('logins/' + un).get();
+  if (!snap.exists) throw ncErr('no-user');
+  return snap.data().email;
+}
+/* the NLO Cases login: owner only; opens Dr. A's key pair with his password (as NLO Cases does) */
+async function ncSignIn(user, pw) {
+  await NC.ready;
+  const email = await ncEmailFor(user);
+  const cred = await NC.auth.signInWithEmailAndPassword(email, pw);
+  const uid = cred.user.uid;
+  const ms = await NC.db.doc('members/' + uid).get();
+  if (!ms.exists) throw ncErr('not-member');
+  const m = ms.data() || {};
+  if (m.active !== true) throw ncErr('inactive');
+  if (m.role !== 'owner') throw ncErr('not-owner');
+  if (m.mustSetup) throw ncErr('first-login');
+  let bytes = null;
+  for (const box of [m.priv, m.privPrev]) {
+    if (!box || bytes) continue;
+    try { bytes = await NCX.pwOpen(pw, box, 'priv:' + uid); } catch (e) {}
+  }
+  if (!bytes || !m.pub) throw ncErr('pw-reset');   /* reset by email, and NLO Cases hasn't used the recovery code yet */
+  NC.uid = uid; NC.me = Object.assign({}, m, { uid, email: cred.user.email || email }); NC.priv = await NCX.importPriv(bytes); NC.pw = pw;
+  NC.db.doc('members/' + uid).update({ lastLogin: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {});
+}
+/* Staff Hub's own account, kept sealed with the login: { creds } or { need: 'link' | 'recover' } */
+async function ncOpenLink() {
+  const L = NC.me && NC.me.shLink;
+  if (!L || !L.box) return { need: 'link' };
+  if (!NC.me.pub || L.pubX !== NC.me.pub.x) return { need: 'recover' };   /* NLO Cases made Dr. A a new key pair (password reset + recovery code) */
+  try { const c = await NCX.openJSON(NC.priv, L.box, 'staffhub:' + NC.uid); if (ncCredsOk(c)) return { creds: c }; } catch (e) {}
+  return { need: 'recover' };
+}
+async function ncEscrowFor(creds) {
   try {
-    var cred = await fbAuth.createUserWithEmailAndPassword(email, pw);
-    fbUser = cred.user;
-    fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
+    const r = await NC.db.doc('meta/recovery').get();
+    const p = r.exists ? (r.data() || {}).pub : null;
+    if (!p || !p.x) return null;
+    return { esc: await NCX.sealJSON(p, creds, 'staffhub:recovery'), recX: p.x };
+  } catch (e) { return null; }
+}
+/* seal Staff Hub's account to Dr. A's NLO Cases key pair (and a copy to the office recovery key) in his member record */
+async function ncSaveLink(creds) {
+  if (!NC.me || !NC.me.pub || !NC.uid || !NC.db) throw ncErr('no-login');
+  const link = { v: 1, box: await NCX.sealJSON(NC.me.pub, creds, 'staffhub:' + NC.uid), pubX: NC.me.pub.x, uid: creds.uid, at: Date.now() };
+  const escrow = await ncEscrowFor(creds); if (escrow) Object.assign(link, escrow);
+  await NC.db.doc('members/' + NC.uid).update({ shLink: link });
+  NC.me.shLink = link;
+}
+/* after opening: keep the recovery copy sealed to the current recovery code (it changes when Dr. A makes a new one) */
+async function ncEscrowCheck(c) {
+  try {
+    const L = NC.me && NC.me.shLink, uid = NC.uid;
+    if (!L || !L.box || !ncCredsOk(c) || !uid) return;
+    const r = await NC.db.doc('meta/recovery').get();
+    const p = r.exists ? (r.data() || {}).pub : null;
+    if (!p || !p.x || (L.esc && L.recX === p.x) || NC.uid !== uid) return;
+    const escrow = await NCX.sealJSON(p, c, 'staffhub:recovery');
+    await NC.db.doc('members/' + uid).update({ 'shLink.esc': escrow, 'shLink.recX': p.x });
+    L.esc = escrow; L.recX = p.x;
+  } catch (e) {}
+}
+
+/* Open Staff Hub's own data with its account. 'ok', or 'relink' when that account's password no longer signs in or
+   no longer opens the data (changed since the link was made). Other problems throw. */
+async function ncOpenHub(creds) {
+  await fbReady;
+  if (fbAuth.currentUser && fbAuth.currentUser.uid !== creds.uid) { try { await fbAuth.signOut(); } catch (e) {} }
+  if (!fbAuth.currentUser) {
+    try { await fbAuth.signInWithEmailAndPassword(creds.email, creds.pw); }
+    catch (e) { if (ncBadLogin(e)) return 'relink'; throw e; }
+    if (!fbAuth.currentUser || fbAuth.currentUser.uid !== creds.uid) { try { await fbAuth.signOut(); } catch (e) {} return 'relink'; }
+  }
+  fbUser = fbAuth.currentUser;
+  fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
+  /* the server's own copy: a read that can't reach it must never look like "no data yet" */
+  let snap;
+  try { snap = await fbDocRef.get({ source: 'server' }); } catch (e) { throw ncErr('hub-unreachable'); }
+  if (snap.exists && snap.data() && snap.data().data) {
+    try { await fbLoadFromDoc(snap.data(), creds.pw); } catch (e) { return 'relink'; }
+    await shAfterLoad(creds.pw);
+  } else {   /* the server confirms there's no record (erased): start fresh, as Staff Hub always did */
     keySalt = crypto.getRandomValues(new Uint8Array(16));
-    cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
+    cryptoKey = await deriveKey(creds.pw, keySalt, KDF_ITER);
     shFresh();
-    act('Created NLO Staff Hub');
     await shSave({ always: true });
-    fbEnter();
-  } catch (e) {
-    authError(fbErr(e));
-    fbAuthing = false; btn.disabled = false; btn.textContent = 'Create account & open';
   }
+  /* open: keep only which account it is (the rekey prompt re-seals with a new password); drop the passwords and the key pair */
+  NC.hub = { email: creds.email, uid: creds.uid }; NC.pw = ''; NC.priv = null;
+  fbEnter();
+  try { shAfterEnter(); } catch (e) { try { console.error(e); } catch (x) {} }
+  ncWatch();
+  ncEscrowCheck(creds);
+  return 'ok';
 }
-async function fbReauth() {
-  var pw = $('#authPw').value; authError('');
-  if (!pw) return;
-  var btn = $('#authGo'); btn.disabled = true; btn.textContent = 'Unlocking…'; fbAuthing = true;
+/* Check Staff Hub's own email + password (they must sign in AND open its data), seal them with the login, open. */
+async function ncLinkWith(email, pw) {
+  await fbReady;
+  if (fbAuth.currentUser) { try { await fbAuth.signOut(); } catch (e) {} }
+  let user;
+  try { user = (await fbAuth.signInWithEmailAndPassword(email, pw)).user; }
+  catch (e) { if (ncBadLogin(e)) return { err: 'That email and password don’t sign in to Staff Hub. Use the ones you’ve been using for Staff Hub.' }; throw e; }
+  const out = async msg => { try { await fbAuth.signOut(); } catch (e) {} return { err: msg }; };
+  let d;
+  try { const s = await fbDB.collection(FB_COLLECTION).doc(user.uid).get({ source: 'server' }); d = s.exists ? s.data() : null; }
+  catch (e) { await out(''); throw ncErr('hub-unreachable'); }
+  if (!d || !d.data || !d.kdf || !d.kdf.salt) return out('There’s no Staff Hub data under ' + email + '. Check the email.');
+  try { await decryptJSON(d.data, await deriveKey(pw, unb64(d.kdf.salt), d.kdf.iter || KDF_ITER)); }
+  catch (e) { return out('That password signs in, but it doesn’t open Staff Hub’s data. Use the password the data was saved with.'); }
+  const creds = { email: String(user.email || email).toLowerCase(), pw, uid: user.uid };
+  await ncSaveLink(creds);
+  const r = await ncOpenHub(creds);
+  return r === 'ok' ? { ok: true } : out('Couldn’t open Staff Hub just now. Try again.');
+}
+/* not linked yet: when Staff Hub's own password is the NLO Cases one (same email), link by itself */
+async function ncAutoLink() {
+  const email = String((NC.me && NC.me.email) || '').toLowerCase();
+  if (!email || !NC.pw) return false;
+  try { const r = await ncLinkWith(email, NC.pw); return !!(r && r.ok); } catch (e) { return false; }
+}
+
+async function ncLoginSubmit(e) {
+  e.preventDefault();
+  if (NC.busy) return;
+  const user = (($('#ncUser') || {}).value || '').trim(), pw = ($('#ncPw') || {}).value || '';
+  if (!user || !pw) return;
+  NC.busy = true; fbAuthing = true; ncBusy('Signing in…');
   try {
-    fbUser = fbAuth.currentUser;
-    fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
-    // Authoritative server read — unlock must never let a stale/empty read overwrite data.
-    var snap = await fbDocRef.get({ source: 'server' });
-    if (snap.exists && snap.data() && snap.data().data) {
-      await fbLoadFromDoc(snap.data(), pw);
-      await shAfterLoad(pw);
-    } else {
-      keySalt = crypto.getRandomValues(new Uint8Array(16));
-      cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
-      shFresh(); await shSave({ always: true });
+    if (NC.auth && NC.auth.currentUser) await ncOutAll();
+    await ncSignIn(user, pw);
+    NC.lastLogin = user; try { localStorage.setItem(NC_LAST, user); } catch (x) {}
+    const r = await ncOpenLink();
+    if (r.creds) {
+      ncBusy('Opening…');
+      const res = await ncOpenHub(r.creds);
+      if (res !== 'ok') { fbAuthing = false; ncScreen('link', { err: 'Staff Hub’s own password has changed since it was linked. Enter it once to link again.', email: r.creds.email }); }
+    } else if (r.need === 'recover') { fbAuthing = false; ncScreen('recover', {}); }
+    else {
+      ncBusy('Opening…');
+      if (!(await ncAutoLink())) { fbAuthing = false; ncScreen('link', {}); }
     }
-    fbEnter();
-    shAfterEnter();
-  } catch (e) {
-    fbAuthing = false; authError('Couldn’t unlock — wrong password, or the server was unreachable. Your data is safe; try again.');
-    btn.disabled = false; btn.textContent = 'Unlock';
-  }
+  } catch (x) {
+    if (S) { try { console.error(x); } catch (y) {} return; }   /* (already open) */
+    fbAuthing = false;
+    await ncOutAll();
+    if (fbAuth && fbAuth.currentUser) { try { await fbAuth.signOut(); } catch (y) {} }
+    ncScreen('login', { err: ncErrText(x) });
+  } finally { NC.busy = false; }
 }
-function fbForgot() {
-  var email = ($('#authEmail') && $('#authEmail').value || '').trim();
-  openModal('<div class="mh"><h3>Reset password</h3><button class="x" data-act="closeModal">✕</button></div>' +
-    '<div class="mb"><div class="field"><label>Email</label><input type="email" id="frEmail" value="' + esc(email) + '"></div>' +
-    '<div class="warnBox">Heads up: because your password also encrypts your data, resetting it means the data already in your account can only be recovered from a backup file. If you still know your current password, use <b>Settings → Change password</b> instead (that keeps your data).</div></div>' +
-    '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="frGo">Send reset email</button></div>');
-  $('#frGo').onclick = async function () {
-    var em = ($('#frEmail').value || '').trim(); if (!em) { toast('Enter your email', true); return; }
-    try { await fbAuth.sendPasswordResetEmail(em); closeModal(); toast('Reset email sent to ' + em); }
-    catch (e) { toast(fbErr(e), true); }
-  };
+async function ncLinkSubmit(e) {
+  e.preventDefault();
+  if (NC.busy) return;
+  const email = (($('#ncHubEmail') || {}).value || '').trim().toLowerCase(), pw = ($('#ncHubPw') || {}).value || '';
+  if (!email || !pw) return;
+  if (!NC.me || !NC.priv) { ncScreen('login', { err: 'Sign in again with your NLO Cases login.' }); return; }
+  NC.busy = true; fbAuthing = true; ncBusy('Checking…');
+  try {
+    const r = await ncLinkWith(email, pw);
+    if (!r.ok) { fbAuthing = false; ncScreen('link', { err: r.err, email }); }
+    else toast('Linked — from now on, just your NLO Cases login');
+  } catch (x) { if (S) return; fbAuthing = false; ncScreen('link', { err: ncErrText(x), email }); }
+  finally { NC.busy = false; }
 }
-function fbSignOut() {
-  if (fbUnsub) { fbUnsub(); fbUnsub = null; }
-  if (typeof quizWatchStop === 'function') quizWatchStop();
-  if (typeof appWatchStop === 'function') appWatchStop();
-  if (shDirty()) shDraftWrite();   /* unsaved edits wait in this browser for the next unlock */
-  shReset();
-  S = null; cryptoKey = null; keySalt = null; fbUser = null; fbDocRef = null; localRev = 0; lastAppliedRev = 0;
-  if (idleTimer) clearInterval(idleTimer);
-  var doShow = function () { authMode = 'signin'; showAuth(); };
-  if (fbAuth && fbAuth.currentUser) fbAuth.signOut().then(doShow).catch(doShow); else doShow();
+async function ncRecSubmit(e) {
+  e.preventDefault();
+  if (NC.busy) return;
+  const code = (($('#ncRecCode') || {}).value || '').trim();
+  if (!code) return;
+  if (!NC.me || !NC.priv) { ncScreen('login', { err: 'Sign in again with your NLO Cases login.' }); return; }
+  NC.busy = true; fbAuthing = true; ncBusy('Unlocking…');
+  try {
+    const L = NC.me.shLink || {};
+    const rs = await NC.db.doc('meta/recovery').get();
+    const r = rs.exists ? (rs.data() || {}) : {};
+    if (!L.esc || !r.pub || !r.priv || L.recX !== r.pub.x) { fbAuthing = false; ncScreen('link', { err: 'Staff Hub’s copy for the recovery code is from an older code. Enter Staff Hub’s own password once instead.' }); return; }
+    let creds = null;
+    try { const rpriv = await NCX.importPriv(await NCX.pwOpen(ncNormCode(code), r.priv, 'recovery-priv')); creds = await NCX.openJSON(rpriv, L.esc, 'staffhub:recovery'); } catch (x) { creds = null; }
+    if (!ncCredsOk(creds)) { fbAuthing = false; ncScreen('recover', { err: 'That recovery code didn’t work. Check it and try again.' }); return; }
+    await ncSaveLink(creds);
+    const res = await ncOpenHub(creds);
+    if (res !== 'ok') { fbAuthing = false; ncScreen('link', { err: 'Staff Hub’s own password has changed since it was linked. Enter it once to link again.', email: creds.email }); return; }
+    toast('Unlocked. Your recovery code still works — keep it safe.');
+  } catch (x) { if (S) return; fbAuthing = false; ncScreen('recover', { err: ncErrText(x) }); }
+  finally { NC.busy = false; }
 }
+async function ncForgotSubmit(e) {
+  e.preventDefault();
+  const em = (($('#ncFgEmail') || {}).value || '').trim();
+  if (!em) return;
+  ncBusy('Sending…');
+  try { await NC.ready; await NC.auth.sendPasswordResetEmail(em); ncScreen('forgot', { ok: 'If that email has a login, a reset link is on its way.' }); }
+  catch (x) { ncScreen('forgot', { err: /invalid-email/.test(ncCode(x)) ? 'That email address doesn’t look right.' : ncErrText(x) }); }
+}
+
+/* ---------- while open: the login turned off → locked out; NLO Cases' idle minutes ---------- */
+function ncWatch() {
+  ncStopWatch();
+  if (!NC.db || !NC.uid) return;
+  const uid = NC.uid;
+  NC.unsubs.push(NC.db.doc('members/' + uid).onSnapshot(s => {
+    if (!S || NC.uid !== uid || (s.metadata && s.metadata.fromCache)) return;
+    const m = s.exists ? s.data() : null;
+    if (!m || m.active !== true || m.role !== 'owner') lockNow('Your access changed. Sign in again.');
+    else NC.me = Object.assign({}, NC.me, m);
+  }, e => { if (S && NC.uid === uid && /permission/i.test(ncCode(e))) lockNow('Your access changed. Sign in again.'); }));
+  NC.unsubs.push(NC.db.doc('meta/settings').onSnapshot(s => {
+    const n = Number(s.exists ? (s.data() || {}).idleMin : 0); NC.idleMin = n > 0 ? n : 10;
+  }, () => {}));
+}
+function ncStopWatch() { NC.unsubs.splice(0).forEach(u => { try { u(); } catch (e) {} }); }
+/* forget the login (keys and all) and sign out of NLO Cases */
+async function ncOutAll() {
+  ncStopWatch();
+  NC.uid = null; NC.me = null; NC.priv = null; NC.pw = ''; NC.hub = null;
+  try { if (NC.auth && NC.auth.currentUser) await NC.auth.signOut(); } catch (e) {}
+}
+/* after Lock: sign out of Staff Hub's own account too, once a save that was already on its way has landed */
+function ncHubOutSoon() {
+  const gen = ++NC.gen;
+  (async () => {
+    for (let i = 0; i < 100 && fbWriteInFlight; i++) await new Promise(r => setTimeout(r, 100));
+    if (gen === NC.gen && !S && !fbAuthing && fbAuth && fbAuth.currentUser) { try { await fbAuth.signOut(); } catch (e) {} }
+  })();
+}
+
+function fbSignOut(msg) { fbLock(msg || 'Locked. Sign in to continue.'); }
 function fbEnter() {
   fbAuthing = false;
   fbStartSnapshot();
@@ -4790,67 +5036,34 @@ function fbEnter() {
   if (typeof appWatchStart === 'function') appWatchStart();
 }
 
-/* re-lock (idle) without signing out: keep the Firebase session, drop the key */
+/* lock: drop the key and sign out (NLO Cases at once; Staff Hub's own account once a save on its way has landed) */
 function fbLock(msg) {
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
   if (typeof quizWatchStop === 'function') quizWatchStop();
   if (typeof appWatchStop === 'function') appWatchStop();
-  if (shDirty()) shDraftWrite();   /* unsaved edits wait in this browser for the next unlock */
+  if (shDirty()) shDraftWrite();   /* unsaved edits wait in this browser for the next sign-in */
   shReset();
   S = null; cryptoKey = null; keySalt = null;
-  $('#main').innerHTML = ''; $('#modalWrap').classList.remove('open'); $('#modalWrap').innerHTML = '';
-  showAuth();
-  if (msg) { var e = $('#authErr'); if (e) { e.textContent = msg; e.style.display = 'block'; } }
+  if (idleTimer) { clearInterval(idleTimer); idleTimer = null; }
+  $('#main').innerHTML = ''; $('#modalWrap').classList.remove('open'); $('#modalWrap').innerHTML = ''; $('#toasts').innerHTML = '';
+  ncOutAll();
+  ncHubOutSoon();
+  ncScreen('login', msg ? { ok: msg } : {});
 }
 
 /* ---------- settings: account card ---------- */
 function accountCard() {
-  var email = (fbUser && fbUser.email) || '';
-  return '<div class="panel" id="acctCard" style="margin-bottom:18px"><div class="ph"><h3>' + ic('cloud', 16) + 'Account & sync <span class="badge b-green" style="margin-left:8px">Signed in</span></h3></div><div class="pb">' +
-    '<p class="muted" style="margin-bottom:6px">Signed in as <b>' + esc(email) + '</b>. Your data syncs automatically to every browser and device where you sign in — no codes to copy. It stays end-to-end encrypted with your password, so no one else (not even Google) can read it.</p>' +
-    '<div class="setRow"><div class="st"><b>Change password</b><span>Updates your login and re-encrypts your data (keeps everything)</span></div><button class="btn btn-sec btn-sm" data-act="fbChangePw">' + ic('key', 13) + ' Change…</button></div>' +
-    '<div class="setRow"><div class="st"><b>Sign out</b><span>Locks this browser; sign back in anytime</span></div><button class="btn btn-sec btn-sm" data-act="fbSignOut">' + ic('out', 13) + ' Sign out</button></div>' +
-    '<p class="tiny" style="margin-top:10px">Tip: keep an occasional encrypted backup (below) — it’s the safety net if you ever reset your password.</p>' +
+  var name = (NC.me && NC.me.name) || 'Dr. A', login = NC.lastLogin || (NC.me && NC.me.email) || '';
+  return '<div class="panel" id="acctCard" style="margin-bottom:18px"><div class="ph"><h3>' + ic('cloud', 16) + 'Account & sync <span class="badge b-green" style="margin-left:8px">NLO Cases login</span></h3></div><div class="pb">' +
+    '<p class="muted" style="margin-bottom:6px">Signed in as <b>' + esc(name) + '</b>' + (login ? ' (' + esc(login) + ')' : '') + ' with your NLO Cases login. Your data syncs automatically to every browser and device where you sign in, and stays end-to-end encrypted, so no one else (not even Google) can read it.</p>' +
+    '<div class="setRow"><div class="st"><b>Password</b><span>The same as NLO Cases. Change it there (My account); Staff Hub follows by itself.</span></div></div>' +
+    '<div class="setRow"><div class="st"><b>Lock</b><span>Locks this browser; sign in again with your NLO Cases login</span></div><button class="btn btn-sec btn-sm" data-act="fbSignOut">' + ic('lock', 13) + ' Lock</button></div>' +
+    '<p class="tiny" style="margin-top:10px">If you ever reset your NLO Cases password by email, Staff Hub asks for your NLO Cases recovery code once. Keep an occasional encrypted backup (below) too.</p>' +
     '</div></div>';
 }
 H.fbSignOut = function () { fbSignOut(); };
-H.fbChangePw = function () {
-  openModal('<div class="mh"><h3>Change password</h3><button class="x" data-act="closeModal">✕</button></div>' +
-    '<div class="mb">' +
-    '<div class="field"><label>Current password</label><div class="pwRow"><input type="password" id="cpOld"><button class="peek" data-peek="cpOld" type="button">show</button></div></div>' +
-    '<div class="field"><label>New password (8+ characters)</label><div class="pwRow"><input type="password" id="cpNew1"><button class="peek" data-peek="cpNew1" type="button">show</button></div></div>' +
-    '<div class="field"><label>Confirm new password</label><div class="pwRow"><input type="password" id="cpNew2"><button class="peek" data-peek="cpNew2" type="button">show</button></div></div>' +
-    '<div class="infoBox">This re-encrypts your data under the new password and keeps everything. Do this instead of “forgot password” whenever you can.</div></div>' +
-    '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="cpGo">Change password</button></div>');
-  $('#cpGo').onclick = async function () {
-    var oldP = $('#cpOld').value, n1 = $('#cpNew1').value, n2 = $('#cpNew2').value;
-    if (n1.length < 8) { toast('New password must be 8+ characters', true); return; }
-    if (n1 !== n2) { toast('New passwords don’t match', true); return; }
-    var btn = $('#cpGo'); btn.disabled = true; btn.textContent = 'Updating…';
-    try {
-      var cred = firebase.auth.EmailAuthProvider.credential(fbUser.email, oldP);
-      await fbUser.reauthenticateWithCredential(cred);
-      await fbUser.updatePassword(n1);
-      await shSaveWhenFree();   /* anything not saved yet goes out under the old password first */
-      var oldKey = cryptoKey, oldSalt = keySalt;
-      var newSalt = crypto.getRandomValues(new Uint8Array(16)), newKey = await deriveKey(n1, newSalt, KDF_ITER);
-      while (fbWriteInFlight) await new Promise(function (r) { setTimeout(r, 150); });   /* never switch keys under a save */
-      keySalt = newSalt; cryptoKey = newKey;   /* both at once: nothing can save with one and not the other */
-      act('Changed password');
-      var pr = null;
-      for (var i = 0; i < 6 && !(pr && pr.ok); i++) {
-        if (i) await new Promise(function (r) { setTimeout(r, 2500); });
-        pr = await shSaveWhenFree({ always: true, why: 'password', readKey: oldKey, readSalt: oldSalt });
-        if (!S || (pr && pr.err && pr.err.shKey)) break;
-      }
-      closeModal();
-      if (pr && pr.ok) toast('Password changed — everything kept');
-      else toast('Your sign-in password changed, but your record couldn’t be re-saved yet. Stay on this page with an internet connection and change the password again to finish.', true);
-    } catch (e) {
-      toast(fbErr(e), true); btn.disabled = false; btn.textContent = 'Change password';
-    }
-  };
-};
+/* Staff Hub's own password is kept with the NLO Cases login now: the password to change is NLO Cases' */
+H.fbChangePw = function () { toast('Your password is your NLO Cases password: change it in NLO Cases (My account).'); };
 
 /* ---------- seed import (used to load Gusto staff as DATA, not hardcoded) ---------- */
 function importStaffList(list) {
@@ -4884,15 +5097,17 @@ H.restore = function () {
       var blob;
       try { blob = JSON.parse(rd.result); } catch (e) { toast('Could not read that file', true); return; }
       if (!blob || blob.app !== 'nlo-staff-hub' || !blob.data || !blob.kdf) { toast('That doesn’t look like a Staff Hub backup', true); return; }
+      /* made under Staff Hub's current key (its own password, kept with the NLO Cases login): no password to type */
+      var same = !!(cryptoKey && keySalt && blob.kdf.salt === b64(keySalt) && (blob.kdf.iter || KDF_ITER) === KDF_ITER);
       openModal('<div class="mh"><h3>Restore backup</h3><button class="x" data-act="closeModal">✕</button></div>' +
-        '<div class="mb"><div class="warnBox">This replaces everything currently in your account with the backup’s contents (and syncs it to your other devices). Enter the password this backup was made with.</div>' +
-        '<div class="field"><label>Backup password</label><div class="pwRow"><input type="password" id="rsPw"><button class="peek" data-peek="rsPw" type="button">show</button></div></div></div>' +
+        '<div class="mb"><div class="warnBox">This replaces everything currently in your account with the backup’s contents (and syncs it to your other devices).' + (same ? '' : ' This backup was made under an earlier Staff Hub password: enter that password.') + '</div>' +
+        (same ? '' : '<div class="field"><label>Staff Hub password this backup was made with</label><div class="pwRow"><input type="password" id="rsPw"><button class="peek" data-peek="rsPw" type="button">show</button></div></div>') + '</div>' +
         '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="rsGo">Restore</button></div>');
       $('#rsGo').onclick = async function () {
-        var pw = $('#rsPw').value; if (!pw) { toast('Enter the backup password', true); return; }
+        var pw = same ? '' : $('#rsPw').value; if (!same && !pw) { toast('Enter the backup password', true); return; }
         var btn = $('#rsGo'); btn.disabled = true; btn.textContent = 'Restoring…';
         try {
-          var key = await deriveKey(pw, unb64(blob.kdf.salt), blob.kdf.iter || KDF_ITER);
+          var key = same ? cryptoKey : await deriveKey(pw, unb64(blob.kdf.salt), blob.kdf.iter || KDF_ITER);
           var data = await decryptJSON(blob.data, key);
           S = shNorm(data);
           act('Restored a backup file');
@@ -4919,7 +5134,7 @@ H.eraseAll = function () {
     if (($('#erConfirm').value || '').trim() !== 'ERASE') { toast('Type ERASE to confirm', true); return; }
     try { if (fbDocRef) await fbDocRef.delete(); } catch (e) {}
     shDraftClear();
-    closeModal(); toast('All data erased'); fbSignOut();
+    closeModal(); fbSignOut('All data erased.');
   };
 };
 
