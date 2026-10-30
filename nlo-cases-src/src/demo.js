@@ -54,10 +54,11 @@ const DEMO = {
       });
       DEMO.logs.push({ caseId: id, a: 'create', at: Date.now() - 86400e3 * (i + 2), sid: 'amir' });
     });
-    // MARPE: one still waiting on its CBCT, one with the Zoom call in two days, one approved; Partners makes them
+    // MARPE: one still waiting on its CBCT, one with the Zoom call in two days, one approved; Partners makes them. The call's link
+    // is Zoom's own test meeting page (nothing private behind it)
     const all = Array.from(DEMO.cases.values()), mp = all.filter(c => c.type === 'marpe');
     Object.assign(mp[0], { records: ['stl'], lab: 'Partners Dental Solutions' });
-    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, 2), zoomTime: '12:30' });
+    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, 2), zoomTime: '12:30', zoomUrl: 'https://zoom.us/test' });
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, -9), zoomTime: '13:00' });
     // a Herbst going to Specialty with its Herbst Rx filled out (rx.js; made-up choices), and Dr. A's Rx details (made up)
     const hb = all.find(c => c.type === 'appliance' && c.stage === 'submit');

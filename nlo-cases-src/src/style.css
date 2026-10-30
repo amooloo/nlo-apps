@@ -631,6 +631,10 @@ a.flag.trk:hover{background:var(--blue);color:#fff}
 /* Dental Monitoring on an Oliv patient's row and card (29 Oct 2026) */
 a.flag.dm{margin-left:6px;vertical-align:1px;background:var(--navy-100);color:var(--navy-700);text-decoration:none}
 a.flag.dm:hover,a.flag.dm:focus-visible{background:var(--navy);color:#fff}
+/* Join Zoom on a MARPE case's card and row while the call is ahead */
+a.flag.zm{background:var(--blue-100);color:var(--blue-700);text-decoration:none}
+a.flag.zm:hover,a.flag.zm:focus-visible{background:var(--blue);color:#fff}
+.ptTxt a.flag.zm{margin-left:6px;vertical-align:1px}
 .kc .dt a.flag.dm{margin-top:3px}
 .row .flag{flex:none}
 td .flags{margin-top:4px}
@@ -661,6 +665,12 @@ td.shipCol .flags{margin-top:0}
 .mpWhen{display:inline-flex;align-items:center;gap:6px;color:var(--navy);font-size:13.5px}
 .mpWhen .i{color:var(--blue)}
 .mpHint{margin-top:8px}
+/* the Zoom link box beside the date and time (MARPE, 29 Oct 2026): wide enough to show the link */
+.zoomRow .field.zoomUrlF{width:auto;flex:1 1 300px;max-width:460px}
+.zoomRow .field.zoomUrlF input{width:100%}
+.zoomHint{margin-top:4px;color:var(--grey-600)}
+.zoomHint:empty{display:none}
+.zoomHint.bad{color:var(--coral-700);font-weight:600}
 .gate{background:var(--grey-50);border:1px solid var(--grey-100);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;color:var(--navy)}
 .gate>b{display:block;margin-bottom:6px}
 .gateRow{display:flex;align-items:center;gap:10px;font-weight:600;padding:6px 0;cursor:pointer}

@@ -293,7 +293,7 @@ function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v =
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'scanOnFile', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'zoomUrl', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
   'scanStU', 'scanStL', 'scanStNone'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
@@ -445,6 +445,42 @@ const RX_PIC = { noipr: 'rx-noipr', noatt: 'rx-noatt', noelastic: 'rx-noelastic'
 function rxArt(k) { const pk = RX_PIC[k], pc = pk && typeof PICS !== 'undefined' && PICS[pk];
   return pc ? '<span class="iPic" aria-hidden="true"><img data-pic="' + pk + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false"></span>' : rxSvg(k); }
 function safeUrl(u) { return /^https:\/\/[^\s<>"']+$/i.test(String(u || '').trim()) ? String(u).trim() : ''; }
+/* MARPE: the Zoom link box (the case form, the Zoom call window, the step's own window). A plain text box, so the whole invite can be
+   pasted into it — a one-line box would run the invite's lines together (the link with the next line's words), so a paste is read
+   with its line breaks and only the link goes in (wireZoomUrl) */
+function zoomUrlFieldHTML(id, v, opt) {
+  return '<div class="field zoomUrlF"><label for="' + id + '">Zoom link' + (opt ? ' <span class="h5n">' + esc(opt) + '</span>' : '') + '</label>' +
+    '<input id="' + id + '" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste the link — or the whole invite — from the lab" value="' + esc(v || '') + '"></div>';
+}
+/* a paste with more than the link in it (the lab's whole invite): just the meeting link goes in; `after(picked)` runs after any change.
+   An invite copied from an email can show only "Join Zoom Meeting" with the link behind it: the links behind the copied text are read
+   too (as text, never shown or run) — but what the text itself shows comes first. A link from behind the text is only taken when the
+   text shows no Zoom link and the hidden one is a Zoom meeting's (…/j/…, a webinar's …/w/…), so a "book a Zoom with us" link in a
+   signature never beats the meeting link the invite shows */
+function wireZoomUrl(el, after) {
+  if (!el) return;
+  el.addEventListener('paste', e => {
+    const cd = e.clipboardData || window.clipboardData; if (!cd) return;
+    const t = (cd.getData('text') || '').trim();
+    let behind = '';
+    try { const h = cd.getData('text/html'); if (h) behind = Array.from(new DOMParser().parseFromString(h, 'text/html').querySelectorAll('a[href]'), a => a.getAttribute('href') || '').join('\n'); } catch (x) { }
+    const shown = zoomLinkFrom(t), hid = behind ? zoomLinkFrom(behind) : '';
+    const u = shown && (zoomHost(shown) || !(zoomHost(hid) && /^\/(j|w)\//i.test(new URL(hid).pathname))) ? shown : hid || shown;
+    if (!u || u === t) return; // a plain link pastes as it is
+    // (the note only when there was more than a link: an invite, or words with the link behind them)
+    e.preventDefault(); el.value = u; el.dataset.picked = /\s/.test(t) || !zoomLinkFrom(t) ? '1' : ''; el.dataset.left = '1'; if (after) after(true);
+  });
+  // (what's typed is only judged once the box is left — not while a link is half typed)
+  el.addEventListener('input', () => { delete el.dataset.picked; delete el.dataset.left; if (after) after(false); });
+  el.addEventListener('change', () => { el.dataset.left = '1'; if (after) after(false); });
+}
+/* what the Zoom link box says under it: the link picked out of the invite, or that what's in it isn't a link */
+function zoomUrlNote(el) {
+  const v = el ? String(el.value || '').trim() : '';
+  if (v && !zoomLinkFrom(v) && el.dataset.left === '1') return { t: 'That isn’t a meeting link — paste the one from the lab’s invite (it starts with https://).', bad: true };
+  if (v && el.dataset.picked === '1') return { t: 'Took the meeting link out of the invite.' };
+  return null;
+}
 /* same value for Edit: nothing, '' , false, [] and {} are all "empty" (a case saved before a field existed has none of
    it, the form says '' or []), and 10 is '10' — so saving one change doesn't also list every field the case never had */
 function sameVal(a, b) {
@@ -555,11 +591,13 @@ function caseFormHTML(c, isNew) {
     // Specialty's Herbst Rx (rx.js), Retainer Rx (rxret.js), Metal Rx (rxmetal.js) and Functional Rx (rxfun.js), filled out from here or later
     // from the case — its own step in New case ("Lab Rx"), shown only while one of them applies
     '<div class="cfSec cfRx" data-step="rx"' + show('appliance') + '>' + rxFormSecHTML(c) + '</div>' +
-    // MARPE: the two records the lab needs, and the Zoom call once it's set up
+    // MARPE: the two records the lab needs, and the Zoom call once it's set up — its date moves the case to Zoom call scheduled
+    // (zoomStageSync), and its link from the lab's invite opens the call from the case (Amir, 29 Oct 2026)
     '<div class="cfSec" data-step="case"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
       '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
-      '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
+      '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div>' +
+      zoomUrlFieldHTML('cf-zoomUrl', c.zoomUrl) + '</div><div class="small zoomHint" id="cf-zoomHint" aria-live="polite"></div></div>' +
     '<div class="cfSec" data-step="case"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) +
       // a scan on file or a remake (Amir, 5–6 Oct 2026: "the option also should be remake w/ or w/o model", "add the option 'scan on file'")
       '<h5>Scan on file or a remake? <span class="h5n">only if it is one — tap again to clear</span></h5>' + pickRow('remake', RET_FROM, c.scanOnFile ? 'file' : c.remake || '', false) + '</div></div>' +
@@ -672,7 +710,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'txStart', 'txEnd'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'zoomUrl', 'tracking', 'labRef', 'txStart', 'txEnd'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.cc = o.cc.replace(/\s+/g, ' '); // the patient's words on one line (the chart note's "Pt's CC:")
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
@@ -697,7 +735,9 @@ function readCaseForm(root) {
   if (g === 'marpe') o.appliances = [];
   // MARPE: records on file and the Zoom call; aligners: ship to patient (empty is '', see FORM_KEYS)
   const recs = pressed(root, 'records'); o.records = g === 'marpe' && recs.length ? recs : '';
-  if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; } else if (!o.zoomDate) o.zoomTime = '';
+  if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; o.zoomUrl = ''; } else if (!o.zoomDate) o.zoomTime = '';
+  // (the Zoom link as it'll be saved: picked out of whatever was pasted — kept as typed when there's no link in it, so saving says so)
+  if (o.zoomUrl) o.zoomUrl = zoomLinkFrom(o.zoomUrl) || o.zoomUrl;
   if (!o.deliveryDate) o.deliveryTime = ''; // a time only goes with a delivery date
   const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
   if (o.shipToPatient) o.deliveryTime = ''; // an expected delivery has no appointment time
@@ -897,6 +937,7 @@ function wireCaseForm(root, isNew) {
       if (isNew && ['aligner', 'braces', 'appliance', 'marpe', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
       if (g === 'appliance' || g === 'marpe') routeLab(root, isNew);
     }
+    zoomStageSync(); zoomNoteSync(); // (MARPE: the Zoom date typed here, or a Quick add case's once both records are ticked; and its note)
     // dates from the scan date (only fields nobody has typed into)
     const scan = $r('#cf-scanDate').value;
     if (isNew && scan) {
@@ -1052,7 +1093,36 @@ function wireCaseForm(root, isNew) {
     const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
     if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   }, { signal: off.signal });
-  $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; alSecSync(); }); // (Assigned to: marked by its tiles)
+  $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; alSecSync(); zoomNoteSync(); }); // (Assigned to: marked by its tiles)
+  // MARPE: entering the Zoom call's date moves the case to Zoom call scheduled (Amir, 29 Oct 2026: "when you enter Zoom date, it should
+  // already move it to the step that says Zoom scheduled") — the Stage menu follows the date while it's before that step and nobody
+  // picked a step by hand, and goes back if the date is taken out again; saving does the move, with the records check every move to
+  // the lab has. Only a date entered in this form moves it (zd.dataset.typed): opening Edit on a case with a date and an earlier step,
+  // or tapping its own tile there, leaves it where it is (independent review, 29 Oct 2026). The one exception (zd.dataset.held): a Quick
+  // add case whose date went in when it was added, before both records were on file — it moves once both are ticked here (Finish details).
+  function zoomStageSync() {
+    const sel = $r('#cf-stage'), zd = $r('#cf-zoomDate'); if (!sel || !zd || sel.dataset.manual === '1') return;
+    const typed = zd.dataset.typed === '1'; if (!typed && zd.dataset.held !== '1') return;
+    const o = readCaseForm(root); if (o.type !== 'marpe') return;
+    const keys = caseStages(o).map(s => s[0]), zi = keys.indexOf('zoom'); if (zi < 0) return;
+    const go = !!zd.value && (typed || !recordsMissing(o).length);
+    if (go && keys.indexOf(sel.value) < zi) { sel.dataset.zoomWas = sel.value; sel.value = 'zoom'; }
+    else if (!go && sel.value === 'zoom' && sel.dataset.zoomWas) { sel.value = sel.dataset.zoomWas; delete sel.dataset.zoomWas; }
+  }
+  // under the Zoom call: that saving moves the case (and the records it needs first), or what's wrong with the link
+  function zoomNoteSync() {
+    const hint = $r('#cf-zoomHint'), sel = $r('#cf-stage'), zd = $r('#cf-zoomDate'); if (!hint || !sel || !zd) return;
+    const o = readCaseForm(root), lk = zoomUrlNote($r('#cf-zoomUrl'));
+    const moving = o.type === 'marpe' && !!zd.value && sel.value === 'zoom' && !!sel.dataset.zoomWas && sel.dataset.manual !== '1';
+    const recs = moving ? recordsMissing(o) : [];
+    hint.textContent = [moving ? (isNew ? 'It starts at “Zoom call scheduled”.' : 'Saving moves the case to “Zoom call scheduled”.') +
+      (recs.length ? ' Tick ' + (recs.length > 1 ? 'both records' : 'the ' + recs[0][2]) + ' above first — both have to be on file before the lab.' : '') : '', lk ? lk.t : ''].filter(Boolean).join(' ');
+    hint.classList.toggle('bad', !!(lk && lk.bad));
+  }
+  const zdEl = $r('#cf-zoomDate');
+  if (zdEl && !isNew && zdEl.value && S.editBase && S.editBase.quick) zdEl.dataset.held = '1'; // (a Quick add case's date: see zoomStageSync)
+  if (zdEl) ['input', 'change'].forEach(ev => zdEl.addEventListener(ev, () => { zdEl.dataset.typed = '1'; zoomStageSync(); zoomNoteSync(); }));
+  wireZoomUrl($r('#cf-zoomUrl'), zoomNoteSync);
   // editing: a lab already on the case stays unless someone taps another one
   const labRow = $('.pickRow[data-g="lab"]', root); if (!isNew && labRow && pressed(root, 'lab').length) labRow.dataset.manual = '1';
   $r('#cf-scanDate').addEventListener('change', () => refresh(false));
@@ -1121,18 +1191,23 @@ function newCaseModal() {
         const data = readCaseForm(w);
         // the patient step first (name, chart #, case type), then — for Create case — every step's own checks, each shown on its step
         for (const k of quick ? ['patient'] : wizSteps(w).map(x => x.k)) { const x = wizCheck(w, k); if (x) { wizGo(w, k); wizSay(w, x); return; } }
+        // (a Zoom link box with something in it that isn't a link: said, Quick add too — saved, it would stop every later Edit)
+        if (data.zoomUrl && !zoomLinkOf(data)) { if (w._wiz) wizGo(w, 'case'); return err('The Zoom link has to be the meeting link from the lab’s invite (it starts with https://).'); }
         if (!quick) {
           if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
           data.stage = data.stage || firstStage(data.type);
           const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
-          if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
-          if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
+          // (MARPE: the records and the Zoom call are on the Case step — shown, with what's missing)
+          if (needs.includes('records')) { if (w._wiz) wizGo(w, 'case'); return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.'); }
+          if (needs.includes('zoom')) { if (w._wiz) wizGo(w, 'case'); return err('Add the Zoom call date to start it at Zoom call scheduled.'); }
           // (a new in-house case started at TxP approved or later: its counts show on the Case step for it — alSecSync)
           if (needs.includes('aligners') && alignersMissing(data)) { if (w._wiz) wizGo(w, 'case'); return err('Enter ' + alAskText(data) + ' and pick Attachment templates under Aligners in this set to start it at ' + stageLabel(data) + '.'); }
         } else {
           // Quick add (Amir, 6 Oct 2026: "enter the basics and then we can add to it later"): the case starts at its first step with the
-          // scan date and assistant filled in, and stays tagged "Finish details" until someone goes through the steps
-          data.stage = firstStage(data.type); data.quick = Date.now();
+          // scan date and assistant filled in, and stays tagged "Finish details" until someone goes through the steps. A MARPE whose Zoom
+          // call's date is in, with both records, starts at Zoom call scheduled as Submit would (29 Oct 2026)
+          const zq = data.type === 'marpe' && data.stage === 'zoom' && !!data.zoomDate && !stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), 'zoom').length;
+          data.stage = zq ? 'zoom' : firstStage(data.type); data.quick = Date.now();
         }
         // the patient already has an open case like this one: asked first (Open that case / Create a second case anyway) — dupes.js
         w._dupRetry = () => create(quick);
@@ -1143,7 +1218,9 @@ function newCaseModal() {
         const btn = quick ? $('#ncQuick', w) : $('#ncSave', w); busyBtn(btn, true, 'Saving…');
         try {
           await B.createCase(data, w._ph ? w._ph.bytes : null, w._ph ? w._ph.at : 0); closeModal();
-          if (quick) toast('Case added for ' + ptNameText(data.patient) + ' — it shows Finish details until the rest is in');
+          // (a MARPE whose Zoom date is in but not both records: where it is, and what moves it on)
+          if (quick && data.type === 'marpe' && data.zoomDate && data.stage !== 'zoom') toast('Case added for ' + ptNameText(data.patient) + ' at “' + stageLabel(data) + '” — it moves to Zoom call scheduled once both records are ticked in Finish details', { ms: 9000 });
+          else if (quick) toast('Case added for ' + ptNameText(data.patient) + ' — it shows Finish details until the rest is in');
           else {
             toast('Case created for ' + ptNameText(data.patient), { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
             rxCreatedToast(data);
@@ -1247,6 +1324,9 @@ function wizSumHTML(o, tile) {
     row('Scan', esc([o.scanner, o.scanDate ? fmtDay(o.scanDate) : '', o.assistant ? 'by ' + firstName(staffName(o.assistant, '')) : ''].filter(Boolean).join(' · '))) +
     row('Lab completion', esc(o.labDate ? fmtDay(o.labDate) : '')) +
     row(o.shipToPatient ? 'Expected delivery' : 'Delivery appt', esc(del) + (o.shipToPatient ? ' <span class="muted">· shipped to the patient</span>' : '')) +
+    // MARPE: the Zoom call, and its link once it's in (a date starts the case at Zoom call scheduled)
+    row('Zoom call', o.type === 'marpe' && (o.zoomDate || o.zoomUrl) ? esc(o.zoomDate ? fmtDay(o.zoomDate) + (o.zoomTime ? ', ' + fmtTime(o.zoomTime) : '') : 'No date yet') +
+      (zoomLinkOf(o) ? ' <span class="muted">· link added</span>' : '') : '') +
     row('Dr. A’s instructions', esc(o.instructions || '')) +
     row(ccTitle(o), o.cc ? esc(o.cc) : '') +
     '</div>';

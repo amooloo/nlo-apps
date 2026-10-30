@@ -137,6 +137,64 @@ function ccTitle(c) { return ccLater(c) ? 'Patient’s CC from last visit' : 'Pa
 /* MARPE: both records have to be on file before the case goes to the lab (Amir, 2 Oct 2026) */
 const MARPE_RECORDS = [['stl', 'STL scan', 'STL'], ['cbct', 'CBCT (upper & lower jaws)', 'CBCT']];
 function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.filter(([k]) => !r.includes(k)); }
+/* MARPE: the Zoom call's link (Amir, 29 Oct 2026: "is there any way I can like link my Zooms there … so in the future, I can just
+   click on there and open up the Zoom"). The link from the lab's invite is saved on the case (`zoomUrl`, encrypted with the rest
+   of it) and opens with Join Zoom while the call is still ahead. Pasting the whole invite works too: the meeting link is picked out
+   of it: a Zoom join link first (…/j/…, before Zoom's Register page), then any Zoom link, then another meeting link — the first one,
+   or a later copy of the same meeting's link with its passcode in it. An email's
+   own wrapper around the link (Outlook's Safe Links, Google's redirect) is taken off, and the invisible characters an email can leave
+   inside a link (zero-width spaces, soft hyphens) are dropped — they'd end up in the passcode. A Zoom link pasted without https:// (or
+   with http://) gets it; anything else that isn't an https:// link isn't kept. (Independent review, 29 Oct 2026.) */
+const ZOOM_HOST = /(^|\.)(zoom\.us|zoom\.com|zoomgov\.com)$/i;
+function zoomHost(u) { try { return ZOOM_HOST.test(new URL(u).hostname); } catch (e) { return false; } }
+/* a join link (a meeting's /j/…, a webinar's /w/…, a personal room's /my/…, the web client's /wc/…) */
+function zoomJoinPath(u) { try { return /^\/(j|w|s|my|wc)\//i.test(new URL(u).pathname); } catch (e) { return false; } }
+/* the link inside an email's wrapper (Outlook's Safe Links, Google's redirect), or the link as it is */
+function linkUnwrap(u) {
+  try {
+    const x = new URL(u), h = x.hostname.toLowerCase();
+    const inner = /(^|\.)safelinks\.protection\.outlook\.com$/.test(h) ? x.searchParams.get('url')
+      : /^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(h) && x.pathname === '/url' ? x.searchParams.get('q') || x.searchParams.get('url') : '';
+    return inner ? String(inner).trim() : u;
+  } catch (e) { return u; }
+}
+/* the link as it's saved: https only (a Zoom link given with http:// gets https://), without a sign-in part, written the standard way */
+function linkClean(u) {
+  try {
+    if (/^http:\/\//i.test(u) && zoomHost(u)) u = 'https://' + u.slice(7);
+    const x = new URL(u); if (x.protocol !== 'https:' || !/\.[^.]+$/.test(x.hostname)) return '';
+    x.username = ''; x.password = '';
+    return /^https:\/\/[^\s<>"'`]+$/i.test(x.href) ? x.href : '';
+  } catch (e) { return ''; }
+}
+function zoomLinkFrom(v) {
+  // (invisible characters an email can leave inside a link — zero-width spaces and joiners, direction marks, soft hyphens, a BOM)
+  const invis = x => x.replace(/[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g, '');
+  const s = invis(String(v || '')).trim(); if (!s) return '';
+  const cut = u => u.replace(/[.,;:!?'"’”)\]>*]+$/, ''); // (the sentence's punctuation after a link isn't part of it)
+  // (wrappers inside wrappers — Google's redirect around a Safe Link — come off until the link stops changing; what comes out of a
+  // wrapper is cleaned the same way, as it was written inside it percent-encoded)
+  const peel = u => { for (let n = 0; n < 4; n++) { const x = cut(invis(linkUnwrap(u)).trim()); if (x === u) break; u = x; } return u; };
+  const found = (s.match(/https:\/\/[^\s<>"'`]+/gi) || []).map(cut);
+  // (a Zoom link written without https://, or with http://)
+  for (const m of s.matchAll(/(?:^|[\s(<]|http:\/\/)((?:[a-z0-9-]+\.)*zoom(?:gov)?\.(?:us|com)\/[^\s<>"'`]+)/gi)) found.push('https://' + cut(m[1]));
+  const all = Array.from(new Set(found.map(u => linkClean(peel(u))).filter(Boolean)));
+  // a Zoom join link, then another Zoom link, then anything else; the first of them — or a later copy of the same meeting's link that
+  // has its passcode in it (it opens without asking for one; a different meeting's passcode never wins)
+  const rank = u => zoomHost(u) ? (zoomJoinPath(u) ? 2 : 1) : 0, pwd = u => /[?&]pwd=/.test(u);
+  const same = (a, b) => { try { const x = new URL(a), y = new URL(b); return x.host === y.host && x.pathname === y.pathname; } catch (e) { return false; } };
+  return all.reduce((best, u) => rank(u) > rank(best) || (rank(u) === rank(best) && same(u, best) && pwd(u) && !pwd(best)) ? u : best, all[0] || '');
+}
+/* the case's Zoom link, ready to open: what's saved, read the way the form reads it — always a clean https:// link ('' when it has
+   none, or no link in what's saved; a link saved inside a wrapper opens without it) */
+function zoomLinkOf(c) { return zoomLinkFrom(c && c.zoomUrl); }
+/* what its button says: a Zoom link joins the Zoom; another meeting link (Teams, Meet…) the call */
+function zoomJoinWord(u) { return zoomHost(u) ? 'Join Zoom' : 'Join the call'; }
+/* the Zoom call is still ahead: a MARPE case before its design is approved (as the case's next date: labDueOf) */
+function zoomAhead(c) {
+  const f = flowOf(c); if (!f.zoomUntil) return false;
+  return stageIndex(c) < f.stages.findIndex(s => s[0] === f.zoomUntil);
+}
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }

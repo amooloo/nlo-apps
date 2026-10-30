@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-QMWR7TTrDDXZB/Z9q62xvWz5dnzUd3jmWukXTuGA6zw=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-iIrEByLG52DHLYmBQBLoulwQSwVKe0aat/Mq/zDxoGI=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -645,6 +645,10 @@ a.flag.trk:hover{background:var(--blue);color:#fff}
 /* Dental Monitoring on an Oliv patient's row and card (29 Oct 2026) */
 a.flag.dm{margin-left:6px;vertical-align:1px;background:var(--navy-100);color:var(--navy-700);text-decoration:none}
 a.flag.dm:hover,a.flag.dm:focus-visible{background:var(--navy);color:#fff}
+/* Join Zoom on a MARPE case's card and row while the call is ahead */
+a.flag.zm{background:var(--blue-100);color:var(--blue-700);text-decoration:none}
+a.flag.zm:hover,a.flag.zm:focus-visible{background:var(--blue);color:#fff}
+.ptTxt a.flag.zm{margin-left:6px;vertical-align:1px}
 .kc .dt a.flag.dm{margin-top:3px}
 .row .flag{flex:none}
 td .flags{margin-top:4px}
@@ -675,6 +679,12 @@ td.shipCol .flags{margin-top:0}
 .mpWhen{display:inline-flex;align-items:center;gap:6px;color:var(--navy);font-size:13.5px}
 .mpWhen .i{color:var(--blue)}
 .mpHint{margin-top:8px}
+/* the Zoom link box beside the date and time (MARPE, 29 Oct 2026): wide enough to show the link */
+.zoomRow .field.zoomUrlF{width:auto;flex:1 1 300px;max-width:460px}
+.zoomRow .field.zoomUrlF input{width:100%}
+.zoomHint{margin-top:4px;color:var(--grey-600)}
+.zoomHint:empty{display:none}
+.zoomHint.bad{color:var(--coral-700);font-weight:600}
 .gate{background:var(--grey-50);border:1px solid var(--grey-100);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;color:var(--navy)}
 .gate>b{display:block;margin-bottom:6px}
 .gateRow{display:flex;align-items:center;gap:10px;font-weight:600;padding:6px 0;cursor:pointer}
@@ -2104,6 +2114,64 @@ function ccTitle(c) { return ccLater(c) ? 'Patient’s CC from last visit' : 'Pa
 /* MARPE: both records have to be on file before the case goes to the lab (Amir, 2 Oct 2026) */
 const MARPE_RECORDS = [['stl', 'STL scan', 'STL'], ['cbct', 'CBCT (upper & lower jaws)', 'CBCT']];
 function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.filter(([k]) => !r.includes(k)); }
+/* MARPE: the Zoom call's link (Amir, 29 Oct 2026: "is there any way I can like link my Zooms there … so in the future, I can just
+   click on there and open up the Zoom"). The link from the lab's invite is saved on the case (`zoomUrl`, encrypted with the rest
+   of it) and opens with Join Zoom while the call is still ahead. Pasting the whole invite works too: the meeting link is picked out
+   of it: a Zoom join link first (…/j/…, before Zoom's Register page), then any Zoom link, then another meeting link — the first one,
+   or a later copy of the same meeting's link with its passcode in it. An email's
+   own wrapper around the link (Outlook's Safe Links, Google's redirect) is taken off, and the invisible characters an email can leave
+   inside a link (zero-width spaces, soft hyphens) are dropped — they'd end up in the passcode. A Zoom link pasted without https:// (or
+   with http://) gets it; anything else that isn't an https:// link isn't kept. (Independent review, 29 Oct 2026.) */
+const ZOOM_HOST = /(^|\.)(zoom\.us|zoom\.com|zoomgov\.com)$/i;
+function zoomHost(u) { try { return ZOOM_HOST.test(new URL(u).hostname); } catch (e) { return false; } }
+/* a join link (a meeting's /j/…, a webinar's /w/…, a personal room's /my/…, the web client's /wc/…) */
+function zoomJoinPath(u) { try { return /^\/(j|w|s|my|wc)\//i.test(new URL(u).pathname); } catch (e) { return false; } }
+/* the link inside an email's wrapper (Outlook's Safe Links, Google's redirect), or the link as it is */
+function linkUnwrap(u) {
+  try {
+    const x = new URL(u), h = x.hostname.toLowerCase();
+    const inner = /(^|\.)safelinks\.protection\.outlook\.com$/.test(h) ? x.searchParams.get('url')
+      : /^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(h) && x.pathname === '/url' ? x.searchParams.get('q') || x.searchParams.get('url') : '';
+    return inner ? String(inner).trim() : u;
+  } catch (e) { return u; }
+}
+/* the link as it's saved: https only (a Zoom link given with http:// gets https://), without a sign-in part, written the standard way */
+function linkClean(u) {
+  try {
+    if (/^http:\/\//i.test(u) && zoomHost(u)) u = 'https://' + u.slice(7);
+    const x = new URL(u); if (x.protocol !== 'https:' || !/\.[^.]+$/.test(x.hostname)) return '';
+    x.username = ''; x.password = '';
+    return /^https:\/\/[^\s<>"'`]+$/i.test(x.href) ? x.href : '';
+  } catch (e) { return ''; }
+}
+function zoomLinkFrom(v) {
+  // (invisible characters an email can leave inside a link — zero-width spaces and joiners, direction marks, soft hyphens, a BOM)
+  const invis = x => x.replace(/[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g, '');
+  const s = invis(String(v || '')).trim(); if (!s) return '';
+  const cut = u => u.replace(/[.,;:!?'"’”)\]>*]+$/, ''); // (the sentence's punctuation after a link isn't part of it)
+  // (wrappers inside wrappers — Google's redirect around a Safe Link — come off until the link stops changing; what comes out of a
+  // wrapper is cleaned the same way, as it was written inside it percent-encoded)
+  const peel = u => { for (let n = 0; n < 4; n++) { const x = cut(invis(linkUnwrap(u)).trim()); if (x === u) break; u = x; } return u; };
+  const found = (s.match(/https:\/\/[^\s<>"'`]+/gi) || []).map(cut);
+  // (a Zoom link written without https://, or with http://)
+  for (const m of s.matchAll(/(?:^|[\s(<]|http:\/\/)((?:[a-z0-9-]+\.)*zoom(?:gov)?\.(?:us|com)\/[^\s<>"'`]+)/gi)) found.push('https://' + cut(m[1]));
+  const all = Array.from(new Set(found.map(u => linkClean(peel(u))).filter(Boolean)));
+  // a Zoom join link, then another Zoom link, then anything else; the first of them — or a later copy of the same meeting's link that
+  // has its passcode in it (it opens without asking for one; a different meeting's passcode never wins)
+  const rank = u => zoomHost(u) ? (zoomJoinPath(u) ? 2 : 1) : 0, pwd = u => /[?&]pwd=/.test(u);
+  const same = (a, b) => { try { const x = new URL(a), y = new URL(b); return x.host === y.host && x.pathname === y.pathname; } catch (e) { return false; } };
+  return all.reduce((best, u) => rank(u) > rank(best) || (rank(u) === rank(best) && same(u, best) && pwd(u) && !pwd(best)) ? u : best, all[0] || '');
+}
+/* the case's Zoom link, ready to open: what's saved, read the way the form reads it — always a clean https:// link ('' when it has
+   none, or no link in what's saved; a link saved inside a wrapper opens without it) */
+function zoomLinkOf(c) { return zoomLinkFrom(c && c.zoomUrl); }
+/* what its button says: a Zoom link joins the Zoom; another meeting link (Teams, Meet…) the call */
+function zoomJoinWord(u) { return zoomHost(u) ? 'Join Zoom' : 'Join the call'; }
+/* the Zoom call is still ahead: a MARPE case before its design is approved (as the case's next date: labDueOf) */
+function zoomAhead(c) {
+  const f = flowOf(c); if (!f.zoomUntil) return false;
+  return stageIndex(c) < f.stages.findIndex(s => s[0] === f.zoomUntil);
+}
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }
@@ -3473,10 +3541,11 @@ const DEMO = {
       });
       DEMO.logs.push({ caseId: id, a: 'create', at: Date.now() - 86400e3 * (i + 2), sid: 'amir' });
     });
-    // MARPE: one still waiting on its CBCT, one with the Zoom call in two days, one approved; Partners makes them
+    // MARPE: one still waiting on its CBCT, one with the Zoom call in two days, one approved; Partners makes them. The call's link
+    // is Zoom's own test meeting page (nothing private behind it)
     const all = Array.from(DEMO.cases.values()), mp = all.filter(c => c.type === 'marpe');
     Object.assign(mp[0], { records: ['stl'], lab: 'Partners Dental Solutions' });
-    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, 2), zoomTime: '12:30' });
+    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, 2), zoomTime: '12:30', zoomUrl: 'https://zoom.us/test' });
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, -9), zoomTime: '13:00' });
     // a Herbst going to Specialty with its Herbst Rx filled out (rx.js; made-up choices), and Dr. A's Rx details (made up)
     const hb = all.find(c => c.type === 'appliance' && c.stage === 'submit');
@@ -5357,7 +5426,7 @@ function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
-  const flags = quickFlag(c) + shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
+  const flags = quickFlag(c) + shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c) + zoomChip(c); // (MARPE: Join Zoom)
   // the arrow names where it goes ("Move to TxP approved")
   const nx = last ? null : nextStage(c);
   const tip = last ? 'Mark complete' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
@@ -5621,7 +5690,7 @@ function listBodyHTML(base) {
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
       const df = quickFlag(c) + dupFlag(c);
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + dmChip(c) + '</div>' +
+      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + dmChip(c) + zoomChip(c) + '</div>' +
       (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
@@ -5762,7 +5831,7 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', scanStU: 'stage at scan', scanStL: 'stage at scan', scanStNone: 'stage at scan', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
+const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', zoomUrl: 'Zoom link', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', scanStU: 'stage at scan', scanStL: 'stage at scan', scanStNone: 'stage at scan', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -5858,7 +5927,8 @@ function renderDrawer() {
       // dropped there, and when the models are sent to OrthoFactory the app tells this page, which notes it on the case (btModels)
       '<button type="button" class="btn btn-sec btn-sm" data-act="btModels" title="Open the Bleach Tray app for this patient: drop the scan there, check the 3D result, send the models to OrthoFactory">' + ic('lab', 15) + 'Make models</button>' +
       (c.btModels && c.btModels.at ? '<span class="small muted">models in OrthoFactory ' + esc(new Date(c.btModels.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })) + (c.btModels.models && c.btModels.models.length ? ' (' + esc(c.btModels.models.join(', ')) + ')' : '') + '</span>'
-        : done ? '' : '<span class="small muted">labels for the bag · models for the printer</span>') + '</div>' : '';
+        : done ? '' : '<span class="small muted">labels for the bag · models for the printer</span>') + '</div>'
+    : zoomHdrHTML(c, done); // MARPE: Join Zoom, never folded away (29 Oct 2026)
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
@@ -6119,6 +6189,31 @@ function dsReveal(sec) {
   const r = sec.getBoundingClientRect(), b = bd.getBoundingClientRect();
   if (r.bottom > b.bottom) bd.scrollTop += Math.min(r.bottom - b.bottom + 12, r.top - b.top - 8);
 }
+/* ---------- MARPE: the Zoom call one click away (Amir, 29 Oct 2026: "is there any way I can like link my Zooms there … So in the
+   future, I can just click on there and open up the Zoom") — the link from the lab's invite opens the call in a new tab: Join Zoom in
+   the case panel's header (never folded away, like Print labels), in the MARPE box, on the case's card on the board and on its row in
+   the lists — while the call is still ahead (before Design approved). Without a link yet, the header offers to add it once the case
+   is at the lab. ---------- */
+function zoomJoinBtnHTML(u, cls, icSize) {
+  return '<a class="' + cls + '" data-act="zoomJoin" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer" title="' + esc(zoomJoinWord(u)) + ' — opens the call in a new tab">' + ic('video', icSize || 15) + esc(zoomJoinWord(u)) + '</a>';
+}
+function zoomHdrHTML(c, done) {
+  if (done || typeOf(c).flow !== 'marpe' || !zoomAhead(c)) return '';
+  const u = zoomLinkOf(c), keys = flowOf(c).stages.map(s => s[0]);
+  if (!u && !c.zoomDate && keys.indexOf(c.stage) < keys.indexOf('submitted')) return ''; // (still gathering its records)
+  const when = c.zoomDate ? 'Zoom call ' + fmtDay(c.zoomDate) + (c.zoomTime ? ', ' + fmtTime(c.zoomTime) : '') : 'No date for the Zoom call yet';
+  return '<div class="dLbl dZoom" id="dZoom">' + (u ? zoomJoinBtnHTML(u, 'btn btn-pri btn-sm')
+      : '<button type="button" class="btn btn-sec btn-sm" data-act="zoomSet">' + ic('video', 15) + (c.zoomDate ? 'Add the Zoom link' : 'Set up the Zoom call') + '</button>') +
+    '<span class="small muted">' + esc(when) + (u ? '' : ' · paste the link from the lab’s invite') + '</span>' +
+    (u ? '<button type="button" class="linkBtn small" data-act="zoomSet">Change</button>' : '') + '</div>';
+}
+/* the case's saved link read the way a form reads what's typed (zoomLinkFrom), to tell whether it was changed */
+function zoomSaved(c) { const v = String((c && c.zoomUrl) || '').trim(); return v ? zoomLinkFrom(v) || v : ''; }
+/* the card's and the row's chip */
+function zoomChip(c) {
+  const u = c && c.status !== 'done' && typeOf(c).flow === 'marpe' && zoomAhead(c) ? zoomLinkOf(c) : '';
+  return u ? zoomJoinBtnHTML(u, 'flag zm', 12) : '';
+}
 /* folded heading of the MARPE box: what's still missing, and the Zoom call */
 function marpeSum(c) {
   const miss = recordsMissing(c);
@@ -6126,13 +6221,15 @@ function marpeSum(c) {
 }
 /* ---------- MARPE: records on file and the Zoom call (drawer box, the check before a stage move, the Zoom date) ---------- */
 function marpeBoxHTML(c, done) {
-  const r = c.records || [], x = dueOf(c), dis = done ? ' disabled' : '';
+  const r = c.records || [], x = dueOf(c), dis = done ? ' disabled' : '', u = !done && zoomAhead(c) ? zoomLinkOf(c) : '';
   const when = c.zoomDate ? '<b>' + esc(fmtDay(c.zoomDate)) + (c.zoomTime ? ' · ' + esc(fmtTime(c.zoomTime)) : '') + '</b>' : '<span class="muted">Not set yet</span>';
   return '<div id="mpBox"><div class="mpGrid">' +
     '<div class="mpK">Records on file</div><div class="mpV">' + MARPE_RECORDS.map(([k, l]) =>
       '<button type="button" class="pick sm" data-act="rec" data-k="' + k + '" aria-pressed="' + r.includes(k) + '"' + dis + '>' + esc(l) + '</button>').join('') + '</div>' +
+    // the call's link from the lab's invite opens it (while it's still ahead); Change sets the date, the time and the link
     '<div class="mpK">Zoom call</div><div class="mpV"><span class="mpWhen">' + ic('video', 16) + when + '</span>' + (x && x.k === 'zoom' && !done ? dueChip(c) : '') +
-      (done ? '' : '<button type="button" class="btn btn-sec btn-sm" data-act="zoomSet">' + (c.zoomDate ? 'Change' : 'Set the date') + '</button>') + '</div></div>' +
+      (u ? zoomJoinBtnHTML(u, 'flag zm', 12) : !done && zoomAhead(c) && c.zoomDate ? '<span class="small muted">No link yet</span>' : '') +
+      (done ? '' : '<button type="button" class="btn btn-sec btn-sm" data-act="zoomSet">' + (c.zoomDate && !zoomLinkOf(c) && zoomAhead(c) ? 'Add the link' : c.zoomDate ? 'Change' : 'Set the date') + '</button>') + '</div></div>' +
     (recordsMissing(c).length && stageIndex(c) <= 0 && !done ? '<div class="small muted mpHint">Both have to be on file before it moves to Submitted to lab.</div>' : '') + '</div>';
 }
 /* before a stage move goes through, ask for what it needs (see stageNeeds); `extra` = fields already collected */
@@ -6142,7 +6239,8 @@ function stageGateModal(c, to, needs, extra, via) {
     (needs.includes('records') ? '<div class="gate" id="gRecs"><b>Before it goes to the lab, both have to be on file:</b>' + MARPE_RECORDS.map(([k, l]) =>
       '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
     (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
-      '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
+      '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div>' +
+      zoomUrlFieldHTML('gZoomUrl', extra.zoomUrl || c.zoomUrl, 'if you have it') + '</div><div class="small zoomHint" id="gZoomHint" aria-live="polite"></div></div>' : '') +
     // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches TxP approved
     // (one arch only: just that arch's count, and the template answers that fit it)
     (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan' + (one ? ' · ' + esc(treatArchLabel(one).toLowerCase()) : '') + '</span></b><div class="alRow">' +
@@ -6150,38 +6248,53 @@ function stageGateModal(c, to, needs, extra, via) {
       (one === 'U' ? '' : '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>') + '</div>' +
       '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', atOptsFor(one), atFor(c.atTemplates, one), false) + '</div>' : '') +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
-      const go = $('#gGo', w), zd = $('#gZoomDate', w), al = $('#gAl', w);
+      const go = $('#gGo', w), zd = $('#gZoomDate', w), zu = $('#gZoomUrl', w), al = $('#gAl', w);
       const n = id => { const el = $(id, w); return el ? Math.min(99, Math.max(0, parseInt(el.value, 10) || 0)) : 0; }; // (an untreated arch has no field)
       const atV = () => (($('.pickRow[data-g=gAt] .pick[aria-pressed=true]', w) || {}).dataset || {}).v || '';
-      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value) && (!al || (n('#gAlU') + n('#gAlL') > 0 && !!atV()));
-      const sync = () => { go.disabled = !ok(); };
+      // (the Zoom link is optional here, but what's in its box has to be a link)
+      const linkOk = () => !zu || !zu.value.trim() || !!zoomLinkFrom(zu.value);
+      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value) && linkOk() && (!al || (n('#gAlU') + n('#gAlL') > 0 && !!atV()));
+      const sync = () => { go.disabled = !ok(); const h = $('#gZoomHint', w); if (h) { const x = zoomUrlNote(zu); h.textContent = x ? x.t : ''; h.classList.toggle('bad', !!(x && x.bad)); } };
+      wireZoomUrl(zu, sync);
       w.addEventListener('change', sync); w.addEventListener('input', sync);
       w.addEventListener('click', e => { const b = e.target.closest('.pickRow[data-g=gAt] .pick'); if (!b) return; $$('.pickRow[data-g=gAt] .pick', w).forEach(x => x.setAttribute('aria-pressed', String(x === b))); sync(); });
       sync();
       go.onclick = () => {
         if (!ok()) return; const add = Object.assign({}, extra);
         if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
-        if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; }
+        if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || '';
+          const u = zu ? zoomLinkFrom(zu.value) : ''; if (u !== zoomSaved(c)) add.zoomUrl = u; } // (the link only when it's new or changed)
         if (al) { const u = n('#gAlU'), l = n('#gAlL'); add.alU = u || ''; add.alL = l || ''; add.aligners = u + l || ''; add.atTemplates = atV(); }
         closeModal(); moveStage(c.id, to, add, needs, via);
       };
     });
 }
-/* set or change the Zoom call; before that step, saving also moves the case to "Zoom call scheduled" */
+/* set or change the Zoom call: its date, time and link (the lab's invite: the link, or the whole invite pasted); before that step,
+   saving also moves the case to "Zoom call scheduled" */
 function zoomModal(c) {
   const keys = flowOf(c).stages.map(s => s[0]), before = keys.indexOf(c.stage) < keys.indexOf('zoom');
   openModal('<h3>Zoom call</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
     '<div class="zoomRow"><div class="field"><label for="zmDate">Date</label><input type="date" id="zmDate" value="' + esc(c.zoomDate || '') + '"></div>' +
-    '<div class="field"><label for="zmTime">Time</label><input type="time" id="zmTime" value="' + esc(c.zoomTime || '') + '"></div></div>' +
+    '<div class="field"><label for="zmTime">Time</label><input type="time" id="zmTime" value="' + esc(c.zoomTime || '') + '"></div>' + zoomUrlFieldHTML('zmUrl', c.zoomUrl) + '</div>' +
+    '<div class="small zoomHint" id="zmHint" aria-live="polite" style="margin:-2px 0 10px"></div>' +
     (before ? '<div class="small muted" style="margin:-4px 0 12px">Saving moves the case to “Zoom call scheduled”.</div>' : '') +
     '<div class="mFt">' + (c.zoomDate ? '<button class="btn btn-ghost" type="button" id="zmClear" style="margin-right:auto">Clear the date</button>' : '') +
     '<button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="zmSave">Save</button></div>', w => {
-      const d = $('#zmDate', w), save = $('#zmSave', w), sync = () => { save.disabled = !d.value; };
-      d.addEventListener('input', sync); d.addEventListener('change', sync); sync();
+      const d = $('#zmDate', w), u = $('#zmUrl', w), save = $('#zmSave', w);
+      const sync = () => { const x = zoomUrlNote(u), h = $('#zmHint', w); h.textContent = x ? x.t : ''; h.classList.toggle('bad', !!(x && x.bad));
+        save.disabled = !d.value || (!!u.value.trim() && !zoomLinkFrom(u.value)); };
+      d.addEventListener('input', sync); d.addEventListener('change', sync); wireZoomUrl(u, sync); sync();
       save.onclick = () => {
-        const z = { zoomDate: d.value, zoomTime: $('#zmTime', w).value || '' }; if (!z.zoomDate) return; closeModal();
-        if (before) moveStage(c.id, 'zoom', z);
-        else act(() => B.mutateCase(c.id, x => { Object.assign(x, z); }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call set for ' + fmtDay(z.zoomDate) + (z.zoomTime ? ', ' + fmtTime(z.zoomTime) : ''));
+        const z = { zoomDate: d.value, zoomTime: $('#zmTime', w).value || '' }, url = zoomLinkFrom(u.value);
+        if (!z.zoomDate || (u.value.trim() && !url)) return;
+        if (url !== zoomSaved(c)) z.zoomUrl = url; // (the link only when it's new, changed or taken out)
+        closeModal();
+        const fields = Object.keys(z).filter(k => (k === 'zoomUrl' ? zoomSaved(c) : c[k] || '') !== z[k]), ch = {}; fields.forEach(k => { ch[k] = z[k]; });
+        // (moving it: only what changed goes with the move, so its history doesn't say the date was set when it was already there)
+        if (before) { moveStage(c.id, 'zoom', ch); return; }
+        if (!fields.length) return; // (nothing changed)
+        act(() => B.mutateCase(c.id, x => { Object.assign(x, ch); }, { a: 'edit', fields }),
+          fields.some(k => k !== 'zoomUrl') ? 'Zoom call set for ' + fmtDay(z.zoomDate) + (z.zoomTime ? ', ' + fmtTime(z.zoomTime) : '') : url ? 'Zoom link saved' : 'Zoom link taken off');
       };
       const clr = $('#zmClear', w);
       if (clr) clr.onclick = () => { closeModal(); act(() => B.mutateCase(c.id, x => { x.zoomDate = ''; x.zoomTime = ''; }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call date cleared'); };
@@ -6550,6 +6663,7 @@ function onClick(e) {
     case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
     case 'noshipF': S.f.noship = S.f.noship ? '' : '1'; renderView(); break;
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
+    case 'zoomJoin': break; // a MARPE case's Join Zoom: the link itself opens the call in a new tab (and doesn't open the case)
     case 'portal': copyPtName(findCase(S.openId)); break; // the link itself opens the portal in a new tab
     // an Oliv patient's row or card: the link itself opens Dental Monitoring in a new tab (and doesn't open the case)
     case 'dmLink': copyPtName(findCase(id), 'Dental Monitoring’s search'); break;
@@ -6572,9 +6686,9 @@ function onClick(e) {
     case 'stkTog': stkTog(t); break;
     case 'stkMsgOpen': stkMsgOpen(id, t.dataset.s); break;
     // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
-    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = null; renderDrawer(); break; }
+    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); if (S.editBase.zoomUrl) S.editBase.zoomUrl = zoomLinkFrom(S.editBase.zoomUrl) || S.editBase.zoomUrl; S.editing = true; S.editWiz = null; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; S.editWiz = null; renderDrawer(); break;
-    case 'quickFinish': { const c = findCase(S.openId); if (!c) break; S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = 'case'; renderDrawer(); break; }
+    case 'quickFinish': { const c = findCase(S.openId); if (!c) break; S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); if (S.editBase.zoomUrl) S.editBase.zoomUrl = zoomLinkFrom(S.editBase.zoomUrl) || S.editBase.zoomUrl; S.editing = true; S.editWiz = 'case'; renderDrawer(); break; }
     case 'quickDone': { const id = S.openId; act(() => B.mutateCase(id, x => { if (!x.quick) return 'skip'; x.quick = ''; }, { a: 'edit', fields: ['quick'] }), 'Finish details taken off'); break; }
     case 'saveEdit': saveEdit(); break;
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
@@ -6656,6 +6770,8 @@ async function saveEdit() {
   if (wiz) for (const st of wizSteps(d)) { const x = wizCheck(d, st.k); if (x) { wizGo(d, st.k); wizSay(d, x); return; } }
   if (!now.type || !now.patient) { $('#drawerNotice').innerHTML = '<div class="notice bad">Type and patient name are required.</div>'; return; }
   if (now.titanUrl && !safeUrl(now.titanUrl)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Titan link must start with https://</div>'; return; }
+  // (only when the link was changed: what's saved never stops a save of something else)
+  if (now.zoomUrl && !sameVal(now.zoomUrl, (S.editBase || {}).zoomUrl) && !zoomLinkOf(now)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Zoom link has to be the meeting link from the lab’s invite (it starts with https://).</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const txBad = !!now.txStart !== !!now.txEnd ? 'Enter both the treatment start and the expected removal (or leave both empty).' : now.txStart && now.txEnd <= now.txStart ? 'The expected removal has to be after the treatment start.' : '';
   if (txBad) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + txBad + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   // the stage at the scan typed but not a whole number 1–99: said, not saved quietly as empty (29 Oct 2026)
@@ -7131,7 +7247,7 @@ const STK_MAX = 200; // kept on a case (the oldest go first)
    and what each is made of, to tell who last worked on it */
 const STK_NO_SEC = ['stage', 'notes', 'history'];
 const STK_SEC_F = {
-  lab: ['labOrd', 'labNot', 'labRef', 'labHold'], marpe: ['records', 'zoomDate', 'zoomTime'],
+  lab: ['labOrd', 'labNot', 'labRef', 'labHold'], marpe: ['records', 'zoomDate', 'zoomTime', 'zoomUrl'],
   details: ['assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate', 'deliveryTime', 'tracking', 'carrier', 'labRef', 'chart', 'shipToPatient'],
   tx: ['txStart', 'txEnd'], aligners: ['alU', 'alL', 'aligners', 'atTemplates', 'treatArch'], instr: ['instructions', 'goals', 'instrPicks', 'instrOther'],
   teeth: ['teeth', 'teethNote'], ipr: ['ipr', 'iprSnap'], wty: ['invDate', 'noGuarantee'], rx: ['rx'], rxRet: ['rxRet'], rxMet: ['rxMet'], rxFun: ['rxFun']
@@ -7727,7 +7843,7 @@ function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v =
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'scanOnFile', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'zoomUrl', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
   'scanStU', 'scanStL', 'scanStNone'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
@@ -7879,6 +7995,42 @@ const RX_PIC = { noipr: 'rx-noipr', noatt: 'rx-noatt', noelastic: 'rx-noelastic'
 function rxArt(k) { const pk = RX_PIC[k], pc = pk && typeof PICS !== 'undefined' && PICS[pk];
   return pc ? '<span class="iPic" aria-hidden="true"><img data-pic="' + pk + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false"></span>' : rxSvg(k); }
 function safeUrl(u) { return /^https:\/\/[^\s<>"']+$/i.test(String(u || '').trim()) ? String(u).trim() : ''; }
+/* MARPE: the Zoom link box (the case form, the Zoom call window, the step's own window). A plain text box, so the whole invite can be
+   pasted into it — a one-line box would run the invite's lines together (the link with the next line's words), so a paste is read
+   with its line breaks and only the link goes in (wireZoomUrl) */
+function zoomUrlFieldHTML(id, v, opt) {
+  return '<div class="field zoomUrlF"><label for="' + id + '">Zoom link' + (opt ? ' <span class="h5n">' + esc(opt) + '</span>' : '') + '</label>' +
+    '<input id="' + id + '" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste the link — or the whole invite — from the lab" value="' + esc(v || '') + '"></div>';
+}
+/* a paste with more than the link in it (the lab's whole invite): just the meeting link goes in; `after(picked)` runs after any change.
+   An invite copied from an email can show only "Join Zoom Meeting" with the link behind it: the links behind the copied text are read
+   too (as text, never shown or run) — but what the text itself shows comes first. A link from behind the text is only taken when the
+   text shows no Zoom link and the hidden one is a Zoom meeting's (…/j/…, a webinar's …/w/…), so a "book a Zoom with us" link in a
+   signature never beats the meeting link the invite shows */
+function wireZoomUrl(el, after) {
+  if (!el) return;
+  el.addEventListener('paste', e => {
+    const cd = e.clipboardData || window.clipboardData; if (!cd) return;
+    const t = (cd.getData('text') || '').trim();
+    let behind = '';
+    try { const h = cd.getData('text/html'); if (h) behind = Array.from(new DOMParser().parseFromString(h, 'text/html').querySelectorAll('a[href]'), a => a.getAttribute('href') || '').join('\n'); } catch (x) { }
+    const shown = zoomLinkFrom(t), hid = behind ? zoomLinkFrom(behind) : '';
+    const u = shown && (zoomHost(shown) || !(zoomHost(hid) && /^\/(j|w)\//i.test(new URL(hid).pathname))) ? shown : hid || shown;
+    if (!u || u === t) return; // a plain link pastes as it is
+    // (the note only when there was more than a link: an invite, or words with the link behind them)
+    e.preventDefault(); el.value = u; el.dataset.picked = /\s/.test(t) || !zoomLinkFrom(t) ? '1' : ''; el.dataset.left = '1'; if (after) after(true);
+  });
+  // (what's typed is only judged once the box is left — not while a link is half typed)
+  el.addEventListener('input', () => { delete el.dataset.picked; delete el.dataset.left; if (after) after(false); });
+  el.addEventListener('change', () => { el.dataset.left = '1'; if (after) after(false); });
+}
+/* what the Zoom link box says under it: the link picked out of the invite, or that what's in it isn't a link */
+function zoomUrlNote(el) {
+  const v = el ? String(el.value || '').trim() : '';
+  if (v && !zoomLinkFrom(v) && el.dataset.left === '1') return { t: 'That isn’t a meeting link — paste the one from the lab’s invite (it starts with https://).', bad: true };
+  if (v && el.dataset.picked === '1') return { t: 'Took the meeting link out of the invite.' };
+  return null;
+}
 /* same value for Edit: nothing, '' , false, [] and {} are all "empty" (a case saved before a field existed has none of
    it, the form says '' or []), and 10 is '10' — so saving one change doesn't also list every field the case never had */
 function sameVal(a, b) {
@@ -7989,11 +8141,13 @@ function caseFormHTML(c, isNew) {
     // Specialty's Herbst Rx (rx.js), Retainer Rx (rxret.js), Metal Rx (rxmetal.js) and Functional Rx (rxfun.js), filled out from here or later
     // from the case — its own step in New case ("Lab Rx"), shown only while one of them applies
     '<div class="cfSec cfRx" data-step="rx"' + show('appliance') + '>' + rxFormSecHTML(c) + '</div>' +
-    // MARPE: the two records the lab needs, and the Zoom call once it's set up
+    // MARPE: the two records the lab needs, and the Zoom call once it's set up — its date moves the case to Zoom call scheduled
+    // (zoomStageSync), and its link from the lab's invite opens the call from the case (Amir, 29 Oct 2026)
     '<div class="cfSec" data-step="case"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
       '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
-      '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
+      '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div>' +
+      zoomUrlFieldHTML('cf-zoomUrl', c.zoomUrl) + '</div><div class="small zoomHint" id="cf-zoomHint" aria-live="polite"></div></div>' +
     '<div class="cfSec" data-step="case"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) +
       // a scan on file or a remake (Amir, 5–6 Oct 2026: "the option also should be remake w/ or w/o model", "add the option 'scan on file'")
       '<h5>Scan on file or a remake? <span class="h5n">only if it is one — tap again to clear</span></h5>' + pickRow('remake', RET_FROM, c.scanOnFile ? 'file' : c.remake || '', false) + '</div></div>' +
@@ -8106,7 +8260,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'txStart', 'txEnd'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'zoomUrl', 'tracking', 'labRef', 'txStart', 'txEnd'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.cc = o.cc.replace(/\s+/g, ' '); // the patient's words on one line (the chart note's "Pt's CC:")
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
@@ -8131,7 +8285,9 @@ function readCaseForm(root) {
   if (g === 'marpe') o.appliances = [];
   // MARPE: records on file and the Zoom call; aligners: ship to patient (empty is '', see FORM_KEYS)
   const recs = pressed(root, 'records'); o.records = g === 'marpe' && recs.length ? recs : '';
-  if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; } else if (!o.zoomDate) o.zoomTime = '';
+  if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; o.zoomUrl = ''; } else if (!o.zoomDate) o.zoomTime = '';
+  // (the Zoom link as it'll be saved: picked out of whatever was pasted — kept as typed when there's no link in it, so saving says so)
+  if (o.zoomUrl) o.zoomUrl = zoomLinkFrom(o.zoomUrl) || o.zoomUrl;
   if (!o.deliveryDate) o.deliveryTime = ''; // a time only goes with a delivery date
   const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
   if (o.shipToPatient) o.deliveryTime = ''; // an expected delivery has no appointment time
@@ -8331,6 +8487,7 @@ function wireCaseForm(root, isNew) {
       if (isNew && ['aligner', 'braces', 'appliance', 'marpe', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
       if (g === 'appliance' || g === 'marpe') routeLab(root, isNew);
     }
+    zoomStageSync(); zoomNoteSync(); // (MARPE: the Zoom date typed here, or a Quick add case's once both records are ticked; and its note)
     // dates from the scan date (only fields nobody has typed into)
     const scan = $r('#cf-scanDate').value;
     if (isNew && scan) {
@@ -8486,7 +8643,36 @@ function wireCaseForm(root, isNew) {
     const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
     if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   }, { signal: off.signal });
-  $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; alSecSync(); }); // (Assigned to: marked by its tiles)
+  $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; alSecSync(); zoomNoteSync(); }); // (Assigned to: marked by its tiles)
+  // MARPE: entering the Zoom call's date moves the case to Zoom call scheduled (Amir, 29 Oct 2026: "when you enter Zoom date, it should
+  // already move it to the step that says Zoom scheduled") — the Stage menu follows the date while it's before that step and nobody
+  // picked a step by hand, and goes back if the date is taken out again; saving does the move, with the records check every move to
+  // the lab has. Only a date entered in this form moves it (zd.dataset.typed): opening Edit on a case with a date and an earlier step,
+  // or tapping its own tile there, leaves it where it is (independent review, 29 Oct 2026). The one exception (zd.dataset.held): a Quick
+  // add case whose date went in when it was added, before both records were on file — it moves once both are ticked here (Finish details).
+  function zoomStageSync() {
+    const sel = $r('#cf-stage'), zd = $r('#cf-zoomDate'); if (!sel || !zd || sel.dataset.manual === '1') return;
+    const typed = zd.dataset.typed === '1'; if (!typed && zd.dataset.held !== '1') return;
+    const o = readCaseForm(root); if (o.type !== 'marpe') return;
+    const keys = caseStages(o).map(s => s[0]), zi = keys.indexOf('zoom'); if (zi < 0) return;
+    const go = !!zd.value && (typed || !recordsMissing(o).length);
+    if (go && keys.indexOf(sel.value) < zi) { sel.dataset.zoomWas = sel.value; sel.value = 'zoom'; }
+    else if (!go && sel.value === 'zoom' && sel.dataset.zoomWas) { sel.value = sel.dataset.zoomWas; delete sel.dataset.zoomWas; }
+  }
+  // under the Zoom call: that saving moves the case (and the records it needs first), or what's wrong with the link
+  function zoomNoteSync() {
+    const hint = $r('#cf-zoomHint'), sel = $r('#cf-stage'), zd = $r('#cf-zoomDate'); if (!hint || !sel || !zd) return;
+    const o = readCaseForm(root), lk = zoomUrlNote($r('#cf-zoomUrl'));
+    const moving = o.type === 'marpe' && !!zd.value && sel.value === 'zoom' && !!sel.dataset.zoomWas && sel.dataset.manual !== '1';
+    const recs = moving ? recordsMissing(o) : [];
+    hint.textContent = [moving ? (isNew ? 'It starts at “Zoom call scheduled”.' : 'Saving moves the case to “Zoom call scheduled”.') +
+      (recs.length ? ' Tick ' + (recs.length > 1 ? 'both records' : 'the ' + recs[0][2]) + ' above first — both have to be on file before the lab.' : '') : '', lk ? lk.t : ''].filter(Boolean).join(' ');
+    hint.classList.toggle('bad', !!(lk && lk.bad));
+  }
+  const zdEl = $r('#cf-zoomDate');
+  if (zdEl && !isNew && zdEl.value && S.editBase && S.editBase.quick) zdEl.dataset.held = '1'; // (a Quick add case's date: see zoomStageSync)
+  if (zdEl) ['input', 'change'].forEach(ev => zdEl.addEventListener(ev, () => { zdEl.dataset.typed = '1'; zoomStageSync(); zoomNoteSync(); }));
+  wireZoomUrl($r('#cf-zoomUrl'), zoomNoteSync);
   // editing: a lab already on the case stays unless someone taps another one
   const labRow = $('.pickRow[data-g="lab"]', root); if (!isNew && labRow && pressed(root, 'lab').length) labRow.dataset.manual = '1';
   $r('#cf-scanDate').addEventListener('change', () => refresh(false));
@@ -8555,18 +8741,23 @@ function newCaseModal() {
         const data = readCaseForm(w);
         // the patient step first (name, chart #, case type), then — for Create case — every step's own checks, each shown on its step
         for (const k of quick ? ['patient'] : wizSteps(w).map(x => x.k)) { const x = wizCheck(w, k); if (x) { wizGo(w, k); wizSay(w, x); return; } }
+        // (a Zoom link box with something in it that isn't a link: said, Quick add too — saved, it would stop every later Edit)
+        if (data.zoomUrl && !zoomLinkOf(data)) { if (w._wiz) wizGo(w, 'case'); return err('The Zoom link has to be the meeting link from the lab’s invite (it starts with https://).'); }
         if (!quick) {
           if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
           data.stage = data.stage || firstStage(data.type);
           const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
-          if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
-          if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
+          // (MARPE: the records and the Zoom call are on the Case step — shown, with what's missing)
+          if (needs.includes('records')) { if (w._wiz) wizGo(w, 'case'); return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.'); }
+          if (needs.includes('zoom')) { if (w._wiz) wizGo(w, 'case'); return err('Add the Zoom call date to start it at Zoom call scheduled.'); }
           // (a new in-house case started at TxP approved or later: its counts show on the Case step for it — alSecSync)
           if (needs.includes('aligners') && alignersMissing(data)) { if (w._wiz) wizGo(w, 'case'); return err('Enter ' + alAskText(data) + ' and pick Attachment templates under Aligners in this set to start it at ' + stageLabel(data) + '.'); }
         } else {
           // Quick add (Amir, 6 Oct 2026: "enter the basics and then we can add to it later"): the case starts at its first step with the
-          // scan date and assistant filled in, and stays tagged "Finish details" until someone goes through the steps
-          data.stage = firstStage(data.type); data.quick = Date.now();
+          // scan date and assistant filled in, and stays tagged "Finish details" until someone goes through the steps. A MARPE whose Zoom
+          // call's date is in, with both records, starts at Zoom call scheduled as Submit would (29 Oct 2026)
+          const zq = data.type === 'marpe' && data.stage === 'zoom' && !!data.zoomDate && !stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), 'zoom').length;
+          data.stage = zq ? 'zoom' : firstStage(data.type); data.quick = Date.now();
         }
         // the patient already has an open case like this one: asked first (Open that case / Create a second case anyway) — dupes.js
         w._dupRetry = () => create(quick);
@@ -8577,7 +8768,9 @@ function newCaseModal() {
         const btn = quick ? $('#ncQuick', w) : $('#ncSave', w); busyBtn(btn, true, 'Saving…');
         try {
           await B.createCase(data, w._ph ? w._ph.bytes : null, w._ph ? w._ph.at : 0); closeModal();
-          if (quick) toast('Case added for ' + ptNameText(data.patient) + ' — it shows Finish details until the rest is in');
+          // (a MARPE whose Zoom date is in but not both records: where it is, and what moves it on)
+          if (quick && data.type === 'marpe' && data.zoomDate && data.stage !== 'zoom') toast('Case added for ' + ptNameText(data.patient) + ' at “' + stageLabel(data) + '” — it moves to Zoom call scheduled once both records are ticked in Finish details', { ms: 9000 });
+          else if (quick) toast('Case added for ' + ptNameText(data.patient) + ' — it shows Finish details until the rest is in');
           else {
             toast('Case created for ' + ptNameText(data.patient), { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
             rxCreatedToast(data);
@@ -8681,6 +8874,9 @@ function wizSumHTML(o, tile) {
     row('Scan', esc([o.scanner, o.scanDate ? fmtDay(o.scanDate) : '', o.assistant ? 'by ' + firstName(staffName(o.assistant, '')) : ''].filter(Boolean).join(' · '))) +
     row('Lab completion', esc(o.labDate ? fmtDay(o.labDate) : '')) +
     row(o.shipToPatient ? 'Expected delivery' : 'Delivery appt', esc(del) + (o.shipToPatient ? ' <span class="muted">· shipped to the patient</span>' : '')) +
+    // MARPE: the Zoom call, and its link once it's in (a date starts the case at Zoom call scheduled)
+    row('Zoom call', o.type === 'marpe' && (o.zoomDate || o.zoomUrl) ? esc(o.zoomDate ? fmtDay(o.zoomDate) + (o.zoomTime ? ', ' + fmtTime(o.zoomTime) : '') : 'No date yet') +
+      (zoomLinkOf(o) ? ' <span class="muted">· link added</span>' : '') : '') +
     row('Dr. A’s instructions', esc(o.instructions || '')) +
     row(ccTitle(o), o.cc ? esc(o.cc) : '') +
     '</div>';

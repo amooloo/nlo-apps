@@ -1162,7 +1162,7 @@ function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
-  const flags = quickFlag(c) + shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
+  const flags = quickFlag(c) + shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c) + zoomChip(c); // (MARPE: Join Zoom)
   // the arrow names where it goes ("Move to TxP approved")
   const nx = last ? null : nextStage(c);
   const tip = last ? 'Mark complete' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
@@ -1426,7 +1426,7 @@ function listBodyHTML(base) {
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
       const df = quickFlag(c) + dupFlag(c);
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + dmChip(c) + '</div>' +
+      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + dmChip(c) + zoomChip(c) + '</div>' +
       (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
@@ -1567,7 +1567,7 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', scanStU: 'stage at scan', scanStL: 'stage at scan', scanStNone: 'stage at scan', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
+const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', zoomUrl: 'Zoom link', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', scanStU: 'stage at scan', scanStL: 'stage at scan', scanStNone: 'stage at scan', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -1663,7 +1663,8 @@ function renderDrawer() {
       // dropped there, and when the models are sent to OrthoFactory the app tells this page, which notes it on the case (btModels)
       '<button type="button" class="btn btn-sec btn-sm" data-act="btModels" title="Open the Bleach Tray app for this patient: drop the scan there, check the 3D result, send the models to OrthoFactory">' + ic('lab', 15) + 'Make models</button>' +
       (c.btModels && c.btModels.at ? '<span class="small muted">models in OrthoFactory ' + esc(new Date(c.btModels.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })) + (c.btModels.models && c.btModels.models.length ? ' (' + esc(c.btModels.models.join(', ')) + ')' : '') + '</span>'
-        : done ? '' : '<span class="small muted">labels for the bag · models for the printer</span>') + '</div>' : '';
+        : done ? '' : '<span class="small muted">labels for the bag · models for the printer</span>') + '</div>'
+    : zoomHdrHTML(c, done); // MARPE: Join Zoom, never folded away (29 Oct 2026)
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
@@ -1924,6 +1925,31 @@ function dsReveal(sec) {
   const r = sec.getBoundingClientRect(), b = bd.getBoundingClientRect();
   if (r.bottom > b.bottom) bd.scrollTop += Math.min(r.bottom - b.bottom + 12, r.top - b.top - 8);
 }
+/* ---------- MARPE: the Zoom call one click away (Amir, 29 Oct 2026: "is there any way I can like link my Zooms there … So in the
+   future, I can just click on there and open up the Zoom") — the link from the lab's invite opens the call in a new tab: Join Zoom in
+   the case panel's header (never folded away, like Print labels), in the MARPE box, on the case's card on the board and on its row in
+   the lists — while the call is still ahead (before Design approved). Without a link yet, the header offers to add it once the case
+   is at the lab. ---------- */
+function zoomJoinBtnHTML(u, cls, icSize) {
+  return '<a class="' + cls + '" data-act="zoomJoin" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer" title="' + esc(zoomJoinWord(u)) + ' — opens the call in a new tab">' + ic('video', icSize || 15) + esc(zoomJoinWord(u)) + '</a>';
+}
+function zoomHdrHTML(c, done) {
+  if (done || typeOf(c).flow !== 'marpe' || !zoomAhead(c)) return '';
+  const u = zoomLinkOf(c), keys = flowOf(c).stages.map(s => s[0]);
+  if (!u && !c.zoomDate && keys.indexOf(c.stage) < keys.indexOf('submitted')) return ''; // (still gathering its records)
+  const when = c.zoomDate ? 'Zoom call ' + fmtDay(c.zoomDate) + (c.zoomTime ? ', ' + fmtTime(c.zoomTime) : '') : 'No date for the Zoom call yet';
+  return '<div class="dLbl dZoom" id="dZoom">' + (u ? zoomJoinBtnHTML(u, 'btn btn-pri btn-sm')
+      : '<button type="button" class="btn btn-sec btn-sm" data-act="zoomSet">' + ic('video', 15) + (c.zoomDate ? 'Add the Zoom link' : 'Set up the Zoom call') + '</button>') +
+    '<span class="small muted">' + esc(when) + (u ? '' : ' · paste the link from the lab’s invite') + '</span>' +
+    (u ? '<button type="button" class="linkBtn small" data-act="zoomSet">Change</button>' : '') + '</div>';
+}
+/* the case's saved link read the way a form reads what's typed (zoomLinkFrom), to tell whether it was changed */
+function zoomSaved(c) { const v = String((c && c.zoomUrl) || '').trim(); return v ? zoomLinkFrom(v) || v : ''; }
+/* the card's and the row's chip */
+function zoomChip(c) {
+  const u = c && c.status !== 'done' && typeOf(c).flow === 'marpe' && zoomAhead(c) ? zoomLinkOf(c) : '';
+  return u ? zoomJoinBtnHTML(u, 'flag zm', 12) : '';
+}
 /* folded heading of the MARPE box: what's still missing, and the Zoom call */
 function marpeSum(c) {
   const miss = recordsMissing(c);
@@ -1931,13 +1957,15 @@ function marpeSum(c) {
 }
 /* ---------- MARPE: records on file and the Zoom call (drawer box, the check before a stage move, the Zoom date) ---------- */
 function marpeBoxHTML(c, done) {
-  const r = c.records || [], x = dueOf(c), dis = done ? ' disabled' : '';
+  const r = c.records || [], x = dueOf(c), dis = done ? ' disabled' : '', u = !done && zoomAhead(c) ? zoomLinkOf(c) : '';
   const when = c.zoomDate ? '<b>' + esc(fmtDay(c.zoomDate)) + (c.zoomTime ? ' · ' + esc(fmtTime(c.zoomTime)) : '') + '</b>' : '<span class="muted">Not set yet</span>';
   return '<div id="mpBox"><div class="mpGrid">' +
     '<div class="mpK">Records on file</div><div class="mpV">' + MARPE_RECORDS.map(([k, l]) =>
       '<button type="button" class="pick sm" data-act="rec" data-k="' + k + '" aria-pressed="' + r.includes(k) + '"' + dis + '>' + esc(l) + '</button>').join('') + '</div>' +
+    // the call's link from the lab's invite opens it (while it's still ahead); Change sets the date, the time and the link
     '<div class="mpK">Zoom call</div><div class="mpV"><span class="mpWhen">' + ic('video', 16) + when + '</span>' + (x && x.k === 'zoom' && !done ? dueChip(c) : '') +
-      (done ? '' : '<button type="button" class="btn btn-sec btn-sm" data-act="zoomSet">' + (c.zoomDate ? 'Change' : 'Set the date') + '</button>') + '</div></div>' +
+      (u ? zoomJoinBtnHTML(u, 'flag zm', 12) : !done && zoomAhead(c) && c.zoomDate ? '<span class="small muted">No link yet</span>' : '') +
+      (done ? '' : '<button type="button" class="btn btn-sec btn-sm" data-act="zoomSet">' + (c.zoomDate && !zoomLinkOf(c) && zoomAhead(c) ? 'Add the link' : c.zoomDate ? 'Change' : 'Set the date') + '</button>') + '</div></div>' +
     (recordsMissing(c).length && stageIndex(c) <= 0 && !done ? '<div class="small muted mpHint">Both have to be on file before it moves to Submitted to lab.</div>' : '') + '</div>';
 }
 /* before a stage move goes through, ask for what it needs (see stageNeeds); `extra` = fields already collected */
@@ -1947,7 +1975,8 @@ function stageGateModal(c, to, needs, extra, via) {
     (needs.includes('records') ? '<div class="gate" id="gRecs"><b>Before it goes to the lab, both have to be on file:</b>' + MARPE_RECORDS.map(([k, l]) =>
       '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
     (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
-      '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
+      '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div>' +
+      zoomUrlFieldHTML('gZoomUrl', extra.zoomUrl || c.zoomUrl, 'if you have it') + '</div><div class="small zoomHint" id="gZoomHint" aria-live="polite"></div></div>' : '') +
     // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches TxP approved
     // (one arch only: just that arch's count, and the template answers that fit it)
     (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan' + (one ? ' · ' + esc(treatArchLabel(one).toLowerCase()) : '') + '</span></b><div class="alRow">' +
@@ -1955,38 +1984,53 @@ function stageGateModal(c, to, needs, extra, via) {
       (one === 'U' ? '' : '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>') + '</div>' +
       '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', atOptsFor(one), atFor(c.atTemplates, one), false) + '</div>' : '') +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
-      const go = $('#gGo', w), zd = $('#gZoomDate', w), al = $('#gAl', w);
+      const go = $('#gGo', w), zd = $('#gZoomDate', w), zu = $('#gZoomUrl', w), al = $('#gAl', w);
       const n = id => { const el = $(id, w); return el ? Math.min(99, Math.max(0, parseInt(el.value, 10) || 0)) : 0; }; // (an untreated arch has no field)
       const atV = () => (($('.pickRow[data-g=gAt] .pick[aria-pressed=true]', w) || {}).dataset || {}).v || '';
-      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value) && (!al || (n('#gAlU') + n('#gAlL') > 0 && !!atV()));
-      const sync = () => { go.disabled = !ok(); };
+      // (the Zoom link is optional here, but what's in its box has to be a link)
+      const linkOk = () => !zu || !zu.value.trim() || !!zoomLinkFrom(zu.value);
+      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value) && linkOk() && (!al || (n('#gAlU') + n('#gAlL') > 0 && !!atV()));
+      const sync = () => { go.disabled = !ok(); const h = $('#gZoomHint', w); if (h) { const x = zoomUrlNote(zu); h.textContent = x ? x.t : ''; h.classList.toggle('bad', !!(x && x.bad)); } };
+      wireZoomUrl(zu, sync);
       w.addEventListener('change', sync); w.addEventListener('input', sync);
       w.addEventListener('click', e => { const b = e.target.closest('.pickRow[data-g=gAt] .pick'); if (!b) return; $$('.pickRow[data-g=gAt] .pick', w).forEach(x => x.setAttribute('aria-pressed', String(x === b))); sync(); });
       sync();
       go.onclick = () => {
         if (!ok()) return; const add = Object.assign({}, extra);
         if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
-        if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; }
+        if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || '';
+          const u = zu ? zoomLinkFrom(zu.value) : ''; if (u !== zoomSaved(c)) add.zoomUrl = u; } // (the link only when it's new or changed)
         if (al) { const u = n('#gAlU'), l = n('#gAlL'); add.alU = u || ''; add.alL = l || ''; add.aligners = u + l || ''; add.atTemplates = atV(); }
         closeModal(); moveStage(c.id, to, add, needs, via);
       };
     });
 }
-/* set or change the Zoom call; before that step, saving also moves the case to "Zoom call scheduled" */
+/* set or change the Zoom call: its date, time and link (the lab's invite: the link, or the whole invite pasted); before that step,
+   saving also moves the case to "Zoom call scheduled" */
 function zoomModal(c) {
   const keys = flowOf(c).stages.map(s => s[0]), before = keys.indexOf(c.stage) < keys.indexOf('zoom');
   openModal('<h3>Zoom call</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
     '<div class="zoomRow"><div class="field"><label for="zmDate">Date</label><input type="date" id="zmDate" value="' + esc(c.zoomDate || '') + '"></div>' +
-    '<div class="field"><label for="zmTime">Time</label><input type="time" id="zmTime" value="' + esc(c.zoomTime || '') + '"></div></div>' +
+    '<div class="field"><label for="zmTime">Time</label><input type="time" id="zmTime" value="' + esc(c.zoomTime || '') + '"></div>' + zoomUrlFieldHTML('zmUrl', c.zoomUrl) + '</div>' +
+    '<div class="small zoomHint" id="zmHint" aria-live="polite" style="margin:-2px 0 10px"></div>' +
     (before ? '<div class="small muted" style="margin:-4px 0 12px">Saving moves the case to “Zoom call scheduled”.</div>' : '') +
     '<div class="mFt">' + (c.zoomDate ? '<button class="btn btn-ghost" type="button" id="zmClear" style="margin-right:auto">Clear the date</button>' : '') +
     '<button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="zmSave">Save</button></div>', w => {
-      const d = $('#zmDate', w), save = $('#zmSave', w), sync = () => { save.disabled = !d.value; };
-      d.addEventListener('input', sync); d.addEventListener('change', sync); sync();
+      const d = $('#zmDate', w), u = $('#zmUrl', w), save = $('#zmSave', w);
+      const sync = () => { const x = zoomUrlNote(u), h = $('#zmHint', w); h.textContent = x ? x.t : ''; h.classList.toggle('bad', !!(x && x.bad));
+        save.disabled = !d.value || (!!u.value.trim() && !zoomLinkFrom(u.value)); };
+      d.addEventListener('input', sync); d.addEventListener('change', sync); wireZoomUrl(u, sync); sync();
       save.onclick = () => {
-        const z = { zoomDate: d.value, zoomTime: $('#zmTime', w).value || '' }; if (!z.zoomDate) return; closeModal();
-        if (before) moveStage(c.id, 'zoom', z);
-        else act(() => B.mutateCase(c.id, x => { Object.assign(x, z); }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call set for ' + fmtDay(z.zoomDate) + (z.zoomTime ? ', ' + fmtTime(z.zoomTime) : ''));
+        const z = { zoomDate: d.value, zoomTime: $('#zmTime', w).value || '' }, url = zoomLinkFrom(u.value);
+        if (!z.zoomDate || (u.value.trim() && !url)) return;
+        if (url !== zoomSaved(c)) z.zoomUrl = url; // (the link only when it's new, changed or taken out)
+        closeModal();
+        const fields = Object.keys(z).filter(k => (k === 'zoomUrl' ? zoomSaved(c) : c[k] || '') !== z[k]), ch = {}; fields.forEach(k => { ch[k] = z[k]; });
+        // (moving it: only what changed goes with the move, so its history doesn't say the date was set when it was already there)
+        if (before) { moveStage(c.id, 'zoom', ch); return; }
+        if (!fields.length) return; // (nothing changed)
+        act(() => B.mutateCase(c.id, x => { Object.assign(x, ch); }, { a: 'edit', fields }),
+          fields.some(k => k !== 'zoomUrl') ? 'Zoom call set for ' + fmtDay(z.zoomDate) + (z.zoomTime ? ', ' + fmtTime(z.zoomTime) : '') : url ? 'Zoom link saved' : 'Zoom link taken off');
       };
       const clr = $('#zmClear', w);
       if (clr) clr.onclick = () => { closeModal(); act(() => B.mutateCase(c.id, x => { x.zoomDate = ''; x.zoomTime = ''; }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call date cleared'); };
@@ -2355,6 +2399,7 @@ function onClick(e) {
     case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
     case 'noshipF': S.f.noship = S.f.noship ? '' : '1'; renderView(); break;
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
+    case 'zoomJoin': break; // a MARPE case's Join Zoom: the link itself opens the call in a new tab (and doesn't open the case)
     case 'portal': copyPtName(findCase(S.openId)); break; // the link itself opens the portal in a new tab
     // an Oliv patient's row or card: the link itself opens Dental Monitoring in a new tab (and doesn't open the case)
     case 'dmLink': copyPtName(findCase(id), 'Dental Monitoring’s search'); break;
@@ -2377,9 +2422,9 @@ function onClick(e) {
     case 'stkTog': stkTog(t); break;
     case 'stkMsgOpen': stkMsgOpen(id, t.dataset.s); break;
     // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
-    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = null; renderDrawer(); break; }
+    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); if (S.editBase.zoomUrl) S.editBase.zoomUrl = zoomLinkFrom(S.editBase.zoomUrl) || S.editBase.zoomUrl; S.editing = true; S.editWiz = null; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; S.editWiz = null; renderDrawer(); break;
-    case 'quickFinish': { const c = findCase(S.openId); if (!c) break; S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = 'case'; renderDrawer(); break; }
+    case 'quickFinish': { const c = findCase(S.openId); if (!c) break; S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); if (S.editBase.zoomUrl) S.editBase.zoomUrl = zoomLinkFrom(S.editBase.zoomUrl) || S.editBase.zoomUrl; S.editing = true; S.editWiz = 'case'; renderDrawer(); break; }
     case 'quickDone': { const id = S.openId; act(() => B.mutateCase(id, x => { if (!x.quick) return 'skip'; x.quick = ''; }, { a: 'edit', fields: ['quick'] }), 'Finish details taken off'); break; }
     case 'saveEdit': saveEdit(); break;
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
@@ -2461,6 +2506,8 @@ async function saveEdit() {
   if (wiz) for (const st of wizSteps(d)) { const x = wizCheck(d, st.k); if (x) { wizGo(d, st.k); wizSay(d, x); return; } }
   if (!now.type || !now.patient) { $('#drawerNotice').innerHTML = '<div class="notice bad">Type and patient name are required.</div>'; return; }
   if (now.titanUrl && !safeUrl(now.titanUrl)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Titan link must start with https://</div>'; return; }
+  // (only when the link was changed: what's saved never stops a save of something else)
+  if (now.zoomUrl && !sameVal(now.zoomUrl, (S.editBase || {}).zoomUrl) && !zoomLinkOf(now)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Zoom link has to be the meeting link from the lab’s invite (it starts with https://).</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const txBad = !!now.txStart !== !!now.txEnd ? 'Enter both the treatment start and the expected removal (or leave both empty).' : now.txStart && now.txEnd <= now.txStart ? 'The expected removal has to be after the treatment start.' : '';
   if (txBad) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + txBad + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   // the stage at the scan typed but not a whole number 1–99: said, not saved quietly as empty (29 Oct 2026)
