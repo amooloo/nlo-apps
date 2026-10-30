@@ -214,10 +214,22 @@ entering a separate entry for each of them". (`src/families.js`; the editor's pa
 - **Dr. A's Supplies points out sizes of one product** (once a visit, × for now): supplies in the same category whose names
   start the same and differ only in sizes, numbers, upper/lower, left/right, colors and short codes (`famSuggest`); Review
   lists them, each with Combine… (filled in) or "Not the same" (remembered on that computer, `nloInv.famSkip`).
-- Tests: e2e `t_families` (53 checks: making a product as staff under the rules, the card, search, the drawer, several sizes
-  into the cart with one alert, counting, a size's own edit and a twin refused, Archive refused to staff by the database,
-  Dr. A's product edit — new name, price for every size, new sizes, one taken out —, the suggestion and Combine of the two
-  Pulse gloves (one still in the 3.x shape), a product of one dissolving, ordering and receiving sizes, Split).
+- **An independent review (30 Oct 2026) found 15 problems, all fixed before going live**: a 3.x supply (price and link on the
+  supply itself) keeps them in the product's Edit (a vendor row with no name until one is typed); a size keeps only its own
+  vendors when the product's vendors change; another case size re-reads the case price; a size with its own photo keeps it;
+  archived sizes keep their choices under the right differences (Swap, one fewer); Combine refuses supplies counted or bought
+  differently; a size taken out (or Split) gets back the name it had before Combine (`famWas`); a new product's ids are fixed
+  at the first Save, so Save again after an error can't make a second product; fixing a choice's spelling keeps its row;
+  a copy's photo stays when it becomes a product; a product with one size left beside archived ones still saves; a note added
+  with several sizes goes beside a note already on a line; the suggestion needs a real size word (not "XT" / "Plus").
+- Tests (30 Oct 2026): e2e `t_families` (49 checks: making a product as staff under the rules, the card, search, the drawer,
+  several sizes into the cart with one alert, counting, a size's own edit and a twin refused, Archive refused to staff by the
+  database, Dr. A's product edit — new name, price for every size, new sizes, one taken out —, the suggestion and Combine of
+  the two Pulse gloves (one still in the 3.x shape), a product of one dissolving, ordering and receiving sizes, Split) and
+  `t_families_review` (12 checks, one per review fix; 9 of them fail on the build from before the fixes); `t_demo` checks the
+  made-up tomas-pin product. Whole suite: e2e 608 passed, 2 failed — "order links (iPhone/Mac): no errors", which fail the
+  same way on 5.2.2 (the auth emulator's frame under those browsers, refused by the page's CSP; not a real-site problem);
+  alert script 79/0; rules 332/0.
 
 ## The data (Firestore `nlo-cases`; rules: `../nlo-cases-src/firestore.rules`, block "NLO Inventory")
 - `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before;
