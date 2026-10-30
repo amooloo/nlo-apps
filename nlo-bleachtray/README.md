@@ -902,20 +902,34 @@ spot, outlined on the Block-outs tab), **Reach out of the embrasure** (uLab's Bu
 a gap" and lists the contacts left out and why. The whitening tray gets none (soft tray). Anything else - under a pontic, round an
 implant crown - is painted on the Block-outs tab and filled by the column method below.
 
-**Painted block-out - built in 3D** (`fuse.paint_fill`, 10/27/2026). The painted fill was a column heightfield (below):
-its top had to follow the overhang's underside, and on a lingually leaning molar that underside is the crown's own
-steep lingual face, where a 0.1 mm step sideways is half a millimetre up or down - the fill came out as a lace of slivers
-lying on the enamel and the gum along the whole lingual cervical of the back teeth (Anvalina Faltz's lower; the doctor:
-"distorts it and makes it unusable", first blamed on the 1.5 mm reach, which was not it - 1.25 and 1.5 give the same
-wedges on both her arches). Now the fill IS the undercut's air: on a 0.1 mm voxel grid, every voxel that has body above
-it and body below it in its column (the space between a crown's bulge, a pontic, an implant crown's emergence and the
-gum under it), within the painted footprint grown 0.4 mm, out to the crown's own silhouette - a wall straight down from
-the height of contour, flush with the contour, standing on the gum; nothing over gum that has no body above it. The
-sloped face of the doctor's sketch is cut into that volume per piece (`blockout_taper_foot` 0.65, from the contour
-itself - `taper_start` 0); the Block-out amount pushes the wall out into the air beside it or pulls it in. A piece
-under 0.15 mm deep (no real undercut) or 0.3 mm thick is dropped and named in the report (`blockout.painted_dropped`),
-and the case says so when nothing is left. Then fused like every fill. The heightfield method stays for the automatic
-mode (off by default):
+**Painted block-out - built in 3D, next to what was painted** (`fuse.paint_fill`; 10/27/2026, rebuilt 10/29/2026). The
+fill IS the undercut's air: on a 0.1 mm voxel grid, the air that has body above it and body below it in its column (the
+space between a crown's bulge, a pontic, an implant crown's emergence and the gum under it) - but only **the air next to
+the painted surface**: within 1 mm of it (`blockout_reach`), between the painted area's own lowest and highest points
+round about (0.3 mm under, 0.5 mm over), and in each column made solid down to the gum when the gum is within 0.6 mm
+under that. Out to the crown's own silhouette: a wall straight down from the height of contour, flush with it,
+standing on the gum - nothing proud of the tooth, nothing over gum that has no body above it. The painted surface is
+the triangles with all three corners painted (none over 1.2 mm: the scanner bridges what it did not see in an
+embrasure with long thin triangles). Smoothed (`smooth_vox` 1.2, then 20 volume-keeping Taubin steps - at 0.7 / 6 the
+grid showed as vertical grooves that would print under the sheet), then fused like every fill (no extra foot: it already
+stands on the gum). The Block-out amount pushes the wall out into the air beside it or pulls it in. A piece under
+0.15 mm deep (no real undercut) or 0.3 mm thick is dropped and named in the report (`blockout.painted_dropped`), and
+the case says so when nothing is left.
+
+*Why it was rebuilt* (Santiago Kemler's upper, 10/29/2026 - the doctor: "look at the difference between what I painted
+and what it gave me ... still misses the middle of that tooth"): two cervical bands painted line angle to line angle
+came out as tall slabs at the two corners, running from the contacts to the model's floor, with nothing in the middle.
+The fill used to take every undercut voxel anywhere in the painted footprint's columns - the embrasures up to the
+contacts, the air in front of a receding gum down to where it bulges out again - and then cut the sloped face of the
+doctor's 10/18 sketch from ONE height of contour per piece, the tallest (at the contact), so its plane cut away the whole
+middle of the band, where the real contour is lower. The sloped face is off now (`blockout_taper_foot` 0): since every
+fill's foot was made to reach the body on 10/27 the air it left under the face was filled again anyway, and a face
+hanging over air reads as the "floating" plank; when it is asked for, it is laid from each column's nearest contour at
+that contour's own height. Each model's report keeps `blockout.painted_version` (2): a model made by the old fill counts
+as changed, so **Settings → Apply to this case & re-run** re-makes it with no other edit. Checked on the case itself
+(both bands now follow the painted area, middle filled, nothing below the paint) and by `tools/test_paint_fill.py` (a
+synthetic crown, neighbour and receding gum: the middle filled, no curtain, no climb, flush, watertight - the old fill
+fails it on the middle). The heightfield method stays for the automatic mode (off by default):
 
 **Painted block-out (heightfield, the automatic mode).** The space under an overhang the doctor marks out - a bridge pontic, the emergence of an implant
 crown, a black triangle - is filled like block-out resin (`bleachtray/blockout.py`). Marking it out is the **Outline**
