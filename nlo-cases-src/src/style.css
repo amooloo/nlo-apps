@@ -149,6 +149,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .badge.t-retx{background:var(--coral-100);color:var(--coral-700)}
 .badge.t-misc{background:var(--grey-100);color:var(--grey-600)}
 .badge.t-arch{background:var(--navy);color:#fff} /* one arch only: easy to spot on the case */
+.badge.t-stage{background:var(--blue-100);color:var(--blue-700)} /* the stage the patient was in at the scan (29 Oct 2026) */
 #drawer .badge.t-appl{white-space:normal;max-width:100%} /* an appliance badge can be long (what a Metal Rx says an “Other metal appliance” is): it wraps */
 .due{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap;background:var(--grey-100);color:var(--grey-600)}
 .due.over{background:var(--coral-100);color:var(--coral-700)}
@@ -627,6 +628,10 @@ td.stg{min-width:150px}
 .flag.ready{background:var(--mint-100);color:var(--mint-700)}
 a.flag.trk{background:var(--blue-100);color:var(--blue-700);text-decoration:none}
 a.flag.trk:hover{background:var(--blue);color:#fff}
+/* Dental Monitoring on an Oliv patient's row and card (29 Oct 2026) */
+a.flag.dm{margin-left:6px;vertical-align:1px;background:var(--navy-100);color:var(--navy-700);text-decoration:none}
+a.flag.dm:hover,a.flag.dm:focus-visible{background:var(--navy);color:#fff}
+.kc .dt a.flag.dm{margin-top:3px}
 .row .flag{flex:none}
 td .flags{margin-top:4px}
 td.shipCol .flags{margin-top:0}
@@ -1515,6 +1520,19 @@ svg.rxArch{display:block;width:100%;height:auto}
 .refNWrap .pick.sm{min-width:40px;text-align:center}
 .refNHint{margin-top:7px;color:var(--grey-600)}
 .refNHint:empty{display:none}
+/* the stage at the scan (29 Oct 2026): a box per treated arch with the arch's picture, and Not wearing aligners */
+.stWrap .flabel .stN{margin-left:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:11.5px;font-weight:500;color:var(--grey-400)}
+.stRow{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.stF{display:inline-flex;align-items:center;gap:8px;padding:4px 5px 4px 12px;border:1.5px solid var(--grey-200);border-radius:99px;background:#fff;font-size:13px;font-weight:600;color:var(--grey-700);cursor:text;transition:border-color .14s var(--ease)}
+.stF[hidden]{display:none}
+.stF:focus-within{border-color:var(--blue-200)}
+.stF input{width:66px;min-height:34px;padding:3px 8px;border:1.5px solid var(--grey-200);border-radius:99px;font:inherit;font-size:15px;font-weight:700;color:var(--navy-900);text-align:center;background:var(--grey-50);outline:none;transition:border-color .14s var(--ease),box-shadow .14s var(--ease)}
+.stF input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100);background:#fff}
+.stF input:disabled{opacity:.45;background:var(--grey-100);cursor:not-allowed}
+.stWrap.need{box-shadow:0 0 0 2px var(--coral-200),0 0 0 6px var(--coral-100)}
+.stHint{margin-top:7px;color:var(--grey-600)}
+.stHint:empty{display:none}
+.stHint.bad{color:var(--coral-700);font-weight:600}
 /* what the case is, at the top of the case panel (5 Oct 2026): "Initial Next Level Aligners", "Refinement 2 Oliv Aligners" */
 .dKind{font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mint-700);line-height:1.3;margin:2px 0 3px;overflow-wrap:anywhere}
 /* when each step was reached, and by whom (5 Oct 2026): quiet, at the end of the step's row */

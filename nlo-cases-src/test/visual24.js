@@ -145,8 +145,8 @@ const today = iso(new Date());
   await unfold(); check(/^Add the patient’s treatment Start and Expected removal with Edit/.test(await p.textContent('#drawer .ds[data-ds=tx] .dsBd')), 'opened, it says how to add them');
 
   // ---- export: two more columns
-  check(await p.evaluate(id => caseToCSVRow(DEMO.cases.get(id)).endsWith(',"' + DEMO.cases.get(id).txStart + '","' + DEMO.cases.get(id).txEnd + '"'), ref), 'the CSV export row ends with Treatment start, Expected removal');
-  check(/'Treatment start', 'Expected removal'\]/.test(fs.readFileSync(path.join(__dirname, '..', 'dist', 'nlo-cases.html'), 'utf8')), 'the export’s header names the two columns');
+  check(await p.evaluate(id => { const c = DEMO.cases.get(id); return caseToCSVRow(c).endsWith(',"' + c.txStart + '","' + c.txEnd + '","' + (scanStAsked(c) ? scanStText(c) : '') + '"'); }, ref), 'the CSV export row ends with Treatment start, Expected removal (then Stage at scan, 29 Oct 2026)');
+  check(/'Treatment start', 'Expected removal', 'Stage at scan'\]/.test(fs.readFileSync(path.join(__dirname, '..', 'dist', 'nlo-cases.html'), 'utf8')), 'the export’s header names the two columns');
 
   // ---- phone: the narrow graph (writing stays readable), the folded line keeps the month and %
   await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(200);
