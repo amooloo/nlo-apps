@@ -66,10 +66,14 @@
 
   header{
     padding:18px 20px 16px;border-bottom:1px solid var(--line);
-    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
   }
-  header h1{font-size:19px;font-weight:650;letter-spacing:-.01em}
-  header .bank{font-size:12px;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:6px}
+  header .brand{display:block;height:36px;width:auto;flex:none}
+  @media (prefers-color-scheme: dark){ header .brand{filter:invert(1)} }   /* the black logo, white on dark */
+  @media (max-width:380px){ header .brand{height:30px} }
+  header .title{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right;min-width:0}
+  header h1{font-size:18px;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
+  header .bank{font-size:12px;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:6px;white-space:nowrap}
   header .bank::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--danger);display:inline-block}
 
   .body{padding:18px 20px 12px}
@@ -214,6 +218,21 @@
   .zoom[hidden]{display:none}
   .zoom img{display:block;max-width:100%;margin:0 auto;background:#fff;border-radius:6px}
 
+  /* ---------- drop the scans anywhere on the page ---------- */
+  .drop{
+    position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:rgba(13,42,87,.22);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  }
+  .drop[hidden]{display:none}
+  .drop *{pointer-events:none}
+  .drop-box{
+    width:min(520px,100%);padding:46px 28px 40px;border:3px dashed var(--accent);border-radius:20px;
+    background:var(--surface);text-align:center;box-shadow:var(--shadow);
+  }
+  .drop-box svg{width:54px;height:54px;color:var(--accent)}
+  .drop-title{font-size:21px;font-weight:680;letter-spacing:-.01em;margin-top:12px}
+  .drop-sub{font-size:13.5px;color:var(--ink-2);margin-top:6px;line-height:1.5}
+
   .chk .x{
     appearance:none;border:none;background:none;cursor:pointer;color:var(--muted);
     font-size:17px;line-height:1;padding:3px 6px;border-radius:6px;
@@ -280,13 +299,18 @@
   #slip{display:none}
   @media print{
     body{background:#fff;color:#000;padding:0}
-    .wrap,.scan,.zoom{display:none!important}
+    .wrap,.scan,.zoom,.drop{display:none!important}
     #slip{
       display:block!important;padding:.45in;max-width:7.5in;
       font-family:-apple-system,"Segoe UI",Arial,sans-serif;color:#000;
     }
-    #slip h2{font-size:17px;font-weight:700;padding-bottom:6px;border-bottom:2px solid #000}
-    #slip .meta{display:flex;justify-content:space-between;font-size:11px;margin:6px 0 16px}
+    #slip .head{
+      display:flex;align-items:flex-end;justify-content:space-between;gap:24px;
+      padding-bottom:10px;border-bottom:2px solid #000;margin-bottom:16px;
+    }
+    #slip .head img{display:block;height:.52in;width:auto}
+    #slip .ht{text-align:right;font-size:11px;line-height:1.4}
+    #slip .ht h2{font-size:17px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
     #slip h3{
       font-size:10px;text-transform:uppercase;letter-spacing:.08em;
       margin:16px 0 5px;padding-bottom:3px;border-bottom:1px solid #888;
@@ -323,8 +347,11 @@
 <div class="wrap">
   <div class="card">
     <header>
-      <h1>Deposit Slip</h1>
-      <span class="bank">Bank of America</span>
+      <img class="brand" id="brand" src="nlo-logo-wide.png" alt="Next Level Orthodontics" width="792" height="180">
+      <div class="title">
+        <h1>Deposit Slip</h1>
+        <span class="bank">Bank of America</span>
+      </div>
     </header>
 
     <div class="body">
@@ -353,7 +380,7 @@
         <button class="btn btn-ghost btn-cam" onclick="startScan()" title="Scan a check with the camera" aria-label="Scan check">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7.5 6.5H4a1 1 0 0 0-1 1V19a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7.5a1 1 0 0 0-1-1h-3.5z"/><circle cx="12" cy="13" r="3.5"/></svg>
         </button>
-        <button class="btn btn-ghost btn-cam" onclick="startBulk()" title="Upload scanned checks: one PDF of the stack (fronts and backs are fine) or several photos" aria-label="Upload scanned checks">
+        <button class="btn btn-ghost btn-cam" onclick="startBulk()" title="Upload scanned checks (or drop them anywhere on this page): PDFs or photos, as many as you like, fronts and backs" aria-label="Upload scanned checks">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-7"/><path d="m9 14 3-3 3 3"/></svg>
         </button>
         <button class="btn btn-primary" onclick="addCheck()">Add</button>
@@ -428,6 +455,14 @@
   </div>
 </div>
 <div class="zoom" id="zoom" hidden title="Tap to close"><img id="zoomImg" alt="Scanned page"></div>
+
+<div class="drop" id="drop" hidden>
+  <div class="drop-box">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-7"/><path d="m9 14 3-3 3 3"/></svg>
+    <div class="drop-title">Drop the scanned checks</div>
+    <div class="drop-sub">PDFs or photos, as many as you like, or a whole folder.<br>They're read right here on this computer; the files don't go anywhere.</div>
+  </div>
+</div>
 
 <div id="slip"></div>
 
@@ -506,7 +541,11 @@
 
   function renderChecks(){
     var el = $('checkList');
-    if(!checks.length){ el.innerHTML = '<div class="empty">No checks yet. Type an amount, take a photo, or upload a scan of the whole stack.</div>'; return; }
+    if(!checks.length){
+      el.innerHTML = '<div class="empty">No checks yet. Type an amount, take a photo, or ' +
+        (isTouch() ? 'upload scans of them.' : 'drop the scanned checks anywhere on this page.') + '</div>';
+      return;
+    }
     var html = '<div class="checks">';
     checks.forEach(function(c, i){
       html += '<div class="chk"><span class="i num">' + (i+1) + '</span>' +
@@ -632,8 +671,8 @@
         '<div><span>Variance</span><span>' + verdictText(s.variance) + '</span></div>' +
       '</div>';
 
-    return '<h2>Deposit Slip</h2>' +
-      '<div class="meta"><span>Bank of America</span><span>' + stamp(s.when) + '</span></div>' +
+    return '<div class="head"><img src="nlo-logo-wide.png" alt="Next Level Orthodontics">' +
+        '<div class="ht"><h2>Deposit Slip</h2><div>Bank of America</div><div>' + stamp(s.when) + '</div></div></div>' +
       '<h3>Cash by denomination</h3>' +
       '<table><thead><tr><th>Denomination</th><th class="r">Count</th><th class="r">Amount</th></tr></thead>' +
       '<tbody>' + billRows + coinRow +
@@ -757,12 +796,14 @@
     }
 
     newPage();
-    text(L, y - 14, 'Deposit Slip', 17, true);
-    y -= 22;
+    var LH = 34, LW = pdfLogo ? LH * pdfLogo.w / pdfLogo.h : 0;    /* the logo left, the title right */
+    if(pdfLogo) ops.push('q ' + n(LW) + ' 0 0 ' + n(LH) + ' ' + n(L) + ' ' + n(y - LH) + ' cm /Logo Do Q');
+    else text(L, y - 20, 'Next Level Orthodontics', 14, true);
+    text(R, y - 13, 'DEPOSIT SLIP', 15, true, true);
+    text(R, y - 26, 'Bank of America', 9, false, true);
+    text(R, y - 37, when, 9, false, true);
+    y -= 46;
     rule(L, R, y, 1.6);
-    y -= 13;
-    text(L, y, 'Bank of America', 9);
-    text(R, y, when, 9, false, true);
 
     var COUNT = R - 130, FROM = L + 70;
     section('Cash by denomination');
@@ -832,12 +873,18 @@
       '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
       '<< /Title (Deposit Slip ' + pdfChars(when).replace(/[\\()]/g, '\\$&') + ') /Producer (NLO Bank Deposit) >>'
     ];
-    var kids = [];
-    pages.forEach(function(p){
+    var kids = [], logoRes = '';
+    if(pdfLogo){
+      objs.push('<< /Type /XObject /Subtype /Image /Width ' + pdfLogo.w + ' /Height ' + pdfLogo.h +
+                ' /ColorSpace /DeviceGray /BitsPerComponent 8' + (pdfLogo.flate ? ' /Filter /FlateDecode' : '') +
+                ' /Length ' + pdfLogo.data.length + ' >>\nstream\n' + pdfLogo.data + '\nendstream');
+      logoRes = ' /XObject << /Logo ' + objs.length + ' 0 R >>';
+    }
+    pages.forEach(function(p, i){
       var body = p.join('\n');
       objs.push('<< /Length ' + body.length + ' >>\nstream\n' + body + '\nendstream');
       objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PW + ' ' + PH + '] ' +
-                '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + (objs.length) + ' 0 R >>');
+                '/Resources << /Font << /F1 3 0 R /F2 4 0 R >>' + (i === 0 ? logoRes : '') + ' >> /Contents ' + (objs.length) + ' 0 R >>');
       kids.push(objs.length + ' 0 R');
     });
     objs[1] = '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + kids.length + ' >>';
@@ -854,6 +901,36 @@
     for(var i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
     return bytes;
   }
+
+  /* The logo for the PDF, made once when the page opens: grey on white, deflated for the PDF's
+     FlateDecode (left uncompressed where the browser can't). Until it's ready the PDF says the name. */
+  var pdfLogo = null;
+  function binStr(u){
+    var s = '', CH = 0x8000;
+    for(var i = 0; i < u.length; i += CH) s += String.fromCharCode.apply(null, u.subarray(i, i + CH));
+    return s;
+  }
+  (function(){
+    var img = new Image();
+    img.onload = function(){
+      try {
+        var w = 600, h = Math.round(w * img.naturalHeight / img.naturalWidth);
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var x = c.getContext('2d');
+        x.fillStyle = '#fff'; x.fillRect(0, 0, w, h);
+        x.drawImage(img, 0, 0, w, h);
+        var px = x.getImageData(0, 0, w, h).data, gray = new Uint8Array(w * h);
+        for(var i = 0; i < gray.length; i++) gray[i] = Math.round(px[i * 4] * .299 + px[i * 4 + 1] * .587 + px[i * 4 + 2] * .114);
+        var keep = function(bytes, flate){ pdfLogo = { w: w, h: h, flate: flate, data: binStr(bytes) }; };
+        if(window.CompressionStream && window.Response && Blob.prototype.stream){
+          new Response(new Blob([gray]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer()
+            .then(function(b){ keep(new Uint8Array(b), true); }, function(){ keep(gray, false); });
+        } else keep(gray, false);
+      } catch(e){}
+    };
+    img.src = 'nlo-logo-wide.png';
+  })();
 
   function pdfName(d){
     var p2 = function(v){ return (v < 10 ? '0' : '') + v; };
@@ -898,15 +975,23 @@
     sendEmail(s, false);                         /* a printed deposit is emailed to Dr. A too (once) */
     if(isAppleTouch()){ sharePdf(s); return; }   /* the share sheet has Print, Save to Files and Mail */
     $('slip').innerHTML = slipHtml(s);
-    var opened = false;
-    var seen = function(){ opened = true; };
-    window.addEventListener('beforeprint', seen);
-    try { window.print(); } catch(e){}
-    setTimeout(function(){                       /* the print window never came up: offer the PDF */
-      window.removeEventListener('beforeprint', seen);
-      if(!opened) note('print', "Printing didn't open in this browser.", 'off',
-        [['Get it as a PDF', function(){ sharePdf(snapshot()); }]]);
-    }, 1500);
+    var logo = $('slip').querySelector('img'), started = false;
+    function go(){
+      if(started) return;
+      started = true;
+      var opened = false;
+      var seen = function(){ opened = true; };
+      window.addEventListener('beforeprint', seen);
+      try { window.print(); } catch(e){}
+      setTimeout(function(){                     /* the print window never came up: offer the PDF */
+        window.removeEventListener('beforeprint', seen);
+        if(!opened) note('print', "Printing didn't open in this browser.", 'off',
+          [['Get it as a PDF', function(){ sharePdf(snapshot()); }]]);
+      }, 1500);
+    }
+    /* the logo is on the page already, so it's normally ready; if not, print once it is */
+    if(logo && !logo.complete){ logo.onload = logo.onerror = go; setTimeout(go, 1200); }
+    else go();
   };
 
   /* ================= Email it to Dr. A =================
@@ -1333,7 +1418,7 @@
      uploaded) twice. */
   var PDFJS_ROOT = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/', PDFJS = PDFJS_ROOT + 'legacy/build/';
   var MAX_PAGES = 120;
-  var pdfP = null, bulkSeq = 0, bulkRows = [], bulkInfo = null, bulkDocs = [];
+  var pdfP = null, bulkSeq = 0, bulkRows = [], bulkInfo = null, bulkDocs = [], bulkQueue = [];
   var BACK_RE = /endorse|do\s*not\s*write|financial\s*institution|for\s*deposit\s*only|reserved\s*for/i;
   var EOB_RE = /explanation\s*of\s*benefits|\bEOB\b|not\s*a\s*check|non.?negotiable|remittance\s*advice|patient\s*responsib/i;
 
@@ -1349,11 +1434,15 @@
   function release(c){ if(c){ c.width = 0; c.height = 0; } }     /* frees a canvas's memory now (phones run short) */
 
   function isPdf(f){ return /pdf/i.test(f.type) || /\.pdf$/i.test(f.name); }
-  /* Every page of every file picked, each as a function that draws it when its turn comes */
-  function pageList(files){
+  /* Every page of every file, each with a function that draws it when its turn comes and a label:
+     "Page 3" for one file, the file's name (and page) for several */
+  function pageList(files, named){
     var list = [], chain = Promise.resolve();
-    files.forEach(function(f){
-      if(!isPdf(f)){ list.push(photoPage(f)); return; }
+    files.forEach(function(f){                   /* in turn, so photos and PDFs keep the files' order */
+      if(!isPdf(f)){
+        chain = chain.then(function(){ list.push({ load: photoPage(f), label: named ? f.name : 'Page 1' }); });
+        return;
+      }
       chain = chain.then(function(){
         return loadPdfJs().then(null, function(){
           throw new Error("Couldn't load the PDF reader. Check the internet connection and try again.");
@@ -1375,7 +1464,9 @@
         });
       }).then(function(doc){
         bulkDocs.push(doc);
-        for(var n = 1; n <= doc.numPages; n++) list.push(pdfPage(doc, n));
+        for(var n = 1; n <= doc.numPages; n++){
+          list.push({ load: pdfPage(doc, n), label: !named ? 'Page ' + n : f.name + (doc.numPages > 1 ? ' · page ' + n : '') });
+        }
       });
     });
     return chain.then(function(){ return list; });
@@ -1548,7 +1639,7 @@
     return { thumb: thumb, zoom: zoom };
   }
 
-  function takePage(res, page, n){
+  function takePage(res, page, label){
     bulkInfo.pages++;
     if(res.kind !== 'check' && res.kind !== 'maybe'){
       if(res.kind === 'back') bulkInfo.backs++; else bulkInfo.empty++;
@@ -1556,25 +1647,31 @@
     }
     var pics = pagePictures(page, res.rot, res.focus), a = res.amt;
     var row = {
-      page: n + 1, kind: res.kind, on: res.kind === 'check',
+      label: label, kind: res.kind, on: res.kind === 'check',
       amt: a ? a.value : null, sureAmt: !!(a && a.sure),
       other: a && a.words && !a.sure && a.box !== null && a.box !== undefined ? a.box : null,
       from: res.payer && (res.kind === 'check' || res.payer.sure) ? res.payer.name : '',   /* no guess for an EOB page */
       surePayer: !!(res.payer && res.payer.sure),
       no: res.no || '', many: res.many, thumb: pics.thumb, zoom: pics.zoom
     };
-    if(row.on && row.no){                        /* the same check twice: in this file, or already in the deposit */
+    if(row.on && row.no){                        /* the same check twice: in these scans, or already in the deposit */
       var twin = bulkRows.filter(function(r){ return r.on && r.no === row.no && r.amt === row.amt; })[0];
-      if(twin){ row.on = false; row.dup = 'Same check number and amount as page ' + twin.page + '. Scanned twice?'; }
+      if(twin){ row.on = false; row.dup = 'Same check number and amount as ' + twin.label + '. Scanned twice?'; }
       else if(checks.some(function(c){ return c.no === row.no && c.amt === row.amt; })){
         row.on = false; row.dup = 'Already in this deposit (same check number and amount).';
       }
     }
     bulkRows.push(row);
     addBulkRow(row);
-    var found = bulkRows.filter(function(r){ return r.kind === 'check'; }).length;
-    $('bulkSum').textContent = 'Found ' + found + ' check' + (found === 1 ? '' : 's') + ' so far.';
+    sayFound();
     paintBulk();
+  }
+  function sayFound(){                           /* the running count while reading */
+    var found = bulkRows.filter(function(r){ return r.kind === 'check'; }).length;
+    var waiting = bulkQueue.reduce(function(s, q){ return s + q.length; }, 0);
+    $('bulkSum').classList.remove('warn');
+    $('bulkSum').textContent = 'Found ' + found + ' check' + (found === 1 ? '' : 's') + ' so far.' +
+      (waiting ? ' ' + waiting + ' more file' + (waiting === 1 ? '' : 's') + ' to read after these.' : '');
   }
 
   function addBulkRow(row){
@@ -1583,7 +1680,7 @@
     var pic = document.createElement('button');
     pic.type = 'button'; pic.className = 'bk-img'; pic.title = 'See the whole page';
     var im = document.createElement('img');
-    im.src = row.thumb; im.alt = 'Scanned page ' + row.page;
+    im.src = row.thumb; im.alt = 'Scan: ' + row.label;
     pic.appendChild(im);
     pic.addEventListener('click', function(){ $('zoomImg').src = row.zoom; $('zoom').hidden = false; });
 
@@ -1591,16 +1688,16 @@
     line.className = 'bk-row';
     var tick = document.createElement('input');
     tick.type = 'checkbox'; tick.checked = row.on;
-    tick.setAttribute('aria-label', 'Add the check on page ' + row.page);
+    tick.setAttribute('aria-label', 'Add the check: ' + row.label);
     var amt = document.createElement('input');
     amt.type = 'number'; amt.step = '0.01'; amt.min = '0'; amt.placeholder = 'Amount';
     amt.setAttribute('inputmode', 'decimal');
-    amt.setAttribute('aria-label', 'Amount, page ' + row.page);
+    amt.setAttribute('aria-label', 'Amount: ' + row.label);
     amt.value = row.amt !== null ? row.amt.toFixed(2) : '';
     if(!row.sureAmt) amt.classList.add('verify');
     var from = document.createElement('input');
     from.type = 'text'; from.placeholder = 'From'; from.autocomplete = 'off';
-    from.setAttribute('aria-label', 'From, page ' + row.page);
+    from.setAttribute('aria-label', 'From: ' + row.label);
     from.value = row.from || '';
     if(!row.surePayer) from.classList.add('verify');
     line.appendChild(tick); line.appendChild(amt); line.appendChild(from);
@@ -1614,7 +1711,7 @@
         : !row.surePayer ? 'Check who it\'s from.' : '');
     var meta = document.createElement('div');
     meta.className = 'bk-meta' + (say ? ' warn' : '');
-    meta.textContent = 'Page ' + row.page + (say ? ' · ' + say : '');
+    meta.textContent = row.label + (say ? ' · ' + say : '');
 
     tick.addEventListener('change', function(){ row.on = tick.checked; card.classList.toggle('off', !row.on); paintBulk(); });
     amt.addEventListener('input', function(){
@@ -1645,40 +1742,48 @@
     var i = bulkInfo, s = $('bulkSum');
     var found = bulkRows.filter(function(r){ return r.kind === 'check'; }).length;
     var skipped = i.backs + i.empty, parts = [];
+    var where = i.named ? ' in ' + i.files + ' file' + (i.files === 1 ? '' : 's') : ' on ' + i.pages + ' page' + (i.pages === 1 ? '' : 's');
+    var more = isTouch() ? '' : ' Drop more scans here to add them.';
     if(!bulkRows.length){
-      bulkSay('');
-      s.textContent = 'No checks found in ' + (i.pages === 1 ? 'this page' : 'these ' + i.pages + ' pages') +
-        '. One check per page, right side up and flat, reads best; or type them in.';
+      bulkSay(more.trim());
+      s.textContent = 'No checks found' + where + '. One check per page, right side up and flat, reads best; or type them in.';
       s.classList.add('warn');
     } else {
-      bulkSay("Done. Untick anything that shouldn't go in, fix what's wrong, then add them.");
-      parts.push('Found ' + found + ' check' + (found === 1 ? '' : 's') + ' on ' + i.pages + ' page' + (i.pages === 1 ? '' : 's') + '.');
+      bulkSay("Done. Untick anything that shouldn't go in, fix what's wrong, then add them." + more);
+      parts.push('Found ' + found + ' check' + (found === 1 ? '' : 's') + where + '.');
       if(skipped) parts.push('Skipped ' + skipped + ' page' + (skipped === 1 ? '' : 's') + ' with no check (backs, blank pages).');
       if(bulkRows.some(function(r){ return r.on && (!r.sureAmt || !r.surePayer); })) parts.push('Check the highlighted ones against their picture.');
       s.textContent = parts.join(' ');
       s.classList.remove('warn');
     }
-    if(i.failed.length) s.textContent += " Couldn't open page " + i.failed.join(', ') + '.';
-    if(i.cut) s.textContent += ' Read the first ' + MAX_PAGES + ' of ' + i.cut + ' pages.';
+    if(i.failed.length) s.textContent += " Couldn't open " + i.failed.join(', ') + '.';
+    if(i.cut) s.textContent += ' Stopped at ' + MAX_PAGES + ' pages; ' + i.cut + ' more weren\'t read.';
     paintBulk();
     bulkDocs.forEach(function(d){ try { d.destroy(); } catch(e){} });
     bulkDocs = [];
   }
 
-  function runBulk(files){
-    var seq = ++bulkSeq, pages;
-    bulkRows = [];
-    bulkInfo = { pages: 0, backs: 0, empty: 0, failed: [], cut: 0, done: false };
-    $('bulkList').textContent = '';
-    $('bulkSum').textContent = ''; $('bulkSum').classList.remove('warn');
-    $('bulk').hidden = false; $('bulk').classList.add('open');
+  /* Reads files: a fresh list, or (keep) more added to the list on screen */
+  function runBulk(files, keep){
+    var seq = keep ? bulkSeq : ++bulkSeq, pages;
+    if(!keep){
+      bulkRows = []; bulkQueue = [];
+      bulkInfo = { files: 0, pages: 0, backs: 0, empty: 0, failed: [], cut: 0, done: false, named: files.length > 1 };
+      $('bulkList').textContent = '';
+      $('bulkSum').textContent = ''; $('bulkSum').classList.remove('warn');
+      $('bulk').hidden = false; $('bulk').classList.add('open');
+    } else {
+      bulkInfo.done = false; bulkInfo.named = true;
+    }
+    bulkInfo.files += files.length;
     ocrHooks = { bar: bulkBar, say: bulkSay };
     bulkSay('Opening ' + (files.length === 1 ? files[0].name : files.length + ' files') + '…');
     bulkBar(0); paintBulk();
-    pageList(files).then(function(list){
+    pageList(files, bulkInfo.named).then(function(list){
       if(seq !== bulkSeq) return null;
-      if(!list.length) throw new Error('Nothing to read there. Pick a PDF of the scanned checks, or photos of them.');
-      if(list.length > MAX_PAGES){ bulkInfo.cut = list.length; list = list.slice(0, MAX_PAGES); }
+      if(!list.length && !keep) throw new Error('Nothing to read there. Pick or drop PDFs or photos of the checks.');
+      var room = Math.max(0, MAX_PAGES - bulkInfo.pages);
+      if(list.length > room){ bulkInfo.cut += list.length - room; list = list.slice(0, room); }
       pages = list;
       return loadTesseract();
     }).then(function(worker){
@@ -1686,21 +1791,23 @@
       var n = 0;
       function next(){
         if(seq !== bulkSeq || n >= pages.length) return;
-        var i = n++, page = null;
-        bulkSay('Reading page ' + (i + 1) + ' of ' + pages.length + '…');
+        var i = n++, page = null, item = pages[i];
+        bulkSay('Reading ' + (bulkInfo.named ? (i + 1) + ' of ' + pages.length + ': ' + item.label : 'page ' + (i + 1) + ' of ' + pages.length) + '…');
         bulkBar(i / pages.length);
-        return pages[i]().then(function(c){
+        return item.load().then(function(c){
           page = c;
           return readPage(worker, c, i, pages.length, seq);
         }).then(function(res){
-          if(seq === bulkSeq) takePage(res, page, i);
+          if(seq === bulkSeq) takePage(res, page, item.label);
         }, function(){
-          if(seq === bulkSeq){ bulkInfo.pages++; bulkInfo.failed.push(i + 1); }
+          if(seq === bulkSeq){ bulkInfo.pages++; bulkInfo.failed.push(item.label); }
         }).then(function(){ release(page); return next(); });
       }
       return next();
     }).then(function(){
-      if(seq === bulkSeq) finishBulk();
+      if(seq !== bulkSeq) return;
+      if(bulkQueue.length) return runBulk(bulkQueue.shift(), true);   /* more were dropped while these were read */
+      finishBulk();
     }).catch(function(err){
       if(seq !== bulkSeq) return;
       ocrHooks = null;
@@ -1710,15 +1817,89 @@
     });
   }
 
+  /* New files, picked or dropped: in name order (a scanner names them in the order scanned).
+     With results on screen they're read and added to them; while reading, they wait their turn. */
+  function isScan(f){ return isPdf(f) || /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic|heif|tiff?)$/i.test(f.name); }
+  function startRead(files){
+    files = files.filter(isScan).sort(function(a, b){
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    });
+    if(!files.length){ toast('Pick or drop PDFs or photos of the checks.'); return; }
+    if($('scan').classList.contains('open')) return;
+    var open = $('bulk').classList.contains('open');
+    if(open && bulkInfo && !bulkInfo.done){ bulkQueue.push(files); sayFound(); return; }
+    runBulk(files, open && !!bulkInfo && bulkInfo.done);
+  }
+
   window.startBulk = function(){ $('bulkInput').value = ''; $('bulkInput').click(); };
   $('bulkInput').addEventListener('change', function(){
     var files = Array.prototype.slice.call(this.files || []);
-    if(files.length) runBulk(files);
+    if(files.length) startRead(files);
   });
+
+  /* ---- drag and drop: scans dropped anywhere on the page, a folder of them included ---- */
+  function hasFiles(e){
+    var t = e.dataTransfer && e.dataTransfer.types;
+    return !!t && Array.prototype.indexOf.call(t, 'Files') > -1;
+  }
+  var dropTimer = 0;
+  function showDrop(){                           /* stays up while the drag is over the page */
+    $('drop').hidden = false;
+    clearTimeout(dropTimer);
+    dropTimer = setTimeout(hideDrop, 700);
+  }
+  function hideDrop(){ clearTimeout(dropTimer); $('drop').hidden = true; }
+  window.addEventListener('dragenter', function(e){
+    if(!hasFiles(e) || $('scan').classList.contains('open')) return;
+    e.preventDefault(); showDrop();
+  });
+  window.addEventListener('dragover', function(e){
+    if(!hasFiles(e)) return;
+    e.preventDefault();                          /* or the browser opens the file in this tab */
+    if($('scan').classList.contains('open')){ e.dataTransfer.dropEffect = 'none'; return; }
+    e.dataTransfer.dropEffect = 'copy';
+    showDrop();
+  });
+  window.addEventListener('drop', function(e){
+    if(!hasFiles(e)) return;
+    e.preventDefault();
+    hideDrop();
+    if($('scan').classList.contains('open')) return;
+    droppedFiles(e.dataTransfer).then(startRead);
+  });
+
+  /* The files dropped; a dropped folder gives the files in it (and in its folders, two deep) */
+  function droppedFiles(dt){
+    var plain = Array.prototype.slice.call(dt.files || []);
+    var entries = Array.prototype.slice.call(dt.items || []).map(function(it){
+      try { return it.kind === 'file' && it.webkitGetAsEntry ? it.webkitGetAsEntry() : null; } catch(e){ return null; }
+    });
+    if(!entries.some(function(en){ return en && en.isDirectory; })) return Promise.resolve(plain);
+    return Promise.all(entries.map(function(en, k){
+      return en ? entryFiles(en, 0) : Promise.resolve(plain[k] ? [plain[k]] : []);
+    })).then(function(lists){ return [].concat.apply([], lists); });
+  }
+  function entryFiles(en, depth){
+    if(en.isFile) return new Promise(function(res){ en.file(function(f){ res([f]); }, function(){ res([]); }); });
+    if(!en.isDirectory || depth > 2) return Promise.resolve([]);
+    var reader = en.createReader(), all = [];
+    return new Promise(function(res){
+      (function more(){                          /* a folder is read in batches until one comes back empty */
+        reader.readEntries(function(batch){
+          if(!batch.length) return res(all);
+          all = all.concat(Array.prototype.slice.call(batch));
+          more();
+        }, function(){ res(all); });
+      })();
+    }).then(function(list){
+      return Promise.all(list.map(function(x){ return entryFiles(x, depth + 1); }));
+    }).then(function(lists){ return [].concat.apply([], lists); });
+  }
 
   window.closeBulk = function(){
     bulkSeq++;                                   /* stops a read in progress */
     ocrHooks = null;
+    bulkQueue = [];
     $('bulk').classList.remove('open');
     $('bulk').hidden = true;
     $('bulkList').textContent = '';
@@ -1748,7 +1929,7 @@
 
   /* exposed for testing the parsers */
   window.__depositParse = { findAmount: findAmount, findPayer: findPayer, wordsAmount: wordsAmount,
-    bestAmount: bestAmount, checkMarks: checkMarks, checkNumber: checkNumber };
+    bestAmount: bestAmount, checkMarks: checkMarks, checkNumber: checkNumber, droppedFiles: droppedFiles };
 
   renderChecks();
   paint();
