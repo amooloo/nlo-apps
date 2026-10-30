@@ -283,15 +283,16 @@ def fuse_many(fill, surface, log=None, keep_failed=True, **kw):
     return (trimesh.util.concatenate(out) if len(out) > 1 else out[0]) if out else None, info
 
 
-def _painted_surface_voxels(V, F, pm, lo, cell, shape):
-    """The voxels the painted surface passes through: every triangle with two or three painted corners, sampled at
-    under half a voxel (plus the painted vertices themselves)."""
-    fp = pm[F].sum(axis=1) >= 2
-    if not fp.any():
-        fp = pm[F].any(axis=1)
-    tri = V[F[fp]]
-    step = 0.5 * cell
+def _painted_surface_voxels(V, F, pm, lo, cell, shape, max_edge=1.2):
+    """The voxels the painted surface passes through: every triangle with all three corners painted, sampled at under
+    half a voxel (plus the painted vertices themselves). A long triangle is left out (over `max_edge` mm): in an
+    embrasure the scanner bridges what it did not see with long thin triangles, and one with two corners painted at
+    the gum reached up to the contact - the fill climbed it (Santiago Kemler's upper, 10/29/2026)."""
+    tri = V[F]
     L = np.max(np.linalg.norm(tri[:, [1, 2, 0]] - tri, axis=2), axis=1)
+    fp = pm[F].all(axis=1) & (L <= max_edge)
+    tri, L = tri[fp], L[fp]
+    step = 0.5 * cell
     n = np.clip(np.ceil(L / step).astype(int), 1, 40)
     pts = [V[pm]]
     for k in np.unique(n):
@@ -309,17 +310,18 @@ def _painted_surface_voxels(V, F, pm, lo, cell, shape):
     return S
 
 
-def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, reach_mm=1.25, foot_mm=1.0, taper_foot=0.0, taper_start=0.0,
-               min_thick=0.3, min_depth=0.15, proud=0.0, max_voxels=4.0e6, smooth_vox=0.7, taubin=6, log=None):
+def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, reach_mm=1.0, below_mm=0.3, above_mm=0.5, local_mm=1.0, foot_mm=0.6,
+               taper_foot=0.0, taper_start=0.0, min_thick=0.3, min_depth=0.15, proud=0.0, max_voxels=4.0e6, smooth_vox=0.7, taubin=6, log=None):
     """The painted block-out, built in 3D: the undercut **next to the surface the doctor painted**, filled the way
     block-out resin is - out to the crown's own contour (a wall straight down from the height of contour, flush with
     it) and down onto the gum, and nowhere else.
 
     The undercut is the air that has body above it and body below it in its column (the space between a crown's
     bulge, a pontic, an implant crown's emergence and the gum under it). Of that air only what lies within `reach_mm`
-    of the painted surface is taken, and in each column it is made solid from there down to the gum when the gum is
-    within `foot_mm` under it - so the fill covers what was painted and stands on the gum, and never climbs an
-    embrasure to the contact above the painted band or hangs down in front of the gum below it.
+    of the painted surface is taken, and only between the painted area's own lowest and highest points round about
+    (`local_mm`; `below_mm` under the one, `above_mm` over the other); in each column it is made solid from there down
+    to the gum when the gum is within `foot_mm` under it - so the fill covers what was painted and stands on the gum,
+    and never climbs an embrasure to the contact above the painted band or hangs down in front of the gum below it.
 
     (10/29/2026 - Santiago Kemler's upper, the doctor: "look at the difference between what I painted and what it gave
     me ... still misses the middle of that tooth": two cervical bands painted line angle to line angle came out as tall
@@ -369,6 +371,15 @@ def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, reach_mm=1.25, fo
     # ... and next to the painted surface itself
     S = _painted_surface_voxels(V, F, pm, lo, cell, shape)
     near = uc & foot[:, :, None] & (ndi.distance_transform_edt(~S) * cell <= reach_mm)
+    # ... between the painted area's own lowest and highest points round about each column
+    kk = np.arange(nz)[None, None, :]
+    s_any = S.any(axis=2)
+    s_lo = np.where(s_any, np.argmax(S, axis=2), nz).astype(float)
+    s_hi = np.where(s_any, nz - 1 - np.argmax(S[:, :, ::-1], axis=2), -1).astype(float)
+    r_loc = 2 * max(1, int(round(local_mm / cell))) + 1
+    s_lo = ndi.minimum_filter(s_lo, size=r_loc, mode="constant", cval=nz)
+    s_hi = ndi.maximum_filter(s_hi, size=r_loc, mode="constant", cval=-1)
+    near &= (kk >= (s_lo - below_mm / cell)[:, :, None]) & (kk <= (s_hi + above_mm / cell)[:, :, None])
     if not near.any():
         return None, dict(info, error="no undercut under the painted area")
     # each run of undercut air in a column (between the overhang and the gum under it): the fill is the part of it from
