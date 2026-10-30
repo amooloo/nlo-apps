@@ -530,7 +530,7 @@ def _signed_distance(points, inside, lo, cell, cap, where=None):
     return out
 
 
-def blend_fill(fill, surface, feather=0.8, overlap=0.2, cell=0.1, pad=0.6, max_voxels=6.0e6, taubin=6, log=None):
+def blend_fill(fill, surface, feather=0.8, overlap=0.2, cell=0.1, pad=0.6, max_voxels=6.0e6, taubin=6, profile="cubic", log=None):
     """A block-out blended into the model: smooth, every edge feathered into the tooth and the gum (the doctor,
     10/29/2026, on the painted block-out: "its surface needs to be a lot more smooth and feathered").
 
@@ -543,7 +543,9 @@ def blend_fill(fill, surface, feather=0.8, overlap=0.2, cell=0.1, pad=0.6, max_v
     surfaces it joins. What is returned is the material the blend adds - the fill and its fillets - carried `overlap` mm
     into the model so the union merges through volume, not coincident faces. This replaces the closing-and-collar fuse
     (fuse_fill) for the painted block-out: a 0.6 mm ball closing gave fillets only in the narrowest corners and left the
-    fill's own edges standing. Returns (mesh or None, info)."""
+    fill's own edges standing. `profile`: the blend's curve - "cubic" (the default) keeps the curvature continuous where
+    the slope starts and ends, so no line shows there in the light; "quadratic" is the plain smooth minimum (a crease of
+    shading at the start of the slope). Returns (mesh or None, info)."""
     info = dict(feather=feather, overlap=overlap, cell=cell)
     if fill is None or len(fill.faces) < 4:
         return None, dict(info, error="no fill")
@@ -572,8 +574,12 @@ def blend_fill(fill, surface, feather=0.8, overlap=0.2, cell=0.1, pad=0.6, max_v
     phiO = _signed_distance(_surface_points(SV, SF[fsel], blo, bhi, 0.5 * cell, margin=0.3), O, lo, cell, cap, where=band)
     phiF = _signed_distance(_surface_points(fill.vertices, fill.faces, blo, bhi, 0.5 * cell, margin=0.3), Fo, lo, cell, cap, where=band)
     k = max(float(feather), 1e-3)
-    h = np.clip(0.5 + 0.5 * (phiF - phiO) / k, 0.0, 1.0)
-    phi = phiF * (1.0 - h) + phiO * h - k * h * (1.0 - h)          # smooth union of model and fill
+    if profile == "quadratic":
+        h = np.clip(0.5 + 0.5 * (phiF - phiO) / k, 0.0, 1.0)
+        phi = phiF * (1.0 - h) + phiO * h - k * h * (1.0 - h)      # smooth union of model and fill (C1)
+    else:
+        h = np.maximum(k - np.abs(phiF - phiO), 0.0) / k
+        phi = np.minimum(phiF, phiO) - h ** 3 * k / 6.0               # smooth union, cubic: curvature continuous (C2)
     # the added material (and `overlap` of the model under it), only round the fill
     field = np.maximum(np.maximum(phi, -overlap - phiO), phiF - R)
     field = np.pad(field, 1, constant_values=cap)
