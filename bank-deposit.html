@@ -1331,7 +1331,7 @@
      confirm, then they all go in at once. Nothing is uploaded or kept: the pictures go when the
      sheet closes, and a check's number stays only in this page, to catch one scanned (or
      uploaded) twice. */
-  var PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/legacy/build/';
+  var PDFJS_ROOT = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/', PDFJS = PDFJS_ROOT + 'legacy/build/';
   var MAX_PAGES = 120;
   var pdfP = null, bulkSeq = 0, bulkRows = [], bulkInfo = null, bulkDocs = [];
   var BACK_RE = /endorse|do\s*not\s*write|financial\s*institution|for\s*deposit\s*only|reserved\s*for/i;
@@ -1360,7 +1360,16 @@
         });
       }).then(function(lib){
         return f.arrayBuffer().then(function(buf){
-          return lib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+          /* Scanners save black & white pages as CCITT or JBIG2 and some colour ones as JPEG 2000
+             (ScanSnap's B&W and high-compression settings): pdf.js decodes those with its wasm
+             files, and a page it can't decode comes out blank. So it gets them, with its colour
+             profiles, fonts and character maps (for a searchable PDF's hidden text). */
+          return lib.getDocument({
+            data: new Uint8Array(buf), isEvalSupported: false,
+            wasmUrl: PDFJS_ROOT + 'wasm/', iccUrl: PDFJS_ROOT + 'iccs/',
+            standardFontDataUrl: PDFJS_ROOT + 'standard_fonts/',
+            cMapUrl: PDFJS_ROOT + 'cmaps/', cMapPacked: true
+          }).promise;
         }).then(null, function(){
           throw new Error('"' + f.name + "\" couldn't be opened as a PDF.");
         });
