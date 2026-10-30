@@ -490,3 +490,114 @@ def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, reach_mm=1.0, bel
         log(f"painted block-out: {len(pieces)} piece{'s' if len(pieces) != 1 else ''} filled in 3D ({info['volume_ml']:.3f} mL) - the undercut within "
             f"{reach_mm} mm of the painted surface, flush with the contour, on the gum" + (f"; {len(info['dropped'])} sliver{'s' if len(info['dropped']) != 1 else ''} too thin to print left out" if info["dropped"] else ""))
     return out, info
+
+
+def _surface_points(V, F, lo, hi, step, margin=1.0):
+    """Points on a surface inside the box (grown by `margin`), spaced under `step` mm: its faces subdivided on a
+    barycentric grid (plus the vertices)."""
+    V = np.asarray(V, float); F = np.asarray(F)
+    inbox = np.all((V >= lo - margin) & (V <= hi + margin), axis=1)
+    fsel = inbox[F].any(axis=1)
+    if not fsel.any():
+        return np.zeros((0, 3))
+    tri = V[F[fsel]]
+    L = np.max(np.linalg.norm(tri[:, [1, 2, 0]] - tri, axis=2), axis=1)
+    n = np.clip(np.ceil(L / step).astype(int), 1, 30)
+    pts = [V[inbox]]
+    for k in np.unique(n):
+        sel = n == k
+        a, b = np.meshgrid(np.arange(k + 1), np.arange(k + 1), indexing="ij")
+        m = (a + b) <= k
+        u = (a[m] / k)[None, :, None]; w = (b[m] / k)[None, :, None]
+        T = tri[sel]
+        pts.append((T[:, None, 0] * u + T[:, None, 1] * w + T[:, None, 2] * (1.0 - u - w)).reshape(-1, 3))
+    return np.vstack(pts)
+
+
+def _signed_distance(points, inside, lo, cell, cap):
+    """Distance (mm) from every voxel centre to the nearest of `points` (a densely sampled surface), negative where
+    `inside`; `cap` mm at most."""
+    from scipy.spatial import cKDTree
+    shape = inside.shape
+    if not len(points):
+        return np.where(inside, -cap, cap).astype(np.float32)
+    tree = cKDTree(points)
+    ii, jj, kk = np.meshgrid(*(np.arange(s) for s in shape), indexing="ij")
+    ctr = np.column_stack([ii.ravel(), jj.ravel(), kk.ravel()]) * cell + (lo + 0.5 * cell)
+    d, _ = tree.query(ctr, k=1, distance_upper_bound=cap, workers=-1)
+    d = np.minimum(d, cap).reshape(shape).astype(np.float32)
+    return np.where(inside, -d, d)
+
+
+def blend_fill(fill, surface, feather=0.8, overlap=0.2, cell=0.075, pad=1.2, max_voxels=6.0e6, taubin=6, log=None):
+    """A block-out blended into the model: smooth, every edge feathered into the tooth and the gum (the doctor,
+    10/29/2026, on the painted block-out: "its surface needs to be a lot more smooth and feathered").
+
+    The fill and the model are joined by a **smooth union** of their signed distance fields - the polynomial smooth
+    minimum with blend radius `feather` mm: wherever the fill meets the tooth or the gum, the corner between them is
+    replaced by a round, tangent fillet about `feather` wide, and where the fill ends (the ends of a painted band, its
+    edges against the crown) the step down to the model becomes a ramp that runs out to nothing on the surface. Away
+    from the fill the model is untouched (the smooth minimum equals the plain minimum there). The distances come from
+    the surfaces themselves (densely sampled scan and fill, not voxel steps), so the blended face is as smooth as the
+    surfaces it joins. What is returned is the material the blend adds - the fill and its fillets - carried `overlap` mm
+    into the model so the union merges through volume, not coincident faces. This replaces the closing-and-collar fuse
+    (fuse_fill) for the painted block-out: a 0.6 mm ball closing gave fillets only in the narrowest corners and left the
+    fill's own edges standing. Returns (mesh or None, info)."""
+    info = dict(feather=feather, overlap=overlap, cell=cell)
+    if fill is None or len(fill.faces) < 4:
+        return None, dict(info, error="no fill")
+    R = feather + 0.5                                   # how far from the fill anything can change
+    lo = np.asarray(fill.bounds[0], float) - (R + pad)
+    hi = np.asarray(fill.bounds[1], float) + (R + pad)
+    ext = hi - lo
+    nvox = np.prod(np.ceil(ext / cell))
+    if nvox > max_voxels:
+        cell = float(np.ceil(cell * (nvox / max_voxels) ** (1.0 / 3.0) * 200.0) / 200.0)
+        info["cell"] = cell
+    shape = tuple(int(x) for x in np.ceil(ext / cell).astype(int) + 1)
+    SV = np.asarray(surface.vertices, float); SF = np.asarray(surface.faces)
+    inbox = np.all((SV[:, :2] >= lo[:2] - cell) & (SV[:, :2] <= hi[:2] + cell), axis=1)
+    fsel = inbox[SF].any(axis=1)
+    if not fsel.any():
+        return None, dict(info, error="no model surface round the fill")
+    O = column_occupancy(SV, SF[fsel], lo, cell, shape, open_below=True)
+    Fo = column_occupancy(np.asarray(fill.vertices, float), np.asarray(fill.faces), lo, cell, shape)
+    if not Fo.any():
+        return None, dict(info, error="the fill is thinner than the grid")
+    cap = R + 1.0
+    phiO = _signed_distance(_surface_points(SV, SF[fsel], lo, hi, 0.4 * cell), O, lo, cell, cap)
+    phiF = _signed_distance(_surface_points(fill.vertices, fill.faces, lo, hi, 0.4 * cell), Fo, lo, cell, cap)
+    k = max(float(feather), 1e-3)
+    h = np.clip(0.5 + 0.5 * (phiF - phiO) / k, 0.0, 1.0)
+    phi = phiF * (1.0 - h) + phiO * h - k * h * (1.0 - h)          # smooth union of model and fill
+    # the added material (and `overlap` of the model under it), only round the fill
+    field = np.maximum(np.maximum(phi, -overlap - phiO), phiF - R)
+    field = np.pad(field, 1, constant_values=cap)
+    from skimage import measure
+    try:
+        verts, faces, _, _ = measure.marching_cubes(field, level=0.0, spacing=(cell, cell, cell))
+    except Exception as ex:  # noqa
+        return None, dict(info, error=f"meshing failed: {ex}")
+    verts = verts - cell + (lo + 0.5 * cell)
+    m = trimesh.Trimesh(verts, faces, process=True)
+    m.fix_normals()
+    if taubin > 0:
+        try:
+            m2 = trimesh.smoothing.filter_taubin(m.copy(), lamb=0.5, nu=-0.53, iterations=int(taubin))
+            if m2.is_watertight or not m.is_watertight:
+                m = m2
+        except Exception:  # noqa
+            pass
+    if not m.is_watertight:
+        m.fill_holes()
+    pieces = [q for q in m.split(only_watertight=False) if abs(q.volume) > 0.02]
+    if not pieces:
+        return None, dict(info, error="nothing left after blending")
+    out = trimesh.util.concatenate(pieces) if len(pieces) > 1 else pieces[0]
+    added = float(((phi < 0) & (phiO > 0)).sum()) * cell ** 3
+    info.update(pieces=len(pieces), added_mm3=round(added, 2), fill_mm3=round(float(abs(fill.volume)), 2), volume_ml=round(float(abs(out.volume)) / 1000.0, 3),
+                watertight=bool(all(q.is_watertight for q in pieces)))
+    if log:
+        log(f"block-out blended into the model: {info['added_mm3']:.1f} mm3 added (fill {info['fill_mm3']:.1f} mm3), feathered over {feather} mm, "
+            f"{overlap} mm into the model")
+    return out, info
