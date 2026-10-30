@@ -108,6 +108,16 @@ const DEMO = {
           '<p>Cases Shipped Today</p><table><tr><th>Patient Name</th><th>Invoice Number</th><th>Tracking Number</th><th>Carrier</th></tr><tr><td>Robin T.</td><td>228700</td><td>1Z999AA10123456785</td><td>UPS</td></tr>' +
           '<tr><td>' + fL(ap.patient) + '</td><td>228701</td><td>1Z999AA10123456786</td><td>UPS</td></tr></table><p>No Cases On Hold in the last 7 Days</p>' } }
     ];
+    // a Zoom call booked with Partners' Airway Department that names no patient (like their "CBCT Consult with Dr. Akhavan" booking):
+    // Today asks which MARPE case it's for (made up: Zoom's own test page as the link — 30 Oct 2026)
+    { const zd = new Date(Date.now() + 10 * 864e5); zd.setDate(zd.getDate() + (5 - zd.getDay() + 7) % 7); // (a Friday, 10 to 16 days out)
+      const wd = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][zd.getDay()], mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][zd.getMonth()];
+      const md = mn + ' ' + zd.getDate() + ', ' + zd.getFullYear(); let tz = 'EST'; // (EDT in the summer, as Google writes it)
+      try { tz = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).formatToParts(zd).find(x => x.type === 'timeZoneName').value; } catch (e) { }
+      DEMO.mail.inbox.push({ id: 'mdemoZ', at: ago(40 * 60), done: [], mail: { box: 'office@example.com', from: 'airway@partnersdentalstudio.com', date: ago(40 * 60), // (sent before the lab's summary: below its rows)
+        subject: 'Invitation: Amir Akhavan and Airway Department @ ' + wd.slice(0, 3) + ' ' + md + ' 10:30am - 11:30am (' + tz + ') (office@example.com)',
+        text: 'Amir Akhavan and Airway Department\n' + wd + ' ' + md + ' \u22c5 10:30am \u2013 11:30am\nEastern Time - New York\n\nLocation\nhttps://zoom.us/test\n\nEvent Name\nCBCT Consult with Dr. Akhavan\n\n' +
+          'Location: This is a Zoom web conference.\n\nYou can join this meeting from your computer, tablet, or smartphone.\nhttps://zoom.us/test\n\nPowered by Calendly.com' } }); }
     // one in-house patient on a refinement, with the finished initial set behind it (shows the aligner total)
     const ref = Array.from(DEMO.cases.values()).find(c => c.type === 'nla' && c.stage === 'thermo');
     // (scanned for it in the last aligners of the initial set: the stage at the scan, 29 Oct 2026)
