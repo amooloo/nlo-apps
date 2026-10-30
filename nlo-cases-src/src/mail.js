@@ -127,11 +127,12 @@ function parseAngel(m) {
    booking form's answers: "Provide first and last name for the patient(s):" one per line, up to four patients in one call. Every patient
    named gets the call's date, time and link on their MARPE case (zoomEffect), which moves to Zoom call scheduled once both records are on
    file. An invite that names no one (Partners' "CBCT Consult with Dr. Akhavan" booking) fills in the case that already has that call,
-   else waits on Today for the case to be picked (zoomNoName). A rescheduled call ("Updated invitation") changes the date. Cancellations, the "URGENT: Zoom Call Today" reminders and follow-ups aren't
-   read (they stay under Team & security → Email updates for a month, like any email the app doesn't read). */
+   else waits on Today for the case to be picked (zoomNoName). A rescheduled call ("Updated invitation") changes the date (zoomPlan says
+   when an invite may change a case by itself). Cancellations, the "URGENT: Zoom Call Today" reminders and follow-ups aren't read (they
+   stay under Team & security → Email updates for a month, like any email the app doesn't read). */
 const OFFICE_TZ = 'America/New_York';
-const ZOOM_TZ = { EST: -5, EDT: -4, CST: -6, CDT: -5, MST: -7, MDT: -6, PST: -8, PDT: -7, AKST: -9, AKDT: -8, HST: -10, UTC: 0, GMT: 0 };
-const ZOOM_ZONE = { eastern: 'America/New_York', central: 'America/Chicago', mountain: 'America/Denver', pacific: 'America/Los_Angeles' };
+const ZOOM_TZ = { EST: -5, EDT: -4, CST: -6, CDT: -5, MST: -7, MDT: -6, PST: -8, PDT: -7, AKST: -9, AKDT: -8, HST: -10, AST: -4, ADT: -3, UTC: 0, GMT: 0 };
+const ZOOM_ZONE = { eastern: 'America/New_York', central: 'America/Chicago', mountain: 'America/Denver', pacific: 'America/Los_Angeles', alaska: 'America/Anchorage', hawaii: 'Pacific/Honolulu', atlantic: 'America/Halifax' };
 const MON3 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 function zoomInvite(m) { return /^\s*(?:updated\s+)?invitation(?:\s+with\s+note)?\s*:/i.test(String((m && m.subject) || '')); }
 /* the wall clock in a time zone at an instant */
@@ -151,36 +152,65 @@ function officeWhen(y, mo, d, h, mi, src) {
   return { date: p.year + '-' + p.month + '-' + p.day, time: String(+p.hour % 24).padStart(2, '0') + ':' + p.minute };
 }
 function hour24(h, ap) { h = Number(h); if (!ap) return h; ap = ap.toLowerCase(); return ap === 'pm' ? (h % 12) + 12 : h % 12; }
-/* when the call is: Google's subject ("@ Fri Sep 18, 2026 11:30am - 12:30pm (EDT)"), else the invite's first lines ("Friday Sep 18, 2026 ⋅
-   11:30am – 12:30pm" / "Eastern Time - New York") */
-function zoomWhen(subject, text) {
-  const s = /@\s*(?:[a-z]{3,9}\.?,?\s+)?([a-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})(?:,?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?(?:[^()]*?\(([a-z]{2,5})\))?/i.exec(String(subject || ''));
-  const mk = (mon, d, y, h, mi, ap, src) => { const mo = MON3.indexOf(String(mon).slice(0, 3).toLowerCase()); if (mo < 0 || !(+d >= 1 && +d <= 31)) return null;
-    return officeWhen(+y, mo, +d, h == null ? null : hour24(h, ap), Number(mi) || 0, src); };
-  if (s) { const tz = s[7] && ZOOM_TZ[s[7].toUpperCase()]; const w = mk(s[1], s[2], s[3], s[4], s[5], s[6], tz != null ? { off: tz } : null); if (w) return w; }
-  const b = /\b(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?,?\s+([a-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})(?:\s*[⋅·•|-]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?/i.exec(String(text || ''));
-  if (b) { const z = /\b(eastern|central|mountain|pacific)\s+time\b/i.exec(String(text || '')); return mk(b[1], b[2], b[3], b[4], b[5], b[6], z ? { zone: ZOOM_ZONE[z[1].toLowerCase()] } : null); }
-  return null;
+/* the start of "11:30am – 12:30pm", or of "1:30 – 2:30pm" (Google writes am/pm once when both are the same: the start takes the end's,
+   unless that would start it after the end — "11:30 – 12:30pm" starts in the morning); no am/pm at all is a 24-hour clock */
+function zoomClock(sh, sm, sap, eh, em, eap) {
+  if (sh == null) return null;
+  const mi = Number(sm) || 0;
+  if (sap || !eap || Number(sh) > 12) return hour24(sh, sap) * 60 + mi;
+  const end = hour24(eh, eap) * 60 + (Number(em) || 0), t = hour24(sh, eap) * 60 + mi;
+  return t > end ? hour24(sh, String(eap).toLowerCase() === 'pm' ? 'am' : 'pm') * 60 + mi : t;
 }
-/* the patients the booking form names, or null when the invite has no such question */
+/* a zone in the subject's brackets → hours from UTC ("EDT", "GMT-04:00"); null when it's one this doesn't know */
+function zoneOff(z) {
+  z = String(z || '').trim().toUpperCase().replace('−', '-'); if (ZOOM_TZ[z] != null) return ZOOM_TZ[z];
+  const m = /^(?:GMT|UTC)\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$/.exec(z);
+  return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) + Number(m[3] || 0) / 60) : null;
+}
+/* when the call is: Google's subject ("@ Fri Sep 18, 2026 11:30am - 12:30pm (EDT)"), else the invite's first lines ("Friday Sep 18, 2026 ⋅
+   11:30am – 12:30pm" / "Eastern Time - New York"). The zone: the subject's, else the "… Time" line's, else the office's (Dr. A's calendar) */
+function zoomWhen(subject, text) {
+  const T = '(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?';
+  const s = new RegExp('@\\s*(?:[a-z]{3,9}\\.?,?\\s+)?([a-z]{3,9})\\.?\\s+(\\d{1,2}),?\\s+(\\d{4})(?:,?\\s+' + T + '(?:\\s*[-–—]\\s*(?:[a-z]{3,9}\\.?,?\\s+[a-z]{3,9}\\.?\\s+\\d{1,2},?\\s+\\d{4},?\\s+)?' + T + ')?)?(?:[^()]*?\\(([^()]{2,12})\\))?', 'i').exec(String(subject || ''));
+  const zl = /\b(eastern|central|mountain|pacific|alaska|hawaii|atlantic)(?:\s+(?:standard|daylight))?\s+time\b/i.exec(String(text || ''));
+  const lineZone = zl ? { zone: ZOOM_ZONE[zl[1].toLowerCase()] } : null;
+  const mk = (mon, d, y, c, src) => { const mo = MON3.indexOf(String(mon).slice(0, 3).toLowerCase()); if (mo < 0 || !(+d >= 1 && +d <= 31)) return null;
+    return officeWhen(+y, mo, +d, c == null ? null : Math.floor(c / 60), c == null ? 0 : c % 60, src); };
+  if (s) { const off = s[10] != null ? zoneOff(s[10]) : null;
+    const w = mk(s[1], s[2], s[3], zoomClock(s[4], s[5], s[6], s[7], s[8], s[9]), off != null ? { off } : lineZone); if (w) return w; }
+  const b = new RegExp('\\b(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?,?\\s+([a-z]{3,9})\\.?\\s+(\\d{1,2}),?\\s+(\\d{4})(?:\\s*[⋅·•|-]\\s*' + T + '(?:\\s*[-–—]\\s*' + T + ')?)?', 'i').exec(String(text || ''));
+  return b ? mk(b[1], b[2], b[3], zoomClock(b[4], b[5], b[6], b[7], b[8], b[9]), lineZone) : null;
+}
+/* the patients the booking form names, or null when the invite has no such question. Typed by Partners' staff, so: a date of birth or a
+   note after a name is left off, "Doe, Jane" is one name (commas only split full names), and a name is two words at least (first and last) */
+const ZOOM_Q = /(first\s+and\s+last\s+names?|patients?['’]?\s+(?:full\s+)?names?)\b[^:]{0,80}:/i;
 function zoomNames(text) {
   const lines = String(text || '').replace(/\r/g, '').split('\n');
-  const qi = lines.findIndex(l => /(first\s+and\s+last\s+names?|patients?['’]?\s+(?:full\s+)?names?)\b[^:]{0,80}:/i.test(l)); if (qi < 0) return null;
-  const same = lines[qi].replace(/^[\s\S]*?(?:first\s+and\s+last\s+names?|patients?['’]?\s+(?:full\s+)?names?)\b[^:]{0,80}:/i, '');
+  const qi = lines.findIndex(l => ZOOM_Q.test(l)); if (qi < 0) return null;
   const out = [];
-  const take = l => String(l || '').split(/[,;]|\s&\s|\s+and\s+/i).forEach(x => { const n = cleanName(x.replace(/^\s*(?:\d+[.)]|[-•*])\s*/, '')); if (n && n.length <= 60) out.push(n); });
-  take(same);
-  // (one patient per line under the question, up to a blank line — or the form's next question, in an HTML-only copy)
-  for (let i = qi + 1; i < lines.length && out.length < 6; i++) { const l = lines[i].trim(); if (!l || /[:?]/.test(l) || l.length > 60) break; take(l); }
+  const nm = x => cleanName(((String(x || '').replace(/^\s*(?:\d+[.)]|[-•*])\s*/, '').replace(/\s+(?:d\.?o\.?b\b|born\b|birth|age\b|chart\b|#).*$/i, '')
+    .match(/^[A-Za-zÀ-ÖØ-öø-ÿ'’., -]+/)) || [''])[0]);
+  const two = n => nameTokens(n).length >= 2;
+  const take = l => String(l || '').split(/;|\s&\s|\s+and\s+/i).forEach(part => {
+    const bits = part.split(','), each = bits.length > 1 && bits.every(b => two(nm(b))) ? bits : [part];
+    each.forEach(b => { const n = nm(b); if (two(n) && n.length <= 60) out.push(n); });
+  });
+  take(lines[qi].replace(new RegExp('^[\\s\\S]*?' + ZOOM_Q.source, 'i'), ''));
+  // (one patient per line under the question, up to a blank line or the form's next question — "…?", "Name of doctor and practice:")
+  const formLine = l => /\?/.test(l) || /:\s*$/.test(l) || /^[^:]{25,}:/.test(l) || l.length > 80;
+  for (let i = qi + 1; i < lines.length && out.length < 6; i++) { const l = lines[i].trim(); if (!l || formLine(l)) break; take(l); }
   return out.slice(0, 6);
 }
 function zoomMeet(url) { return (/\/(?:j|w)\/(\d{9,12})/.exec(String(url || '')) || [])[1] || ''; }
 function parseZoomInvite(m) {
   if (!zoomInvite(m)) return [];
-  const t = mailText(m), url = zoomLinkFrom(t) || zoomLinkFrom(htmlLinks(m.html).map(l => l.href).join('\n')), when = zoomWhen(m.subject, t);
-  if (!zoomHost(url)) return []; // (a calendar invitation that isn't for a Zoom call — a lunch & learn at the office — isn't a case's call)
+  const t = mailText(m), links = htmlLinks(m.html).map(l => l.href).join('\n');
+  // (a call booked on Partners' Calendly — what every one of their invites so far is: a webinar or a lunch & learn they send through
+  // their calendar isn't a case's call, nor is a calendar invitation without a Zoom link)
+  if (!/calendly\.com/i.test(t + '\n' + links)) return [];
+  const url = zoomLinkFrom(t) || zoomLinkFrom(links), when = zoomWhen(m.subject, t); if (!zoomHost(url)) return [];
   const base = { kind: 'zoom', zoomDate: when ? when.date : '', zoomTime: when ? when.time : '', zoomUrl: url, meet: zoomMeet(url),
-    title: cleanName(((/event name\s*:?\s*\n\s*([^\n]+)/i.exec(t)) || [])[1] || '').slice(0, 60) };
+    title: cleanName(((/event name\s*:?\s*\n\s*([^\n]+)/i.exec(t)) || [])[1] || '').slice(0, 60), upd: /^\s*updated\s+invitation/i.test(m.subject) ? 1 : 0 };
   const names = zoomNames(t);
   return names && names.length ? names.map(n => Object.assign({ name: n }, base)) : [Object.assign({ name: '' }, base)];
 }
@@ -239,37 +269,56 @@ function nameOnlyOk(ev, c) {
   return sub < 0 || keys.indexOf(pathStage(c, c.stage)) >= sub;
 }
 /* a Zoom invite → the patient's MARPE case at Partners (or with no lab yet) whose design isn't approved yet. The names are typed by
-   whoever booked the call, so a full name has to match to be applied by itself; the same last name is only suggested on Today
-   (a first name spelled another way, as Partners' staff typed it). */
+   whoever booked the call, so only a full name is applied by itself; initials ("J. Doe", "Jane D." — a brother or sister?) and the
+   same last name (a first name spelled another way) are suggested on Today. */
 function zoomMatch(ev, open, closed) {
   const co = MAIL_CO[ev.co];
   const mine = c => !c.locked && c.type === 'marpe' && (!c.lab || labName(c.lab) === co.lab);
   const marpe = open.filter(mine), ahead = marpe.filter(c => zoomAhead(c));
   if (!ev.name) return zoomNoName(ev, ahead);
-  const same = c => nameMatches(ev.name, ev.nameKind, c.patient), exact = ahead.filter(same);
-  if (exact.length === 1) return { c: exact[0] };
-  if (exact.length > 1) return { many: exact };
+  const same = c => nameMatches(ev.name, ev.nameKind, c.patient), hits = ahead.filter(same);
+  if (hits.length === 1 && ev.nameKind === 'full') return zoomAuto(hits[0], ev);
+  if (hits.length) return { many: hits, check: ev.nameKind === 'full' ? '' : 'initial' };
   // the patient's MARPE case is past its call (design approved), or was completed after the invite: nothing to do
   if (marpe.some(same) || closed.some(c => mine(c) && same(c) && (c.closedAt || 0) >= (ev.at || 0))) return { done: true };
   const ln = nameTokens(ev.name).slice(-1)[0];
   const sameLast = ln && ln.length > 1 ? ahead.filter(c => nameTokens(c.patient).slice(-1)[0] === ln) : [];
-  return sameLast.length ? { many: sameLast, check: true } : { none: true };
+  return sameLast.length ? { many: sameLast, check: 'last' } : { none: true };
 }
-/* an invite that names no one (Partners' "CBCT Consult with Dr. Akhavan" booking doesn't ask). The case that has this call already — its
-   Zoom link pasted in, or its day and time typed in — gets what's missing by itself (the time, the link; Zoom call scheduled once it can
-   go there). A case with only the day is suggested on Today; otherwise Today suggests the MARPE cases still waiting for a Zoom date.
-   A call that's over by now is left alone: nothing says which case it was. */
+/* an invite that names no one (Partners' "CBCT Consult with Dr. Akhavan" booking doesn't ask). The cases that have this call already —
+   its Zoom link pasted in (every patient on the call), or its day and time typed in — get it by themselves; a case with only the day is
+   suggested on Today; otherwise Today suggests the MARPE cases still waiting for a Zoom date (an "Updated invitation": the cases with a
+   call booked, one of which it moves). A call that's over by now is left alone: nothing says which case it was. */
 function zoomNoName(ev, ahead) {
   const byLink = ev.meet ? ahead.filter(c => zoomMeet(zoomLinkOf(c)) === ev.meet) : [];
-  if (byLink.length === 1) return { c: byLink[0] };
-  if (byLink.length) return { done: true }; // (several patients on the call, the link on each case already)
+  if (byLink.length) return byLink.some(c => zoomPlan(c, ev) === 'ask') ? { many: byLink, check: 'later' } : byLink.length === 1 ? { c: byLink[0] } : { cs: byLink };
   if (ev.zoomDate && ev.zoomDate < todayISO()) return { done: true };
   // (the same day without a link, unless its time says it's another call that day)
   const day = ev.zoomDate ? ahead.filter(c => c.zoomDate === ev.zoomDate && !zoomLinkOf(c) && (!c.zoomTime || !ev.zoomTime || c.zoomTime === ev.zoomTime)) : [];
   const slot = ev.zoomTime ? day.filter(c => c.zoomTime === ev.zoomTime) : [];
-  if (slot.length === 1) return { c: slot[0] };
-  if (day.length) return { many: day, check: true };
-  return { many: ahead.filter(c => !c.zoomDate && ['records', 'submitted'].includes(pathStage(c, c.stage))), check: true };
+  if (slot.length === 1) return zoomAuto(slot[0], ev);
+  if (day.length) return { many: day, check: 'day' };
+  if (ev.upd) return { many: ahead.filter(c => c.zoomDate), check: 'moved' };
+  return { many: ahead.filter(c => !c.zoomDate && ['records', 'submitted'].includes(pathStage(c, c.stage))), check: 'wait' };
+}
+/* the case an invite is for: applied by itself, unless what the invite says goes against a change made by hand (zoomPlan) */
+function zoomAuto(c, ev) { return zoomPlan(c, ev) === 'ask' ? { many: [c], check: 'later' } : { c }; }
+/* what an invite may do to a case's Zoom call by itself. zoomAt: when the call was last set — by an invite (its email's time) or by hand
+   (Edit, the Zoom call window, the step window, New submission: any of them); zoomInvAt: the email time of the last invite applied;
+   zoomInv: the invites applied (their call), so a copy that comes late — the other mailbox's — changes nothing, whatever was changed
+   by hand since.
+   'skip': applied already, or a newer invite has set the call since. 'apply': it's the latest word (the case has no call yet, or the
+   invite was sent after the call was last set). 'fill': the call was set by hand after the invite was sent — or before this version,
+   when the time it was set wasn't kept — and agrees with it: only what's missing (the time, the link) is filled in, and the step isn't
+   moved. 'ask': it says something else (another day or meeting): Today shows it, for someone to apply or dismiss. */
+function zoomKey(ev) { return [ev.zoomDate || '', ev.zoomTime || '', ev.meet || ev.zoomUrl || ''].join('/'); }
+function zoomPlan(c, ev) {
+  if ((Array.isArray(c.zoomInv) ? c.zoomInv : []).includes(zoomKey(ev))) return 'skip';
+  const link = zoomLinkOf(c), at = Number(c.zoomAt) || 0, has = !!(c.zoomDate || c.zoomTime || link);
+  if ((!has && !at) || (at && (ev.at || 0) > at)) return 'apply';
+  if (at && (Number(c.zoomInvAt) || 0) >= at) return 'skip';
+  const agree = !!ev.zoomDate && c.zoomDate === ev.zoomDate && (!c.zoomTime || !ev.zoomTime || c.zoomTime === ev.zoomTime) && (!link || !ev.meet || zoomMeet(link) === ev.meet);
+  return agree ? 'fill' : 'ask';
 }
 function mailMatch(ev, open, closed) {
   const co = MAIL_CO[ev.co]; if (!co) return { none: true };
@@ -307,7 +356,11 @@ function mailEffect(c, ev) {
   else if (ev.kind === 'received') to = fl === 'appliance' ? fwd('mfg') : fl === 'marpe' || fl === 'outside' ? fwd('submitted') : null;
   else if (ev.kind === 'shipped') to = fl === 'marpe' ? fwd('approved') : fwd('shipped');
   else if (ev.kind === 'delivered') to = fwd('arrived');
-  else if (ev.kind === 'zoom') { if (typeOf(c).flow !== 'marpe' || !zoomAhead(c)) return { to: null, set }; to = zoomEffect(c, ev, set, fwd); } // (nothing for another kind of case)
+  else if (ev.kind === 'zoom') { // (nothing for another kind of case; with the call, Partners as the lab of a case that had none)
+    if (fl !== 'marpe' || !zoomAhead(c)) return { to: null, set };
+    to = zoomEffect(c, ev, set, fwd); if ((to || Object.keys(set).length) && !c.lab) set.lab = MAIL_CO[ev.co].lab;
+    return { to, set };
+  }
   // shipped to the patient: a lab email takes it as far as Shipped (it skips Arrived), never on to Checked into Milestones —
   // someone checks it in, and only then is it complete (Amir's staff, 7 Oct 2026; until then Shipped completed the case)
   const sp = shipStep(c); if (sp && (ev.kind === 'shipped' || ev.kind === 'delivered')) to = fwd(sp);
@@ -322,25 +375,29 @@ function mailEffect(c, ev) {
   if (ev.planUrl && okLabLink(ev.co, ev.planUrl) && c.planUrl !== ev.planUrl) set.planUrl = ev.planUrl;
   return { to, set };
 }
-/* a Zoom invite on a MARPE case (only while its call is still ahead — before Design approved): the call's date, time and link, and
-   Zoom call scheduled once the case can go there (both records on file: stageNeeds). zoomAt is when the case's Zoom call was last
-   set — by an invite (the email's time) or by hand (Edit, the Zoom call window, New submission). An invite newer than that sets the
-   call (a rescheduled one changes it); an older one — a copy that came late, or one from before the date was typed in — only fills
-   in the time or the link of the same day's call, and never undoes a later change. */
+/* a Zoom invite on a MARPE case (only while its call is still ahead — before Design approved): the call's date, time and link (zoomPlan
+   says how much), and Zoom call scheduled once the case can go there (both records on file: stageNeeds) — only when the invite changed
+   the call, so a case someone moved back keeps its step. Applied from Today (ev.hand), it's a person's choice: all of it. */
 function zoomEffect(c, ev, set, fwd) {
   if (typeOf(c).flow !== 'marpe' || !zoomAhead(c)) return null;
-  const link = zoomLinkOf(c);
-  if ((ev.at || 0) > (Number(c.zoomAt) || 0)) {
+  const plan = ev.hand ? 'apply' : zoomPlan(c, ev), link = zoomLinkOf(c), key = zoomKey(ev);
+  if (plan === 'skip' || plan === 'ask') return null; // ('ask' waits on Today: zoomAuto)
+  if (plan === 'apply') {
     if (ev.zoomDate && ev.zoomDate !== (c.zoomDate || '')) { set.zoomDate = ev.zoomDate; set.zoomTime = ev.zoomTime || ''; }
     else if (ev.zoomDate && ev.zoomTime && ev.zoomTime !== (c.zoomTime || '')) set.zoomTime = ev.zoomTime;
     if (ev.zoomUrl && ev.zoomUrl !== link) set.zoomUrl = ev.zoomUrl;
-  } else if (ev.zoomDate && ev.zoomDate === c.zoomDate) {
+  } else {
     if (ev.zoomTime && !c.zoomTime) set.zoomTime = ev.zoomTime;
     if (ev.zoomUrl && !link) set.zoomUrl = ev.zoomUrl;
   }
-  if (Object.keys(set).length) set.zoomAt = Math.max(Number(c.zoomAt) || 0, ev.at || 0);
+  const changed = Object.keys(set).length > 0;
+  if (changed) {
+    if (plan === 'apply') set.zoomAt = ev.hand ? Date.now() : (ev.at || Date.now());
+    set.zoomInvAt = Math.max(Number(c.zoomInvAt) || 0, ev.at || 0);
+    set.zoomInv = (Array.isArray(c.zoomInv) ? c.zoomInv : []).filter(k => k !== key).concat(key).slice(-6);
+  }
   const after = Object.assign({}, c, set);
-  return after.zoomDate && !stageNeeds(after, 'zoom').length ? fwd('zoom') : null;
+  return (changed || ev.hand) && plan === 'apply' && after.zoomDate && !stageNeeds(after, 'zoom').length ? fwd('zoom') : null;
 }
 /* apply one update to a case (in a transaction; an update already applied, or one that changes nothing, is skipped) */
 async function mailApply(ev, c) {
@@ -352,7 +409,7 @@ async function mailApply(ev, c) {
     if (e2.to) d.stage = e2.to;
     Object.assign(d, e2.set);
     d.mailIds = (d.mailIds || []).concat(ev.key).slice(-40);
-  }, Object.assign({ a: 'email', co: ev.co, kind: ev.kind, from: c.stage, to: eff.to || null, fields: Object.keys(eff.set).filter(k => k !== 'zoomAt') }));
+  }, Object.assign({ a: 'email', co: ev.co, kind: ev.kind, from: c.stage, to: eff.to || null, fields: Object.keys(eff.set).filter(k => !['zoomAt', 'zoomInv', 'zoomInvAt'].includes(k)) }));
   return 'ok';
 }
 
@@ -426,7 +483,7 @@ async function mailSync() {
     // updates waiting for someone, one row per update however many emails carry it
     const wait = (d, i, ev, cands, check) => {
       const fp = mailFp(ev); let g = groups.get(fp);
-      if (!g) { g = { id: d.id + ':' + i, fp, ev, items: [], cands: cands || [], check: !!check }; groups.set(fp, g); }
+      if (!g) { g = { id: d.id + ':' + i, fp, ev, items: [], cands: cands || [], check: check || false }; groups.set(fp, g); } // (check: why it needs a look — mailCardHTML)
       g.items.push({ d, i, key: d.id + ':' + i }); if ((ev.at || 0) > (g.ev.at || 0)) g.ev = ev;
       if (!g.cands.length && cands && cands.length) g.cands = cands;
     };
@@ -452,13 +509,13 @@ async function mailSync() {
           const fp = mailFp(ev);
           if (MAILS.gone.has(ev.key) || MAILS.goneFp.has(fp) || mem.has(await mailHash(fp))) { done.add(i); add.push(i); continue; }
           const m = mailMatch(ev, open, closed);
-          if (m.c || m.done) todo.push({ i, ev, m }); else wait(d, i, ev, m.many, m.check);
+          if (m.c || m.cs || m.done) todo.push({ i, ev, m }); else wait(d, i, ev, m.many, m.check);
         }
         // what can be applied is applied by one open app (the one that claims the email); the rest wait on Today
         if (todo.length && await B.inboxClaim(d.id)) {
-          for (const { i, ev, m } of todo) {
-            let ok = !!m.done; if (m.c) { try { await mailApply(ev, m.c); ok = true; } catch (e) { ok = e && e.code === 'skip'; } }
-            if (ok) { done.add(i); add.push(i); } else wait(d, i, ev, [m.c]);
+          for (const { i, ev, m } of todo) { // (cs: every case on one call — a Zoom invite whose link is on each patient's case)
+            let bad = null; for (const c of m.cs || (m.c ? [m.c] : [])) { try { await mailApply(ev, c); } catch (e) { if (!(e && e.code === 'skip')) { bad = c; break; } } }
+            if (!bad) { done.add(i); add.push(i); } else wait(d, i, ev, [bad]);
           }
         }
         if (done.size >= evs.length) await B.inboxDelete(d.id).catch(() => { });
@@ -493,7 +550,8 @@ async function mailResolve(gid, how) {
     const c = findCase(MAILS.pick[x.id] || (x.cands.length === 1 ? x.cands[0].id : '')); if (!c) return;
     // (a Zoom call goes on a MARPE case before Design approved: the update stays for the right case — one picked that changed since)
     if (x.ev.kind === 'zoom' && (typeOf(c).flow !== 'marpe' || !zoomAhead(c))) { toast('A Zoom call goes on the patient’s MARPE case before its design is approved — pick that case', { bad: true }); return; }
-    try { await mailApply(x.ev, c); toast('Applied to ' + (ptNameText(c.patient) || 'the case')); } // (it saves the lab's case #: later emails for this patient match on it)
+    // (a Zoom invite picked for a case here is all applied: it's a person's choice — zoomEffect)
+    try { await mailApply(x.ev.kind === 'zoom' ? Object.assign({}, x.ev, { hand: 1 }) : x.ev, c); toast('Applied to ' + (ptNameText(c.patient) || 'the case')); } // (it saves the lab's case #: later emails for this patient match on it)
     catch (e) { if (!(e && e.code === 'skip')) { toast(errText(e), { bad: true }); return; } toast('Nothing to change on ' + (ptNameText(c.patient) || 'that case')); }
   }
   await mailForget(x);
@@ -527,6 +585,22 @@ if (typeof setInterval === 'function') setInterval(() => {
 }, 5 * 60000);
 
 /* ---------- Today: updates waiting for a case ---------- */
+/* what a Zoom invite's row on Today says about the case(s) it suggests (zoomMatch / zoomNoName say why it waits) */
+function zoomRowNote(x) {
+  const n = x.cands.length, c = x.cands[0], ev = x.ev;
+  const when = c && c.zoomDate ? fmtDay(c.zoomDate) + (c.zoomTime ? ', ' + fmtTime(c.zoomTime) : '') : '';
+  // ('later': the case's call was set by hand — after the invite was sent, or before the app read invites — and says something else)
+  if (x.check === 'later') return n > 1 ? n + ' possible cases — their Zoom call was set by hand: check before applying'
+    : (when ? 'Its Zoom call was set by hand to ' + when : 'Its Zoom call was taken off by hand') + ' — check before applying this invite';
+  if (n > 1) return n + ' possible cases';
+  if (x.check === 'initial') return 'Matched on the initials only — check it’s this case';
+  if (x.check === 'last') return 'Matched on the last name only — check it’s this case';
+  if (x.check === 'day') return 'This case has the call’s day — check it’s this one';
+  if (x.check === 'moved') return n ? 'An updated invite: the one MARPE case with a Zoom call booked — check it’s the one it moves' : 'An updated invite — pick the MARPE case whose call it moves';
+  if (x.check === 'wait') return n ? 'The one MARPE case waiting for a Zoom date — check it’s this one' : 'Pick the MARPE case it’s for';
+  // (a named invite stays in the inbox for a month: the case added with this name later gets the call by itself)
+  return ev.name && !n ? 'No open MARPE case with this name — add it and the call goes on it by itself, or pick the case' : '';
+}
 function mailCardHTML() {
   const L = MAILS.list; if (!L.length) return '';
   const open = openCases().filter(c => !c.locked).sort((a, b) => String(a.patient || '').localeCompare(String(b.patient || '')));
@@ -544,12 +618,9 @@ function mailCardHTML() {
         (ev.tracking ? '<span class="small muted">' + esc((trackInfo(ev.tracking) || {}).carrier || 'tracking') + ' ' + esc(ev.tracking) + '</span>' : '') +
         (ev.reason ? '<span class="small" style="color:var(--coral-700)">' + esc(ev.reason) + '</span>' : '') +
         '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.items.length > 1 ? '<span class="small muted">in ' + x.items.length + ' emails</span>' : '') +
-        (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>'
-          : zm && !ev.name ? '<span class="small" style="color:var(--amber-700)">' + (!x.cands.length ? 'Pick the MARPE case it’s for'
-            : ev.zoomDate && x.cands[0].zoomDate === ev.zoomDate ? 'This case has the call’s day — check it’s this one' : 'The one MARPE case waiting for a Zoom date — check it’s this one') + '</span>'
-          : x.check ? '<span class="small" style="color:var(--amber-700)">' + (zm ? 'Matched on the last name only — check it’s this case' : 'Matched on the name only — check it’s this case') + '</span>'
-          // (a named invite stays in the inbox for a month: the case added with this name later gets the call by itself)
-          : zm && !x.cands.length ? '<span class="small" style="color:var(--amber-700)">No open MARPE case with this name — add it and the call goes on it by itself, or pick the case</span>' : '') + '</div>' +
+        (zm ? (zoomRowNote(x) ? '<span class="small" style="color:var(--amber-700)">' + esc(zoomRowNote(x)) + '</span>' : '')
+          : x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>'
+          : x.check ? '<span class="small" style="color:var(--amber-700)">Matched on the name only — check it’s this case</span>' : '') + '</div>' +
         '<div class="mlDo"><span class="mlPh" data-mlph="' + gid + '">' + ptAv(pick ? findCase(pick) : null, 32) + '</span><select class="inp mlSel" data-g="' + gid + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
         (x.cands.length > 1 ? '<optgroup label="Possible matches">' + x.cands.map(opt).join('') + '</optgroup>' : '') +
         (mine.length ? '<optgroup label="' + esc(zm ? 'MARPE cases' : co.l + ' cases') + '">' + mine.map(opt).join('') + '</optgroup>' : zm ? '<option value="" disabled>No MARPE case waiting for its Zoom call</option>' : '') +

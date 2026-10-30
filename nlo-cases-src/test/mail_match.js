@@ -169,10 +169,11 @@ try {
   check(match(nn, [waiting, pasted]).c === pasted, 'no name, but its Zoom link is on a case already (pasted in) → that case');
   const ep = T.mailEffect(pasted, nn);
   check(ep.set.zoomTime === '10:30' && !ep.set.zoomDate && !ep.set.zoomUrl && !ep.to, '…which gets only what it’s missing (the time)');
-  check(match(nn, [pasted, Object.assign({}, pasted, { id: 'pp2', patient: 'Pat Pasted' })]).done, 'the link on two cases already (two patients on the call) → nothing to do');
+  const pasted2 = Object.assign({}, pasted, { id: 'pp2', patient: 'Pat Pasted' }), m2l = match(nn, [pasted, pasted2]);
+  check(m2l.cs && m2l.cs.length === 2 && !m2l.c, 'the link on two cases already (two patients on the call) → both get it by themselves');
   const slotCase = kase({ type: 'marpe', patient: 'Tess Typed', stage: 'submitted', lab: 'Partners Dental Solutions', records: ['stl', 'cbct'], zoomDate: fu.iso, zoomTime: '10:30', zoomAt: at + 5000 });
   const es = T.mailEffect(slotCase, nn);
-  check(match(nn, [waiting, slotCase]).c === slotCase && es.set.zoomUrl === Z && es.to === 'zoom', 'no name, and a case has the call’s day and time typed in (no link yet) → that case gets the link (and Zoom call scheduled)');
+  check(match(nn, [waiting, slotCase]).c === slotCase && es.set.zoomUrl === Z && !es.to, 'no name, and a case has the call’s day and time typed in (no link yet) → that case gets the link (its step stays: the invite is older than the typing)');
   const dayOnly = Object.assign({}, slotCase, { zoomTime: '' }), md = match(nn, [waiting, dayOnly]);
   check(!md.c && md.check && md.many.length === 1 && md.many[0] === dayOnly, '…only the day typed in → suggested on Today, not applied by itself');
   const otherCall = match(nn, [waiting, Object.assign({}, slotCase, { zoomTime: '14:00' })]);
@@ -180,17 +181,62 @@ try {
   check(match(nnOn(-3), [waiting]).done, 'no name, for a call that’s over → nothing to do (nothing says which case it was)');
   // older and newer invites: a later change is never undone
   const later = Object.assign({}, ready, { zoomDate: '2026-12-11', zoomTime: '09:00', zoomAt: at + 5000 }); // (rescheduled by hand after the invite)
-  const eOld = T.mailEffect(later, evs[0]);
-  check(!eOld.set.zoomDate && !eOld.set.zoomTime && !eOld.set.zoomUrl, 'an invite older than the last change to the call (a different day typed in later): changes nothing');
+  const eOld = T.mailEffect(later, evs[0]), mOld = match(evs[0], [later]);
+  check(!eOld.set.zoomDate && !eOld.set.zoomTime && !eOld.set.zoomUrl, 'an invite older than the last change to the call (a different day typed in later): changes nothing by itself');
+  check(!mOld.c && mOld.check === 'later' && mOld.many[0] === later, '…it waits on Today instead (“Its Zoom call was set by hand…”), for someone to apply or dismiss');
+  const eHand = T.mailEffect(later, Object.assign({}, evs[0], { hand: 1 }));
+  check(eHand.set.zoomDate === '2026-12-04' && eHand.set.zoomTime === '11:30' && eHand.set.zoomUrl === Z && eHand.to === 'zoom' && eHand.set.zoomAt >= at, '…and Apply there puts the invite’s call on, all of it (a person’s choice, timed now)');
   const typed = Object.assign({}, ready, { zoomDate: '2026-12-04', zoomTime: '', zoomAt: at + 5000 }); // (the date typed in from the invite, nothing else)
   const eFill = T.mailEffect(typed, evs[0]);
-  check(eFill.set.zoomTime === '11:30' && eFill.set.zoomUrl === Z && !eFill.set.zoomDate && eFill.set.zoomAt === at + 5000, '…an older invite for the same day fills in only what’s missing (the time, the link)');
+  check(eFill.set.zoomTime === '11:30' && eFill.set.zoomUrl === Z && !eFill.set.zoomDate && !('zoomAt' in eFill.set) && !eFill.to && (eFill.set.zoomInv || []).length === 1,
+    '…an older invite for the same day fills in only what’s missing (the time, the link), and doesn’t move the step');
   const resched = all(invite({ pre: 'Updated invitation', names: '\nWendell Zoomer', when: 'Fri Dec 11, 2026 1pm - 2pm (EST)', link: 'https://us06web.zoom.us/j/81234500002?pwd=Zz.1' }))[0];
   resched.at = at + 9000;
   const set1 = Object.assign({}, ready, e0.set, { stage: 'zoom' }), eNew = T.mailEffect(set1, resched);
   check(eNew.set.zoomDate === '2026-12-11' && eNew.set.zoomTime === '13:00' && /81234500002/.test(eNew.set.zoomUrl) && !eNew.to, 'a newer “Updated invitation” moves the call (Dec 11, 1 PM, new link); the case is already at Zoom call scheduled');
   const same = T.mailEffect(Object.assign({}, set1, eNew.set), Object.assign({}, resched, { at: at + 9500 }));
   check(!same.to && !Object.keys(same.set).length, 'the same invite again (the other mailbox’s copy): nothing to change');
+  // (independent review, 30 Oct 2026)
+  // 1. a call typed in before this version (no zoomAt): an invite isn't taken as newer
+  const legacy = Object.assign({}, ready, { zoomDate: '2026-12-18', zoomTime: '15:00' }), mLeg = match(evs[0], [legacy]);
+  check(!mLeg.c && mLeg.check === 'later' && !Object.keys(T.mailEffect(legacy, evs[0]).set).length, 'a call typed in before the app read invites (another day): the invite waits on Today, nothing is overwritten');
+  const legSame = Object.assign({}, ready, { zoomDate: '2026-12-04' }), eLeg = T.mailEffect(legSame, evs[0]);
+  check(match(evs[0], [legSame]).c === legSame && eLeg.set.zoomTime === '11:30' && eLeg.set.zoomUrl === Z && !eLeg.set.zoomDate && !eLeg.to, '…the same day typed in before: the time and link are filled in, the step isn’t moved');
+  // 2. initials are only suggested
+  const ini = all(invite({ names: '\nW. Zoomer\nWendell Z.' }));
+  const mi1 = match(ini[0], [ready]), mi2 = match(ini[1], [ready]);
+  check(!mi1.c && mi1.check === 'initial' && mi1.many[0] === ready && !mi2.c && mi2.check === 'initial', 'initials (“W. Zoomer”, “Wendell Z.”) → suggested on Today, never applied by themselves (a brother or sister?)');
+  // 3. an updated invitation for a call whose link is on two cases moves both
+  const upd2 = Object.assign({}, nnOn(40), { at: at + 9000, upd: 1, zoomDate: day(44).iso });
+  const p1 = Object.assign({}, pasted, { zoomTime: '10:30', zoomAt: at, zoomInvAt: at, zoomInv: [] }), p2 = Object.assign({}, p1, { id: 'pp3', patient: 'Pat Pasted' }), mu = match(upd2, [p1, p2]);
+  check(mu.cs && mu.cs.length === 2 && T.mailEffect(p1, upd2).set.zoomDate === day(44).iso && T.mailEffect(p2, upd2).set.zoomDate === day(44).iso, 'an updated invite (no name) for a call whose link is on two cases: both move to the new day');
+  // 4. the list of names
+  const nm = t => all(invite({ names: t })).map(e => e.name).join('|');
+  check(nm('\nWendell Zoomer DOB: 01/02/2012\nTobyas Quarrington') === 'Wendell Zoomer|Tobyas Quarrington', 'a date of birth after a name is left off, and the names after it are still read');
+  check(nm('\nWendell Zoomer 10:30\nTobyas Quarrington') === 'Wendell Zoomer|Tobyas Quarrington', 'a time after the first name doesn’t make it an invite with no names');
+  { const lf = all(invite({ names: '\nZoomer, Wendell' })); check(lf.length === 1 && match(lf[0], [ready]).c === ready, '“Zoomer, Wendell” is one name (last, first) → matched'); }
+  check(nm(' Wendell Zoomer, Tobyas Quarrington') === 'Wendell Zoomer|Tobyas Quarrington' && nm('\n1. Wendell Zoomer\n2) Tobyas Quarrington (sibling)') === 'Wendell Zoomer|Tobyas Quarrington', 'full names split on commas; numbering and a note in brackets are left off');
+  // 5. a change by hand isn't undone by a copy of an invite applied before
+  const ap = Object.assign({}, ready, e0.set, { stage: 'zoom' }); // (the invite applied)
+  const noLink = Object.assign({}, ap, { zoomUrl: '', zoomAt: at + 7000 }); // (the link taken off by hand since)
+  check(!Object.keys(T.mailEffect(noLink, Object.assign({}, evs[0], { at: at + 100 })).set).length, 'the link taken off by hand: a late copy of the invite doesn’t put it back');
+  const back = Object.assign({}, ap, { stage: 'submitted' }); // (moved back by hand, the date kept)
+  check(!T.mailEffect(back, Object.assign({}, evs[0], { at: at + 100 })).to, 'a case moved back to Submitted by hand: a copy of the invite doesn’t move it on again');
+  const handLater = Object.assign({}, ap, { zoomDate: '2026-12-10', zoomAt: at + 7000 }), updOld = Object.assign({}, resched, { at: at + 6000 });
+  check(match(updOld, [handLater]).check === 'later', 'an “Updated invitation” sent before a change by hand (another day): Today, not lost and not applied');
+  // superseded: the newer of two invites applied first, then the older one
+  const newer = Object.assign({}, ready, T.mailEffect(ready, resched).set, { stage: 'zoom' });
+  check(!Object.keys(T.mailEffect(newer, evs[0]).set).length && match(evs[0], [newer]).c === newer, 'the older invite read after the newer one: nothing changes (no Today row either)');
+  // 6. only calls booked on Partners' Calendly
+  const web = invite({ names: null, title: 'Partners webinar' }); web.text = web.text.replace(/https:\/\/calendly\.com\/\S+/g, '').replace(/Powered by Calendly\.com/, '');
+  check(!all(web).length, 'a Partners calendar invite with a Zoom link that isn’t a Calendly booking (a webinar) isn’t read');
+  const updNo = Object.assign({}, nnOn(40), { upd: 1, meet: '81299999999', zoomUrl: 'https://us06web.zoom.us/j/81299999999', zoomDate: day(45).iso }), mUpd = match(updNo, [waiting, p1]);
+  check(mUpd.check === 'moved' && mUpd.many.length === 1 && mUpd.many[0] === p1, 'an updated invite with no name and a new link: Today suggests the case with a call booked, not the one waiting for a date');
+  // 7. times
+  { const e = all(invite({ names: ' W Z', when: 'later', body: 'Friday Dec 4, 2026 ⋅ 1:30 – 2:30pm\nEastern Time - New York' }))[0]; check(e.zoomTime === '13:30', '“1:30 – 2:30pm” (am/pm once) → 1:30 PM'); }
+  { const e = all(invite({ names: ' W Z', when: 'later', body: 'Friday Dec 4, 2026 ⋅ 11:30 – 12:30pm\nEastern Time - New York' }))[0]; check(e.zoomTime === '11:30', '“11:30 – 12:30pm” → 11:30 AM'); }
+  { const e = all(invite({ names: ' W Z', when: 'Fri Dec 4, 2026 10:30am - 11:30am (GMT-06:00)' }))[0]; check(e.zoomTime === '11:30', 'a zone written “GMT-06:00” → 11:30 in the office'); }
+  { const e = all(invite({ names: ' W Z', when: 'Fri Dec 4, 2026 10:30am - 11:30am (XYZ)', body: 'Friday Dec 4, 2026 ⋅ 10:30am – 11:30am\nCentral Time - Chicago' }))[0]; check(e.zoomTime === '11:30', 'a zone it doesn’t know in the subject: the invite’s “Central Time” line'); }
   const fpA = vm.runInContext('mailFp', ctx)(evs[0]), fpB = vm.runInContext('mailFp', ctx)(resched);
   check(fpA !== fpB && vm.runInContext('mailFp', ctx)(Object.assign({}, evs[0], { at: at + 1 })) === fpA, 'a rescheduled call is a new update; a copy of the same invite is the same one');
   check(vm.runInContext('mailFp', ctx)({ co: 'partners', kind: 'shipped', name: 'Emma S.', tracking: '1Z' }) === 'partners|shipped|emma s||1Z||', 'other updates keep the fingerprint they had (dismissed ones stay dismissed)');

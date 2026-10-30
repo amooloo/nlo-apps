@@ -10,6 +10,8 @@
 // 3. The same invite again (the other mailbox's copy): nothing changes, no row. A time changed by hand since isn't undone by a copy
 //    that comes late.
 // 4. A rescheduled call ("Updated invitation") → the new day, time and link.
+// 4b. An invite sent before a call was set by hand (another day) waits on Today, saying what the case has; Apply puts it on. A name
+//    with an initial is only suggested.
 // 5. Phone width: the row fits. No page errors.
 const { chromium } = require('playwright');
 const { routes, watch, panelsOpen } = require('./helpers');
@@ -119,6 +121,27 @@ const invite = o => { const d = o.day, link = o.link;
   await deliver('mz2', invite({ pre: 'Updated invitation', day: d2, from: '1pm', to: '2pm', link: L2, names: ['Wendell Zoomer'], date: Date.now() }));
   c = await caseOf(wid);
   check(c.zoomDate === d2.iso && c.zoomTime === '13:00' && c.zoomUrl === L2 && c.stage === 'zoom', '“Updated invitation”: Wendell’s call moves to ' + c.zoomDate + ' at 1 PM, with the new link');
+
+  // ---- 4b. a call set by hand, and an invite sent before that; initials (independent review, 30 Oct 2026)
+  console.log('\n# A call set by hand, an invite sent before it; initials');
+  const d3 = dayOf(30), d4 = dayOf(31), L4 = 'https://us06web.zoom.us/j/81234500069?pwd=Op69.1';
+  const hid = await make({ patient: 'Hattie Handset', stage: 'zoom', records: ['stl', 'cbct'], zoomDate: d3.iso, zoomTime: '09:00', zoomAt: Date.now() });
+  await p.waitForTimeout(300);
+  await today(); await deliver('mz4', invite({ day: d4, from: '11:30am', to: '12:30pm', link: L4, names: ['Hattie Handset'], date: Date.now() - 3600e3 }));
+  await p.waitForSelector(row('Hattie Handset'), { timeout: 8000 }).catch(() => { });
+  const r4 = (await p.textContent(row('Hattie Handset')).catch(() => '')).replace(/\s+/g, ' ');
+  c = await caseOf(hid);
+  check(c.zoomDate === d3.iso && c.zoomTime === '09:00' && !c.zoomUrl && r4.includes('Its Zoom call was set by hand to ' + await p.evaluate(iso => fmtDay(iso), d3.iso) + ', 9:00 AM — check before applying this invite'),
+    'an invite sent before the call was set by hand (another day): nothing changes by itself; Today says the case’s call was set by hand, and to what');
+  await p.locator(row('Hattie Handset')).screenshot({ path: OUT + '/z66-today-sethand.png' });
+  await p.click(row('Hattie Handset') + ' [data-act=mailApply]'); await p.waitForTimeout(600);
+  c = await caseOf(hid);
+  check(c.zoomDate === d4.iso && c.zoomTime === '11:30' && c.zoomUrl === L4 && !(await p.locator(row('Hattie Handset')).count()), 'Apply there: the invite’s call goes on (day, 11:30, link), the row goes');
+  await deliver('mz5', invite({ day: dayOf(32), from: '9am', to: '10am', link: 'https://us06web.zoom.us/j/81234500070?pwd=Qr70.1', names: ['W. Zoomer'], date: Date.now() }));
+  await p.waitForSelector(row('W. Zoomer'), { timeout: 8000 }).catch(() => { });
+  check(/Matched on the initials only — check it’s this case/.test(await p.textContent(row('W. Zoomer')).catch(() => '')) && (await caseOf(wid)).zoomDate === d2.iso,
+    'a name with an initial (“W. Zoomer”): suggested on Today, Wendell’s call unchanged');
+  await p.click(row('W. Zoomer') + ' [data-act=mailSkip]'); await p.waitForTimeout(500);
 
   // ---- 5. phone width
   console.log('\n# Phone width');
