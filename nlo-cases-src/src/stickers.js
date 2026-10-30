@@ -16,7 +16,7 @@ const STK_MAX = 200; // kept on a case (the oldest go first)
    and what each is made of, to tell who last worked on it */
 const STK_NO_SEC = ['stage', 'notes', 'history'];
 const STK_SEC_F = {
-  lab: ['labOrd', 'labNot', 'labRef', 'labHold'], marpe: ['records', 'zoomDate', 'zoomTime'],
+  lab: ['labOrd', 'labNot', 'labRef', 'labHold'], marpe: ['records', 'zoomDate', 'zoomTime', 'zoomUrl'],
   details: ['assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate', 'deliveryTime', 'tracking', 'carrier', 'labRef', 'chart', 'shipToPatient'],
   tx: ['txStart', 'txEnd'], aligners: ['alU', 'alL', 'aligners', 'atTemplates', 'treatArch'], instr: ['instructions', 'goals', 'instrPicks', 'instrOther'],
   teeth: ['teeth', 'teethNote'], ipr: ['ipr', 'iprSnap'], wty: ['invDate', 'noGuarantee'], rx: ['rx'], rxRet: ['rxRet'], rxMet: ['rxMet'], rxFun: ['rxFun']

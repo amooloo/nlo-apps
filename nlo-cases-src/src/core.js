@@ -137,6 +137,28 @@ function ccTitle(c) { return ccLater(c) ? 'Patient’s CC from last visit' : 'Pa
 /* MARPE: both records have to be on file before the case goes to the lab (Amir, 2 Oct 2026) */
 const MARPE_RECORDS = [['stl', 'STL scan', 'STL'], ['cbct', 'CBCT (upper & lower jaws)', 'CBCT']];
 function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.filter(([k]) => !r.includes(k)); }
+/* MARPE: the Zoom call's link (Amir, 29 Oct 2026: "is there any way I can like link my Zooms there … so in the future, I can just
+   click on there and open up the Zoom"). The link from the lab's invite is saved on the case (`zoomUrl`, encrypted with the rest
+   of it) and opens with Join Zoom while the call is still ahead. Pasting the whole invite works too: the meeting link is picked out
+   of it (a Zoom one first). A Zoom link pasted without https:// (or with http://) gets it; anything else that isn't an https:// link isn't kept. */
+const ZOOM_HOST = /(^|\.)(zoom\.us|zoom\.com|zoomgov\.com)$/i;
+function zoomHost(u) { try { return ZOOM_HOST.test(new URL(u).hostname); } catch (e) { return false; } }
+function zoomLinkFrom(v) {
+  const s = String(v || '').trim(); if (!s) return '';
+  const cut = u => u.replace(/[.,;:!?'"’”)\]>]+$/, ''); // (the sentence's punctuation after a link isn't part of it)
+  const all = (s.match(/https:\/\/[^\s<>"'`]+/gi) || []).map(cut).filter(u => /^https:\/\/[^/?#\s]+\.[^/?#\s]+/i.test(u));
+  if (!all.length) { const bare = s.match(/(?:^|[\s(<]|http:\/\/)((?:[a-z0-9-]+\.)*zoom(?:gov)?\.(?:us|com)\/[^\s<>"'`]+)/i); if (bare) all.push('https://' + cut(bare[1])); }
+  return all.find(zoomHost) || all[0] || '';
+}
+/* the case's Zoom link, ready to open ('' when it has none, or what's saved isn't an https:// link) */
+function zoomLinkOf(c) { const u = String((c && c.zoomUrl) || '').trim(); return /^https:\/\/[^\s<>"'`]+$/i.test(u) ? u : ''; }
+/* what its button says: a Zoom link joins the Zoom; another meeting link (Teams, Meet…) the call */
+function zoomJoinWord(u) { return zoomHost(u) ? 'Join Zoom' : 'Join the call'; }
+/* the Zoom call is still ahead: a MARPE case before its design is approved (as the case's next date: labDueOf) */
+function zoomAhead(c) {
+  const f = flowOf(c); if (!f.zoomUntil) return false;
+  return stageIndex(c) < f.stages.findIndex(s => s[0] === f.zoomUntil);
+}
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }

@@ -1141,10 +1141,19 @@ async function openByName(p, name) {
   await owner.waitForSelector(sCol, { timeout: 20000 }); check(true, 'it moves to Submitted to lab');
   await owner.click(sCol + ' .adv'); await owner.waitForSelector('#gZoomDate');
   check(await owner.isDisabled('#gGo') && (await owner.locator('#gRecs').count()) === 0, 'Zoom call scheduled asks for the call’s date (the records are done)');
-  await owner.fill('#gZoomDate', await owner.evaluate(() => addDays(todayISO(), 1))); await owner.fill('#gZoomTime', '14:30'); await owner.click('#gGo');
+  await owner.fill('#gZoomDate', await owner.evaluate(() => addDays(todayISO(), 1))); await owner.fill('#gZoomTime', '14:30');
+  // the call's link from the lab's invite, if they have it (Amir, 29 Oct 2026: "so in the future, I can just click on there and open up the Zoom")
+  const ZOOM_E2E = 'https://us02web.zoom.us/j/85550001234?pwd=E2eZoomSecret.1';
+  await owner.fill('#gZoomUrl', ZOOM_E2E); await owner.click('#gGo');
   const zCard = 'section[aria-label="Zoom call scheduled"] .kc:has-text("Marco Palatewide")';
   await owner.waitForSelector(zCard + ' .due:has-text("Zoom tomorrow 2:30 PM")', { timeout: 20000 });
   check(true, 'the card shows the Zoom call as its next date: Zoom tomorrow 2:30 PM');
+  await owner.waitForSelector(zCard + ' a.flag.zm', { timeout: 20000 });
+  check(await owner.getAttribute(zCard + ' a.flag.zm', 'href') === ZOOM_E2E && await owner.getAttribute(zCard + ' a.flag.zm', 'target') === '_blank', 'the card has Join Zoom with the call’s link (a new tab)');
+  check(!JSON.stringify(await fsDump(['cases', 'log'])).includes('E2eZoomSecret'), 'the Zoom link is stored encrypted (not readable in the database)');
+  await openByName(gwen, 'Marco Palatewide'); await gwen.waitForSelector('#dZoom a[data-act=zoomJoin]', { timeout: 20000 });
+  check(await gwen.getAttribute('#dZoom a[data-act=zoomJoin]', 'href') === ZOOM_E2E && /Join Zoom/.test(await gwen.textContent('#dZoom')), 'Gwen sees Join Zoom in the case’s header, with the same link');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.fill('#q', '');
   await owner.click('#nav-today'); await owner.fill('#q', 'Marco Palatewide');
   check(await owner.isVisible('.dueGrp:has-text("Tomorrow") .row:has-text("Marco Palatewide") .due:has-text("Zoom")'), 'Today: the Zoom call is under Coming up, tomorrow');
   await owner.fill('#q', ''); await owner.click('#nav-board'); await owner.click('[data-act=flow][data-k=marpe]');
@@ -1160,7 +1169,7 @@ async function openByName(p, name) {
   check(true, 'Design approved → Delivered → Checked into Milestones (then Mark complete)');
   await openByName(owner, 'Marco Palatewide'); await owner.waitForSelector('#histBox .hist:has-text("Zoom call scheduled")', { timeout: 20000 });
   const mHist = await owner.textContent('#histBox');
-  check(/moved it to Zoom call scheduled \(and set Zoom call\)/.test(mHist) && /moved it to Submitted to lab \(and set records on file\)/.test(mHist), 'history says what was filled in with each move');
+  check(/moved it to Zoom call scheduled \(and set Zoom call, Zoom link\)/.test(mHist) && /moved it to Submitted to lab \(and set records on file\)/.test(mHist), 'history says what was filled in with each move');
   check((await owner.getAttribute('#mpBox [data-act=rec][data-k=cbct]', 'aria-pressed')) === 'true' && /2:30 PM/.test(await owner.textContent('#mpBox')), 'the case shows both records on file and the Zoom call');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
   check(await owner.evaluate(() => stageFromSection('marpe', 'Hold (CBCT/Zoom)') === 'records' && stageFromSection('marpe', 'Submitted') === 'submitted' && stageFromSection('marpe', 'Manufacturing') === 'approved'
