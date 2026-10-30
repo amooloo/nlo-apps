@@ -283,33 +283,65 @@ def fuse_many(fill, surface, log=None, keep_failed=True, **kw):
     return (trimesh.util.concatenate(out) if len(out) > 1 else out[0]) if out else None, info
 
 
-def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, taper_foot=0.65, taper_start=0.0, min_thick=0.3, min_depth=0.15,
-               proud=0.0, max_voxels=4.0e6, smooth_vox=0.7, taubin=6, log=None):
-    """The painted block-out, built in 3D (10/27/2026). The space under an overhang that the doctor marked out is the
-    air that has body above it and body below it in its column - the undercut between a crown's bulge (or a pontic,
-    an implant crown's emergence) and the gum under it. That is the fill: every such voxel within the painted footprint
-    (`grow_mm` round the painted vertices), out to the crown's own silhouette - a wall straight down from the height of
-    contour, flush with the contour, standing on the gum. Nothing is ever placed over gum that has no body above it,
-    and nothing is thinner than the grid.
+def _painted_surface_voxels(V, F, pm, lo, cell, shape):
+    """The voxels the painted surface passes through: every triangle with two or three painted corners, sampled at
+    under half a voxel (plus the painted vertices themselves)."""
+    fp = pm[F].sum(axis=1) >= 2
+    if not fp.any():
+        fp = pm[F].any(axis=1)
+    tri = V[F[fp]]
+    step = 0.5 * cell
+    L = np.max(np.linalg.norm(tri[:, [1, 2, 0]] - tri, axis=2), axis=1)
+    n = np.clip(np.ceil(L / step).astype(int), 1, 40)
+    pts = [V[pm]]
+    for k in np.unique(n):
+        sel = n == k
+        a, b = np.meshgrid(np.arange(k + 1), np.arange(k + 1), indexing="ij")
+        m = (a + b) <= k
+        u = (a[m] / k)[None, :, None]; w = (b[m] / k)[None, :, None]
+        T = tri[sel]
+        pts.append((T[:, None, 0] * u + T[:, None, 1] * w + T[:, None, 2] * (1.0 - u - w)).reshape(-1, 3))
+    P = np.vstack(pts)
+    ijk = np.floor((P - lo) / cell).astype(int)
+    ok = np.all((ijk >= 0) & (ijk < np.asarray(shape)), axis=1)
+    S = np.zeros(shape, bool)
+    S[tuple(ijk[ok].T)] = True
+    return S
 
-    This replaces the column heightfield of blockout.undercut_fill for painted areas: on a lingually leaning molar the
-    "overhang" is the crown's own lingual face, and a heightfield whose top had to follow that steep face came out as
-    a lace of slivers lying on the enamel and the gum (Anvalina Faltz's lower, 10/27/2026 - the doctor: "distorts it
-    and makes it unusable"). A 3D occupancy has no such top: the fill is the air itself.
 
-    `taper_foot` > 0 gives the sloped face of the doctor's sketch (a pontic, an implant crown): the face starts
-    `taper_start` under the height of contour at the contour and runs straight down and in to the gum, its foot
-    `taper_foot` of the undercut's depth in from the contour; 0 = the vertical wall. Pieces whose horizontal depth is
-    under `min_depth` mm everywhere (no real undercut) or thinner than `min_thick` mm are dropped and named.
-    Returns (mesh or None, info)."""
+def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, reach_mm=1.25, foot_mm=1.0, taper_foot=0.0, taper_start=0.0,
+               min_thick=0.3, min_depth=0.15, proud=0.0, max_voxels=4.0e6, smooth_vox=0.7, taubin=6, log=None):
+    """The painted block-out, built in 3D: the undercut **next to the surface the doctor painted**, filled the way
+    block-out resin is - out to the crown's own contour (a wall straight down from the height of contour, flush with
+    it) and down onto the gum, and nowhere else.
+
+    The undercut is the air that has body above it and body below it in its column (the space between a crown's
+    bulge, a pontic, an implant crown's emergence and the gum under it). Of that air only what lies within `reach_mm`
+    of the painted surface is taken, and in each column it is made solid from there down to the gum when the gum is
+    within `foot_mm` under it - so the fill covers what was painted and stands on the gum, and never climbs an
+    embrasure to the contact above the painted band or hangs down in front of the gum below it.
+
+    (10/29/2026 - Santiago Kemler's upper, the doctor: "look at the difference between what I painted and what it gave
+    me ... still misses the middle of that tooth": two cervical bands painted line angle to line angle came out as tall
+    slabs at the two corners, running from the contacts to the model's floor, with nothing in the middle. Before, every
+    undercut voxel anywhere in the painted footprint's columns was filled - the embrasures up to the contacts, the air
+    in front of the receding gum down to where it bulges out again - and the sloped face was then laid from ONE height
+    of contour per piece, the tallest (at the contact), so its plane cut away the whole middle of the band, where the
+    real contour is lower. The sloped face is off by default now (`taper_foot` 0): since every fill's foot was made to
+    reach the body on 10/27, the air it left under the face was filled again anyway; when it is asked for, it is laid
+    from each column's nearest contour, at that contour's own height.)
+
+    `proud` (Settings, Painted block-out wall) pushes the wall that many mm out into the air beside it, standing on
+    body, or pulls it in. Pieces whose horizontal depth is under `min_depth` mm everywhere (no real undercut) or that
+    are thinner than `min_thick` mm are dropped and named. Returns (mesh or None, info)."""
     V = np.asarray(surface.vertices, float); F = np.asarray(surface.faces)
     pm = np.asarray(paint, bool)
-    info = dict(cell=cell, painted_vertices=int(pm.sum()), pieces=0, dropped=[])
+    info = dict(cell=cell, painted_vertices=int(pm.sum()), pieces=0, dropped=[], reach_mm=reach_mm)
     if pm.sum() < 3:
         return None, dict(info, error="nothing painted")
     P = V[pm]
     lo = P.min(0) - pad; hi = P.max(0) + pad
-    lo[2] -= 4.0; hi[2] += 4.0                        # the overhang above and the gum below may lie outside the painted band
+    lo[2] -= 3.0; hi[2] += 4.0                        # the crown above and the gum below may lie outside the painted band
     ext = hi - lo
     nvox = np.prod(np.ceil(ext / cell))
     if nvox > max_voxels:
@@ -328,15 +360,31 @@ def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, taper_foot=0.65, 
     above = np.roll(above, -1, axis=2); above[:, :, -1] = False       # strictly above
     below = np.cumsum(O, axis=2) > 0
     below = np.roll(below, 1, axis=2); below[:, :, 0] = False          # strictly below
-    air = ~O & above & below
-    # within the painted footprint, grown a little (the brush is rough)
+    uc = ~O & above & below
+    # within the painted footprint (xy), grown a little (the brush is rough) ...
     ij = np.floor((P[:, :2] - lo[:2]) / cell).astype(int)
     ok = (ij[:, 0] >= 0) & (ij[:, 0] < nx) & (ij[:, 1] >= 0) & (ij[:, 1] < ny)
     foot = np.zeros((nx, ny), bool); foot[ij[ok, 0], ij[ok, 1]] = True
     foot = ndi.binary_dilation(foot, iterations=max(1, int(round(grow_mm / cell))))
-    Fo = air & foot[:, :, None]
-    if not Fo.any():
+    # ... and next to the painted surface itself
+    S = _painted_surface_voxels(V, F, pm, lo, cell, shape)
+    near = uc & foot[:, :, None] & (ndi.distance_transform_edt(~S) * cell <= reach_mm)
+    if not near.any():
         return None, dict(info, error="no undercut under the painted area")
+    # each run of undercut air in a column (between the overhang and the gum under it): the fill is the part of it from
+    # its lowest near voxel to its highest - down to the gum when the gum is within foot_mm under that
+    start = uc & ~np.concatenate([np.zeros((nx, ny, 1), bool), uc[:, :, :-1]], axis=2)
+    run_no = np.cumsum(start, axis=2, dtype=np.int32)
+    R = int(run_no.max()) + 1
+    lab = np.where(uc, np.arange(nx * ny, dtype=np.int64).reshape(nx, ny)[:, :, None] * R + run_no, 0).ravel()
+    K = np.broadcast_to(np.arange(nz, dtype=np.int32), shape).ravel()
+    nl = nx * ny * R + 1
+    nm = near.ravel(); um = uc.ravel()
+    kmin_n = np.full(nl, nz, np.int32); kmax_n = np.full(nl, -1, np.int32); kfloor = np.full(nl, nz, np.int32)
+    np.minimum.at(kmin_n, lab[nm], K[nm]); np.maximum.at(kmax_n, lab[nm], K[nm]); np.minimum.at(kfloor, lab[um], K[um])
+    has = kmax_n >= 0
+    k_lo = np.where(has & (kmin_n - kfloor <= int(round(foot_mm / cell))), kfloor, kmin_n)
+    Fo = (um & has[lab] & (K >= k_lo[lab]) & (K <= kmax_n[lab])).reshape(shape)
     # the Block-out amount (Settings): the wall `proud` mm out past the contour (into the air beside the fill, at each
     # height, standing on body) or in from it
     n_pr = int(round(abs(proud) / cell)) if proud else 0
@@ -348,50 +396,52 @@ def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, taper_foot=0.65, 
             Fo = ndi.binary_erosion(Fo, structure=hstruct, iterations=n_pr)
         if not Fo.any():
             return None, dict(info, error="no undercut under the painted area")
-    # the sloped face (per connected piece of the footprint): the contour is where the fill's ceiling is highest
+    # the sloped face (off by default): from each column's nearest contour - an edge column of the piece whose
+    # neighbour outside it is open above that column's ceiling - at that contour's own height
     if taper_foot and taper_foot > 0:
         col = Fo.any(axis=2)
         kz = np.arange(nz)[None, None, :]
-        z_top = np.where(col, np.max(np.where(Fo, kz, -1), axis=2), -1).astype(float)      # the overhang's underside (voxel index)
-        z_bot = np.where(col, np.min(np.where(Fo, kz, nz + 1), axis=2), nz + 1).astype(float)
-        lab, nlab = ndi.label(col)
+        z_top = np.where(col, np.max(np.where(Fo, kz, -1), axis=2), -1)
+        z_bot = np.where(col, np.min(np.where(Fo, kz, nz + 1), axis=2), nz + 1)
+        top_body = np.where(O.any(axis=2), nz - 1 - np.argmax(O[:, :, ::-1], axis=2), -1)
+        lab2, nlab2 = ndi.label(col)
         keep = np.ones(shape, bool)
-        for k in range(1, nlab + 1):
-            cm = lab == k
+        for k in range(1, nlab2 + 1):
+            cm = lab2 == k
             if cm.sum() < 4:
                 continue
             edge = cm & ~ndi.binary_erosion(cm, iterations=1)
-            zt_max = z_top[cm].max()
-            contour = edge & (z_top >= zt_max - 0.5 / cell)          # the outer edge, where the ceiling is at the height of contour
+            contour = np.zeros_like(cm)
+            for sh in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nb_top = np.roll(top_body, sh, axis=(0, 1)); nb_in = np.roll(cm, sh, axis=(0, 1))
+                contour |= edge & ~nb_in & (nb_top < z_top)
             if not contour.any():
                 continue
-            din = ndi.distance_transform_edt(~contour) * cell       # how far in from the contour each column is
+            din, idx = ndi.distance_transform_edt(~contour, return_indices=True)
+            din = din * cell
             D = max(float(din[cm].max()), 2 * cell)
-            top0 = (z_top[cm].max() * cell) - taper_start            # the face's start: at the contour, taper_start under the ceiling
-            zb = z_bot * cell
-            plane = top0 - np.clip(din, 0, None) * np.maximum(top0 - zb, 0.0) / max(taper_foot * D, 2 * cell)
-            kplane = plane / cell
-            keep &= ~(cm[:, :, None] & (kz < kplane[:, :, None]))
+            top0 = z_top[idx[0], idx[1]] * cell - taper_start
+            plane = top0 - din * np.maximum(top0 - z_bot * cell, 0.0) / max(taper_foot * D, 2 * cell)
+            keep &= ~(cm[:, :, None] & (kz < (plane / cell)[:, :, None]))
         Fo &= keep
     # pieces: drop what has no real undercut (horizontal depth under min_depth) or is thinner than min_thick
-    lab, nlab = ndi.label(Fo)
-    if not nlab:
+    lab3, nlab3 = ndi.label(Fo)
+    if not nlab3:
         return None, dict(info, error="no undercut under the painted area")
-    keep = np.zeros(nlab + 1, bool)
+    keep = np.zeros(nlab3 + 1, bool)
     dist_in = ndi.distance_transform_edt(Fo) * cell                  # half-thickness inside the fill
-    for k in range(1, nlab + 1):
-        m = lab == k
+    for k in range(1, nlab3 + 1):
+        m = lab3 == k
         n_vox = int(m.sum())
         thick = 2.0 * float(dist_in[m].max())
-        col_k = m.any(axis=2)
-        depth = float(ndi.distance_transform_edt(col_k).max()) * cell * 2.0   # the footprint's width = how far in from the contour it reaches
+        depth = float(ndi.distance_transform_edt(m.any(axis=2)).max()) * cell * 2.0   # the footprint's width = how far in from the contour it reaches
         if n_vox * cell ** 3 < 0.02:
             continue
         if thick < min_thick or depth < min_depth:
             info["dropped"].append(f"{n_vox * cell ** 3:.2f} mm3 ({thick:.2f} mm thick, {depth:.2f} mm deep)")
             continue
         keep[k] = True
-    Fo = keep[lab]
+    Fo = keep[lab3]
     if not Fo.any():
         return None, dict(info, error="the painted undercut is too shallow or too thin to print" + (f" ({len(info['dropped'])} slivers dropped)" if info["dropped"] else ""))
     occ = ndi.gaussian_filter(Fo.astype(np.float32), smooth_vox) if smooth_vox > 0 else Fo.astype(np.float32)
@@ -415,8 +465,10 @@ def paint_fill(surface, paint, cell=0.1, pad=2.0, grow_mm=0.4, taper_foot=0.65, 
         return None, dict(info, error="nothing left of the painted fill after meshing")
     out = trimesh.util.concatenate(pieces) if len(pieces) > 1 else pieces[0]
     info.update(pieces=len(pieces), volume_ml=round(float(sum(abs(q.volume) for q in pieces)) / 1000.0, 3), spots=len(pieces),
-                deepest_mm=round(float(max(ndi.distance_transform_edt(Fo.any(axis=2)).max() * cell * 2.0, 0.0)), 2))
+                deepest_mm=round(float(max(ndi.distance_transform_edt(Fo.any(axis=2)).max() * cell * 2.0, 0.0)), 2),
+                z_range=[round(float(lo[2] + cell * np.argmax(Fo.any(axis=(0, 1)))), 2),
+                         round(float(lo[2] + cell * (nz - np.argmax(Fo.any(axis=(0, 1))[::-1]))), 2)])
     if log:
-        log(f"painted block-out: {len(pieces)} undercut{'s' if len(pieces) != 1 else ''} filled in 3D ({info['volume_ml']:.3f} mL, "
-            f"{'sloped face' if taper_foot else 'wall'} from the contour to the gum)" + (f"; {len(info['dropped'])} sliver{'s' if len(info['dropped']) != 1 else ''} too thin to print left out" if info["dropped"] else ""))
+        log(f"painted block-out: {len(pieces)} piece{'s' if len(pieces) != 1 else ''} filled in 3D ({info['volume_ml']:.3f} mL) - the undercut within "
+            f"{reach_mm} mm of the painted surface, flush with the contour, on the gum" + (f"; {len(info['dropped'])} sliver{'s' if len(info['dropped']) != 1 else ''} too thin to print left out" if info["dropped"] else ""))
     return out, info
