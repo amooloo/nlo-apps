@@ -1215,6 +1215,7 @@ function newCaseModal() {
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         if (String(data.notes || '').trim()) notesStamp(data, data.createdAt); // who wrote the Notes (the list's Notes column)
         if (data.txStart || data.txEnd) data.txAt = Date.now();
+        if (data.zoomDate || data.zoomUrl) data.zoomAt = Date.now(); // (MARPE: the Zoom call set by hand — mail.js zoomEffect)
         const btn = quick ? $('#ncQuick', w) : $('#ncSave', w); busyBtn(btn, true, 'Saving…');
         try {
           await B.createCase(data, w._ph ? w._ph.bytes : null, w._ph ? w._ph.at : 0); closeModal();

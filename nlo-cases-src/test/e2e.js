@@ -1489,6 +1489,53 @@ async function openByName(p, name) {
   await owner.waitForSelector('.toast:has-text("2 email updates dismissed")', { timeout: 20000 });
   await owner.waitForFunction(async () => !document.querySelector('#mailCard') && (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
   check(true, 'Dismiss all clears the card (and the emails)');
+  // (30 Oct 2026) Partners' Airway Department's Zoom invite — a Google Calendar invitation booked on their Calendly, to Dr. A's Gmail:
+  // every patient it names gets the call on their MARPE case (made-up patients)
+  {
+    const zl = 'https://us06web.zoom.us/j/81234500077?pwd=E2eZoomInvite77.1', zd = new Date(Date.now() + 21 * 864e5);
+    const W = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const md = M[zd.getMonth()] + ' ' + zd.getDate() + ', ' + zd.getFullYear(), iso = zd.getFullYear() + '-' + String(zd.getMonth() + 1).padStart(2, '0') + '-' + String(zd.getDate()).padStart(2, '0');
+    const tz = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).formatToParts(zd).find(x => x.type === 'timeZoneName').value;
+    const [wz, tq] = await owner.evaluate(() => Promise.all([
+      B.createCase({ comments: [], createdAt: Date.now(), createdBy: meSid(), type: 'marpe', patient: 'Wendell Zoomer', stage: 'submitted', lab: LAB_PART, records: ['stl', 'cbct'] }),
+      B.createCase({ comments: [], createdAt: Date.now(), createdBy: meSid(), type: 'marpe', patient: 'Tobias Quarrington', stage: 'records', lab: LAB_PART, records: ['stl'] })]));
+    const sent = Date.now() - 60e3;
+    gas.messages.push({ id: 'z1', date: sent, from: 'Airway Department <airway@partnersdentalstudio.com>',
+      subject: 'Invitation: Amir Akhavan and Airway Department @ ' + W[zd.getDay()].slice(0, 3) + ' ' + md + ' 11:30am - 12:30pm (' + tz + ') (office@example.com)',
+      text: 'Amir Akhavan and Airway Department\n' + W[zd.getDay()] + ' ' + md + ' ⋅ 11:30am – 12:30pm\nEastern Time - New York\n\nLocation\n' + zl + '\t\nhttps://www.google.com/url?q=' + encodeURIComponent(zl) + '&sa=D&source=calendar&usd=2\n\n' +
+        'Event Name\nCBCT Consultation\n\nLocation: This is a Zoom web conference.\n\nYou can join this meeting from your computer, tablet, or smartphone.\n' + zl + '\n\nPassword: 123456\n\n' +
+        'How many patients would you like to review? (maximum of 4 patients per\nmeeting): 2\n\nProvide first and last name for the patient(s):\nWendell Zoomer\nTobyas Quarrington\n\n' +
+        'Name of doctor and practice:\nDr. Amir Akhavan\nNext Level Orthodontics\n\nPowered by Calendly.com\n', html: '<table><tr><td><a href="' + zl + '">Join Zoom Meeting</a></td></tr></table>' });
+    check(/1 email sent/.test(gas.ctx.checkMail()), 'Partners’ Zoom invite (from airway@partnersdentalstudio.com) goes to the app');
+    await owner.waitForFunction(id => { const c = findCase(id); return c && c.stage === 'zoom'; }, wz, { timeout: 30000 }).catch(() => {});
+    const zc = id => owner.evaluate(id => { const c = findCase(id); return c && { stage: c.stage, zoomDate: c.zoomDate || '', zoomTime: c.zoomTime || '', zoomUrl: c.zoomUrl || '', zoomAt: c.zoomAt || 0 }; }, id);
+    let w = await zc(wz);
+    check(w.stage === 'zoom' && w.zoomDate === iso && w.zoomTime === '11:30' && w.zoomUrl === zl && w.zoomAt === sent,
+      'the MARPE case at Submitted to lab with both records → Zoom call scheduled by itself, with the day, 11:30 and the Zoom link (' + JSON.stringify(w) + ')');
+    await owner.click('#nav-today'); await owner.waitForSelector('#mailCard .mlRow:has(.mlWhat:has-text("Tobyas Quarrington"))', { timeout: 20000 });
+    const tr = '#mailCard .mlRow:has(.mlWhat:has-text("Tobyas Quarrington"))';
+    check(/Matched on the last name only — check it’s this case/.test(await owner.textContent(tr)) && await owner.inputValue(tr + ' .mlSel') === tq,
+      'the misspelled name (Tobyas for Tobias) waits on Today, matched on the last name, his case picked already');
+    await owner.click(tr + ' [data-act=mailApply]');
+    await owner.waitForFunction(id => { const c = findCase(id); return c && !!c.zoomDate; }, tq, { timeout: 20000 }).catch(() => {});
+    const t = await zc(tq);
+    check(t.zoomDate === iso && t.zoomTime === '11:30' && t.zoomUrl === zl && t.stage === 'records', 'Apply: his case gets the call; it stays at Records (no CBCT on file yet)');
+    await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 20000 }).catch(() => {});
+    check((await owner.evaluate(async () => (await B.inboxLoad()).length)) === 0, 'the invite leaves the inbox');
+    await openByName(owner, 'Wendell Zoomer'); await owner.waitForSelector('#histBox .hist:has-text("Partners Dental Solutions email")', { timeout: 20000 });
+    check(/Partners Dental Solutions email\s*moved it to Zoom call scheduled and saved the Zoom call, Zoom link/.test(await owner.textContent('#histBox')) && await owner.getAttribute('#dZoom a[data-act=zoomJoin]', 'href') === zl,
+      'its history says the Partners email did it; Join Zoom opens the invite’s link');
+    await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+    // the same invite in the records inbox (Partners copies records@ on some emails): one update, nothing changes
+    const rev = await owner.evaluate(id => findCase(id).rev, wz);
+    gas2.messages.push(Object.assign({}, gas.messages.find(m => m.id === 'z1'), { id: 'rz1', date: Date.now() }));
+    check(/1 email sent/.test(gas2.ctx.checkMail()), 'a copy of it from the other mailbox goes too');
+    await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 20000 }).catch(() => {});
+    check((await owner.evaluate(id => findCase(id).rev, wz)) === rev && !(await owner.isVisible('#mailCard .mlRow:has(.mlWhat:has-text("Zoom call"))')), '…and changes nothing (no new row, the case untouched)');
+    dump = JSON.stringify(await fsDump());
+    { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Zoomer|Quarrington|Tobyas|E2eZoomInvite|81234500077/.exec(plain);
+      check(!lk, 'the patients’ names and the Zoom link aren’t readable anywhere in the database' + (lk ? ' — found “' + lk[0] + '”' : '')); }
+  }
   // (12 Oct 2026) a mailbox whose script stops checking in shows on Dr. A's Today, not only under Team & security
   {
     const beatUrl = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/mailbeat/b${'9'.repeat(32)}`;

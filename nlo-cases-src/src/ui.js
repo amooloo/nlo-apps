@@ -1998,7 +1998,7 @@ function stageGateModal(c, to, needs, extra, via) {
       go.onclick = () => {
         if (!ok()) return; const add = Object.assign({}, extra);
         if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
-        if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || '';
+        if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; add.zoomAt = Date.now();
           const u = zu ? zoomLinkFrom(zu.value) : ''; if (u !== zoomSaved(c)) add.zoomUrl = u; } // (the link only when it's new or changed)
         if (al) { const u = n('#gAlU'), l = n('#gAlL'); add.alU = u || ''; add.alL = l || ''; add.aligners = u + l || ''; add.atTemplates = atV(); }
         closeModal(); moveStage(c.id, to, add, needs, via);
@@ -2027,13 +2027,14 @@ function zoomModal(c) {
         closeModal();
         const fields = Object.keys(z).filter(k => (k === 'zoomUrl' ? zoomSaved(c) : c[k] || '') !== z[k]), ch = {}; fields.forEach(k => { ch[k] = z[k]; });
         // (moving it: only what changed goes with the move, so its history doesn't say the date was set when it was already there)
+        if (fields.length) ch.zoomAt = Date.now(); // (when the call was last set by hand: mail.js zoomEffect)
         if (before) { moveStage(c.id, 'zoom', ch); return; }
         if (!fields.length) return; // (nothing changed)
         act(() => B.mutateCase(c.id, x => { Object.assign(x, ch); }, { a: 'edit', fields }),
           fields.some(k => k !== 'zoomUrl') ? 'Zoom call set for ' + fmtDay(z.zoomDate) + (z.zoomTime ? ', ' + fmtTime(z.zoomTime) : '') : url ? 'Zoom link saved' : 'Zoom link taken off');
       };
       const clr = $('#zmClear', w);
-      if (clr) clr.onclick = () => { closeModal(); act(() => B.mutateCase(c.id, x => { x.zoomDate = ''; x.zoomTime = ''; }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call date cleared'); };
+      if (clr) clr.onclick = () => { closeModal(); act(() => B.mutateCase(c.id, x => { x.zoomDate = ''; x.zoomTime = ''; x.zoomAt = Date.now(); }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call date cleared'); };
     });
 }
 function isOldMarpe(c) { return c.type === 'appliance' && ((c.appliances || []).includes('MARPE') || /\bmarpe\b/i.test(c.detail || '')); }
@@ -2319,7 +2320,8 @@ async function moveStage(id, to, extra, asked, via) {
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
   S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
-  try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {}, via ? { via } : {})); }
+  const hf = fields.filter(k => k !== 'zoomAt'); // (when the Zoom call was set: kept, not listed)
+  try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, hf.length ? { fields: hf } : {}, via ? { via } : {})); }
   catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); return; }
   finally { if (S.pend[id] === mine) delete S.pend[id]; }
   // the open case's history (and the Specialty warranty that counts from the day it shipped) shows the move
@@ -2534,6 +2536,7 @@ async function saveEdit() {
       if (changed.includes('assistant') && now.assistant) x.assistantName = '';
       if (changed.includes('tracking')) x.carrier = ''; // a carrier named by a lab email belonged to the old number
       if (changed.includes('txStart') || changed.includes('txEnd')) x.txAt = Date.now(); // the patient's treatment dates are the ones saved last
+      if (changed.some(k => k === 'zoomDate' || k === 'zoomTime' || k === 'zoomUrl')) x.zoomAt = Date.now(); // (a Zoom invite older than this won't undo it: mail.js zoomEffect)
       if (changed.includes('notes')) notesStamp(x, nAt); // who wrote the Notes, and when (the Notes column)
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
       if (finish) x.quick = '';
