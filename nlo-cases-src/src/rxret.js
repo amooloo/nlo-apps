@@ -415,6 +415,18 @@ function rxrEstimate(rx, c) {
   if (rx.rush) add('Expedited manufacturing and shipping', 'rush', 1, 'Specialty’s fee for under 10 business days');
   return E.done();
 }
+/* the printed models (rx.js rxEstFees): one for each arch with a retainer — free with a Guardian ("the bracket removal and model
+   printing fees are waived") or with two or more retainers on the arch (Specialty's invisible retainer page); IR Express comes
+   without one, and with its shipping included (Specialty's terms) */
+function rxrModels(rx) {
+  const out = [];
+  RXR_ARCH.forEach(A => { const ir = rx['ir' + A] || '', n = (rx['design' + A] ? 1 : 0) + (rx['flr' + A] ? 1 : 0) + (ir === 'single' ? 1 : 0);
+    if (/^g/.test(ir)) out.push({ A, free: 'With the Guardian' });
+    else if (n >= 2) out.push({ A, free: 'Free with two or more retainers on the arch' });
+    else if (n === 1) out.push({ A }); });
+  return out;
+}
+const rxrOnlyExpress = rx => RXR_ARCH.some(A => rx['ir' + A] === 'express') && RXR_ARCH.every(A => (!rx['ir' + A] || rx['ir' + A] === 'express') && !rx['design' + A] && !rx['flr' + A]);
 
 /* ---------- the arch diagram: the retainer drawn from the choices (RXG = this form while rxAuto draws) ---------- */
 /* the point on a tooth's outline from its center (moved `along` toward the midline) in direction `dir`, pushed out by `gap` */
@@ -821,6 +833,7 @@ RXK[RX_RET] = {
   applies: c => !!c && c.type === 'appliance' && labName(c.lab) === LAB_SPEC && (c.appliances || []).some(a => RXR_APPL.includes(a)),
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['3m', /\b3\s*m\b/i], ['sirona', /sirona|cerec|primescan/i]],
   canon: rxrCanon, summary: rxrSummary, estimate: rxrEstimate, auto: rxrAuto, fill: rxrFill, start: rxrStart, forCase: rxrForCase, mismatch: rxrMismatch,
+  models: rxrModels, shipIncl: rx => rxrOnlyExpress(rx) ? 'Included with IR Express' : '',
   single: RXR_SINGLE, tools: ['adams', 'c', 'ball', 'solc', 'delta', 'arrowhead', 'pontic', 'finger', 'spur', 'reset'], tool0: 'adams', toolReset: true,
   defDrop: ['colorU', 'colorL', 'reset', 'resetHow', 'fingerTxt', 'solderTxt', 'closingTxt', 'spursTxt', 'screwTxt', 'saddleTxt', 'ponticTxt', 'claspOther'],
   // the usual retainer keeps its clasps, not this patient's pontics, finger springs or spurs (those stay on the Rx when starting from it)

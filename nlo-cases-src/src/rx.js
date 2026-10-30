@@ -210,12 +210,14 @@ const RX_DRAWS = ['pen', 'line', 'arrow'];
    list by name, so they're priced as its RPE screw; the TPA and quad helix are on it only as appliances of their own.
    The Rx's other options have no price on the list: they start blank (named under the estimate, not added) and Dr. A can
    give them a price in Team & security → Lab Rx (e.g. from an invoice), which the estimate then adds. (The Retainer Rx's
-   prices are in rxret.js.) */
+   prices are in rxret.js.)
+   3D print bands: $17.75 each as Specialty billed them (invoice 10/20/26, a printed Hyrax RPE: "3D Print Bands/Ea" 2 × 17.75 —
+   Amir, 29 Oct 2026: "make sure ... it has all the fees"); the price list says $38. */
 const RX_PRICE_SRC = 'Specialty Appliances price list MKT-41 (Rev 01-26, updated 1-27-26)';
 const RX_PRICES = [
   ['herbst', 'Band/Crown/ROC Cantilever Herbst', 220.50], ['herbstAcr', 'Band/Crown Upper / Acrylic Lower Herbst', 293.50],
   ['band', 'Bands provided and fit, each', 17.75], ['crown', 'Crowns provided and fit, each', 21.50],
-  ['band3d', '3D print bands, each', 38.00], ['crown3d', '3D print crowns, each', 43.50],
+  ['band3d', '3D print bands, each (as Specialty bills them; the price list says $38)', 17.75], ['crown3d', '3D print crowns, each', 43.50],
   ['miniscope', 'Specialty MiniScope mechanisms (3-part)', 66.50], ['m4', 'M4 MiniScope mechanisms (4-part)', 66.50],
   ['hth', 'HTH mechanisms', 110.00], ['fliplock', 'Flip-Lock mechanism', 167.50], ['screw', 'RPE screw, each (Mini-Click, Click Screw)', 70.50],
   ['tpa', 'Transpalatal arch (its own appliance on the list)', 93.50], ['qh', 'Quad helix: fixed (its own appliance on the list)', 109.00],
@@ -226,8 +228,15 @@ const RX_PRICES = [
 ];
 /* on every form: Specialty's fee for a case needed in under 10 business days — from their case scheduling page
    (https://specialtyappliances.com/case-scheduling/: "a $95 expedited manufacturing and shipping fee will be applied"),
-   not the price list (until 4 Oct 2026 it was unpriced here) */
-const RX_PRICES_BOTH = [['rush', 'Expedited manufacturing and shipping (needed in under 10 business days)', 95.00]];
+   not the price list (until 4 Oct 2026 it was unpriced here).
+   And on every Rx, what Specialty bills a digital case besides the appliance — from their invoice of 10/20/26 (a printed Hyrax
+   RPE: "Printed Model With Appliance/Arch" 17.00, "Digital Return Shipping" 16.50; Amir, 29 Oct 2026: "make sure ... it has all
+   the fees"). Specialty prints a working model from the scan to build the appliance on (their catalog: "receive digital files over
+   the internet, print a working model, and fabricate the appliance"), one per arch with an appliance; each form says which arches
+   (K.models), and the Retainer Rx which models come free (Guardian, two or more retainers on the arch) and when shipping is
+   included (IR Express). The invoice's 15% discount isn't taken off (Amir: "not sure so don't include it"). */
+const RX_PRICES_BOTH = [['rush', 'Expedited manufacturing and shipping (needed in under 10 business days)', 95.00],
+  ['model', 'Printed model with the appliance, per arch', 17.00], ['retShip', 'Return shipping (digital case)', 16.50]];
 const RX_LIST = {}; // the list's own price (null: not on it)
 function rxAddPrices(list) { list.forEach(([k, , p]) => { RX_LIST[k] = p; }); }
 rxAddPrices(RX_PRICES); rxAddPrices(RX_PRICES_BOTH);
@@ -306,9 +315,22 @@ function rxNeeded(c, rx) { return (rx && rx.needed) || rxNeedAuto(c); }
 const usDate = iso => { if (!iso) return ''; const [y, m, d] = iso.split('-'); return m + '/' + d + '/' + y; };
 
 /* ---------- the estimate ---------- */
-function rxEstimate(rx, c) { rx = rxCanon(rx); return rxK(rx).estimate(rx, c); } // (c: the case, for what the form fills from it)
-/* " · est. $196.00" after a summary — or, when nothing priced adds up yet (the Schwarz isn't on the price list), says so */
-function rxEstSay(e) { return !e || !e.lines.length ? '' : e.total > 0 || !e.missing.length ? ' · est. <b>' + money(e.total) + '</b>' : ' · <span class="muted">not on the price list yet</span>'; }
+function rxEstimate(rx, c) { rx = rxCanon(rx); const K = rxK(rx); return rxEstFees(K.estimate(rx, c), rx, c, K); } // (c: the case, for what the form fills from it)
+/* what every Rx adds once something is picked: the printed model for each arch with an appliance, and the return shipping (see
+   RX_PRICES_BOTH). `e.common` is their part of the total, so a total that's only these can still say "not on the price list" */
+function rxEstFees(e, rx, c, K) {
+  e.common = 0; if (!e.lines.length && !e.missing.length) return e; // nothing picked yet: nothing to make or ship
+  const x = rxEst(), ms = K.models ? K.models(rx, c) : [], w = a => a.length === 2 ? 'upper & lower' : a[0] === 'U' ? 'upper' : 'lower';
+  const paid = ms.filter(m => !m.free).map(m => m.A);
+  if (paid.length) x.add('Printed model with the appliance · ' + w(paid), 'model', paid.length, 'Specialty prints it from the scan to build on');
+  ms.filter(m => m.free).forEach(m => x.inc('Printed model · ' + w([m.A]), m.free));
+  const shipIn = K.shipIncl ? K.shipIncl(rx) : ''; if (shipIn) x.inc('Return shipping', shipIn); else x.add('Return shipping', 'retShip', 1, 'digital case');
+  const f = x.done(); e.lines = e.lines.concat(f.lines); e.missing = e.missing.concat(f.missing); e.total += f.total; e.common = f.total;
+  return e;
+}
+/* " · est. $196.00" after a summary — or, when nothing priced adds up yet but the model and shipping (the Schwarz isn't on the price
+   list), says so */
+function rxEstSay(e) { return !e || !e.lines.length ? '' : e.total - (e.common || 0) > 0 || !e.missing.length ? ' · est. <b>' + money(e.total) + '</b>' : ' · <span class="muted">not on the price list yet</span>'; }
 /* what the Rx still needs before it can go: [[what, the box or choices to fill]] — a pontic's shade (Amir, 4 Oct 2026: "anytime
    someone picks a pontic, make sure the pontic shade becomes mandatory"). Done, Open PDF and Download wait for it */
 function rxNeeds(rx, c) { if (!rx) return []; rx = rxCanon(rx); const K = rxK(rx); return K.needs ? K.needs(rx, c) : []; }
@@ -704,7 +726,7 @@ function rxCostHTML(rx, c) {
   return '<table class="rxTbl">' + e.lines.map(x => '<tr><td>' + esc(x.l) + (x.note ? '<span class="rxNote">' + esc(x.note) + '</span>' : '') + '</td><td>' + (x.inc ? '<span class="muted rxInc">' + esc(x.inc) + '</span>' : (x.qty > 1 ? '<span class="muted">' + x.qty + ' × ' + money(x.each) + '</span> ' : '') + money(x.amt)) + '</td></tr>').join('') +
     '<tr class="rxTotRow"><td>Total</td><td>' + money(e.total) + '</td></tr></table>' +
     (e.missing.length ? '<div class="small rxMiss">Not priced, so not in the total: ' + esc(e.missing.join('; ')) + '.</div><div class="small muted">Not on Specialty’s price list (or no price entered). Dr. A can add a price in Team & security → Lab Rx.</div>' : '') +
-    '<div class="small muted">Shipping is billed by Specialty by zone and weight, so it isn’t included.</div>';
+    '<div class="small muted">The printed model and return shipping are what Specialty charges on a digital case. A discount, when Specialty gives one, isn’t taken off.</div>';
 }
 /* a box's value when the Rx hasn't one of its own: the date needed and shipped, and anything the form fills from the case */
 function rxAutoVal(k, c, rx) { return k === 'needed' ? rxNeedAuto(c) : k === 'shipped' ? todayISO() : RXE.k && RXE.k.autoVal && RXE.k.autoVal[k] ? RXE.k.autoVal[k](c, rx) : ''; }
@@ -751,7 +773,7 @@ function rxSync(first) {
   const ts = $('#rxTeethSum', w); if (ts) ts.innerHTML = K.teethSum(rx);
   $('#rxCost', w).innerHTML = rxCostHTML(rx, c);
   $$('.rxInfoCard', w).forEach(card => { if (card.dataset.hover !== '1') rxInfoPaint(card, card.dataset.info, rxInfoSel(card.dataset.info), false); });
-  const e = rxEstimate(rx, c); $('#rxTot', w).innerHTML = !e.lines.length ? '' : !e.total && e.missing.length ? '<span>' + e.missing.length + ' not on the price list</span>' : 'Est. <b>' + money(e.total) + '</b>' + (e.missing.length ? '<span>+ ' + e.missing.length + ' not listed</span>' : '');
+  const e = rxEstimate(rx, c); $('#rxTot', w).innerHTML = !e.lines.length ? '' : !(e.total - e.common) && e.missing.length ? '<span>' + e.missing.length + ' not on the price list</span>' : 'Est. <b>' + money(e.total) + '</b>' + (e.missing.length ? '<span>+ ' + e.missing.length + ' not listed</span>' : '');
   // Specialty asks for 10 business days (some items less); sooner needs the expedite approval
   const days = K.leadDays(rx), need = rxNeeded(c, rx), lead = $('#rxLead', w), soon = need && need < addBusinessDays(todayISO(), days);
   lead.hidden = !soon || !!rx.rush; lead.textContent = soon ? 'Needed ' + fmtDay(need) + ' — sooner than the ' + days + ' business days Specialty asks for. Tick the expedite approval if it can’t wait.' : '';
@@ -959,7 +981,7 @@ function rxAdminCardHTML() {
     '<div class="small muted" style="margin:-2px 0 14px">The signature line prints as typed (e.g. “s/ Amir Akhavan, DMD, MS”); empty leaves the line for a pen.</div>' +
     '<h5 style="margin:6px 0 8px">Prices <span class="h5n">' + esc(RX_PRICE_SRC) + '</span></h5>' +
     rxKinds().map(K => sub(K.title) + rxPriceRows(P2, true, K.prices) + (K.priceNote ? '<div class="small muted" style="margin:6px 0 4px">' + esc(K.priceNote) + '</div>' : '')).join('') +
-    sub('Every form') + rxPriceRows(P2, true, RX_PRICES_BOTH) + '<div class="small muted" style="margin:6px 0 12px">The expedite fee is from Specialty’s case scheduling page (needed in under 10 business days), not the price list.</div>' +
+    sub('Every form') + rxPriceRows(P2, true, RX_PRICES_BOTH) + '<div class="small muted" style="margin:6px 0 12px">Not on the price list: the expedite fee is from Specialty’s case scheduling page (needed in under 10 business days); the printed model and return shipping are from Specialty’s invoice of 10/20/26.</div>' +
     '<h5 style="margin:6px 0 8px">Not on the price list <span class="h5n">blank = named under the estimate, not added; add a price (e.g. from an invoice) to count it</span></h5>' +
     rxKinds().map(K => { const r = rxPriceRows(P2, false, K.prices); return r ? sub(K.title) + r : ''; }).join('') +
     '<div class="pickRow" style="margin-top:10px"><button type="button" class="btn btn-ghost btn-sm" data-act="rxPricesReset">' + ic('refresh', 15) + 'Back to the price list</button></div>' +
@@ -1229,6 +1251,7 @@ RXK[RX_FORM] = {
   applies: c => !!c && c.type === 'appliance' && labName(c.lab) === LAB_SPEC && (c.appliances || []).some(a => RX_HERBST.includes(a)),
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['cerec', /cerec/i]],
   canon: rxCanonH, summary: rxSummaryH, estimate: rxEstimateH, auto: rxAutoH, fill: rxFillH, start: rxStartH,
+  models: () => [{ A: 'U' }, { A: 'L' }], // a Herbst is built on both arches (a printed model of each)
   single: RX_SINGLE, tools: ['band', 'crown', 'roc', 'onbrace', 'rest'], tool0: 'band',
   defDrop: ['mio', 'mioMm', 'advMm', 'shimsMm', 'shimsQty', 'expOther', 'lowerInc'], // (this patient's measurements and lower incisors)
   secHTML: rxSecsH, teethSum: rxTeethSumH, tap: rxTapH, tappable: id => RX_GRID.includes(id),

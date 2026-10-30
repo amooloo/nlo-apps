@@ -756,14 +756,14 @@ async function openByName(p, name) {
   // (since 4 Oct 2026 the design puts bands on its anchor teeth — a cantilever on the upper and lower 6s — and crowns are off for our Herbsts)
   check(await owner.evaluate(() => JSON.stringify(RXE.rx.teeth)) === '{"UR6":"band","UL6":"band","LR6":"band","LL6":"band"}' && await owner.getAttribute('#rxWrap [data-rxtool=crown]', 'aria-disabled') === 'true', 'the cantilever puts bands on the 6s; crowns are greyed out');
   await owner.fill('#rxWrap [data-rxf=notes]', 'secret-rx-note-5521');
-  check(/\$360\.00/.test(await owner.textContent('#rxTot')), 'estimate: $220.50 + $66.50 + 4 × $18.25 = $360.00 (with Dr. A’s band price)');
+  check(/\$410\.50/.test(await owner.textContent('#rxTot')), 'estimate: $220.50 + $66.50 + 4 × $18.25 + printed models 2 × $17 + return shipping $16.50 = $410.50 (with Dr. A’s band price)');
   await owner.click('#rxWrap [data-rxa=done]'); await owner.waitForSelector('#rxWrap', { state: 'detached' });
   check(/Cantilever Herbst · M4 MiniScope · 4 bands/.test(await owner.textContent('#cf-rxSum')), 'the New case form shows the Rx’s summary');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('secret-rx-note-5521') && !dump.includes('specialty-herbst') && !dump.includes('Herbstwick') && !dump.includes('cantilever'), 'the Rx is stored encrypted with the case (nothing about it readable in the database)');
   await openByName(gwen, 'Hollis Herbstwick'); await gwen.waitForSelector('#drawer [data-ds=rx]', { timeout: 20000 });
-  check(/Cantilever Herbst/.test(await gwen.textContent('#drawer [data-ds=rx] .dsS')) && /\$360\.00/.test(await gwen.textContent('#drawer [data-ds=rx]')), 'Gwen sees the Herbst Rx and its estimate');
+  check(/Cantilever Herbst/.test(await gwen.textContent('#drawer [data-ds=rx] .dsS')) && /\$410\.50/.test(await gwen.textContent('#drawer [data-ds=rx]')), 'Gwen sees the Herbst Rx and its estimate');
   const [rxDl] = await Promise.all([gwen.waitForEvent('download'), gwen.click('#drawer [data-ds=rx] .pickRow [data-act=rxPdf]')]);
   const rxPdf = fs.readFileSync(await rxDl.path()).toString('latin1');
   check(rxDl.suggestedFilename().startsWith('Herbst Rx - Hollis Herbstwick - ') && rxPdf.startsWith('%PDF-') && rxPdf.includes('(TEST-4471)') && rxPdf.includes('(DN 99999)') && rxPdf.includes('(Hollis Herbstwick)'), 'Gwen downloads Specialty’s form filled in (account #, license #, patient)');
@@ -788,14 +788,14 @@ async function openByName(p, name) {
   await owner.click('#ncForm [data-rxform=edit][data-kind=ret]'); await owner.waitForSelector('#rxWrap .rxArch.live');
   check(await owner.getAttribute('#rxWrap .rxB[data-rxg=claspU][data-v=adams]', 'aria-pressed') === 'true', 'a Hawley starts with Adams clasps on the 6s (Dr. A’s usual, 4 Oct 2026)');
   await owner.fill('#rxWrap [data-rxf=notes]', 'secret-ret-note-7731');
-  check(/\$88\.50/.test(await owner.textContent('#rxTot')), 'estimate: upper Hawley $61 + Adams clasps $27.50 = $88.50 (Teal is a free Specialty color)');
+  check(/\$122\.00/.test(await owner.textContent('#rxTot')), 'estimate: upper Hawley $61 + Adams clasps $27.50 + printed model $17 + return shipping $16.50 = $122.00 (Teal is a free Specialty color)');
   await owner.click('#rxWrap [data-rxa=done]'); await owner.waitForSelector('#rxWrap', { state: 'detached' });
   check(/Hawley \(upper\)/.test(await owner.textContent('#cf-rxRetSum')), 'the New case form shows the Retainer Rx’s summary');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('secret-ret-note-7731') && !dump.includes('specialty-retainer') && !dump.includes('Hawleywick') && !dump.includes('adams'), 'the Retainer Rx is stored encrypted with the case');
   await openByName(gwen, 'Hazel Hawleywick'); await gwen.waitForSelector('#drawer [data-ds=rxRet]', { timeout: 20000 });
-  check(/Hawley \(upper\)/.test(await gwen.textContent('#drawer [data-ds=rxRet] .dsS')) && /\$88\.50/.test(await gwen.textContent('#drawer [data-ds=rxRet]')), 'Gwen sees the Retainer Rx and its estimate');
+  check(/Hawley \(upper\)/.test(await gwen.textContent('#drawer [data-ds=rxRet] .dsS')) && /\$122\.00/.test(await gwen.textContent('#drawer [data-ds=rxRet]')), 'Gwen sees the Retainer Rx and its estimate');
   const [retDl] = await Promise.all([gwen.waitForEvent('download'), gwen.click('#drawer [data-ds=rxRet] .pickRow [data-act=rxPdf]')]);
   const retPdf = fs.readFileSync(await retDl.path()).toString('latin1');
   check(retDl.suggestedFilename().startsWith('Retainer Rx - Hazel Hawleywick - ') && retPdf.startsWith('%PDF-') && retPdf.includes('(TEST-4471)') && retPdf.includes('(Hazel Hawleywick)') && retPdf.includes('(Teal)'), 'Gwen downloads Specialty’s Retainer Rx filled in (account #, patient, acrylic color)');
@@ -833,23 +833,24 @@ async function openByName(p, name) {
   await owner.fill('#cf-deliveryDate', await owner.evaluate(() => addDays(todayISO(), 30)));
   await owner.click('#ncForm [data-rxform=edit][data-kind=met]'); await owner.waitForSelector('#rxWrap .rxArch.live');
   await owner.fill('#rxWrap [data-rxf=notes]', 'secret-met-note-6613');
-  check(/\$185\.00/.test(await owner.textContent('#rxTot')), 'estimate: Hyrax $109 + 2 × 3D printed bands $38 = $185.00 (our expanders start 3D printed)');
+  check(await owner.evaluate(() => JSON.stringify(RXE.rx.awt) === '["U"]'), 'an RPE starts with archwire tubes on the upper 6s (Amir, 29 Oct 2026: “the upper 6 tubes should be standard”)');
+  check(/\$205\.50/.test(await owner.textContent('#rxTot')), 'estimate: Hyrax $109 + 2 × 3D printed bands $17.75 + upper tubes $27.50 + printed model $17 + return shipping $16.50 = $205.50 (our expanders start 3D printed)');
   await owner.click('#rxWrap [data-rxa=done]'); await owner.waitForSelector('#rxWrap', { state: 'detached' });
   check(/Hyrax RPE · 2 bands \(3D printed\)/.test(await owner.textContent('#cf-rxMetSum')), 'the New case form shows the Metal Rx’s summary');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('secret-met-note-6613') && !dump.includes('specialty-metal') && !dump.includes('Rapidwick') && !dump.includes('hyrax') && !dump.includes('printed3d'), 'the Metal Rx is stored encrypted with the case');
   await openByName(gwen, 'Rory Rapidwick'); await gwen.waitForSelector('#drawer [data-ds=rxMet]', { timeout: 20000 });
-  check(/Hyrax RPE/.test(await gwen.textContent('#drawer [data-ds=rxMet] .dsS')) && /\$185\.00/.test(await gwen.textContent('#drawer [data-ds=rxMet]')), 'Gwen sees the Metal Rx and its estimate');
+  check(/Hyrax RPE/.test(await gwen.textContent('#drawer [data-ds=rxMet] .dsS')) && /\$205\.50/.test(await gwen.textContent('#drawer [data-ds=rxMet]')), 'Gwen sees the Metal Rx and its estimate');
   const [metDl] = await Promise.all([gwen.waitForEvent('download'), gwen.click('#drawer [data-ds=rxMet] .pickRow [data-act=rxPdf]')]);
   const metPdf = fs.readFileSync(await metDl.path()).toString('latin1');
   check(metDl.suggestedFilename().startsWith('Metal Rx - Rory Rapidwick - ') && metPdf.startsWith('%PDF-') && metPdf.includes('(TEST-4471)') && metPdf.includes('(Rory Rapidwick)'), 'Gwen downloads Specialty’s Metal Rx filled in (account #, patient)');
   await gwen.click('#drawer [data-ds=rxMet] [data-act=rxEdit]'); await gwen.waitForSelector('#rxWrap');
   check(!(await gwen.$('#rxWrap [data-rxa=saveDef]')), 'staff have no “Save as our usual RPE”');
-  await gwen.click('#rxWrap .rxFold[data-fold=acc] .rxFoldB'); // (folded: no accessories yet)
-  await gwen.click('#rxWrap .rxB[data-rxg=awt][data-v=U]'); await gwen.click('#rxWrap [data-rxa=done]');
-  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Rory Rapidwick'); return !!(c && c.rxMet && (c.rxMet.awt || []).includes('U')); }, null, { timeout: 20000 });
-  check(true, 'Gwen’s archwire tubes reach Dr. A live');
+  // (Accessories is open: the RPE's upper tubes are on)
+  await gwen.click('#rxWrap .rxB[data-rxg=awt][data-v=L]'); await gwen.click('#rxWrap [data-rxa=done]');
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Rory Rapidwick'); return !!(c && c.rxMet && (c.rxMet.awt || []).includes('L')); }, null, { timeout: 20000 });
+  check(true, 'Gwen’s lower archwire tubes reach Dr. A live');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# Functional Rx for Specialty (Amir, 4 Oct 2026: the lower Schwarz goes to Specialty): New case, stored encrypted, the PDF for staff');

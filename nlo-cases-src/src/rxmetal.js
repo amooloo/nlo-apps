@@ -45,10 +45,15 @@ const RXM_MM = ['8', '10', '12'];
 const RXM_SM = ['UR4', 'UR5', 'UR6', 'UL4', 'UL5', 'UL6', 'LR4', 'LR5', 'LR6', 'LL4', 'LL5', 'LL6'];
 const rxmBehind = id => id.slice(0, 2) + (+id[2] + 1);
 const rxmSideW = s => s === 'R' ? 'right' : 'left';
+/* an RPE comes with archwire tubes on the upper 6s — Amir, 29 Oct 2026: "the upper 6 tubes should be standard" (for the RPEs on
+   first molar bands: the Hyrax, Haas and Exspider; the bonded Acrylic and DeLuke have no bands for them) */
+const RXM_TUBES = ['hyrax', 'haas', 'exspider'];
 /* Specialty's standard bands (and rests) for each appliance — they go on when it's picked (on teeth with nothing yet), and come off
-   with it while nothing else picked needs them; a distalizer's are on its side(s); a space maintainer's on the tooth behind its space */
+   with it while nothing else picked needs them; a distalizer's are on its side(s); a space maintainer's on the tooth behind its space.
+   The same for the RPE's upper archwire tubes (`tubes`: the arches) */
 function rxmStd(rx) {
-  const b = new Set(), r = new Set(), exp = rx.exp || [], hold = rx.hold || [], oth = rx.other || [];
+  const b = new Set(), r = new Set(), exp = rx.exp || [], hold = rx.hold || [], oth = rx.other || [], tubes = new Set();
+  if (exp.some(k => RXM_TUBES.includes(k))) tubes.add('U');
   const both = (A, n) => { b.add(A + 'R' + n); b.add(A + 'L' + n); };
   if (exp.some(k => RXM_UPPER.includes(k) && k !== 'acrylic' && k !== 'deluke') || rx.mse) both('U', 6);
   if (exp.includes('lowerFixed')) both('L', 6);
@@ -63,7 +68,17 @@ function rxmStd(rx) {
   // a space maintainer's space is a missing tooth: no band or rest goes on it, whatever else is picked (found 4 Oct 2026: a TPA picked
   // after the space banded the gap; unticking Space Maintainer left the expander without its band)
   (rx.sm || []).forEach(id => { b.delete(id); r.delete(id); });
-  return { bands: b, rests: r };
+  return { bands: b, rests: r, tubes };
+}
+/* the arches with an appliance — each gets a printed model at Specialty (rx.js rxEstFees) */
+function rxmArches(rx) {
+  const s = new Set();
+  Object.keys(rx.teeth || {}).concat(rx.occl || [], rx.sm || []).forEach(id => s.add(id[0]));
+  (rx.exp || []).forEach(k => s.add(k === 'lowerFixed' ? 'L' : 'U'));
+  if (rx.mse || rx.distR || rx.distL) s.add('U');
+  (rx.hold || []).forEach(k => { if (k === 'lla') s.add('L'); else if (k !== 'sm') s.add('U'); });
+  (rx.other || []).forEach(k => { s.add('U'); if (k === 'xbow' || k === 'tandem') s.add('L'); });
+  return ['U', 'L'].filter(A => s.has(A));
 }
 /* an expander on the Rx (for Amir's 3D printed bands): anything under Expansion, the MSE, the distalizers built on an expansion screw
    (Pendex, T-Rex, PHD, MDA) and the appliances that carry an upper expander (Xbow, Tandem) */
@@ -228,7 +243,7 @@ const RXM_INFO = {
   },
   acc: {
     awt: { name: 'Archwire tubes', short: '.022 × .028 tubes welded on the molar bands, so braces can be used at the same time.',
-      sum: 'Weldable stainless steel archwire tubes; Specialty’s standard slot is .022 × .028.', pts: ['Pick upper, lower or both.', '$27.50 a pair on Specialty’s metals list.'], src: ['awt'] },
+      sum: 'Weldable stainless steel archwire tubes; Specialty’s standard slot is .022 × .028.', pts: ['Pick upper, lower or both. An RPE (Hyrax, Haas, Exspider) starts with the upper ones, Dr. A’s standard — untick to leave them off.', '$27.50 a pair on Specialty’s metals list.'], src: ['awt'] },
     hg: { short: 'A round tube on the upper molar bands for a facebow.', sum: 'A tube on the cheek side of the upper molar bands that takes a headgear facebow.', note: 'Specialty doesn’t describe it; not on its price list.' },
     lb: { short: 'A tube on the lower molar bands for a lip bumper.', sum: 'A tube on the cheek side of the lower molar bands that takes a lip bumper.', note: 'Specialty doesn’t describe it; not on its price list.' },
     sheath: { short: 'Sheaths on the tongue side of the molar bands that take a removable wire.', sum: 'Lingual sheaths on the molar bands accept a removable palatal or lingual wire (e.g. Specialty’s removable W-arch).',
@@ -313,6 +328,10 @@ function rxmCanon(rx) {
   const sb = Array.isArray(rx.stdB) ? rx.stdB : [], sr = Array.isArray(rx.stdR) ? rx.stdR : [];
   const b2 = RX_GRID.filter(id => sb.includes(id) && t[id] === 'band'), r2 = RX_GRID.filter(id => sr.includes(id) && (o.occl || []).includes(id));
   if (b2.length) o.stdB = b2; if (r2.length) o.stdR = r2;
+  // the archwire tubes the rules put on (stdA), and the arches whose tubes were taken off by hand (awtNo: the rules leave them off)
+  const sa = Array.isArray(rx.stdA) ? rx.stdA : [], an = Array.isArray(rx.awtNo) ? rx.awtNo : [], aw = o.awt || [];
+  const a2 = ['U', 'L'].filter(A => sa.includes(A) && aw.includes(A)), n2 = ['U', 'L'].filter(A => an.includes(A) && !aw.includes(A));
+  if (a2.length) o.stdA = a2; if (n2.length) o.awtNo = n2;
   flag('enclosed'); flag('printed3d'); flag('rush');
   rxCanonTail(rx, o, RXM);
   return o;
@@ -584,6 +603,9 @@ function rxmStartFor(slot) {
   const d = rxDefaults(slot), rx = d ? JSON.parse(JSON.stringify(d)) : { form: RX_MET };
   if (!d) { if (slot === RXM_US.mse) { rx.mse = true; rx.mseMm = '10'; } else if (slot === RXM_US.rpe) rx.exp = ['hyrax'];
     rxmStdApply(rx, { bands: new Set(), rests: new Set() }); if (rxmHasExp(rx)) rx.printed3d = true; }
+  // a usual saved before the RPE's upper tubes were standard (29 Oct 2026) gets them too — its teeth stay as saved — unless its tubes
+  // were taken off by hand (awtNo)
+  else { const s = rxmStd(rx); rxmStdApply(rx, { bands: s.bands, rests: s.rests }); }
   return rxCanon(rx);
 }
 function rxmStart(c) { return rxmStartFor(rxmUsualOf(c)); }
@@ -605,7 +627,8 @@ function rxmMismatch(c, rx) {
   return '';
 }
 /* the standard bands and rests after a change: put on what it newly needs (on teeth with nothing), take off the ones the rules put on
-   that nothing needs any more (still as put); what was placed or changed by hand stays (rx.stdB / rx.stdR: what the rules put on) */
+   that nothing needs any more (still as put); what was placed or changed by hand stays (rx.stdB / rx.stdR: what the rules put on).
+   The RPE's archwire tubes the same way (rx.stdA), except on an arch whose tubes were taken off by hand (rx.awtNo) */
 function rxmStdApply(rx, before) {
   const now = rxmStd(rx), t = rx.teeth = Object.assign({}, rx.teeth), occl = new Set(rx.occl || []), sb = new Set(rx.stdB || []), sr = new Set(rx.stdR || []);
   before.bands.forEach(id => { if (!now.bands.has(id) && sb.has(id)) { if (t[id] === 'band') delete t[id]; sb.delete(id); } });
@@ -613,6 +636,10 @@ function rxmStdApply(rx, before) {
   now.bands.forEach(id => { if (!before.bands.has(id) && !t[id]) { t[id] = 'band'; sb.add(id); } });
   now.rests.forEach(id => { if (!before.rests.has(id) && !occl.has(id)) { occl.add(id); sr.add(id); } });
   rx.occl = RX_GRID.filter(id => occl.has(id)); rx.stdB = RX_GRID.filter(id => sb.has(id) && t[id] === 'band'); rx.stdR = RX_GRID.filter(id => sr.has(id) && occl.has(id));
+  const aw = new Set(rx.awt || []), sa = new Set(rx.stdA || []), no = new Set(rx.awtNo || []), bt = before.tubes || new Set();
+  bt.forEach(A => { if (!now.tubes.has(A) && sa.has(A)) { aw.delete(A); sa.delete(A); } });
+  now.tubes.forEach(A => { if (!bt.has(A) && !aw.has(A) && !no.has(A)) { aw.add(A); sa.add(A); } });
+  rx.awt = ['U', 'L'].filter(A => aw.has(A)); rx.stdA = ['U', 'L'].filter(A => sa.has(A) && aw.has(A));
 }
 
 /* ---------- the editor's left side ---------- */
@@ -635,7 +662,7 @@ function rxmSecs(rx) {
       '<div class="rxBs">' + ['qh', 'earch', 'warch'].map(k => ex(k, rxmLbl(k, ['exp']))).join('') + '</div>' +
       '<div class="rxBs">' + rxBtn('flag', 'mse', 'MSE (TAD-supported)', rx.mse, tag('mse')) + '<span class="rxSub" data-show="mse"><span class="rxLbl">Screw</span>' + RXM_MM.map(m => rxBtn('mseMm', m, m + ' mm', rx.mseMm === m)).join('') + '</span></div>' +
       '<div class="rxRow">' + rxField('screw', 'Screw type', 'text', ' maxlength="40" placeholder="e.g. Click screw, 12 mm"') + '</div>' +
-      '<div class="small muted">One upper expander at a time (the lower fixed expander goes with any). Our expanders get 3D printed bands.</div>') +
+      '<div class="small muted">One upper expander at a time (the lower fixed expander goes with any). Our expanders get 3D printed bands, and an RPE gets archwire tubes on the upper 6s.</div>') +
     rxInfoSec('dist', 'Distalization', '<div class="rxULh"><span></span><span>Right</span><span>Left</span></div>' + RXM_O.dist.map(([k, l]) => rxmRow('dist', k, l, RXM_UNUSED[k] ? 'not used' : tag(P[k]))).join(''), '', !!rxmFoldSum('dist', rx)) +
     rxInfoSec('hold', 'Holding', '<div class="rxBs">' + RXM_O.hold.map(([k, l]) => rxBtn('hold', k, l, (rx.hold || []).includes(k), tag(P[k]))).join('') + '</div>' +
       '<div class="rxSub" data-show="sm"><div class="small muted">Tap the space on the arches with Space maintainer (the band goes on the tooth behind it).</div><div class="rxRow">' + rxField('smTxt', 'More about it', 'text', ' maxlength="40"') + '</div></div>', '', !!rxmFoldSum('hold', rx)) +
@@ -724,7 +751,11 @@ RXK[RX_MET] = {
   // facemask hooks taken off take their "where" with them (typing a where puts them on); the bands are 3D printed by Specialty or
   // enclosed by the office, not both
   after: (g, v, on, prev, rx) => { if (g === 'acc' && v === 'fm' && !on) rx.fmTxt = '';
-    if (g === 'flag' && on && v === 'enclosed') rx.printed3d = ''; if (g === 'flag' && on && v === 'printed3d') rx.enclosed = ''; },
+    if (g === 'flag' && on && v === 'enclosed') rx.printed3d = ''; if (g === 'flag' && on && v === 'printed3d') rx.enclosed = '';
+    // archwire tubes tapped by hand are the doctor's: taken off, the RPE doesn't put them back (awtNo — kept in a saved usual too);
+    // put on, they no longer come off with it
+    if (g === 'awt') { rx.stdA = (rx.stdA || []).filter(A => A !== v); const no = new Set(rx.awtNo || []); if (on) no.delete(v); else no.add(v); rx.awtNo = ['U', 'L'].filter(A => no.has(A)); } },
+  models: rx => rxmArches(rx).map(A => ({ A })), // a printed model of each arch with an appliance (rx.js rxEstFees)
   // the anchorage prices follow the 3D printed switch
   syncMore: (w, rx) => { $$('.rxB[data-rxg="tool"]', w).forEach(x => { const em = $('em', x); if (!em || ['onbrace', 'rest', 'sm'].includes(x.dataset.v)) return; em.textContent = rxTag(x.dataset.v === 'band' ? (rx.printed3d ? 'band3d' : 'band') : (rx.printed3d ? 'crown3d' : 'crown'), false, ' ea'); });
     // a distalizer we don't use: its whole row greys out, not just its Right / Left buttons

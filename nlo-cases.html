@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-3lvIlxnu5b9AfRgIujplBCzihEt6B+uWLsKseozuV2c=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-QMWR7TTrDDXZB/Z9q62xvWz5dnzUd3jmWukXTuGA6zw=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12354,12 +12354,14 @@ const RX_DRAWS = ['pen', 'line', 'arrow'];
    list by name, so they're priced as its RPE screw; the TPA and quad helix are on it only as appliances of their own.
    The Rx's other options have no price on the list: they start blank (named under the estimate, not added) and Dr. A can
    give them a price in Team & security → Lab Rx (e.g. from an invoice), which the estimate then adds. (The Retainer Rx's
-   prices are in rxret.js.) */
+   prices are in rxret.js.)
+   3D print bands: $17.75 each as Specialty billed them (invoice 10/20/26, a printed Hyrax RPE: "3D Print Bands/Ea" 2 × 17.75 —
+   Amir, 29 Oct 2026: "make sure ... it has all the fees"); the price list says $38. */
 const RX_PRICE_SRC = 'Specialty Appliances price list MKT-41 (Rev 01-26, updated 1-27-26)';
 const RX_PRICES = [
   ['herbst', 'Band/Crown/ROC Cantilever Herbst', 220.50], ['herbstAcr', 'Band/Crown Upper / Acrylic Lower Herbst', 293.50],
   ['band', 'Bands provided and fit, each', 17.75], ['crown', 'Crowns provided and fit, each', 21.50],
-  ['band3d', '3D print bands, each', 38.00], ['crown3d', '3D print crowns, each', 43.50],
+  ['band3d', '3D print bands, each (as Specialty bills them; the price list says $38)', 17.75], ['crown3d', '3D print crowns, each', 43.50],
   ['miniscope', 'Specialty MiniScope mechanisms (3-part)', 66.50], ['m4', 'M4 MiniScope mechanisms (4-part)', 66.50],
   ['hth', 'HTH mechanisms', 110.00], ['fliplock', 'Flip-Lock mechanism', 167.50], ['screw', 'RPE screw, each (Mini-Click, Click Screw)', 70.50],
   ['tpa', 'Transpalatal arch (its own appliance on the list)', 93.50], ['qh', 'Quad helix: fixed (its own appliance on the list)', 109.00],
@@ -12370,8 +12372,15 @@ const RX_PRICES = [
 ];
 /* on every form: Specialty's fee for a case needed in under 10 business days — from their case scheduling page
    (https://specialtyappliances.com/case-scheduling/: "a $95 expedited manufacturing and shipping fee will be applied"),
-   not the price list (until 4 Oct 2026 it was unpriced here) */
-const RX_PRICES_BOTH = [['rush', 'Expedited manufacturing and shipping (needed in under 10 business days)', 95.00]];
+   not the price list (until 4 Oct 2026 it was unpriced here).
+   And on every Rx, what Specialty bills a digital case besides the appliance — from their invoice of 10/20/26 (a printed Hyrax
+   RPE: "Printed Model With Appliance/Arch" 17.00, "Digital Return Shipping" 16.50; Amir, 29 Oct 2026: "make sure ... it has all
+   the fees"). Specialty prints a working model from the scan to build the appliance on (their catalog: "receive digital files over
+   the internet, print a working model, and fabricate the appliance"), one per arch with an appliance; each form says which arches
+   (K.models), and the Retainer Rx which models come free (Guardian, two or more retainers on the arch) and when shipping is
+   included (IR Express). The invoice's 15% discount isn't taken off (Amir: "not sure so don't include it"). */
+const RX_PRICES_BOTH = [['rush', 'Expedited manufacturing and shipping (needed in under 10 business days)', 95.00],
+  ['model', 'Printed model with the appliance, per arch', 17.00], ['retShip', 'Return shipping (digital case)', 16.50]];
 const RX_LIST = {}; // the list's own price (null: not on it)
 function rxAddPrices(list) { list.forEach(([k, , p]) => { RX_LIST[k] = p; }); }
 rxAddPrices(RX_PRICES); rxAddPrices(RX_PRICES_BOTH);
@@ -12450,9 +12459,22 @@ function rxNeeded(c, rx) { return (rx && rx.needed) || rxNeedAuto(c); }
 const usDate = iso => { if (!iso) return ''; const [y, m, d] = iso.split('-'); return m + '/' + d + '/' + y; };
 
 /* ---------- the estimate ---------- */
-function rxEstimate(rx, c) { rx = rxCanon(rx); return rxK(rx).estimate(rx, c); } // (c: the case, for what the form fills from it)
-/* " · est. $196.00" after a summary — or, when nothing priced adds up yet (the Schwarz isn't on the price list), says so */
-function rxEstSay(e) { return !e || !e.lines.length ? '' : e.total > 0 || !e.missing.length ? ' · est. <b>' + money(e.total) + '</b>' : ' · <span class="muted">not on the price list yet</span>'; }
+function rxEstimate(rx, c) { rx = rxCanon(rx); const K = rxK(rx); return rxEstFees(K.estimate(rx, c), rx, c, K); } // (c: the case, for what the form fills from it)
+/* what every Rx adds once something is picked: the printed model for each arch with an appliance, and the return shipping (see
+   RX_PRICES_BOTH). `e.common` is their part of the total, so a total that's only these can still say "not on the price list" */
+function rxEstFees(e, rx, c, K) {
+  e.common = 0; if (!e.lines.length && !e.missing.length) return e; // nothing picked yet: nothing to make or ship
+  const x = rxEst(), ms = K.models ? K.models(rx, c) : [], w = a => a.length === 2 ? 'upper & lower' : a[0] === 'U' ? 'upper' : 'lower';
+  const paid = ms.filter(m => !m.free).map(m => m.A);
+  if (paid.length) x.add('Printed model with the appliance · ' + w(paid), 'model', paid.length, 'Specialty prints it from the scan to build on');
+  ms.filter(m => m.free).forEach(m => x.inc('Printed model · ' + w([m.A]), m.free));
+  const shipIn = K.shipIncl ? K.shipIncl(rx) : ''; if (shipIn) x.inc('Return shipping', shipIn); else x.add('Return shipping', 'retShip', 1, 'digital case');
+  const f = x.done(); e.lines = e.lines.concat(f.lines); e.missing = e.missing.concat(f.missing); e.total += f.total; e.common = f.total;
+  return e;
+}
+/* " · est. $196.00" after a summary — or, when nothing priced adds up yet but the model and shipping (the Schwarz isn't on the price
+   list), says so */
+function rxEstSay(e) { return !e || !e.lines.length ? '' : e.total - (e.common || 0) > 0 || !e.missing.length ? ' · est. <b>' + money(e.total) + '</b>' : ' · <span class="muted">not on the price list yet</span>'; }
 /* what the Rx still needs before it can go: [[what, the box or choices to fill]] — a pontic's shade (Amir, 4 Oct 2026: "anytime
    someone picks a pontic, make sure the pontic shade becomes mandatory"). Done, Open PDF and Download wait for it */
 function rxNeeds(rx, c) { if (!rx) return []; rx = rxCanon(rx); const K = rxK(rx); return K.needs ? K.needs(rx, c) : []; }
@@ -12848,7 +12870,7 @@ function rxCostHTML(rx, c) {
   return '<table class="rxTbl">' + e.lines.map(x => '<tr><td>' + esc(x.l) + (x.note ? '<span class="rxNote">' + esc(x.note) + '</span>' : '') + '</td><td>' + (x.inc ? '<span class="muted rxInc">' + esc(x.inc) + '</span>' : (x.qty > 1 ? '<span class="muted">' + x.qty + ' × ' + money(x.each) + '</span> ' : '') + money(x.amt)) + '</td></tr>').join('') +
     '<tr class="rxTotRow"><td>Total</td><td>' + money(e.total) + '</td></tr></table>' +
     (e.missing.length ? '<div class="small rxMiss">Not priced, so not in the total: ' + esc(e.missing.join('; ')) + '.</div><div class="small muted">Not on Specialty’s price list (or no price entered). Dr. A can add a price in Team & security → Lab Rx.</div>' : '') +
-    '<div class="small muted">Shipping is billed by Specialty by zone and weight, so it isn’t included.</div>';
+    '<div class="small muted">The printed model and return shipping are what Specialty charges on a digital case. A discount, when Specialty gives one, isn’t taken off.</div>';
 }
 /* a box's value when the Rx hasn't one of its own: the date needed and shipped, and anything the form fills from the case */
 function rxAutoVal(k, c, rx) { return k === 'needed' ? rxNeedAuto(c) : k === 'shipped' ? todayISO() : RXE.k && RXE.k.autoVal && RXE.k.autoVal[k] ? RXE.k.autoVal[k](c, rx) : ''; }
@@ -12895,7 +12917,7 @@ function rxSync(first) {
   const ts = $('#rxTeethSum', w); if (ts) ts.innerHTML = K.teethSum(rx);
   $('#rxCost', w).innerHTML = rxCostHTML(rx, c);
   $$('.rxInfoCard', w).forEach(card => { if (card.dataset.hover !== '1') rxInfoPaint(card, card.dataset.info, rxInfoSel(card.dataset.info), false); });
-  const e = rxEstimate(rx, c); $('#rxTot', w).innerHTML = !e.lines.length ? '' : !e.total && e.missing.length ? '<span>' + e.missing.length + ' not on the price list</span>' : 'Est. <b>' + money(e.total) + '</b>' + (e.missing.length ? '<span>+ ' + e.missing.length + ' not listed</span>' : '');
+  const e = rxEstimate(rx, c); $('#rxTot', w).innerHTML = !e.lines.length ? '' : !(e.total - e.common) && e.missing.length ? '<span>' + e.missing.length + ' not on the price list</span>' : 'Est. <b>' + money(e.total) + '</b>' + (e.missing.length ? '<span>+ ' + e.missing.length + ' not listed</span>' : '');
   // Specialty asks for 10 business days (some items less); sooner needs the expedite approval
   const days = K.leadDays(rx), need = rxNeeded(c, rx), lead = $('#rxLead', w), soon = need && need < addBusinessDays(todayISO(), days);
   lead.hidden = !soon || !!rx.rush; lead.textContent = soon ? 'Needed ' + fmtDay(need) + ' — sooner than the ' + days + ' business days Specialty asks for. Tick the expedite approval if it can’t wait.' : '';
@@ -13103,7 +13125,7 @@ function rxAdminCardHTML() {
     '<div class="small muted" style="margin:-2px 0 14px">The signature line prints as typed (e.g. “s/ Amir Akhavan, DMD, MS”); empty leaves the line for a pen.</div>' +
     '<h5 style="margin:6px 0 8px">Prices <span class="h5n">' + esc(RX_PRICE_SRC) + '</span></h5>' +
     rxKinds().map(K => sub(K.title) + rxPriceRows(P2, true, K.prices) + (K.priceNote ? '<div class="small muted" style="margin:6px 0 4px">' + esc(K.priceNote) + '</div>' : '')).join('') +
-    sub('Every form') + rxPriceRows(P2, true, RX_PRICES_BOTH) + '<div class="small muted" style="margin:6px 0 12px">The expedite fee is from Specialty’s case scheduling page (needed in under 10 business days), not the price list.</div>' +
+    sub('Every form') + rxPriceRows(P2, true, RX_PRICES_BOTH) + '<div class="small muted" style="margin:6px 0 12px">Not on the price list: the expedite fee is from Specialty’s case scheduling page (needed in under 10 business days); the printed model and return shipping are from Specialty’s invoice of 10/20/26.</div>' +
     '<h5 style="margin:6px 0 8px">Not on the price list <span class="h5n">blank = named under the estimate, not added; add a price (e.g. from an invoice) to count it</span></h5>' +
     rxKinds().map(K => { const r = rxPriceRows(P2, false, K.prices); return r ? sub(K.title) + r : ''; }).join('') +
     '<div class="pickRow" style="margin-top:10px"><button type="button" class="btn btn-ghost btn-sm" data-act="rxPricesReset">' + ic('refresh', 15) + 'Back to the price list</button></div>' +
@@ -13373,6 +13395,7 @@ RXK[RX_FORM] = {
   applies: c => !!c && c.type === 'appliance' && labName(c.lab) === LAB_SPEC && (c.appliances || []).some(a => RX_HERBST.includes(a)),
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['cerec', /cerec/i]],
   canon: rxCanonH, summary: rxSummaryH, estimate: rxEstimateH, auto: rxAutoH, fill: rxFillH, start: rxStartH,
+  models: () => [{ A: 'U' }, { A: 'L' }], // a Herbst is built on both arches (a printed model of each)
   single: RX_SINGLE, tools: ['band', 'crown', 'roc', 'onbrace', 'rest'], tool0: 'band',
   defDrop: ['mio', 'mioMm', 'advMm', 'shimsMm', 'shimsQty', 'expOther', 'lowerInc'], // (this patient's measurements and lower incisors)
   secHTML: rxSecsH, teethSum: rxTeethSumH, tap: rxTapH, tappable: id => RX_GRID.includes(id),
@@ -13816,6 +13839,18 @@ function rxrEstimate(rx, c) {
   if (rx.rush) add('Expedited manufacturing and shipping', 'rush', 1, 'Specialty’s fee for under 10 business days');
   return E.done();
 }
+/* the printed models (rx.js rxEstFees): one for each arch with a retainer — free with a Guardian ("the bracket removal and model
+   printing fees are waived") or with two or more retainers on the arch (Specialty's invisible retainer page); IR Express comes
+   without one, and with its shipping included (Specialty's terms) */
+function rxrModels(rx) {
+  const out = [];
+  RXR_ARCH.forEach(A => { const ir = rx['ir' + A] || '', n = (rx['design' + A] ? 1 : 0) + (rx['flr' + A] ? 1 : 0) + (ir === 'single' ? 1 : 0);
+    if (/^g/.test(ir)) out.push({ A, free: 'With the Guardian' });
+    else if (n >= 2) out.push({ A, free: 'Free with two or more retainers on the arch' });
+    else if (n === 1) out.push({ A }); });
+  return out;
+}
+const rxrOnlyExpress = rx => RXR_ARCH.some(A => rx['ir' + A] === 'express') && RXR_ARCH.every(A => (!rx['ir' + A] || rx['ir' + A] === 'express') && !rx['design' + A] && !rx['flr' + A]);
 
 /* ---------- the arch diagram: the retainer drawn from the choices (RXG = this form while rxAuto draws) ---------- */
 /* the point on a tooth's outline from its center (moved `along` toward the midline) in direction `dir`, pushed out by `gap` */
@@ -14222,6 +14257,7 @@ RXK[RX_RET] = {
   applies: c => !!c && c.type === 'appliance' && labName(c.lab) === LAB_SPEC && (c.appliances || []).some(a => RXR_APPL.includes(a)),
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['3m', /\b3\s*m\b/i], ['sirona', /sirona|cerec|primescan/i]],
   canon: rxrCanon, summary: rxrSummary, estimate: rxrEstimate, auto: rxrAuto, fill: rxrFill, start: rxrStart, forCase: rxrForCase, mismatch: rxrMismatch,
+  models: rxrModels, shipIncl: rx => rxrOnlyExpress(rx) ? 'Included with IR Express' : '',
   single: RXR_SINGLE, tools: ['adams', 'c', 'ball', 'solc', 'delta', 'arrowhead', 'pontic', 'finger', 'spur', 'reset'], tool0: 'adams', toolReset: true,
   defDrop: ['colorU', 'colorL', 'reset', 'resetHow', 'fingerTxt', 'solderTxt', 'closingTxt', 'spursTxt', 'screwTxt', 'saddleTxt', 'ponticTxt', 'claspOther'],
   // the usual retainer keeps its clasps, not this patient's pontics, finger springs or spurs (those stay on the Rx when starting from it)
@@ -14329,10 +14365,15 @@ const RXM_MM = ['8', '10', '12'];
 const RXM_SM = ['UR4', 'UR5', 'UR6', 'UL4', 'UL5', 'UL6', 'LR4', 'LR5', 'LR6', 'LL4', 'LL5', 'LL6'];
 const rxmBehind = id => id.slice(0, 2) + (+id[2] + 1);
 const rxmSideW = s => s === 'R' ? 'right' : 'left';
+/* an RPE comes with archwire tubes on the upper 6s — Amir, 29 Oct 2026: "the upper 6 tubes should be standard" (for the RPEs on
+   first molar bands: the Hyrax, Haas and Exspider; the bonded Acrylic and DeLuke have no bands for them) */
+const RXM_TUBES = ['hyrax', 'haas', 'exspider'];
 /* Specialty's standard bands (and rests) for each appliance — they go on when it's picked (on teeth with nothing yet), and come off
-   with it while nothing else picked needs them; a distalizer's are on its side(s); a space maintainer's on the tooth behind its space */
+   with it while nothing else picked needs them; a distalizer's are on its side(s); a space maintainer's on the tooth behind its space.
+   The same for the RPE's upper archwire tubes (`tubes`: the arches) */
 function rxmStd(rx) {
-  const b = new Set(), r = new Set(), exp = rx.exp || [], hold = rx.hold || [], oth = rx.other || [];
+  const b = new Set(), r = new Set(), exp = rx.exp || [], hold = rx.hold || [], oth = rx.other || [], tubes = new Set();
+  if (exp.some(k => RXM_TUBES.includes(k))) tubes.add('U');
   const both = (A, n) => { b.add(A + 'R' + n); b.add(A + 'L' + n); };
   if (exp.some(k => RXM_UPPER.includes(k) && k !== 'acrylic' && k !== 'deluke') || rx.mse) both('U', 6);
   if (exp.includes('lowerFixed')) both('L', 6);
@@ -14347,7 +14388,17 @@ function rxmStd(rx) {
   // a space maintainer's space is a missing tooth: no band or rest goes on it, whatever else is picked (found 4 Oct 2026: a TPA picked
   // after the space banded the gap; unticking Space Maintainer left the expander without its band)
   (rx.sm || []).forEach(id => { b.delete(id); r.delete(id); });
-  return { bands: b, rests: r };
+  return { bands: b, rests: r, tubes };
+}
+/* the arches with an appliance — each gets a printed model at Specialty (rx.js rxEstFees) */
+function rxmArches(rx) {
+  const s = new Set();
+  Object.keys(rx.teeth || {}).concat(rx.occl || [], rx.sm || []).forEach(id => s.add(id[0]));
+  (rx.exp || []).forEach(k => s.add(k === 'lowerFixed' ? 'L' : 'U'));
+  if (rx.mse || rx.distR || rx.distL) s.add('U');
+  (rx.hold || []).forEach(k => { if (k === 'lla') s.add('L'); else if (k !== 'sm') s.add('U'); });
+  (rx.other || []).forEach(k => { s.add('U'); if (k === 'xbow' || k === 'tandem') s.add('L'); });
+  return ['U', 'L'].filter(A => s.has(A));
 }
 /* an expander on the Rx (for Amir's 3D printed bands): anything under Expansion, the MSE, the distalizers built on an expansion screw
    (Pendex, T-Rex, PHD, MDA) and the appliances that carry an upper expander (Xbow, Tandem) */
@@ -14512,7 +14563,7 @@ const RXM_INFO = {
   },
   acc: {
     awt: { name: 'Archwire tubes', short: '.022 × .028 tubes welded on the molar bands, so braces can be used at the same time.',
-      sum: 'Weldable stainless steel archwire tubes; Specialty’s standard slot is .022 × .028.', pts: ['Pick upper, lower or both.', '$27.50 a pair on Specialty’s metals list.'], src: ['awt'] },
+      sum: 'Weldable stainless steel archwire tubes; Specialty’s standard slot is .022 × .028.', pts: ['Pick upper, lower or both. An RPE (Hyrax, Haas, Exspider) starts with the upper ones, Dr. A’s standard — untick to leave them off.', '$27.50 a pair on Specialty’s metals list.'], src: ['awt'] },
     hg: { short: 'A round tube on the upper molar bands for a facebow.', sum: 'A tube on the cheek side of the upper molar bands that takes a headgear facebow.', note: 'Specialty doesn’t describe it; not on its price list.' },
     lb: { short: 'A tube on the lower molar bands for a lip bumper.', sum: 'A tube on the cheek side of the lower molar bands that takes a lip bumper.', note: 'Specialty doesn’t describe it; not on its price list.' },
     sheath: { short: 'Sheaths on the tongue side of the molar bands that take a removable wire.', sum: 'Lingual sheaths on the molar bands accept a removable palatal or lingual wire (e.g. Specialty’s removable W-arch).',
@@ -14597,6 +14648,10 @@ function rxmCanon(rx) {
   const sb = Array.isArray(rx.stdB) ? rx.stdB : [], sr = Array.isArray(rx.stdR) ? rx.stdR : [];
   const b2 = RX_GRID.filter(id => sb.includes(id) && t[id] === 'band'), r2 = RX_GRID.filter(id => sr.includes(id) && (o.occl || []).includes(id));
   if (b2.length) o.stdB = b2; if (r2.length) o.stdR = r2;
+  // the archwire tubes the rules put on (stdA), and the arches whose tubes were taken off by hand (awtNo: the rules leave them off)
+  const sa = Array.isArray(rx.stdA) ? rx.stdA : [], an = Array.isArray(rx.awtNo) ? rx.awtNo : [], aw = o.awt || [];
+  const a2 = ['U', 'L'].filter(A => sa.includes(A) && aw.includes(A)), n2 = ['U', 'L'].filter(A => an.includes(A) && !aw.includes(A));
+  if (a2.length) o.stdA = a2; if (n2.length) o.awtNo = n2;
   flag('enclosed'); flag('printed3d'); flag('rush');
   rxCanonTail(rx, o, RXM);
   return o;
@@ -14868,6 +14923,9 @@ function rxmStartFor(slot) {
   const d = rxDefaults(slot), rx = d ? JSON.parse(JSON.stringify(d)) : { form: RX_MET };
   if (!d) { if (slot === RXM_US.mse) { rx.mse = true; rx.mseMm = '10'; } else if (slot === RXM_US.rpe) rx.exp = ['hyrax'];
     rxmStdApply(rx, { bands: new Set(), rests: new Set() }); if (rxmHasExp(rx)) rx.printed3d = true; }
+  // a usual saved before the RPE's upper tubes were standard (29 Oct 2026) gets them too — its teeth stay as saved — unless its tubes
+  // were taken off by hand (awtNo)
+  else { const s = rxmStd(rx); rxmStdApply(rx, { bands: s.bands, rests: s.rests }); }
   return rxCanon(rx);
 }
 function rxmStart(c) { return rxmStartFor(rxmUsualOf(c)); }
@@ -14889,7 +14947,8 @@ function rxmMismatch(c, rx) {
   return '';
 }
 /* the standard bands and rests after a change: put on what it newly needs (on teeth with nothing), take off the ones the rules put on
-   that nothing needs any more (still as put); what was placed or changed by hand stays (rx.stdB / rx.stdR: what the rules put on) */
+   that nothing needs any more (still as put); what was placed or changed by hand stays (rx.stdB / rx.stdR: what the rules put on).
+   The RPE's archwire tubes the same way (rx.stdA), except on an arch whose tubes were taken off by hand (rx.awtNo) */
 function rxmStdApply(rx, before) {
   const now = rxmStd(rx), t = rx.teeth = Object.assign({}, rx.teeth), occl = new Set(rx.occl || []), sb = new Set(rx.stdB || []), sr = new Set(rx.stdR || []);
   before.bands.forEach(id => { if (!now.bands.has(id) && sb.has(id)) { if (t[id] === 'band') delete t[id]; sb.delete(id); } });
@@ -14897,6 +14956,10 @@ function rxmStdApply(rx, before) {
   now.bands.forEach(id => { if (!before.bands.has(id) && !t[id]) { t[id] = 'band'; sb.add(id); } });
   now.rests.forEach(id => { if (!before.rests.has(id) && !occl.has(id)) { occl.add(id); sr.add(id); } });
   rx.occl = RX_GRID.filter(id => occl.has(id)); rx.stdB = RX_GRID.filter(id => sb.has(id) && t[id] === 'band'); rx.stdR = RX_GRID.filter(id => sr.has(id) && occl.has(id));
+  const aw = new Set(rx.awt || []), sa = new Set(rx.stdA || []), no = new Set(rx.awtNo || []), bt = before.tubes || new Set();
+  bt.forEach(A => { if (!now.tubes.has(A) && sa.has(A)) { aw.delete(A); sa.delete(A); } });
+  now.tubes.forEach(A => { if (!bt.has(A) && !aw.has(A) && !no.has(A)) { aw.add(A); sa.add(A); } });
+  rx.awt = ['U', 'L'].filter(A => aw.has(A)); rx.stdA = ['U', 'L'].filter(A => sa.has(A) && aw.has(A));
 }
 
 /* ---------- the editor's left side ---------- */
@@ -14919,7 +14982,7 @@ function rxmSecs(rx) {
       '<div class="rxBs">' + ['qh', 'earch', 'warch'].map(k => ex(k, rxmLbl(k, ['exp']))).join('') + '</div>' +
       '<div class="rxBs">' + rxBtn('flag', 'mse', 'MSE (TAD-supported)', rx.mse, tag('mse')) + '<span class="rxSub" data-show="mse"><span class="rxLbl">Screw</span>' + RXM_MM.map(m => rxBtn('mseMm', m, m + ' mm', rx.mseMm === m)).join('') + '</span></div>' +
       '<div class="rxRow">' + rxField('screw', 'Screw type', 'text', ' maxlength="40" placeholder="e.g. Click screw, 12 mm"') + '</div>' +
-      '<div class="small muted">One upper expander at a time (the lower fixed expander goes with any). Our expanders get 3D printed bands.</div>') +
+      '<div class="small muted">One upper expander at a time (the lower fixed expander goes with any). Our expanders get 3D printed bands, and an RPE gets archwire tubes on the upper 6s.</div>') +
     rxInfoSec('dist', 'Distalization', '<div class="rxULh"><span></span><span>Right</span><span>Left</span></div>' + RXM_O.dist.map(([k, l]) => rxmRow('dist', k, l, RXM_UNUSED[k] ? 'not used' : tag(P[k]))).join(''), '', !!rxmFoldSum('dist', rx)) +
     rxInfoSec('hold', 'Holding', '<div class="rxBs">' + RXM_O.hold.map(([k, l]) => rxBtn('hold', k, l, (rx.hold || []).includes(k), tag(P[k]))).join('') + '</div>' +
       '<div class="rxSub" data-show="sm"><div class="small muted">Tap the space on the arches with Space maintainer (the band goes on the tooth behind it).</div><div class="rxRow">' + rxField('smTxt', 'More about it', 'text', ' maxlength="40"') + '</div></div>', '', !!rxmFoldSum('hold', rx)) +
@@ -15008,7 +15071,11 @@ RXK[RX_MET] = {
   // facemask hooks taken off take their "where" with them (typing a where puts them on); the bands are 3D printed by Specialty or
   // enclosed by the office, not both
   after: (g, v, on, prev, rx) => { if (g === 'acc' && v === 'fm' && !on) rx.fmTxt = '';
-    if (g === 'flag' && on && v === 'enclosed') rx.printed3d = ''; if (g === 'flag' && on && v === 'printed3d') rx.enclosed = ''; },
+    if (g === 'flag' && on && v === 'enclosed') rx.printed3d = ''; if (g === 'flag' && on && v === 'printed3d') rx.enclosed = '';
+    // archwire tubes tapped by hand are the doctor's: taken off, the RPE doesn't put them back (awtNo — kept in a saved usual too);
+    // put on, they no longer come off with it
+    if (g === 'awt') { rx.stdA = (rx.stdA || []).filter(A => A !== v); const no = new Set(rx.awtNo || []); if (on) no.delete(v); else no.add(v); rx.awtNo = ['U', 'L'].filter(A => no.has(A)); } },
+  models: rx => rxmArches(rx).map(A => ({ A })), // a printed model of each arch with an appliance (rx.js rxEstFees)
   // the anchorage prices follow the 3D printed switch
   syncMore: (w, rx) => { $$('.rxB[data-rxg="tool"]', w).forEach(x => { const em = $('em', x); if (!em || ['onbrace', 'rest', 'sm'].includes(x.dataset.v)) return; em.textContent = rxTag(x.dataset.v === 'band' ? (rx.printed3d ? 'band3d' : 'band') : (rx.printed3d ? 'crown3d' : 'crown'), false, ' ea'); });
     // a distalizer we don't use: its whole row greys out, not just its Right / Left buttons
@@ -15375,6 +15442,7 @@ RXK[RX_FUN] = {
   applies: c => !!c && c.type === 'appliance' && labName(c.lab) === LAB_SPEC && (c.appliances || []).some(a => RXF_APPL.includes(a)),
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['cerec', /cerec|primescan|sirona/i]],
   canon: rxfCanon, summary: rxfSummary, estimate: rxfEstimate, auto: rxfAuto, fill: rxfFill, start: rxfStart,
+  models: rx => rxfArches(rx).map(A => ({ A })), // a printed model of each arch with an appliance (rx.js rxEstFees)
   single: RXF_SINGLE, tools: ['delta', 'ball', 'adams', 'arrowhead', 'c', 'pontic'], tool0: 'delta', toolReset: true,
   defDrop: ['colorU', 'colorL', 'ponticTxt', 'screwOther', 'chk'],
   defClean: d => { d.teeth = Object.fromEntries(Object.entries(d.teeth || {}).filter(([, k]) => RXF_CLASPS.includes(k))); },
