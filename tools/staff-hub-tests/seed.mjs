@@ -54,11 +54,13 @@ export async function fsList(project, coll) {
   return (r.documents || []).map(d => ({ id: d.name.split('/').pop(), data: js({ mapValue: { fields: d.fields || {} } }) }));
 }
 
+export const casesRules = () => fs.readFileSync(new URL('../../nlo-cases-src/firestore.rules', import.meta.url), 'utf8').replace(/__OWNER_EMAIL__/g, 'dr.owner@example.com');
+export async function putRules(p, content) {
+  await j(`${FS}/emulator/v1/projects/${p}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) });
+}
 export async function loadRules() {
-  const cases = fs.readFileSync(new URL('../../nlo-cases-src/firestore.rules', import.meta.url), 'utf8').replace(/__OWNER_EMAIL__/g, 'dr.owner@example.com');
   const hub = fs.readFileSync(new URL('../../staff-hub-firestore.rules', import.meta.url), 'utf8');
-  for (const [p, content] of [['nlo-cases', cases], ['nlo-staff-hub', hub]])
-    await j(`${FS}/emulator/v1/projects/${p}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) });
+  for (const [p, content] of [['nlo-cases', casesRules()], ['nlo-staff-hub', hub]]) await putRules(p, content);
 }
 
 /* ---------- accounts ---------- */

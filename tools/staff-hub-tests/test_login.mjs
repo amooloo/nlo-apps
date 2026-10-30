@@ -36,7 +36,7 @@ const browser = await chromium.launch(CHROME ? { executablePath: CHROME } : {});
 const errors = [];
 function watch(page, tag) {
   page.on('pageerror', e => { errors.push(tag + ': ' + String(e && e.stack || e)); console.log('  PAGEERROR', tag, String(e).slice(0, 300)); });
-  page.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED|net::|Failed to load resource|ERR_BLOCKED|identitytoolkit/.test(m.text())) { errors.push(tag + ': ' + m.text()); console.log('  console.error', tag, m.text().slice(0, 300)); } });
+  page.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED|net::|Failed to load resource|ERR_BLOCKED|identitytoolkit|valid digest in the 'integrity'/.test(m.text())) { errors.push(tag + ': ' + m.text()); console.log('  console.error', tag, m.text().slice(0, 300)); } });
 }
 async function device(opts = {}) {
   const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 860 }, acceptDownloads: true }, opts));
@@ -94,15 +94,21 @@ console.log('0. seeding');
 await E.loadRules();
 const ownerUid = await E.seedOffice();
 const HUB = { email: 'dr.hub@example.com', pw: 'Staff-Hub-Pass-1', pw2: 'Staff-Hub-Pass-2', pw3: 'Staff-Hub-Pass-3' };
-let PW = E.PW; const PW2 = 'New-Cases-Pass-8', PW3 = 'Reset-Cases-Pass-9';
+let PW = E.PW; const PW2 = 'New-Cases-Pass-8', PW3 = 'Reset-Cases-Pass-9', PW4 = 'Reset-Again-Pass-4';
 let hubUid, saltBefore;
 const old = await device();
 {
   const page = old.page;
   await page.goto(OLD);
   await page.waitForSelector('#authToggle', { timeout: 20000 });
+  await sleep(1500);   // (its first sign-in check redraws the form: let it, before typing)
   await page.click('#authToggle');
-  await page.fill('#authEmail', HUB.email); await page.fill('#authPw', HUB.pw); await page.fill('#authPw2', HUB.pw); await page.check('#authAck');
+  await page.waitForSelector('#authPw2', { timeout: 20000 });
+  for (let i = 0; i < 3; i++) {
+    await page.fill('#authEmail', HUB.email); await page.fill('#authPw', HUB.pw); await page.fill('#authPw2', HUB.pw); await page.check('#authAck');
+    await sleep(300);
+    if ((await page.inputValue('#authPw')) === HUB.pw && (await page.inputValue('#authPw2')) === HUB.pw) break;
+  }
   await page.click('#authGo');
   // (the emulator's first transaction after a wipe can take a while: the old page waits up to 25 s for its first save)
   try { await page.waitForFunction(isApp, null, { timeout: 90000 }); }
@@ -167,6 +173,7 @@ console.log('3. first time: link');
   ok(!((await E.fsGet('nlo-cases', 'members/' + ownerUid)).shLink), 'nothing linked yet');
   await page.fill('#ncHubEmail', HUB.email); await page.fill('#ncHubPw', HUB.pw); await page.click('#ncGo');
   ok(await outcome(page) === 'app', 'right Staff Hub password → Staff Hub opens');
+  ok((await page.textContent('#toasts')).includes('Linked to ' + HUB.email + ' · 3 staff profiles'), '…saying which account it linked, and how many staff profiles it has');
   const names = await staffNames(page);
   ok(['Gwen Rodis', 'Kaylee Doty', 'Sarah Betz'].every(n => names.includes(n)), 'its data is all there');
   ok(/^data:image\/jpeg/.test(await page.evaluate(() => loadPhotoDoc('cert1'))), 'the certificate file still opens');
@@ -389,7 +396,224 @@ console.log('16. same password: links by itself');
   ok((await staffNames(p2)).includes('Auto Person'), '…that record');
   const m = await E.fsGet('nlo-cases', 'members/' + ownerUid);
   ok(m.shLink && m.shLink.uid === ownerUid, '…and the link is saved');
+  ok(/Linked by itself to /.test(await p2.textContent('#toasts')), '…and it says which account it linked');
   await ctx.close();
+}
+
+// ---------- 18. this browser used another Staff Hub account: that one is linked, not the one under his NLO Cases email ----------
+console.log('18. the account this browser used is the one linked');
+const rb = await device();   // a browser where the page as it was kept a sign-in to dr.hub (used through 24)
+let B;                       // the new page in it
+{
+  await E.fsDelField('nlo-cases', 'members/' + ownerUid, 'shLink');
+  const op = rb.page;
+  await op.goto(OLD);
+  await op.waitForSelector('#authEmail', { timeout: 20000 });
+  await op.fill('#authEmail', HUB.email); await op.fill('#authPw', HUB.pw3); await op.click('#authGo');
+  await op.waitForFunction(isApp, null, { timeout: 90000 });
+  await op.close();
+  const p = await rb.ctx.newPage(); watch(p, 'p18');
+  await p.goto(PAGE);
+  ok(await signIn(p, E.OWNER.email, PW) === 'link', 'not linked by itself to the Staff Hub account under his NLO Cases email and password, as this browser used another');
+  ok((await p.inputValue('#ncHubEmail')) === HUB.email, '…the one it used is filled in');
+  ok(!((await E.fsGet('nlo-cases', 'members/' + ownerUid)).shLink), '…nothing linked yet');
+  ok(await p.evaluate(() => NC.priv === null && NC.pw === '' && !!NC.me && !('priv' in NC.me) && !('ring' in NC.me)), 'on the link step: no key pair, password or sealed keys in memory');
+  ok(/Keep this password with your NLO Cases recovery code/.test(await p.textContent('#authCard')), 'the link step says to keep Staff Hub’s password with the recovery code');
+  await p.fill('#ncHubPw', HUB.pw3); await p.click('#ncGo');
+  ok(await outcome(p) === 'app', 'linked and open');
+  ok((await p.textContent('#toasts')).includes('Linked to ' + HUB.email + ' · 4 staff profiles'), '…saying which account, with its staff count');
+  ok(await p.evaluate(() => document.getElementById('authCard').innerHTML === ''), 'once open, nothing of the sign-in steps is left in the page');
+  ok(await p.evaluate(pws => ![...document.querySelectorAll('input')].some(i => pws.includes(i.value)), [PW, HUB.pw3]), '…no field holds a password');
+  ok(await p.evaluate(() => !/"priv"|"privPrev"|"ring"/.test(JSON.stringify(NC.me)) && !!NC.me.pub && NC.priv === null && NC.pw === ''), '…and of his NLO Cases record only the public parts are kept');
+  await p.evaluate(() => go('settings')); await p.waitForSelector('#acctCard');
+  const acct = await p.textContent('#acctCard');
+  ok(acct.includes(HUB.email) && /Link a different account/.test(acct) && /keep it with your NLO Cases recovery code/.test(acct), 'Settings: which Staff Hub account, “Link a different account”, keep its password with the recovery code');
+  await p.screenshot({ path: 'shots/07-settings-account.png' });
+  await p.close();
+}
+
+// ---------- 19. an older Staff Hub tab still open when the new page signs in: its unsaved changes aren't lost ----------
+console.log('19. an old tab during the switch');
+{
+  const A = await rb.ctx.newPage();   // (the page as it was: what it logs once cut off isn't checked here)
+  await A.goto(OLD);
+  await A.waitForSelector('#authEmail', { timeout: 20000 });
+  await A.fill('#authEmail', HUB.email); await A.fill('#authPw', HUB.pw3); await A.click('#authGo');
+  await A.waitForFunction(isApp, null, { timeout: 90000 });
+  B = await rb.ctx.newPage(); watch(B, 'B');
+  await B.goto(PAGE);
+  ok(await signIn(B, E.OWNER.email, PW) === 'app', 'with an old Staff Hub tab open, the new page signs in');
+  let cut = false; try { await A.waitForFunction(() => !fbAuth.currentUser, null, { timeout: 15000 }); cut = true; } catch { }
+  ok(cut, 'the old tab’s kept sign-in is ended');
+  await A.evaluate(() => { importStaffList([{ name: 'Old Tab Person', role: 'Assistant' }]); });
+  let took = false; try { await B.waitForFunction(() => !!S && S.staff.some(x => x.name === 'Old Tab Person'), null, { timeout: 15000 }); took = true; } catch { }
+  ok(took, 'a change made in the old tab (which can’t save any more) is brought into the new one');
+  ok(await synced(B) && (await hubRecord(hubUid, HUB.pw3)).st.staff.some(x => x.name === 'Old Tab Person'), '…and saved to the server');
+  await B.evaluate(() => { S.staff = S.staff.filter(x => x.name !== 'Old Tab Person'); persist(); });
+  ok(await synced(B), 'removed again in the new tab');
+  await A.evaluate(() => { importStaffList([{ name: 'Old Tab Second', role: 'Assistant' }]); });
+  try { await B.waitForFunction(() => !!S && S.staff.some(x => x.name === 'Old Tab Second'), null, { timeout: 15000 }); } catch { }
+  ok(await synced(B), 'the old tab’s next change comes in and saves');
+  const st = (await hubRecord(hubUid, HUB.pw3)).st;
+  ok(st.staff.some(x => x.name === 'Old Tab Second') && !st.staff.some(x => x.name === 'Old Tab Person'), '…without bringing back what was removed here');
+  await A.close();
+  // a draft another tab left, found at a save with nothing new here: merged in and saved, not cleared
+  await B.evaluate(async () => {
+    const base = JSON.parse(fbBaseJSON), local = JSON.parse(fbBaseJSON);
+    local.staff.push({ id: 'drafted1', name: 'Draft Person', status: 'active', created: Date.now(), role: 'Assistant', employment: 'Full-time', hireDate: '', birthday: '', phone: '', email: '', profileNote: '', nextReview: '' });
+    localStorage.setItem(shDraftKey(), JSON.stringify({ v: 1, at: Date.now(), salt: b64(keySalt), baseWid: fbBaseWid, base: await encryptJSON(base, cryptoKey), local: await encryptJSON(local, cryptoKey) }));
+    await shSave();
+  });
+  let dp = false; try { await B.waitForFunction(() => !!S && S.staff.some(x => x.name === 'Draft Person'), null, { timeout: 10000 }); dp = true; } catch { }
+  ok(dp && await synced(B) && (await hubRecord(hubUid, HUB.pw3)).st.staff.some(x => x.name === 'Draft Person'), 'a draft left by another tab is merged in and saved at the next save, not cleared');
+  await sleep(800);
+  ok(await B.evaluate(() => !shDraftRead()), '…then cleared');
+  // two older tabs cut off at the same moment (their drafts share a base): one's draft never undoes the other's
+  const two = (name, at) => B.evaluate(async ([name, at]) => {
+    window.__twoBase = window.__twoBase || fbBaseJSON;   // (the record as it was when both were cut off)
+    const base = JSON.parse(window.__twoBase), local = JSON.parse(window.__twoBase);
+    local.staff.push({ id: 'two-' + name.replace(/\W/g, ''), name, status: 'active', created: 1, role: 'Assistant', employment: 'Full-time', hireDate: '', birthday: '', phone: '', email: '', profileNote: '', nextReview: '' });
+    localStorage.setItem(shDraftKey(), JSON.stringify({ v: 1, at, salt: b64(keySalt), baseWid: 'two-tabs-cut-off', base: await encryptJSON(base, cryptoKey), local: await encryptJSON(local, cryptoKey) }));
+    await shDraftAbsorb();
+  }, [name, at]);
+  const both = async () => { const n = await staffNames(B); return n.includes('Two Tab One') && n.includes('Two Tab Two'); };
+  await two('Two Tab One', Date.now()); await synced(B);
+  await two('Two Tab Two', Date.now()); await synced(B);
+  ok(await both(), 'two old tabs’ drafts with the same base: the second one’s change comes in without undoing the first’s');
+  await two('Two Tab One', Date.now()); await synced(B);
+  ok(await both(), '…and the first one writing its draft again doesn’t undo the second’s');
+  const st2 = (await hubRecord(hubUid, HUB.pw3)).st;
+  ok(st2.staff.some(x => x.name === 'Two Tab One') && st2.staff.some(x => x.name === 'Two Tab Two'), '…both on the server');
+}
+
+// ---------- 20. Lock with a change not saved yet, or with a save on its way ----------
+console.log('20. lock mid-save');
+{
+  await B.evaluate(() => { importStaffList([{ name: 'Locked Before Save', role: 'Assistant' }]); lockNow(); });
+  await B.waitForSelector('#ncLoginForm');
+  ok(await signIn(B, E.OWNER.email, PW) === 'app' && (await staffNames(B)).includes('Locked Before Save'), 'Lock before a change saved: it’s there at the next sign-in');
+  ok(await synced(B) && (await hubRecord(hubUid, HUB.pw3)).st.staff.some(x => x.name === 'Locked Before Save'), '…and saves');
+  await B.evaluate(() => { importStaffList([{ name: 'Saved While Locking', role: 'Assistant' }]); fbWriteNow(); lockNow(); });
+  await B.waitForSelector('#ncLoginForm');
+  ok(await hubSignedOut(B), 'Lock with a save on its way: Staff Hub’s account signed out once it landed');
+  ok((await hubRecord(hubUid, HUB.pw3)).st.staff.filter(x => x.name === 'Saved While Locking').length === 1, '…and it landed');
+  ok(await signIn(B, E.OWNER.email, PW) === 'app' && (await staffNames(B)).filter(n => n === 'Saved While Locking').length === 1, 'next sign-in: there, once');
+  await sleep(800);
+  ok(await synced(B) && await B.evaluate(() => !shDraftRead()), '…no draft left over');
+  // another tab's draft merged in here, Lock before that save went out, then that tab wrote its draft again (with more)
+  // over this one's: the next sign-in brings all of it back
+  await B.evaluate(async () => {
+    const base = JSON.parse(fbBaseJSON);
+    const mk = n => ({ id: 'lk-' + n.replace(/\W/g, ''), name: n, status: 'active', created: 1, role: 'Assistant', employment: 'Full-time', hireDate: '', birthday: '', phone: '', email: '', profileNote: '', nextReview: '' });
+    const l1 = JSON.parse(fbBaseJSON); l1.staff.push(mk('Lock Old One'));
+    const l2 = JSON.parse(fbBaseJSON); l2.staff.push(mk('Lock Old One'), mk('Lock Old Two'));
+    const key = cryptoKey, salt = b64(keySalt), dk = shDraftKey();   // (the old tab still has the key after this tab locks)
+    const put = async (l, at) => localStorage.setItem(dk, JSON.stringify({ v: 1, at, salt, baseWid: 'lock-old-tab', base: await encryptJSON(base, key), local: await encryptJSON(l, key) }));
+    await put(l1, Date.now());
+    await shDraftAbsorb();               // merged in here (its save is queued)…
+    lockNow();                           // …but Lock comes first
+    await new Promise(r => setTimeout(r, 400));
+    await put(l2, Date.now() + 1);       // the old tab writes again, over this tab's draft
+  });
+  await B.waitForSelector('#ncLoginForm');
+  ok(await signIn(B, E.OWNER.email, PW) === 'app', 'signs in again');
+  const ln = await staffNames(B);
+  ok(ln.includes('Lock Old One') && ln.includes('Lock Old Two'), 'another tab’s change merged in, locked before it saved, then written over by that tab: all of it comes back');
+  ok(await synced(B) && (await hubRecord(hubUid, HUB.pw3)).st.staff.filter(x => /^Lock Old /.test(x.name)).length === 2, '…and saves');
+}
+
+// ---------- 21. Settings → Link a different account ----------
+console.log('21. link a different account');
+{
+  const relink = async () => { await B.evaluate(() => go('settings')); await B.waitForSelector('[data-act=ncRelink]'); await B.click('[data-act=ncRelink]'); await B.click('#cmYes'); await B.waitForSelector('#ncLoginForm'); };
+  await relink();
+  ok(/enter the Staff Hub account to link/.test(await okOf(B)) && !(await B.evaluate(isApp)), 'locks, and says what’s next');
+  ok(await signIn(B, E.OWNER.email, PW) === 'link' && /Link a different Staff Hub account/.test(await B.textContent('#authCard')) && (await B.inputValue('#ncHubEmail')) === '', 'after signing in: the link step, for another account');
+  await B.click('[data-act=ncCancel]');
+  ok(await signIn(B, E.OWNER.email, PW) === 'app' && (await staffNames(B)).includes('Wila Jordan'), 'Cancel keeps the current one');
+  await relink();
+  ok(await signIn(B, E.OWNER.email, PW) === 'link', 'again');
+  await B.fill('#ncHubEmail', E.OWNER.email); await B.fill('#ncHubPw', PW); await B.click('#ncGo');
+  ok(await outcome(B) === 'app' && (await staffNames(B)).includes('Auto Person'), 'the other account’s Staff Hub data opens');
+  ok((await B.textContent('#toasts')).includes('Linked to ' + E.OWNER.email), '…it says so');
+  ok((await E.fsGet('nlo-cases', 'members/' + ownerUid)).shLink.uid === ownerUid, '…and it’s the one linked now');
+  await relink();
+  ok(await signIn(B, E.OWNER.email, PW) === 'link', 'and back');
+  await B.fill('#ncHubEmail', HUB.email); await B.fill('#ncHubPw', HUB.pw3); await B.click('#ncGo');
+  ok(await outcome(B) === 'app' && (await staffNames(B)).includes('Wila Jordan') && (await E.fsGet('nlo-cases', 'members/' + ownerUid)).shLink.uid === hubUid, '…to dr.hub’s again');
+}
+
+// ---------- 22. if NLO Cases' rules wouldn't keep the link: Staff Hub still opens, and says so ----------
+console.log('22. link not kept by the rules');
+{
+  const rules = E.casesRules();
+  const strict = rules.replace("allow update: if (isOwner() && (uid != request.auth.uid || (request.resource.data.role == 'owner' && request.resource.data.active == true)))", 'allow update: if (isOwner() && uid != request.auth.uid)');
+  ok(strict !== rules, '(NLO Cases rules without the owner updating his own record)');
+  await E.putRules('nlo-cases', strict);
+  await E.fsDelField('nlo-cases', 'members/' + ownerUid, 'shLink');
+  const { ctx, page: p } = await device(); watch(p, 'p22');
+  await p.goto(PAGE);
+  ok(await signIn(p, E.OWNER.email, PW) === 'app', 'still opens (linking by itself: the same password)');
+  ok(/didn’t keep the link/.test(await p.textContent('#toasts')), '…and says the link wasn’t kept');
+  ok(!((await E.fsGet('nlo-cases', 'members/' + ownerUid)).shLink), '…(nothing was saved)');
+  await ctx.close();
+  await E.loadRules();
+}
+
+// ---------- 23. the link step times out; dictation counts as activity; a minute's notice ----------
+console.log('23. activity');
+{
+  await lock(B);
+  ok(await signIn(B, E.OWNER.email, PW) === 'link', 'not linked (after 22): the link step');
+  await sleep(1500);
+  await B.evaluate(() => { NC.idleMin = 0.05; lastActivity = 0; });
+  let out = false; try { await B.waitForFunction(() => !!document.querySelector('#ncLoginForm') && !NC.auth.currentUser, null, { timeout: 25000 }); out = true; } catch { }
+  ok(out && /Signed out after/.test(await okOf(B)), 'the link step ends after NLO Cases’ idle minutes, signed out');
+  await B.evaluate(() => { NC.idleMin = 10; });
+  ok(await signIn(B, E.OWNER.email, PW) === 'link', 'signing in again: the link step');
+  await B.fill('#ncHubPw', HUB.pw3); await B.click('#ncGo');
+  ok(await outcome(B) === 'app', 'linked again');
+  ok(await B.evaluate(() => { lastActivity = 0; const i = document.createElement('textarea'); document.body.appendChild(i); i.dispatchEvent(new Event('input', { bubbles: true })); i.remove(); return Date.now() - lastActivity < 2000; }), 'typing without key presses (dictation, autofill) counts as activity');
+  await sleep(2000);   // (NLO Cases' idle minutes arrive just after opening: set the short time after them)
+  await B.evaluate(() => { NC.idleMin = 1.2; lastActivity = Date.now() - 30000; });
+  let warned = false; try { await B.waitForFunction(() => /locks in about a minute/.test(document.getElementById('toasts').textContent), null, { timeout: 20000 }); warned = true; } catch { }
+  ok(warned, 'a minute’s notice before the idle lock');
+  await B.evaluate(() => { lastActivity = Date.now(); NC.idleMin = 10; });
+  await sleep(16000);
+  ok(await B.evaluate(isApp), '…and activity keeps it open');
+}
+
+// ---------- 24. a new recovery code, then a reset by email, with no Staff Hub sign-in in between ----------
+console.log('24. a new code, then a reset');
+{
+  await lock(B);
+  const code3 = await E.casesNewRecoveryCode();
+  await E.setPassword(E.OWNER.email, PW, PW4);
+  await E.casesRecover(PW4, code3);
+  PW = PW4;
+  ok(await signIn(B, E.OWNER.email, PW) === 'recover', 'asks for the recovery code');
+  await B.fill('#ncRecCode', code3); await B.click('#ncGo');
+  ok(await outcome(B) === 'link' && /from an older code/.test(await errOf(B)), 'its copy is from the older code: Staff Hub’s own password instead (why it’s kept with the code)');
+  ok((await B.inputValue('#ncHubEmail')) === HUB.email, '…email filled in');
+  await B.fill('#ncHubPw', HUB.pw3); await B.click('#ncGo');
+  ok(await outcome(B) === 'app' && (await staffNames(B)).includes('Wila Jordan'), '…and it opens');
+  const m = await E.fsGet('nlo-cases', 'members/' + ownerUid), r = await E.fsGet('nlo-cases', 'meta/recovery');
+  ok(m.shLink.pubX === m.pub.x && m.shLink.recX === r.pub.x, 'linked again: his new key pair, the new code');
+  await rb.ctx.close();
+}
+
+// ---------- 25. the PDF reader loads only as the exact file ----------
+console.log('25. PDF reader integrity');
+{
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const real = fs.readFileSync(new URL('./node_modules/pdfjs-dist/build/pdf.min.js', import.meta.url));
+  for (const [body, want, what] of [[Buffer.concat([real, Buffer.from('\n//changed')]), false, 'a changed copy of the PDF reader is refused'], [real, true, 'the exact PDF reader loads']]) {
+    const { ctx, page: p } = await device();
+    await ctx.route(PDFJS, r => r.fulfill({ body, contentType: 'application/javascript', headers: { 'Access-Control-Allow-Origin': '*' } }));
+    await p.goto(PAGE); await p.waitForSelector('#ncLoginForm');
+    ok(await p.evaluate(() => loadPdfJs().then(() => !!window.pdfjsLib, () => false)) === want, what);
+    await ctx.close();
+  }
 }
 
 // ---------- 17. phone ----------

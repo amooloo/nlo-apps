@@ -21,7 +21,15 @@ Everything here is a made-up office on the Firebase emulators: nothing live is r
   Cases has the recovery code; wrong and loosely typed code), a new recovery code (the copy follows it), an older Staff Hub
   changing Staff Hub's own password (while open: the prompt; while closed: asked once at the next sign-in), the login
   turned off while open, the idle lock at NLO Cases' minutes, linking by itself when the passwords are the same, a phone,
-  the card staying centred, and no page errors. 90 checks (`--quick` skips the ~1.5 min idle lock: 87).
+  the card staying centred, and no page errors. After the independent review (same day): never linking by itself to
+  the account under his NLO Cases email when the browser used another; every link saying which account (and its staff
+  count); nothing secret left in the page once open; Settings → "Link a different account" (and Cancel keeping the
+  current one); an old Staff Hub tab cut off by the new sign-in (its unsaved changes merged into the new tab and saved;
+  something removed there not coming back); a draft another tab left being merged, not cleared; Lock before a save and
+  with a save on its way; NLO Cases' rules not keeping the link (still opens, says so); the link step timing out;
+  dictation counting as activity; a minute's notice before the idle lock; a new recovery code and then a reset with no
+  Staff Hub sign-in in between (Staff Hub's own password is the way back); the PDF reader refused unless it's the exact
+  file; two old tabs cut off together not undoing each other's drafts; a change merged in from another tab, locked before it saved and then written over by that tab, coming back at the next sign-in. 151 checks (`--quick` skips the ~1.5 min idle lock: 148).
 
 Run (Java and Node 20+):
 
@@ -34,6 +42,7 @@ Run (Java and Node 20+):
     NO_PROXY=localhost,127.0.0.1 node test_login.mjs            # ~4 min; --quick ~3 min
 
 The page's Firebase SDK (gstatic 10.12.2) is served from `node_modules/firebase` (`FIREBASE_SDK_DIR` to change it) and every
-app it makes is pointed at the emulators by an init script; other outside requests are refused. `CHROME` = a Chromium to use
+app it makes is pointed at the emulators by an init script; other outside requests are refused (except the PDF reader in
+check 25, served from `node_modules/pdfjs-dist`, the same file as cdnjs'). `CHROME` = a Chromium to use
 if Playwright's own isn't installed. The emulators share one sign-in pool between both projects (the page's two Firebase
 apps), which is how the same-password case is checked. Screenshots go to `shots/`.
