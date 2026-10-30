@@ -337,6 +337,7 @@ RXK[RX_FUN] = {
   applies: c => !!c && c.type === 'appliance' && labName(c.lab) === LAB_SPEC && (c.appliances || []).some(a => RXF_APPL.includes(a)),
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['cerec', /cerec|primescan|sirona/i]],
   canon: rxfCanon, summary: rxfSummary, estimate: rxfEstimate, auto: rxfAuto, fill: rxfFill, start: rxfStart,
+  models: rx => rxfArches(rx).map(A => ({ A })), // a printed model of each arch with an appliance (rx.js rxEstFees)
   single: RXF_SINGLE, tools: ['delta', 'ball', 'adams', 'arrowhead', 'c', 'pontic'], tool0: 'delta', toolReset: true,
   defDrop: ['colorU', 'colorL', 'ponticTxt', 'screwOther', 'chk'],
   defClean: d => { d.teeth = Object.fromEntries(Object.entries(d.teeth || {}).filter(([, k]) => RXF_CLASPS.includes(k))); },
