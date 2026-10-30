@@ -145,8 +145,10 @@ const INVITE = 'Partners Dental Solutions is inviting you to a scheduled Zoom me
   await open(gid); await p.waitForSelector('#histBox .hist:has-text("Zoom call scheduled")', { timeout: 5000 }).catch(() => { });
   check(/moved it to Zoom call scheduled \(and set Zoom call, Zoom link\)/.test(await p.textContent('#histBox')), 'history: moved it to Zoom call scheduled (and set Zoom call, Zoom link)');
   // after the call: Design approved — no Join Zoom anywhere
-  await board(); await p.click('.kc[data-id="' + gid + '"] .adv'); await p.waitForFunction(id => findCase(id).stage === 'approved', gid); await p.waitForTimeout(200);
-  check(!(await p.isVisible('.kc[data-id="' + gid + '"] a.flag.zm')), 'Design approved: the card’s Join Zoom is gone');
+  await board(); await p.click('.kc[data-id="' + gid + '"] .adv'); await p.waitForFunction(id => findCase(id).stage === 'approved', gid);
+  // (the board redraws a moment after the move: wait for the card in its new column)
+  await p.waitForSelector('section[aria-label="Design approved"] .kc[data-id="' + gid + '"]', { timeout: 10000 }).catch(() => { });
+  check(await p.isVisible('section[aria-label="Design approved"] .kc[data-id="' + gid + '"]') && !(await p.isVisible('.kc[data-id="' + gid + '"] a.flag.zm')), 'Design approved: the card’s Join Zoom is gone');
   await open(gid); check(!(await p.isVisible('#dZoom')) && !(await p.isVisible('#mpBox a[data-act=zoomJoin]')), '… and the header’s and the MARPE box’s');
   await closeAll();
   // a completed case shows none either
