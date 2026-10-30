@@ -246,6 +246,12 @@ const FB = {
   setStock(itemId, qty) { return FB.save(b => b.update(FB.itemRef(itemId), Object.assign({ qty }, FB.st()))); },
   patchItem(id, patch) { return FB.save(b => FB.setPatch(b, FB.itemRef(id), patch)); },
   putItem(item) { return FB.save(b => b.set(FB.itemRef(item.id), Object.assign(FB.clean(item), FB.st()))); },
+  /* a product's sizes (families.js) in one save: new supplies, and changes to ones already there ([[itemId, patch], …]) */
+  famSave(puts, patches) {
+    puts = (puts || []).filter(x => x && x.id); patches = (patches || []).filter(x => x && x[0]);
+    if (!puts.length && !patches.length) return Promise.resolve();
+    return FB.save(b => { puts.forEach(it => b.set(FB.itemRef(it.id), Object.assign(FB.clean(it), FB.st()))); patches.forEach(([id, p]) => FB.setPatch(b, FB.itemRef(id), p)); });
+  },
   patchOrder(id, patch) { return FB.save(b => FB.setPatch(b, FB.orderRef(id), patch)); },
   putOrder(o) { return FB.save(b => b.set(FB.orderRef(o.id), Object.assign(FB.clean(o), FB.st()))); },
   /* an order's status, in one step: fn(current) gives the new one, or undefined to leave it (then this fails 'aborted');

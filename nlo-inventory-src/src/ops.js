@@ -74,6 +74,32 @@ async function cartAdd(item, qty, opt) {
   B.alert([{ t: 'cart', at: Date.now(), by: s.by, lines: alertLines([Object.assign({}, cartLineFor(item, qty, s, opt), { vendor: added.vendor })]), inCart: S.D.cart.length }]);
   return added;
 }
+/* several supplies at once (a product's sizes, families.js), in one step and one alert: [[item, qty], …]. Each is added as cartAdd
+   adds it (more of a line already there, else a line of its own); a note goes on the new lines, and beside the note of a line it's
+   added to. */
+async function cartAddMany(pairs, opt) {
+  opt = opt || {}; pairs = listOf(pairs).filter(p => p && p[0] && Number(p[1]) > 0); if (!pairs.length) return [];
+  const s = stamp(), boss = isOwnerAccount(), added = [];
+  await B.cart((list, ok) => {
+    added.length = 0;
+    pairs.forEach(([item, qty]) => {
+      qty = Number(qty) || 1;
+      const ex = list.find(c => c && c.itemId === item.id); let a;
+      if (ex) {
+        const conv = linePer(ex) !== perBuy(item) ? perBuy(item) / linePer(ex) : 1, more = round2(qty * conv);
+        ex.qty = round2((Number(ex.qty) || 0) + more); ex.trail = trailAdd(ex.trail, 'more', s, conv !== 1 ? { qty: more, as: qtyUnit(qty, buyUnit(item)) } : { qty });
+        /* (a note goes beside the one already on the line, never over someone else's) */
+        if (opt.note && !String(ex.note || '').includes(opt.note)) { const nn = ex.note ? ex.note + ' · ' + opt.note : opt.note; ex.note = nn.length > 300 ? nn.slice(0, 299) + '…' : nn; }
+        a = ex;
+      } else { a = cartLineFor(item, qty, s, opt); list.push(a); }
+      if (boss) ok[a.lineId] = okStamp(a, s);
+      added.push(a);
+    });
+    return list;
+  });
+  B.alert([{ t: 'cart', at: Date.now(), by: s.by, lines: alertLines(pairs.map(([item, qty], k) => Object.assign({}, cartLineFor(item, qty, s, opt), { vendor: (added[k] || {}).vendor || opt.vendor || '' }))), inCart: S.D.cart.length }]);
+  return added.slice();
+}
 async function cartSetQty(itemId, qty) {
   qty = Math.max(0, Number(qty) || 0); const s = stamp(), boss = isOwnerAccount(); let was = 0, line = null;
   if (!qty) return cartRemove(itemId);
@@ -368,6 +394,20 @@ async function stockStep(item, delta, type, note, setTo, extra) {
   await B.addLog([logEntry(Object.assign({ itemId: item.id, itemName: item.name, delta: round2(delta), note: note || null, type }, extra || {}), s)]);
 }
 
+/* several supplies counted at once (a product's sizes): each set to its count and stamped, in one save, then logged as counts
+   (pairs: [[item, the count], …]) */
+async function countMany(pairs, note) {
+  pairs = listOf(pairs).filter(p => p && p[0]); if (!pairs.length) return;
+  const s = stamp(), patches = [], log = [];
+  pairs.forEach(([it, n]) => {
+    const live = Number((itemById(it.id) || it).qty) || 0, to = Math.max(0, Number(n) || 0);
+    patches.push([it.id, { qty: to, chk: s.at, chkBy: s.by }]);
+    log.push(logEntry({ itemId: it.id, itemName: it.name, delta: round2(to - live), note: note || 'Counted', type: 'count' }, s));
+  });
+  await B.patchItems(patches);
+  await B.addLog(log);
+}
+
 /* ---------- supplies ---------- */
 async function saveItem(item, isNew) {
   const s = stamp(); item = Object.assign({}, item);
@@ -377,7 +417,13 @@ async function saveItem(item, isNew) {
   return item;
 }
 async function archiveItem(item, on) { const s = stamp(); await B.patchItem(item.id, { archived: !!on, archivedBy: on ? s.by : null, archivedAt: on ? s.at : null }); }
-async function deleteItem(item) { const s = stamp(); await B.patchItem(item.id, { deleted: true, deletedAt: s.at, deletedBy: s.by }); }
+async function deleteItem(item) {
+  const s = stamp(), del = [item.id, { deleted: true, deletedAt: s.at, deletedBy: s.by }];
+  /* (a product left with one size by it is no product any more: families.js) */
+  const left = famId(item) ? famMembers(item.fam, true).filter(m => m.id !== item.id) : [];
+  if (left.length === 1) return B.patchItems([del, [left[0].id, famOffPatch(left[0], s)]]);
+  await B.patchItem(item.id, del[1]);
+}
 /* a vendor typed on a supply that isn't in the directory yet gets added to it */
 function ensureVendors(names) {
   const have = new Set(S.D.vendors.map(v => String(v.name || '').trim().toLowerCase()));

@@ -82,21 +82,27 @@ VIEWS.supplies = {
   render() {
     const u = S.ui.sup || (S.ui.sup = { cat: '', show: '', sort: 'cat' });
     const list = supVisible();
-    const counts = {}; activeItems().forEach(i => { counts[i.cat] = (counts[i.cat] || 0) + 1; });
-    let h = '<div class="chips">' + '<button class="chip' + (!u.cat ? ' on' : '') + '" data-act="supCat" data-c="">All<span class="c">' + activeItems().length + '</span></button>' +
+    /* (a product in sizes is one card, so it counts once: families.js) */
+    const counts = {}, seen = new Set(); activeItems().forEach(i => { const k = i.cat + '|' + (famId(i) || i.id); if (seen.has(k)) return; seen.add(k); counts[i.cat] = (counts[i.cat] || 0) + 1; });
+    const total = new Set(activeItems().map(i => famId(i) || i.id)).size;
+    const ents = supEntries(list, u.show === 'archived');
+    let h = '<div class="chips">' + '<button class="chip' + (!u.cat ? ' on' : '') + '" data-act="supCat" data-c="">All<span class="c">' + total + '</span></button>' +
       CATEGORIES.filter(c => counts[c.id]).map(c => '<button class="chip' + (u.cat === c.id ? ' on' : '') + '" data-act="supCat" data-c="' + c.id + '">' + esc(c.label) + '<span class="c">' + counts[c.id] + '</span></button>').join('') + '</div>';
     const opt = (v, l) => '<option value="' + v + '"' + (u.show === v ? ' selected' : '') + '>' + l + '</option>';
     h += '<div class="filters"><select data-chg="supShow" aria-label="Show">' + opt('', 'Every supply') + opt('cart', 'In the cart') + opt('order', 'On order') + opt('low', 'Below its minimum') + opt('exp', 'Expiring soon') + opt('archived', 'Archived') + '</select>' +
       '<select data-chg="supSort" aria-label="Sort">' + ['cat:By category', 'name:A–Z', 'vendor:By vendor', 'recent:Recently ordered'].map(x => { const [v, l] = x.split(':'); return '<option value="' + v + '"' + (u.sort === v ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select>' +
       '<div class="seg" role="group" aria-label="Show as"><button data-act="supLook" data-l="grid" aria-pressed="' + (supLook() === 'grid') + '">' + ic('grid', 14) + 'Photos</button><button data-act="supLook" data-l="list" aria-pressed="' + (supLook() === 'list') + '">' + ic('list', 14) + 'List</button></div>' +
-      '<span class="muted small">' + list.length + ' suppl' + (list.length === 1 ? 'y' : 'ies') + '</span></div>';
+      '<span class="muted small">' + ents.length + ' suppl' + (ents.length === 1 ? 'y' : 'ies') + '</span></div>';
     if (u.show === 'low') h += '<div class="notice info">Stock counts aren’t always up to date, so treat this as a hint and check the shelf.</div>';
+    if (!S.q && !u.show) h += famHintHTML();
     if (!list.length) return h + '<div class="card"><div class="empty">' + (S.q ? 'Nothing matches “' + esc(S.q) + '”. <button class="linkBtn" data-act="itemNew">Add it as a new supply</button>' : 'Nothing here.') + '</div></div>';
     let body = '', cat = null, grp = null; const grid = supLook() === 'grid';
-    list.slice(0, 600).forEach(i => {
-      if (u.sort === 'cat' && i.cat !== cat) { cat = i.cat; grp = null; body += '<div class="catHead"><i style="background:' + catColor(cat) + '"></i>' + esc(catLabel(cat)) + '<span class="c">' + list.filter(x => x.cat === cat).length + '</span></div>'; }
+    const catN = {}; ents.forEach(e => { const r = e.it || e.hits[0]; catN[r.cat] = (catN[r.cat] || 0) + 1; });
+    ents.slice(0, 600).forEach(e => {
+      const i = e.it || e.hits[0];   // (a product sits where its first size does)
+      if (u.sort === 'cat' && i.cat !== cat) { cat = i.cat; grp = null; body += '<div class="catHead"><i style="background:' + catColor(cat) + '"></i>' + esc(catLabel(cat)) + '<span class="c">' + catN[cat] + '</span></div>'; }
       if (u.sort === 'cat' && i.group && i.group !== grp) { grp = i.group; body += '<div class="grpHead">' + esc(grp) + '</div>'; }
-      body += grid ? itemCardHTML(i) : itemRowHTML(i);
+      body += e.it ? (grid ? itemCardHTML(e.it) : itemRowHTML(e.it)) : (grid ? famCardHTML(e) : famRowHTML(e));
     });
     return h + (grid ? '<div class="pgrid">' + body + '</div>' : '<div class="card">' + body + '</div>');
   }
@@ -145,8 +151,10 @@ ACT.addGo = t => {
 DRAWERS.item = id => {
   const it = itemById(id); if (!it) return '';
   const srcs = allSources(it), c = inCartLine(id), os = openOrdersWith(id), per = perBuy(it);
-  const hasPic = !!photoOf(it);
-  let h = '<div class="dHd">' + (hasPic ? '' : '<button class="thumb lg addPic" data-act="itemEdit" data-id="' + esc(id) + '" title="Add a photo">' + ic('camera', 26) + '<span>Add a photo</span></button>') + '<div style="flex:1;min-width:0"><h3>' + esc(it.name) + '</h3><div class="sub"><span class="badge" style="background:' + catColor(it.cat) + '22;color:' + catColor(it.cat) + '">' + esc(catLabel(it.cat)) + '</span>' + (it.group ? '<span class="badge">' + esc(it.group) + '</span>' : '') + (it.location ? '<span class="badge">' + ic('pin', 12) + esc(it.location) + '</span>' : '') + (it.archived ? '<span class="badge">Archived</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">' +
+  const hasPic = !!photoOf(it), fid = famId(it), sibs = fid ? famMembers(fid, true) : [];
+  /* one size of a product (families.js): the product is a tap away */
+  const famChip = fid ? '<button class="badge famB famLink" data-act="openFam" data-fam="' + esc(fid) + '" title="See every size">' + ic('layers', 12) + 'One of ' + esc(sibs.length) + ' · ' + esc(it.famName || '') + ' ›</button>' : '';
+  let h = '<div class="dHd">' + (hasPic ? '' : '<button class="thumb lg addPic" data-act="itemEdit" data-id="' + esc(id) + '" title="Add a photo">' + ic('camera', 26) + '<span>Add a photo</span></button>') + '<div style="flex:1;min-width:0"><h3>' + esc(it.name) + '</h3><div class="sub">' + famChip + '<span class="badge" style="background:' + catColor(it.cat) + '22;color:' + catColor(it.cat) + '">' + esc(catLabel(it.cat)) + '</span>' + (it.group ? '<span class="badge">' + esc(it.group) + '</span>' : '') + (it.location ? '<span class="badge">' + ic('pin', 12) + esc(it.location) + '</span>' : '') + (it.archived ? '<span class="badge">Archived</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">' +
     (hasPic ? '<div class="dHero" data-act="viewPhoto" data-id="' + esc(id) + '" role="button" tabindex="0" title="See it full size">' + photoImgHTML(it, true) + '<span class="pzoom">' + ic('zoom', 16) + '</span></div>' : '');
   h += '<div class="btnRow" style="margin-top:0">' + (it.archived ? '' : '<button class="btn btn-teal" data-act="drawerAdd" data-id="' + esc(id) + '">' + ic('cart', 16) + (c ? 'Add more' : 'Add to cart') + '</button>') +
     '<button class="btn btn-sec" data-act="countIt" data-id="' + esc(id) + '">' + ic('count', 16) + 'Count</button><button class="btn btn-ghost" data-act="itemEdit" data-id="' + esc(id) + '">' + ic('edit', 15) + 'Edit</button></div>';
@@ -179,6 +187,8 @@ DRAWERS.item = id => {
   const steps = S.D.log.filter(e => e.itemId === id && (e.type === 'use' || e.type === 'count' || e.type === 'adjust' || e.type === 'receive' && !e.orderId)).slice(0, 10);
   if (steps.length) h += '<div class="sec"><h5>Stock steps</h5>' + steps.map(e => '<div class="hist"><time>' + esc(fmtWhen(e.date)) + '</time><span style="flex:1">' + esc(e.type === 'count' ? 'Counted (' + (e.delta > 0 ? '+' : '') + qtyFmt(e.delta) + ')' : e.type === 'use' ? 'Used ' + qtyFmt(Math.abs(e.delta)) : (e.delta > 0 ? '+' : '') + qtyFmt(e.delta)) + (e.note ? ' · ' + esc(plainText(e.note, 60)) : '') + (e.by ? ' · ' + esc(e.by) : '') + '</span></div>').join('') + '</div>';
   h += '<div class="sec"><h5>More</h5><div class="btnRow" style="margin-top:0"><button class="btn btn-ghost" data-act="qrIt" data-id="' + esc(id) + '">' + ic('scan', 15) + 'QR label</button>' +
+    (it.archived ? '' : fid ? '<button class="btn btn-ghost" data-act="famOut" data-id="' + esc(id) + '">' + ic('grid', 15) + 'Take it out of ' + esc(plainText(it.famName || 'the product', 40)) + '</button>'
+      : '<button class="btn btn-ghost" data-act="famCombine" data-id="' + esc(id) + '" title="Make it and its other sizes one product">' + ic('layers', 15) + 'Combine with its other sizes</button>') +
     (isAdmin() ? '<button class="btn btn-ghost" data-act="archiveIt" data-id="' + esc(id) + '">' + ic('archive', 15) + (it.archived ? 'Bring back' : 'Archive') + '</button><button class="btn btn-ghost" data-act="deleteIt" data-id="' + esc(id) + '" style="color:var(--coral-700)">' + ic('trash', 15) + 'Delete</button>' : '') + '</div>' +
     (it.createdBy || it.updatedBy ? '<div class="hint">' + (it.createdBy ? 'Added by ' + esc(it.createdBy) + ' ' + esc(fmtWhen(it.createdAt)) : '') + (it.updatedBy ? (it.createdBy ? ' · ' : '') + 'last changed by ' + esc(it.updatedBy) + ' ' + esc(fmtWhen(it.updatedAt)) : '') + '</div>' : '') + '</div>';
   return h + '</div>';

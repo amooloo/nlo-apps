@@ -44,6 +44,7 @@ const DEMO = {
       async setStock(id, qty) { if (store.items[id]) store.items[id].qty = qty; M.emit('items'); },
       async patchItem(id, patch) { if (!store.items[id]) throw errCode('not-found', 'That supply is gone.'); M.patchOf(store.items[id], patch); M.emit('items'); },
       async putItem(item) { store.items[item.id] = clone(item); M.emit('items'); },
+      async famSave(puts, patches) { (puts || []).forEach(it => { if (it && it.id) store.items[it.id] = clone(it); }); (patches || []).forEach(([id, p]) => { if (store.items[id]) M.patchOf(store.items[id], p); }); M.emit('items'); },
       async patchOrder(id, patch) { if (!store.orders[id]) throw errCode('not-found', 'That order is gone.'); M.patchOf(store.orders[id], patch); M.emit('orders'); },
       async putOrder(o) { store.orders[o.id] = clone(o); M.emit('orders'); },
       async claimOrder(id, fn, patchFn) { const o = store.orders[id]; const next = o ? fn(o.status) : undefined; if (next === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.'); if (patchFn) M.patchOf(o, patchFn(clone(o))); o.status = next; M.emit('orders'); return next; },
@@ -173,6 +174,14 @@ function demoStore() {
   Object.values(items).forEach(i => { if ((i.sources[0] || {}).vendor === 'American Orthodontics') i.aoPts = { pay: true, at: ptsDay }; });
   [['d-bk1', 'Metal bracket .018 MBT, upper central (demo)', 2.84, 1.28, 260], ['d-bk2', 'Metal bracket .018 MBT, lower incisor (demo)', 2.84, 1.28, 180], ['d-tb1', 'Buccal tube .018, 1st molar, bondable (demo)', 5.04, 1.84, 64]]
     .forEach(([id, name, price, earn, qty]) => { items[id] = { id, name, cat: 'brackets-tubes', unit: 'each', qty, min: 40, group: 'Brackets & tubes (demo)', note: '', sources: [{ vendor: 'American Orthodontics', sku: '', price, src: 'https://shop.americanortho.com' }], aoPts: { earn, at: ptsDay } }; });
+  /* a product in sizes and types (5.3, families.js): mini screws in two types and three lengths — one card, each size a supply
+     of its own (made-up item #s, prices and counts) */
+  [['Self-drilling', '6 mm', 4], ['Self-drilling', '8 mm', 6], ['Self-drilling', '10 mm', 1], ['Self-tapping', '6 mm', 3], ['Self-tapping', '8 mm', 0], ['Self-tapping', '10 mm', 5]].forEach(([t, l, qty], k) => {
+    const id = 'd-tad' + (k + 1), name = 'tomas-pin mini screw', vals = [t, l];
+    items[id] = { id, name: famFullName(name, vals), cat: 'auxiliaries', group: 'TADs (Miniscrews)', unit: 'pack', qty, min: 2, location: 'Lab drawer 3', note: 'Pack of 5 · 1.6 mm wide (made-up for the demo)',
+      manufacturer: 'Dentaurum', sources: [{ vendor: 'Dentaurum', sku: 'DEMO-' + (t[5] === 'd' ? 'SD' : 'ST') + '-' + parseInt(l, 10), price: k === 2 || k === 5 ? 58.9 : 54.5, src: '' }], baseUnitName: 'Screw', baseUnitsPerOrderUnit: 5,
+      fam: 'fam-demo-tad', famName: name, famOpts: ['Type', 'Length'], famVals: vals, famPos: k, createdBy: 'Dr. A', createdAt: new Date(Date.now() - 3 * day).toISOString() };
+  });
   const line = (it, q, who, d, h) => { const s = (it.sources || [])[0] || {}, per = perBuy(it); return { itemId: it.id, name: it.name, sku: s.sku || '', vendor: s.vendor || '', price: round2((s.price || 0) * per), unit: buyUnit(it), per: per > 1 ? per : null, countUnit: per > 1 ? it.unit : null, qty: q, addedBy: DEMO_PEOPLE[who].short, addedById: who, addedAt: iso(at(d, h, 12)), lineId: 'c' + it.id + d }; };
   const glove = Object.values(items).find(i => /Gloves Pulse Nitrile — SM/.test(i.name)) || pick(3);
   const cart = [line(glove, 2, 's_gwen', 0, 9), line(pick(5), 3, 's_kaylee', 1, 14), line(pick(11), 1, 's_angelika', 2, 10), line(pick(17), 2, 's_gwen', 0, 11)];

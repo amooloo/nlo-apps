@@ -174,9 +174,55 @@ with the OpenAI key in Settings → AI (`invState/ai.openai`). It asked for `gpt
   visit, every error above, the saved photo); `t_photo_big` (a 2400×1800 photo of pure noise, as Chrome and as Safari: WebP
   or JPEG, each under the limit, saved, the AI's photo saved too — the old resizer fails it with "too big to save").
 
+## Products in sizes and types (5.3)
+Amir, 30 Oct 2026: "can you make it so items of similar nature that are only different in size for example are combined. So
+for example, mini screws from dentaurum are different by size and 2 different types. it will be much easier that way than
+entering a separate entry for each of them". (`src/families.js`; the editor's part at the end of `src/editor.js`.)
+- **Each size is still a supply of its own** — its own count, item #, price, minimum, cart and order lines, QR label, Mari's
+  List links, AO points and history — so ordering, receiving, the budget, the alert script's copy (Staff Meeting, AISA) and
+  every other screen work as before. What ties a product's sizes together is on each of them: `fam` (the product's id,
+  `fam-…`), `famName` (the product's name), `famOpts` (what tells the sizes apart, in order: `["Type", "Length"]`), `famVals`
+  (this size's choices, in that order: `["Self-drilling", "8 mm"]`) and `famPos` (its place in the product's list). Its
+  `name` is made from them — "tomas-pin — Self-drilling · 8 mm" — so carts, orders, vendor emails and texts, the activity
+  log and the old database read as they always did. No rules change (supplies take any fields).
+- **Supplies**: one card (or List row) per product: its photo (its first size with one), "6 sizes & types", the choices
+  ("Self-drilling, Self-tapping · 6, 8, 10 mm"), the vendor, "from $54.50", the stock of all its sizes (and how many are out
+  or low), and what's in the cart or on order. Filters and search work size by size (an item # finds its product); the
+  category chips and "N supplies" count a product once. Labels still print one per size (each scans as itself).
+- **The product's drawer**: every size (grouped by the first difference when there are two: "Type: Self-drilling" → 6, 8,
+  10 mm) with its item #, price, count and what's in the cart or on order; + on a size adds it. **Add to cart** opens one
+  dialog with a quantity for each size (one cart line per size, one alert — one phone push — for the lot; Dr. A's OK works as
+  for any line). **Count** takes the counts typed (sizes left empty keep their number), each logged as a count. Edit, QR
+  labels for every size, add other supplies to it, Split into separate supplies, and (Dr. A) Archive every size. A size's
+  own drawer says "One of 6 · <product> ›" and has "Take it out of <product>".
+- **New supply → "It comes in different sizes or types"**: what tells them apart (up to three: Type, Length, Color…) and the
+  choices, commas between; every combination is a row — untick one that isn't made — with its own item # (at the usual
+  vendor), price (empty: the usual vendor's price under Where it's bought), count and minimum (empty: the one for every
+  size). Everything else (category, maker, notes, unit, case size, vendors, photo) is typed once. Saving makes every size in
+  one save (at least two; at most 60).
+- **Edit on the product**: the same form on its sizes. What's changed above goes to every size — only what was changed, so a
+  size's own notes or link stay unless that field is changed here (vendors: a size's own link stays unless the link was
+  changed; a size with its own price keeps it when the price for every size changes). The table is each size's own (its
+  choices, item #, price, minimum); new choices + Add make new sizes (placed after the sizes they go with); × takes a size
+  out (it stays a supply of its own, its name as it was). A product keeps at least two sizes (Split makes them separate).
+- **Editing one size** (its own Edit): its choices instead of a name ("its name: …"); the rest is that size's own. "Another
+  size like this" (its Make a copy) is a new size of the same product.
+- **Combine** (a supply's drawer → "Combine with its other sizes", or the product's "Add other supplies to it"): pick the
+  supplies (the likely ones are offered: same category, same first word), the product's name (the words they share), what
+  tells them apart and each one's choice (guessed: "NT3 NiTi" + ".014" / "Upper"); it shows each new name. Nothing else
+  about them changes. A product left with one size (taken out, or moved to another product) goes back to a single supply.
+- **Dr. A's Supplies points out sizes of one product** (once a visit, × for now): supplies in the same category whose names
+  start the same and differ only in sizes, numbers, upper/lower, left/right, colors and short codes (`famSuggest`); Review
+  lists them, each with Combine… (filled in) or "Not the same" (remembered on that computer, `nloInv.famSkip`).
+- Tests: e2e `t_families` (53 checks: making a product as staff under the rules, the card, search, the drawer, several sizes
+  into the cart with one alert, counting, a size's own edit and a twin refused, Archive refused to staff by the database,
+  Dr. A's product edit — new name, price for every size, new sizes, one taken out —, the suggestion and Combine of the two
+  Pulse gloves (one still in the 3.x shape), a product of one dissolving, ordering and receiving sizes, Split).
+
 ## The data (Firestore `nlo-cases`; rules: `../nlo-cases-src/firestore.rules`, block "NLO Inventory")
 - `invItems/{id}`, `invOrders/{id}`, `invVendors/{id}` — one record each, under the old app's ids, same fields as before;
-  since 5.2 a supply may carry `aoPts` and the AO vendor `pts` (AO Partner Dollars, above).
+  since 5.2 a supply may carry `aoPts` and the AO vendor `pts` (AO Partner Dollars, above); since 5.3 a size of a product
+  carries `fam`, `famName`, `famOpts`, `famVals`, `famPos` (Products in sizes and types, above).
 - `invLog/m<YYYY-MM>~<staff id>` — `{ e: { <entryId>: entry }, mon, who }`: one record per person per month, entries only
   added, each person only to their own (whose record it is says who made an entry). The moved entries are under `~old`
   (`~old2`… past a thousand in a month), with the old app's stamps.

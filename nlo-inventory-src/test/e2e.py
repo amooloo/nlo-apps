@@ -1808,6 +1808,219 @@ def t_points(b):
     check('Gwen: the balance is still Dr. A’s', ((get('invVendors/ao') or {}).get('pts') or {}).get('bal') == 250.5)
     ctx.close()
 
+# products in sizes and types (5.3; Amir, 30 Oct 2026: "can you make it so items of similar nature that are only different in size
+# for example are combined. So for example, mini screws from dentaurum are different by size and 2 different types")
+@test
+def t_families(b):
+    ctx, pg, errs = open_as(b, 'gwen')
+    J(pg, "go('supplies')"); pg.wait_for_timeout(300)
+    # --- New supply → "It comes in different sizes or types": Type × Length, every size made at once
+    click(pg, '.topActs [data-act="itemNew"]', 300)
+    pg.fill('#edName', 'tomas-pin mini screw')
+    click(pg, '#edFamOn', 300)
+    check('families: the editor asks what tells them apart', J(pg, "!!document.querySelector('.famSec') && S.ui.ed.fam.mode") == 'new')
+    pg.fill('[data-fo="n"][data-k="0"]', 'Type'); pg.fill('[data-fo="v"][data-k="0"]', 'Self-drilling, Self-tapping'); pg.wait_for_timeout(100)
+    click(pg, '[data-act="famOptAdd"]', 300)
+    pg.fill('[data-fo="n"][data-k="1"]', 'Length'); pg.fill('[data-fo="v"][data-k="1"]', '6 mm, 8 mm, 10 mm'); pg.wait_for_timeout(150)
+    check('families: every combination is a row (2 types × 3 lengths)', J(pg, "S.ui.ed.fam.rows.map(r => r.vals.join('/'))") == ['Self-drilling/6 mm', 'Self-drilling/8 mm', 'Self-drilling/10 mm', 'Self-tapping/6 mm', 'Self-tapping/8 mm', 'Self-tapping/10 mm'], J(pg, "S.ui.ed.fam.rows.map(r => r.vals.join('/'))"))
+    pg.fill('[data-ed="vendor"][data-k="0"]', 'Dentaurum'); pg.fill('[data-ed="price"][data-k="0"]', '54.50'); pg.fill('#edMin', '2')
+    check('families: the item # column is the usual vendor’s', J(pg, "document.querySelector('#famSkuH').textContent") == 'Dentaurum item #')
+    for r, sku in enumerate(['302-106-00', '302-108-00', '302-110-00', '302-206-00', '302-208-00']): pg.fill('[data-fr="sku"][data-r="%d"]' % r, sku)
+    pg.fill('[data-fr="qty"][data-r="1"]', '4'); pg.fill('[data-fr="price"][data-r="2"]', '58.90'); pg.fill('[data-fr="min"][data-r="0"]', '3')
+    pg.uncheck('[data-fr="on"][data-r="5"]'); pg.wait_for_timeout(150)   # (Self-tapping 10 mm isn't made)
+    check('families: an unticked size isn’t made (Add 5 sizes)', J(pg, "document.querySelector('#edSaveBtn').textContent") == 'Add 5 sizes', J(pg, "document.querySelector('#edSaveBtn').textContent"))
+    click(pg, '#edSaveBtn', 900); settle(pg)
+    its = store('items'); fam = sorted([i for i in its.values() if i.get('famName') == 'tomas-pin mini screw'], key=lambda i: i.get('famPos', 99))
+    fid = fam[0].get('fam') if fam else None
+    check('families: 5 supplies saved, one product (staff can, under the rules)', len(fam) == 5 and fid and fid.startswith('fam-') and all(i.get('fam') == fid for i in fam), [(i.get('name'), i.get('fam')) for i in fam])
+    check('families: each named from the product and its choices', [i.get('name') for i in fam] == ['tomas-pin mini screw — Self-drilling · 6 mm', 'tomas-pin mini screw — Self-drilling · 8 mm', 'tomas-pin mini screw — Self-drilling · 10 mm', 'tomas-pin mini screw — Self-tapping · 6 mm', 'tomas-pin mini screw — Self-tapping · 8 mm'], [i.get('name') for i in fam])
+    check('families: what tells them apart, and each one’s choices, kept in order', all(i.get('famOpts') == ['Type', 'Length'] for i in fam) and fam[4].get('famVals') == ['Self-tapping', '8 mm'] and [i.get('famPos') for i in fam] == [0, 1, 2, 3, 4], [(i.get('famOpts'), i.get('famVals'), i.get('famPos')) for i in fam])
+    src = [(i.get('sources') or [{}])[0] for i in fam]
+    check('families: each size has its own item # at the vendor', [x.get('sku') for x in src] == ['302-106-00', '302-108-00', '302-110-00', '302-206-00', '302-208-00'] and all(x.get('vendor') == 'Dentaurum' for x in src), src)
+    check('families: the vendor’s price for every size, unless a size has its own', [x.get('price') for x in src] == [54.5, 54.5, 58.9, 54.5, 54.5], [x.get('price') for x in src])
+    check('families: its own minimum, else the one for every size', [i.get('min') for i in fam] == [3, 2, 2, 2, 2], [i.get('min') for i in fam])
+    check('families: its count, stamped with who added it', [i.get('qty') for i in fam] == [0, 4, 0, 0, 0] and all(i.get('createdBy') == 'Gwen R.' for i in fam) and all(i.get('cat') == 'misc' for i in fam), [(i.get('qty'), i.get('createdBy'), i.get('cat')) for i in fam])
+    lg = [e for e in store('log').values() if e.get('itemId') == fam[1]['id'] and e.get('type') == 'count']
+    check('families: the starting count is logged, in Gwen’s name', len(lg) == 1 and lg[0].get('delta') == 4 and lg[0].get('byId') == 'gwen', lg)
+    check('families: the product’s drawer opens after saving', J(pg, "S.drawer && S.drawer.kind + ':' + S.drawer.id") == 'fam:' + str(fid))
+    ids = [i['id'] for i in fam]
+    # --- Supplies: one card for the product
+    J(pg, "closeDrawer(); go('supplies')"); pg.wait_for_timeout(400)
+    card = J(pg, "(document.querySelector('.pcard.fam[data-fam=%s]') || {}).textContent || ''" % json.dumps(fid))
+    check('families: Supplies shows one card for the product', J(pg, "document.querySelectorAll('.pcard.fam[data-fam=%s]').length" % json.dumps(fid)) == 1 and J(pg, "[...document.querySelectorAll('.pcard[data-id]')].filter(c => %s.includes(c.dataset.id)).length" % json.dumps(ids)) == 0, card)
+    check('families: the card says what it comes in, its price and stock', all(x in card for x in ['tomas-pin mini screw', '5 sizes & types', 'Self-drilling, Self-tapping · 6, 8, 10 mm', 'Dentaurum', 'from $54.50', '4 packs on hand'.replace('packs', 'boxes')]), card)
+    n_all = J(pg, "+document.querySelector('.chips .chip').textContent.replace(/\\D+/g, '')")
+    check('families: the product counts once in All', n_all == J(pg, "new Set(activeItems().map(i => famId(i) || i.id)).size") and n_all == J(pg, "activeItems().length") - 4, n_all)
+    J(pg, "S.q = '302-208'; renderView(true)"); pg.wait_for_timeout(200)
+    check('families: a size’s item # finds the product', J(pg, "[...document.querySelectorAll('#view .pcard')].map(c => c.dataset.fam || c.dataset.id)") == [fid])
+    J(pg, "S.q = ''; S.ui.sup.look = 'list'; renderView(true)"); pg.wait_for_timeout(200)
+    check('families: List shows it as one row too', J(pg, "document.querySelectorAll('.irow.fam[data-fam=%s]').length" % json.dumps(fid)) == 1)
+    J(pg, "S.ui.sup.look = 'grid'; renderView(true)"); pg.wait_for_timeout(200)
+    # --- its drawer: every size, grouped by type
+    click(pg, '.pcard.fam[data-fam=%s]' % json.dumps(fid), 400)
+    check('families: the drawer lists every size, by type', J(pg, "[...document.querySelectorAll('#drawer .vgrp')].map(x => x.textContent)") == ['Type: Self-drilling', 'Type: Self-tapping'] and J(pg, "document.querySelectorAll('#drawer .vrow').length") == 5, J(pg, "document.querySelector('#drawer').textContent.slice(0, 400)"))
+    # --- several sizes into the cart in one go
+    click(pg, '#drawer [data-act="famAdd"]', 300)
+    pg.fill('#faq-' + ids[0], '2'); pg.fill('#faq-' + ids[4], '3'); pg.wait_for_timeout(100)
+    check('families: the add dialog sums it up', '2 sizes' in J(pg, "document.querySelector('#faSum').textContent") and '$272.50' in J(pg, "document.querySelector('#faSum').textContent"), J(pg, "document.querySelector('#faSum').textContent"))
+    alerts0 = len(store('settings/alertQueue') or {})
+    click(pg, '#faGo', 600); settle(pg)
+    cl = {c['itemId']: c for c in lines(store('cart')) if c.get('itemId') in ids}
+    check('families: one cart line per size, from Dentaurum, in Gwen’s name', sorted(cl) == sorted([ids[0], ids[4]]) and cl[ids[0]]['qty'] == 2 and cl[ids[4]]['qty'] == 3 and all(c.get('vendor') == 'Dentaurum' and c.get('addedById') == 'gwen' and c.get('sku') for c in cl.values()), cl)
+    check('families: the lines wait for Dr. A’s OK', not any(k in ((get('invState/cart') or {}).get('ok') or {}) for k in [c['lineId'] for c in cl.values()]))
+    al = [a for a in (store('settings/alertQueue') or {}).values() if a.get('t') == 'cart']
+    check('families: one alert for the lot (one push)', len(store('settings/alertQueue') or {}) == alerts0 + 1 and any(len(a.get('lines') or []) == 2 for a in al), al[-1:] if al else al)
+    # --- counting every size at once: only the ones typed
+    J(pg, "openDrawer('fam', %s)" % json.dumps(fid)); pg.wait_for_timeout(250)
+    click(pg, '#drawer [data-act="famCount"]', 300)
+    pg.locator('.fcTbl input').nth(0).fill('6'); pg.locator('.fcTbl input').nth(1).fill('4')
+    click(pg, '#fcGo', 600); settle(pg)
+    its = store('items')
+    check('families: the counts typed are saved (same as the app’s counts too)', its[ids[0]].get('qty') == 6 and its[ids[0]].get('chkBy') == 'Gwen R.' and its[ids[1]].get('qty') == 4 and its[ids[1]].get('chkBy') == 'Gwen R.' and its[ids[2]].get('chkBy') is None, [(its[i].get('qty'), its[i].get('chkBy')) for i in ids])
+    lg = sorted([e.get('delta') for e in store('log').values() if e.get('type') == 'count' and e.get('itemId') in ids[:2] and e.get('note') == 'Counted'])
+    check('families: each count logged, in Gwen’s name', lg == [0, 6], lg)
+    # --- a size of its own: its drawer shows the product; its own choice renames it; a twin is refused
+    J(pg, "openDrawer('item', %s)" % json.dumps(ids[3])); pg.wait_for_timeout(250)
+    check('families: a size’s drawer shows its product', 'One of 5 · tomas-pin mini screw' in J(pg, "document.querySelector('#drawer .famLink').textContent"))
+    click(pg, '#drawer [data-act="itemEdit"]', 400)
+    pg.fill('[data-mv="1"]', '8 mm'); click(pg, '#edSaveBtn', 400)
+    check('families: a size can’t take another size’s choices', 'already has Self-tapping · 8 mm' in toasts(pg) and store('items')[ids[3]].get('famVals') == ['Self-tapping', '6 mm'], toasts(pg))
+    pg.fill('[data-mv="1"]', '6.5 mm'); click(pg, '#edSaveBtn', 700); settle(pg)
+    x = store('items')[ids[3]]
+    check('families: a size’s own choice renames it', x.get('famVals') == ['Self-tapping', '6.5 mm'] and x.get('name') == 'tomas-pin mini screw — Self-tapping · 6.5 mm' and x.get('fam') == fid, (x.get('name'), x.get('famVals')))
+    # --- staff can't archive every size
+    J(pg, "openDrawer('fam', %s)" % json.dumps(fid)); pg.wait_for_timeout(250)
+    check('families: Archive every size is Dr. A’s', J(pg, "!document.querySelector('#drawer [data-act=famArchive]')"))
+    r = J(pg, "B.patchItems([[%s, { archived: true }]]).then(() => 'saved', e => String(e.code || e.message))" % json.dumps(ids[0]))
+    check('families: … and the database refuses it from staff', 'permission' in str(r), r)
+    # --- Dr. A edits the product: a new name, a new price for every size (one keeps its own), a 12 mm of each type, one taken out
+    switch_to(pg, 'amir')
+    J(pg, "openDrawer('fam', %s)" % json.dumps(fid)); pg.wait_for_timeout(250)
+    click(pg, '#drawer [data-act="famEdit"]', 500)
+    check('families: Edit opens the product with its sizes', J(pg, "S.ui.ed.fam.mode") == 'edit' and J(pg, "S.ui.ed.fam.rows.length") == 5 and J(pg, "S.ui.ed.f.min") == '2' and J(pg, "S.ui.ed.sources.map(s => s.vendor + ' ' + s.price)") == ['Dentaurum 54.50'], J(pg, "JSON.stringify([S.ui.ed.f.min, S.ui.ed.sources])"))
+    check('families: a size’s own price and minimum show in its row', J(pg, "S.ui.ed.fam.rows.map(r => (Object.values(r.pr)[0] || '') + '|' + r.min)") == ['|3', '|', '58.90|', '|', '|'], J(pg, "S.ui.ed.fam.rows.map(r => (Object.values(r.pr)[0] || '') + '|' + r.min)"))
+    pg.fill('#edName', 'tomas-pin'); pg.fill('[data-ed="price"][data-k="0"]', '56.00')
+    pg.fill('[data-fo="v"][data-k="1"]', '12 mm'); click(pg, '#famAdd1', 300)
+    check('families: new choices make a size of each type, after its others', J(pg, "S.ui.ed.fam.rows.map(r => r.vals.join('/') + (r.id ? '' : '*'))") == ['Self-drilling/6 mm', 'Self-drilling/8 mm', 'Self-drilling/10 mm', 'Self-drilling/12 mm*', 'Self-tapping/6.5 mm', 'Self-tapping/8 mm', 'Self-tapping/12 mm*'], J(pg, "S.ui.ed.fam.rows.map(r => r.vals.join('/') + (r.id ? '' : '*'))"))
+    pg.fill('[data-fr="sku"][data-r="3"]', '302-112-00')
+    click(pg, '[data-act="famRowOut"][data-r="5"]', 200)
+    click(pg, '#edSaveBtn', 900); settle(pg)
+    its = store('items'); now = sorted([i for i in its.values() if i.get('fam') == fid], key=lambda i: i.get('famPos', 99))
+    check('families: the product has its new sizes and not the one taken out', [i.get('name') for i in now] == ['tomas-pin — Self-drilling · 6 mm', 'tomas-pin — Self-drilling · 8 mm', 'tomas-pin — Self-drilling · 10 mm', 'tomas-pin — Self-drilling · 12 mm', 'tomas-pin — Self-tapping · 6.5 mm', 'tomas-pin — Self-tapping · 12 mm'] and [i.get('famPos') for i in now] == [0, 1, 2, 3, 4, 5], [(i.get('name'), i.get('famPos')) for i in now])
+    check('families: the new price for every size; the one with its own keeps it', [(i.get('sources') or [{}])[0].get('price') for i in now] == [56, 56, 58.9, 56, 56, 56], [(i.get('sources') or [{}])[0].get('price') for i in now])
+    check('families: item #s, minimums and counts stay with their sizes', [(i.get('sources') or [{}])[0].get('sku') for i in now] == ['302-106-00', '302-108-00', '302-110-00', '302-112-00', '302-206-00', ''] and [i.get('min') for i in now] == [3, 2, 2, 2, 2, 2] and [i.get('qty') for i in now] == [6, 4, 0, 0, 0, 0], [((i.get('sources') or [{}])[0].get('sku'), i.get('min'), i.get('qty')) for i in now])
+    out = its[ids[4]]
+    check('families: the one taken out is a supply of its own, its name and cart line as they were', not out.get('fam') and not out.get('famName') and out.get('name') == 'tomas-pin mini screw — Self-tapping · 8 mm' and any(c.get('itemId') == ids[4] for c in lines(store('cart'))), {k: out.get(k) for k in ['fam', 'famName', 'name']})
+    nw = [i for i in now if i['id'] not in ids]
+    check('families: the new sizes, stamped, with the product’s details', len(nw) == 2 and all(i.get('createdBy') and i.get('famOpts') == ['Type', 'Length'] and i.get('unit') == 'box' and i.get('min') == 2 for i in nw), nw)
+    # --- Combine: the suggestion for the two Pulse gloves (one still in the 3.x shape: price and link on the supply itself)
+    J(pg, "closeDrawer(); go('supplies')"); pg.wait_for_timeout(300)
+    check('families: Dr. A’s Supplies points out sizes of one product', 'Gloves Pulse Nitrile' in J(pg, "(document.querySelector('.famHint') || {}).textContent || ''"), J(pg, "(document.querySelector('.famHint') || {}).textContent || ''"))
+    click(pg, '.famHint [data-act="famReview"]', 300)
+    k = J(pg, "famSuggestShown().findIndex(x => x.name === 'Gloves Pulse Nitrile')")
+    check('families: the suggestion is the two Pulse gloves, by size', k >= 0 and J(pg, "famSuggestShown()[%d].ids.slice().sort()" % k) == ['ppe-1', 'ppe-2'] and J(pg, "famSuggestShown()[%d].opts" % k) == ['Size'], J(pg, "JSON.stringify(famSuggestShown())")[:400])
+    click(pg, '[data-act="famSugGo"][data-k="%d"]' % k, 300)
+    check('families: Combine opens filled in (name, Size, SM / LG)', J(pg, "S.ui.cmb.name") == 'Gloves Pulse Nitrile' and J(pg, "S.ui.cmb.vals['ppe-1'][0] + '/' + S.ui.cmb.vals['ppe-2'][0]") == 'SM/LG', J(pg, "JSON.stringify(S.ui.cmb)"))
+    click(pg, '#cmbGo', 800); settle(pg)
+    g1, g2 = store('items/ppe-1'), store('items/ppe-2')
+    check('families: the gloves are one product, their names as before', g1.get('fam') and g1.get('fam') == g2.get('fam') and g1.get('name') == 'Gloves Pulse Nitrile — SM' and g2.get('name') == 'Gloves Pulse Nitrile — LG' and g1.get('famVals') == ['SM'], (g1.get('name'), g2.get('name'), g1.get('fam'), g2.get('fam')))
+    check('families: combining changed nothing else (the old-shape price and link stay)', g2.get('price') == 9.13 and g2.get('src') == 'https://www.sunsurgical.com' and g1.get('qty') == 14 and (g1.get('sources') or [{}])[0].get('price') == 9.13, g2)
+    J(pg, "closeModal(true); closeDrawer(); go('supplies')"); pg.wait_for_timeout(300)
+    gc = J(pg, "(document.querySelector('.pcard.fam[data-fam=%s]') || {}).textContent || ''" % json.dumps(g1.get('fam')))
+    check('families: its card shows the order one size is on', 'On order' in gc and '2 sizes' in gc and '$9.13' in gc, gc)
+    # --- one taken out of a product of two: both are single supplies again
+    J(pg, "openDrawer('item', 'ppe-2')"); pg.wait_for_timeout(250)
+    click(pg, '#drawer [data-act="famOut"]', 300); click(pg, '#cbYes', 600); settle(pg)
+    g1, g2 = store('items/ppe-1'), store('items/ppe-2')
+    check('families: a product left with one size is no product any more', not g1.get('fam') and not g2.get('fam') and g1.get('name') == 'Gloves Pulse Nitrile — SM', (g1.get('fam'), g2.get('fam')))
+    # --- the sizes order and receive as supplies of their own
+    J(pg, "closeDrawer()"); settle(pg)
+    o = J(pg, "placeOrder('Dentaurum', placeSnap(S.D.cart.filter(c => c.vendor === 'Dentaurum')), { method: 'online' }).then(o => o.id)"); settle(pg, 500)
+    J(pg, "receiveOrder(%s, {}).then(() => 1)" % json.dumps(o)); settle(pg, 600)
+    its = store('items')
+    check('families: receiving adds to each size’s own count', its[ids[0]].get('qty') == 8 and its[ids[4]].get('qty') == 3, (its[ids[0]].get('qty'), its[ids[4]].get('qty')))
+    od = store('orders/' + o)
+    check('families: the order’s lines carry each size’s name and item #', sorted(l.get('name') for l in od.get('items')) == ['tomas-pin mini screw — Self-tapping · 8 mm', 'tomas-pin — Self-drilling · 6 mm'] or sorted(l.get('name') for l in od.get('items')) == ['tomas-pin mini screw — Self-drilling · 6 mm', 'tomas-pin mini screw — Self-tapping · 8 mm'], [l.get('name') for l in od.get('items')])
+    # --- Split: every size a supply of its own again
+    J(pg, "openDrawer('fam', %s)" % json.dumps(fid)); pg.wait_for_timeout(250)
+    click(pg, '#drawer [data-act="famSplit"]', 300); click(pg, '#cbYes', 700); settle(pg)
+    check('families: Split leaves no product behind (names kept)', not any(i.get('fam') == fid for i in store('items').values()) and store('items/' + ids[0]).get('name') == 'tomas-pin — Self-drilling · 6 mm')
+    check('families: no page errors', not errs, errs)
+    ctx.close()
+
+# the independent review of 5.3 (30 Oct 2026): what the product's Edit and Combine must never do to sizes nobody touched
+@test
+def t_families_review(b):
+    seed = {
+        # 3.x shape: price, link and item # on the supply itself, at a vendor the app can't name from its link
+        'lg-6': {'id': 'lg-6', 'cat': 'auxiliaries', 'name': 'Screw 6mm legacy', 'unit': 'pack', 'qty': 2, 'min': 1, 'sku': 'E-6', 'price': 2.1, 'src': 'https://www.dentaurum.com/p6'},
+        'lg-8': {'id': 'lg-8', 'cat': 'auxiliaries', 'name': 'Screw 8mm legacy', 'unit': 'pack', 'qty': 3, 'min': 1, 'sku': 'E-8', 'price': 2.3, 'src': 'https://www.dentaurum.com/p8'},
+        # two vendors on one size, one on the other
+        'mv-6': {'id': 'mv-6', 'cat': 'auxiliaries', 'name': 'Pin 6', 'unit': 'pack', 'qty': 1, 'min': 1, 'sources': [{'vendor': 'Dentaurum', 'sku': 'D6', 'price': 54.5, 'src': 'https://d.example/6'}, {'vendor': 'Henry Schein', 'sku': 'HS6', 'price': 60, 'src': 'https://hs.example/6'}]},
+        'mv-8': {'id': 'mv-8', 'cat': 'auxiliaries', 'name': 'Pin 8', 'unit': 'pack', 'qty': 1, 'min': 1, 'sources': [{'vendor': 'Dentaurum', 'sku': 'D8', 'price': 54.5, 'src': 'https://d.example/8'}]},
+        # bought by the case of 10, $4.00 a box ($40.00 a case)
+        'cs-s': {'id': 'cs-s', 'cat': 'ppe', 'name': 'Glove Test S', 'unit': 'box', 'buyUnit': 'case', 'perBuy': 10, 'qty': 5, 'min': 1, 'sources': [{'vendor': 'SunSurgical', 'sku': 'G-S', 'price': 4}], 'img': 'data:image/png;base64,' + png(28, 28)},
+        'cs-l': {'id': 'cs-l', 'cat': 'ppe', 'name': 'Glove Test L', 'unit': 'box', 'buyUnit': 'case', 'perBuy': 10, 'qty': 5, 'min': 1, 'sources': [{'vendor': 'SunSurgical', 'sku': 'G-L', 'price': 4}]},
+        'cs-m': {'id': 'cs-m', 'cat': 'ppe', 'name': 'Glove Test M', 'unit': 'box', 'buyUnit': 'case', 'perBuy': 10, 'qty': 5, 'min': 1, 'sources': [{'vendor': 'SunSurgical', 'sku': 'G-M', 'price': 4}], 'img': 'data:image/png;base64,' + png(30, 30)},
+        'cs-x': {'id': 'cs-x', 'cat': 'ppe', 'name': 'Glove Test XL', 'unit': 'box', 'qty': 5, 'min': 1, 'sources': [{'vendor': 'SunSurgical', 'sku': 'G-XL', 'price': 9.5}]},
+    }
+    for k, v in seed.items(): put('invItems/' + k, dict(v, up=NOW(), upBy='amir'))
+    ctx, pg, errs = open_as(b, 'amir')
+    pg.wait_for_function("() => !!itemById('cs-x')", timeout=10000)
+    def combine(ids, name, opts, vals):
+        J(pg, "openCombine(%s)" % json.dumps(ids)); pg.wait_for_timeout(250)
+        J(pg, "(() => { const C = S.ui.cmb; C.name = %s; C.nameSet = true; C.opts = %s; C.optsSet = true; Object.assign(C.vals, %s); %s.forEach(id => C.valSet[id] = true); renderCombine(); })()" % (json.dumps(name), json.dumps(opts), json.dumps(vals), json.dumps(ids)))
+        pg.wait_for_timeout(150); click(pg, '#cmbGo', 700); settle(pg)
+    # --- Combine refuses supplies counted or bought differently
+    combine(['cs-s', 'cs-x'], 'Glove Test', ['Size'], {'cs-s': ['S'], 'cs-x': ['XL']})
+    check('review: Combine refuses sizes bought differently (case of 10 / box)', 'not counted the same way' in toasts(pg) and not store('items/cs-s').get('fam') and not store('items/cs-x').get('fam'), toasts(pg))
+    J(pg, "closeModal(true)")
+    # --- a 3.x supply's own price, link and item # survive the product's Edit; names come back when it leaves
+    combine(['lg-6', 'lg-8'], 'Screw', ['Length'], {'lg-6': ['6 mm'], 'lg-8': ['8 mm']})
+    l6, l8 = store('items/lg-6'), store('items/lg-8'); fid = l6.get('fam')
+    check('review: combining renames them and keeps the old names', fid and l8.get('fam') == fid and l6.get('name') == 'Screw — 6 mm' and l6.get('famWas') == 'Screw 6mm legacy', (l6.get('name'), l6.get('famWas')))
+    J(pg, "closeDrawer(); openFamEditor(%s)" % json.dumps(fid)); pg.wait_for_timeout(300)
+    check('review: the editor shows a 3.x supply’s own price and item # (a row with no vendor)', J(pg, "S.ui.ed.sources.map(s => [s.vendor, s.price])") == [['', '2.10']] and J(pg, "S.ui.ed.fam.rows.map(r => Object.values(r.sk)[0] + '|' + (Object.values(r.pr)[0] || ''))") == ['E-6|', 'E-8|2.30'], J(pg, "JSON.stringify([S.ui.ed.sources, S.ui.ed.fam.rows.map(r => [r.sk, r.pr])])"))
+    pg.fill('[data-ed="vendor"][data-k="0"]', 'Dentaurum')
+    click(pg, '#edSaveBtn', 800); settle(pg)
+    l6, l8 = store('items/lg-6'), store('items/lg-8')
+    s6, s8 = (l6.get('sources') or [{}])[0], (l8.get('sources') or [{}])[0]
+    check('review: naming its vendor keeps each size’s own price, link and item #', s6.get('vendor') == 'Dentaurum' and s6.get('price') == 2.1 and s6.get('src') == 'https://www.dentaurum.com/p6' and s6.get('sku') == 'E-6' and s8.get('price') == 2.3 and s8.get('src') == 'https://www.dentaurum.com/p8' and s8.get('sku') == 'E-8', (s6, s8))
+    J(pg, "openDrawer('fam', %s)" % json.dumps(fid)); pg.wait_for_timeout(250)
+    click(pg, '#drawer [data-act="famSplit"]', 300); click(pg, '#cbYes', 700); settle(pg)
+    check('review: Split gives combined supplies their old names back', store('items/lg-6').get('name') == 'Screw 6mm legacy' and store('items/lg-8').get('name') == 'Screw 8mm legacy' and not store('items/lg-6').get('famWas'), (store('items/lg-6').get('name'), store('items/lg-8').get('name')))
+    # --- a size bought from one vendor doesn't gain the other size's vendor when the product's price changes
+    J(pg, "closeDrawer()"); combine(['mv-6', 'mv-8'], 'Pin', ['Length'], {'mv-6': ['6 mm'], 'mv-8': ['8 mm']})
+    fid = store('items/mv-6').get('fam')
+    J(pg, "closeDrawer(); openFamEditor(%s)" % json.dumps(fid)); pg.wait_for_timeout(300)
+    pg.fill('[data-ed="price"][data-k="0"]', '56.00'); click(pg, '#edSaveBtn', 800); settle(pg)
+    m6, m8 = store('items/mv-6').get('sources'), store('items/mv-8').get('sources')
+    check('review: the new price goes to every size, each keeps only its own vendors and links', [x.get('vendor') for x in m8] == ['Dentaurum'] and m8[0].get('price') == 56 and m8[0].get('src') == 'https://d.example/8' and [x.get('vendor') for x in m6] == ['Dentaurum', 'Henry Schein'] and m6[1].get('price') == 60 and m6[1].get('src') == 'https://hs.example/6', (m6, m8))
+    # --- another case size re-reads the case price (as one supply's editor does); a size's own photo stays
+    J(pg, "closeDrawer()"); combine(['cs-s', 'cs-m', 'cs-l'], 'Glove Test', ['Size'], {'cs-s': ['S'], 'cs-m': ['M'], 'cs-l': ['L']})
+    fid = store('items/cs-s').get('fam'); img_m = store('items/cs-m').get('img')
+    J(pg, "closeDrawer(); openFamEditor(%s)" % json.dumps(fid)); pg.wait_for_timeout(300)
+    check('review: the product shows its case price ($40.00 a case of 10)', J(pg, "S.ui.ed.sources[0].price") == '40.00' and J(pg, "S.ui.ed.f.perBuy") == '10')
+    pg.fill('#edPer', '12'); pg.wait_for_timeout(100)
+    J(pg, "(() => { const d = 'data:image/png;base64,' + %s; Object.assign(S.ui.ed.photo, { thumb: d, full: d, changed: true, ai: false }); })()" % json.dumps(png(20, 20)))
+    click(pg, '#edSaveBtn', 900); settle(pg)
+    gs, gm = store('items/cs-s'), store('items/cs-m')
+    check('review: case of 12 at the same $40.00 → $3.3333 a box', gs.get('perBuy') == 12 and abs((gs.get('sources') or [{}])[0].get('price', 0) - 3.3333) < 0.0001 and abs((gm.get('sources') or [{}])[0].get('price', 0) - 3.3333) < 0.0001, ((gs.get('sources') or [{}])[0], (gm.get('sources') or [{}])[0]))
+    gl = store('items/cs-l')
+    check('review: a new product photo replaces the product’s photo and fills a size without one; a size with its own keeps it', str(gs.get('img') or '').startswith('pic:') and gl.get('img') == gs.get('img') and gm.get('img') == img_m, (gs.get('img'), gl.get('img'), str(gm.get('img'))[:40]))
+    # --- several sizes into the cart: a note goes beside the one already on a line
+    J(pg, "cartAdd(itemById('cs-s'), 1, { note: 'for the Smith case Tue' })"); settle(pg)
+    J(pg, "cartAddMany([[itemById('cs-s'), 1], [itemById('cs-m'), 2]], { note: 'need by Thursday' })"); settle(pg)
+    ln = [c for c in lines(store('cart')) if c.get('itemId') == 'cs-s'][0]
+    check('review: an added note doesn’t replace someone’s note', ln.get('note') == 'for the Smith case Tue · need by Thursday' and ln.get('qty') == 2, ln.get('note'))
+    # --- a product whose other sizes are archived can still be edited
+    J(pg, "B.patchItems([['cs-m', { archived: true, archivedBy: 'Dr. A', archivedAt: nowISO() }]])"); settle(pg)
+    J(pg, "openFamEditor(%s)" % json.dumps(fid)); pg.wait_for_timeout(300)
+    pg.fill('#edName', 'Glove Test Two'); click(pg, '#edSaveBtn', 800); settle(pg)
+    check('review: one size left beside archived ones: the product still saves (the archived size renamed too)', store('items/cs-s').get('name') == 'Glove Test Two — S' and store('items/cs-m').get('name') == 'Glove Test Two — M', (store('items/cs-s').get('name'), store('items/cs-m').get('name')))
+    check('review: no page errors', not errs, errs)
+    ctx.close()
+
 @test
 def t_demo(b):
     """the demo page: made-up office, nothing saved, every screen for each kind of person"""
@@ -1840,6 +2053,10 @@ def t_demo(b):
         J(pg, "go('home')"); pg.wait_for_timeout(120)
         pt = J(pg, "(document.querySelector('.ptsCard') || {}).textContent || ''")
         check('demo (%s): AO Partner Dollars on Home: %s (made-up balance)' % (who, who == 'amir'), ('AO Direct showed $1,250.00' in pt and '≈ $' in pt) if who == 'amir' else pt == '', pt[:200])
+        J(pg, "go('supplies')"); pg.wait_for_timeout(200)
+        fc = J(pg, "(document.querySelector('.pcard.fam[data-fam=\"fam-demo-tad\"]') || {}).textContent || ''")
+        check('demo (%s): the made-up mini screws are one product in 6 sizes & types' % who, 'tomas-pin mini screw' in fc and '6 sizes & types' in fc and J(pg, "famMembers('fam-demo-tad').length") == 6, fc)
+        check('demo (%s): Combine suggestions for Dr. A only' % who, ('Sizes of the same product?' in J(pg, "(document.querySelector('.famHint') || {}).textContent || ''")) == (who == 'amir'))
         J(pg, "ACT.lock()"); pg.wait_for_selector('#lgBtn')
     check('demo: no page errors', not errs, errs)
     ctx.close()

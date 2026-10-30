@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-pDb14oBY7mi2QfJIFOSsBsesjYXOQlCp4d53GJn9Lb8=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-lnTSri6DWt0Ba8mtxSh1fzJ7qcIoYyMCK8xe6rO5HII=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Inventory</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B2F4C'/%3E%3Cpath d='M18 24l14-7 14 7v17l-14 7-14-7z' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 24l14 7 14-7M32 31v17' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -956,6 +956,89 @@ body.gated .askFab{display:none}
 .ptsHow svg{flex:none;margin-top:2px}
 @media (max-width:860px){ .irow .act .ptsAfter{text-align:left} }
 
+/* ---------- products in sizes and types (5.3, families.js): one card per product, its sizes in its drawer ---------- */
+.pcard.fam{box-shadow:var(--sh-xs),5px 5px 0 -1px #fff,5px 5px 0 0 var(--grey-200),10px 10px 0 -2px #fff,10px 10px 0 -1px var(--grey-200);margin:0 10px 10px 0}
+.pcard.fam:hover{box-shadow:var(--sh-md),5px 5px 0 -1px #fff,5px 5px 0 0 var(--grey-300),10px 10px 0 -2px #fff,10px 10px 0 -1px var(--grey-200)}
+.famBadge{position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;gap:5px;background:var(--navy);color:#fff;border-radius:99px;padding:4px 10px;font-size:11px;font-weight:700;letter-spacing:.01em;box-shadow:0 1px 3px rgba(17,32,58,.22);max-width:calc(100% - 16px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.famBadge .i{color:var(--mint);flex:none}
+.pbd .famVals{font-size:11.5px;font-weight:600;color:var(--navy-600);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:-2px}
+.pcard.fam .pft{flex-wrap:wrap}
+.pcard.fam .pft .ps{white-space:normal}
+.pft .ps .out,.irow .stock small.out{color:var(--coral-700)} .pft .ps .low,.irow .stock small.low{color:var(--amber-700)}
+.famPill{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:700;background:var(--navy-100);color:var(--navy-700);vertical-align:2px;white-space:nowrap}
+.badge.famB{background:var(--navy-100);color:var(--navy-700)}
+.famLink{border:none;cursor:pointer;font:inherit;font-size:11px;font-weight:700}
+.famLink:hover{background:var(--navy);color:#fff}
+.vtbl{border-top:1px solid var(--grey-100)}
+.vgrp{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--navy-600);padding:12px 4px 5px;border-bottom:1px solid var(--grey-100)}
+.vrow{display:grid;grid-template-columns:minmax(0,1fr) auto 64px 34px;gap:10px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--grey-100);cursor:pointer;border-radius:8px}
+.vrow:hover{background:var(--grey-50)}
+.vrow:focus-visible{outline:3px solid var(--blue-200);outline-offset:-2px}
+.vn{min-width:0}
+.vn b{display:block;color:var(--navy);font-size:13.5px;line-height:1.3}
+.vn>span{display:block;font-size:11.5px;color:var(--grey-500);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vn .flags{margin-top:4px}
+.vp{font-weight:700;color:var(--navy);font-size:13px;text-align:right;white-space:nowrap}
+.vp small{font-weight:600;color:var(--grey-500);font-size:11px}
+.vq{text-align:right;font-weight:700;font-size:15px;color:var(--navy);line-height:1.1}
+.vq small{display:block;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--grey-400)}
+.vq.low{color:var(--amber-700)} .vq.out{color:var(--coral-700)}
+.vadd{width:32px;height:32px;border-radius:50%;background:var(--mint);color:var(--navy-900);display:inline-flex;align-items:center;justify-content:center}
+.vadd:hover{background:var(--mint-600)}
+.famGone summary{cursor:pointer;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);padding:4px 0}
+.farow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--grey-100);border-radius:8px;transition:background .12s var(--ease)}
+.farow.on{background:var(--mint-100)}
+.farow .qty input{width:52px}
+.fcTbl .farow{grid-template-columns:minmax(0,1fr) auto auto}
+.fcTbl .qty input{width:70px}
+.fcd{font-weight:700;min-width:40px;text-align:right}
+.modal.famAddM .vtbl{max-height:min(56vh,520px);overflow-y:auto;margin-bottom:14px;border:1px solid var(--grey-100);border-radius:12px;padding:0 6px}
+.famHint{display:flex;align-items:center;gap:10px;background:var(--navy-100);color:var(--navy-700);border-radius:12px;padding:10px 12px 10px 14px;font-size:13px;margin:0 0 16px}
+.famHint b{color:var(--navy)}
+.famHint .i{flex:none}
+.famSugList{border-top:1px solid var(--grey-100)}
+.famSug{display:flex;gap:12px;align-items:center;padding:12px 2px;border-bottom:1px solid var(--grey-100)}
+.famSug b{color:var(--navy);font-size:14px}
+.cmbTbl{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--grey-100);border-radius:12px;padding:4px 10px;margin-top:4px}
+.cth,.ctr{display:grid;grid-template-columns:34px minmax(150px,1.3fr) repeat(var(--copts,1),minmax(96px,1fr)) minmax(150px,1.3fr);gap:8px;align-items:center;min-width:580px}
+.cth{padding:6px 0}
+.cth span{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-500)}
+.ctr{padding:5px 0;border-top:1px solid var(--grey-100)}
+.ctr input{padding:7px 10px;border:1.5px solid var(--grey-200);border-radius:9px;background:#fff;min-height:36px;font-weight:600;width:100%;min-width:0;outline:none}
+.ctr input:focus,.ftr input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.cnow{font-size:12.5px;color:var(--grey-600);min-width:0;overflow-wrap:anywhere}
+.cnow small{display:block;color:var(--amber-700);font-weight:600}
+.cnew{font-size:12.5px;font-weight:700;color:var(--navy);min-width:0;overflow-wrap:anywhere}
+/* the editor */
+.chk.famOn{background:var(--mint-100);border:1.5px dashed var(--mint-600);border-radius:12px;padding:10px 12px;margin:0 0 14px;color:var(--navy);line-height:1.35;cursor:pointer}
+.chk.famOn .i{color:var(--mint-700);flex:none}
+.chk.famOn .muted{font-weight:500}
+.edSec.famSec{border-color:var(--mint-600);box-shadow:0 0 0 3px var(--mint-100);padding-bottom:14px}
+.famOpt{display:grid;grid-template-columns:150px minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-bottom:8px}
+.famOpt input{padding:9px 12px;border:1.5px solid var(--grey-200);border-radius:10px;background:#fff;min-height:40px;width:100%;min-width:0;outline:none}
+.famOpt input.fon{font-weight:700;color:var(--navy)}
+.famOpt input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.famOptBtns{display:flex;gap:18px;flex-wrap:wrap;margin:2px 0 12px}
+.famTbl{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--grey-100);border-radius:12px;padding:2px 10px 4px}
+.fth,.ftr{display:grid;grid-template-columns:34px repeat(var(--fcols,1),minmax(70px,1fr)) minmax(104px,1.25fr) 96px 80px 84px;gap:6px;align-items:center;min-width:600px}
+.fth{padding:8px 0 6px}
+.fth span{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ftr{padding:4px 0;border-top:1px solid var(--grey-100)}
+.ftr input{padding:6px 9px;border:1.5px solid var(--grey-200);border-radius:9px;background:#fff;min-height:34px;font-size:13px;font-weight:600;width:100%;min-width:0;outline:none}
+.ftr .fck{display:flex;justify-content:center}
+.ftr .fck input{width:17px;height:17px;min-height:0;accent-color:var(--navy)}
+.ftr .fv{font-weight:700;color:var(--navy);font-size:13px;overflow-wrap:anywhere}
+.ftr .fq{font-weight:700;color:var(--navy);text-align:center}
+.ftr.off .fv,.ftr.off input:not([type=checkbox]){opacity:.4}
+.ftr.new{background:linear-gradient(90deg,var(--mint-100),transparent)}
+.ftr.out{color:var(--grey-500)}
+.ftr.out .fout{grid-column:2/-1;font-size:12.5px;padding:4px 0}
+.famEmpty{display:flex;gap:10px;align-items:center;color:var(--grey-500);font-size:13px;padding:14px;border:1.5px dashed var(--grey-200);border-radius:12px}
+.famMemNote{display:block;font-weight:500;margin-bottom:14px}
+.famMemNote b{color:var(--blue-700)}
+@media (max-width:860px){ .famOpt{grid-template-columns:110px minmax(0,1fr) auto auto} .famSug{flex-wrap:wrap} .vrow{grid-template-columns:minmax(0,1fr) auto 56px 32px;gap:8px} .famHint{flex-wrap:wrap} }
+@media (max-width:600px){ .pcard.fam{margin:0 6px 6px 0;box-shadow:var(--sh-xs),3px 3px 0 -1px #fff,3px 3px 0 0 var(--grey-200),6px 6px 0 -2px #fff,6px 6px 0 -1px var(--grey-200)} .farow{grid-template-columns:minmax(0,1fr) auto} .farow .qty{grid-column:1/-1;justify-self:end} }
+
 </style>
 </head>
 <body>
@@ -997,7 +1080,7 @@ body.gated .askFab{display:none}
      Staff Meeting's spending card and AISA's stock answers.
    ===================================================================== */
 
-const APP_VERSION = '5.2.2';
+const APP_VERSION = '5.3.0';
 const APP_NAME = 'NLO Inventory';
 const DEMO_ONLY = false;          // the demo page sets this (build.py)
 const LOGO = 'logo-white.png';     // the demo page carries the logo inside it
@@ -3787,6 +3870,12 @@ const FB = {
   setStock(itemId, qty) { return FB.save(b => b.update(FB.itemRef(itemId), Object.assign({ qty }, FB.st()))); },
   patchItem(id, patch) { return FB.save(b => FB.setPatch(b, FB.itemRef(id), patch)); },
   putItem(item) { return FB.save(b => b.set(FB.itemRef(item.id), Object.assign(FB.clean(item), FB.st()))); },
+  /* a product's sizes (families.js) in one save: new supplies, and changes to ones already there ([[itemId, patch], …]) */
+  famSave(puts, patches) {
+    puts = (puts || []).filter(x => x && x.id); patches = (patches || []).filter(x => x && x[0]);
+    if (!puts.length && !patches.length) return Promise.resolve();
+    return FB.save(b => { puts.forEach(it => b.set(FB.itemRef(it.id), Object.assign(FB.clean(it), FB.st()))); patches.forEach(([id, p]) => FB.setPatch(b, FB.itemRef(id), p)); });
+  },
   patchOrder(id, patch) { return FB.save(b => FB.setPatch(b, FB.orderRef(id), patch)); },
   putOrder(o) { return FB.save(b => b.set(FB.orderRef(o.id), Object.assign(FB.clean(o), FB.st()))); },
   /* an order's status, in one step: fn(current) gives the new one, or undefined to leave it (then this fails 'aborted');
@@ -4043,6 +4132,7 @@ const DEMO = {
       async setStock(id, qty) { if (store.items[id]) store.items[id].qty = qty; M.emit('items'); },
       async patchItem(id, patch) { if (!store.items[id]) throw errCode('not-found', 'That supply is gone.'); M.patchOf(store.items[id], patch); M.emit('items'); },
       async putItem(item) { store.items[item.id] = clone(item); M.emit('items'); },
+      async famSave(puts, patches) { (puts || []).forEach(it => { if (it && it.id) store.items[it.id] = clone(it); }); (patches || []).forEach(([id, p]) => { if (store.items[id]) M.patchOf(store.items[id], p); }); M.emit('items'); },
       async patchOrder(id, patch) { if (!store.orders[id]) throw errCode('not-found', 'That order is gone.'); M.patchOf(store.orders[id], patch); M.emit('orders'); },
       async putOrder(o) { store.orders[o.id] = clone(o); M.emit('orders'); },
       async claimOrder(id, fn, patchFn) { const o = store.orders[id]; const next = o ? fn(o.status) : undefined; if (next === undefined) throw errCode('aborted', 'That change didn’t go through. Try again.'); if (patchFn) M.patchOf(o, patchFn(clone(o))); o.status = next; M.emit('orders'); return next; },
@@ -4172,6 +4262,14 @@ function demoStore() {
   Object.values(items).forEach(i => { if ((i.sources[0] || {}).vendor === 'American Orthodontics') i.aoPts = { pay: true, at: ptsDay }; });
   [['d-bk1', 'Metal bracket .018 MBT, upper central (demo)', 2.84, 1.28, 260], ['d-bk2', 'Metal bracket .018 MBT, lower incisor (demo)', 2.84, 1.28, 180], ['d-tb1', 'Buccal tube .018, 1st molar, bondable (demo)', 5.04, 1.84, 64]]
     .forEach(([id, name, price, earn, qty]) => { items[id] = { id, name, cat: 'brackets-tubes', unit: 'each', qty, min: 40, group: 'Brackets & tubes (demo)', note: '', sources: [{ vendor: 'American Orthodontics', sku: '', price, src: 'https://shop.americanortho.com' }], aoPts: { earn, at: ptsDay } }; });
+  /* a product in sizes and types (5.3, families.js): mini screws in two types and three lengths — one card, each size a supply
+     of its own (made-up item #s, prices and counts) */
+  [['Self-drilling', '6 mm', 4], ['Self-drilling', '8 mm', 6], ['Self-drilling', '10 mm', 1], ['Self-tapping', '6 mm', 3], ['Self-tapping', '8 mm', 0], ['Self-tapping', '10 mm', 5]].forEach(([t, l, qty], k) => {
+    const id = 'd-tad' + (k + 1), name = 'tomas-pin mini screw', vals = [t, l];
+    items[id] = { id, name: famFullName(name, vals), cat: 'auxiliaries', group: 'TADs (Miniscrews)', unit: 'pack', qty, min: 2, location: 'Lab drawer 3', note: 'Pack of 5 · 1.6 mm wide (made-up for the demo)',
+      manufacturer: 'Dentaurum', sources: [{ vendor: 'Dentaurum', sku: 'DEMO-' + (t[5] === 'd' ? 'SD' : 'ST') + '-' + parseInt(l, 10), price: k === 2 || k === 5 ? 58.9 : 54.5, src: '' }], baseUnitName: 'Screw', baseUnitsPerOrderUnit: 5,
+      fam: 'fam-demo-tad', famName: name, famOpts: ['Type', 'Length'], famVals: vals, famPos: k, createdBy: 'Dr. A', createdAt: new Date(Date.now() - 3 * day).toISOString() };
+  });
   const line = (it, q, who, d, h) => { const s = (it.sources || [])[0] || {}, per = perBuy(it); return { itemId: it.id, name: it.name, sku: s.sku || '', vendor: s.vendor || '', price: round2((s.price || 0) * per), unit: buyUnit(it), per: per > 1 ? per : null, countUnit: per > 1 ? it.unit : null, qty: q, addedBy: DEMO_PEOPLE[who].short, addedById: who, addedAt: iso(at(d, h, 12)), lineId: 'c' + it.id + d }; };
   const glove = Object.values(items).find(i => /Gloves Pulse Nitrile — SM/.test(i.name)) || pick(3);
   const cart = [line(glove, 2, 's_gwen', 0, 9), line(pick(5), 3, 's_kaylee', 1, 14), line(pick(11), 1, 's_angelika', 2, 10), line(pick(17), 2, 's_gwen', 0, 11)];
@@ -4321,6 +4419,7 @@ function idleMinutes() { const n = Number(S.cases && S.cases.idleMin); return n 
    ===================================================================== */
 /* ---------- icons ---------- */
 const IC = {
+  layers: '<path d="M12 3.5l8.5 4.6-8.5 4.6-8.5-4.6z"/><path d="M3.5 12.4l8.5 4.6 8.5-4.6"/><path d="M3.5 16.4l8.5 4.6 8.5-4.6"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   home: '<path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>',
   box: '<path d="M4 8l8-4 8 4v8.5l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8.5"/>',
@@ -5267,6 +5366,32 @@ async function cartAdd(item, qty, opt) {
   B.alert([{ t: 'cart', at: Date.now(), by: s.by, lines: alertLines([Object.assign({}, cartLineFor(item, qty, s, opt), { vendor: added.vendor })]), inCart: S.D.cart.length }]);
   return added;
 }
+/* several supplies at once (a product's sizes, families.js), in one step and one alert: [[item, qty], …]. Each is added as cartAdd
+   adds it (more of a line already there, else a line of its own); a note goes on the new lines, and beside the note of a line it's
+   added to. */
+async function cartAddMany(pairs, opt) {
+  opt = opt || {}; pairs = listOf(pairs).filter(p => p && p[0] && Number(p[1]) > 0); if (!pairs.length) return [];
+  const s = stamp(), boss = isOwnerAccount(), added = [];
+  await B.cart((list, ok) => {
+    added.length = 0;
+    pairs.forEach(([item, qty]) => {
+      qty = Number(qty) || 1;
+      const ex = list.find(c => c && c.itemId === item.id); let a;
+      if (ex) {
+        const conv = linePer(ex) !== perBuy(item) ? perBuy(item) / linePer(ex) : 1, more = round2(qty * conv);
+        ex.qty = round2((Number(ex.qty) || 0) + more); ex.trail = trailAdd(ex.trail, 'more', s, conv !== 1 ? { qty: more, as: qtyUnit(qty, buyUnit(item)) } : { qty });
+        /* (a note goes beside the one already on the line, never over someone else's) */
+        if (opt.note && !String(ex.note || '').includes(opt.note)) { const nn = ex.note ? ex.note + ' · ' + opt.note : opt.note; ex.note = nn.length > 300 ? nn.slice(0, 299) + '…' : nn; }
+        a = ex;
+      } else { a = cartLineFor(item, qty, s, opt); list.push(a); }
+      if (boss) ok[a.lineId] = okStamp(a, s);
+      added.push(a);
+    });
+    return list;
+  });
+  B.alert([{ t: 'cart', at: Date.now(), by: s.by, lines: alertLines(pairs.map(([item, qty], k) => Object.assign({}, cartLineFor(item, qty, s, opt), { vendor: (added[k] || {}).vendor || opt.vendor || '' }))), inCart: S.D.cart.length }]);
+  return added.slice();
+}
 async function cartSetQty(itemId, qty) {
   qty = Math.max(0, Number(qty) || 0); const s = stamp(), boss = isOwnerAccount(); let was = 0, line = null;
   if (!qty) return cartRemove(itemId);
@@ -5561,6 +5686,20 @@ async function stockStep(item, delta, type, note, setTo, extra) {
   await B.addLog([logEntry(Object.assign({ itemId: item.id, itemName: item.name, delta: round2(delta), note: note || null, type }, extra || {}), s)]);
 }
 
+/* several supplies counted at once (a product's sizes): each set to its count and stamped, in one save, then logged as counts
+   (pairs: [[item, the count], …]) */
+async function countMany(pairs, note) {
+  pairs = listOf(pairs).filter(p => p && p[0]); if (!pairs.length) return;
+  const s = stamp(), patches = [], log = [];
+  pairs.forEach(([it, n]) => {
+    const live = Number((itemById(it.id) || it).qty) || 0, to = Math.max(0, Number(n) || 0);
+    patches.push([it.id, { qty: to, chk: s.at, chkBy: s.by }]);
+    log.push(logEntry({ itemId: it.id, itemName: it.name, delta: round2(to - live), note: note || 'Counted', type: 'count' }, s));
+  });
+  await B.patchItems(patches);
+  await B.addLog(log);
+}
+
 /* ---------- supplies ---------- */
 async function saveItem(item, isNew) {
   const s = stamp(); item = Object.assign({}, item);
@@ -5570,7 +5709,13 @@ async function saveItem(item, isNew) {
   return item;
 }
 async function archiveItem(item, on) { const s = stamp(); await B.patchItem(item.id, { archived: !!on, archivedBy: on ? s.by : null, archivedAt: on ? s.at : null }); }
-async function deleteItem(item) { const s = stamp(); await B.patchItem(item.id, { deleted: true, deletedAt: s.at, deletedBy: s.by }); }
+async function deleteItem(item) {
+  const s = stamp(), del = [item.id, { deleted: true, deletedAt: s.at, deletedBy: s.by }];
+  /* (a product left with one size by it is no product any more: families.js) */
+  const left = famId(item) ? famMembers(item.fam, true).filter(m => m.id !== item.id) : [];
+  if (left.length === 1) return B.patchItems([del, [left[0].id, famOffPatch(left[0], s)]]);
+  await B.patchItem(item.id, del[1]);
+}
 /* a vendor typed on a supply that isn't in the directory yet gets added to it */
 function ensureVendors(names) {
   const have = new Set(S.D.vendors.map(v => String(v.name || '').trim().toLowerCase()));
@@ -5785,21 +5930,27 @@ VIEWS.supplies = {
   render() {
     const u = S.ui.sup || (S.ui.sup = { cat: '', show: '', sort: 'cat' });
     const list = supVisible();
-    const counts = {}; activeItems().forEach(i => { counts[i.cat] = (counts[i.cat] || 0) + 1; });
-    let h = '<div class="chips">' + '<button class="chip' + (!u.cat ? ' on' : '') + '" data-act="supCat" data-c="">All<span class="c">' + activeItems().length + '</span></button>' +
+    /* (a product in sizes is one card, so it counts once: families.js) */
+    const counts = {}, seen = new Set(); activeItems().forEach(i => { const k = i.cat + '|' + (famId(i) || i.id); if (seen.has(k)) return; seen.add(k); counts[i.cat] = (counts[i.cat] || 0) + 1; });
+    const total = new Set(activeItems().map(i => famId(i) || i.id)).size;
+    const ents = supEntries(list, u.show === 'archived');
+    let h = '<div class="chips">' + '<button class="chip' + (!u.cat ? ' on' : '') + '" data-act="supCat" data-c="">All<span class="c">' + total + '</span></button>' +
       CATEGORIES.filter(c => counts[c.id]).map(c => '<button class="chip' + (u.cat === c.id ? ' on' : '') + '" data-act="supCat" data-c="' + c.id + '">' + esc(c.label) + '<span class="c">' + counts[c.id] + '</span></button>').join('') + '</div>';
     const opt = (v, l) => '<option value="' + v + '"' + (u.show === v ? ' selected' : '') + '>' + l + '</option>';
     h += '<div class="filters"><select data-chg="supShow" aria-label="Show">' + opt('', 'Every supply') + opt('cart', 'In the cart') + opt('order', 'On order') + opt('low', 'Below its minimum') + opt('exp', 'Expiring soon') + opt('archived', 'Archived') + '</select>' +
       '<select data-chg="supSort" aria-label="Sort">' + ['cat:By category', 'name:A–Z', 'vendor:By vendor', 'recent:Recently ordered'].map(x => { const [v, l] = x.split(':'); return '<option value="' + v + '"' + (u.sort === v ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select>' +
       '<div class="seg" role="group" aria-label="Show as"><button data-act="supLook" data-l="grid" aria-pressed="' + (supLook() === 'grid') + '">' + ic('grid', 14) + 'Photos</button><button data-act="supLook" data-l="list" aria-pressed="' + (supLook() === 'list') + '">' + ic('list', 14) + 'List</button></div>' +
-      '<span class="muted small">' + list.length + ' suppl' + (list.length === 1 ? 'y' : 'ies') + '</span></div>';
+      '<span class="muted small">' + ents.length + ' suppl' + (ents.length === 1 ? 'y' : 'ies') + '</span></div>';
     if (u.show === 'low') h += '<div class="notice info">Stock counts aren’t always up to date, so treat this as a hint and check the shelf.</div>';
+    if (!S.q && !u.show) h += famHintHTML();
     if (!list.length) return h + '<div class="card"><div class="empty">' + (S.q ? 'Nothing matches “' + esc(S.q) + '”. <button class="linkBtn" data-act="itemNew">Add it as a new supply</button>' : 'Nothing here.') + '</div></div>';
     let body = '', cat = null, grp = null; const grid = supLook() === 'grid';
-    list.slice(0, 600).forEach(i => {
-      if (u.sort === 'cat' && i.cat !== cat) { cat = i.cat; grp = null; body += '<div class="catHead"><i style="background:' + catColor(cat) + '"></i>' + esc(catLabel(cat)) + '<span class="c">' + list.filter(x => x.cat === cat).length + '</span></div>'; }
+    const catN = {}; ents.forEach(e => { const r = e.it || e.hits[0]; catN[r.cat] = (catN[r.cat] || 0) + 1; });
+    ents.slice(0, 600).forEach(e => {
+      const i = e.it || e.hits[0];   // (a product sits where its first size does)
+      if (u.sort === 'cat' && i.cat !== cat) { cat = i.cat; grp = null; body += '<div class="catHead"><i style="background:' + catColor(cat) + '"></i>' + esc(catLabel(cat)) + '<span class="c">' + catN[cat] + '</span></div>'; }
       if (u.sort === 'cat' && i.group && i.group !== grp) { grp = i.group; body += '<div class="grpHead">' + esc(grp) + '</div>'; }
-      body += grid ? itemCardHTML(i) : itemRowHTML(i);
+      body += e.it ? (grid ? itemCardHTML(e.it) : itemRowHTML(e.it)) : (grid ? famCardHTML(e) : famRowHTML(e));
     });
     return h + (grid ? '<div class="pgrid">' + body + '</div>' : '<div class="card">' + body + '</div>');
   }
@@ -5848,8 +5999,10 @@ ACT.addGo = t => {
 DRAWERS.item = id => {
   const it = itemById(id); if (!it) return '';
   const srcs = allSources(it), c = inCartLine(id), os = openOrdersWith(id), per = perBuy(it);
-  const hasPic = !!photoOf(it);
-  let h = '<div class="dHd">' + (hasPic ? '' : '<button class="thumb lg addPic" data-act="itemEdit" data-id="' + esc(id) + '" title="Add a photo">' + ic('camera', 26) + '<span>Add a photo</span></button>') + '<div style="flex:1;min-width:0"><h3>' + esc(it.name) + '</h3><div class="sub"><span class="badge" style="background:' + catColor(it.cat) + '22;color:' + catColor(it.cat) + '">' + esc(catLabel(it.cat)) + '</span>' + (it.group ? '<span class="badge">' + esc(it.group) + '</span>' : '') + (it.location ? '<span class="badge">' + ic('pin', 12) + esc(it.location) + '</span>' : '') + (it.archived ? '<span class="badge">Archived</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">' +
+  const hasPic = !!photoOf(it), fid = famId(it), sibs = fid ? famMembers(fid, true) : [];
+  /* one size of a product (families.js): the product is a tap away */
+  const famChip = fid ? '<button class="badge famB famLink" data-act="openFam" data-fam="' + esc(fid) + '" title="See every size">' + ic('layers', 12) + 'One of ' + esc(sibs.length) + ' · ' + esc(it.famName || '') + ' ›</button>' : '';
+  let h = '<div class="dHd">' + (hasPic ? '' : '<button class="thumb lg addPic" data-act="itemEdit" data-id="' + esc(id) + '" title="Add a photo">' + ic('camera', 26) + '<span>Add a photo</span></button>') + '<div style="flex:1;min-width:0"><h3>' + esc(it.name) + '</h3><div class="sub">' + famChip + '<span class="badge" style="background:' + catColor(it.cat) + '22;color:' + catColor(it.cat) + '">' + esc(catLabel(it.cat)) + '</span>' + (it.group ? '<span class="badge">' + esc(it.group) + '</span>' : '') + (it.location ? '<span class="badge">' + ic('pin', 12) + esc(it.location) + '</span>' : '') + (it.archived ? '<span class="badge">Archived</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">' +
     (hasPic ? '<div class="dHero" data-act="viewPhoto" data-id="' + esc(id) + '" role="button" tabindex="0" title="See it full size">' + photoImgHTML(it, true) + '<span class="pzoom">' + ic('zoom', 16) + '</span></div>' : '');
   h += '<div class="btnRow" style="margin-top:0">' + (it.archived ? '' : '<button class="btn btn-teal" data-act="drawerAdd" data-id="' + esc(id) + '">' + ic('cart', 16) + (c ? 'Add more' : 'Add to cart') + '</button>') +
     '<button class="btn btn-sec" data-act="countIt" data-id="' + esc(id) + '">' + ic('count', 16) + 'Count</button><button class="btn btn-ghost" data-act="itemEdit" data-id="' + esc(id) + '">' + ic('edit', 15) + 'Edit</button></div>';
@@ -5882,6 +6035,8 @@ DRAWERS.item = id => {
   const steps = S.D.log.filter(e => e.itemId === id && (e.type === 'use' || e.type === 'count' || e.type === 'adjust' || e.type === 'receive' && !e.orderId)).slice(0, 10);
   if (steps.length) h += '<div class="sec"><h5>Stock steps</h5>' + steps.map(e => '<div class="hist"><time>' + esc(fmtWhen(e.date)) + '</time><span style="flex:1">' + esc(e.type === 'count' ? 'Counted (' + (e.delta > 0 ? '+' : '') + qtyFmt(e.delta) + ')' : e.type === 'use' ? 'Used ' + qtyFmt(Math.abs(e.delta)) : (e.delta > 0 ? '+' : '') + qtyFmt(e.delta)) + (e.note ? ' · ' + esc(plainText(e.note, 60)) : '') + (e.by ? ' · ' + esc(e.by) : '') + '</span></div>').join('') + '</div>';
   h += '<div class="sec"><h5>More</h5><div class="btnRow" style="margin-top:0"><button class="btn btn-ghost" data-act="qrIt" data-id="' + esc(id) + '">' + ic('scan', 15) + 'QR label</button>' +
+    (it.archived ? '' : fid ? '<button class="btn btn-ghost" data-act="famOut" data-id="' + esc(id) + '">' + ic('grid', 15) + 'Take it out of ' + esc(plainText(it.famName || 'the product', 40)) + '</button>'
+      : '<button class="btn btn-ghost" data-act="famCombine" data-id="' + esc(id) + '" title="Make it and its other sizes one product">' + ic('layers', 15) + 'Combine with its other sizes</button>') +
     (isAdmin() ? '<button class="btn btn-ghost" data-act="archiveIt" data-id="' + esc(id) + '">' + ic('archive', 15) + (it.archived ? 'Bring back' : 'Archive') + '</button><button class="btn btn-ghost" data-act="deleteIt" data-id="' + esc(id) + '" style="color:var(--coral-700)">' + ic('trash', 15) + 'Delete</button>' : '') + '</div>' +
     (it.createdBy || it.updatedBy ? '<div class="hint">' + (it.createdBy ? 'Added by ' + esc(it.createdBy) + ' ' + esc(fmtWhen(it.createdAt)) : '') + (it.updatedBy ? (it.createdBy ? ' · ' : '') + 'last changed by ' + esc(it.updatedBy) + ' ' + esc(fmtWhen(it.updatedAt)) : '') + '</div>' : '') + '</div>';
   return h + '</div>';
@@ -5889,6 +6044,605 @@ DRAWERS.item = id => {
 ACT.drawerAdd = t => { const it = itemById(t.dataset.id); if (it) openAddToCart(it); };
 ACT.archiveIt = t => { const it = itemById(t.dataset.id); if (!it) return; withAdmin(() => act(() => archiveItem(it, !it.archived), it.archived ? 'Back in the list.' : 'Archived. It’s under Supplies → Archived.'), 'Who’s archiving it?', 'archive supplies'); };
 ACT.deleteIt = t => { const it = itemById(t.dataset.id); if (!it) return; withAdmin(async () => { if (!await confirmBox('Delete “' + it.name + '”?', 'It leaves the list on every computer. Past orders and spending keep its name. Archiving instead keeps it findable.', 'Delete', true)) return; return act(async () => { await deleteItem(it); closeDrawer(); }, 'Deleted.'); }, 'Who’s deleting it?', 'delete supplies'); };
+
+/* =====================================================================
+   Products in sizes and types (5.3). Amir, 30 Oct 2026: "can you make it
+   so items of similar nature that are only different in size for example
+   are combined. So for example, mini screws from dentaurum are different
+   by size and 2 different types. it will be much easier that way than
+   entering a separate entry for each of them".
+   - Every size is still a supply of its own — its own count, item #,
+     price, minimum, cart and order lines, QR label and history — so
+     ordering, receiving, the budget, Mari's List, AO points, the alert
+     script's copy for Staff Meeting and AISA all work as before. What
+     ties the sizes of one product together is on each of them:
+       fam      the product's id ('fam-…')
+       famName  the product's name, the same on every size
+       famOpts  what tells its sizes apart, in order (["Type", "Length"])
+       famVals  this size's own choices, in that order (["SD", "8 mm"])
+       famPos   where it sits in the product's list
+     and its name is made from them ("tomas-pin — SD · 8 mm"), so carts,
+     orders, vendor emails and the activity log read as they always did.
+   - Supplies shows one card per product (its photo, its sizes, what's in
+     the cart, on order or low); the product's drawer lists every size
+     with its count and price; one dialog adds several sizes to the cart,
+     another counts them. New supply makes every size at once ("It comes
+     in different sizes or types", editor.js); Edit on the product
+     changes them all; Combine makes supplies already there one product,
+     and Dr. A's Supplies points out the ones that look like sizes of
+     each other.
+   - No new rules: supplies take any fields.
+   ===================================================================== */
+const FAM_MAX = 60;                       // sizes in one product (they're saved in one step)
+const FAM_SEP = ' — ', FAM_VSEP = ' · ';  // "tomas-pin — SD · 8 mm"
+const FAM_OPT_NAMES = ['Size', 'Length', 'Diameter', 'Type', 'Color', 'Arch', 'Side', 'Shade', 'Thickness', 'Width', 'Shape', 'Head', 'Pack'];
+/* a size's mark taken off: it's a supply of its own again (its count, prices and history stay; famWas — the name a supply had
+   before Combine renamed it — comes back) */
+const FAM_OFF = { fam: null, famName: null, famOpts: null, famVals: null, famPos: null, famWas: null };
+function famOffPatch(m, s) { return Object.assign({}, FAM_OFF, m && m.famWas ? { name: m.famWas } : {}, { updatedBy: s.by, updatedAt: s.at }); }
+
+function famId(i) { return i && i.fam ? String(i.fam) : ''; }
+function famOptsOf(i) { return listOf(i && i.famOpts).map(x => String(x == null ? '' : x).trim()).slice(0, 3); }
+function famValsOf(i) {
+  const n = Math.max(famOptsOf(i).length, 1), v = listOf(i && i.famVals).map(x => String(x == null ? '' : x).trim());
+  return Array.from({ length: n }, (x, k) => v[k] || '');
+}
+/* what tells a size apart: "SD · 8 mm" */
+function famLabel(i) { return famValsOf(i).filter(Boolean).join(FAM_VSEP) || String((i && i.name) || ''); }
+/* a size's whole name: "tomas-pin — SD · 8 mm" */
+function famFullName(name, vals) {
+  const v = listOf(vals).map(x => String(x == null ? '' : x).trim()).filter(Boolean).join(FAM_VSEP); name = String(name || '').trim();
+  return v ? name + FAM_SEP + v : name;
+}
+const famNat = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+function famCmp(a, b) {
+  const pa = Number(a.famPos), pb = Number(b.famPos);
+  if (isFinite(pa) && isFinite(pb) && pa !== pb) return pa - pb;
+  return famNat(famLabel(a), famLabel(b));
+}
+/* a product's sizes in its order (all: the archived ones too) */
+function famMembers(fid, all) { if (!fid) return []; return (all ? items() : activeItems()).filter(i => i.fam === fid).sort(famCmp); }
+function famLead(fid) { return famMembers(fid)[0] || famMembers(fid, true)[0] || null; }
+function famNameOf(fid) { const l = famLead(fid); return l ? String(l.famName || l.name || '') : ''; }
+/* the photo a product shows: its first size that has one */
+function famPhotoItem(ms) { return listOf(ms).find(m => photoOf(m)) || null; }
+/* "6 sizes & types", "2 colors", "4 options" */
+function famNoun(opts, n) {
+  const kind = o => /size|length|diam|width|gauge|thick|dimension|\bmm\b|wire/i.test(o) ? 'size' : /colou?r|shade/i.test(o) ? 'color' : /arch|jaw/i.test(o) ? 'arch' : /side|hand/i.test(o) ? 'side' : /type|kind|style|model|head|shape/i.test(o) ? 'type' : 'option';
+  const order = ['size', 'type', 'color', 'arch', 'side', 'option'];
+  const u = Array.from(new Set(listOf(opts).map(kind))).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  const pl = x => n === 1 ? x : x === 'arch' ? 'arches' : x + 's';
+  if (!u.length) return pl('size');
+  return u.length === 1 ? pl(u[0]) : u.length === 2 && !u.includes('option') ? pl(u[0]) + ' & ' + pl(u[1]) : pl('option');
+}
+function famCountLabel(ms) { return ms.length + ' ' + famNoun(famOptsOf(ms[0]), ms.length); }
+/* the choices of one difference, in the product's order */
+function famDistinct(ms, k) { const out = []; listOf(ms).forEach(m => { const v = famValsOf(m)[k]; if (v && !out.includes(v)) out.push(v); }); return out; }
+/* "6, 8, 10 mm" (the unit once), "EP, SD" */
+function famValsCompact(vs) {
+  if (!vs.length) return '';
+  const m = vs.map(v => String(v).match(/^(.*\d)\s*([a-zA-Z]{1,6}\.?)$/));
+  if (vs.length > 1 && m.every(x => x) && m.every(x => x[2].toLowerCase() === m[0][2].toLowerCase())) {
+    const nums = m.map(x => x[1].trim());
+    return (nums.length > 5 ? nums[0] + '–' + nums[nums.length - 1] : nums.join(', ')) + ' ' + m[0][2];
+  }
+  return vs.length > 5 ? vs.slice(0, 4).join(', ') + ', …' : vs.join(', ');
+}
+/* "EP, SD · 6, 8, 10 mm" */
+function famSummary(ms) { if (!ms.length) return ''; return famOptsOf(ms[0]).map((o, k) => famValsCompact(famDistinct(ms, k))).filter(Boolean).join(FAM_VSEP); }
+/* the price of what's bought, lowest to highest across the sizes (usual vendor) */
+function famPrice(ms) {
+  const ps = ms.map(m => { const p = countPrice(primarySource(m)); return p == null ? null : p * perBuy(m); }).filter(p => p != null);
+  if (!ps.length) return null;
+  const lo = Math.min(...ps), hi = Math.max(...ps), one = hi - lo < 0.005;
+  return { lo, hi, one, u: buyUnit(ms[0]), text: one ? money(lo) : money(lo) + '–' + money(hi), short: one ? money(lo) : 'from ' + money(lo) };
+}
+function famStock(ms) {
+  const u = countUnit(ms[0]), same = ms.every(m => countUnit(m).toLowerCase() === u.toLowerCase());
+  const sum = round2(ms.reduce((a, m) => a + (Number(m.qty) || 0), 0)) || 0, low = ms.filter(isLow).length, out = ms.filter(isOut).length;
+  return { same, sum, u, low, out, text: same ? qtyFmt(sum) + ' ' + unitWord(u, sum) + ' on hand' : 'on hand in ' + plural(ms.length, 'size'),
+    note: out ? out + ' out' + (low > out ? ', ' + (low - out) + ' low' : '') : low ? low + ' low' : '' };
+}
+/* every vendor a size is bought from (the first size's usual one first), with how many sizes and the prices */
+function famVendors(ms) {
+  const out = [];
+  ms.forEach(m => allSources(m).forEach(s => {
+    if (!s || !s.vendor) return;
+    let v = out.find(x => x.vendor === s.vendor); if (!v) out.push(v = { vendor: s.vendor, n: 0, ps: [] });
+    v.n++; const p = countPrice(s); if (p != null) v.ps.push(p * perBuy(m));
+  }));
+  return out;
+}
+
+/* ---------- the Supplies screen: one card per product ---------- */
+/* the screen's list (filters and search applied) → its cards: a supply on its own ({ it }), or a product ({ fam, hits, ms }:
+   the sizes the filters left, and the sizes it shows — all of them, or the archived ones under Archived) */
+function supEntries(list, archived) {
+  const out = [], seen = new Map();
+  list.forEach(i => {
+    const f = famId(i); if (!f) return out.push({ it: i });
+    let e = seen.get(f);
+    if (!e) { e = { fam: f, hits: [], ms: archived ? famMembers(f, true).filter(m => m.archived) : famMembers(f) }; seen.set(f, e); out.push(e); }
+    e.hits.push(i);
+  });
+  out.forEach(e => { if (e.fam && !e.ms.length) e.ms = e.hits.slice(); });
+  return out;
+}
+function famTagsHTML(ms, cls) {
+  const t = cls === 'fl' ? 'fl' : 'ptag', sz = 11;
+  const cart = ms.filter(m => inCartLine(m.id)), ord = ms.filter(m => openOrdersWith(m.id).length), back = ms.some(m => openOrdersWith(m.id).some(o => o.status === 'backordered'));
+  const exp = ms.map(expDays).filter(d => d != null).sort((a, b) => a - b)[0], st = famStock(ms);
+  return (cart.length ? '<span class="' + t + ' cart">' + ic('cart', sz) + 'In cart · ' + esc(cart.length === 1 ? famLabel(cart[0]) : plural(cart.length, 'size')) + '</span>' : '') +
+    (ord.length ? '<span class="' + t + ' ' + (back ? 'back' : 'order') + '">' + ic('truck', sz) + (back ? 'Backordered' : 'On order') + (ord.length > 1 ? ' · ' + ord.length : '') + '</span>' : '') +
+    (st.out ? '<span class="' + t + ' low">Out' + (st.out > 1 ? ' · ' + st.out : '') + '</span>' : st.low ? '<span class="' + t + ' low">Low' + (st.low > 1 ? ' · ' + st.low : '') + '</span>' : '') +
+    (exp != null && exp < 90 ? '<span class="' + t + ' due">' + (exp < 0 ? 'Expired' : 'Expires soon') + '</span>' : '') +
+    (ms.length && ms.every(m => m.archived) ? '<span class="' + t + ' arch">Archived</span>' : '');
+}
+function famCardHTML(e) {
+  const ms = e.ms, lead = ms[0], pic = famPhotoItem(ms), src = primarySource(lead), pr = famPrice(ms), st = famStock(ms), tags = famTagsHTML(ms);
+  const name = lead.famName || lead.name || 'Unnamed', cart = ms.some(m => inCartLine(m.id)), arch = ms.every(m => m.archived);
+  return '<div class="pcard fam" data-act="openFam" data-fam="' + esc(e.fam) + '" role="button" tabindex="0" aria-label="' + esc(name + ', ' + famCountLabel(ms)) + '">' +
+    '<div class="ph' + (pic ? '' : ' none') + '">' + (pic ? photoImgHTML(pic, false, true) : ic('box', 40) + '<span>No photo yet</span>') +
+    (tags ? '<div class="ptags">' + tags + '</div>' : '') + '<span class="famBadge">' + ic('layers', 12) + esc(famCountLabel(ms)) + '</span>' +
+    (pic ? '<button class="pzoom" data-act="viewPhoto" data-id="' + esc(pic.id) + '" aria-label="See the photo full size" title="See it full size">' + ic('zoom', 16) + '</button>' : '') + '</div>' +
+    '<div class="pbd"><div class="nm">' + esc(name) + '</div><div class="famVals">' + esc(famSummary(ms)) + '</div>' +
+    '<div class="vd">' + (src && src.vendor ? vlogoHTML(vendorObj(src.vendor)) + '<span>' + esc(src.vendor) + '</span>' : '<span class="muted">no vendor yet</span>') + '</div>' +
+    '<div class="pft"><div style="min-width:0"><div class="pp"' + (pr && !pr.one ? ' title="' + esc(pr.text + ' per ' + pr.u) + '"' : '') + '>' + (pr ? esc(pr.short) + '<small>/' + esc(pr.u) + '</small>' : '<span class="muted">no price</span>') + '</div>' +
+    '<div class="ps">' + esc(st.text) + (st.note ? ' · <span class="' + (st.out ? 'out' : 'low') + '">' + esc(st.note) + '</span>' : '') + '</div></div>' +
+    (arch ? '' : '<button class="addBtn' + (cart ? ' in' : '') + '" data-act="famAdd" data-fam="' + esc(e.fam) + '" title="Add sizes to the cart">' + ic(cart ? 'check' : 'plus', 15) + (cart ? 'In cart' : 'Add') + '</button>') + '</div></div></div>';
+}
+function famRowHTML(e) {
+  const ms = e.ms, lead = ms[0], pic = famPhotoItem(ms) || lead, src = primarySource(lead), pr = famPrice(ms), st = famStock(ms), tags = famTagsHTML(ms, 'fl');
+  const cart = ms.some(m => inCartLine(m.id)), arch = ms.every(m => m.archived);
+  return '<div class="irow fam" data-act="openFam" data-fam="' + esc(e.fam) + '" role="button" tabindex="0">' + thumbHTML(pic, '', true) +
+    '<div style="min-width:0"><div class="nm">' + esc(lead.famName || lead.name) + ' <span class="famPill">' + ic('layers', 12) + esc(famCountLabel(ms)) + '</span></div><div class="sub">' +
+    (src && src.vendor ? '<span class="v">' + vlogoHTML(vendorObj(src.vendor)) + esc(src.vendor) + '</span>' : '') + '<span>' + esc(famSummary(ms)) + '</span>' + (lead.location ? '<span>' + ic('pin', 12) + ' ' + esc(lead.location) + '</span>' : '') + '</div>' +
+    (tags ? '<div class="flags">' + tags + '</div>' : '') + '</div>' +
+    '<div class="act"><span class="price">' + (pr ? pr.text + '<small>per ' + esc(pr.u) + '</small>' : '<span class="muted">no price yet</span>') + '</span>' +
+    '<span class="stock">' + (st.same ? esc(qtyFmt(st.sum)) + '<small>' + esc(unitWord(st.u, st.sum)) + ' on hand</small>' : esc(plural(ms.length, 'size')) + '<small>on hand</small>') + (st.note ? '<small class="' + (st.out ? 'out' : 'low') + '">' + esc(st.note) + '</small>' : '') + '</span>' +
+    (arch ? '' : '<button class="addBtn' + (cart ? ' in' : '') + '" data-act="famAdd" data-fam="' + esc(e.fam) + '" title="Add sizes to the cart">' + ic(cart ? 'check' : 'plus', 15) + (cart ? 'In cart' : 'Add') + '</button>') + '</div></div>';
+}
+ACT.openFam = (t, e) => { if (e && e.target.closest('[data-act]') !== t) return; openDrawer('fam', t.dataset.fam); };
+
+/* ---------- the product's drawer: every size with its count and price ---------- */
+/* the sizes, grouped by the first difference when there are two or more ("SD: 6, 8, 10 mm") */
+function famGroups(ms) {
+  const o = famOptsOf(ms[0]);
+  if (o.length < 2) return [{ g: null, ms }];
+  return famDistinct(ms, 0).map(g => ({ g, ms: ms.filter(m => famValsOf(m)[0] === g) })).concat(ms.some(m => !famValsOf(m)[0]) ? [{ g: '', ms: ms.filter(m => !famValsOf(m)[0]) }] : []);
+}
+function famSizeRowHTML(m, sub) {
+  const src = primarySource(m), cp = countPrice(src), c = inCartLine(m.id), os = openOrdersWith(m.id), v = famValsOf(m);
+  const label = (sub ? v.slice(1).filter(Boolean).join(FAM_VSEP) : '') || famLabel(m), ed = expDays(m);
+  const tags = (c ? '<span class="fl cart">' + ic('cart', 11) + esc(lineQtyLabel(c)) + '</span>' : '') +
+    os.map(o => '<span class="fl ' + (o.status === 'backordered' ? 'back' : 'order') + '">' + ic('truck', 11) + esc(lineQtyLabel(o.items.find(l => l.itemId === m.id))) + '</span>').join('') +
+    (ed != null && ed < 90 ? '<span class="fl ' + (ed < 30 ? 'low' : 'due') + '">' + (ed < 0 ? 'Expired' : 'Expires ' + esc(fmtDate(m.exp))) + '</span>' : '') + (m.archived ? '<span class="fl arch">Archived</span>' : '') + (m.tag ? '<span class="fl due">' + esc(m.tag) + '</span>' : '');
+  return '<div class="vrow" data-act="openItem" data-id="' + esc(m.id) + '" role="button" tabindex="0" title="Open this size">' +
+    '<div class="vn"><b>' + esc(label) + '</b><span>' + (src && src.sku ? '#' + esc(src.sku) : m.sku ? '#' + esc(m.sku) : 'no item #') + '</span>' + (tags ? '<div class="flags">' + tags + '</div>' : '') + '</div>' +
+    '<div class="vp">' + (cp == null ? '<span class="muted">—</span>' : esc(money(cp * perBuy(m))) + '<small>/' + esc(buyUnit(m)) + '</small>') + '</div>' +
+    '<div class="vq' + (isOut(m) ? ' out' : isLow(m) ? ' low' : '') + '"' + (isLow(m) ? ' title="Below its minimum of ' + esc(qtyFmt(m.min)) + '"' : '') + '>' + esc(qtyFmt(m.qty || 0)) + '<small>' + esc(unitWord(countUnit(m), m.qty)) + '</small></div>' +
+    (m.archived ? '<span></span>' : '<button class="vadd" data-act="famAddOne" data-id="' + esc(m.id) + '" title="Add to the cart" aria-label="Add ' + esc(label) + ' to the cart">' + ic('plus', 15) + '</button>') + '</div>';
+}
+function famSizesHTML(ms) {
+  const two = famOptsOf(ms[0]).length >= 2, o = famOptsOf(ms[0]);
+  return '<div class="vtbl">' + famGroups(ms).map(g => (g.g != null ? '<div class="vgrp">' + esc((o[0] ? o[0] + ': ' : '') + (g.g || '—')) + '</div>' : '') + g.ms.map(m => famSizeRowHTML(m, two)).join('')).join('') + '</div>';
+}
+DRAWERS.fam = fid => {
+  const all = famMembers(fid, true); if (!all.length) return '';
+  const live = all.filter(m => !m.archived), ms = live.length ? live : all, gone = live.length ? all.filter(m => m.archived) : [];
+  const lead = ms[0], name = lead.famName || lead.name, pic = famPhotoItem(ms), ids = new Set(all.map(m => m.id));
+  let h = '<div class="dHd">' + (pic ? '' : '<button class="thumb lg addPic" data-act="famEdit" data-fam="' + esc(fid) + '" title="Add a photo">' + ic('camera', 26) + '<span>Add a photo</span></button>') +
+    '<div style="flex:1;min-width:0"><h3>' + esc(name) + '</h3><div class="sub"><span class="badge" style="background:' + catColor(lead.cat) + '22;color:' + catColor(lead.cat) + '">' + esc(catLabel(lead.cat)) + '</span>' +
+    (lead.group ? '<span class="badge">' + esc(lead.group) + '</span>' : '') + (lead.location ? '<span class="badge">' + ic('pin', 12) + esc(lead.location) + '</span>' : '') +
+    '<span class="badge famB">' + ic('layers', 12) + esc(famCountLabel(ms)) + '</span>' + (live.length ? '' : '<span class="badge">Archived</span>') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">' +
+    (pic ? '<div class="dHero" data-act="viewPhoto" data-id="' + esc(pic.id) + '" role="button" tabindex="0" title="See it full size">' + photoImgHTML(pic, true) + '<span class="pzoom">' + ic('zoom', 16) + '</span></div>' : '');
+  h += '<div class="btnRow" style="margin-top:0">' + (live.length ? '<button class="btn btn-teal" data-act="famAdd" data-fam="' + esc(fid) + '">' + ic('cart', 16) + 'Add to cart</button><button class="btn btn-sec" data-act="famCount" data-fam="' + esc(fid) + '">' + ic('count', 16) + 'Count</button>' : '') +
+    '<button class="btn btn-ghost" data-act="famEdit" data-fam="' + esc(fid) + '">' + ic('edit', 15) + 'Edit</button></div>';
+  /* what's in the cart and on order, size by size */
+  const inCart = ms.map(m => [m, inCartLine(m.id)]).filter(x => x[1]);
+  if (inCart.length) h += '<div class="notice info" style="margin-top:14px">In the cart: ' + inCart.map(([m, c]) => '<b>' + esc(famLabel(m)) + '</b> × ' + esc(lineQtyLabel(c)) + ' (' + esc(firstName(c.addedBy) || '—') + (c.addedAt ? ', ' + esc(fmtAgo(c.addedAt)) : '') + ')').join(' · ') + '</div>';
+  S.D.orders.filter(o => (o.status === 'open' || o.status === 'backordered') && o.items.some(l => ids.has(l.itemId))).forEach(o => {
+    const ls = o.items.filter(l => ids.has(l.itemId));
+    h += '<div class="notice" style="margin-top:10px;cursor:pointer" data-act="openOrder" data-id="' + esc(o.id) + '">' + (o.status === 'backordered' ? 'Backordered' : 'On order') + ' from ' + esc(o.vendor || '—') + ': ' +
+      ls.map(l => { const m = itemById(l.itemId); return '<b>' + esc(m ? famLabel(m) : l.name) + '</b> × ' + esc(lineQtyLabel(l)); }).join(' · ') + ' — ordered by ' + esc(o.orderedBy || '—') + ', ' + esc(fmtWhen(o.orderedAt || o.dateOrdered)) + (o.expectedDelivery ? ' · due ' + esc(fmtDate(o.expectedDelivery)) : '') + '</div>';
+  });
+  const st = famStock(ms);
+  h += '<div class="sec"><h5>' + esc(cap1(famNoun(famOptsOf(lead), 2))) + ' · ' + ms.length + (st.same ? ' · ' + esc(st.text) : '') + '</h5>' + famSizesHTML(ms) +
+    '<div class="hint">Tap a size for its own page: its count, vendors, Mari’s List and history.</div></div>';
+  if (gone.length) h += '<details class="sec famGone"><summary>' + plural(gone.length, 'archived size') + '</summary>' + famSizesHTML(gone) + '</details>';
+  /* buying */
+  const vs = famVendors(ms);
+  h += '<div class="sec"><h5>Buying</h5>' + (perBuy(lead) > 1 ? '<div class="boxNote" style="margin-bottom:8px">Counted in ' + esc(unitWord(countUnit(lead), 2)) + ' · bought by the ' + esc(buyUnit(lead)) + ' of ' + perBuy(lead) + '.</div>' : '') +
+    (vs.length ? vs.map(v => { const lo = v.ps.length ? Math.min(...v.ps) : null, hi = v.ps.length ? Math.max(...v.ps) : null;
+      return '<div class="srcRow">' + vlogoHTML(vendorObj(v.vendor)) + '<div style="min-width:0"><div class="v">' + esc(v.vendor) + '</div><div class="k">' + (v.n === ms.length ? 'every size' : v.n + ' of ' + ms.length + ' sizes') + '</div></div>' +
+        '<div class="p">' + (lo == null ? '<span class="muted">—</span>' : esc(hi - lo < 0.005 ? money(lo) : money(lo) + '–' + money(hi)) + '<small>per ' + esc(buyUnit(lead)) + '</small>') + '</div></div>'; }).join('')
+      : '<div class="muted small">No vendor or price yet. <button class="linkBtn" data-act="famEdit" data-fam="' + esc(fid) + '">Add one</button></div>') + '</div>';
+  if (lead.note) h += '<div class="sec"><h5>Notes</h5><div class="txt">' + esc(lead.note) + '</div></div>';
+  /* orders of any of its sizes */
+  const ords = S.D.orders.filter(o => o.items.some(l => ids.has(l.itemId))).sort((a, b) => msOf(b.orderedAt || b.dateOrdered) - msOf(a.orderedAt || a.dateOrdered)).slice(0, 8);
+  if (ords.length) h += '<div class="sec"><h5>Orders</h5>' + ords.map(o => '<div class="hist" style="cursor:pointer" data-act="openOrder" data-id="' + esc(o.id) + '"><time>' + esc(fmtDate(o.orderedAt || o.dateOrdered)) + '</time><span style="flex:1">' +
+    o.items.filter(l => ids.has(l.itemId)).map(l => { const m = itemById(l.itemId); return esc((m ? famLabel(m) : l.name) + ' × ' + lineQtyLabel(l)); }).join(', ') + ' from ' + esc(o.vendor || '—') + ' · ' + (o.status === 'received' ? 'received' + (o.receivedBy ? ' by ' + esc(o.receivedBy) : '') : esc(o.status)) + (o.orderedBy ? ' · ordered by ' + esc(o.orderedBy) : '') + '</span></div>').join('') + '</div>';
+  h += '<div class="sec"><h5>More</h5><div class="btnRow" style="margin-top:0">' + (live.length ? '<button class="btn btn-ghost" data-act="famLabels" data-fam="' + esc(fid) + '">' + ic('print', 15) + 'QR labels for every size</button>' +
+    '<button class="btn btn-ghost" data-act="famCombineMore" data-fam="' + esc(fid) + '">' + ic('layers', 15) + 'Add other supplies to it</button>' : '') +
+    '<button class="btn btn-ghost" data-act="famSplit" data-fam="' + esc(fid) + '">' + ic('grid', 15) + 'Split into separate supplies</button>' +
+    (isAdmin() && live.length ? '<button class="btn btn-ghost" data-act="famArchive" data-fam="' + esc(fid) + '">' + ic('archive', 15) + 'Archive every size</button>' : '') + '</div>' +
+    (lead.createdBy || lead.updatedBy ? '<div class="hint">' + (lead.createdBy ? 'Added by ' + esc(lead.createdBy) + ' ' + esc(fmtWhen(lead.createdAt)) : '') + (lead.updatedBy ? (lead.createdBy ? ' · ' : '') + 'last changed by ' + esc(lead.updatedBy) + ' ' + esc(fmtWhen(lead.updatedAt)) : '') + '</div>' : '') + '</div>';
+  return h + '</div>';
+};
+
+/* ---------- adding several sizes to the cart in one go ---------- */
+ACT.famAdd = (t, e) => { if (e) e.stopPropagation(); openFamAdd(t.dataset.fam); };
+ACT.famAddOne = (t, e) => { if (e) e.stopPropagation(); const it = itemById(t.dataset.id); if (!it) return; if (famId(it)) openFamAdd(it.fam, it.id); else openAddToCart(it); };
+function openFamAdd(fid, oneId) {
+  const ms = famMembers(fid); if (!ms.length) return toast('That product has no sizes to order.', { bad: true });
+  const vs = famVendors(ms), had = ms.map(m => inCartLine(m.id)).find(Boolean), w = whoNow();
+  S.ui.fadd = { fid, vendor: (had && had.vendor) || (vs[0] && vs[0].vendor) || '', q: {} };
+  if (oneId) S.ui.fadd.q[oneId] = 1;
+  const lead = ms[0];
+  openModal('<h3>Add to the cart</h3><div class="lsub">' + esc(lead.famName || lead.name) + ' · how many of each? Leave the others at 0.</div>' +
+    (vs.length > 1 ? '<div class="subH">From</div><div class="pickRow" style="margin-bottom:12px">' + vs.map((v, k) => '<button class="pick" data-act="faVendor" data-k="' + k + '" aria-pressed="' + (v.vendor === S.ui.fadd.vendor) + '">' + esc(v.vendor) + (v.n < ms.length ? ' · ' + v.n + ' of ' + ms.length : '') + '</button>').join('') + '</div>' : '') +
+    '<div id="faRows">' + famAddRowsHTML() + '</div>' +
+    field('Note for whoever orders (optional)', '<input id="faNote" placeholder="e.g. need by Thursday">') +
+    '<div class="mFt"><span class="muted small" id="faSum" style="margin-right:auto;align-self:center">' + famAddSum() + '</span><span class="muted small" style="align-self:center">' + (w ? 'Adding as <b>' + esc(w.short) + '</b>' : '') + (isAdmin() ? '' : ' · Dr. A OKs it before it’s ordered') + '</span>' +
+    '<button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="faGo" data-act="faGo">' + ic('cart', 16) + 'Add to cart</button></div>', { cls: 'wide famAddM', focus: oneId ? '#faq-' + CSS.escape(oneId) : null, noFocus: !oneId });
+}
+function famAddRowsHTML() {
+  const F = S.ui.fadd, ms = famMembers(F.fid), two = famOptsOf(ms[0]).length >= 2, o = famOptsOf(ms[0]);
+  return '<div class="vtbl faTbl">' + famGroups(ms).map(g => (g.g != null ? '<div class="vgrp">' + esc((o[0] ? o[0] + ': ' : '') + (g.g || '—')) + '</div>' : '') + g.ms.map(m => {
+    const src = sourceFor(m, F.vendor), p = src ? buyPriceOf(m, src) : null, c = inCartLine(m.id), os = openOrdersWith(m.id), v = famValsOf(m);
+    const label = (two ? v.slice(1).filter(Boolean).join(FAM_VSEP) : '') || famLabel(m);
+    const got = S.D.orders.filter(x => x.status === 'received' && daysAgo(x.dateReceived) <= 10 && x.items.some(l => l.itemId === m.id)).sort((a, b) => msOf(b.dateReceived) - msOf(a.dateReceived))[0];
+    const q = Number(F.q[m.id]) || 0;
+    return '<div class="farow' + (q > 0 ? ' on' : '') + '" id="far-' + esc(m.id) + '"><div class="vn"><b>' + esc(label) + '</b><span>' + (src && src.sku ? '#' + esc(src.sku) + ' · ' : '') + (p != null ? esc(money(p)) + '/' + esc(buyUnit(m)) + ' · ' : '') + esc(qtyUnit(m.qty || 0, countUnit(m))) + ' on hand</span>' +
+      (c || os.length || got ? '<div class="flags">' + (c ? '<span class="fl cart">' + ic('cart', 11) + 'in the cart: ' + esc(lineQtyLabel(c)) + '</span>' : '') + os.map(x => '<span class="fl ' + (x.status === 'backordered' ? 'back' : 'order') + '">' + ic('truck', 11) + 'on order: ' + esc(lineQtyLabel(x.items.find(l => l.itemId === m.id))) + '</span>').join('') + (got ? '<span class="fl due">got ' + esc(lineQtyLabel(got.items.find(l => l.itemId === m.id))) + ' ' + esc(fmtAgo(got.dateReceived)) + '</span>' : '') + '</div>' : '') + '</div>' +
+      '<div class="qty"><button data-act="faStep" data-id="' + esc(m.id) + '" data-n="-1" aria-label="Less">−</button><input id="faq-' + esc(m.id) + '" type="number" inputmode="decimal" min="0" step="1" value="' + esc(q) + '" data-inp="faQty" data-id="' + esc(m.id) + '" data-enter="#faGo" aria-label="How many ' + esc(label) + '"><span class="u">' + esc(unitWord(buyUnit(m), q === 1 ? 1 : 2)) + '</span><button data-act="faStep" data-id="' + esc(m.id) + '" data-n="1" aria-label="More">+</button></div></div>';
+  }).join('')).join('') + '</div>';
+}
+function famAddSum() {
+  const F = S.ui.fadd; if (!F) return '';
+  const ls = famMembers(F.fid).map(m => [m, Number(F.q[m.id]) || 0]).filter(x => x[1] > 0);
+  if (!ls.length) return 'Nothing yet';
+  const tot = ls.reduce((a, [m, q]) => { const src = sourceFor(m, F.vendor), p = src ? buyPriceOf(m, src) : null; return a + (p || 0) * q; }, 0);
+  return plural(ls.length, 'size') + (tot ? ' · about <b>' + money(tot) + '</b>' : '');
+}
+ACT.faVendor = t => { const F = S.ui.fadd, v = famVendors(famMembers(F.fid))[Number(t.dataset.k)]; F.vendor = v ? v.vendor : ''; $$('.pick[data-act="faVendor"]').forEach(b => b.setAttribute('aria-pressed', String(b === t))); const r = $('#faRows'); if (r) { r.innerHTML = famAddRowsHTML(); hydrateImages(r); } const s = $('#faSum'); if (s) s.innerHTML = famAddSum(); };
+ACT.faStep = t => { const i = $('#faq-' + CSS.escape(t.dataset.id)); if (!i) return; i.value = Math.max(0, (num(i.value) || 0) + Number(t.dataset.n)); INP.faQty(i); };
+INP.faQty = t => {
+  const F = S.ui.fadd; if (!F) return; const q = Math.max(0, num(t.value)); F.q[t.dataset.id] = q;
+  const row = $('#far-' + CSS.escape(t.dataset.id)); if (row) { row.classList.toggle('on', q > 0); const u = $('.u', row), m = itemById(t.dataset.id); if (u && m) u.textContent = unitWord(buyUnit(m), q === 1 ? 1 : 2); }
+  const s = $('#faSum'); if (s) s.innerHTML = famAddSum();
+};
+ACT.faGo = t => {
+  const F = S.ui.fadd; if (!F) return closeModal(true);
+  $$('#faRows input[data-inp="faQty"]').forEach(i => { F.q[i.dataset.id] = Math.max(0, num(i.value)); });
+  const ms = famMembers(F.fid), pairs = ms.map(m => [m, Number(F.q[m.id]) || 0]).filter(x => x[1] > 0), note = val('faNote').trim();
+  if (!pairs.length) return toast('How many of which size?', { bad: true });
+  withWho(async () => {
+    busyBtn(t, true, 'Adding…');
+    const ok = await act(() => cartAddMany(pairs, { vendor: F.vendor, note }));
+    if (ok) {
+      closeModal(true);
+      toast('Added ' + (pairs.length === 1 ? qtyUnit(pairs[0][1], buyUnit(pairs[0][0])) + ' of ' + plainText(pairs[0][0].name, 50) : plural(pairs.length, 'size') + ' of ' + plainText(famNameOf(F.fid), 40)) + ' to the cart.' + okNote(pairs.length), { action: 'Open cart', onAction: () => go('cart') });
+    } else busyBtn(t, false);
+  });
+};
+
+/* ---------- counting every size at once ---------- */
+ACT.famCount = t => openFamCount(t.dataset.fam);
+function openFamCount(fid) {
+  const ms = famMembers(fid); if (!ms.length) return;
+  const two = famOptsOf(ms[0]).length >= 2, o = famOptsOf(ms[0]);
+  S.ui.fcnt = { fid };
+  openModal('<h3>Count</h3><div class="lsub">' + esc(ms[0].famName || ms[0].name) + ' · type what’s on the shelf for each size you count. Sizes left empty keep their number.</div>' +
+    '<div class="vtbl fcTbl">' + famGroups(ms).map(g => (g.g != null ? '<div class="vgrp">' + esc((o[0] ? o[0] + ': ' : '') + (g.g || '—')) + '</div>' : '') + g.ms.map(m => {
+      const v = famValsOf(m), label = (two ? v.slice(1).filter(Boolean).join(FAM_VSEP) : '') || famLabel(m);
+      return '<div class="farow"><div class="vn"><b>' + esc(label) + '</b><span>The app has ' + esc(qtyUnit(m.qty || 0, countUnit(m))) + (m.chk ? ' · counted ' + esc(fmtAgo(m.chk)) + (m.chkBy ? ' by ' + esc(m.chkBy) : '') : '') + '</span></div>' +
+        '<span class="small fcd" id="fcd-' + esc(m.id) + '"></span><div class="qty"><input type="number" inputmode="decimal" min="0" step="any" placeholder="' + esc(qtyFmt(m.qty || 0)) + '" data-inp="fcInp" data-id="' + esc(m.id) + '" data-enter="#fcGo" aria-label="Count of ' + esc(label) + '"><span class="u">' + esc(unitWord(countUnit(m), 2)) + '</span></div></div>';
+    }).join('')).join('') + '</div>' +
+    field('Note (optional)', '<input id="fcNote" placeholder="e.g. counted the lab drawer too">') +
+    '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="fcGo" data-act="fcGo">Save the counts</button></div>', { cls: 'wide famAddM', focus: '.fcTbl input' });
+}
+INP.fcInp = t => {
+  const m = itemById(t.dataset.id), el = $('#fcd-' + CSS.escape(t.dataset.id)); if (!m || !el) return;
+  if (t.value === '') { el.textContent = ''; return; }
+  const d = round2(num(t.value) - (Number(m.qty) || 0));
+  el.textContent = !d ? 'same' : (d > 0 ? '+' : '−') + qtyFmt(Math.abs(d)); el.style.color = !d ? 'var(--grey-500)' : d > 0 ? 'var(--mint-700)' : 'var(--amber-700)';
+};
+ACT.fcGo = t => {
+  const F = S.ui.fcnt; if (!F) return closeModal(true);
+  const pairs = $$('.fcTbl input[data-inp="fcInp"]').filter(i => i.value !== '').map(i => [itemById(i.dataset.id), num(i.value, -1)]).filter(x => x[0]);
+  if (!pairs.length) return toast('Type the count of at least one size.', { bad: true });
+  if (pairs.some(x => !(x[1] >= 0))) return toast('A count can’t be below 0.', { bad: true });
+  const note = val('fcNote').trim();
+  withWho(async () => {
+    busyBtn(t, true, 'Saving…');
+    const ok = await act(() => countMany(pairs, note), 'Saved ' + plural(pairs.length, 'count') + '.');
+    if (ok) closeModal(true); else busyBtn(t, false);
+  });
+};
+
+/* ---------- taking sizes out, splitting, archiving, labels ---------- */
+/* ids leave their products; a product left with one size is no product any more (that one goes back to being a supply on its own) */
+function famOutPatches(ids, s) {
+  const out = new Set(ids), touched = new Set(), patches = [];
+  ids.forEach(id => { const it = itemById(id); if (it && famId(it)) { touched.add(it.fam); patches.push([id, famOffPatch(it, s)]); } });
+  touched.forEach(f => { const left = famMembers(f, true).filter(m => !out.has(m.id)); if (left.length === 1) patches.push([left[0].id, famOffPatch(left[0], s)]); });
+  return patches;
+}
+ACT.famOut = t => {
+  const it = itemById(t.dataset.id); if (!it || !famId(it)) return;
+  const name = it.famName || '', left = famMembers(it.fam, true).length - 1;
+  withWho(async () => {
+    if (!await confirmBox('Take it out of “' + name + '”?', 'It becomes a supply of its own again, with its count, prices and history' + (it.famWas ? ' (and its name before it was combined: “' + it.famWas + '”)' : '') + '.' + (left === 1 ? ' That leaves one size, so “' + name + '” goes back to being a single supply too.' : ''), 'Take it out')) return;
+    await act(() => B.patchItems(famOutPatches([it.id], stamp())), 'Taken out. It’s a supply of its own again.');
+  });
+};
+ACT.famSplit = t => {
+  const fid = t.dataset.fam, ms = famMembers(fid, true); if (!ms.length) return;
+  withWho(async () => {
+    if (!await confirmBox('Split “' + (ms[0].famName || '') + '” into separate supplies?', 'Each of its ' + ms.length + ' sizes becomes a supply of its own again. Their counts, prices and history stay (sizes that were combined get back the names they had), and they can be combined again any time.', 'Split it')) return;
+    const ok = await act(() => B.patchItems(famOutPatches(ms.map(m => m.id), stamp())), 'Split into ' + plural(ms.length, 'supply', 'supplies') + '.');
+    if (ok) closeDrawer();
+  });
+};
+ACT.famArchive = t => {
+  const fid = t.dataset.fam, ms = famMembers(fid); if (!ms.length) return;
+  withAdmin(async () => {
+    if (!await confirmBox('Archive “' + (ms[0].famName || '') + '”?', 'Its ' + plural(ms.length, 'size') + ' leave the list (they’re under Supplies → Archived, and can be brought back one by one).', 'Archive')) return;
+    const s = stamp(), ok = await act(() => B.patchItems(ms.map(m => [m.id, { archived: true, archivedBy: s.by, archivedAt: s.at }])), 'Archived. It’s under Supplies → Archived.');
+    if (ok) closeDrawer();
+  }, '', 'archive supplies');
+};
+ACT.famLabels = t => printLabelsFor(famMembers(t.dataset.fam), t);
+ACT.famEdit = (t, e) => {
+  if (e) e.stopPropagation();
+  /* (from a size's own editor: what was typed there isn't thrown away) */
+  if (S.ui.ed && S.ui.ed.dirty && $('#modalWrap')) return toast('Save this size first (or Cancel), then edit the product.', { bad: true });
+  S.ui.ed = null; closeModal(true); openFamEditor(t.dataset.fam);
+};
+
+/* ---------- combining supplies that are already there ---------- */
+/* the words of a name, punctuation that stands alone dropped */
+function famWords(s) { return String(s || '').trim().split(/\s+/).filter(Boolean); }
+const FAM_SEPWORD = /^[—–\-:,·|/]+$/;
+function famTrimSep(ws) { ws = ws.slice(); while (ws.length && FAM_SEPWORD.test(ws[ws.length - 1])) ws.pop(); while (ws.length && FAM_SEPWORD.test(ws[0])) ws.shift(); return ws; }
+/* what tells sizes apart. Strong: numbers, sizes (SM, large, mini…), upper/lower, left/right, tooth surfaces, colors, shapes and
+   other plain sizes; weak (only beside a strong one): short codes (SD, EP), roman numerals, units and filler words. A suggestion's
+   supplies must differ by strong words — "Transbond XT" / "Plus", "Fuji II" / "IX" and "Wire SS" / "TMA" are different products. */
+const FAM_COLORS = 'clear white black blue green red yellow pink purple orange grey gray silver gold teal navy lime aqua coral rose lilac pearl lavender burgundy brown tan ivory natural';
+const FAM_STRONG = new Set(('xs s sm small m md med medium l lg large xl xxl xxxl mini micro maxi petite x-small x-large short long wide narrow thin thick fine coarse extra ' +
+  'upper lower u ul ur ll lr max mand maxillary mandibular left right r lt rt ant post anterior posterior facial lingual buccal occlusal palatal ' +
+  'soft firm hard light heavy single double triple open closed round rect rectangular square oval circle double-sided single-sided ' + FAM_COLORS).split(/\s+/));
+const FAM_WEAK = new Set('i ii iii iv v vi ix x size sizes no # mm cm in inch ft ml g oz ct pk pc pcs gal pack bag box roll count both one side sides sided tip tips assorted regular reg std standard'.split(/\s+/));
+function famWordKind(w) {
+  const x = String(w || '').toLowerCase().replace(/[()",.;]+$/g, '').replace(/^[(]+/, '');
+  if (!x || FAM_SEPWORD.test(x)) return 'sep';
+  if (/\d/.test(x) || FAM_STRONG.has(x)) return 'strong';
+  if (FAM_WEAK.has(x) || /^[A-Z]{1,3}$/.test(String(w).replace(/[()",.;]+$/g, ''))) return 'weak';
+  return '';
+}
+function famSizeWord(w) { return !!famWordKind(w); }
+const FAM_ARCH = { upper: 'Upper', lower: 'Lower', u: 'Upper', max: 'Upper', mand: 'Lower', maxillary: 'Upper', mandibular: 'Lower' };
+const FAM_SIDE = { left: 'Left', right: 'Right', lt: 'Left', rt: 'Right', r: 'Right' };
+/* a first guess at a product from supplies: its name (the words they share), what differs and each one's choices */
+function famGuess(list) {
+  list = listOf(list).filter(Boolean); if (!list.length) return { name: '', opts: ['Size'], vals: {} };
+  const ws = list.map(i => famWords(i.name));
+  let n = 0;
+  if (list.length === 1) {
+    /* one supply: its name's last words that look like a size ("NT3 NiTi" + ".014 Upper"); none: all of it is the product's name */
+    const w = ws[0]; let k = w.length; while (k > 1 && famSizeWord(w[k - 1])) k--;
+    n = k;
+  } else while (ws.every(w => w.length > n + 1 && w[n].toLowerCase() === ws[0][n].toLowerCase())) n++;
+  const name = famTrimSep(ws[0].slice(0, n)).filter(w => !/^[—–]$/.test(w)).join(' ') || String(list[0].name || '');
+  const rest = ws.map(w => famTrimSep(w.slice(n)));
+  const low = rest.map(r => r.map(x => x.toLowerCase().replace(/[(),.;]+$/g, '')));
+  /* upper/lower (or left/right) in every one: a second difference of its own */
+  const side = low.some(r => r.some(x => x === 'right' || x === 'left' || x === 'rt' || x === 'lt' || x === 'r')) && !low.some(r => r.some(x => x === 'upper' || x === 'lower' || x === 'u'));
+  const map = side ? Object.assign({ l: 'Left' }, FAM_SIDE) : Object.assign({ l: 'Lower' }, FAM_ARCH);
+  const hit = low.map(r => r.reduce((a, x, k) => map[x] ? a.concat([k]) : a, []));
+  const vals = {};
+  if (list.length > 1 && hit.every(h => h.length === 1)) {
+    const firsts = rest.map((r, k) => r.filter((x, j) => j !== hit[k][0]).join(' ').trim());
+    const two = firsts.some(Boolean);
+    list.forEach((i, k) => { const a = map[low[k][hit[k][0]]]; vals[i.id] = two ? [firsts[k], a] : [a]; });
+    const kind = side ? 'Side' : 'Arch';
+    return { name, opts: two ? [famKindOf(firsts.filter(Boolean)), kind] : [kind], vals };
+  }
+  list.forEach((i, k) => { vals[i.id] = [rest[k].join(' ')]; });
+  return { name, opts: [famKindOf(list.map(i => vals[i.id][0]).filter(Boolean))], vals };
+}
+function famKindOf(vs) {
+  const w = vs.join(' ').toLowerCase();
+  if (vs.every(v => /\d/.test(v)) || /\b(xs|sm|small|md|med|medium|lg|large|xl)\b/.test(w)) return 'Size';
+  const colors = new Set(FAM_COLORS.split(' '));
+  if (vs.length && vs.every(v => famWords(v).length && famWords(v).every(x => colors.has(x.toLowerCase())))) return 'Color';
+  return 'Type';
+}
+/* supplies that look like sizes of one product: in the same category, sharing the start of their names, and differing only in
+   sizes, upper/lower, colors and short codes — the most of them a shared start gives (→ [{ key, name, ids, opts, vals }]) */
+function famSuggest() {
+  if (S.famSugg && S.famSugg.items === S.D.items) return S.famSugg.out;
+  const pool = activeItems().filter(i => !famId(i) && i.name), byCat = {};
+  pool.forEach(i => (byCat[i.cat] = byCat[i.cat] || []).push(i));
+  const out = [];
+  Object.keys(byCat).forEach(cat => {
+    const its = byCat[cat]; if (its.length < 2) return;
+    const cands = new Map();
+    its.forEach(i => {
+      const w = famWords(i.name);
+      for (let k = 1; k < w.length; k++) {
+        const pre = famTrimSep(w.slice(0, k)), key = pre.join(' ').toLowerCase(); if (!key) continue;   // ("Gloves Pulse Nitrile —" is "Gloves Pulse Nitrile")
+        let c = cands.get(key); if (!c) cands.set(key, c = { pre, ids: new Set() }); c.ids.add(i.id);
+      }
+    });
+    const ok = [];
+    cands.forEach((c, key) => {
+      if (c.ids.size < 2 || !/[a-z]{2}/i.test(key) || key.replace(/[^a-z0-9]/gi, '').length < 2) return;
+      const ms = its.filter(i => c.ids.has(i.id)), n = c.pre.length;
+      const tails = ms.map(i => famTrimSep(famWords(i.name).slice(n)));
+      if (tails.some(t => !t.length || t.filter(w => !FAM_SEPWORD.test(w)).length > 5 || !t.every(famSizeWord) || !t.some(w => famWordKind(w) === 'strong'))) return;
+      if (new Set(tails.map(t => t.join(' ').toLowerCase())).size !== tails.length) return;
+      ok.push({ key: cat + '|' + key, ms, n });
+    });
+    ok.sort((a, b) => b.ms.length - a.ms.length || a.n - b.n);
+    const used = new Set();
+    ok.forEach(c => {
+      const ms = c.ms.filter(i => !used.has(i.id)); if (ms.length < 2 || ms.length !== c.ms.length) return;
+      ms.forEach(i => used.add(i.id));
+      const sorted = ms.slice().sort((a, b) => famNat(a.name, b.name)), g = famGuess(sorted);
+      out.push({ key: c.key, cat, name: g.name, ids: sorted.map(i => i.id), opts: g.opts, vals: g.vals });
+    });
+  });
+  out.sort((a, b) => b.ids.length - a.ids.length || famNat(a.name, b.name));
+  S.famSugg = { items: S.D.items, out };
+  return out;
+}
+function famSkipped() { try { return JSON.parse(localStorage.getItem('nloInv.famSkip') || '[]'); } catch (e) { return []; } }
+function famSuggestShown() { const skip = new Set(famSkipped()); return famSuggest().filter(x => !skip.has(x.key)); }
+/* Dr. A's hint on Supplies (once a visit, until he's looked) */
+function famHintHTML() {
+  if (!isAdmin() || S.ui.famHintOff) return '';
+  const sg = famSuggestShown(); if (!sg.length) return '';
+  const names = sg.slice(0, 3).map(x => x.name).filter(Boolean), more = sg.length - names.length;
+  return '<div class="famHint">' + ic('layers', 18) + '<span class="grow"><b>Sizes of the same product?</b> ' + (sg.length === 1 ? 'One group' : sg.length + ' groups') + ' of supplies look like one product in different sizes' + (names.length ? ' (' + esc(names.join(', ')) + (more > 0 ? ' and ' + more + ' more' : '') + ')' : '') + '. Combine each to see one card for it.</span>' +
+    '<button class="btn btn-sec btn-sm" data-act="famReview">Review</button><button class="iconBtn" data-act="famHintOff" aria-label="Not now" title="Not now">' + ic('x', 16) + '</button></div>';
+}
+ACT.famHintOff = () => { S.ui.famHintOff = true; renderView(true); };
+ACT.famReview = () => {
+  const sg = famSuggestShown(); if (!sg.length) { closeModal(true); return toast('Nothing left to combine.'); }
+  openModal('<h3>Sizes of the same product?</h3><div class="lsub">These look like one product in different sizes or types. Combine each to see it as one card — every size keeps its own count, item #, price and history.</div>' +
+    '<div class="famSugList">' + sg.map((x, k) => {
+      const ms = x.ids.map(itemById).filter(Boolean);
+      return '<div class="famSug"><div class="grow"><b>' + esc(x.name || ms[0].name) + '</b><span class="muted small"> · ' + esc(plural(ms.length, 'supply', 'supplies')) + ' · ' + esc(catLabel(x.cat)) + '</span>' +
+        '<div class="small" style="color:var(--grey-600);margin-top:3px">' + esc(ms.slice(0, 5).map(m => m.name).join(' · ') + (ms.length > 5 ? ' · +' + (ms.length - 5) + ' more' : '')) + '</div></div>' +
+        '<div class="btnRow" style="margin:0;flex:none"><button class="btn btn-ghost btn-sm" data-act="famSugSkip" data-k="' + k + '">Not the same</button><button class="btn btn-pri btn-sm" data-act="famSugGo" data-k="' + k + '">' + ic('layers', 14) + 'Combine…</button></div></div>';
+    }).join('') + '</div><div class="mFt"><button class="btn btn-sec" data-act="closeModal">Close</button></div>', { cls: 'wide', noFocus: true });
+};
+ACT.famSugSkip = t => { const x = famSuggestShown()[Number(t.dataset.k)]; if (!x) return; try { localStorage.setItem('nloInv.famSkip', JSON.stringify(famSkipped().concat([x.key]).slice(-300))); } catch (e) { } ACT.famReview(); renderView(true); };
+ACT.famSugGo = t => { const x = famSuggestShown()[Number(t.dataset.k)]; if (!x) return; openCombine(x.ids, { name: x.name, opts: x.opts, vals: x.vals, from: 'review' }); };
+ACT.famCombine = t => openCombine([t.dataset.id]);
+ACT.famCombineMore = t => { const ms = famMembers(t.dataset.fam); if (ms.length) openCombine(ms.map(m => m.id), { fid: t.dataset.fam }); };
+/* the combine dialog: pick the supplies, name the product, say what tells them apart and each one's choice */
+function openCombine(ids, pre) {
+  pre = pre || {};
+  const list = listOf(ids).map(itemById).filter(Boolean); if (!list.length) return;
+  const fid = pre.fid || (list.find(i => famId(i)) || {}).fam || null, lead = fid ? famLead(fid) : null;
+  const C = S.ui.cmb = { sel: list.map(i => i.id), fid, from: pre.from || null, q: '', name: '', opts: [], vals: {}, nameSet: !!(pre.name || lead), optsSet: !!(pre.opts || lead), valSet: {}, orig: fid ? famMembers(fid, true).map(m => m.id) : [] };
+  if (lead) { C.name = lead.famName || ''; C.opts = famOptsOf(lead); list.forEach(i => { if (i.fam === fid) { C.vals[i.id] = famValsOf(i); C.valSet[i.id] = true; } }); }
+  if (pre.name) C.name = pre.name;
+  if (pre.opts) C.opts = pre.opts.slice();
+  if (pre.vals) Object.keys(pre.vals).forEach(id => { C.vals[id] = pre.vals[id].slice(); C.valSet[id] = true; });
+  cmbGuess(); renderCombine();
+}
+/* fill in what hasn't been typed from a fresh guess (as supplies are picked) */
+function cmbGuess() {
+  const C = S.ui.cmb, sel = C.sel.map(itemById).filter(Boolean), g = famGuess(sel);
+  if (!C.nameSet) C.name = g.name;
+  if (!C.optsSet) C.opts = g.opts.slice();
+  if (!C.opts.length) C.opts = ['Size'];
+  sel.forEach(i => {
+    if (C.valSet[i.id] && C.vals[i.id]) { C.vals[i.id] = Array.from({ length: C.opts.length }, (x, k) => C.vals[i.id][k] || ''); return; }
+    const gv = g.vals[i.id] || [''];
+    C.vals[i.id] = Array.from({ length: C.opts.length }, (x, k) => gv.length === C.opts.length ? gv[k] || '' : k === 0 ? gv.join(' ') : '');
+  });
+}
+function cmbCands() {
+  const C = S.ui.cmb, sel = new Set(C.sel), first = itemById(C.sel[0]);
+  if (C.q.trim()) return activeItems().filter(i => !sel.has(i.id) && matchesAll(itemSearchText(i), C.q)).slice(0, 8);
+  if (!first) return [];
+  const w0 = (famWords(first.famName || first.name)[0] || '').toLowerCase();
+  return activeItems().filter(i => !sel.has(i.id) && i.cat === first.cat && (!famId(i) || i.fam !== C.fid))
+    .map(i => ({ i, s: (i.group && i.group === first.group ? 2 : 0) + ((famWords(i.name)[0] || '').toLowerCase() === w0 ? 3 : 0) + ((primarySource(i) || {}).vendor && (primarySource(i) || {}).vendor === (primarySource(first) || {}).vendor ? 1 : 0) }))
+    .filter(x => x.s >= 3).sort((a, b) => b.s - a.s || famNat(a.i.name, b.i.name)).slice(0, 10).map(x => x.i);
+}
+function cmbRowsHTML() {
+  const C = S.ui.cmb;
+  return '<div class="cmbTbl" style="--copts:' + C.opts.length + '"><div class="cth"><span></span><span>Supply now</span>' + C.opts.map(o => '<span>' + esc(o || 'Choice') + '</span>').join('') + '<span>Its new name</span></div>' +
+    C.sel.map((id, r) => {
+      const i = itemById(id); if (!i) return '';
+      const v = C.vals[id] || [], other = famId(i) && i.fam !== C.fid;
+      return '<div class="ctr"><button class="iconBtn" data-act="cmbDrop" data-id="' + esc(id) + '" aria-label="Leave it out" title="Leave it out">' + ic('x', 15) + '</button><span class="cnow">' + esc(i.name) + (other ? '<small>moves from “' + esc(i.famName || '') + '”</small>' : '') + '</span>' +
+        C.opts.map((o, k) => '<input data-cv="' + k + '" data-id="' + esc(id) + '" data-inp="cmbVal" value="' + esc(v[k] || '') + '" aria-label="' + esc((o || 'Choice') + ' of ' + i.name) + '">').join('') +
+        '<span class="cnew" id="cnew-' + r + '">' + esc(famFullName(C.name, v)) + '</span></div>';
+    }).join('') + '</div>';
+}
+function cmbCandsHTML() {
+  const cs = cmbCands();
+  return cs.length ? '<div class="pickRow">' + cs.map(i => '<button class="pick sm" data-act="cmbPick" data-id="' + esc(i.id) + '">' + ic('plus', 12) + esc(i.name) + '</button>').join('') + '</div>' : '<div class="muted small">' + (S.ui.cmb.q.trim() ? 'Nothing else matches.' : 'Search for any other supply to add.') + '</div>';
+}
+function renderCombine(focusSel) {
+  const C = S.ui.cmb, editing = !!C.fid;
+  const w = openModal('<h3>' + (editing ? 'Add supplies to “' + esc(C.name) + '”' : 'Combine into one product') + '</h3><div class="lsub">Each keeps its own count, item #, price and history. Supplies shows them as one card.</div>' +
+    '<div class="grid2">' + field('Product name', '<input id="cmbName" value="' + esc(C.name) + '" data-inp="cmbName" placeholder="e.g. tomas-pin mini screw" autocomplete="off">') +
+    field('What tells them apart', '<div class="inRow">' + C.opts.map((o, k) => '<input data-co="' + k + '" data-inp="cmbOpt" list="famOptNames" value="' + esc(o) + '" placeholder="' + (k ? 'e.g. Type' : 'e.g. Size') + '" aria-label="What differs">').join('') +
+      (C.opts.length < 3 ? '<button class="btn btn-ghost btn-sm" data-act="cmbOptAdd" title="Another difference">' + ic('plus', 14) + '</button>' : '') + (C.opts.length > 1 ? '<button class="btn btn-ghost btn-sm" data-act="cmbOptDel" title="One difference fewer">' + ic('x', 14) + '</button>' : '') + '</div>' +
+      '<datalist id="famOptNames">' + FAM_OPT_NAMES.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>') + '</div>' +
+    '<div id="cmbRows">' + cmbRowsHTML() + '</div>' +
+    '<div class="subH" style="margin-top:14px">Add more</div><input id="cmbQ" class="inp" placeholder="Search supplies…" value="' + esc(C.q) + '" data-inp="cmbQ" autocomplete="off" style="margin-bottom:8px"><div id="cmbCands">' + cmbCandsHTML() + '</div>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="' + (C.from === 'review' ? 'famReview' : 'closeModal') + '">' + (C.from === 'review' ? 'Back' : 'Cancel') + '</button><button class="btn btn-pri" data-act="cmbGo" id="cmbGo">' + ic('layers', 16) + (editing ? 'Save' : 'Combine ' + C.sel.length) + '</button></div>', { cls: 'wide', focus: focusSel || '#cmbName', noFocus: !!C.from && !focusSel });
+  return w;
+}
+function cmbKeep() {
+  const C = S.ui.cmb; if (!C || !$('#cmbName')) return;
+  C.name = val('cmbName').trim() ? val('cmbName') : C.name;
+  $$('[data-co]').forEach(i => { C.opts[Number(i.dataset.co)] = i.value; });
+  $$('[data-cv]').forEach(i => { const v = C.vals[i.dataset.id] || (C.vals[i.dataset.id] = []); v[Number(i.dataset.cv)] = i.value; });
+}
+function cmbRefresh(keepFocus) {
+  const a = document.activeElement, id = a && a.id, cv = a && a.dataset && a.dataset.cv, cid = a && a.dataset && a.dataset.id, pos = a && a.selectionStart;
+  const r = $('#cmbRows'); if (r) r.innerHTML = cmbRowsHTML();
+  const c = $('#cmbCands'); if (c) c.innerHTML = cmbCandsHTML();
+  const g = $('#cmbGo'); if (g && !S.ui.cmb.fid) g.innerHTML = ic('layers', 16) + 'Combine ' + S.ui.cmb.sel.length;
+  if (keepFocus && cv != null) { const i = $('[data-cv="' + cv + '"][data-id="' + CSS.escape(cid) + '"]'); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (e) { } } }
+  else if (keepFocus && id) { const i = $('#' + id); if (i) i.focus(); }
+}
+INP.cmbName = t => { const C = S.ui.cmb; C.name = t.value; C.nameSet = true; C.sel.forEach((id, r) => { const el = $('#cnew-' + r); if (el) el.textContent = famFullName(C.name, C.vals[id] || []); }); };
+INP.cmbOpt = t => { const C = S.ui.cmb; C.opts[Number(t.dataset.co)] = t.value; C.optsSet = true; const hs = $$('#cmbRows .cth span'); const h = hs[2 + Number(t.dataset.co)]; if (h) h.textContent = t.value || 'Choice'; };
+INP.cmbVal = t => { const C = S.ui.cmb, v = C.vals[t.dataset.id] || (C.vals[t.dataset.id] = []); v[Number(t.dataset.cv)] = t.value; C.valSet[t.dataset.id] = true; const r = C.sel.indexOf(t.dataset.id), el = $('#cnew-' + r); if (el) el.textContent = famFullName(C.name, v); };
+INP.cmbQ = t => { S.ui.cmb.q = t.value; const c = $('#cmbCands'); if (c) c.innerHTML = cmbCandsHTML(); };
+ACT.cmbPick = t => { const C = S.ui.cmb; cmbKeep(); if (!C.sel.includes(t.dataset.id)) C.sel.push(t.dataset.id); cmbGuess(); cmbRefresh(); const q = $('#cmbQ'); if (q && C.q) q.focus(); };
+ACT.cmbDrop = t => { const C = S.ui.cmb; cmbKeep(); C.sel = C.sel.filter(x => x !== t.dataset.id); delete C.valSet[t.dataset.id]; cmbGuess(); cmbRefresh(); };
+ACT.cmbOptAdd = () => { const C = S.ui.cmb; cmbKeep(); if (C.opts.length >= 3) return; C.opts.push(C.opts.some(o => /type/i.test(o)) ? 'Size' : 'Type'); C.optsSet = true; Object.keys(C.vals).forEach(id => C.vals[id].push('')); renderCombine('[data-co="' + (C.opts.length - 1) + '"]'); };
+ACT.cmbOptDel = () => { const C = S.ui.cmb; cmbKeep(); if (C.opts.length < 2) return; C.opts.pop(); C.optsSet = true; Object.keys(C.vals).forEach(id => { const v = C.vals[id]; if (v.length > C.opts.length) { const last = v.splice(C.opts.length); v[C.opts.length - 1] = [v[C.opts.length - 1]].concat(last).filter(Boolean).join(' '); } }); renderCombine('[data-co="' + (C.opts.length - 1) + '"]'); };
+/* a size's choices fitted to fewer or more differences (one fewer: its last ones joined, as One fewer does in the dialog) */
+function famFitVals(ov, n) { const v = listOf(ov).map(x => String(x || '')).slice(0, n); if (ov.length > n && n > 0) v[n - 1] = [v[n - 1]].concat(listOf(ov).slice(n)).filter(Boolean).join(' '); while (v.length < n) v.push(''); return v; }
+ACT.cmbGo = t => {
+  const C = S.ui.cmb; if (!C) return closeModal(true); cmbKeep();
+  const name = String(C.name || '').trim(), opts = C.opts.map((o, k) => String(o || '').trim() || 'Choice ' + (k + 1));
+  const sel = C.sel.map(itemById).filter(Boolean);
+  if (!name) { toast('The product needs a name.', { bad: true }); const n = $('#cmbName'); if (n) n.focus(); return; }
+  if (sel.length < 2) return toast(C.fid ? 'A product keeps at least two sizes — to make them separate supplies, use Split on the product’s page.' : 'Pick at least two supplies to combine.', { bad: true });
+  if (sel.length > FAM_MAX) return toast('That’s more than ' + FAM_MAX + ' sizes for one product.', { bad: true });
+  /* the sizes of one product are counted and bought the same way (the product's Edit prices them all by one package) */
+  const how = i => countUnit(i).toLowerCase() + (perBuy(i) > 1 ? ' by the ' + buyUnit(i).toLowerCase() + ' of ' + perBuy(i) : '');
+  const odd = sel.find(i => how(i) !== how(sel[0]));
+  if (odd) return toast('They’re not counted the same way: “' + plainText(sel[0].name, 40) + '” is counted in ' + unitWord(countUnit(sel[0]), 2) + (perBuy(sel[0]) > 1 ? ' (bought by the ' + buyUnit(sel[0]) + ' of ' + perBuy(sel[0]) + ')' : '') + ', “' + plainText(odd.name, 40) + '” in ' + unitWord(countUnit(odd), 2) + (perBuy(odd) > 1 ? ' (bought by the ' + buyUnit(odd) + ' of ' + perBuy(odd) + ')' : '') + '. Make them the same first (Edit on each).', { bad: true, ms: 9000 });
+  const vals = {}; sel.forEach(i => { vals[i.id] = opts.map((o, k) => String((C.vals[i.id] || [])[k] || '').trim()); });
+  const empty = sel.find(i => !vals[i.id].some(Boolean)); if (empty) return toast('Say what makes “' + plainText(empty.name, 40) + '” different (its ' + opts[0].toLowerCase() + ').', { bad: true });
+  const seen = {}; for (const i of sel) { const k = vals[i.id].join('\u0001').toLowerCase(); if (seen[k]) return toast('Two of them would both be “' + famFullName(name, vals[i.id]) + '”. Give each its own ' + opts.map(o => o.toLowerCase()).join(' or ') + '.', { bad: true }); seen[k] = 1; }
+  withWho(async () => {
+    busyBtn(t, true, 'Saving…');
+    const s = stamp(), fid = C.fid || 'fam-' + uid(), keep = new Set(sel.map(i => i.id));
+    /* (a supply joining its first product keeps the name it had, famWas, for when it leaves) */
+    const patches = sel.map((i, k) => { const nm = famFullName(name, vals[i.id]); return [i.id, Object.assign({ fam: fid, famName: name, famOpts: opts, famVals: vals[i.id], famPos: k, name: nm, updatedBy: s.by, updatedAt: s.at }, !famId(i) && nm !== i.name ? { famWas: i.name } : {})]; });
+    /* this product's sizes left out of the dialog leave it (only those it had when the dialog opened); its archived sizes keep up */
+    if (C.fid) famMembers(C.fid, true).filter(m => !keep.has(m.id)).forEach(m => {
+      if (m.archived) { const v = famFitVals(famValsOf(m), opts.length); patches.push([m.id, { famName: name, famOpts: opts, famVals: v, name: famFullName(name, v), updatedBy: s.by, updatedAt: s.at }]); }
+      else if (C.orig.includes(m.id)) patches.push([m.id, famOffPatch(m, s)]);
+    });
+    /* another product a size moved from, left with one size, goes back to a single supply */
+    const others = new Set(sel.filter(i => famId(i) && i.fam !== fid).map(i => i.fam));
+    others.forEach(f => { const left = famMembers(f, true).filter(m => !keep.has(m.id)); if (left.length === 1) patches.push([left[0].id, famOffPatch(left[0], s)]); });
+    const ok = await act(() => B.patchItems(patches));
+    if (!ok) return busyBtn(t, false);
+    const back = C.from === 'review';
+    S.ui.cmb = null; closeModal(true); S.famSugg = null;
+    toast((C.fid ? 'Saved: ' : 'Combined into ') + plainText(name, 50) + ' (' + plural(sel.length, 'size') + ').');
+    if (back && famSuggestShown().filter(x => !x.ids.some(id => keep.has(id))).length) setTimeout(() => { S.famSugg = null; ACT.famReview(); }, 350);
+    else setTimeout(() => openDrawer('fam', fid), 50);
+  });
+};
 
 /* =====================================================================
    Cart — what's waiting to be ordered, one card per vendor. Each line
@@ -8305,8 +9059,10 @@ ACT.qrPrint = () => {
 };
 /* labels for every supply on the screen: QR (the SKU it scans as), name, SKU, where it's kept */
 function labelCode(it) { return String((primarySource(it) || {}).sku || it.sku || it.id); }
-ACT.printLabels = async t => {
-  const list = supVisible().slice(0, 240); if (!list.length) return toast('No supplies on the screen to print.'); if (demoBlocked('print')) return;
+ACT.printLabels = t => printLabelsFor(supVisible().slice(0, 240), t);
+/* (a product's sizes print one label each: each size scans as itself) */
+async function printLabelsFor(list, t) {
+  list = listOf(list).slice(0, 240); if (!list.length) return toast('No supplies on the screen to print.'); if (demoBlocked('print')) return;
   const w = window.open('', '_blank', 'width=900,height=700'); if (!w) return toast('Allow pop-ups to print labels.', { bad: true });
   busyBtn(t, true, 'Making labels…');
   try {
@@ -8327,7 +9083,7 @@ ACT.printLabels = async t => {
     d.close(); w.focus();
   } catch (e) { try { w.close(); } catch (x) { } toast(errText(e), { bad: true }); }
   busyBtn(t, false);
-};
+}
 
 /* =====================================================================
    AI — Gemini for reading product labels and packing slips and for Ask
@@ -9060,25 +9816,30 @@ function openEditor(id, prefill) {
   const base = it || Object.assign({ cat: (S.ui.sup && S.ui.sup.cat) || 'misc', unit: 'box' }, prefill || {});
   const per = it ? perBuy(it) : (base.buyUnit && Number(base.perBuy) > 1 ? Math.round(Number(base.perBuy)) : 1);
   const srcs = (it ? allSources(it) : listOf(base.sources)).filter(s => s && (s.vendor || s.sku || countPrice(s) != null))
-    .map(s => ({ vendor: s.vendor || '', sku: s.sku || '', price: countPrice(s) != null ? (countPrice(s) * per).toFixed(2) : '', src: s.src || '', lastDate: s.lastDate || '' }));
+    .map(s => ({ key: 'k' + uid(), vendor: s.vendor || '', sku: s.sku || '', price: countPrice(s) != null ? (countPrice(s) * per).toFixed(2) : '', src: s.src || '', lastDate: s.lastDate || '' }));
+  /* one size of a product (families.js): its name is the product's with its own choices, typed here */
+  const join = prefill && prefill.famJoin, mem = it && famId(it) ? { fid: it.fam, name: it.famName || '', opts: famOptsOf(it), vals: famValsOf(it) }
+    : join ? { fid: join.fid, name: join.name, opts: join.opts.slice(), vals: join.opts.map(() => ''), isNew: true } : null;
+  if (mem && !mem.opts.length) mem.opts = ['Size'];
   S.ui.ed = {
-    id: it ? it.id : null, copyOf: (prefill && prefill.copyOf) || null,
+    id: it ? it.id : null, copyOf: (prefill && prefill.copyOf) || null, mem, fam: null,
     f: {
       name: base.name || '', cat: base.cat || 'misc', group: base.group || '', manufacturer: base.manufacturer || '', sku: base.sku || '', tags: listOf(base.tags).join(', '), location: base.location || '', note: base.note || '', exp: base.exp || '',
       unit: countUnit(base), big: per > 1, buyUnit: per > 1 ? (base.buyUnit || 'case') : 'case', perBuy: per > 1 ? String(per) : '10',
       pieces: Number(base.baseUnitsPerOrderUnit) > 1 ? String(base.baseUnitsPerOrderUnit) : '', piece: base.baseUnitName && base.baseUnitName !== 'Unit' ? base.baseUnitName : '',
       min: base.min != null && base.min !== '' ? String(base.min) : '', qty: it ? '' : (base.qty != null && base.qty !== '' ? String(base.qty) : '')
     },
-    sources: srcs.length ? srcs : [{ vendor: '', sku: '', price: '', src: '', lastDate: '' }],
+    sources: srcs.length ? srcs : [{ key: 'k' + uid(), vendor: '', sku: '', price: '', src: '', lastDate: '' }],
     /* shown/shownFull: the photo the supply shows today, wherever it's kept (img, a full-size one only, an older photo's address,
        a built-in one) — the editor offers Change, Remove and the AI clean-up for any of them */
     photo: { img: base.img || null, imgFull: base.imgFull || null, shown: photoOf(base) || null, shownFull: photoOf(base, true) || null, thumb: null, full: null, changed: false, ai: false },
     dirty: !!(prefill && prefill.copyOf), busy: '', ai: null
   };
   if (prefill && prefill.photo) Object.assign(S.ui.ed.photo, prefill.photo);
-  renderEditor();
-  aiKeys().then(k => { if (!S.ui.ed) return; S.ui.ed.ai = k; const r = $('#edAiRow'); if (r) r.outerHTML = edAiRowHTML(); const p = $('#edPhotoRow'); if (p) { p.outerHTML = edPhotoHTML(); hydrateImages($('#modalWrap')); } }).catch(() => { });
+  renderEditor(); edLoadAi();
 }
+/* the AI keys (label reader, photo clean-up) arrive after the editor opens */
+function edLoadAi() { const E = S.ui.ed; aiKeys().then(k => { if (!S.ui.ed || S.ui.ed !== E) return; E.ai = k; const r = $('#edAiRow'); if (r) r.outerHTML = edAiRowHTML(); const p = $('#edPhotoRow'); if (p) { p.outerHTML = edPhotoHTML(); hydrateImages($('#modalWrap')); } }).catch(() => { }); }
 function edAiRowHTML() {
   const E = S.ui.ed, k = E && E.ai, can = !!(k && (k.gemini || k.proxy));
   return '<div id="edAiRow">' + (can ? '<div class="aiFill">' + ic('spark', 18) + '<div class="grow"><b>Read a label</b><span>Take a photo of the box or label and the AI fills in what it can.</span></div><button class="btn btn-sec btn-sm" data-act="edLabel"' + (E.busy ? ' disabled' : '') + '>' + (E.busy === 'label' ? 'Reading…' : ic('camera', 15) + 'Scan the label') + '</button></div>' : '') + '</div>';
@@ -9092,7 +9853,8 @@ function edPhotoHTML() {
     '<div class="grow"><b>Photo</b><span>' + (src ? (P.ai ? 'Cleaned up by AI — saved with the supply' : P.changed ? 'New photo — saved with the supply' : 'Shown in the list and on labels') : 'A photo helps people find the right box.') + '</span>' +
     '<div class="btnRow" style="margin-top:6px"><button class="btn btn-sec btn-sm" data-act="edPhoto">' + ic('upload', 14) + (src ? 'Change' : 'Add a photo') + '</button>' + (src ? '<button class="btn btn-ghost btn-sm" data-act="edPhotoOff">Remove</button>' : '') +
     (src && canAi && !P.ai ? '<button class="btn btn-ghost btn-sm" data-act="edPhotoAi"' + (E.busy ? ' disabled' : '') + '>' + ic('spark', 14) + (E.busy === 'photo' ? 'Working… (up to 2 minutes)' : 'Clean it up with AI') + '</button>' : '') + '</div>' +
-    (noKey ? '<div class="hint" id="edPhotoNoKey">“Clean it up with AI” needs the OpenAI key: Settings → AI.</div>' : '') + '</div></div>';
+    (noKey ? '<div class="hint" id="edPhotoNoKey">“Clean it up with AI” needs the OpenAI key: Settings → AI.</div>' : '') +
+    (E.fam && E.fam.on && E.fam.mode === 'edit' ? famOwnPicsHint(E) : '') + '</div></div>';
 }
 function renderEditor() {
   const E = S.ui.ed, F = E.f, it = E.id ? itemById(E.id) : null;
@@ -9104,40 +9866,53 @@ function renderEditor() {
   const locs = listOf(S.settings.locations);
   const priceUnit = F.big ? (F.buyUnit || 'case') : (F.unit || 'unit'), per = F.big ? Math.max(2, Math.round(num(F.perBuy) || 0)) : 1;
   const dl = (id, list) => '<datalist id="' + id + '">' + list.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>';
-  let h = '<h3>' + (E.id ? 'Edit supply' : E.copyOf ? 'New supply (a copy)' : 'New supply') + '</h3><div class="lsub">' + (E.id ? esc(it ? it.name : '') + ' · changes are saved with your name and the time' : 'It shows up for everyone as soon as it’s saved.') + '</div>' + edAiRowHTML();
+  /* a product in sizes (FM: made here, or the product's own Edit) or one of its sizes (M) — families.js */
+  const FM = E.fam && E.fam.on ? E.fam : null, M = E.mem, famEdit = !!(FM && FM.mode === 'edit'), nSizes = FM ? famLiveRows(E).length : 0;
+  let h = '<h3>' + (famEdit ? 'Edit product' : FM ? 'New product in sizes' : E.id ? (M ? 'Edit this size' : 'Edit supply') : M ? 'New size of ' + esc(M.name) : E.copyOf ? 'New supply (a copy)' : 'New supply') + '</h3><div class="lsub">' +
+    (famEdit ? esc(F.name) + ' · ' + esc(plural(nSizes, 'size')) + ' · what you change here changes every size; the table is each size’s own' : E.id ? esc(it ? it.name : '') + ' · changes are saved with your name and the time' : 'It shows up for everyone as soon as it’s saved.') + '</div>' + edAiRowHTML();
   /* what it is */
-  h += '<div class="edSec"><h5>What it is</h5>' + field('Name', '<input id="edName" value="' + esc(F.name) + '" placeholder="e.g. Gloves Pulse Nitrile — SM" autocomplete="off">') +
+  const nameField = M ? '<input type="hidden" id="edName" value="' + esc(F.name) + '">' +
+      '<div class="notice info famMemNote">' + ic('layers', 14) + ' ' + (M.isNew ? 'A new size of' : 'One size of') + ' <b>' + esc(M.name) + '</b>' + (M.fid ? ' (' + esc(plural(famMembers(M.fid, true).length, 'size')) + ')' : '') + '. Its name is the product’s with its own ' + esc(M.opts.map(o => o.toLowerCase()).join(' and ')) + '.' +
+      (M.fid && !M.isNew ? ' To change the name, photo, vendors or price of every size at once: <button class="linkBtn" data-act="famEdit" data-fam="' + esc(M.fid) + '">Edit the product</button>' : '') + '</div>' +
+      '<div class="grid' + Math.min(3, M.opts.length + 1) + '">' + M.opts.map((o, k) => field(o || 'Choice', '<input data-mv="' + k + '" value="' + esc(M.vals[k] || '') + '" data-inp="edMemInp" autocomplete="off"' + (k === 0 ? ' id="edMv0"' : '') + '>')).join('') + '</div>' +
+      '<div class="hint" style="margin:-4px 0 12px">Its name: <b id="edMemName">' + esc(famFullName(M.name, M.vals)) + '</b></div>'
+    : field(FM ? 'Product name (every size has it)' : 'Name', '<input id="edName" value="' + esc(F.name) + '" placeholder="' + (FM ? 'e.g. tomas-pin mini screw' : 'e.g. Gloves Pulse Nitrile — SM') + '" autocomplete="off"' + (FM ? ' data-inp="famNameInp"' : '') + '>');
+  h += '<div class="edSec"><h5>What it is</h5>' + nameField +
+    (!E.id && !M && !famEdit ? '<label class="chk famOn"><input type="checkbox" id="edFamOn" data-chg="edFamOn"' + (FM ? ' checked' : '') + '> ' + ic('layers', 15) + ' <span>It comes in different sizes or types <span class="muted">— one card, and each size has its own count, item # and price</span></span></label>' : '') +
     '<div class="grid2">' + field('Category', '<select id="edCat" data-chg="edCat">' + CATEGORIES.map(c => '<option value="' + c.id + '"' + (c.id === F.cat ? ' selected' : '') + '>' + esc(c.label) + '</option>').join('') + '</select>') +
     field('Group', '<input id="edGroup" list="edGroups" value="' + esc(F.group) + '" placeholder="' + esc(groups[0] ? 'e.g. ' + groups[0] : 'optional') + '">' + dl('edGroups', groups)) + '</div>' +
     '<div class="grid2">' + field('Made by', '<input id="edMfr" list="edMfrs" value="' + esc(F.manufacturer) + '" placeholder="e.g. 3M, Ormco (optional)">' + dl('edMfrs', mfrs)) +
-    field('Maker’s part #', '<input id="edSku" value="' + esc(F.sku) + '" placeholder="optional" autocomplete="off">') + '</div>' +
+    (FM ? '<div class="field"><label>Item #</label><div class="stockNow muted">One for each size, in the table below</div></div>' : field('Maker’s part #', '<input id="edSku" value="' + esc(F.sku) + '" placeholder="optional" autocomplete="off">')) + '</div>' +
     '<div class="grid2">' + field('Kept in', '<select id="edLoc"><option value="">—</option>' + locs.map(l => '<option' + (l === F.location ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + (F.location && !locs.includes(F.location) ? '<option selected value="' + esc(F.location) + '">' + esc(F.location) + ' (not on the list)</option>' : '') + '</select>', locs.length ? '' : 'Storage places are added under Settings.') +
     field('Expires', '<input id="edExp" type="date" value="' + esc(/^\d{4}-\d{2}-\d{2}$/.test(F.exp) ? F.exp : '') + '">', F.exp && !/^\d{4}-\d{2}-\d{2}$/.test(F.exp) ? 'Saved as “' + esc(F.exp) + '”' : '') + '</div>' +
     field('Search words', '<input id="edTags" list="edTagList" value="' + esc(F.tags) + '" placeholder="e.g. hve, suction, chairside (commas between)">' + dl('edTagList', tagsAll)) +
     field('Notes', '<textarea id="edNote" rows="2" placeholder="Shade, size, which patients, how to order…">' + esc(F.note) + '</textarea>') + edPhotoHTML() + '</div>';
+  /* its sizes and types */
+  if (FM) h += famEdSecHTML(E);
   /* counting and buying */
   h += '<div class="edSec"><h5>Counting and buying</h5><div class="grid3">' +
     field('Counted on the shelf in', '<input id="edUnit" list="edUnits" value="' + esc(F.unit) + '" data-inp="edUnitInp" autocomplete="off">' + dl('edUnits', COUNT_UNITS)) +
-    field('Reorder below', '<input id="edMin" type="number" inputmode="numeric" min="0" step="1" value="' + esc(F.min) + '" placeholder="0">', 'in ' + esc(unitWord(F.unit || 'unit', 2))) +
-    (E.id ? '<div class="field"><label>On hand</label><div class="stockNow"><b>' + esc(qtyFmt((it && it.qty) || 0)) + '</b> ' + esc(unitWord(F.unit || 'unit', it && it.qty)) + ' · <button class="linkBtn" data-act="stockOpen" data-id="' + esc(E.id) + '">count it</button></div></div>' :
+    field(FM ? 'Reorder below (each size)' : 'Reorder below', '<input id="edMin" type="number" inputmode="numeric" min="0" step="1" value="' + esc(F.min) + '" placeholder="0"' + (FM ? ' data-inp="famMinInp"' : '') + '>', 'in ' + esc(unitWord(F.unit || 'unit', 2)) + (FM ? ' — a size can have its own in the table' : '')) +
+    (FM ? '<div class="field"><label>On hand</label><div class="stockNow muted">' + (famEdit ? 'Counted size by size (Count on the product)' : 'Typed for each size in the table') + '</div></div>' :
+    E.id ? '<div class="field"><label>On hand</label><div class="stockNow"><b>' + esc(qtyFmt((it && it.qty) || 0)) + '</b> ' + esc(unitWord(F.unit || 'unit', it && it.qty)) + ' · <button class="linkBtn" data-act="stockOpen" data-id="' + esc(E.id) + '">count it</button></div></div>' :
       field('On hand now', '<input id="edQty" type="number" inputmode="decimal" min="0" step="any" value="' + esc(F.qty) + '" placeholder="0">', 'in ' + esc(unitWord(F.unit || 'unit', 2)))) + '</div>' +
     '<label class="chk" style="margin:4px 0 8px"><input type="checkbox" id="edBig" data-chg="edBig"' + (F.big ? ' checked' : '') + '> We buy it by a bigger package (like a case of boxes)</label>' +
     (F.big ? '<div class="bigRow">Bought by the <input id="edBuyU" list="edBuyUnits" value="' + esc(F.buyUnit) + '" data-inp="edUnitInp" class="sm" aria-label="Package">' + dl('edBuyUnits', BUY_UNITS) + ' of <input id="edPer" type="number" inputmode="numeric" min="2" step="1" value="' + esc(F.perBuy) + '" data-inp="edUnitInp" class="xs" aria-label="How many in one"> <span id="edPerU">' + esc(unitWord(F.unit || 'unit', 2)) + '</span></div>' +
       '<div class="hint" id="edBigHint">The cart and orders go by the ' + esc(F.buyUnit || 'case') + '; receiving 1 ' + esc(F.buyUnit || 'case') + ' adds ' + per + ' ' + esc(unitWord(F.unit || 'unit', per)) + ' to the count.</div>' : '') +
     '<div class="grid2" style="margin-top:8px">' + field('Pieces in one ' + (F.unit || 'unit') + ' (optional)', '<div class="inRow"><input id="edPcs" type="number" inputmode="decimal" min="0" step="any" value="' + esc(F.pieces) + '" placeholder="e.g. 100" class="xs" aria-label="How many pieces"><input id="edPc" list="edPieces" value="' + esc(F.piece) + '" placeholder="gloves" aria-label="Piece">' + dl('edPieces', BASE_UNITS) + '</div>', 'Only for the price per piece; it never changes a count.') + '</div></div>';
   /* where it's bought */
-  h += '<div class="edSec"><h5>Where it’s bought</h5><div class="hint" style="margin:-4px 0 10px">The first one is the usual vendor. Prices are per <b id="edPu">' + esc(priceUnit) + '</b>.</div>' +
+  h += '<div class="edSec"><h5>Where it’s bought</h5><div class="hint" style="margin:-4px 0 10px">The first one is the usual vendor. Prices are per <b id="edPu">' + esc(priceUnit) + '</b>' + (FM ? ' — for every size; a size with its own price has it in the table, and its item # is there too' : '') + '.</div>' +
     E.sources.map((s, k) => {
       const p = num(s.price), each = F.big && p > 0 ? '= ' + money(p / per) + ' a ' + esc(F.unit || 'unit') : '';
       return '<div class="srcEd"><div class="srcTop">' + (k === 0 ? '<span class="pill usual">Usual vendor</span>' : '<button class="linkBtn" data-act="edSrcTop" data-k="' + k + '">Make this the usual vendor</button>') + '<span style="flex:1"></span>' +
         (E.sources.length > 1 ? '<button class="iconBtn" data-act="edSrcDel" data-k="' + k + '" aria-label="Remove this vendor">' + ic('trash', 15) + '</button>' : '') + '</div>' +
-        '<div class="grid4">' + field('Vendor', '<input data-ed="vendor" data-k="' + k + '" list="edVendors" value="' + esc(s.vendor) + '" placeholder="Pick or type">') + field('Their SKU', '<input data-ed="sku" data-k="' + k + '" value="' + esc(s.sku) + '" autocomplete="off">') +
-        field('Price per ' + priceUnit, '<input data-ed="price" data-k="' + k + '" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(s.price) + '" data-inp="edPriceInp">', '<span id="edEach' + k + '">' + each + '</span>') +
+        '<div class="grid' + (FM ? 3 : 4) + '">' + field('Vendor', '<input data-ed="vendor" data-k="' + k + '" list="edVendors" value="' + esc(s.vendor) + '" placeholder="Pick or type"' + (FM && k === 0 ? ' data-inp="famVendorInp"' : '') + '>') + (FM ? '' : field('Their SKU', '<input data-ed="sku" data-k="' + k + '" value="' + esc(s.sku) + '" autocomplete="off">')) +
+        field((FM ? 'Price per ' + priceUnit + (k === 0 ? ', each size' : '') : 'Price per ' + priceUnit), '<input data-ed="price" data-k="' + k + '" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(s.price) + '" data-inp="edPriceInp">', '<span id="edEach' + k + '">' + each + '</span>') +
         field('Product link', '<input data-ed="src" data-k="' + k + '" value="' + esc(s.src) + '" placeholder="https:// (optional)">') + '</div></div>';
     }).join('') + dl('edVendors', vnames) +
     '<button class="btn btn-ghost btn-sm" data-act="edSrcAdd">' + ic('plus', 14) + 'Another vendor</button></div>';
-  h += '<div class="mFt">' + (E.id ? '<button class="btn btn-ghost" data-act="edCopy" style="margin-right:auto">' + ic('copy', 15) + 'Make a copy</button>' : '<span style="margin-right:auto"></span>') +
-    '<button class="btn btn-sec" data-act="edClose">Cancel</button><button class="btn btn-pri" data-act="edSave"' + (E.busy ? ' disabled' : '') + '>' + (E.id ? 'Save changes' : 'Add the supply') + '</button></div>';
+  h += '<div class="mFt">' + (E.id && !FM ? '<button class="btn btn-ghost" data-act="edCopy" style="margin-right:auto">' + ic('copy', 15) + (M ? 'Another size like this' : 'Make a copy') + '</button>' : FM && !famEdit ? '<span class="muted small" id="famSaveHint" style="margin-right:auto;align-self:center">' + esc(famSaveHint(E)) + '</span>' : '<span style="margin-right:auto"></span>') +
+    '<button class="btn btn-sec" data-act="edClose">Cancel</button><button class="btn btn-pri" data-act="edSave" id="edSaveBtn"' + (E.busy ? ' disabled' : '') + '>' + (famEdit ? 'Save the product' : FM ? famSaveLabel(E) : E.id ? 'Save changes' : M ? 'Add the size' : 'Add the supply') + '</button></div>';
   const keep = $('#modalWrap .modal.edModal'), y = keep ? keep.scrollTop : 0, wy = $('#modalWrap') ? $('#modalWrap').scrollTop : 0;
   const w = openModal(h, { cls: 'wide edModal', noFocus: !!E.id || !!keep, focus: '#edName', confirmClose: E.dirty ? 'Close without saving your changes?' : null });
   const m = $('.modal', w); if (m && y) m.scrollTop = y; if (wy) w.scrollTop = wy;
@@ -9152,13 +9927,17 @@ function edKeep() {
   F.tags = val('edTags'); F.note = val('edNote'); F.unit = val('edUnit').trim(); F.min = val('edMin'); if ($('#edQty')) F.qty = val('edQty');
   F.big = !!($('#edBig') && $('#edBig').checked); if ($('#edBuyU')) F.buyUnit = val('edBuyU').trim(); if ($('#edPer')) F.perBuy = val('edPer'); F.pieces = val('edPcs'); F.piece = val('edPc').trim();
   $$('[data-ed]').forEach(i => { const s = E.sources[Number(i.dataset.k)]; if (s) s[i.dataset.ed] = i.value; });
+  if (E.mem) $$('[data-mv]').forEach(i => { E.mem.vals[Number(i.dataset.mv)] = i.value; });
+  famEdKeep(E);
 }
 CHG.edCat = () => { edKeep(); S.ui.ed.dirty = true; renderEditor(); };
 CHG.edBig = () => {
   const E = S.ui.ed, was = E.f.big; edKeep(); E.dirty = true;
   /* the typed prices follow the unit they're typed in: per box <-> per case */
-  const per = Math.max(2, Math.round(num(E.f.perBuy) || 10));
-  E.sources.forEach(s => { const p = num(s.price); if (p > 0) s.price = (E.f.big && !was ? p * per : !E.f.big && was ? p / per : p).toFixed(2); });
+  const per = Math.max(2, Math.round(num(E.f.perBuy) || 10)), conv = p => (E.f.big && !was ? p * per : !E.f.big && was ? p / per : p).toFixed(2);
+  E.sources.forEach(s => { const p = num(s.price); if (p > 0) s.price = conv(p); });
+  /* (and each size's own price in the table) */
+  if (E.fam) E.fam.rows.forEach(r => Object.keys(r.pr).forEach(k => { const p = num(r.pr[k]); if (p > 0) r.pr[k] = conv(p); }));
   renderEditor();
 };
 INP.edUnitInp = () => {
@@ -9171,8 +9950,10 @@ INP.edUnitInp = () => {
 INP.edPriceInp = () => {
   const big = !!($('#edBig') && $('#edBig').checked), per = big ? Math.max(2, Math.round(num(val('edPer')) || 0)) : 1, u = val('edUnit').trim() || 'unit';
   $$('[data-ed="price"]').forEach(i => { const e = $('#edEach' + i.dataset.k); if (e) { const p = num(i.value); e.textContent = big && p > 0 ? '= ' + money(p / per) + ' a ' + u : ''; } });
+  /* (a product's sizes without a price of their own show the usual vendor's) */
+  const p0 = $('[data-ed="price"][data-k="0"]'); $$('[data-fr="price"]').forEach(i => { i.placeholder = (p0 && p0.value) || '0.00'; });
 };
-ACT.edSrcAdd = () => { edKeep(); S.ui.ed.sources.push({ vendor: '', sku: '', price: '', src: '', lastDate: '' }); S.ui.ed.dirty = true; renderEditor(); };
+ACT.edSrcAdd = () => { edKeep(); S.ui.ed.sources.push({ key: 'k' + uid(), vendor: '', sku: '', price: '', src: '', lastDate: '' }); S.ui.ed.dirty = true; renderEditor(); };
 ACT.edSrcDel = t => { edKeep(); S.ui.ed.sources.splice(Number(t.dataset.k), 1); S.ui.ed.dirty = true; renderEditor(); };
 ACT.edSrcTop = t => { edKeep(); const E = S.ui.ed, k = Number(t.dataset.k), s = E.sources.splice(k, 1)[0]; E.sources.unshift(s); E.dirty = true; renderEditor(); };
 ACT.edClose = () => closeModal();
@@ -9183,7 +9964,9 @@ ACT.edCopy = () => {
     buyUnit: F.big ? F.buyUnit : null, perBuy: F.big ? per : null, baseUnitsPerOrderUnit: num(F.pieces) || null, baseUnitName: F.piece || null,
     sources: E.sources.map(s => ({ vendor: s.vendor, sku: '', price: num(s.price) > 0 ? num(s.price) / per : null, src: s.src })),
     img: E.photo.img, imgFull: E.photo.imgFull, photo: E.photo.changed ? { thumb: E.photo.thumb, full: E.photo.full, changed: true } : null };
-  closeModal(true); openEditor(null, pre); toast('A copy — give it its own name, then save it.');
+  /* a copy of one size of a product is another size of it (families.js) */
+  if (E.mem && E.mem.fid) pre.famJoin = { fid: E.mem.fid, name: E.mem.name, opts: E.mem.opts };
+  closeModal(true); openEditor(null, pre); toast(pre.famJoin ? 'Another size of ' + plainText(E.mem.name, 40) + ' — type what makes it different, then save it.' : 'A copy — give it its own name, then save it.');
 };
 /* the photo */
 ACT.edPhoto = async () => {
@@ -9207,7 +9990,7 @@ ACT.edPhotoAi = async () => {
     const r = await makeThumbAndFull(out);
     Object.assign(E.photo, { thumb: r.thumb || out, full: r.full || out, changed: true, ai: true }); E.dirty = true;
   } catch (e) { toast('Photo clean-up: ' + (e && e.ai ? e.message : errText(e)), { bad: true, ms: e && e.ai ? 12000 : 0 }); }
-  E.busy = ''; if (S.ui.ed === E && $('#edName')) renderEditor();
+  E.busy = ''; if (S.ui.ed === E && $('#edName')) { edKeep(); renderEditor(); }   // (what was typed while it worked stays)
 };
 /* a saved photo (Cloud Storage, or one just picked) as a data URL, for the AI */
 async function urlToDataUrl(u) {
@@ -9225,6 +10008,7 @@ ACT.edLabel = async () => {
   edKeep(); E.busy = 'label'; renderEditor();
   try {
     const d = await readFileAsDataUrl(f), r = await aiReadProductLabel(d, k.gemini, k.proxy), F = E.f, got = [];
+    if (S.ui.ed === E && $('#edName')) edKeep();   // (what was typed while it read)
     const s = v => (v == null ? '' : String(v).trim());
     if (s(r.name)) { F.name = s(r.name); got.push('name'); }
     if (s(r.sku)) { F.sku = s(r.sku); got.push('part #'); }
@@ -9232,17 +10016,32 @@ ACT.edLabel = async () => {
     const pk = _canonical(s(r.packaging), ORDER_UNITS); if (pk && pk.toLowerCase() !== 'case') { F.unit = pk.toLowerCase(); got.push('unit'); }
     const pc = _canonical(s(r.unit), BASE_UNITS); if (pc && pc.toLowerCase() !== F.unit) F.piece = pc;
     if (Number(r.unitsPerPkg) > 1) { F.pieces = String(Number(r.unitsPerPkg)); got.push('pieces'); }
-    if (Number(r.pkgsPerCase) > 1 && !F.big) { F.big = true; F.buyUnit = 'case'; F.perBuy = String(Math.round(Number(r.pkgsPerCase))); E.sources.forEach(x => { const p = num(x.price); if (p > 0) x.price = String(round2(p * Number(F.perBuy))); }); got.push('case size'); }
+    if (Number(r.pkgsPerCase) > 1 && !F.big) {
+      F.big = true; F.buyUnit = 'case'; F.perBuy = String(Math.round(Number(r.pkgsPerCase))); E.sources.forEach(x => { const p = num(x.price); if (p > 0) x.price = String(round2(p * Number(F.perBuy))); });
+      if (E.fam) E.fam.rows.forEach(row => Object.keys(row.pr).forEach(k => { const p = num(row.pr[k]); if (p > 0) row.pr[k] = String(round2(p * Number(F.perBuy))); }));
+      got.push('case size');
+    }
     if (s(r.note)) { F.note = F.note ? F.note + (F.note.includes(s(r.note)) ? '' : ' · ' + s(r.note)) : s(r.note); got.push('notes'); }
     /* the label's photo is a fine first photo */
     if (!E.photo.thumb && !E.photo.shown && !E.photo.img) { const ph = await makeThumbAndFull(d); if (ph.thumb) Object.assign(E.photo, { thumb: ph.thumb, full: ph.full || ph.thumb, changed: true }); }
     E.dirty = true; toast(got.length ? 'Filled in: ' + got.join(', ') + '. Check it before saving.' : 'The AI couldn’t read much from that photo.', got.length ? {} : { bad: true });
-  } catch (e) { toast('Label: ' + errText(e), { bad: true }); }
+  } catch (e) { if (S.ui.ed === E && $('#edName')) edKeep(); toast('Label: ' + errText(e), { bad: true }); }
   E.busy = ''; if (S.ui.ed === E && $('#edName')) renderEditor();
 };
 /* save */
 ACT.edSave = t => {
   edKeep(); const E = S.ui.ed, F = E.f;
+  /* a product in sizes: every size in one save (families.js) */
+  if (E.fam && E.fam.on) return famEdSave(t);
+  /* one size of a product: its name is the product's with its choices */
+  const M = E.mem;
+  if (M) {
+    M.vals = M.opts.map((o, k) => String(M.vals[k] || '').trim());
+    if (!M.vals.some(Boolean)) { toast('Type what makes this size different (its ' + (M.opts[0] || 'size').toLowerCase() + ').', { bad: true }); const v = $('#edMv0'); if (v) v.focus(); return; }
+    const twin = famMembers(M.fid, true).find(m => m.id !== E.id && famValsOf(m).join('\u0001').toLowerCase() === M.vals.join('\u0001').toLowerCase());
+    if (twin) return toast('“' + M.name + '” already has ' + famLabel(twin) + '.', { bad: true });
+    F.name = famFullName(M.name, M.vals);
+  }
   const name = F.name.trim(); if (!name) { toast('The supply needs a name.', { bad: true }); const n = $('#edName'); if (n) n.focus(); return; }
   const unit = (F.unit || 'unit').trim().toLowerCase(), big = F.big && Math.round(num(F.perBuy)) > 1, per = big ? Math.round(num(F.perBuy)) : 1;
   if (F.big && !big) return toast('How many ' + unitWord(unit, 2) + ' are in one ' + (F.buyUnit || 'case') + '?', { bad: true });
@@ -9265,6 +10064,10 @@ ACT.edSave = t => {
     baseUnitName: pieces > 1 ? (F.piece || 'Unit') : null, baseUnitsPerOrderUnit: pieces > 1 ? pieces : 1, baseUnitQty: null,
     sources, vendorOrderPrice: sources[0] && sources[0].price != null ? round2(sources[0].price) : null
   };
+  if (M) {
+    rec.famVals = M.vals;
+    if (M.isNew) { const sib = famMembers(M.fid, true); Object.assign(rec, { fam: M.fid, famName: M.name, famOpts: M.opts, famPos: sib.reduce((a, m) => Math.max(a, Number(m.famPos) || 0), -1) + 1 }); }
+  }
   withWho(async () => {
     busyBtn(t, true, 'Saving…');
     try {
@@ -9343,6 +10146,307 @@ ACT.stkGo = t => {
     if (ok) closeModal(true); else busyBtn(t, false);
   }, m === 'count' ? 'Who counted?' : m === 'add' ? 'Who’s adding it?' : 'Who used it?');
 };
+
+/* ---------- a product in sizes and types: the editor's part (families.js has the rest) ----------
+   New supply → "It comes in different sizes or types": what tells them apart (up to three: Type, Length…) and the choices of
+   each, commas between; every combination is a row — untick one that isn't made — with its own item # (at the usual
+   vendor), price (blank: the usual vendor's price above), count and minimum (blank: the one above). Saving makes every size
+   at once, in one save. Edit on the product opens the same form on its sizes: what's changed above goes to every size (only
+   what was changed — a size's own notes or link stay unless that field is changed here); the table is each size's own;
+   new choices + Add make new sizes; × takes a size out of the product (it stays a supply of its own). */
+function famSplitVals(s) { const out = []; String(s || '').split(/[,;\n]+/).map(x => x.trim()).filter(Boolean).forEach(x => { if (!out.some(y => y.toLowerCase() === x.toLowerCase())) out.push(x); }); return out.slice(0, 30); }
+function famRowKey(vals) { return listOf(vals).map(v => String(v || '').trim().toLowerCase()).join('\u0001'); }
+function famNewRow(vals) { return { key: 'r' + uid(), id: null, vals, on: true, sk: {}, pr: {}, qty: '', min: '', out: false }; }
+function famNewState() { return { on: true, mode: 'new', fid: null, opts: [{ n: 'Size', v: '' }], rows: [], over: 0 }; }
+function famLiveRows(E) { const FM = E && E.fam; if (!FM) return []; return FM.mode === 'edit' ? FM.rows.filter(r => !r.out) : FM.rows.filter(r => r.on); }
+function famSaveLabel(E) { const n = famLiveRows(E).length; return n ? 'Add ' + plural(n, 'size') : 'Add the sizes'; }
+function famSaveHint(E) { const n = famLiveRows(E).length; return n ? 'Each with its own count, item # and price' : ''; }
+/* New: every combination of the choices typed, each keeping what was typed into its row */
+function famGen(E) {
+  const FM = E.fam; if (!FM || FM.mode !== 'new') return;
+  const lists = FM.opts.map(o => famSplitVals(o.v));
+  let combos = [];
+  if (lists.some(l => l.length)) { combos = [[]]; lists.forEach(l => { const ls = l.length ? l : [''], next = []; combos.forEach(c => ls.forEach(v => next.push(c.concat([v])))); combos = next; }); }
+  const old = new Map(FM.rows.map(r => [famRowKey(r.vals), r])), used = new Set();
+  FM.over = combos.length > FAM_MAX ? combos.length : 0;
+  const next = combos.slice(0, FAM_MAX), hit = next.map(vals => { const r = old.get(famRowKey(vals)); if (r) used.add(r); return r || null; });
+  /* (a choice's spelling fixed — "6mm" to "6 mm" — keeps that row's item #, price and count: the row in the same place, when
+     the number of sizes didn't change and nothing else took it) */
+  FM.rows = next.map((vals, i) => { let r = hit[i]; if (!r && next.length === FM.rows.length && FM.rows[i] && !used.has(FM.rows[i])) { r = FM.rows[i]; used.add(r); } return r ? Object.assign(r, { vals }) : famNewRow(vals); });
+}
+function famEdSecHTML(E) {
+  const FM = E.fam, edit = FM.mode === 'edit';
+  let h = '<div class="edSec famSec"><h5>' + ic('layers', 13) + ' Sizes and types</h5><div class="hint" style="margin:-4px 0 10px">' +
+    (edit ? 'Change a size in the table, or type new choices and press Add to make new sizes. A size you take out stays a supply of its own.' : 'Say what tells them apart and type the choices — every combination is listed below. Untick one that isn’t made.') + '</div>';
+  h += FM.opts.map((o, k) => '<div class="famOpt"><input class="fon" data-fo="n" data-k="' + k + '" list="famOptNames" value="' + esc(o.n) + '" placeholder="' + (k ? 'e.g. Type' : 'e.g. Length') + '" aria-label="What differs" data-inp="famOptInp" autocomplete="off">' +
+    '<input class="fov" data-fo="v" data-k="' + k + '" value="' + esc(o.v) + '" placeholder="' + esc(edit ? 'New choices, e.g. 12 mm' : k ? 'e.g. EP, SD' : 'e.g. 6 mm, 8 mm, 10 mm') + '" aria-label="' + esc((o.n || 'The choices') + ', commas between') + '" data-inp="famOptInp" autocomplete="off"' + (edit ? ' data-enter="#famAdd' + k + '"' : '') + '>' +
+    (edit ? '<button class="btn btn-sec btn-sm" id="famAdd' + k + '" data-act="famAddVals" data-k="' + k + '">' + ic('plus', 14) + 'Add</button>' : '') +
+    (FM.opts.length > 1 ? '<button class="iconBtn" data-act="famOptDel" data-k="' + k + '" aria-label="Remove this difference" title="Remove this difference">' + ic('x', 15) + '</button>' : '') + '</div>').join('') +
+    '<datalist id="famOptNames">' + FAM_OPT_NAMES.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
+    '<div class="famOptBtns">' + (FM.opts.length < 3 ? '<button class="linkBtn" data-act="famOptAdd">+ Another difference (like Type or Color)</button>' : '') + (FM.opts.length > 1 ? '<button class="linkBtn" data-act="famOptSwap">⇅ Swap the order</button>' : '') + '</div>';
+  if (edit && FM.odd) h += '<div class="notice" style="margin:4px 0 10px">' + plural(FM.odd, 'size is', 'sizes are') + ' counted or bought differently from the first one, so ' + (FM.odd === 1 ? 'its price is' : 'their prices are') + ' kept as ' + (FM.odd === 1 ? 'it is' : 'they are') + ' here — change ' + (FM.odd === 1 ? 'it' : 'them') + ' on the size’s own page.</div>';
+  h += '<div id="famRows">' + famRowsEdHTML(E) + '</div>';
+  if (edit) h += '<button class="btn btn-ghost btn-sm" data-act="famRowAdd" style="margin-top:8px">' + ic('plus', 14) + 'One more size</button>';
+  return h + '</div>';
+}
+function famRowsEdHTML(E) {
+  const FM = E.fam, F = E.f, edit = FM.mode === 'edit', s0 = E.sources[0] || {}, key = s0.key || '', vn = String(s0.vendor || '').trim();
+  const pu = F.big ? (F.buyUnit || 'case') : (F.unit || 'unit');
+  if (!FM.rows.length) return '<div class="famEmpty">' + ic('layers', 18) + '<span>Type the choices above and each size shows up here, ready for its item #, price and count.</span></div>';
+  let h = '<div class="famTbl" style="--fcols:' + FM.opts.length + '"><div class="fth"><span></span>' + FM.opts.map(o => '<span>' + esc(o.n || 'Choice') + '</span>').join('') +
+    '<span id="famSkuH">' + esc(vn ? vn + ' item #' : 'Item #') + '</span><span>Price per ' + esc(pu) + '</span><span>On hand</span><span>Reorder below</span></div>';
+  FM.rows.forEach((r, i) => {
+    const m = r.id ? itemById(r.id) : null;
+    if (r.out) { h += '<div class="ftr out"><span></span><span class="fout">' + ic('grid', 13) + ' <b>' + esc(r.vals.filter(Boolean).join(FAM_VSEP) || (m && m.name) || '') + '</b> will be taken out of the product — it stays a supply of its own. <button class="linkBtn" data-act="famRowBack" data-r="' + i + '">Keep it</button></span></div>'; return; }
+    const first = edit ? (r.id ? '<button class="iconBtn" data-act="famRowOut" data-r="' + i + '" title="Take it out of the product (it stays a supply of its own)" aria-label="Take it out">' + ic('x', 15) + '</button>'
+      : '<button class="iconBtn" data-act="famRowDel" data-r="' + i + '" title="Don’t make this one" aria-label="Don’t make this one">' + ic('trash', 15) + '</button>')
+      : '<label class="fck"><input type="checkbox" data-fr="on" data-r="' + i + '"' + (r.on ? ' checked' : '') + ' data-chg="famRowOn" aria-label="Make this size"></label>';
+    h += '<div class="ftr' + (!edit && !r.on ? ' off' : '') + (edit && !r.id ? ' new' : '') + '">' + first +
+      FM.opts.map((o, k) => edit ? '<input data-fr="v" data-r="' + i + '" data-k="' + k + '" value="' + esc(r.vals[k] || '') + '" aria-label="' + esc(o.n || 'Choice') + '" placeholder="' + esc(o.n || '') + '" autocomplete="off">' : '<span class="fv">' + esc(r.vals[k] || '—') + '</span>').join('') +
+      '<input data-fr="sku" data-r="' + i + '" value="' + esc(r.sk[key] || '') + '" placeholder="#" aria-label="Item #" autocomplete="off">' +
+      (r.lock ? '<span class="fq" title="Counted or bought differently from the first size: change its price on its own page">' + esc(r.pr[key] || '—') + '</span>' : '<input data-fr="price" data-r="' + i + '" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(r.pr[key] || '') + '" placeholder="' + esc(s0.price || '0.00') + '" aria-label="Price">') +
+      (m ? '<span class="fq" title="Counted with Count on the product">' + esc(qtyFmt(m.qty || 0)) + '</span>' : '<input data-fr="qty" data-r="' + i + '" type="number" inputmode="decimal" min="0" step="any" value="' + esc(r.qty) + '" placeholder="0" aria-label="On hand now">') +
+      '<input data-fr="min" data-r="' + i + '" type="number" inputmode="numeric" min="0" step="1" value="' + esc(r.min) + '" placeholder="' + esc(F.min || '0') + '" aria-label="Reorder below"></div>';
+  });
+  h += '</div>';
+  if (FM.over) h += '<div class="notice bad" style="margin-top:8px">That makes ' + FM.over + ' sizes — one product holds ' + FAM_MAX + ' at most. Fewer choices, or two products.</div>';
+  else if (!edit) { const n = famLiveRows(E).length; h += '<div class="hint">' + plural(n, 'size') + ' will be added' + (FM.rows.length > n ? ' (' + (FM.rows.length - n) + ' unticked)' : '') + '. A size with no price of its own has the usual vendor’s (under Where it’s bought).</div>'; }
+  return h;
+}
+/* the table and the choices go back into the editor's state (edKeep calls this) */
+function famEdKeep(E) {
+  const FM = E && E.fam; if (!FM || !$('#famRows')) return;
+  $$('[data-fo]').forEach(i => { const o = FM.opts[Number(i.dataset.k)]; if (o) o[i.dataset.fo] = i.value; });
+  const key = (E.sources[0] || {}).key || '';
+  $$('[data-fr]').forEach(i => {
+    const r = FM.rows[Number(i.dataset.r)], f = i.dataset.fr; if (!r) return;
+    if (f === 'on') r.on = i.checked; else if (f === 'v') r.vals[Number(i.dataset.k)] = i.value; else if (f === 'sku') r.sk[key] = i.value; else if (f === 'price') r.pr[key] = i.value; else r[f] = i.value;
+  });
+}
+function famRefreshRows() {
+  const E = S.ui.ed, el = $('#famRows'); if (!E || !E.fam || !el) return;
+  el.innerHTML = famRowsEdHTML(E);
+  const b = $('#edSaveBtn'); if (b && E.fam.mode === 'new' && !E.busy) b.textContent = famSaveLabel(E);
+  const hn = $('#famSaveHint'); if (hn) hn.textContent = famSaveHint(E);
+}
+CHG.edFamOn = t => {
+  const E = S.ui.ed; edKeep(); E.dirty = true;
+  if (t.checked) { if (!E.fam) E.fam = famNewState(); E.fam.on = true; famGen(E); } else if (E.fam) E.fam.on = false;
+  renderEditor();
+  if (t.checked) setTimeout(() => { const i = $('[data-fo="v"][data-k="0"]'); if (i) i.focus(); }, 40);
+};
+CHG.famRowOn = () => { famEdKeep(S.ui.ed); famRefreshRows(); };
+INP.famOptInp = () => { const E = S.ui.ed; if (!E || !E.fam) return; famEdKeep(E); famGen(E); famRefreshRows(); };
+INP.famNameInp = () => { };
+INP.famMinInp = () => { const E = S.ui.ed; if (!E || !E.fam) return; E.f.min = val('edMin'); $$('[data-fr="min"]').forEach(i => { i.placeholder = E.f.min || '0'; }); };
+INP.famVendorInp = t => { const h = $('#famSkuH'); if (h) h.textContent = t.value.trim() ? t.value.trim() + ' item #' : 'Item #'; };
+INP.edMemInp = () => { const E = S.ui.ed; if (!E || !E.mem) return; $$('[data-mv]').forEach(i => { E.mem.vals[Number(i.dataset.mv)] = i.value; }); const n = $('#edMemName'); if (n) n.textContent = famFullName(E.mem.name, E.mem.vals); };
+ACT.famOptAdd = () => {
+  const E = S.ui.ed; edKeep(); const FM = E.fam; if (!FM || FM.opts.length >= 3) return;
+  const has = re => FM.opts.some(o => re.test(o.n));
+  FM.opts.push({ n: !has(/type/i) ? 'Type' : !has(/size|length/i) ? 'Size' : 'Color', v: '' });
+  FM.rows.forEach(r => r.vals.push('')); famGen(E); E.dirty = true; renderEditor();
+};
+ACT.famOptDel = t => { const E = S.ui.ed; edKeep(); const FM = E.fam, k = Number(t.dataset.k); if (!FM || FM.opts.length < 2) return; FM.opts.splice(k, 1); FM.rows.forEach(r => r.vals.splice(k, 1)); famGen(E); E.dirty = true; renderEditor(); };
+ACT.famOptSwap = () => {
+  const E = S.ui.ed; edKeep(); const FM = E.fam; if (!FM || FM.opts.length < 2) return;
+  [FM.opts[0], FM.opts[1]] = [FM.opts[1], FM.opts[0]]; FM.rows.forEach(r => { [r.vals[0], r.vals[1]] = [r.vals[1], r.vals[0]]; });
+  if (FM.mode === 'new') famGen(E);
+  else { const order = []; FM.rows.forEach(r => { if (!order.includes(r.vals[0])) order.push(r.vals[0]); }); FM.rows = FM.rows.map((r, i) => [r, i]).sort((a, b) => order.indexOf(a[0].vals[0]) - order.indexOf(b[0].vals[0]) || a[1] - b[1]).map(x => x[0]); }
+  E.dirty = true; renderEditor();
+};
+/* Edit: new choices of one difference make new sizes — with each combination of the others already there — placed after the
+   sizes they go with ("12 mm" after each type's 10 mm) */
+ACT.famAddVals = t => {
+  const E = S.ui.ed; edKeep(); const FM = E.fam, k = Number(t.dataset.k); if (!FM || !FM.opts[k]) return;
+  const add = famSplitVals(FM.opts[k].v); if (!add.length) return toast('Type the new choices first (commas between).', { bad: true });
+  const others = [], seen = new Set();
+  FM.rows.filter(r => !r.out).forEach(r => { const o = r.vals.map((v, j) => j === k ? null : v || ''), s = JSON.stringify(o); if (!seen.has(s)) { seen.add(s); others.push(o); } });
+  if (!others.length) others.push(FM.opts.map(() => ''));
+  let n = 0;
+  add.forEach(v => others.forEach(o => {
+    const vals = o.map((x, j) => j === k ? v : x || ''); if (FM.rows.some(r => !r.out && famRowKey(r.vals) === famRowKey(vals))) return;
+    const row = famNewRow(vals);
+    let at = -1; if (k > 0) FM.rows.forEach((r, i) => { if (!r.out && String(r.vals[0] || '').toLowerCase() === String(vals[0] || '').toLowerCase()) at = i; });
+    if (at >= 0) FM.rows.splice(at + 1, 0, row); else FM.rows.push(row); n++;
+  }));
+  FM.opts[k].v = ''; E.dirty = true; renderEditor();
+  toast(n ? 'Added ' + plural(n, 'new size') + ' — give each its item # (and its price, if it’s different).' : 'Those sizes are already there.');
+};
+ACT.famRowAdd = () => { const E = S.ui.ed; edKeep(); const FM = E.fam; if (!FM) return; FM.rows.push(famNewRow(FM.opts.map(() => ''))); E.dirty = true; renderEditor(); setTimeout(() => { const i = $$('[data-fr="v"][data-k="0"]').pop(); if (i) i.focus(); }, 40); };
+ACT.famRowDel = t => { const E = S.ui.ed; edKeep(); E.fam.rows.splice(Number(t.dataset.r), 1); E.dirty = true; famRefreshRows(); };
+ACT.famRowOut = t => { const E = S.ui.ed; edKeep(); const r = E.fam.rows[Number(t.dataset.r)]; if (r) r.out = true; E.dirty = true; famRefreshRows(); };
+ACT.famRowBack = t => { const E = S.ui.ed; edKeep(); const r = E.fam.rows[Number(t.dataset.r)]; if (r) r.out = false; famRefreshRows(); };
+/* the product's Edit: the form, filled in from its sizes — each vendor any size is bought from (the first size's first; a supply
+   still in the 3.x shape, its price and link on itself with a vendor the app can't name, is a row with no vendor), with the price
+   most sizes have; the minimum most sizes have; each size's own item # and, when it's different, its own price. A size counted
+   or bought differently from the first one keeps its own price (its row's price is locked: change it on that size's own page). */
+/* (in the product's Edit: sizes with a photo of their own keep it when the product's photo changes) */
+function famOwnPicsHint(E) {
+  const own = famMembers(E.fam.fid).filter(m => photoOf(m) && photoOf(m) !== E.fam.pic0).length;
+  return '<div class="hint">' + (own ? 'Every size shows it, except ' + plural(own, 'size') + ' with a photo of ' + (own === 1 ? 'its' : 'their') + ' own.' : 'Every size shows it.') + '</div>';
+}
+function famSrcSig(srcs) { return JSON.stringify(listOf(srcs).map(s => [String(s.vendor || '').trim(), String(s.price || ''), String(s.src || '').trim()])); }
+function famSrcOf(m, v) { return allSources(m).find(x => x && String(x.vendor || '') === v) || null; }
+function openFamEditor(fid) {
+  const ms = famMembers(fid);
+  if (!ms.length) return toast(famMembers(fid, true).length ? 'Every size of it is archived — bring one back first (Supplies → Archived).' : 'That product isn’t there any more.', { bad: true });
+  const lead = ms[0], per = perBuy(lead), pic = famPhotoItem(ms) || lead, opts = famOptsOf(lead);
+  const most = arr => { const c = {}; let best = null; arr.forEach(x => { c[x] = (c[x] || 0) + 1; if (best == null || c[x] > c[best]) best = x; }); return best; };
+  const odd = m => countUnit(m).toLowerCase() !== countUnit(lead).toLowerCase() || perBuy(m) !== per;
+  const priceOf = (m, v) => { const s = famSrcOf(m, v); return s && countPrice(s) != null ? (countPrice(s) * per).toFixed(2) : null; };
+  const vnames = []; ms.forEach(m => allSources(m).forEach(s => { const v = s ? String(s.vendor || '') : null; if (v != null && (v || countPrice(s) != null || s.src || s.sku) && !vnames.includes(v)) vnames.push(v); }));
+  const sources = vnames.map(v => {
+    const p = most(ms.filter(m => !odd(m)).map(m => priceOf(m, v)).filter(Boolean)) || '', ls = famSrcOf(lead, v) || ms.map(m => famSrcOf(m, v)).find(Boolean) || {};
+    return { key: 'k' + uid(), vendor: v, v0: v, sku: '', price: p, p0: p, src: ls.src || '', s0: ls.src || '', lastDate: '' };
+  });
+  /* (the vendors with a name first: the usual one is a vendor whenever any size has one) */
+  sources.sort((x, y) => (x.vendor ? 0 : 1) - (y.vendor ? 0 : 1));
+  if (!sources.length) sources.push({ key: 'k' + uid(), vendor: '', sku: '', price: '', src: '', lastDate: '' });
+  const minDef = most(ms.map(m => String(Math.max(0, Math.round(Number(m.min) || 0))))) || '0';
+  const f = { name: lead.famName || lead.name || '', cat: lead.cat || 'misc', group: lead.group || '', manufacturer: lead.manufacturer || '', sku: '', tags: listOf(lead.tags).join(', '), location: lead.location || '', note: lead.note || '', exp: lead.exp || '',
+    unit: countUnit(lead), big: per > 1, buyUnit: per > 1 ? (lead.buyUnit || 'case') : 'case', perBuy: per > 1 ? String(per) : '10',
+    pieces: Number(lead.baseUnitsPerOrderUnit) > 1 ? String(lead.baseUnitsPerOrderUnit) : '', piece: lead.baseUnitName && lead.baseUnitName !== 'Unit' ? lead.baseUnitName : '', min: minDef, qty: '' };
+  const n = Math.max(1, opts.length), key0 = sources[0].key;
+  const rows = ms.map(m => {
+    const r = { key: 'r' + m.id, id: m.id, vals: Array.from({ length: n }, (x, k) => famValsOf(m)[k] || ''), on: true, sk: {}, pr: {}, qty: '', min: '', out: false, lock: odd(m) };
+    sources.forEach(s => { const src = famSrcOf(m, s.vendor); if (!src) return; r.sk[s.key] = src.sku || ''; const p = priceOf(m, s.vendor); if (p != null && (r.lock || p !== s.price)) r.pr[s.key] = p; });
+    /* (no vendor at all: the item # in the table is the supply's own part #) */
+    if (!sources[0].vendor && r.sk[key0] == null) r.sk[key0] = m.sku || '';
+    const mn = String(Math.max(0, Math.round(Number(m.min) || 0))); if (mn !== minDef) r.min = mn;
+    r.sk0 = JSON.stringify(r.sk); r.pr0 = JSON.stringify(r.pr);
+    return r;
+  });
+  S.ui.ed = {
+    id: null, copyOf: null, mem: null, f, sources,
+    fam: { on: true, mode: 'edit', fid, opts: (opts.length ? opts : ['Size']).map((x, k) => ({ n: x, v: '', o0: k })), rows, over: 0, f0: JSON.parse(JSON.stringify(f)), sig0: famSrcSig(sources), name0: f.name, opts0: JSON.stringify(opts),
+      pic0: photoOf(pic) || '', odd: ms.filter(odd).length },
+    photo: { img: pic.img || null, imgFull: pic.imgFull || null, shown: photoOf(pic) || null, shownFull: photoOf(pic, true) || null, thumb: null, full: null, changed: false, ai: false },
+    dirty: false, busy: '', ai: null
+  };
+  renderEditor(); edLoadAi();
+}
+/* the fields every size shares, as a supply keeps them */
+function edShared(F) {
+  const unit = String(F.unit || 'unit').trim().toLowerCase(), big = F.big && Math.round(num(F.perBuy)) > 1, per = big ? Math.round(num(F.perBuy)) : 1, pieces = num(F.pieces);
+  return { cat: F.cat || 'misc', group: String(F.group || '').trim() || null, manufacturer: String(F.manufacturer || '').trim() || null, tags: tagsOf(F.tags).length ? tagsOf(F.tags) : null,
+    location: F.location || null, note: String(F.note || '').trim() || null, exp: F.exp || '', unit, orderUnitName: cap1(unit), buyUnit: big ? String(F.buyUnit || 'case').trim().toLowerCase() : null, perBuy: big ? per : null,
+    baseUnitName: pieces > 1 ? (F.piece || 'Unit') : null, baseUnitsPerOrderUnit: pieces > 1 ? pieces : 1 };
+}
+/* a size's vendors, from the product's: all — the product's vendors changed, or its case size (or it's a new size): the
+   product's vendors this size is bought from (and any vendor added here; a new size gets them all), each with the size's own
+   item # and its own price when it has one (else the vendor's price above), its own link unless the link was changed here;
+   otherwise only the cells of this size's row that changed, vendor by vendor. Prices are typed per what's bought and kept per
+   what's counted. A vendor row with no name is a 3.x supply's own price and link, kept as they were. */
+function famMemberSources(E, m, r, per, all) {
+  const old = m ? allSources(m) : [], was = s => s.v0 != null ? s.v0 : String(s.vendor || '').trim();
+  const prevOf = s => old.find(o => o && String(o.vendor || '') === was(s)) || null;
+  let list = E.sources.filter(s => String(s.vendor || '').trim() || s.v0 === '');
+  if (m) list = list.filter(s => s.v0 == null || prevOf(s));
+  const priceOf = s => { const typed = String(r.pr[s.key] == null ? '' : r.pr[s.key]).trim(), p = typed !== '' ? num(typed) : num(s.price); return p > 0 ? Math.round(p / per * 10000) / 10000 : null; };
+  if (!all) {
+    const sk0 = JSON.parse(r.sk0 || '{}'), pr0 = JSON.parse(r.pr0 || '{}'), out = old.map(x => Object.assign({}, x));
+    list.forEach(s => {
+      const cs = String(r.sk[s.key] || '') !== String(sk0[s.key] || ''), cp = String(r.pr[s.key] || '') !== String(pr0[s.key] || ''); if (!cs && !cp) return;
+      let x = out.find(o => o && String(o.vendor || '') === was(s));
+      if (!x) { x = { vendor: String(s.vendor || '').trim() || null, sku: '', price: priceOf(s), src: String(s.src || '').trim(), lastDate: '' }; out.push(x); }
+      if (cs) x.sku = String(r.sk[s.key] || '').trim();
+      if (cp) x.price = priceOf(s);
+    });
+    return out;
+  }
+  return list.map(s => {
+    const prev = prevOf(s);
+    let src = String(s.src || '').trim(); if (s.s0 != null && src === String(s.s0 || '').trim() && prev && prev.src) src = prev.src;   // (a size's own link stays unless the link was changed here)
+    if (src && !/^https?:\/\//i.test(src)) src = 'https://' + src;
+    return Object.assign({}, prev || {}, { vendor: String(s.vendor || '').trim() || null, sku: r.sk[s.key] != null ? String(r.sk[s.key]).trim() : (prev && prev.sku) || '', price: priceOf(s), src, lastDate: (prev && prev.lastDate) || '' });
+  });
+}
+/* save the product: every size in one save (new sizes, changes to the ones there, the ones taken out). A new product's ids are
+   fixed the first time Save is pressed, so pressing it again after an error saves the same sizes, not a second product. */
+function famEdSave(t) {
+  const E = S.ui.ed, F = E.f, FM = E.fam, edit = FM.mode === 'edit';
+  const name = String(F.name || '').trim(); if (!name) { toast('The product needs a name.', { bad: true }); const n = $('#edName'); if (n) n.focus(); return; }
+  const optNames = FM.opts.map((o, k) => String(o.n || '').trim() || 'Choice ' + (k + 1));
+  if (new Set(optNames.map(x => x.toLowerCase())).size !== optNames.length) return toast('Each difference needs a name of its own.', { bad: true });
+  const live = famLiveRows(E), gone = edit ? famMembers(FM.fid, true).filter(m => m.archived) : [];
+  if (FM.over || live.length > FAM_MAX) return toast('One product holds ' + FAM_MAX + ' sizes at most.', { bad: true });
+  if (live.length < 2 && !(edit && live.length && gone.length)) return toast(edit ? 'A product keeps at least two sizes — to make them separate supplies, use Split on the product’s page.' : 'Type the choices so there are at least two sizes (for just one, untick “It comes in different sizes or types”).', { bad: true });
+  const vals = live.map(r => optNames.map((o, k) => String(r.vals[k] || '').trim()));
+  if (vals.some(v => !v.some(Boolean))) return toast('A size in the table has no ' + optNames[0].toLowerCase() + ' — type it, or take that row out.', { bad: true });
+  const seen = {}; for (const v of vals) { const k = famRowKey(v); if (seen[k]) return toast('Two sizes are both “' + v.filter(Boolean).join(FAM_VSEP) + '”.', { bad: true }); seen[k] = 1; }
+  const unit = String(F.unit || 'unit').trim().toLowerCase(), big = F.big && Math.round(num(F.perBuy)) > 1, per = big ? Math.round(num(F.perBuy)) : 1;
+  if (F.big && !big) return toast('How many ' + unitWord(unit, 2) + ' are in one ' + (F.buyUnit || 'case') + '?', { bad: true });
+  if (big && String(F.buyUnit || 'case').trim().toLowerCase() === unit) return toast('The bigger package needs its own name (like “case”).', { bad: true });
+  /* a price or link needs a vendor — unless it's a 3.x supply's own, left as it was */
+  const kept = s => s.v0 === '' && String(s.price || '') === String(s.p0 || '') && String(s.src || '').trim() === String(s.s0 || '').trim();
+  if (E.sources.some(s => !String(s.vendor || '').trim() && (num(s.price) > 0 || String(s.src || '').trim()) && !kept(s))) return toast('Each price needs a vendor (or clear that row).', { bad: true });
+  const key0 = (E.sources[0] || {}).key, noVendor = !String((E.sources[0] || {}).vendor || '').trim();
+  if (noVendor && live.some(r => !r.lock && String(r.pr[key0] || '') !== String((r.pr0 ? JSON.parse(r.pr0) : {})[key0] || '') && num(r.pr[key0]) > 0)) return toast('A size’s price needs a vendor — name it under Where it’s bought.', { bad: true });
+  const shared = edShared(F), shared0 = edit ? edShared(FM.f0) : null;
+  const changed = edit ? Object.keys(shared).filter(k => JSON.stringify(shared[k]) !== JSON.stringify(shared0[k])) : Object.keys(shared);
+  const minDef = String(F.min).trim() === '' ? 0 : Math.max(0, Math.round(num(F.min)));
+  /* the prices are typed per what's bought: another package size re-reads them, as one supply's editor does */
+  const perChanged = edit && (shared.perBuy !== shared0.perBuy || shared.buyUnit !== shared0.buyUnit);
+  const sigChanged = edit && famSrcSig(E.sources) !== FM.sig0;
+  if (!edit) FM.newFid = FM.newFid || 'fam-' + uid();
+  live.forEach(r => { if (!r.id) r.newId = r.newId || 'custom-' + uid(); });
+  withWho(async () => {
+    busyBtn(t, true, 'Saving…'); E.busy = 'save';
+    try {
+      const s = stamp(), fid = FM.fid || FM.newFid, puts = [], patches = [], log = [], ids = live.map(r => r.id || r.newId);
+      /* a new photo: saved once; shown by every size that showed the product's photo or had none (a size with a photo of its own
+         keeps it); a new product's photo (a copy's too) by every size */
+      let pic = null;
+      if (E.photo.changed) {
+        if (E.photo.thumb) {
+          const a = await B.uploadPhoto(ids[0], dataUrlToBlob(E.photo.thumb), 'thumb');
+          const b = E.photo.full && E.photo.full !== E.photo.thumb ? await B.uploadPhoto(ids[0], dataUrlToBlob(E.photo.full), 'full') : a;
+          pic = { img: a.url, imgFull: b.url };
+        } else pic = { img: E.photo.img || null, imgFull: E.photo.imgFull || null };
+        Object.assign(pic, { imgUrl: null, imgFullUrl: null, imgKey: null });
+      } else if (!edit && (E.photo.img || E.photo.imgFull)) pic = { img: E.photo.img || null, imgFull: E.photo.imgFull || null };
+      const has = edit && !pic ? famPhotoItem(famMembers(fid)) : null;
+      const ownPic = has ? { img: has.img || null, imgFull: has.imgFull || null, imgUrl: has.imgUrl || null, imgFullUrl: has.imgFullUrl || null, imgKey: has.imgKey || null } : null;
+      live.forEach((r, k) => {
+        const v = vals[k], nm = famFullName(name, v), m = r.id ? itemById(r.id) : null;
+        const minR = String(r.min).trim() !== '' ? Math.max(0, Math.round(num(r.min))) : minDef;
+        const fam = { fam: fid, famName: name, famOpts: optNames, famVals: v, famPos: k, name: nm };
+        if (m) {
+          const p = Object.assign({}, fam);
+          changed.forEach(key => { p[key] = shared[key]; });
+          if (minR !== (Number(m.min) || 0)) p.min = minR;
+          const rowChanged = JSON.stringify(r.sk) !== r.sk0 || JSON.stringify(r.pr) !== r.pr0;
+          if (sigChanged || perChanged || rowChanged) { const ns = famMemberSources(E, m, r, per, sigChanged || perChanged); p.sources = ns; p.vendorOrderPrice = ns[0] && ns[0].price != null ? round2(ns[0].price) : null; }
+          /* (no vendor at all: the table's item # is the supply's own part #) */
+          if (noVendor && String(r.sk[key0] || '') !== String(JSON.parse(r.sk0 || '{}')[key0] || '')) p.sku = String(r.sk[key0] || '').trim();
+          if (pic && (!photoOf(m) || photoOf(m) === FM.pic0)) Object.assign(p, pic);
+          p.updatedBy = s.by; p.updatedAt = s.at;
+          patches.push([m.id, p]);
+        } else {
+          const q = num(r.qty), ns = famMemberSources(E, null, r, per, true);
+          const rec = Object.assign({ id: ids[k] }, shared, fam, { sku: noVendor ? String(r.sk[key0] || '').trim() : '', min: minR, qty: q > 0 ? q : 0, chk: q > 0 ? s.at : null, tag: null, baseUnitQty: null,
+            sources: ns, vendorOrderPrice: ns[0] && ns[0].price != null ? round2(ns[0].price) : null, createdBy: s.by, createdAt: s.at }, pic || ownPic || {});
+          puts.push(rec);
+          if (q > 0) log.push(logEntry({ itemId: rec.id, itemName: nm, delta: q, note: 'Starting count', type: 'count' }, s));
+        }
+      });
+      if (edit) {
+        FM.rows.filter(r => r.out && r.id).forEach(r => { const m = itemById(r.id); if (m) patches.push([m.id, famOffPatch(m, s)]); });
+        /* its archived sizes keep up with a new name, and their choices stay under the right differences (o0: where each
+           difference was when the editor opened) */
+        if (name !== FM.name0 || JSON.stringify(optNames) !== FM.opts0) gone.forEach(m => { const ov = famValsOf(m), v = FM.opts.map(o => o.o0 != null ? ov[o.o0] || '' : ''); patches.push([m.id, { famName: name, famOpts: optNames, famVals: v, name: famFullName(name, v), updatedBy: s.by, updatedAt: s.at }]); });
+      }
+      await B.famSave(puts, patches);
+      S.ui.ed = null; closeModal(true);
+      ensureVendors(E.sources.map(x => x.vendor));
+      let logNote = '';
+      if (log.length) { try { await B.addLog(log); } catch (e) { logNote = ' (The starting counts weren’t written to the activity list: ' + errText(e) + ')'; } }
+      toast((edit ? 'Saved ' + plainText(name, 50) + '.' : 'Added ' + plural(live.length, 'size') + ' of ' + plainText(name, 40) + '.') + logNote, logNote ? { bad: true, ms: 9000 } : {});
+      openDrawer('fam', fid);
+    } catch (e) { E.busy = ''; busyBtn(t, false); toast(errText(e), { bad: true }); }
+  });
+}
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 

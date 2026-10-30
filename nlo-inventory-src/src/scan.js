@@ -110,8 +110,10 @@ ACT.qrPrint = () => {
 };
 /* labels for every supply on the screen: QR (the SKU it scans as), name, SKU, where it's kept */
 function labelCode(it) { return String((primarySource(it) || {}).sku || it.sku || it.id); }
-ACT.printLabels = async t => {
-  const list = supVisible().slice(0, 240); if (!list.length) return toast('No supplies on the screen to print.'); if (demoBlocked('print')) return;
+ACT.printLabels = t => printLabelsFor(supVisible().slice(0, 240), t);
+/* (a product's sizes print one label each: each size scans as itself) */
+async function printLabelsFor(list, t) {
+  list = listOf(list).slice(0, 240); if (!list.length) return toast('No supplies on the screen to print.'); if (demoBlocked('print')) return;
   const w = window.open('', '_blank', 'width=900,height=700'); if (!w) return toast('Allow pop-ups to print labels.', { bad: true });
   busyBtn(t, true, 'Making labels…');
   try {
@@ -132,4 +134,4 @@ ACT.printLabels = async t => {
     d.close(); w.focus();
   } catch (e) { try { w.close(); } catch (x) { } toast(errText(e), { bad: true }); }
   busyBtn(t, false);
-};
+}
