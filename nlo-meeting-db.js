@@ -511,7 +511,8 @@
   const addDays = (ymd, n) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd); const d = new Date(+m[1], +m[2] - 1, +m[3], 12); d.setDate(d.getDate() + n); return ymdOf(d); };
   async function cadenceCopy(fs) {
     const td = ymdOf(new Date()), lo = addDays(td, -32), hi = addDays(td, 40);
-    const [cfg, toff, inst] = await Promise.all([fs.doc('cadState/config').get(), fs.doc('cadState/timeoff').get(), fs.collection('cadInst').where('date', '>=', lo).get()]);
+    /* (only the last 32 days up to today: the scoreboard's window — fewer reads than every list made ahead) */
+    const [cfg, toff, inst] = await Promise.all([fs.doc('cadState/config').get(), fs.doc('cadState/timeoff').get(), fs.collection('cadInst').where('date', '>=', lo).where('date', '<=', td).get()]);
     const c = cfg.exists ? (cfg.data() || {}) : {};
     const arr = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
     const staff = arr(c.staff).filter(x => x && x.id).map(x => ({ id: x.id, name: String(x.name || ''), status: x.status || 'active' }));
