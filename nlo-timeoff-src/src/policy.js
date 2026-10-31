@@ -395,7 +395,7 @@ function scrubLabel(list, k) { const x = list.find(p => p[0] === k); return x ? 
 /* "Navy · top and bottom · M · petite" */
 function scrubItemText(it) { return [scrubLabel(SCRUB_COLORS, it.color), scrubLabel(SCRUB_PIECES, it.piece).toLowerCase(), it.size, it.petite ? 'petite' : ''].filter(Boolean).join(' · '); }
 /* a scrubs request's — or a form's (forms.js) — sealed content, checked before it's shown or saved */
-function okPerk(c) { return !!c && typeof c === 'object' && (c.kind === 'form' ? typeof okForm === 'function' && okForm(c) : okScrubs(c)); }
+function okPerk(c, loose) { return !!c && typeof c === 'object' && (c.kind === 'form' ? typeof okForm === 'function' && okForm(c, loose) : okScrubs(c)); } // loose: reading (a form saved by a newer copy still opens)
 function okScrubs(c) {
   return !!c && typeof c === 'object' && c.kind === 'scrubs' && Array.isArray(c.items) && c.items.length >= 1 && c.items.length <= 10 && c.pairs === c.items.length
     && c.items.every(it => it && typeof it === 'object' && SCRUB_COLORS.some(x => x[0] === it.color) && SCRUB_PIECES.some(x => x[0] === it.piece) && SCRUB_SIZES.includes(it.size) && typeof it.petite === 'boolean')

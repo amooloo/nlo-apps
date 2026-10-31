@@ -247,7 +247,12 @@ function startLive() {
       if (S.openId) refreshDrawer();
     },
     mine(m) { if (!S.inApp) return; S.mine = m && !m.locked ? m : null; bump(); queueRender(); },
-    perks(list) { if (!S.inApp) return; S.perks = new Map(list.filter(x => x && !x.locked).map(x => [x.id, x])); bump(); queueRender(); if (S.openSid) refreshDrawer(); },
+    perks(list) {
+      if (!S.inApp) return;
+      S.perks = new Map(list.filter(x => x && !x.locked).map(x => [x.id, perkShown(x)]));
+      S.perksOdd = list.filter(x => x && x.locked && x.status !== 'cancelled');
+      bump(); queueRender(); if (S.openSid) refreshDrawer();
+    },
     hr(list) { if (!S.inApp) return; S.hrRecs = new Map(list.filter(x => !x.locked).map(x => [x.sid, x])); S.gotHR = true; bump(); queueRender(); if (S.openSid) refreshDrawer(); },
     access(kind) { if (kind === 'off') lockOut('Your approver access was turned off. Sign in again.'); else toast('You can approve time off now — sign in again to see Approvals.', { ms: 9000, action: 'Lock', onAction: () => lockOut('Sign in again to see Approvals.') }); },
     revoked() { lockOut('Your access was turned off.'); },
@@ -311,6 +316,9 @@ function pendingAll() { return allReqs().filter(r => r.status === 'pending'); }
 function waitingForMe() { return isHR() ? pendingAll().filter(r => isOwner() || r.sid !== meSid()) : []; }
 /* scrubs requests (and any other benefit asked for) */
 function allPerks() { return Array.from((S.perks || new Map()).values()); }
+/* a form only Dr. A reads is saved as just "decided" (approved) in plain view, whether or not it was approved, so the
+   database never says which; its sealed decision says */
+function perkShown(x) { return x.kind === 'form' && x.status === 'approved' && x.decision && x.decision.s === 'denied' ? Object.assign({}, x, { status: 'denied' }) : x; }
 function perksOf(sid) { return allPerks().filter(x => x.sid === sid); }
 function perksWaitingForMe() { return isHR() ? allPerks().filter(x => x.status === 'pending' && !x.back && (isOwner() || x.sid !== meSid())) : []; } // (a form sent back waits for its sender)
 function deptOf(sid) { const p = S.hrRecs.get(sid); return p && p.dept ? p.dept : ''; }
@@ -336,6 +344,7 @@ async function ownerUpkeep() {
   if (!S.inApp || S.demo || !isOwner() || !isHR()) return;
   // the key for forms only Dr. A reads: made by his first Time Off after the Forms update
   if (B.drSetup && !B.drReady()) { try { await B.drSetup(); } catch (e) { toast('The key for forms only you read couldn’t be made: ' + errText(e), { bad: true, ms: 12000 }); } }
+  if (B.drFixRec) { try { await B.drFixRec(); } catch (e) { } } // a new recovery code: the forms key's recovery copy follows it
   // anything under an older HR key, sealed again
   if (allReqs().some(r => r.v < B.hr.curV) || Array.from(S.hrRecs.values()).some(x => x.v < B.hr.curV) || allPerks().some(x => x.v < B.hr.curV)) { try { await B.hrReseal(); } catch (e) { } }
   // the person's copy of a request, or of their HR record, sealed to the key their login holds now (never to a key that

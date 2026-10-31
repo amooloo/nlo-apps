@@ -354,6 +354,9 @@ const nextOffice = (p, from) => p.evaluate(f => {
   // a complaint only Dr. A reads: sealed to his forms key
   const hid = await riley.evaluate(async () => { const id = B.newPerkId(), now = Date.now(), y = Number(todayISO().slice(0, 4)); await B.savePerk(id, c => { Object.assign(c, { kind: 'form', form: 'harass', fv: 1, aud: 'owner', f: { day: todayISO(), position: 'Clinical assistant', complaint: 'Private complaint words', what: 'What happened, in private words', acted: 'Nothing yet' }, at: now, sign: { staff: { by: meSid(), at: now, n: 'Riley Tester' } }, events: [{ a: 'send', by: meSid(), at: now }] }); return { status: 'pending' }; }, { create: { sid: meSid(), year: y }, a: 'send' }); return id; });
   check(!/Private|harass/i.test(JSON.stringify(await fsDoc('toPerk/' + hid))), 'Riley sends a harassment report only Dr. A reads (nothing readable in the database)');
+  const ctLen = async id => { const f = (await fsDoc('toPerk/' + id)).fields; return [f.hr.mapValue.fields.ct.stringValue.length, f.me.mapValue.fields.ct.stringValue.length]; };
+  const lens = (await ctLen(fid)).concat(await ctLen(hid));
+  check(lens.every(n => n === lens[0]) && lens[0] <= 8000, 'every form is sealed to one size (' + lens[0] + ' characters), so its length doesn’t say which form it is or how long it is');
   await owner.waitForFunction(id => S.perks.has(id) && S.perks.get(id).f.complaint === 'Private complaint words', hid, { timeout: 30000 });
   check(true, 'Dr. A opens it (his forms key)');
   await sleep(1500);
@@ -365,6 +368,31 @@ const nextOffice = (p, from) => p.evaluate(f => {
   const sealedWrong = await riley.evaluate(async () => { const id = B.newPerkId(), now = Date.now(), y = Number(todayISO().slice(0, 4)); const c = { sid: meSid(), kind: 'form', form: 'harass', fv: 1, aud: 'owner', f: { day: todayISO(), position: 'x', complaint: 'Sealed to the wrong key', what: 'x', acted: 'x' }, at: now, sign: {}, events: [] }, pk = FB.me.pub; const hr = await Crypto.sealJSONTo(FB.hrPub, c, 'toperk:' + id), me = await Crypto.sealJSONTo(pk, c, 'toperkme:' + id); await FB.doc('toPerk/' + id).set({ sid: meSid(), status: 'pending', rev: 1, by: FB.uid, bsid: meSid(), v: FB.hrV, pub: { kty: pk.kty, crv: pk.crv, x: pk.x, y: pk.y }, year: y, hr, me, createdAt: FB.ts(), updatedAt: FB.ts() }); return id; });
   await sleep(1500);
   check(await owner.evaluate(id => !S.perks.has(id), sealedWrong) && await sarah.evaluate(id => !S.perks.has(id), sealedWrong), 'a form that says “only Dr. A” but was sealed to the HR key (by hand) opens for no one but its sender');
+  // the people who approve can't read a form only Dr. A reads, so they never write one: a copy Sarah forges and writes over
+  // Riley's (sealed to Dr. A's public forms key and Riley's public key, "signed" by Riley) opens for nobody
+  const fid2 = await riley.evaluate(async () => { const id = B.newPerkId(), now = Date.now(), y = Number(todayISO().slice(0, 4)); await B.savePerk(id, c => { Object.assign(c, { kind: 'form', form: 'religious', fv: 1, aud: 'owner', f: { title: 'Clinical assistant', reqs: 'Saturday shifts', belief: 'My own words' }, at: now, sign: { staff: { by: meSid(), at: now, n: 'Riley Tester' } }, events: [{ a: 'send', by: meSid(), at: now }] }); return { status: 'pending' }; }, { create: { sid: meSid(), year: y }, a: 'send' }); return id; });
+  await owner.waitForFunction(id => S.perks.has(id), fid2, { timeout: 30000 });
+  const forged = await sarah.evaluate(async id => {
+    const d = (await FB.doc('toPerk/' + id).get()).data(), now = Date.now(), dr = FB.drPub(), rp = d.pub;
+    const c = { sid: d.sid, kind: 'form', form: 'religious', fv: 1, aud: 'owner', f: { title: 'Clinical assistant', reqs: 'Forged requirements', belief: 'Forged words' }, at: now, sign: { staff: { by: d.sid, at: now, n: 'Riley Tester' } }, events: [{ a: 'send', by: d.sid, at: now }] };
+    const hr = await Crypto.sealJSONTo(dr, c, 'toperkdr:' + id), me = await Crypto.sealJSONTo(rp, c, 'toperkme:' + id);
+    await FB.doc('toPerk/' + id).update({ status: 'pending', rev: d.rev + 1, by: FB.uid, bsid: FB.me.staffId, v: FB.hrV, pub: rp, year: d.year, hr, me, updatedAt: FB.ts() });
+    return 'written';
+  }, fid2).catch(e => 'refused: ' + e.message);
+  check(forged === 'written', 'Sarah writes a forged copy over Riley’s accommodation request only Dr. A reads (the database lets the people who approve save anyone’s request)');
+  await owner.waitForFunction(id => !S.perks.has(id), fid2, { timeout: 30000 }).catch(() => { });
+  await riley.waitForFunction(id => !S.perks.has(id), fid2, { timeout: 30000 }).catch(() => { });
+  check(await owner.evaluate(id => !S.perks.has(id), fid2) && await riley.evaluate(id => !S.perks.has(id), fid2), '…but it opens for nobody: Dr. A’s and Riley’s Time Off see Sarah saved it last, and set it aside');
+  await owner.click('#side [data-act=nav][data-v=forms]');
+  check(/can’t be shown here/.test(await owner.textContent('#view')), '…and Dr. A’s Forms says so');
+  // a salary advance Dr. A doesn't approve: the database says only that it was decided
+  const aid = await riley.evaluate(async () => { const id = B.newPerkId(), now = Date.now(), y = Number(todayISO().slice(0, 4)); await B.savePerk(id, c => { Object.assign(c, { kind: 'form', form: 'advance', fv: 1, aud: 'owner', f: { amount: 300, repay: 'pto' }, at: now, sign: { staff: { by: meSid(), at: now, n: 'Riley Tester' } }, events: [{ a: 'send', by: meSid(), at: now }] }); return { status: 'pending' }; }, { create: { sid: meSid(), year: y }, a: 'send' }); return id; });
+  await owner.click('#side [data-act=nav][data-v=appr]'); await owner.waitForSelector('[data-act=fmOpen][data-id="' + aid + '"]', { timeout: 30000 });
+  await owner.click('.apCard [data-act=fmOpen][data-id="' + aid + '"]'); await owner.waitForSelector('[data-act=fmDeny]');
+  await owner.click('[data-act=fmDeny]'); await owner.fill('#nbTxt', 'Not this month, sorry.'); await owner.click('#nbYes');
+  check(await toast(owner, /Answered — Riley sees it now/), 'Dr. A doesn’t approve Riley’s salary advance'); await saved(owner);
+  await riley.waitForFunction(id => S.perks.get(id) && S.perks.get(id).status === 'denied', aid, { timeout: 30000 });
+  check((await fsDoc('toPerk/' + aid)).fields.status.stringValue === 'approved' && await owner.evaluate(id => S.perks.get(id).status === 'denied', aid), '…both see “Not approved”; the database says only “decided” (approved), so it never tells which');
   check(await tryIt(owner, 'formFile', hid) === 'ok', 'Dr. A answers it');
   await riley.waitForFunction(id => S.perks.get(id) && S.perks.get(id).status === 'approved', hid, { timeout: 30000 });
   check(true, 'Riley sees the answer');
@@ -377,7 +405,7 @@ const nextOffice = (p, from) => p.evaluate(f => {
   const k2 = await fsDoc('meta/toKeys'), reqs2 = await fsDocs('toReq'), hrs2 = await fsDocs('toHR');
   check(k2.fields.current.integerValue === '2' && !(await fsDoc('toAccess/' + sarahUid)), 'HR key #2; her copy is gone');
   check(reqs2.every(d => d.fields.v.integerValue === '2') && hrs2.every(d => d.fields.v.integerValue === '2'), 'every request and HR record sealed again under it (' + reqs2.length + ' + ' + hrs2.length + ')');
-  check((await fsDocs('toPerk')).filter(d => idOf(d) !== sealedWrong).every(d => d.fields.v.integerValue === '2'), '…and the scrubs requests and forms (all but the one sealed wrong by hand, which only its sender opens)');
+  check((await fsDocs('toPerk')).filter(d => idOf(d) !== sealedWrong && idOf(d) !== fid2).every(d => d.fields.v.integerValue === '2'), '…and the scrubs requests and forms (all but the one sealed wrong by hand and the forged one, which nobody opens)');
   await owner.waitForFunction(id => S.perks.get(id) && S.perks.get(id).v === 2 && S.perks.get(id).f.complaint === 'Private complaint words', hid, { timeout: 30000 });
   check(true, 'the complaint only Dr. A reads: sealed again under the new key, still to his forms key — he opens it');
   await sarah.waitForSelector('#lgUser', { timeout: 30000 });
@@ -583,6 +611,13 @@ const nextOffice = (p, from) => p.evaluate(f => {
   await riley.evaluate(() => { S.view = 'home'; renderNav(); renderView(); }); await sleep(300);
   check(/On salary/.test(await riley.textContent('#view')), 'Riley’s own Home says she’s on salary (her copy follows)');
 
+  console.log('\n# A new recovery code (NLO Cases): the forms key’s recovery copy follows it');
+  const NEW_CODE = await ownerC.evaluate(() => FB.newRecoveryCode());
+  const fixed = await owner.evaluate(async () => { await FB.hrFixGrants(); return FB.drFixRec(); });
+  const rk = (await fsDoc('meta/recovery')).fields.pub.mapValue.fields.x.stringValue, dk3 = (await fsDoc('meta/settings')).fields.to.mapValue.fields.drKey.mapValue.fields;
+  check(fixed === true && dk3.recX.stringValue === rk && dk3.pub.mapValue.fields.x.stringValue === dk.fields.pub.mapValue.fields.x.stringValue, 'Dr. A’s Time Off seals the same forms key’s recovery copy to the new recovery key');
+  check(await owner.evaluate(() => FB.drFixRec()) === false, '…once (it’s current now)');
+
   console.log('\n# Dr. A’s new password: the recovery code opens his forms key again');
   // a new password (with the recovery code) gives his login a new key, so the forms key's copy for him can't be opened.
   // The sign-in opens it again with the same code; if that didn't happen, Home and Forms ask for the code.
@@ -590,15 +625,15 @@ const nextOffice = (p, from) => p.evaluate(f => {
     await FB.recover(pw, code); FB.drPriv = null; FB.drX = '';
     const before = await FB.drOpen(); await B.hrRestore(code); await FB.emitPerks(FB.h);
     return { before };
-  }, [OWNER_PW, RECOVERY]).catch(e => ({ err: String(e && e.message) }));
+  }, [OWNER_PW, NEW_CODE]).catch(e => ({ err: String(e && e.message) }));
   await owner.waitForFunction(id => !S.perks.has(id), hid, { timeout: 30000 }).catch(() => { });
   check(rec.before === 'stale' && await owner.evaluate(id => !S.perks.has(id), hid), 'his login’s new key can’t open the forms key: the complaint only he reads isn’t listed — ' + JSON.stringify(rec));
   await owner.evaluate(() => { S.view = 'home'; renderNav(); renderView(); });
   check(/Forms only you read can’t be opened on this login/.test(await owner.textContent('#view')), 'Home says so');
   await owner.click('#side [data-act=nav][data-v=forms]'); await owner.waitForSelector('#drRestoreForm');
-  await owner.fill('#drCode', 'AAAA-BBBB-CCCC-DDDD-EEEE-FFFF'); await owner.click('#drRestoreForm button[type=submit]');
-  check(await toast(owner, /recovery code didn’t work/), 'Forms → a wrong recovery code: “That recovery code didn’t work”');
   await owner.fill('#drCode', RECOVERY); await owner.click('#drRestoreForm button[type=submit]');
+  check(await toast(owner, /recovery code didn’t work/), 'Forms → the old recovery code (replaced): “That recovery code didn’t work”');
+  await owner.fill('#drCode', NEW_CODE); await owner.click('#drRestoreForm button[type=submit]');
   check(await toast(owner, /Forms only you read open again/), '…his recovery code: “Forms only you read open again”');
   await owner.waitForFunction(id => S.perks.has(id) && S.perks.get(id).f.complaint === 'Private complaint words', hid, { timeout: 30000 });
   check(!(await owner.$('#drRestoreForm')), '…the complaint is listed again, and the card is gone');

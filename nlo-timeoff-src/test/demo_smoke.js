@@ -586,6 +586,8 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok((await page.textContent('[data-left="0"]')) === '$150' && (await page.textContent('[data-left="1"]')) === '$50', 'a salary advance in payments: what’s still owed after each, as it’s typed');
   await page.check('[data-chg=fmAgree]'); await page.click('[data-act=fmSend]'); ok(await toastHas(/The payments add up to \$250, not \$300/), '…the payments have to add up to the amount');
   await pa[1].fill('150'); await page.click('[data-act=fmSend]'); ok(await toastHas(/Sent — only Dr\. A can read it/), '…they do: sent, for Dr. A alone'); await settle();
+  // a concern only Dr. A reads (saved the way the form saves it), for later
+  const cid = await E(() => { const id = B.newPerkId(), now = Date.now(); return B.savePerk(id, c => { Object.assign(c, { kind: 'form', form: 'concern', fv: 1, aud: 'owner', f: { position: 'Clinical assistant', reason: 'The schedule changes without notice.' }, at: now, sign: { staff: { by: meSid(), at: now, n: 'Riley' } }, events: [{ a: 'send', by: meSid(), at: now }] }); return { status: 'pending' }; }, { create: { sid: meSid(), year: Number(todayISO().slice(0, 4)) }, a: 'send' }).then(() => id); });
   // a printout for a doctor: filled in on screen, never saved
   await page.click('[data-act=fmNew][data-f=family]'); await page.waitForSelector('[data-act=fmPrint]'); await collect();
   await E(() => { window.__printed = 0; window.print = () => { window.__printed++; window.__pd = document.querySelector('#printDoc').innerHTML; window.__pt = document.title; window.__pc = document.body.classList.contains('printing'); }; });
@@ -610,6 +612,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await page.click('[data-act=fmTab][data-t=wait]');
   await page.click('[data-act=fmOpen][data-id="' + acc2.id + '"]'); await page.waitForSelector('[data-act=fmBack]'); await collect();
   ok(/Office use/.test(await page.textContent('#fmBody')), 'Jordan opens Riley’s report: the office part to fill in');
+  await page.fill('#fm_prevent', 'Draft: a guard on the trimmer'); await page.click('[data-act=fmSaveHR]'); ok(await toastHas(/^Saved/), '…saves a draft of it for now'); await settle();
   await page.click('[data-act=fmBack]'); await page.fill('#nbTxt', 'Which hand was it?'); await page.click('#nbYes');
   ok(await toastHas(/Sent back to Riley/), 'sent back for a change, with a note'); await settle();
   await lock();
@@ -617,10 +620,13 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await signIn('staff', page, true);
   ok(/Your accident report was sent back for a change/.test(await page.textContent('#view')) && (await page.textContent('#nav-forms .cnt')) === '1', 'Riley’s Home: it was sent back; Forms counts 1');
   await page.click('.callout[data-act=fmOpen]'); await page.waitForSelector('#fm_injury'); await collect();
-  ok(/Which hand was it\?/.test(await page.textContent('#view')), '…the note is on the form');
+  ok(/Which hand was it\?/.test(await page.textContent('#view')) && !/guard on the trimmer/.test(await page.textContent('#view')), '…the note is on the form (the office’s draft isn’t)');
+  await E(() => { window.print = () => { window.__pd = document.querySelector('#printDoc').innerHTML; }; });
+  await page.click('[data-act=fmPrint]'); const rpr = await E(() => window.__pd); await E(() => window.dispatchEvent(new Event('afterprint')));
+  ok(/Accident report/i.test(rpr) && !/Office use|guard on the trimmer/i.test(rpr), '…and her printout leaves out the office part they haven’t finished');
   await page.fill('#fm_injury', 'A scrape on the right index knuckle'); await page.click('[data-act=fmSaveOwn]');
   ok(await toastHas(/Sent again/), '…changed and sent again'); await settle();
-  ok(await E(id => { const x = S.perks.get(id); return x.status === 'pending' && !x.back && /index knuckle/.test(x.f.injury) && x.events.map(e => e.a).join() === 'send,back,resend'; }, acc2.id), '…waiting again; its history: sent, sent back, sent again');
+  ok(await E(id => { const x = S.perks.get(id); return x.status === 'pending' && !x.back && /index knuckle/.test(x.f.injury) && x.events.map(e => e.a).join() === 'send,save,back,resend'; }, acc2.id), '…waiting again; its history: sent, the office’s draft saved, sent back, sent again');
   await lock();
   // Dr. A: signs the resolution of the harassment report, prints it, sees Riley's forms on Team
   await signIn('', page, true); await nav('appr');
@@ -633,10 +639,38 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await E(() => { window.print = () => { window.__pd = document.querySelector('#printDoc').innerHTML; }; });
   await page.click('[data-act=fmPrint]'); const ph = await E(() => window.__pd); await E(() => window.dispatchEvent(new Event('afterprint')));
   ok(/Harassment or discrimination report/i.test(ph) && (ph.match(/Signed electronically by/g) || []).length === 2 && /steps in at check-in/.test(ph) && /Date received/.test(ph), 'its printout: the report, the resolution, both signatures and the date received');
+  // Riley's concern only he reads: a draft answer, then sent back for a change
+  await nav('appr'); await page.click('.apCard [data-act=fmOpen][data-id="' + cid + '"]'); await page.waitForSelector('#fm_action');
+  await page.fill('#fm_action', 'Draft: talk to Savannah about the schedule.'); await page.click('[data-act=fmSaveHR]'); ok(await toastHas(/^Saved/), 'Dr. A saves a draft answer to Riley’s concern'); await settle();
+  await page.click('[data-act=fmBack]'); await page.fill('#nbTxt', 'Which days?'); await page.click('#nbYes'); ok(await toastHas(/Sent back to Riley/), '…and sends it back for a change'); await settle();
+  // Jordan's CE: the office pays back none of it
+  const ceId = await E(() => (allForms().find(x => x.form === 'ce' && x.status === 'pending') || {}).id);
+  await nav('appr'); await page.click('.apCard [data-act=fmOpen][data-id="' + ceId + '"]'); await page.waitForSelector('[data-chg=fmChecks][data-fk=ok]');
+  await page.uncheck('[data-chg=fmChecks][data-fk=ok][value=tuition]'); await page.click('[data-act=fmSaveHR]'); await toastHas(/^Saved/); await settle();
+  await nav('forms'); await page.click('[data-act=fmOpen][data-id="' + ceId + '"]'); await page.waitForSelector('[data-chg=fmChecks][data-fk=ok]');
+  ok(!(await page.isChecked('[data-chg=fmChecks][data-fk=ok][value=tuition]')), 'CE: “pays back none of it” is saved as none, and stays none when opened again');
+  await page.click('[data-act=fmDecide]'); await page.click('#nbYes'); ok(await toastHas(/Approved — Jordan sees it now/), '…approved'); await settle();
+  // Riley's salary advance: not approved
+  const advId = await E(() => (allForms().find(x => x.form === 'advance' && x.sid === 'riley' && x.status === 'pending') || {}).id);
+  await nav('appr'); await page.click('.apCard [data-act=fmOpen][data-id="' + advId + '"]'); await page.waitForSelector('[data-act=fmDeny]');
+  await page.click('[data-act=fmDeny]'); await page.fill('#nbTxt', 'Not this month.'); await page.click('#nbYes'); ok(await toastHas(/Answered — Riley sees it now/), 'Riley’s salary advance: not approved'); await settle();
+  ok(await E(id => S.perks.get(id).status === 'denied' && formStatus(S.perks.get(id))[0] === 'Not approved' && DEMO.perks.get(id).status === 'approved', advId), '…shown as “Not approved”, saved as just “decided” (as in the database, so it never says which)');
   await nav('team'); await page.click('#view tr[data-sid=riley]'); await page.waitForSelector('#drawer');
   const drF = await page.textContent('#drawer');
   ok(/Harassment report/.test(drF) && /Accident report/.test(drF) && /Salary advance/.test(drF), 'Team → Riley: her forms are listed');
   await page.keyboard.press('Escape');
+  await lock();
+  await signIn('staff', page, true);
+  await page.click('.callout[data-act=fmOpen][data-id="' + cid + '"]'); await page.waitForSelector('[data-act=fmAud][data-v=hr]'); await collect();
+  ok(/Which days\?/.test(await page.textContent('#view')) && !/talk to Savannah/.test(await page.textContent('#view')), 'Riley’s concern, sent back: Dr. A’s note, not his draft answer');
+  await page.click('[data-act=fmAud][data-v=hr]'); await page.check('[data-chg=fmAgree]'); await page.click('[data-act=fmSaveOwn]');
+  await page.waitForSelector('#cbYes'); ok(/Jordan/.test(await page.textContent('.modal')), '…she includes her manager: it asks first, by name'); await page.click('#cbYes');
+  ok(await toastHas(/Sent again/), '…and sends it again'); await settle();
+  await lock(); await signIn('approver', page, true);
+  const cj = await E(id => { const x = S.perks.get(id); return x ? { action: x.f.action || '', notes: (x.events || []).filter(e => e.by === 'amir' && e.note).length, lines: (x.events || []).length } : null; }, cid);
+  ok(cj && !cj.action && cj.notes === 0 && cj.lines >= 3, 'Jordan can read it now — but not Dr. A’s draft answer or his notes (' + JSON.stringify(cj) + ')');
+  await nav('forms'); await page.click('[data-act=fmOpen][data-id="' + ceId + '"]'); await page.waitForSelector('#fmBody');
+  ok(/Costs the office will pay back\s*None/.test(await page.textContent('#fmBody')), 'Jordan’s CE, approved: “Costs the office will pay back: None”');
   await lock();
 
   /* =================== phone =================== */

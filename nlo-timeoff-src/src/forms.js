@@ -9,9 +9,10 @@
    'form'): sealed in the browser to the person, and either to the HR
    key (Dr. A and the people who approve time off) or to Dr. A's own
    forms key, which only he holds (aud 'owner': complaints, accommodation,
-   money). In the clear only whose it is, its status and its year — never
-   which form it is. The doctor's certifications are printouts: filled
-   in on screen, printed, never saved.
+   money). In the clear only whose it is, its status (for a form only
+   Dr. A reads, just whether it's decided) and its year — never which form
+   it is (every form is sealed padded to one size). The doctor's
+   certifications are printouts: filled in on screen, printed, never saved.
 
    The wording is the office's own, in plain words, following the order
    and fields of the Bent Ericksen forms Dr. A uses (their text isn't
@@ -299,22 +300,24 @@ function filled(fd, v) {
     default: return v !== '';
   }
 }
-/* a value is the right kind of thing (blank counts as fine; whether it's needed is formMissing's job) */
-function okValue(fd, v) {
+/* a value is the right kind of thing (blank counts as fine; whether it's needed is formMissing's job). Saving checks the
+   form's own limits; reading (loose) takes the same kinds of values within wider ones, so a form saved by a newer copy of
+   Time Off (a new option, a longer box) still opens on an older one */
+function okValue(fd, v, loose) {
   if (v == null || v === '') return true;
-  const max = fd.max;
+  const max = fd.max, word = x => typeof x === 'string' && x.length > 0 && x.length <= 60;
   switch (fd.t) {
-    case 'text': return typeof v === 'string' && v.length <= (max || 200);
-    case 'area': return typeof v === 'string' && v.length <= (max || 1000);
+    case 'text': return typeof v === 'string' && v.length <= (loose ? 600 : max || 200);
+    case 'area': return typeof v === 'string' && v.length <= (loose ? 5000 : max || 1000);
     case 'date': return isISO(v);
     case 'time': return isHM(v);
-    case 'num': return typeof v === 'number' && isFinite(v) && v >= (fd.min != null ? fd.min : 0) && v <= (max != null ? max : 1000);
-    case 'money': return typeof v === 'number' && isFinite(v) && v >= 0 && v <= (max != null ? max : 1000000) && Math.abs(Math.round(v * 100) - v * 100) < 1e-6;
+    case 'num': return typeof v === 'number' && isFinite(v) && (loose ? Math.abs(v) <= 1e6 : v >= (fd.min != null ? fd.min : 0) && v <= (max != null ? max : 1000));
+    case 'money': return typeof v === 'number' && isFinite(v) && Math.abs(Math.round(v * 100) - v * 100) < 1e-6 && (loose ? v >= 0 && v <= 1e7 : v >= (fd.min != null ? fd.min : 0) && v <= (max != null ? max : 1000000));
     case 'yesno': case 'check': return typeof v === 'boolean';
-    case 'pick': return (fd.opts || []).some(o => o[0] === v);
-    case 'checks': return Array.isArray(v) && v.length <= (fd.opts || []).length && v.every(x => (fd.opts || []).some(o => o[0] === x)) && new Set(v).size === v.length;
-    case 'dates': return Array.isArray(v) && v.length <= (fd.max || 3) && v.every(isISO) && new Set(v).size === v.length;
-    case 'pay': return Array.isArray(v) && v.length <= (fd.max || 6) && v.every(r => r && typeof r === 'object' && isISO(r.d) && typeof r.a === 'number' && isFinite(r.a) && r.a > 0 && r.a <= 100000);
+    case 'pick': return loose ? word(v) : (fd.opts || []).some(o => o[0] === v);
+    case 'checks': return Array.isArray(v) && new Set(v).size === v.length && (loose ? v.length <= 30 && v.every(word) : v.length <= (fd.opts || []).length && v.every(x => (fd.opts || []).some(o => o[0] === x)));
+    case 'dates': return Array.isArray(v) && v.length <= (loose ? 30 : fd.max || 3) && v.every(isISO) && new Set(v).size === v.length;
+    case 'pay': return Array.isArray(v) && v.length <= (loose ? 60 : fd.max || 6) && v.every(r => r && typeof r === 'object' && isISO(r.d) && typeof r.a === 'number' && isFinite(r.a) && r.a > 0 && r.a <= 100000);
     default: return false;
   }
 }
@@ -332,34 +335,47 @@ function formMissing(D, f, by) {
   return out;
 }
 function bytesOf(o) { return TE.encode(JSON.stringify(o)).length; }
-/* a form's sealed content makes sense (anything else is treated like one that can't be opened) */
-function okFormShape(c) {
+/* a form's sealed content makes sense (anything else is treated like one that can't be opened). loose: when reading
+   (see okValue) */
+function okFormShape(c, loose) {
   const D = c && formDef(c.form);
-  if (!D || D.kind !== 'send' || c.kind !== 'form' || !c.f || typeof c.f !== 'object' || Array.isArray(c.f)) return false;
+  if (!D || D.kind !== 'send' || c.kind !== 'form' || !c.f || typeof c.f !== 'object' || Array.isArray(c.f) || typeof c.sid !== 'string') return false;
   if (!audOk(D, c.aud)) return false;
   for (const k of Object.keys(c.f)) {
     const fd = formField(D, k), v = c.f[k];
-    if (fd) { if (!okValue(fd, v)) return false; }
+    if (fd) { if (!okValue(fd, v, loose)) return false; }
     else if (!(v == null || typeof v === 'boolean' || (typeof v === 'number' && isFinite(v)) || (typeof v === 'string' && v.length <= 2000))) return false; // a field from a newer copy of Time Off
   }
   const who = x => x == null || (typeof x === 'object' && typeof x.by === 'string' && x.by.length <= 40 && typeof x.at === 'number' && (x.n == null || (typeof x.n === 'string' && x.n.length <= 80)));
   if (c.sign != null && (typeof c.sign !== 'object' || !who(c.sign.staff) || !who(c.sign.hr))) return false;
+  if (c.sign && c.sign.staff && c.sign.staff.by !== c.sid) return false; // the sender's signature is the sender's
   if (c.back != null && (!who(c.back) || (c.back.note != null && (typeof c.back.note !== 'string' || c.back.note.length > 600)))) return false;
-  if (c.decision != null && (!who(c.decision) || (c.decision.note != null && (typeof c.decision.note !== 'string' || c.decision.note.length > 600)))) return false;
-  if (c.events != null && (!Array.isArray(c.events) || c.events.length > 80 || !c.events.every(e => e && typeof e.a === 'string' && e.a.length <= 20))) return false;
+  if (c.decision != null && (!who(c.decision) || !['approved', 'denied', 'cancelled'].includes(c.decision.s) || (c.decision.note != null && (typeof c.decision.note !== 'string' || c.decision.note.length > 600)))) return false;
+  if (c.events != null && (!Array.isArray(c.events) || c.events.length > 80 || !c.events.every(e => e && typeof e.a === 'string' && e.a.length <= 20 && (e.note == null || (typeof e.note === 'string' && e.note.length <= 600))))) return false;
   return typeof c.at === 'number';
 }
-function okForm(c) { return okFormShape(c) && bytesOf(c) <= FORM_MAX; }
+function okForm(c, loose) { return okFormShape(c, loose) && (loose || bytesOf(c) <= FORM_MAX); }
+/* a form too long to seal gives up history first: older notes, then older lines (the first line, sent, and the latest
+   three stay), so piling up send-backs never makes it impossible to save. Changes c; returns it */
+function formFit(c) {
+  if (!c || !Array.isArray(c.events) || bytesOf(c) <= FORM_MAX) return c;
+  const ev = c.events.map(e => Object.assign({}, e)), size = () => bytesOf(Object.assign({}, c, { events: ev }));
+  for (let i = 1; i < ev.length - 1 && size() > FORM_MAX; i++) delete ev[i].note;
+  while (ev.length > 4 && size() > FORM_MAX) ev.splice(1, 1);
+  c.events = ev;
+  return c;
+}
 /* why a form can't be saved, in words: the box the person saving it can shorten — by 'staff' (the sender: their part) or
    'hr' (the office: its part, or the note just written) */
 function formTooBig(c, by) {
   const over = bytesOf(c) - FORM_MAX; if (over <= 0) return '';
-  const D = formDef(c && c.form), f = (c && c.f) || {}, part = by === 'hr' ? 'hr' : 'staff', n = ' by about ' + Math.max(10, Math.ceil(over / 10) * 10) + ' characters.';
+  const D = formDef(c && c.form), f = (c && c.f) || {}, part = by === 'hr' ? 'hr' : 'staff', cut = Math.max(10, Math.ceil(over / 10) * 10), n = ' by about ' + cut + ' characters.';
   const boxes = D ? formFields(D).filter(fd => fd.t === 'area' && fd.by === part && typeof f[fd.k] === 'string').map(fd => [fd.l, f[fd.k].length]) : [];
   const last = Array.isArray(c.events) ? c.events[c.events.length - 1] : null;
   if (part === 'hr' && last && typeof last.note === 'string' && last.note) boxes.push(['', last.note.length]);
-  const top = boxes.sort((a, b) => b[1] - a[1])[0];
-  return 'This form is longer than it can hold' + (!top ? '.' : top[0] ? ' — shorten “' + top[0] + '”' + n : ' — shorten your note' + n);
+  // a box is named only when shortening it can make the form fit
+  const top = boxes.filter(b => b[1] >= cut).sort((a, b) => b[1] - a[1])[0];
+  return 'This form is longer than it can hold' + (!top ? (part === 'hr' ? ' — the answers it was sent with take up most of the room. Keep your part and note short.' : '. Shorten the longest answers.') : top[0] ? ' — shorten “' + top[0] + '”' + n : ' — shorten your note' + n);
 }
 
 /* ---------- history ---------- */

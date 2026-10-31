@@ -114,6 +114,7 @@ const DEMO = {
     const mailed = !!(opts.mail && DEMO.toMail);
     const prev = cur ? cur.status : null, r = fn(content, { mailed }) || {}, status = r.status || prev || 'pending';
     if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
+    if (content.kind === 'form') formFit(content);
     if (!okPerk(content)) throw errCode('bad', content.kind === 'form' ? (formTooBig(content, content.sid === me ? 'staff' : 'hr') || 'Something in this form doesn’t look right. Check it and try again.') : 'Say how many pairs and why.');
     if (!cur && content.kind === 'scrubs' && !scrubsOpen(todayISO(), scrubsOf(DEMO.settings).byDay)) throw errCode('bad', 'Scrubs for this year had to be asked for by December ' + scrubsOf(DEMO.settings).byDay + '.');
     const okCreate = status === 'pending' && content.sid === me;

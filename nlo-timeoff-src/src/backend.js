@@ -139,7 +139,7 @@ const FB = {
   },
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.hr = FB.hrPub = FB.feedKey = FB.h = FB.drPriv = null; FB.curV = FB.ringV = FB.hrV = 0; FB.lastCode = ''; FB.drState = ''; FB.drX = '';
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.hr = FB.hrPub = FB.feedKey = FB.h = FB.drPriv = null; FB.curV = FB.ringV = FB.hrV = 0; FB.lastCode = ''; FB.drState = ''; FB.drX = ''; FB.ownerStaff = '';
     FB.people = new Map(); FB.queues = {}; FB.lockedRaw = new Map(); FB.keyChangedNames = []; FB.impKey = null; FB.settingsCache = null; FB.reqChain = Promise.resolve(); FB.perkRaw = new Map();
     try { await FB.auth.signOut(); } catch (e) { }
   },
@@ -449,7 +449,11 @@ const FB = {
       const k = FB.drKey(); if (FB.isOwner() && k && (!FB.drPriv || FB.drX !== k.pub.x)) FB.drOpen().catch(() => { }); // made or restored on another of Dr. A's screens
     }, () => { }));
     FB.unsubs.push(FB.doc('meta/toTeam').onSnapshot(s => h.team(s.exists ? (s.data().sids || []) : []), () => h.team([])));
-    FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.roster(s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => h.error(e)));
+    FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => {
+      const list = s.docs.map(d => Object.assign({ sid: d.id }, d.data())), o = list.find(r => r.role === 'owner'), was = FB.ownerStaff;
+      FB.ownerStaff = o ? o.sid : ''; h.roster(list);
+      if (FB.ownerStaff !== was && FB.perkRaw && FB.perkRaw.size) FB.inOrder(() => FB.emitPerks(h)).catch(() => { }); // forms only Dr. A reads check who saved them
+    }, e => h.error(e)));
     FB.unsubs.push(FB.db.collection('toPeople').onSnapshot(s => { FB.people = new Map(s.docs.map(d => [d.id, d.data()])); h.people(FB.people); }, () => { }));
     // who's out (the office key)
     FB.unsubs.push(FB.db.collection('toOut').onSnapshot(async snap => {
@@ -520,10 +524,16 @@ const FB = {
     for (const [k, open] of tries) { try { c = await open(); via = k; break; } catch (e) { } }
     if (!c) return Object.assign(base, { locked: true });
     // a form for Dr. A alone opens with his forms key only, anything else with the HR key (the person's own copy either way)
-    if (c.sid !== d.sid || !okPerk(c) || (via === 'dr' && c.aud !== 'owner') || (via === 'hr' && c.aud === 'owner')) return Object.assign(base, { locked: true, odd: 'bad' });
+    if (c.sid !== d.sid || !okPerk(c, true) || (via === 'dr' && c.aud !== 'owner') || (via === 'hr' && c.aud === 'owner')) return Object.assign(base, { locked: true, odd: 'bad' });
+    // the people who approve can't read a form only Dr. A reads, so they never write one: the database records who saved a
+    // document last (bsid, which the rules check), and only its sender or Dr. A may have — anything else was put there by
+    // someone else and is set aside (never shown, never sealed again)
+    if (c.kind === 'form' && c.aud === 'owner' && d.bsid !== d.sid && d.bsid !== FB.ownerSid()) return Object.assign(base, { locked: true, odd: 'bad' });
     return Object.assign({}, c, base);
   },
   newPerkId() { return 'p' + hexId(12); },
+  ownerStaff: '',
+  ownerSid() { return FB.isOwner() ? FB.me.staffId : FB.ownerStaff || ''; },
   /* saving a scrubs request: fn(content) changes the sealed content and may return { status }. opts: { create: { sid, year }, rev, a } */
   async savePerk(id, fn, opts) {
     opts = opts || {};
@@ -551,12 +561,15 @@ const FB = {
         const content = FB.clean(cur || { sid: opts.create.sid, kind: 'scrubs', events: [] }); delete content.year;
         const prev = cur ? cur.status : null, r = fn(content, { mailed: !!note }) || {}, status = r.status || prev || 'pending';
         if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
+        if (content.kind === 'form') formFit(content);
         if (!okPerk(content)) throw errCode('bad', content.kind === 'form' ? (formTooBig(content, content.sid === FB.me.staffId ? 'staff' : 'hr') || 'Something in this form doesn’t look right. Check it and try again.') : 'Say how many pairs and why.');
         const toDr = content.kind === 'form' && content.aud === 'owner', drPub = toDr ? FB.drPub() : null;
         if (toDr && !drPub) throw errCode('no-dr', 'Dr. A needs to open Time Off once before forms only he reads can be sent.');
         let mine = FB.trustedPub(content.sid);
         if (!mine && content.sid !== FB.me.staffId && !FB.people.has(content.sid)) { const pp = await tx.get(FB.doc('toPeople/' + content.sid)); if (pp.exists) mine = FB.trusted(pp.data()); }
-        const hrBox = toDr ? await Crypto.sealJSONTo(drPub, content, 'toperkdr:' + id) : await Crypto.sealJSONTo(hrPub, content, 'toperk:' + id), meBox = mine ? await Crypto.sealJSONTo(mine, content, 'toperkme:' + id) : null;
+        // a form is sealed padded to one size, so its length says nothing about which form it is or how much it says
+        const bytes = content.kind === 'form' ? FB.padded(content, FORM_MAX) : TE.encode(JSON.stringify(content));
+        const hrBox = await Crypto.sealTo(toDr ? drPub : hrPub, bytes, (toDr ? 'toperkdr:' : 'toperk:') + id), meBox = mine ? await Crypto.sealTo(mine, bytes, 'toperkme:' + id) : null;
         const doc = { sid: content.sid, status, rev, by: FB.uid, bsid: FB.me.staffId, v: hrV, pub: mine ? { kty: mine.kty, crv: mine.crv, x: mine.x, y: mine.y } : null, year: cur ? cur.year : opts.create.year, hr: hrBox, me: meBox, updatedAt: FB.ts() };
         if (s.exists) tx.update(ref, Object.assign(doc, { createdAt: s.data().createdAt })); else tx.set(ref, Object.assign(doc, { createdAt: FB.ts() }));
         if (note) tx.set(note.ref, note.data);
@@ -571,6 +584,8 @@ const FB = {
     }
     return { id, mailed: !!note };
   },
+  /* JSON with spaces after it up to a size (JSON.parse ignores them) */
+  padded(obj, size) { const s = JSON.stringify(obj), n = TE.encode(s).length; return TE.encode(n < size ? s + ' '.repeat(size - n) : s); },
   /* ---------- Dr. A's forms key: forms only he reads (complaints, accommodation, money) are sealed to it ----------
      A key pair of its own, kept in the office settings (meta/settings.to.drKey, which only Dr. A writes and everyone reads):
      its public half for everyone to seal to, its private half sealed to his own login (me) and to the office recovery key
@@ -605,6 +620,19 @@ const FB = {
     if (made) { FB.settingsCache = Object.assign({}, FB.settingsCache, { to: Object.assign({}, (FB.settingsCache || {}).to, { drKey: k }) }); FB.drPriv = await Crypto.importPriv(bytes); FB.drX = pub.x; FB.drState = 'ok'; }
     else { const s = await ref.get(); FB.settingsCache = s.exists ? s.data() : {}; await FB.drOpen(); }
     return made;
+  },
+  /* Dr. A's upkeep: after a new recovery code (NLO Cases → Team & security), the forms key's recovery copy is sealed again to
+     the new recovery key — while his login can open the forms key — so the code he has now always opens it */
+  async drFixRec() {
+    const k = FB.drKey(); if (!FB.isOwner() || !k || FB.drState !== 'ok') return false;
+    const r = await FB.doc('meta/recovery').get(), rp = r.exists ? r.data().pub : null;
+    if (!rp || !rp.x || rp.x === k.recX) return false;
+    let bytes; try { bytes = await Crypto.openFrom(FB.priv, k.me, 'todrkey:me'); } catch (e) { return false; }
+    if ((await Crypto.pubOfPriv(bytes)).x !== k.pub.x) return false; // only ever the forms key itself
+    const rec = await Crypto.sealTo(rp, bytes, 'todrkey:rec');
+    await FB.track(FB.doc('meta/settings').set({ to: { drKey: { rec, recX: rp.x } } }, { merge: true }));
+    FB.mergeCache('drKey', { rec, recX: rp.x });
+    return true;
   },
   /* Dr. A, after a new password: the recovery code opens the forms key's recovery copy, which is sealed again to his new key */
   async drRestore(code) {

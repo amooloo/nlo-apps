@@ -51,14 +51,30 @@ office, on the NLO Cases platform: the same Firebase project (`nlo-cases`), logi
     A's Time Off (`drSetup`, in his upkeep), its private half sealed to his login (`me`, info `todrkey:me`) and to the
     office recovery key (`rec`, `todrkey:rec`). A new password through the recovery code gives his login a new key; the
     sign-in then opens `rec` with the same code and seals it to the new key (`drRestore`). A password change keeps the
-    key. Copies: `toperk:<id>` (HR key), `toperkdr:<id>` (forms key), `toperkme:<id>` (the person); `openPerk` opens an
-    owner-only form only with the forms key and any other only with the HR key, so a mislabelled copy opens for nobody but
-    its sender.
+    key. Dr. A's upkeep (`drFixRec`) seals `rec` again when NLO Cases makes a new recovery code, so the current code always
+    opens it; if his login ever can't open the key, Home and Forms ask for the code once. Copies: `toperk:<id>` (HR key),
+    `toperkdr:<id>` (forms key), `toperkme:<id>` (the person); `openPerk` opens an owner-only form only with the forms key
+    and any other only with the HR key, so a mislabelled copy opens for nobody but its sender.
+  - The rules let the people who approve save anyone's `toPerk`, but they can't read owner-only forms, so they never
+    write one: `openPerk` takes an owner-only form only if its last writer (`bsid`, which the rules check) is the sender
+    or Dr. A (the roster's owner) — a copy anyone else wrote is set aside, never shown or sealed again. The sender's
+    signature must be the sender's; the office's signature and decision show (and print) only once a form is decided.
+  - Every form is sealed padded to `FORM_MAX` bytes (`FB.padded`; JSON ignores the trailing spaces), so its length says
+    nothing about which form it is. A decided owner-only form is saved as `approved` in plain view even when it wasn't
+    approved (`decision.s` inside says which; `perkShown` in ui.js shows it), so the database never shows a refused
+    advance. What stays visible to someone reading the database directly: that a person sent a form only Dr. A reads, and
+    when.
+  - A sender who widens an "only Dr. A" form to the approvers is asked first, and the office part and Dr. A's notes are
+    dropped from it.
+  - Reading is lenient (`okPerk(c, true)`: a newer copy's option or longer answer still opens; saving checks the form's
+    own limits), and answers a newer copy added are kept when an older copy saves. Forms this copy can't show are
+    counted on Forms ("can't be shown here").
   - A hazard report may leave the name off (`f.anon`): no name on it anywhere the office sees it, or on the printout (the
     database still records which login sent it, and the form says so).
   - Limits: each sealed copy is at most 8,000 base64 characters in the rules, so a form's JSON is at most `FORM_MAX`
-    (5,950 bytes); every box has a length limit and all forms fit with every box full; `formTooBig` names the box to
-    shorten (the sender's part, or the office's part or note). History keeps at most 40 lines (the first and the latest).
+    (5,950 bytes); every box has a length limit and all forms fit with every box full. History keeps at most 40 lines and
+    gives way by size when it must (`formFit`: older notes, then older lines; the first and the latest stay); `formTooBig`
+    names the box to shorten only when shortening it would do.
   - Printing: Print fills `#printDoc` and prints only it (print CSS), titled "Form - Name - date" so Save as PDF names
     the file; nothing is printed through a new window (the CSP allows none).
 - Approved scrubs orders are emailed by NLO Cases' email robot (`../nlo-cases-src/mail/script.js`, v3 or later) to the
