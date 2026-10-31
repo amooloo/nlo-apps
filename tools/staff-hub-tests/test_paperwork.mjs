@@ -241,6 +241,8 @@ console.log('3. on the server');
   ok(new Set(ps.map(p => p.fields.iv.stringValue)).size === 6, 'every piece has its own IV');
   const rec = await hubRecord(hubUid, HUB.pw);
   ok(rec && rec.st && Array.isArray(rec.st.paper) && rec.st.paper.length === 4, 'the list is in the encrypted record');
+  ok(Array.isArray(rec.st.paperKeys) && rec.st.paperKeys.length === 1 && rec.st.paperKeys[0].k.length === 44 && rec.st.paper.every(f => f.kid === rec.st.paperKeys[0].id && !f.up),
+    'one random files key, kept inside the encrypted record; every file says which key (none left marked as uploading)');
   const rawRec = JSON.stringify(rec.raw);   /* (only long strings: a short one like "W4" turns up in base64 by chance) */
   ok(['Brandi', 'scan_2026_10_30', 'direct deposit', 'Testa'].every(x => !rawRec.includes(x)), '…which, as stored, shows no names');
   const h = rec.st.nh.hires.find(x => x.id === hireId);
@@ -260,7 +262,7 @@ console.log('4. the new-hire page');
   const t = await page.textContent('#main');
   ok(/4 files/.test(t) && /Form I-9/.test(t) && /Signed packet \(one scan\)/.test(t) && /Covers 13 forms: .* and 10 more/.test(t), 'Signed paperwork lists the 4 files (I-9, the packet with what it covers …)');
   const secs = await page.$$eval('[data-ppzone][data-hid] .nhSubHd', els => els.map(e => e.textContent));
-  ok(secs.some(s => /Payroll & tax/.test(s)) && secs.some(s => /I-9 & ID copies/.test(s) && /kept apart/.test(s)) && secs.some(s => /Medical|Hiring/.test(s)), 'grouped: Hiring & personnel / Payroll & tax / I-9 & ID copies (kept apart) …: ' + secs.join(' | '));
+  ok(secs.some(s => /Payroll & tax/.test(s)) && secs.some(s => /I-9 & ID copies/.test(s) && /listed apart/.test(s)) && secs.some(s => /Medical|Hiring/.test(s)), 'grouped: Hiring & personnel / Payroll & tax / I-9 & ID copies (listed apart) …: ' + secs.join(' | '));
   const on = await page.$$eval('.ppOn', els => els.length), att = await page.$$eval('[data-act=ppAdd][data-k]', els => els.map(e => e.dataset.k));
   ok(on >= 6 && !att.includes('w4') && !att.includes('i9') && !att.includes('deposit') && att.includes('offer'), 'form rows: “Signed copy” where on file (' + on + '), Attach where not (offer letter)');
   const prog = await page.evaluate(id => nhProgress(nhHire(id)), hireId);
@@ -397,8 +399,9 @@ console.log('8. remove');
   await page.click(`.ppRow [data-act=ppRemove][data-id="${w4.id}"]`);
   await page.click('#cmYes');
   await page.evaluate(id => { ppById(id).removed = Date.now() - 31 * 864e5; }, w4.id);
-  const gone = await page.evaluate(() => ppPurgeOld());
-  ok(gone === 1 && !(await page.evaluate(id => !!ppById(id), w4.id)), 'removed over 30 days ago → deleted for good');
+  await page.waitForFunction(() => !ppSweeping); await page.evaluate(() => ppSweep());
+  await page.waitForFunction(id => !ppById(id), w4.id, { timeout: 15000 }).catch(() => {});
+  ok(!(await page.evaluate(id => !!ppById(id), w4.id)), 'removed over 30 days ago → deleted for good');
   ok(!(await pieces(hubUid)).some(p => p.id.startsWith(w4.id + '_')), '…its stored piece is gone from the server');
   ok(await synced(page), 'saved');
   const dropped = await page.evaluate(() => S.paper.find(f => /handbook ack/.test(f.name)).id);
@@ -407,6 +410,7 @@ console.log('8. remove');
   await page.click(`[data-act=ppPurge][data-id="${dropped}"]`); await page.click('#cmYes');
   await page.waitForFunction(id => !ppById(id), dropped);
   ok(!(await pieces(hubUid)).some(p => p.id.startsWith(dropped + '_')), 'Delete now → erased from the server at once');
+  ok(await page.evaluate(ids => ids.every(id => S.paperGone.includes(id)), [w4.id, dropped]), 'files deleted for good are remembered (so a merge can’t bring them back)');
 }
 
 // ---------- 9. nothing goes to the AI or the office roster ----------
@@ -430,7 +434,7 @@ console.log('10. lock');
   ok(await signIn(page, E.OWNER.email, PW) === 'app', 'sign in again');
   ok(await page.evaluate(async id => { const b = await ppGet(ppById(id)); return b.size; }, dep.id) === FILES.dep.buffer.length, 'files open again after signing back in');
   // locked in the middle of an upload: nothing half-done is listed
-  const before = await page.evaluate(() => S.paper.length);
+  const before = await page.evaluate(() => ppLive().length);
   await page.evaluate(id => goStaff(id, 'paper'), sid);
   await page.click('[data-act=ppAdd][data-sid]:not([data-k])');
   await page.setInputFiles('#ppPick', [{ name: 'big again.pdf', mimeType: 'application/pdf', buffer: pdf('again', 2_000_000) }]);
@@ -439,7 +443,14 @@ console.log('10. lock');
   await page.evaluate(() => lockNow('Locked during upload.'));
   await page.waitForSelector('#ncLoginForm');
   ok(await signIn(page, E.OWNER.email, PW) === 'app', 'locked mid-upload, signed in again');
-  ok((await page.evaluate(() => S.paper.length)) === before, '…no half-uploaded file on the list');
+  ok((await page.evaluate(() => ppLive().length)) === before, '…no half-uploaded file on the list');
+  const unf = await page.evaluate(() => ppAll().filter(f => f.up).map(f => f.id));
+  ok(unf.length === 1, '…it is known as an unfinished upload (listed before its pieces were written)');
+  await page.evaluate(() => { ppAll().filter(f => f.up).forEach(f => { f.up = Date.now() - 2 * 3600e3; }); });
+  await page.waitForFunction(() => !ppSweeping); await page.evaluate(() => ppSweep());
+  await page.waitForFunction(id => !ppById(id), unf[0], { timeout: 15000 }).catch(() => {});
+  ok(!(await page.evaluate(id => !!ppById(id), unf[0])), 'an hour later the clean-up deletes it');
+  ok(!(await pieces(hubUid)).some(p => p.id.startsWith(unf[0] + '_')) && !(await page.evaluate(id => !!ppById(id), unf[0])), '…nothing of it left on the server or the list');
 }
 
 // ---------- 11. the hire record can't be deleted out from under its paperwork ----------
@@ -457,6 +468,147 @@ console.log('11. deleting onboarding records');
   await page.click('#cmYes');
   await page.evaluate(id => goStaff(id, 'paper'), sid);
   ok((await page.$$('.ppRow')).length === 3, '…and it does (3 files)');
+}
+
+// ---------- 12. Cancel, a download's extension, paperwork attached to no one ----------
+console.log('12. cancel, extensions, unattached');
+{
+  await page.evaluate(id => goStaff(id, 'paper'), sid);
+  const n0 = await page.evaluate(() => ppAll().length);
+  await page.click('[data-act=ppAdd][data-sid]:not([data-k])');
+  await page.setInputFiles('#ppPick', [{ name: 'Brandi big scan.pdf', mimeType: 'application/pdf', buffer: pdf('cancel me', 2_000_000) }]);
+  await page.click('#ppGo');
+  await page.waitForFunction(() => /part 1 of 3/.test((document.getElementById('ppStat') || {}).textContent || ''), null, { timeout: 30000 });
+  await page.click('.mf [data-act=ppCancel]');
+  await page.waitForFunction(() => /Stopped\. The rest weren’t uploaded\./.test((document.getElementById('ppStat') || {}).textContent || ''), null, { timeout: 30000 });
+  ok((await page.$$('#ppList .ppUpRow')).length === 1, 'Cancel while uploading: stops, and the file stays in the window to try again');
+  await sleep(4500);
+  const extra = await page.evaluate(n => ppAll().length - n, n0);
+  const left = (await pieces(hubUid)).length, listed = await page.evaluate(() => ppAll().reduce((a, f) => a + f.n, 0));
+  ok(extra === 0 && left === listed, '…nothing of it left on the list or the server (' + left + ' pieces stored, ' + listed + ' listed)');
+  await page.click('.mf [data-act=ppCancel]');
+  ok(!(await page.$('#ppList')), 'Cancel again closes the window');
+  // a PNG called .html downloads as .png
+  const png = Buffer.from(await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 30; c.height = 20; c.getContext('2d').fillRect(0, 0, 9, 9); return c.toDataURL('image/png').split(',')[1]; }), 'base64');
+  await page.click('[data-act=ppAdd][data-sid]:not([data-k])');
+  await page.setInputFiles('#ppPick', [{ name: 'evil.html', mimeType: 'image/png', buffer: png }]);
+  await page.click('#ppGo');
+  await waitToast(page, /1 file added/, 20000);
+  const ev = await page.evaluate(() => ppLive().find(f => f.name === 'evil.html').id);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click(`.ppRow [data-act=ppDownload][data-id="${ev}"]`)]);
+  ok(/\.png$/.test(dl.suggestedFilename()) && fs.readFileSync(await dl.path()).equals(png), 'a download’s extension follows the checked type, not the name (“' + dl.suggestedFilename() + '”)');
+  // paperwork whose person is gone (an onboarding record deleted on another device)
+  const orphan = await page.evaluate(() => {
+    const h = { id: uid(), status: 'active', created: Date.now(), staffId: null, inc: {}, done: {}, tasks: {}, notes: '', name: 'Dana Gone', team: 'admin' };
+    nhS().hires.push(h);
+    const f = ppLive().find(x => x.name === 'evil.html'); f.sid = ''; f.hid = h.id;
+    S.nh.hires = S.nh.hires.filter(x => x.id !== h.id); persist();
+    go('settings'); return f.id; });
+  await page.waitForSelector('.ppRow');
+  ok(/Paperwork not attached to anyone/.test(await page.textContent('#main')), 'Settings lists paperwork whose person is no longer in Staff Hub');
+  await page.click(`.ppRow [data-act=ppEdit][data-id="${orphan}"]`);
+  await page.waitForSelector('#ppEdWho');
+  ok((await page.inputValue('#ppEdWho')) === '', '…Change asks whose it is');
+  await page.selectOption('#ppEdWho', 's:' + sid);
+  await page.click('#ppEdSave');
+  ok(await page.evaluate(([id, s]) => ppById(id).sid === s, [orphan, sid]) && !/Paperwork not attached to anyone/.test(await page.textContent('#main')), '…given to Brandi, it leaves that list');
+}
+
+// ---------- 13. restoring an earlier version or a backup never rolls the paperwork back ----------
+console.log('13. restores');
+{
+  const big = meta.find(f => f.name === FILES.big.name);
+  const live0 = await page.evaluate(() => ppLive().map(f => f.id).sort());   /* (includes the PNG detached below, which comes back) */
+  // an older copy of the record: the I-9 marked removed 40 days ago, a file since deleted for good (no pieces), and the
+  // PNG — which the current list then loses (as a restore before this fix would have left it: stored but unlisted)
+  const ghost = 'pp' + 'f'.repeat(20);
+  const detached = await page.evaluate(() => ppLive().find(x => x.name === 'evil.html').id);
+  const verId = await page.evaluate(async ([bid, ghost]) => {
+    const st = JSON.parse(JSON.stringify(S));
+    st.paper.find(f => f.id === bid).removed = Date.now() - 40 * 864e5;
+    st.paper.push({ id: ghost, sid: st.paper[0].sid, hid: '', kind: 'w4', name: 'gone.pdf', mime: 'application/pdf', size: 9, n: 1, sha: 'x', kid: st.paperKeys[0].id, added: 1, removed: 0 });
+    const payload = await shPayload(st, cryptoKey, keySalt, 1, shNewWid(), {});
+    const vid = '2026-10-29T10-00-00Z-test';
+    await shVerCol().doc(vid).set(shVer(payload, 'save'));
+    return vid; }, [big.id, ghost]);
+  await page.evaluate(d => { S.paper = S.paper.filter(x => x.id !== d); persist(); }, detached);
+  ok(await synced(page), 'state before the restore saved');
+  await page.evaluate(id => H.shVerUse({ dataset: { id } }), verId);
+  await page.waitForSelector('#cmYes');
+  ok(/paperwork files stay as they are/.test(await page.textContent('.modal')), 'Restore an earlier version: it says paperwork files stay as they are');
+  await page.click('#cmYes');
+  await page.waitForFunction(() => /Restored/.test(document.getElementById('toasts').textContent), null, { timeout: 30000 });
+  ok(await page.evaluate(id => ppById(id).removed === 0, big.id), 'the I-9 put back after that copy stays put back (no 30-day deletion from the old copy)');
+  await page.waitForFunction(([g, d]) => !ppById(g) && ppById(d) && !ppById(d).chk, [ghost, detached], { timeout: 20000 });
+  const live1 = await page.evaluate(() => ppLive().map(f => f.id).sort());
+  ok(JSON.stringify(live1) === JSON.stringify(live0), 'every file listed before the restore is listed after it (' + live1.length + ')');
+  ok(await page.evaluate(g => !ppById(g), ghost), 'a file only the old copy lists, deleted for good since, is dropped after a check');
+  ok(await page.evaluate(d => !!ppById(d), detached), 'a file only the old copy lists, still stored, comes back');
+  ok((await page.evaluate(async id => { ppCache.clear(); ppKeys.clear(); return (await ppGet(ppById(id))).size; }, big.id)) === FILES.big.buffer.length, 'files open after the restore');
+  ok((await pieces(hubUid)).some(p => p.id.startsWith(big.id + '_')), '…and the sweep after it erased nothing in use');
+  // a backup file: made now, restored after another upload — the newer file isn't lost
+  await page.evaluate(() => go('settings'));
+  const [bk] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=expEnc]')]);
+  const bkPath = await bk.path();
+  await page.evaluate(id => goStaff(id, 'paper'), sid);
+  await page.click('[data-act=ppAdd][data-sid]:not([data-k])');
+  await page.setInputFiles('#ppPick', [{ name: 'Brandi CPR card.pdf', mimeType: 'application/pdf', buffer: pdf('CPR', 0) }]);
+  await page.click('#ppGo');
+  await page.waitForFunction(() => ppLive().some(f => f.name === 'Brandi CPR card.pdf') && !document.getElementById('ppList'), null, { timeout: 30000 });
+  ok(await synced(page), 'a file added after the backup was made');
+  const n1 = await page.evaluate(() => ppLive().length);
+  await page.evaluate(() => go('settings'));
+  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-act=restore]')]);
+  await fc.setFiles(bkPath);
+  await page.waitForSelector('#rsGo');
+  ok(/Paperwork files stay as they are/.test(await page.textContent('.modal')), 'Restore a backup file: it says paperwork files stay as they are');
+  await page.click('#rsGo');
+  await page.waitForFunction(() => /Backup restored/.test(document.getElementById('toasts').textContent), null, { timeout: 30000 });
+  const after = await page.evaluate(() => ppLive().map(f => f.name));
+  ok(after.length === n1 && after.includes('Brandi CPR card.pdf'), 'the file added after the backup is still listed (' + n1 + ' → ' + after.join(', ') + ')');
+}
+
+// ---------- 14. the readable export leaves the files key out; a password change elsewhere strands nothing ----------
+console.log('14. keys');
+{
+  await page.evaluate(() => go('settings'));
+  await page.click('[data-act=expPlain]');
+  const [rj] = await Promise.all([page.waitForEvent('download'), page.click('#cmYes')]);
+  const plain = fs.readFileSync(await rj.path(), 'utf8');
+  ok(!/paperKeys/.test(plain) && /"paper"/.test(plain), 'Readable JSON: the list of files, never the files key');
+  // two devices: one deletes a file for good while the other changes its note → stays deleted
+  const r = await page.evaluate(() => {
+    const f = ppLive()[0], base = JSON.parse(JSON.stringify(S));
+    const A = JSON.parse(JSON.stringify(S)); A.paper = A.paper.filter(x => x.id !== f.id); A.paperGone = (A.paperGone || []).concat([f.id]);
+    const B = JSON.parse(JSON.stringify(S)); B.paper.find(x => x.id === f.id).note = 'edited on the other computer';
+    const m = shNorm(shMerge(base, B, A, true, ''));
+    const gone = new Set(m.paperGone); return { listed: m.paper.filter(x => !gone.has(x.id)).some(x => x.id === f.id), keys: m.paperKeys.length };
+  });
+  ok(!r.listed && r.keys === 1, 'a file deleted for good on one computer and edited on another stays deleted after the merge');
+  // an older Staff Hub tab changes Staff Hub's own password: the record is re-encrypted under a new key
+  const big = meta.find(f => f.name === FILES.big.name);
+  const rk = await page.evaluate(async id => {
+    keySalt = crypto.getRandomValues(new Uint8Array(16)); cryptoKey = await deriveKey('Staff-Hub-Pass-9', keySalt, KDF_ITER);
+    const r = await shSaveWhenFree({ always: true });
+    ppCache.clear(); ppKeys.clear();
+    try { const b = await ppGet(ppById(id)); return { saved: !!(r && r.ok), size: b.size }; } catch (e) { return { saved: !!(r && r.ok), err: e.message }; }
+  }, big.id);
+  ok(rk.saved && rk.size === FILES.big.buffer.length, 'after Staff Hub’s password changes, the files still open (their key is inside the record): ' + JSON.stringify(rk));
+  const rec2 = await hubRecord(hubUid, 'Staff-Hub-Pass-9');
+  ok(rec2 && rec2.st && rec2.st.paperKeys && rec2.st.paperKeys.length === 1, '…the record under the new password still holds the files key');
+}
+
+// ---------- 15. Erase all erases the files ----------
+console.log('15. erase all');
+{
+  ok((await pieces(hubUid)).length > 0, 'pieces stored before Erase all');
+  await page.evaluate(() => go('settings'));
+  await page.click('[data-act=eraseAll]');
+  ok(/certificate file and paperwork file/.test(await page.textContent('.modal')), 'Erase all says it deletes certificate and paperwork files too');
+  await page.fill('#erConfirm', 'ERASE');
+  await page.click('#erGo');
+  await page.waitForSelector('#ncLoginForm', { timeout: 60000 });
+  ok((await pieces(hubUid)).length === 0, 'Erase all: no paperwork piece left on the server');
 }
 
 ok(errors.length === 0, 'no page errors' + (errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''));

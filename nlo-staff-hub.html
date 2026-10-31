@@ -2318,7 +2318,9 @@ H.certDownload = async t => {
 function dataUrlToBlobUrl(d) {
   const i = d.indexOf(','), mime = (d.slice(5, i).split(';')[0]) || 'application/octet-stream';
   const bytes = unb64(d.slice(i + 1));
-  return URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const u = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  try { (window.__shBlobUrls = window.__shBlobUrls || new Set()).add(u); } catch (e) {}   /* revoked when its window closes, and at Lock */
+  return u;
 }
 
 function certRowsHTML(list, withStaff) {
@@ -2435,8 +2437,9 @@ function viewSettings() {
     </div></div>
     <div>
     ${rosterPanelHTML()}
+    ${typeof ppUnfiledHTML === 'function' ? ppUnfiledHTML() : ''}
     <div class="panel" style="margin-bottom:18px"><div class="ph"><h3>${ic('download',16)}Backup &amp; restore</h3></div><div class="pb">
-      <p class="muted" style="margin-bottom:14px">You currently have ${counts.staff} staff · ${counts.notes} notes &amp; incidents · ${counts.reviews} reviews. Your data syncs to the cloud, but an occasional encrypted backup is still your safety net — especially before changing or resetting your password.</p>
+      <p class="muted" style="margin-bottom:14px">You currently have ${counts.staff} staff · ${counts.notes} notes &amp; incidents · ${counts.reviews} reviews. Your data syncs to the cloud, but an occasional encrypted backup is still your safety net — especially before changing or resetting your password. The backup holds the list of paperwork files, not the files themselves (they stay in Staff Hub’s encrypted storage).</p>
       <div style="display:flex;gap:9px;flex-wrap:wrap">
         <button class="btn btn-pri btn-sm" data-act="expEnc">${ic('download',13)} Encrypted backup</button>
         <button class="btn btn-sec btn-sm" data-act="restore">${ic('upload',13)} Restore…</button>
@@ -2506,8 +2509,8 @@ H.expEnc = async () => {
   persist(); toast('Encrypted backup downloaded');
 };
 H.expPlain = () => {
-  confirmModal('Export readable (unencrypted) data?', 'This file will contain all staff notes in plain text. Only do this to move data somewhere you trust — and delete the file after. Never put it in a shared or public folder.', () => {
-    download('nlo-staff-data-PLAINTEXT-' + todayYMD() + '.json', JSON.stringify(S, null, 2));
+  confirmModal('Export readable (unencrypted) data?', 'This file will contain all staff notes in plain text (the list of paperwork files, not the files). Only do this to move data somewhere you trust — and delete the file after. Never put it in a shared or public folder.', () => {
+    download('nlo-staff-data-PLAINTEXT-' + todayYMD() + '.json', JSON.stringify(Object.assign({}, S, { paperKeys: undefined }), null, 2));
     toast('Readable export downloaded — handle with care');
   });
 };
@@ -4736,10 +4739,12 @@ H.shVerUse = async function (t) {
   if (!v || !v.kdf || v.kdf.salt !== b64(keySalt)) { toast('That version was saved under an earlier password. Download it and restore it from Settings → Restore with that password.', true); return; }
   let st;
   try { st = shNorm(await decryptJSON(v.data, cryptoKey)); } catch (e) { toast('That version can’t be opened', true); return; }
-  confirmModal('Restore the version from ' + shWhen(v.updatedAt) + '?', 'Your record goes back to how it was then. What it holds now is saved under Earlier versions first, so this can be undone.', async () => {
+  confirmModal('Restore the version from ' + shWhen(v.updatedAt) + '?', 'Your record goes back to how it was then (paperwork files stay as they are). What it holds now is saved under Earlier versions first, so this can be undone.', async () => {
+    if (typeof ppKeepOnRestore === 'function') ppKeepOnRestore(st);
     S = st;
     act('Restored the version from ' + shWhen(v.updatedAt));
     const r = await shSaveWhenFree({ force: true, before: 'before-restore', why: 'restore' });
+    if (typeof ppSweep === 'function') setTimeout(() => { ppSweep(); }, 1500);
     render(); renderSyncStatus();
     toast(r && r.ok ? 'Restored' : 'Couldn’t restore just now — check your connection', !(r && r.ok));
   });
@@ -5288,7 +5293,7 @@ H.restore = function () {
       /* made under Staff Hub's current key (its own password, kept with the NLO Cases login): no password to type */
       var same = !!(cryptoKey && keySalt && blob.kdf.salt === b64(keySalt) && (blob.kdf.iter || KDF_ITER) === KDF_ITER);
       openModal('<div class="mh"><h3>Restore backup</h3><button class="x" data-act="closeModal">✕</button></div>' +
-        '<div class="mb"><div class="warnBox">This replaces everything currently in your account with the backup’s contents (and syncs it to your other devices).' + (same ? '' : ' This backup was made under an earlier Staff Hub password: enter that password.') + '</div>' +
+        '<div class="mb"><div class="warnBox">This replaces everything currently in your account with the backup’s contents (and syncs it to your other devices). Paperwork files stay as they are.' + (same ? '' : ' This backup was made under an earlier Staff Hub password: enter that password.') + '</div>' +
         (same ? '' : '<div class="field"><label>Staff Hub password this backup was made with</label><div class="pwRow"><input type="password" id="rsPw"><button class="peek" data-peek="rsPw" type="button">show</button></div></div>') + '</div>' +
         '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="rsGo">Restore</button></div>');
       $('#rsGo').onclick = async function () {
@@ -5297,10 +5302,13 @@ H.restore = function () {
         try {
           var key = same ? cryptoKey : await deriveKey(pw, unb64(blob.kdf.salt), blob.kdf.iter || KDF_ITER);
           var data = await decryptJSON(blob.data, key);
-          S = shNorm(data);
+          var nx = shNorm(data);
+          if (typeof ppKeepOnRestore === 'function') ppKeepOnRestore(nx);
+          S = nx;
           act('Restored a backup file');
           // re-encrypt under the CURRENT account password; the record it replaces is kept under Earlier versions
           var rr = await shSaveWhenFree({ force: true, before: 'before-backup-restore', why: 'restore-backup' });
+          if (typeof ppSweep === 'function') setTimeout(function () { ppSweep(); }, 1500);
           closeModal(); render(); renderSyncStatus();
           if (rr && rr.ok) toast('Backup restored'); else toast('Restored on this device, but it hasn’t reached the server yet — keep this page open with an internet connection.', true);
         } catch (e) {
@@ -5315,11 +5323,17 @@ H.restore = function () {
 };
 H.eraseAll = function () {
   openModal('<div class="mh"><h3>Erase all data</h3><button class="x" data-act="closeModal">✕</button></div>' +
-    '<div class="mb"><div class="dangerBox">This permanently deletes every staff profile, note, review, and log from your account and all synced devices. If there’s no backup, it’s gone.</div>' +
+    '<div class="mb"><div class="dangerBox">This permanently deletes every staff profile, note, review, log, certificate file and paperwork file from your account and all synced devices. If there’s no backup, it’s gone.</div>' +
     '<div class="field"><label>Type <b>ERASE</b> to confirm</label><input type="text" id="erConfirm" autocomplete="off"></div></div>' +
     '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-danger" id="erGo">Erase everything</button></div>');
   $('#erGo').onclick = async function () {
     if (($('#erConfirm').value || '').trim() !== 'ERASE') { toast('Type ERASE to confirm', true); return; }
+    var eb = $('#erGo'); if (eb) { eb.disabled = true; eb.textContent = 'Erasing…'; }
+    if (typeof ppEraseAll === 'function' && !(await ppEraseAll())) {
+      if (eb) { eb.disabled = false; eb.textContent = 'Erase everything'; }
+      toast('Couldn’t delete the paperwork files — check the connection and try again. Nothing was erased.', true, 9000); return;
+    }
+    if (S && Array.isArray(S.certs)) await Promise.all(S.certs.filter(function (c) { return c && c.hasPhoto; }).map(function (c) { return deletePhotoDoc(c.id); }));
     try { if (fbDocRef) await fbDocRef.delete(); } catch (e) {}
     shDraftClear(true);
     if (S) fbBaseJSON = shJ(S);   /* (erased: unsaved edits aren't kept as a draft by the Lock below) */
@@ -8113,27 +8127,39 @@ H.rosterDisconnect = () => { if (rosterApp) rosterApp.auth().signOut(); };
    this will have sensitive information about their bank account, SS etc."
 
    How it's kept:
-   - Each file is encrypted in this browser with Staff Hub's own key (the same
-     AES-256-GCM key as everything else here), in pieces of at most 900 KB.
-     Every piece has a fresh random IV, and its place (file id, piece number,
-     number of pieces) is bound in as additional data, so pieces can't be
-     swapped, dropped or reordered without the file refusing to open.
-   - Pieces live in staffhub/<uid>/paper/<file id>_<n> — owner-only under the
-     existing rule for everything below the record (no rules change).
-   - The list (S.paper: type, file name, size, SHA-256 of the original) is in
-     the encrypted main record. Opening a file checks the SHA-256.
-   - Nothing here goes to the AI, the office roster, or the readable export's
-     files; opened files stay in memory only until Staff Hub locks.
-   - Removing a file keeps it under "Removed" for 30 days, then it is deleted.
+   - Files are encrypted with a random AES-256 files key (S.paperKeys) that is
+     kept INSIDE the encrypted record, so it is protected by Staff Hub's own
+     key, and a password change (which re-encrypts the record) never strands a
+     file. Several keys can exist (two devices making one at once); each file
+     records which one (kid). The readable export leaves the keys out.
+   - Each file is split into pieces of at most 900 KB; every piece has a fresh
+     random IV and its place (file id, piece number, number of pieces) bound in
+     as additional data, so pieces can't be swapped, dropped, reordered or
+     borrowed from another file. Pieces: staffhub/<uid>/paper/<file id>_<i> —
+     owner-only under the existing rule for everything below the record.
+   - The list (S.paper: type, file name, size, SHA-256 of the original, key id)
+     is in the encrypted record. An entry is listed BEFORE its pieces are
+     written (marked "up" while uploading), so an interrupted upload is always
+     known and cleaned up; opening a file checks every piece and the SHA-256.
+   - Removed files stay under "Removed" for 30 days, then are deleted for good;
+     ids deleted for good are remembered (S.paperGone) so a merge with another
+     device can't bring an entry back. Restoring an earlier version or a backup
+     never rolls the paperwork list back. Erase all erases the files too.
+   - Nothing here goes to the AI or the office roster; opened files stay in
+     memory only until Staff Hub locks.
    ===================================================== */
 ICONS.paperclip = '<path d="M20.5 11.5 12 20a5.3 5.3 0 0 1-7.5-7.5l8.8-8.8a3.5 3.5 0 0 1 5 5l-8.8 8.8a1.8 1.8 0 0 1-2.5-2.5L15 7"/>';
 
 const PP_PIECE = 900 * 1024;              /* bytes of a file per Firestore doc: ciphertext + fields stay well under the 1 MiB cap */
 const PP_MAX = 25 * 1024 * 1024;          /* largest file */
 const PP_KEEP_DAYS = 30;                  /* a removed file can be put back for this long */
+const PP_UP_STALE = 60 * 60 * 1000;       /* an upload still marked unfinished after an hour was interrupted */
+const PP_PIECE_WAIT = 90 * 1000;          /* give up on a piece the server hasn't taken in this long */
 const PP_CACHE_MAX = 6;                   /* opened files kept in memory (until Lock) */
+const PP_GONE_MAX = 500;
 const PP_ACCEPT = 'application/pdf,.pdf,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif';
 const PP_IMG = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', webp:'image/webp', gif:'image/gif', heic:'image/heic', heif:'image/heif' };
+const PP_EXT = { 'application/pdf':'.pdf', 'image/jpeg':'.jpg', 'image/png':'.png', 'image/webp':'.webp', 'image/gif':'.gif', 'image/heic':'.heic', 'image/heif':'.heif' };
 const PP_OFF_TITLES = { w4:'Form W-4', i9:'Form I-9' };
 const PP_EXTRA = {
   resume:  { title:'Résumé', grp:'Hiring', sec:'hire' },
@@ -8147,8 +8173,8 @@ const PP_EXTRA = {
 const PP_SECS = [
   { id:'hire',  label:'Hiring & personnel' },
   { id:'pay',   label:'Payroll & tax' },
-  { id:'i9',    label:'I-9 & ID copies', sub:'kept apart from the personnel file' },
-  { id:'med',   label:'Medical', sub:'confidential, kept apart from the personnel file' },
+  { id:'i9',    label:'I-9 & ID copies', sub:'listed apart from the personnel forms' },
+  { id:'med',   label:'Medical', sub:'confidential, listed apart from the personnel forms' },
   { id:'other', label:'Other' }
 ];
 const PP_SEC_OF = { w4:'pay', deposit:'pay', paystub:'pay', payroll:'pay', bank:'pay', i9:'i9', idcopy:'i9', hepb:'med', medical:'med', other:'other' };
@@ -8169,13 +8195,27 @@ const PP_GUESS = [
 ];
 
 const ppCache = new Map();   /* file id -> decrypted Blob, only while unlocked */
-let ppUp = null;             /* the upload window: { ctx, items, busy } */
-let ppEd = null;             /* the "change type" window */
-let ppViewUrl = null, ppViewTok = 0, ppPurgeTimer = null, ppHot = null;
+const ppKeys = new Map();    /* key id -> imported files key, only while unlocked */
+let ppUp = null;             /* the upload window: { ctx, items, busy, stop } */
+let ppEd = null;             /* the "change" window */
+let ppViewUrl = null, ppViewTok = 0, ppPurgeTimer = null, ppHot = null, ppSess = 0, ppSweeping = false;
+const ppHex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
 
 /* ---------- the list (in the encrypted record) ---------- */
-const ppAll = () => (S && Array.isArray(S.paper)) ? S.paper.filter(f => f && typeof f === 'object' && typeof f.id === 'string') : [];
+const ppGone = () => new Set((S && Array.isArray(S.paperGone)) ? S.paperGone.filter(x => typeof x === 'string') : []);
+function ppAll() {
+  if (!S || !Array.isArray(S.paper)) return [];
+  const gone = ppGone();
+  return S.paper.filter(f => f && typeof f === 'object' && typeof f.id === 'string' && !gone.has(f.id));
+}
+const ppLive = () => ppAll().filter(f => !f.up);   /* everything but uploads still under way */
 const ppById = id => ppAll().find(f => f.id === id) || null;
+function ppDrop(ids) {   /* off the list for good (pieces already erased), remembered so a merge can't bring them back */
+  if (!S || !ids.length) return;
+  if (Array.isArray(S.paper)) S.paper = S.paper.filter(f => !f || ids.indexOf(f.id) < 0);
+  const g = Array.isArray(S.paperGone) ? S.paperGone.filter(x => typeof x === 'string' && ids.indexOf(x) < 0) : [];
+  S.paperGone = g.concat(ids).slice(-PP_GONE_MAX);
+}
 const ppHires = () => (S && S.nh && Array.isArray(S.nh.hires)) ? S.nh.hires.filter(h => h && h.id) : [];
 const ppHire = id => ppHires().find(h => h.id === id) || null;
 const ppHireOfStaff = sid => sid ? (ppHires().find(h => h.staffId === sid) || null) : null;
@@ -8191,10 +8231,11 @@ function ppCtxFrom(el) {
 /* a person's files: uploaded on their staff profile, or on their new-hire page (before or after it was linked) */
 function ppFilesFor(ctx, removed) {
   const hireSid = id => { const h = ppHire(id); return h ? (h.staffId || '') : ''; };
-  return ppAll().filter(f => !!f.removed === !!removed && (
+  return ppLive().filter(f => !!f.removed === !!removed && (
     (ctx.sid && (f.sid === ctx.sid || (!!f.hid && hireSid(f.hid) === ctx.sid))) ||
     (ctx.hid && f.hid === ctx.hid)));
 }
+const ppOwned = f => !!((f.sid && staffById(f.sid)) || (f.hid && ppHire(f.hid)));
 function ppWho(f) {
   const p = f.sid ? staffById(f.sid) : null; if (p) return p.name || '';
   const h = f.hid ? ppHire(f.hid) : null; if (h) { const q = h.staffId ? staffById(h.staffId) : null; return (q && q.name) || h.name || ''; }
@@ -8277,50 +8318,85 @@ function ppRefuse(file) {
   if (file.size > PP_MAX) return n + ' is ' + fmtBytes(file.size) + ', over the 25 MB limit — rescan it in black & white or at a lower resolution';
   return '';
 }
-const ppIsPdf = f => f && f.mime === 'application/pdf';
-const ppIsImg = f => f && Object.values(PP_IMG).indexOf(f.mime) >= 0;
+const ppIsPdf = f => !!f && f.mime === 'application/pdf';
+const ppIsImg = f => !!f && Object.values(PP_IMG).indexOf(f.mime) >= 0;
 const ppWhen = ts => { const d = new Date(ts || 0); return isNaN(d) || !ts ? '—' : d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); };
-function ppFileName(f) {
-  const ext = ((String(f.name || '').match(/\.[A-Za-z0-9]{1,5}$/) || [''])[0] || (ppIsPdf(f) ? '.pdf' : '.jpg')).toLowerCase();
+function ppFileName(f) {   /* the extension follows the checked type, never the original name */
   const base = [ppWho(f), ppLabel(f)].filter(Boolean).join(' - ').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
-  return (base || 'paperwork') + ext;
+  return (base || 'paperwork') + (PP_EXT[f.mime] || '.bin');
 }
-const ppNewId = () => 'pp' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(16).padStart(2, '0')).join('');
 async function ppSha(buf) { const h = await crypto.subtle.digest('SHA-256', buf); return Array.from(new Uint8Array(h), b => b.toString(16).padStart(2, '0')).join(''); }
 function ppErrText(e) {
   const s = String((e && (e.code || e.message)) || e || '');
   if (/permission/i.test(s)) return 'Firebase refused it (permission). Lock Staff Hub, sign in again and retry.';
-  if (/unavailable|network|offline|failed to fetch|deadline/i.test(s)) return 'No connection to the server. Check the internet and try again.';
+  if (/unavailable|network|offline|failed to fetch|deadline|in time/i.test(s)) return 'No connection to the server. Check the internet and try again.';
   return (e && e.message) || 'Something went wrong.';
+}
+function ppTimeout(p, ms) { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('The server didn’t answer in time.')), ms); })]).finally(() => clearTimeout(t)); }
+/* Staff Hub's record, after the change being made, must stay under Firestore's 1 MB per-record cap */
+function ppRoomFor(extraBytes) {
+  try { return new TextEncoder().encode(JSON.stringify(S)).length * 1.37 + (extraBytes || 0) * 1.37 + 4000 < 990000; } catch (e) { return true; }
+}
+
+/* ---------- the files keys (inside the encrypted record) ---------- */
+const ppKeyList = () => (S && Array.isArray(S.paperKeys)) ? S.paperKeys.filter(k => k && typeof k.id === 'string' && typeof k.k === 'string') : [];
+async function ppKeyOf(kid) {
+  if (ppKeys.has(kid)) return ppKeys.get(kid);
+  const e = ppKeyList().find(k => k.id === kid);
+  if (!e) return null;
+  const key = await crypto.subtle.importKey('raw', unb64(e.k), { name:'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  ppKeys.set(kid, key);
+  return key;
+}
+function ppKeyForNew() {
+  let L = ppKeyList();
+  if (!L.length) {
+    if (!Array.isArray(S.paperKeys)) S.paperKeys = [];
+    S.paperKeys.push({ id: 'pk' + ppHex(8), k: b64(crypto.getRandomValues(new Uint8Array(32))), at: Date.now() });
+    L = ppKeyList();
+  }
+  return L.slice().sort((a, b) => (a.at || 0) - (b.at || 0))[0].id;
+}
+/* save the record now and say whether it reached the server */
+async function ppSaveNow() {
+  for (let i = 0; i < 4; i++) {
+    let r;
+    try { r = await shSaveWhenFree(); } catch (e) { return false; }
+    if (r && (r.ok || r.adopt || r.noop)) return true;
+    if (!r || !r.busy) return false;
+  }
+  return false;
 }
 
 /* ---------- storage: encrypted pieces under staffhub/<uid>/paper ---------- */
 const ppCol = () => (fbUser && fbDB) ? fbDB.collection(FB_COLLECTION).doc(fbUser.uid).collection('paper') : null;
 const ppAad = (id, i, n) => new TextEncoder().encode('nlo-staff-hub/paper/v1/' + id + '/' + i + '/' + n);
-async function ppPut(id, buf, key, onPiece) {
-  const col = ppCol();
-  if (!col || !key || cryptoKey !== key) throw new Error('Staff Hub is locked. Sign in and try again.');
-  const n = Math.max(1, Math.ceil(buf.byteLength / PP_PIECE)), written = [];
+async function ppPut(f, buf, up, onPiece) {
+  const col = ppCol(), sess = ppSess, key = await ppKeyOf(f.kid);
+  if (!col || !key) throw new Error('Staff Hub is locked. Sign in and try again.');
+  const n = f.n, written = [];
   try {
     for (let i = 0; i < n; i++) {
-      if (cryptoKey !== key) throw new Error('Staff Hub locked during the upload.');
+      if (sess !== ppSess || !S) throw new Error('Staff Hub locked during the upload.');
+      if (up && up.stop) throw Object.assign(new Error('Stopped.'), { stopped: true });
       const part = new Uint8Array(buf, i * PP_PIECE, Math.min(PP_PIECE, buf.byteLength - i * PP_PIECE));
       const iv = crypto.getRandomValues(new Uint8Array(12));
-      const ct = new Uint8Array(await crypto.subtle.encrypt({ name:'AES-GCM', iv, additionalData: ppAad(id, i, n) }, key, part));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name:'AES-GCM', iv, additionalData: ppAad(f.id, i, n) }, key, part));
       written.push(i);
-      await col.doc(id + '_' + i).set({ app:'nlo-staff-hub', v:1, i, n, iv: b64(iv), ct: firebase.firestore.Blob.fromUint8Array(ct), at: Date.now() });
+      await ppTimeout(col.doc(f.id + '_' + i).set({ app:'nlo-staff-hub', v:1, i, n, iv: b64(iv), ct: firebase.firestore.Blob.fromUint8Array(ct), at: Date.now() }), PP_PIECE_WAIT);
       if (onPiece) onPiece(i + 1, n);
     }
   } catch (e) {
-    await Promise.all(written.map(i => col.doc(id + '_' + i).delete().catch(() => {})));
+    await Promise.all(written.map(i => col.doc(f.id + '_' + i).delete().catch(() => {})));
     throw e;
   }
-  return n;
 }
 async function ppGet(f) {
   if (ppCache.has(f.id)) return ppCache.get(f.id);
-  const col = ppCol(), key = cryptoKey;
-  if (!col || !key) throw new Error('Staff Hub is locked.');
+  const col = ppCol(), sess = ppSess;
+  if (!col || !S) throw new Error('Staff Hub is locked.');
+  const key = f.kid ? await ppKeyOf(f.kid) : cryptoKey;
+  if (!key) throw new Error('The key for this file isn’t in Staff Hub’s record, so it can’t be opened.');
   const n = f.n | 0;
   if (n < 1) throw new Error('This file has no stored copy.');
   const snaps = await Promise.all(Array.from({ length: n }, (_, i) => col.doc(f.id + '_' + i).get()));
@@ -8333,7 +8409,7 @@ async function ppGet(f) {
   }
   const blob = new Blob(parts, { type: ppIsPdf(f) || ppIsImg(f) ? f.mime : 'application/octet-stream' });
   if (f.sha && (await ppSha(await blob.arrayBuffer())) !== f.sha) throw new Error('This file didn’t pass its tamper check, so it won’t be opened.');
-  if (cryptoKey !== key) throw new Error('Staff Hub is locked.');
+  if (sess !== ppSess || !S) throw new Error('Staff Hub is locked.');
   ppCache.set(f.id, blob);
   while (ppCache.size > PP_CACHE_MAX) ppCache.delete(ppCache.keys().next().value);
   return blob;
@@ -8342,7 +8418,7 @@ async function ppErase(f) {   /* deletes the stored pieces for good */
   const col = ppCol();
   if (!col) throw new Error('Staff Hub is locked.');
   ppCache.delete(f.id);
-  await Promise.all(Array.from({ length: Math.max(1, f.n | 0) }, (_, i) => col.doc(f.id + '_' + i).delete()));
+  await Promise.all(Array.from({ length: Math.max(1, f.n | 0) }, (_, i) => ppTimeout(col.doc(f.id + '_' + i).delete(), PP_PIECE_WAIT)));
 }
 
 /* ---------- after an upload: mark the form returned on their new-hire record ---------- */
@@ -8357,33 +8433,80 @@ function ppMarkReturned(ctx, f) {
   return n;
 }
 
-/* ---------- lock: nothing opened stays behind ---------- */
+/* ---------- restore, erase, lock ---------- */
+/* Restoring an earlier version or a backup file never rolls the paperwork back: the files live outside the
+   record. The list as it is now wins; entries only the restored copy has come back to be checked (ppSweep
+   drops those whose files are gone); files keys are never lost. */
+function ppKeepOnRestore(next) {
+  if (!next || typeof next !== 'object' || !S) return;
+  const ok = f => f && typeof f === 'object' && typeof f.id === 'string';
+  const cp = x => JSON.parse(JSON.stringify(x));
+  const gone = new Set([].concat(Array.isArray(S.paperGone) ? S.paperGone : [], Array.isArray(next.paperGone) ? next.paperGone : []).filter(x => typeof x === 'string'));
+  const cur = Array.isArray(S.paper) ? S.paper.filter(ok) : [], had = new Set(cur.map(f => f.id));
+  const old = (Array.isArray(next.paper) ? next.paper.filter(ok) : []).filter(f => !had.has(f.id) && !gone.has(f.id));
+  next.paper = cur.map(cp).concat(old.map(f => Object.assign(cp(f), { chk: 1 })));
+  const keys = ppKeyList().map(cp), kids = new Set(keys.map(k => k.id));
+  (Array.isArray(next.paperKeys) ? next.paperKeys : []).forEach(k => { if (k && typeof k.id === 'string' && typeof k.k === 'string' && !kids.has(k.id)) { keys.push(cp(k)); kids.add(k.id); } });
+  next.paperKeys = keys;
+  next.paperGone = Array.from(gone).slice(-PP_GONE_MAX);
+}
+/* Erase all: every file's pieces (and anything else left in the folder), before the record goes */
+async function ppEraseAll() {
+  const col = ppCol(); if (!col) return false;
+  try {
+    for (const f of (S && Array.isArray(S.paper) ? S.paper.filter(x => x && typeof x.id === 'string') : [])) await ppErase(f);
+    for (let i = 0; i < 400; i++) {
+      const q = await ppTimeout(col.limit(5).get(), PP_PIECE_WAIT);
+      if (q.empty) break;
+      await Promise.all(q.docs.map(d => ppTimeout(d.ref.delete(), PP_PIECE_WAIT)));
+    }
+    return true;
+  } catch (e) { return false; }
+}
 function ppRevoke() { if (ppViewUrl) { try { URL.revokeObjectURL(ppViewUrl); } catch (e) {} ppViewUrl = null; } }
+function ppRevokeCert(all) {   /* the certificate viewer's unlocked copies */
+  const set = window.__shBlobUrls; if (!set) return;
+  Array.from(set).forEach(u => { if (all || !document.querySelector('[src="' + u + '"]')) { try { URL.revokeObjectURL(u); } catch (e) {} set.delete(u); } });
+}
 function ppWipe() {
-  ppCache.clear(); ppRevoke(); ppViewTok++;
+  ppSess++; ppCache.clear(); ppKeys.clear(); ppRevoke(); ppRevokeCert(true); ppViewTok++;
   ppUp = null; ppEd = null; ppHi(null);
   if (ppPurgeTimer) { clearTimeout(ppPurgeTimer); ppPurgeTimer = null; }
-  try { Object.keys(photoCache).forEach(k => { delete photoCache[k]; }); } catch (e) {}   /* certificate files opened this session, too */
+  /* certificate files opened or being edited this session, too */
+  try { Object.keys(photoCache).forEach(k => { delete photoCache[k]; }); } catch (e) {}
+  try { certPhotoBuf = null; certPhotoFullOrig = ''; certPhotoOrig = ''; } catch (e) {}
 }
-function ppAfterOpen() { if (ppPurgeTimer) clearTimeout(ppPurgeTimer); ppPurgeTimer = setTimeout(() => { ppPurgeTimer = null; ppPurgeOld(); }, 8000); }
-/* files removed more than 30 days ago are deleted for good */
-async function ppPurgeOld() {
-  if (!S || !cryptoKey || !fbUser) return 0;
-  const cut = Date.now() - PP_KEEP_DAYS * 864e5, key = cryptoKey;
-  const old = ppAll().filter(f => f.removed && f.removed < cut);
-  const gone = [];
-  for (const f of old) { try { await ppErase(f); gone.push(f.id); } catch (e) { break; } }
-  if (!gone.length || !S || cryptoKey !== key || !Array.isArray(S.paper)) return 0;
-  S.paper = S.paper.filter(f => !f || gone.indexOf(f.id) < 0);
-  act('Deleted ' + plural(gone.length, 'removed paperwork file') + ' for good (removed over ' + PP_KEEP_DAYS + ' days ago)');
+function ppAfterOpen() { if (ppPurgeTimer) clearTimeout(ppPurgeTimer); ppPurgeTimer = setTimeout(() => { ppPurgeTimer = null; ppSweep(); }, 8000); }
+/* A few seconds after sign-in (and after a restore): files removed over 30 days ago and uploads interrupted over an
+   hour ago are deleted for good; entries a restore brought back are kept only if their files are still there. */
+async function ppSweep() {
+  if (!S || !fbUser || ppSweeping) return 0;
+  ppSweeping = true;
+  const sess = ppSess, now = Date.now(), cut = now - PP_KEEP_DAYS * 864e5, col = ppCol();
+  const gone = [], kept = [];
+  try {
+    for (const f of ppAll()) {
+      if (sess !== ppSess) break;
+      try {
+        if ((f.removed && f.removed < cut) || (f.up && now - f.up > PP_UP_STALE)) { await ppErase(f); gone.push(f.id); }
+        else if (f.chk && col) {
+          const s = await ppTimeout(col.doc(f.id + '_0').get(), PP_PIECE_WAIT);
+          if (s.exists) kept.push(f.id); else gone.push(f.id);
+        }
+      } catch (e) { break; }
+    }
+  } finally { ppSweeping = false; }
+  if (sess !== ppSess || !S || (!gone.length && !kept.length)) return 0;
+  kept.forEach(id => { const f = ppById(id); if (f) delete f.chk; });
+  if (gone.length) { ppDrop(gone); act('Deleted ' + plural(gone.length, 'paperwork file') + ' for good (removed over ' + PP_KEEP_DAYS + ' days ago, an upload that didn’t finish, or no longer stored)'); }
   persist();
-  if (route.page === 'staffDetail' || route.page === 'newhire') render();
+  if (route.page === 'staffDetail' || route.page === 'newhire' || route.page === 'settings') render();
   return gone.length;
 }
-/* the viewer's unlocked copy goes as soon as its window closes */
+/* the viewers' unlocked copies go as soon as their window closes */
 (function () {
   const w = document.getElementById('modalWrap');
-  if (w && typeof MutationObserver === 'function') new MutationObserver(() => { if (ppViewUrl && !document.getElementById('ppViewer')) ppRevoke(); }).observe(w, { childList: true });
+  if (w && typeof MutationObserver === 'function') new MutationObserver(() => { if (ppViewUrl && !document.getElementById('ppViewer')) ppRevoke(); ppRevokeCert(false); }).observe(w, { childList: true });
 })();
 window.addEventListener('beforeunload', e => { if (ppUp && ppUp.busy) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -8395,7 +8518,7 @@ function ppRowHTML(f) {
     <div class="ppIc ${pdf ? 'pdf' : 'img'}" data-act="ppOpen" data-id="${f.id}" title="Open">${pdf ? 'PDF' : 'IMG'}</div>
     <div class="nhRowT"><b class="nhLink" data-act="ppOpen" data-id="${f.id}">${esc(ppLabel(f))}</b>${f.note ? ` <span class="muted">— ${esc(f.note)}</span>` : ''}
       <span class="tiny">${esc(f.name || '')} · ${fmtBytes(f.size || 0)} · added ${esc(ppWhen(f.added))}</span>${cov.length ? `<span class="ppCov" title="${esc(cov.join(' · '))}">Covers ${plural(cov.length, 'form')}: ${esc(covTxt)}</span>` : ''}</div>
-    <div class="nhRowA"><button class="btn-ghost btn-sm" data-act="ppOpen" data-id="${f.id}">${ic('eye', 13)} Open</button><button class="btn-ghost btn-sm" data-act="ppDownload" data-id="${f.id}" title="Download an unlocked copy">${ic('download', 13)}</button><button class="btn-ghost btn-sm" data-act="ppEdit" data-id="${f.id}" title="Change what it is">${ic('edit', 13)}</button><button class="btn-ghost btn-sm" data-act="ppRemove" data-id="${f.id}" title="Remove">${ic('trash', 13)}</button></div>
+    <div class="nhRowA"><button class="btn-ghost btn-sm" data-act="ppOpen" data-id="${f.id}">${ic('eye', 13)} Open</button><button class="btn-ghost btn-sm" data-act="ppDownload" data-id="${f.id}" title="Download an unlocked copy">${ic('download', 13)}</button><button class="btn-ghost btn-sm" data-act="ppEdit" data-id="${f.id}" title="Change what it is, or whose it is">${ic('edit', 13)}</button><button class="btn-ghost btn-sm" data-act="ppRemove" data-id="${f.id}" title="Remove">${ic('trash', 13)}</button></div>
   </div>`;
 }
 function ppListHTML(files) {
@@ -8404,8 +8527,8 @@ function ppListHTML(files) {
     return L.length ? `<div class="nhSubHd">${esc(s.label)}${s.sub ? `<span class="ppSecSub"> · ${esc(s.sub)}</span>` : ''}</div>` + L.map(ppRowHTML).join('') : '';
   }).join('');
 }
-function ppRemovedHTML(ctx) {
-  const gone = ppFilesFor(ctx, true).sort((a, b) => (b.removed || 0) - (a.removed || 0));
+function ppRemovedHTML(list) {
+  const gone = list.slice().sort((a, b) => (b.removed || 0) - (a.removed || 0));
   if (!gone.length) return '';
   return `<details class="ppGone"><summary>${ic('trash', 14)} Removed (${gone.length}) · deleted for good ${PP_KEEP_DAYS} days after removal</summary>${gone.map(f => `<div class="nhRow">
     <div class="ppIc sm ${ppIsPdf(f) ? 'pdf' : 'img'}">${ppIsPdf(f) ? 'PDF' : 'IMG'}</div>
@@ -8433,10 +8556,11 @@ function ppEssHTML(ctx) {
 }
 /* staff profile → Paperwork */
 function subPaper(p) {
-  const ctx = ppCtxStaff(p), files = ppFilesFor(ctx, false), gone = ppRemovedHTML(ctx);
+  const ctx = ppCtxStaff(p), files = ppFilesFor(ctx, false), gone = ppRemovedHTML(ppFilesFor(ctx, true));
+  const total = files.reduce((a, f) => a + (f.size || 0), 0);
   return `
   <div class="tlAdd ppBar">
-    <div class="ppBarT">${ic('lock', 18)}<span><b>Locked with your password.</b> Each file is encrypted on this computer before it’s uploaded, so Google only ever stores scrambled data. Paperwork never goes to the AI or to the other office apps.</span></div>
+    <div class="ppBarT">${ic('lock', 18)}<span><b>Locked with your password.</b> Each file is encrypted on this computer before it’s uploaded, so Google only ever stores scrambled data. Paperwork never goes to the AI or to the other office apps.${files.length ? ` <span class="muted">${plural(files.length, 'file')} · ${fmtBytes(total)}</span>` : ''}</span></div>
     <button class="btn btn-pri btn-sm" data-act="ppAdd" data-sid="${p.id}">${ic('upload', 13)} Add paperwork</button>
   </div>
   ${ppEssHTML(ctx)}
@@ -8445,7 +8569,7 @@ function subPaper(p) {
 }
 /* new-hire page → Signed paperwork */
 function ppHirePanelHTML(h) {
-  const ctx = ppCtxHire(h), files = ppFilesFor(ctx, false), gone = ppRemovedHTML(ctx);
+  const ctx = ppCtxHire(h), files = ppFilesFor(ctx, false), gone = ppRemovedHTML(ppFilesFor(ctx, true));
   const body = (files.length ? ppListHTML(files) : `<div class="pb">${ppDropHTML(ctx, false)}</div>`) + (gone ? `<div class="pb">${gone}</div>` : '');
   return `<div class="ppHire" data-ppzone="1" data-hid="${h.id}">${panelHTML('Signed paperwork', files.length ? plural(files.length, 'file') : null, body,
     `<button class="btn btn-sec btn-sm" data-act="ppAdd" data-hid="${h.id}">${ic('upload', 13)} Upload</button>`, 'lock')}</div>`;
@@ -8458,12 +8582,21 @@ function ppRowBtn(h, kind) {
     : `<button class="btn-ghost btn-sm" data-act="ppAdd" data-hid="${h.id}" data-k="${esc(kind)}" title="Upload the signed copy">${ic('paperclip', 13)} Attach</button>`;
 }
 const ppCountFor = p => ppFilesFor(ppCtxStaff(p), false).length;
+/* Settings: files whose person is no longer in Staff Hub (e.g. an onboarding record deleted on another device) */
+function ppUnfiledHTML() {
+  const L = ppLive().filter(f => !ppOwned(f));
+  if (!L.length) return '';
+  const live = L.filter(f => !f.removed), gone = ppRemovedHTML(L.filter(f => f.removed));
+  return `<div class="panel" style="margin-bottom:18px"><div class="ph"><h3>${ic('lock', 16)}Paperwork not attached to anyone</h3><span class="cnt">${L.length}</span></div><div class="pb flush">
+    <div class="pb"><p class="muted">These files’ person is no longer in Staff Hub. Use the pencil to give each one to someone, or remove it.</p></div>
+    ${live.length ? ppListHTML(live) : ''}${gone ? `<div class="pb">${gone}</div>` : ''}</div></div>`;
+}
 
 /* ---------- the upload window ---------- */
 function ppUploadModal(ctx, files, kind) {
   if (!S || !cryptoKey || !ctx) return;
   if (ppUp && ppUp.busy) { toast('An upload is still running — wait for it to finish', true); return; }
-  ppUp = { ctx, items: [], busy: false, preset: (kind && ppTypeOk(kind)) ? kind : '' };
+  ppUp = { ctx, items: [], busy: false, stop: false, preset: (kind && ppTypeOk(kind)) ? kind : '' };
   openModal(`<div class="mh"><h3>Add paperwork — ${esc(ctx.who)}</h3><button class="x" data-act="ppCancel">✕</button></div>
   <div class="mb">
     <div class="ppSafe">${ic('lock', 15)}<span>Each file is locked with your Staff Hub password <b>on this computer</b> before it’s uploaded. Google only stores scrambled data, and only you can open it, signed in to Staff Hub.</span></div>
@@ -8524,7 +8657,7 @@ H.ppMultiAll = t => {
 };
 H.ppDropItem = t => { if (!ppUp || ppUp.busy) return; ppNotesIn(); ppUp.items = ppUp.items.filter(it => it.key !== t.dataset.key); ppListRender(); };
 H.ppCancel = () => {
-  if (ppUp && ppUp.busy) { toast('Still uploading — wait a moment', true); return; }
+  if (ppUp && ppUp.busy) { ppUp.stop = true; const el = $('#ppStat'); if (el) el.textContent = 'Stopping after this part…'; return; }
   ppUp = null; closeModal();
 };
 async function ppGo() {
@@ -8533,54 +8666,71 @@ async function ppGo() {
   ppNotesIn();
   const noForms = up.items.find(it => it.kind === 'multi' && !it.kinds.length);
   if (noForms) { toast('Tick which forms are in ' + noForms.file.name, true); return; }
-  const key = cryptoKey, ctx = up.ctx;
-  if (!S || !key) return;
-  up.busy = true;
+  const ctx = up.ctx, sess = ppSess;
+  if (!S) return;
+  up.busy = true; up.stop = false;
   $$('#ppList select, #ppList input, #ppList button, #ppPick, #ppGo').forEach(el => { el.disabled = true; });
-  const stat = t => { const el = $('#ppStat'); if (el) el.textContent = t; };
-  const items = up.items.slice(), N = items.length;
-  let added = 0, err = '';
+  const stat = t => { const el = $('#ppStat'); if (el && !up.stop) el.textContent = t; };
+  const items = up.items.slice(), N = items.length, locked = () => !S || sess !== ppSess;
+  let added = 0, err = '', stopped = false;
   const skipped = [];
   for (let x = 0; x < N; x++) {
     const it = items[x];
-    if (!S || cryptoKey !== key || ppUp !== up) { err = 'Staff Hub locked before everything was uploaded.'; break; }
+    if (locked()) { err = 'Staff Hub locked before everything was uploaded.'; break; }
+    if (up.stop) { stopped = true; break; }
+    let f = null;
     try {
       stat('Locking ' + (x + 1) + ' of ' + N + '…');
       const buf = await it.file.arrayBuffer();
       if (!buf.byteLength) throw new Error(it.file.name + ' is empty.');
       const sha = await ppSha(buf);
-      if (!S || cryptoKey !== key) { err = 'Staff Hub locked before everything was uploaded.'; break; }
-      if (ppFilesFor(ctx, false).some(f => f.sha === sha)) { skipped.push(it.file.name); it.done = true; continue; }
-      const id = ppNewId();
-      const n = await ppPut(id, buf, key, (i, m) => stat('Uploading ' + (x + 1) + ' of ' + N + (m > 1 ? ' (part ' + i + ' of ' + m + ')' : '') + '…'));
-      if (!S || cryptoKey !== key) { err = 'Staff Hub locked before everything was uploaded.'; break; }
-      const f = { id, sid: ctx.sid || '', hid: ctx.hid || '', kind: it.kind, name: String(it.file.name || 'file').slice(0, 160), mime: ppMime(it.file), size: buf.byteLength, n, sha, added: Date.now(), removed: 0 };
+      if (locked()) { err = 'Staff Hub locked before everything was uploaded.'; break; }
+      if (ppFilesFor(ctx, false).some(g => g.sha === sha)) { skipped.push(it.file.name); it.done = true; continue; }
+      if (!ppRoomFor(800)) throw new Error('Staff Hub’s record is nearly full (Firestore’s 1 MB limit), so no more files can be listed. Remove old notes or certificate photos first.');
+      /* listed first (marked as uploading) and saved, so a file can never sit on the server unlisted */
+      f = { id: 'pp' + ppHex(10), sid: ctx.sid || '', hid: ctx.hid || '', kind: it.kind, name: String(it.file.name || 'file').slice(0, 160), mime: ppMime(it.file),
+        size: buf.byteLength, n: Math.max(1, Math.ceil(buf.byteLength / PP_PIECE)), sha, kid: ppKeyForNew(), added: Date.now(), removed: 0, up: Date.now() };
       if (it.kind === 'multi') f.kinds = it.kinds.filter(k => ppTypeOk(k) && k !== 'multi').slice(0, 40);
       if (it.note) f.note = it.note;
       if (!Array.isArray(S.paper)) S.paper = [];
       S.paper.push(f);
-      ppMarkReturned(ctx, f);
-      act('Added ' + ppLabel(f) + ' to ' + ctx.who + '’s paperwork');
       persist();
-      added++; it.done = true;
-    } catch (e) { err = it.file.name + ': ' + ppErrText(e); break; }
+      stat('Saving the list…');
+      if (!(await ppSaveNow())) throw new Error('Couldn’t reach the server to save the list.');
+      await ppPut(f, buf, up, (i, m) => stat('Uploading ' + (x + 1) + ' of ' + N + (m > 1 ? ' (part ' + i + ' of ' + m + ')' : '') + '…'));
+      if (locked()) { err = 'Staff Hub locked before everything was uploaded.'; break; }
+      const cur = ppById(f.id); if (!cur) throw new Error('The list changed during the upload.');
+      cur.up = 0;
+      ppMarkReturned(ctx, cur);
+      act('Added ' + ppLabel(cur) + ' to ' + ctx.who + '’s paperwork');
+      persist();
+      added++; it.done = true; f = null;
+    } catch (e) {
+      /* ppPut already tried to delete what it wrote; the entry stays hidden as an unfinished upload, so the
+         clean-up below (or at a later sign-in) erases anything left on the server and then drops it */
+      if (f && !locked()) { const cur = ppById(f.id); if (cur) { cur.up = 1; persist(); } setTimeout(() => { ppSweep(); }, 3000); }
+      if (e && e.stopped) stopped = true; else err = it.file.name + ': ' + ppErrText(e);
+      break;
+    }
   }
+  const saved = !locked() && (added ? await ppSaveNow() : true);
   up.busy = false;
   const mine = ppUp === up && !!$('#ppList');
-  const msg = (added ? plural(added, 'file') + ' added to ' + ctx.who + '’s paperwork, locked with your password' : '') +
+  const msg = (added ? plural(added, 'file') + ' added to ' + ctx.who + '’s paperwork, locked with your password' + (saved ? '' : ' — the list is still saving: keep Staff Hub open until it says Synced') : '') +
     (skipped.length ? (added ? '. ' : '') + 'Already on file, skipped: ' + skipped.join(', ') : '');
-  if (err && mine) {
-    up.items = up.items.filter(it => !it.done);
+  if ((err || stopped) && mine && !locked()) {
+    up.items = up.items.filter(it => !it.done); up.stop = false;
     $$('#ppPick, #ppGo').forEach(el => { el.disabled = false; });
-    ppListRender(); stat('');
-    toast((msg ? msg + '. ' : '') + 'Couldn’t upload ' + err + ' Try the rest again.', true, 12000);
-    if (added) render();
+    ppListRender(); const st = $('#ppStat'); if (st) st.textContent = stopped ? 'Stopped. The rest weren’t uploaded.' : '';
+    if (err) toast((msg ? msg + '. ' : '') + 'Couldn’t upload ' + err + ' Try the rest again.', true, 12000);
+    else if (msg) toast(msg, false, 7000);
+    if (added || skipped.length) render();
     return;
   }
   if (mine) { ppUp = null; closeModal(); }
   if (S) render();
   if (err) toast((msg ? msg + '. ' : '') + err, true, 12000);
-  else if (msg) toast(msg, !added, 6000);
+  else if (msg) toast(msg, !added || !saved, saved ? 6000 : 12000);
 }
 
 /* ---------- open, download, change, remove ---------- */
@@ -8618,17 +8768,31 @@ H.ppDownload = async t => {
   persist();
   toast('Downloaded an unlocked copy. Delete it from Downloads when you’re done.', false, 7000);
 };
+/* whose paperwork: staff (current, then former) and new hires not on the roster yet */
+function ppWhoOptions(f) {
+  const sel = f.sid && staffById(f.sid) ? 's:' + f.sid : (f.hid && ppHire(f.hid) ? (ppHire(f.hid).staffId && staffById(ppHire(f.hid).staffId) ? 's:' + ppHire(f.hid).staffId : 'h:' + f.hid) : '');
+  const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
+  const cur = S.staff.filter(p => p && p.status !== 'former').sort(byName), old = S.staff.filter(p => p && p.status === 'former').sort(byName);
+  const hires = ppHires().filter(h => !h.staffId || !staffById(h.staffId)).sort(byName);
+  const opt = (v, l) => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(l)}</option>`;
+  return (sel ? '' : '<option value="" selected>— Choose someone —</option>') +
+    (cur.length ? `<optgroup label="Staff">${cur.map(p => opt('s:' + p.id, p.name)).join('')}</optgroup>` : '') +
+    (hires.length ? `<optgroup label="New hires (not on the roster yet)">${hires.map(h => opt('h:' + h.id, h.name)).join('')}</optgroup>` : '') +
+    (old.length ? `<optgroup label="Former staff">${old.map(p => opt('s:' + p.id, p.name)).join('')}</optgroup>` : '');
+}
 H.ppEdit = t => {
   const f = ppById(t.dataset.id); if (!f) return;
-  ppEd = { id: f.id, kind: f.kind, kinds: ppKinds(f).filter(k => f.kind === 'multi' && k) };
+  ppEd = { id: f.id, kind: f.kind, kinds: f.kind === 'multi' ? ppKinds(f).slice() : [] };
   const h = (f.hid && ppHire(f.hid)) || ppHireOfStaff(f.sid);
   const draw = () => {
     const box = $('#ppEdBody'); if (!box || !ppEd) return;
-    const note = $('#ppEdNote') ? $('#ppEdNote').value : (f.note || '');
-    box.innerHTML = `<div class="field"><label>What is it?</label><select id="ppEdKind">${ppTypeOptions(ppEd.kind)}</select></div>
+    const note = $('#ppEdNote') ? $('#ppEdNote').value : (f.note || ''), whoV = $('#ppEdWho') ? $('#ppEdWho').value : null;
+    box.innerHTML = `<div class="field"><label>Whose paperwork</label><select id="ppEdWho">${ppWhoOptions(f)}</select></div>
+      <div class="field"><label>What is it?</label><select id="ppEdKind">${ppTypeOptions(ppEd.kind)}</select></div>
       ${ppEd.kind === 'multi' ? ppMultiHTML(ppEd.kinds, 'edit', h) : ''}
       <div class="field" style="margin-top:12px"><label>Note <span class="tiny">(optional)</span></label><input type="text" id="ppEdNote" maxlength="120" value="${esc(note)}"></div>
       <div class="tiny">File: ${esc(f.name || '')} · ${fmtBytes(f.size || 0)} · added ${esc(ppWhen(f.added))}</div>`;
+    if (whoV !== null) $('#ppEdWho').value = whoV;
     $('#ppEdKind').onchange = e => { ppEd.kind = e.target.value; draw(); };
   };
   openModal(`<div class="mh"><h3>Change ${esc(ppLabel(f))}</h3><button class="x" data-act="closeModal">✕</button></div>
@@ -8638,6 +8802,10 @@ H.ppEdit = t => {
   $('#ppEdSave').onclick = () => {
     const cur = ppById(f.id); if (!cur || !ppEd) { closeModal(); return; }
     if (ppEd.kind === 'multi' && !ppEd.kinds.length) { toast('Tick which forms are in this scan', true); return; }
+    const w = String(($('#ppEdWho') || {}).value || '');
+    if (!w) { toast('Choose whose paperwork it is', true); return; }
+    if (w.slice(0, 2) === 's:' && staffById(w.slice(2))) { const hh = ppHireOfStaff(w.slice(2)); cur.sid = w.slice(2); cur.hid = hh ? hh.id : ''; }
+    else if (w.slice(0, 2) === 'h:' && ppHire(w.slice(2))) { cur.hid = w.slice(2); cur.sid = ppHire(w.slice(2)).staffId || ''; }
     cur.kind = ppEd.kind;
     if (ppEd.kind === 'multi') cur.kinds = ppEd.kinds.filter(k => ppTypeOk(k) && k !== 'multi').slice(0, 40); else delete cur.kinds;
     const note = String(($('#ppEdNote') || {}).value || '').trim().slice(0, 120);
@@ -8667,8 +8835,8 @@ H.ppPurge = t => {
   confirmModal('Delete ' + ppLabel(f) + ' for good?', 'The file is erased from Staff Hub’s storage now. This can’t be undone.', async () => {
     const cur = ppById(f.id); if (!cur) return;
     try { await ppErase(cur); } catch (e) { toast('Couldn’t delete it — ' + ppErrText(e), true); return; }
-    if (!S || !Array.isArray(S.paper)) return;
-    S.paper = S.paper.filter(x => !x || x.id !== cur.id);
+    if (!S) return;
+    ppDrop([cur.id]);
     act('Deleted ' + ppLabel(cur) + ' for good (' + (ppWho(cur) || 'paperwork') + ')');
     persist(); render(); toast('Deleted for good');
   });
