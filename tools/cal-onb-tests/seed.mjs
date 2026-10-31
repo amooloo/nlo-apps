@@ -86,7 +86,8 @@ export function onboardingData(now = Date.now()) {
     },
     people: {
       s_nora: { plan: { tracks: { core: true, clinic: true }, start, lead: 's_gwen', status: 'active', name: 'Nora Newman', title: 'Orthodontic Assistant', assignedAt: now - 9 * DAY, assignedBy: 's_amir', updatedAt: now - 9 * DAY, updatedBy: 's_amir' },
-        progress: { 'core-welcome': { 'l-read1': { opened: now - 7 * DAY, done: now - 7 * DAY, by: 's_nora' } }, 'clinic-steri': { 'l-skill1': { opened: now - 2 * DAY, ready: now - DAY } } },
+        /* (l-task1's steps ticked out of order: the old database hands {0, 2} back as a list with a hole — Brandi's record, 31 Oct) */
+        progress: { 'core-welcome': { 'l-read1': { opened: now - 7 * DAY, done: now - 7 * DAY, by: 's_nora' } }, 'clinic-steri': { 'l-task1': { opened: now - 3 * DAY, checks: { 0: true, 2: true } }, 'l-skill1': { opened: now - 2 * DAY, ready: now - DAY } } },
         signoffs: {},
         log: { '-Nx000000000000000a1': { at: now - 7 * DAY, t: 'done', m: 'core-welcome', l: 'l-read1', by: 's_nora' }, '-Nx000000000000000a2': { at: now - DAY, t: 'ready', m: 'clinic-steri', l: 'l-skill1', by: 's_nora' } } }
     },

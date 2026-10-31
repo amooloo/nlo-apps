@@ -137,6 +137,8 @@ await same('onb', [
   ['a lesson done (deep update)', `d.ref('${O('people', 's_nora', 'progress', 'core-welcome', 'l-read1')}').update({ done: 3, by: 's_nora' })`],
   ['a quiz score', `d.ref('${O('people', 's_nora', 'progress', 'core-welcome', 'l-quiz1')}').set({ opened: 4, done: 5, score: 100, tries: 1, by: 's_nora' })`],
   ['a skill ready for sign-off', `d.ref('${O('people', 's_nora', 'progress', 'clinic-steri', 'l-skill1')}').set({ opened: 6, ready: 7 })`],
+  ['checklist steps ticked out of order (a list with a hole)', `d.ref('${O('people', 's_nora', 'progress', 'clinic-steri', 'l-task1', 'checks', '2')}').set(true)`],
+  ['…and the first one', `d.ref('${O('people', 's_nora', 'progress', 'clinic-steri', 'l-task1', 'checks', '0')}').set(true)`],
   ['a log line (a push key)', `d.ref('${O('people', 's_nora', 'log', '-Nx000000000000000a9')}').set({ at: 8, t: 'done', m: 'core-welcome', l: 'l-read1', by: 's_nora' })`],
   ['a sign-off', `d.ref('${O('people', 's_nora', 'signoffs', 'clinic-steri', 'l-skill1')}').set({ at: 9, by: 's_gwen', byName: 'Gwen Rodis', note: 'Great job', criteria: [true, true] })`],
   ['…and the skill done', `d.ref('${O('people', 's_nora', 'progress', 'clinic-steri', 'l-skill1')}').update({ done: 9, ready: null })`],
@@ -242,6 +244,7 @@ await E.fsSet('nlo-cases', 'calState/config', { editors: ['gwen'], _up: new Date
   ok(r.ros && r.ros.people.s_gwen.title === 'Lead Orthodontic Assistant' && r.ros.updatedAt === 1761990000000, 'a roster already on the NLO Cases system (Staff Hub’s) is left alone — not written over with the old copy');
   ok(r.people && r.people.s_gwen.title === 'Lead Orthodontic Assistant', '…and that is what the page reads');
   ok(r.nora && r.nora.plan && r.nora.plan.lead === 's_gwen' && r.nora.progress['clinic-steri']['l-skill1'].ready && Object.keys(r.nora.log).length === 2 && !('pins' in r.nora), 'a person’s record: plan, progress, log (pins, keys and devices left behind)');
+  ok(r.nora && JSON.stringify(r.nora.progress['clinic-steri']['l-task1'].checks) === '[true,null,true]', 'checklist steps ticked out of order (the old database’s list with a hole) move as [true, null, true] — Brandi’s record, 31 Oct');
   ok(await p.evaluate(async () => { const o = await NLOO.readOld(rt); return !('nlo/onboarding/pins' in o) && !('nlo/onboarding/keys' in o) && !('nlo/onboarding/devices' in o); }), 'the move doesn’t read the PINs, phone links or devices at all');
   await E.fsSet('nlo-cases', 'hubRoster/live', E.ROSTER);
 }

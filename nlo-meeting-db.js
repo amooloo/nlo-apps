@@ -38,11 +38,14 @@
   const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 
   /* ---------- values the old database's way ---------- */
-  /* written: no nulls / undefined inside, an empty object is nothing, no list directly inside a list (Firestore can't) */
+  /* written: no nulls / undefined inside, an empty object is nothing, no list directly inside a list (Firestore can't).
+     A list with holes (the old database gives {0: a, 2: b} back as a sparse array — a checklist ticked out of order) is
+     walked index by index: a hole becomes null, never undefined (Firestore refuses undefined; 31 Oct 2026, Brandi's
+     record stopped Onboarding's move). */
   function clean(v, inList) {
     if (v === undefined || v === null) return null;
     if (Array.isArray(v)) {
-      const a = v.map(x => { const c = clean(x, true); return c === null ? null : c; });
+      const a = []; for (let i = 0; i < v.length; i++) { const c = clean(v[i], true); a.push(c === null ? null : c); }
       if (inList) { const o = {}; a.forEach((x, i) => { if (x !== null) o[i] = x; }); return Object.keys(o).length ? o : null; }
       return a.length ? a : null;
     }
@@ -59,7 +62,7 @@
   function plain(v, top, stampKeys) {
     const skip = stampKeys || STAMPS;
     if (v === null || v === undefined) return null;
-    if (Array.isArray(v)) return v.map(x => plain(x, false));
+    if (Array.isArray(v)) { const a = []; for (let i = 0; i < v.length; i++) a.push(plain(v[i], false)); return a; }
     if (typeof v === 'object') {
       if (typeof v.toMillis === 'function') return v.toMillis();
       const keys = Object.keys(v).filter(k => !(top && skip.indexOf(k) >= 0));
@@ -75,7 +78,7 @@
   }
   function getIn(v, fp) { for (let i = 0; i < fp.length; i++) { if (!v || typeof v !== 'object') return null; v = v[fp[i]]; } return v === undefined ? null : v; }
   function setIn(o, fp, val) { let c = o; for (let i = 0; i < fp.length - 1; i++) { if (!isObj(c[fp[i]])) c[fp[i]] = {}; c = c[fp[i]]; } c[fp[fp.length - 1]] = val; }
-  function canon(v) { if (Array.isArray(v)) return v.map(canon); if (isObj(v)) { const o = {}; Object.keys(v).sort().forEach(k => { o[k] = canon(v[k]); }); return o; } return v; }
+  function canon(v) { if (Array.isArray(v)) { const a = []; for (let i = 0; i < v.length; i++) a.push(canon(v[i] === undefined ? null : v[i])); return a; } if (isObj(v)) { const o = {}; Object.keys(v).sort().forEach(k => { o[k] = canon(v[k]); }); return o; } return v; }
   const sizeOf = o => new Blob([JSON.stringify(o)]).size;
   const fpr = v => JSON.stringify(canon(plain(clean(v, false), false)));
   function stripStamps(d, keys) { const o = Object.assign({}, d); (keys || STAMPS).forEach(k => delete o[k]); return o; }
