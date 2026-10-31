@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-xm8N8Ui4Aszk0GMcHbeUKoY0nSXvn9lnYrBVRYYl1gA=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-GOuNYWs55VfhwIuE2XPd9HcfjJvyMof8AYDYpgKfLhc=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Time Off</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -659,6 +659,98 @@ label.chk input{width:17px;height:17px;accent-color:var(--navy)}
 .field .chkList label{display:flex;align-items:center;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:13.5px;font-weight:600;color:var(--grey-700);margin:0;padding:8px 8px}
 .seg [aria-pressed="true"] .swatch{box-shadow:0 0 0 2px #fff}
 
+/* =====================================================================
+   Forms (formsui.js)
+   ===================================================================== */
+.fmTiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-bottom:4px}
+.fmTile{display:flex;align-items:flex-start;gap:10px;border:1.5px solid var(--grey-200);border-radius:12px;padding:11px 12px;text-align:left;background:#fff;min-height:72px;min-width:0}
+.fmTile:hover{border-color:var(--navy-500);box-shadow:var(--sh-sm)}
+.fmTile>.i{color:var(--navy-600);margin-top:1px}
+.fmTile b{display:block;color:var(--navy);font-size:13.5px;line-height:1.3}
+.fmTile small{display:block;font-size:11.5px;color:var(--grey-500);line-height:1.35;margin-top:3px}
+.fmTile .sug{flex:none}
+.fmWrap{max-width:840px}
+.fmHd{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 12px}
+.fmHd>.i{color:var(--navy-600);margin-top:3px}
+.fmHd h3{font-family:var(--fd);font-weight:600;font-size:18px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy);line-height:1.25}
+.fmPart{font-family:var(--fd);font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:18px 0 12px;padding-top:14px;border-top:1px solid var(--grey-100)}
+.fmPart:first-child{margin-top:0;padding-top:0;border-top:0}
+.fmPart.office{color:var(--blue-700)}
+.fmPart .opt{font-size:11.5px}
+.fmSay{font-size:13px;color:var(--grey-700);background:var(--grey-50);border-radius:10px;padding:9px 12px;margin:0 0 14px;line-height:1.5}
+label.chk.fmAgree{display:flex;align-items:flex-start;gap:9px;margin:12px 0 4px;padding:10px 12px;border-radius:10px;background:var(--mint-100);font-weight:600;line-height:1.4}
+label.chk.fmAgree input{margin-top:1px;flex:none}
+.fmSig{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:10px;color:var(--mint-700)}
+.fmSig .i{margin-top:2px}
+.fmSig b{color:var(--navy)}
+.fmFt{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 20px 16px;border-top:1px solid var(--grey-100)}
+.fmVal{margin-bottom:12px;min-width:0}
+.fmV{font-weight:600;color:var(--navy);overflow-wrap:anywhere}
+.inMoney{display:flex;align-items:center;gap:6px}
+.inMoney>span{font-weight:700;color:var(--grey-500)}
+.inMoney input{flex:1;min-width:0}
+.fmDates{display:flex;flex-direction:column;gap:6px;max-width:320px;align-items:flex-start}
+.fmDates .inRow{width:100%}
+.tbl.fmPay td,.tbl.fmPay th{padding:6px 8px}
+.tbl.fmPay input{min-height:36px;padding:6px 8px}
+.tbl.fmPay .iconBtn,.fmDates .iconBtn{width:34px;height:34px}
+.field label.chk{display:flex;align-items:flex-start;gap:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:13.5px;font-weight:600;color:var(--navy)}
+.field label.chk input{margin-top:2px;flex:none}
+@media (max-width:860px){ .fmTiles{grid-template-columns:minmax(0,1fr)} .fmHd{padding:16px 16px 10px} .fmFt{padding:12px 16px 16px} }
+/* the payments table on a phone: each payment on one line, what's still owed after it underneath */
+@media (max-width:560px){
+  .tbl.fmPay thead{display:none}
+  .tbl.fmPay,.tbl.fmPay tbody{display:block}
+  .tbl.fmPay tr{display:grid;grid-template-columns:18px minmax(0,1fr) 100px 36px;gap:4px 8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--grey-100)}
+  .tbl.fmPay td{padding:0;border:0;min-width:0}
+  .tbl.fmPay td:nth-child(1){grid-column:1;grid-row:1}
+  .tbl.fmPay td:nth-child(2){grid-column:2;grid-row:1}
+  .tbl.fmPay td:nth-child(3){grid-column:3;grid-row:1}
+  .tbl.fmPay td[data-left]{grid-column:2/4;grid-row:2;text-align:left;font-size:12px;color:var(--grey-500)}
+  .tbl.fmPay td[data-left]::before{content:'Still owed after it: '}
+  .tbl.fmPay td:nth-child(5){grid-column:4;grid-row:1}
+  .tbl.fmPay input{width:100%}
+}
+
+/* ---------- the printout (Print → Save as PDF) ---------- */
+#printDoc{display:none}
+@media print{
+  @page{size:letter;margin:.55in .6in}
+  body.printing{background:#fff}
+  body.printing>*:not(#printDoc){display:none !important}
+  body.printing #printDoc{display:block}
+}
+.pDoc{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:10.5pt;line-height:1.38}
+.pTop{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:14px}
+.pTop b{display:block;font-size:11pt;letter-spacing:.06em}
+.pTop span{font-size:8.5pt}
+.pRef{font-size:8.5pt;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+.pTitle{text-align:center;font-size:14pt;font-weight:700;margin:6px 0 16px;letter-spacing:.02em}
+.pRow{display:flex;gap:18px}
+.pF{display:flex;align-items:flex-end;gap:6px;margin:0 0 10px;flex:1 1 0;min-width:0}
+.pF.w{flex:2 1 0}
+.pL{white-space:nowrap}
+.pV{flex:1;min-width:0;border-bottom:1px solid #000;min-height:1.35em;padding:0 4px 1px;font-weight:600;overflow-wrap:anywhere}
+.pSec{font-weight:700;font-size:11pt;margin:16px 0 8px;padding-top:6px;border-top:1.5px solid #000}
+.pArea{margin:0 0 12px}
+.pText{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #000;min-height:4em;padding:4px 6px;margin-top:3px;font-weight:600}
+.pChk{margin:0 0 10px}
+.pOpt{display:inline-block;margin-right:14px;white-space:nowrap}
+.pOptL{margin:4px 0 4px 6px}
+.pBox{display:inline-block;width:11px;height:11px;border:1px solid #000;text-align:center;line-height:10px;font-size:9pt;font-weight:700;vertical-align:-1px}
+.pSay{margin:0 0 10px}
+.pSig{display:flex;gap:18px;margin-top:20px}
+.pCc{font-size:9pt;font-style:italic;margin-top:6px}
+.pFoot{margin-top:22px;padding-top:6px;border-top:1px solid #000;font-size:8pt;color:#333}
+.pBlank{border-bottom:1px solid #000;height:1.5em}
+.pItem{margin:0 0 12px;break-inside:avoid}
+.pNote{border:1px solid #000;padding:6px 8px;font-size:9.5pt;margin:0 0 10px}
+.pList{margin:0 0 10px 18px} .pList li{margin:0 0 8px}
+.pBreak{break-before:page;page-break-before:always}
+.pDoc .tblWrap{overflow:visible}
+.pDoc .tbl{font-size:9.5pt;margin-top:4px}
+.pDoc .tbl th,.pDoc .tbl td{border:1px solid #000;padding:3px 6px;color:#000;font-family:inherit;letter-spacing:0;text-transform:none;font-size:9.5pt}
+
 </style>
 </head>
 <body>
@@ -1279,8 +1371,9 @@ function scrubsLeft(perYear, perks, sid, year) { return Math.max(0, (perYear || 
 function scrubLabel(list, k) { const x = list.find(p => p[0] === k); return x ? x[1] : k; }
 /* "Navy · top and bottom · M · petite" */
 function scrubItemText(it) { return [scrubLabel(SCRUB_COLORS, it.color), scrubLabel(SCRUB_PIECES, it.piece).toLowerCase(), it.size, it.petite ? 'petite' : ''].filter(Boolean).join(' · '); }
-/* a scrubs request's sealed content, checked before it's shown or saved */
-function okPerk(c) {
+/* a scrubs request's — or a form's (forms.js) — sealed content, checked before it's shown or saved */
+function okPerk(c, loose) { return !!c && typeof c === 'object' && (c.kind === 'form' ? typeof okForm === 'function' && okForm(c, loose) : okScrubs(c)); } // loose: reading (a form saved by a newer copy still opens)
+function okScrubs(c) {
   return !!c && typeof c === 'object' && c.kind === 'scrubs' && Array.isArray(c.items) && c.items.length >= 1 && c.items.length <= 10 && c.pairs === c.items.length
     && c.items.every(it => it && typeof it === 'object' && SCRUB_COLORS.some(x => x[0] === it.color) && SCRUB_PIECES.some(x => x[0] === it.piece) && SCRUB_SIZES.includes(it.size) && typeof it.petite === 'boolean')
     && typeof c.reason === 'string' && c.reason.length <= 1000 && (c.events == null || Array.isArray(c.events));
@@ -1327,6 +1420,408 @@ function oldScriptHours(start, end, hoursStr) {
 }
 /* the old script's tiers (BenefitsSync.tierFor_): 1 and 3 years, not the handbook's 2 and 5 */
 function oldScriptTier(years) { return years >= 3 ? 3 : years >= 1 ? 2 : 1; }
+
+/* =====================================================================
+   Staff forms (Dr. A, 31 Oct 2026: "create a section under benefit
+   tracker … that would have other forms for the staff to submit"). The
+   forms are data: each one's parts, fields, who reads it and how it's
+   decided. The checks every copy goes through are here too; the screens
+   and the printout are in formsui.js.
+
+   A form someone sends is kept like a scrubs request (toPerk, kind
+   'form'): sealed in the browser to the person, and either to the HR
+   key (Dr. A and the people who approve time off) or to Dr. A's own
+   forms key, which only he holds (aud 'owner': complaints, accommodation,
+   money). In the clear only whose it is, its status (for a form only
+   Dr. A reads, just whether it's decided) and its year — never which form
+   it is (every form is sealed padded to one size). The doctor's
+   certifications are printouts: filled in on screen, printed, never saved.
+
+   The wording is the office's own, in plain words, following the order
+   and fields of the Bent Ericksen forms Dr. A uses (their text isn't
+   copied into this public code).
+   ===================================================================== */
+const OFFICE_ADDR = '320 NW 76th Drive, Gainesville, FL 32607', OFFICE_PHONE = '(352) 332-7466';
+/* a form's sealed content, as JSON: the database takes each sealed copy up to 8,000 characters — 5,984 bytes before
+   sealing (base64 of the bytes and the 16-byte seal) — so a little under that; and at most 40 lines of history */
+const FORM_MAX = 5950;
+const FORM_EVENTS = 40;
+const CE_ITEMS = [['air', 'Airfare'], ['meals', 'Meals'], ['lodging', 'Accommodations'], ['ground', 'Ground transportation (fare, mileage, rentals)'], ['tuition', 'Tuition'], ['supplies', 'Supplies'], ['tips', 'Tips'], ['other', 'Other']];
+const PAY_PER = [['period', 'Per pay period'], ['month', 'Per month']];
+const COVERAGE = [['medical', 'Medical'], ['dental', 'Dental'], ['vision', 'Vision']];
+const HAZARDS = [['cond', 'Hazardous condition'], ['proc', 'Hazardous procedure'], ['rules', 'Safety rules not followed']];
+
+/* Field types: text, area, date, time, num, money, yesno, pick (one of opts), checks (any of opts), check (a box), dates
+   (1–max days), pay (repayment rows {d, a}), say (a sentence of the form; {name}/{employer} filled in), aud (who reads it).
+   need: required to send (staff part) or to sign/file (office part). if: 'k' (k is yes/ticked/has anything), ['k', v] (k is v,
+   or k's list holds v). half/third: side by side on a computer. */
+const FORMS = {
+  accident: {
+    id: 'accident', title: 'Accident report', be: '412', icon: 'warn',
+    blurb: 'An accident or injury at work. Fill it out the same day.',
+    kind: 'send', aud: 'hr', sign: { staff: false, hr: true }, decide: 'file', act: 'Sign and file', done: 'Filed',
+    parts: [
+      { by: 'staff', fields: [
+        { k: 'position', t: 'text', l: 'Your position', p: 'Position', need: true, max: 80, ph: 'e.g. Clinical assistant' },
+        { k: 'day', t: 'date', l: 'Date of the accident', need: true, past: true, half: true },
+        { k: 'time', t: 'time', l: 'Time', need: true, half: true },
+        { k: 'where', t: 'text', l: 'Where it happened', need: true, max: 150, ph: 'e.g. Sterilization, by the autoclave' },
+        { k: 'witness', t: 'text', l: 'Witness', max: 120, hint: 'Who saw it. Leave blank if nobody did.' },
+        { k: 'how', t: 'area', l: 'What happened', need: true, max: 1200, hint: 'How the accident happened, step by step.' },
+        { k: 'cause', t: 'area', l: 'What caused the accident or injury', need: true, max: 600 },
+        { k: 'injury', t: 'area', l: 'Type of illness or injury', need: true, max: 400, rows: 2, ph: 'e.g. Cut on the left index finger' },
+        { k: 'treated', t: 'yesno', l: 'Did you get medical treatment?', p: 'Medical treatment received?', need: true },
+        { k: 'treatedBy', t: 'text', l: 'Treated by', need: true, max: 150, if: 'treated' },
+        { k: 'doctor', t: 'area', l: 'Doctor’s name, address and phone', max: 300, rows: 2, if: 'treated' }
+      ] },
+      { by: 'hr', h: 'Office use', fields: [
+        { k: 'authorized', t: 'yesno', l: 'Treatment authorized by the office?', need: true },
+        { k: 'leave', t: 'yesno', l: 'Sick leave or unpaid leave used?', need: true },
+        { k: 'leaveFrom', t: 'date', l: 'First day of leave', half: true, if: 'leave' },
+        { k: 'backOn', t: 'date', l: 'Back at work on', half: true, if: 'leave' },
+        { k: 'sickDays', t: 'num', l: 'Days of sick leave used', half: true, min: 0, max: 365, step: 0.5, if: 'leave' },
+        { k: 'unpaidDays', t: 'num', l: 'Days of unpaid leave used', half: true, min: 0, max: 365, step: 0.5, if: 'leave' },
+        { k: 'prevent', t: 'area', l: 'Steps taken so it doesn’t happen again', need: true, max: 800 },
+        { k: 'unsafe', t: 'yesno', l: 'Is there still an unsafe condition?', need: true },
+        { k: 'wc', t: 'date', l: 'Reported to the workers’ comp insurer on', hint: 'Florida: an employer reports a work injury to its workers’ comp insurer within 7 days of learning about it.' }
+      ] }
+    ],
+    sum: f => [f.day ? fmtDate(f.day) : '', f.where].filter(Boolean).join(' · ')
+  },
+  hazard: {
+    id: 'hazard', title: 'Safety or health hazard report', short: 'Hazard report', be: '411', icon: 'warn',
+    blurb: 'An unsafe condition, an unsafe way of doing something, or safety rules not being followed.',
+    kind: 'send', aud: 'hr', anon: true, sign: { staff: false, hr: true }, decide: 'file', act: 'Sign and close', done: 'Closed',
+    parts: [
+      { by: 'staff', fields: [
+        { k: 'anon', t: 'check', l: 'Leave my name off this report', hint: 'Your name won’t show on it in the app or on the printout. The database still records which login sent it, so it isn’t fully anonymous.' },
+        { k: 'type', t: 'checks', l: 'Type of hazard', need: true, opts: HAZARDS },
+        { k: 'time', t: 'time', l: 'Time noticed', half: true },
+        { k: 'place', t: 'text', l: 'Place', need: true, max: 120, half: true },
+        { k: 'desc', t: 'area', l: 'Description of the hazard', need: true, max: 1000 },
+        { k: 'rec', t: 'area', l: 'What you recommend', p: 'Action recommended', max: 800 }
+      ] },
+      { by: 'hr', h: 'Action taken by the employer', fields: [
+        { k: 'disp', t: 'area', l: 'What was done about it', need: true, max: 1000 },
+        { k: 'final', t: 'date', l: 'Date of final disposition', need: true, half: true },
+        { k: 'told', t: 'date', l: 'Staff told how it was handled on', half: true }
+      ] }
+    ],
+    pr: { received: true },
+    sum: f => [f.place, (f.type || []).map(k => optLabel(HAZARDS, k).toLowerCase()).join(', ')].filter(Boolean).join(' · ')
+  },
+  overtime: {
+    id: 'overtime', title: 'Request to work overtime', short: 'Overtime request', be: '431', icon: 'clock',
+    blurb: 'Ask before working more than 40 hours in a week.',
+    kind: 'send', aud: 'hr', sign: { staff: true, hr: true }, decide: 'approve', act: 'Approve and sign', done: 'Approved', denyL: 'Explanation',
+    parts: [
+      { by: 'staff', fields: [
+        { k: 'days', t: 'dates', l: 'Date or dates', need: true, max: 3 },
+        { k: 'why', t: 'area', l: 'Why the overtime is needed', need: true, max: 600 },
+        { k: 'overDay', t: 'num', l: 'Hours over 8 in a day', min: 0, max: 24, step: 0.25, third: true, hint: 'If it applies.' },
+        { k: 'overWeek', t: 'num', l: 'Hours over 40 in the week', min: 0, max: 80, step: 0.25, third: true },
+        { k: 'total', t: 'num', l: 'Total overtime hours', need: true, min: 0.25, max: 100, step: 0.25, third: true }
+      ] }
+    ],
+    sum: f => (f.days || []).map(fmtDate).join(', ') + (f.total ? ' · ' + hrs(f.total) + ' h' : '')
+  },
+  ce: {
+    id: 'ce', title: 'Continuing education reimbursement', short: 'CE reimbursement', be: '407', icon: 'money',
+    blurb: 'Before a course or seminar: agree on which costs the office pays back.',
+    kind: 'send', aud: 'hr', sign: { staff: true, hr: true }, decide: 'approve', act: 'Approve and sign', done: 'Approved',
+    parts: [
+      { by: 'staff', fields: [
+        { k: 'course', t: 'text', l: 'Course, seminar or training (its title)', need: true, max: 200 },
+        { k: 'from', t: 'date', l: 'First day', need: true, half: true },
+        { k: 'to', t: 'date', l: 'Last day', half: true, hint: 'If it’s more than one day.' },
+        { k: 'where', t: 'text', l: 'Where', max: 120, ph: 'City, or online' },
+        { k: 'items', t: 'checks', l: 'Costs to be paid back', need: true, opts: CE_ITEMS },
+        { k: 'itemsOther', t: 'text', l: 'Other cost', need: true, max: 120, if: ['items', 'other'] },
+        { k: 'cost', t: 'money', l: 'About how much in all', max: 100000, hint: 'Optional. It helps Dr. A decide.' },
+        { t: 'say', s: 'I pay these costs first and then ask to be paid back. Agreed costs are paid back within a reasonable time after I show that I finished the course and give copies of my receipts.' }
+      ] },
+      { by: 'hr', h: 'Office use', fields: [
+        { k: 'ok', t: 'checks', l: 'Costs the office will pay back', opts: CE_ITEMS, from: 'items', hint: 'Untick any the office won’t pay.' },
+        { k: 'perDiem', t: 'money', l: 'Per-diem for daily costs such as meals', max: 10000, hint: 'Paid instead of dollar for dollar for those costs. Leave blank for none.' }
+      ] }
+    ],
+    sum: f => [f.course, f.from ? fmtDate(f.from) + (f.to && f.to !== f.from ? '–' + fmtDate(f.to) : '') : ''].filter(Boolean).join(' · ')
+  },
+  deduct: {
+    id: 'deduct', title: 'Payroll deduction authorization', short: 'Payroll deduction', be: '425', icon: 'money',
+    blurb: 'Your share of a medical, dental or vision premium, taken out of your paycheck.',
+    kind: 'send', aud: 'owner', sign: { staff: true, hr: false }, decide: 'file', act: 'Mark as set up in payroll', done: 'Set up',
+    one: ['self', 'fam'], oneMsg: 'Tick employee only, employee plus family, or both.',
+    parts: [
+      { by: 'staff', fields: [
+        { t: 'say', s: 'I, {name}, authorize {employer} to take the following out of my paycheck:' },
+        { k: 'self', t: 'check', l: 'Employee-only group insurance premium' },
+        { k: 'selfAmt', t: 'money', l: 'Amount', need: true, half: true, max: 5000, if: 'self' },
+        { k: 'selfPer', t: 'pick', l: 'How often', need: true, half: true, opts: PAY_PER, if: 'self' },
+        { k: 'selfCov', t: 'checks', l: 'Coverage', need: true, opts: COVERAGE, if: 'self' },
+        { k: 'fam', t: 'check', l: 'Employee plus spouse and/or dependents group insurance premium' },
+        { k: 'famAmt', t: 'money', l: 'Amount', need: true, half: true, max: 5000, if: 'fam' },
+        { k: 'famPer', t: 'pick', l: 'How often', need: true, half: true, opts: PAY_PER, if: 'fam' },
+        { k: 'famCov', t: 'checks', l: 'Coverage', need: true, opts: COVERAGE, if: 'fam' },
+        { t: 'say', s: 'The deduction starts on the first payday after I enroll in the plan.' },
+        { t: 'say', s: 'If one paycheck is too small to cover it, what’s left comes out of later paychecks.' },
+        { t: 'say', s: 'If the premium goes up, I authorize the office to change the deduction from the day the new premium starts.' },
+        { t: 'say', s: 'If I leave the practice, my coverage lasts until the end of that month, so my share of that whole month, less anything already deducted that month, comes out of my last paycheck. Deductions will never take my hourly pay below the state minimum wage.' }
+      ] }
+    ],
+    sum: f => [f.self ? money(f.selfAmt || 0) + ' ' + optLabel(PAY_PER, f.selfPer).toLowerCase() + ', employee only' : '', f.fam ? money(f.famAmt || 0) + ' ' + optLabel(PAY_PER, f.famPer).toLowerCase() + ', with family' : ''].filter(Boolean).join(' + ')
+  },
+  advance: {
+    id: 'advance', title: 'Salary advance request', short: 'Salary advance', be: '', icon: 'money',
+    blurb: 'Ask for an advance on your pay, and choose how you’ll pay it back.',
+    kind: 'send', aud: 'owner', sign: { staff: true, hr: true }, decide: 'approve', act: 'Approve and sign', done: 'Approved',
+    parts: [
+      { by: 'staff', fields: [
+        { k: 'amount', t: 'money', l: 'Amount', need: true, min: 1, max: 100000 },
+        { k: 'repay', t: 'pick', l: 'How you’ll pay it back', p: 'Repayment', need: true, opts: [['pto', 'With paid time off as I earn it'], ['pay', 'With separate payments (cash or check)']] },
+        { t: 'say', if: ['repay', 'pto'], s: 'As I earn paid time off, it goes toward the advance. I can’t use paid time off until the advance is paid back.' },
+        { t: 'say', if: ['repay', 'pay'], s: 'I’ll pay it back in separate payments by cash or check, as in the table below, until nothing is owed. No interest is charged.' },
+        { k: 'pays', t: 'pay', l: 'Payments', need: true, max: 6, of: 'amount', if: ['repay', 'pay'] },
+        { t: 'say', s: 'I agree to this arrangement, which means I’ll owe this money to my employer.' },
+        { t: 'say', s: 'I can pay faster or pay it all off early. A longer payment period or smaller payments have to be agreed in writing by both of us.' },
+        { t: 'say', s: 'If my job ends for any reason before it’s paid back, what I still owe is due right away, and it may be taken out of my last paycheck as state and federal wage laws allow. If I don’t pay back what I owe, my employer may take legal action to collect it.' }
+      ] }
+    ],
+    sum: f => money(f.amount || 0) + (f.repay === 'pto' ? ' · from paid time off' : f.repay === 'pay' ? ' · ' + plural((f.pays || []).length, 'payment') : '')
+  },
+  concern: {
+    id: 'concern', title: 'Problem or concern', be: '', icon: 'note',
+    blurb: 'Put a problem or concern in writing so it’s reviewed under the problem resolution procedure.',
+    kind: 'send', aud: { def: 'owner', l: 'Directed to', owner: 'The employer (only Dr. A reads it)', hr: 'My manager', pr: true }, sign: { staff: true, hr: true }, decide: 'file', act: 'Sign the answer', done: 'Answered',
+    parts: [
+      { by: 'staff', fields: [
+        { k: 'position', t: 'text', l: 'Your position', p: 'Position', need: true, max: 80 },
+        { t: 'aud' },
+        { t: 'say', s: 'This is my problem or concern, in writing. I ask that it be reviewed under the problem resolution procedure in the personnel policy manual.' },
+        { k: 'reason', t: 'area', l: 'The reason for my concern', need: true, max: 1500 },
+        { k: 'witness', t: 'area', l: 'Witnesses who can confirm what I’ve said', max: 300, rows: 2 },
+        { k: 'fix', t: 'area', l: 'What I think would fix it', max: 800 }
+      ] },
+      { by: 'hr', h: 'Action taken by the employer', fields: [
+        { k: 'action', t: 'area', l: 'What the office did', need: true, max: 1200 }
+      ] }
+    ],
+    pr: { cc: true },
+    sum: f => clip(f.reason, 90)
+  },
+  harass: {
+    id: 'harass', title: 'Harassment or discrimination report', short: 'Harassment report', be: '421', icon: 'shield',
+    blurb: 'Report harassment or discrimination. Only Dr. A reads it unless you choose otherwise.',
+    kind: 'send', aud: { def: 'owner', l: 'Submitted to', pr: true }, sign: { staff: true, hr: true }, decide: 'file', act: 'Sign the resolution', done: 'Resolved',
+    parts: [
+      { by: 'staff', fields: [
+        { k: 'day', t: 'date', l: 'Date of the incident', need: true, past: true, half: true },
+        { k: 'witness', t: 'text', l: 'Witnesses', max: 200, half: true },
+        { k: 'position', t: 'text', l: 'Your position', p: 'Position', need: true, max: 80, half: true },
+        { k: 'manager', t: 'text', l: 'Your immediate manager or administrator', p: 'Immediate manager or administrator', max: 80, half: true },
+        { t: 'aud' },
+        { k: 'complaint', t: 'area', l: 'Your complaint', p: 'Statement of complaint', need: true, max: 600, hint: 'Be specific: the dates, times and names of the people involved.' },
+        { k: 'what', t: 'area', l: 'What happened', p: 'Description of the incident(s)', need: true, max: 1400, hint: 'What each person did or said, you included.' },
+        { k: 'acted', t: 'area', l: 'What you’ve done about it', p: 'Action taken', need: true, max: 1000, hint: 'What you said or did to resolve it yourself, and what happened after. If nothing, say why.' }
+      ] },
+      { by: 'hr', h: 'Complaint resolution', fields: [
+        { k: 'resolution', t: 'area', l: 'How the complaint was resolved', need: true, max: 900, hint: 'Filled in by the person who looked into it.' }
+      ] }
+    ],
+    pr: { received: true },
+    sum: f => f.day ? 'Incident on ' + fmtDate(f.day) : ''
+  },
+  religious: {
+    id: 'religious', title: 'Religious accommodation request', short: 'Religious accommodation', be: '429D', icon: 'heart',
+    blurb: 'Ask for an accommodation because of a sincerely held religious belief.',
+    kind: 'send', aud: { def: 'owner', l: 'Who reads it' }, sign: { staff: true, hr: false }, decide: 'file', act: 'Mark as received', done: 'Received', noteL: 'Reply',
+    parts: [
+      { by: 'staff', fields: [
+        { k: 'title', t: 'text', l: 'Your job title', p: 'Job title', need: true, max: 80 },
+        { t: 'aud' },
+        { t: 'say', s: 'I ask for a reasonable accommodation because of my sincerely held religious belief. Because of that belief, I can’t follow these requirements of my job:' },
+        { k: 'reqs', t: 'area', l: 'The requirements', p: 'Job requirements', need: true, max: 1200 },
+        { k: 'belief', t: 'area', l: 'Your sincerely held religious belief', p: 'Statement of the sincerely held religious belief', need: true, max: 1500, hint: 'A statement or explanation of it.' },
+        { k: 'docs', t: 'check', l: 'I’m giving Dr. A more documentation about my belief separately' }
+      ] }
+    ],
+    sum: f => clip(f.reqs, 90)
+  },
+  /* printouts for a health care provider: Sections 1 and 2 filled in on screen; never saved */
+  pregnancy: {
+    id: 'pregnancy', title: 'Pregnancy leave or accommodation: provider’s certification', short: 'Pregnancy certification', be: '429B', icon: 'med',
+    blurb: 'Print it for your health care provider to fill out and sign, then bring it back to Dr. A.',
+    kind: 'print',
+    parts: [
+      { by: 'emp', h: 'Section 1 — the employer', fields: [
+        { k: 'employer', t: 'text', l: 'Employer', max: 120, def: 'employer' },
+        { k: 'contact', t: 'text', l: 'Employer contact', max: 120, def: 'contact' },
+        { k: 'title', t: 'text', l: 'Your job title', max: 80, half: true },
+        { k: 'sched', t: 'text', l: 'Regular work schedule', max: 120, half: true, def: 'sched' }
+      ] },
+      { by: 'staff', h: 'Section 2 — the employee', fields: [
+        { k: 'name', t: 'text', l: 'Your name', max: 80, half: true, def: 'name' },
+        { k: 'date', t: 'date', l: 'Date', half: true, def: 'today' },
+        { k: 'reach', t: 'text', l: 'How to reach you (phone or email)', max: 120 }
+      ] }
+    ]
+  },
+  family: {
+    id: 'family', title: 'Family member’s medical condition: provider’s certification', short: 'Family medical certification', be: '429A', icon: 'med',
+    blurb: 'For leave to care for a seriously ill family member. Print it for their health care provider.',
+    kind: 'print',
+    parts: [
+      { by: 'emp', h: 'Section 1 — the employer', fields: [
+        { k: 'employer', t: 'text', l: 'Employer', max: 120, def: 'employer' },
+        { k: 'contact', t: 'text', l: 'Employer contact', max: 120, def: 'contact' },
+        { k: 'title', t: 'text', l: 'Your job title', max: 80, half: true },
+        { k: 'sched', t: 'text', l: 'Regular work schedule', max: 120, half: true, def: 'sched' },
+        { k: 'delay', t: 'text', l: 'If something keeps you from returning it in 15 days, contact', max: 120, def: 'contact' }
+      ] },
+      { by: 'staff', h: 'Section 2 — the employee', fields: [
+        { k: 'patient', t: 'text', l: 'Name of the family member you’ll care for', max: 80 },
+        { k: 'rel', t: 'pick', l: 'Their relationship to you', opts: [['close', 'Child under 18 (or 18 or older and unable to care for themselves because of a disability), parent or spouse'], ['other', 'Adult child able to care for themselves, parent-in-law, grandparent, grandchild, sibling, domestic partner, or someone else with a blood or family-like relationship to you (a “designated person”)']] },
+        { k: 'name', t: 'text', l: 'Your name', max: 80, half: true, def: 'name' },
+        { k: 'date', t: 'date', l: 'Date', half: true, def: 'today' }
+      ] }
+    ]
+  }
+};
+const FORM_ORDER = ['accident', 'hazard', 'overtime', 'ce', 'deduct', 'advance', 'concern', 'harass', 'religious', 'pregnancy', 'family'];
+const FORM_GROUPS = [['Report something', ['accident', 'hazard', 'concern', 'harass']], ['Ask or authorize', ['overtime', 'ce', 'advance', 'deduct', 'religious']], ['Print for a health care provider', ['pregnancy', 'family']]];
+
+/* ---------- small helpers ---------- */
+function optLabel(opts, k) { const x = (opts || []).find(o => o[0] === k); return x ? x[1] : (k == null ? '' : String(k)); }
+function clip(s, n) { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s; }
+function formDef(id) { return Object.prototype.hasOwnProperty.call(FORMS, id) ? FORMS[id] : null; }
+function formShort(id) { const D = formDef(id); return D ? D.short || D.title : 'Form'; }
+/* every field with a key, in order, with the part it's in */
+function formFields(D) { const out = []; (D.parts || []).forEach(p => (p.fields || []).forEach(fd => { if (fd.k) out.push(Object.assign({ by: p.by }, fd)); })); return out; }
+function formField(D, k) { return formFields(D).find(fd => fd.k === k) || null; }
+/* the audience a form can have: fixed ('hr' or 'owner'), or the person's pick (aud is an object with a default) */
+function audPick(D) { return !!(D && D.aud && typeof D.aud === 'object'); }
+function audDefault(D) { return audPick(D) ? D.aud.def : D && D.aud === 'owner' ? 'owner' : 'hr'; }
+function audOk(D, a) { return audPick(D) ? (a === 'owner' || a === 'hr') : a === audDefault(D); }
+
+/* whether a field shows, given the answers */
+function fieldShown(fd, f) {
+  if (!fd.if) return true;
+  if (typeof fd.if === 'string') { const v = f[fd.if]; return Array.isArray(v) ? v.length > 0 : v === true || (typeof v === 'string' && v !== '') || (typeof v === 'number'); }
+  const v = f[fd.if[0]], want = fd.if[1];
+  if (Array.isArray(v)) return Array.isArray(want) ? want.some(w => v.includes(w)) : v.includes(want);
+  return Array.isArray(want) ? want.includes(v) : v === want;
+}
+/* a value is filled in */
+function filled(fd, v) {
+  if (v == null) return false;
+  switch (fd.t) {
+    case 'text': case 'area': return typeof v === 'string' && v.trim() !== '';
+    case 'yesno': return typeof v === 'boolean';
+    case 'check': return v === true;
+    case 'checks': case 'dates': case 'pay': return Array.isArray(v) && v.length > 0;
+    case 'num': case 'money': return typeof v === 'number' && isFinite(v);
+    default: return v !== '';
+  }
+}
+/* a value is the right kind of thing (blank counts as fine; whether it's needed is formMissing's job). Saving checks the
+   form's own limits; reading (loose) takes the same kinds of values within wider ones, so a form saved by a newer copy of
+   Time Off (a new option, a longer box) still opens on an older one */
+function okValue(fd, v, loose) {
+  if (v == null || v === '') return true;
+  const max = fd.max, word = x => typeof x === 'string' && x.length > 0 && x.length <= 60;
+  switch (fd.t) {
+    case 'text': return typeof v === 'string' && v.length <= (loose ? 600 : max || 200);
+    case 'area': return typeof v === 'string' && v.length <= (loose ? 5000 : max || 1000);
+    case 'date': return isISO(v);
+    case 'time': return isHM(v);
+    case 'num': return typeof v === 'number' && isFinite(v) && (loose ? Math.abs(v) <= 1e6 : v >= (fd.min != null ? fd.min : 0) && v <= (max != null ? max : 1000));
+    case 'money': return typeof v === 'number' && isFinite(v) && Math.abs(Math.round(v * 100) - v * 100) < 1e-6 && (loose ? v >= 0 && v <= 1e7 : v >= (fd.min != null ? fd.min : 0) && v <= (max != null ? max : 1000000));
+    case 'yesno': case 'check': return typeof v === 'boolean';
+    case 'pick': return loose ? word(v) : (fd.opts || []).some(o => o[0] === v);
+    case 'checks': return Array.isArray(v) && new Set(v).size === v.length && (loose ? v.length <= 30 && v.every(word) : v.length <= (fd.opts || []).length && v.every(x => (fd.opts || []).some(o => o[0] === x)));
+    case 'dates': return Array.isArray(v) && v.length <= (loose ? 30 : fd.max || 3) && v.every(isISO) && new Set(v).size === v.length;
+    case 'pay': return Array.isArray(v) && v.length <= (loose ? 60 : fd.max || 6) && v.every(r => r && typeof r === 'object' && isISO(r.d) && typeof r.a === 'number' && isFinite(r.a) && r.a > 0 && r.a <= 100000);
+    default: return false;
+  }
+}
+/* what's still needed before it can be sent ('staff') or signed and filed ('hr'): [{k, l, msg?}] */
+function formMissing(D, f, by) {
+  const out = [];
+  formFields(D).filter(fd => fd.by === by && fieldShown(fd, f)).forEach(fd => {
+    const v = f[fd.k];
+    if (fd.need && !filled(fd, v)) out.push({ k: fd.k, l: fd.l });
+    else if (filled(fd, v) && !okValue(fd, v)) out.push({ k: fd.k, l: fd.l, msg: fd.l + ' doesn’t look right.' });
+    else if (fd.t === 'date' && fd.past && isISO(v) && v > todayISO()) out.push({ k: fd.k, l: fd.l, msg: fd.l + ' can’t be in the future.' });
+    else if (fd.t === 'pay' && filled(fd, v) && fd.of) { const total = round2(v.reduce((s, r) => s + r.a, 0)), owed = Number(f[fd.of]) || 0; if (Math.abs(total - owed) > 0.004) out.push({ k: fd.k, l: fd.l, msg: 'The payments add up to ' + money(total) + ', not ' + money(owed) + '.' }); }
+  });
+  if (by === 'staff' && D.one && !D.one.some(k => f[k] === true)) out.push({ k: D.one[0], l: '', msg: D.oneMsg || 'Pick at least one.' });
+  return out;
+}
+function bytesOf(o) { return TE.encode(JSON.stringify(o)).length; }
+/* a form's sealed content makes sense (anything else is treated like one that can't be opened). loose: when reading
+   (see okValue) */
+function okFormShape(c, loose) {
+  const D = c && formDef(c.form);
+  if (!D || D.kind !== 'send' || c.kind !== 'form' || !c.f || typeof c.f !== 'object' || Array.isArray(c.f) || typeof c.sid !== 'string') return false;
+  if (!audOk(D, c.aud)) return false;
+  for (const k of Object.keys(c.f)) {
+    const fd = formField(D, k), v = c.f[k];
+    if (fd) { if (!okValue(fd, v, loose)) return false; }
+    else if (!(v == null || typeof v === 'boolean' || (typeof v === 'number' && isFinite(v)) || (typeof v === 'string' && v.length <= 2000))) return false; // a field from a newer copy of Time Off
+  }
+  const who = x => x == null || (typeof x === 'object' && typeof x.by === 'string' && x.by.length <= 40 && typeof x.at === 'number' && (x.n == null || (typeof x.n === 'string' && x.n.length <= 80)));
+  if (c.sign != null && (typeof c.sign !== 'object' || !who(c.sign.staff) || !who(c.sign.hr))) return false;
+  if (c.sign && c.sign.staff && c.sign.staff.by !== c.sid) return false; // the sender's signature is the sender's
+  if (c.back != null && (!who(c.back) || (c.back.note != null && (typeof c.back.note !== 'string' || c.back.note.length > 600)))) return false;
+  if (c.decision != null && (!who(c.decision) || !['approved', 'denied', 'cancelled'].includes(c.decision.s) || (c.decision.note != null && (typeof c.decision.note !== 'string' || c.decision.note.length > 600)))) return false;
+  if (c.events != null && (!Array.isArray(c.events) || c.events.length > 80 || !c.events.every(e => e && typeof e.a === 'string' && e.a.length <= 20 && (e.note == null || (typeof e.note === 'string' && e.note.length <= 600))))) return false;
+  return typeof c.at === 'number';
+}
+function okForm(c, loose) { return okFormShape(c, loose) && (loose || bytesOf(c) <= FORM_MAX); }
+/* a form too long to seal gives up history first: older notes, then older lines (the first line, sent, and the latest
+   three stay), so piling up send-backs never makes it impossible to save. Changes c; returns it */
+function formFit(c) {
+  if (!c || !Array.isArray(c.events) || bytesOf(c) <= FORM_MAX) return c;
+  const ev = c.events.map(e => Object.assign({}, e)), size = () => bytesOf(Object.assign({}, c, { events: ev }));
+  for (let i = 1; i < ev.length - 1 && size() > FORM_MAX; i++) delete ev[i].note;
+  while (ev.length > 4 && size() > FORM_MAX) ev.splice(1, 1);
+  c.events = ev;
+  return c;
+}
+/* why a form can't be saved, in words: the box the person saving it can shorten — by 'staff' (the sender: their part) or
+   'hr' (the office: its part, or the note just written) */
+function formTooBig(c, by) {
+  const over = bytesOf(c) - FORM_MAX; if (over <= 0) return '';
+  const D = formDef(c && c.form), f = (c && c.f) || {}, part = by === 'hr' ? 'hr' : 'staff', cut = Math.max(10, Math.ceil(over / 10) * 10), n = ' by about ' + cut + ' characters.';
+  const boxes = D ? formFields(D).filter(fd => fd.t === 'area' && fd.by === part && typeof f[fd.k] === 'string').map(fd => [fd.l, f[fd.k].length]) : [];
+  const last = Array.isArray(c.events) ? c.events[c.events.length - 1] : null;
+  if (part === 'hr' && last && typeof last.note === 'string' && last.note) boxes.push(['', last.note.length]);
+  // a box is named only when shortening it can make the form fit
+  const top = boxes.filter(b => b[1] >= cut).sort((a, b) => b[1] - a[1])[0];
+  return 'This form is longer than it can hold' + (!top ? (part === 'hr' ? ' — the answers it was sent with take up most of the room. Keep your part and note short.' : '. Shorten the longest answers.') : top[0] ? ' — shorten “' + top[0] + '”' + n : ' — shorten your note' + n);
+}
+
+/* ---------- history ---------- */
+/* one more event; a run of changes by the same person within half an hour counts once (the latest time) */
+function formEvent(events, e) {
+  const L = Array.isArray(events) ? events.slice() : [], last = L[L.length - 1];
+  if (last && (e.a === 'edit' || e.a === 'save') && last.a === e.a && last.by === e.by && e.at - last.at < 30 * 60000) { L[L.length - 1] = Object.assign({}, last, { at: e.at }); return L; }
+  L.push(e);
+  // a long history keeps its first line (sent) and the latest ones, so the form always fits
+  return L.length > FORM_EVENTS ? [L[0]].concat(L.slice(L.length - FORM_EVENTS + 1)) : L;
+}
+const FORM_EVT = { send: 'sent it', edit: 'changed it', resend: 'sent it again', back: 'sent it back for a change', save: 'saved the office part', file: 'signed and filed it', approve: 'approved and signed it', deny: 'didn’t approve it', withdraw: 'took it back', cancel: 'cancelled it', reseal: 'sealed it again', rekey: 'sealed it again (new HR key)' };
+/* where a form stands: [words, the status chip's look] */
+function formStatus(x) {
+  const D = formDef(x.form) || {};
+  if (x.status === 'pending') return x.back ? ['Sent back', 'bad'] : ['Waiting', 'wait'];
+  if (x.status === 'approved') return [D.done || 'Done', 'ok'];
+  if (x.status === 'denied') return ['Not approved', 'bad'];
+  if (x.status === 'cancelled') return [x.decision && x.decision.by === x.sid ? 'Taken back' : 'Cancelled', 'off'];
+  return [String(x.status || ''), 'off'];
+}
+/* a sentence of the form, with the person's name and the employer filled in */
+function formSay(s, ctx) { return String(s).replace(/\{name\}/g, (ctx && ctx.name) || '________').replace(/\{employer\}/g, (ctx && ctx.employer) || OFFICE_NAME); }
 
 /* =====================================================================
    Staff Hub's office roster (Amir, 9 Oct 2026: "Staff hub should be the
@@ -1784,7 +2279,7 @@ const FB = {
   },
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.hr = FB.hrPub = FB.feedKey = FB.h = null; FB.curV = FB.ringV = FB.hrV = 0; FB.lastCode = '';
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.hr = FB.hrPub = FB.feedKey = FB.h = FB.drPriv = null; FB.curV = FB.ringV = FB.hrV = 0; FB.lastCode = ''; FB.drState = ''; FB.drX = ''; FB.ownerStaff = '';
     FB.people = new Map(); FB.queues = {}; FB.lockedRaw = new Map(); FB.keyChangedNames = []; FB.impKey = null; FB.settingsCache = null; FB.reqChain = Promise.resolve(); FB.perkRaw = new Map();
     try { await FB.auth.signOut(); } catch (e) { }
   },
@@ -1807,6 +2302,7 @@ const FB = {
     FB.openFeedKey().catch(() => { });
     if (!g.exists) return FB.isOwner() ? 'stale' : 'staff';
     try { await FB.hrLoad(g.data()); } catch (e) { return 'stale'; }
+    if (FB.isOwner()) await FB.drOpen().catch(() => { });
     return 'hr';
   },
   /* the HR key, opened — built whole and only then put in place, so nothing is ever opened against a half-loaded key
@@ -2088,9 +2584,16 @@ const FB = {
       if (!s.exists) return; const x = s.data(); FB.hrV = x.current; FB.hrPub = x.pub;
       if (FB.hr && !FB.hr.drop.has(x.current)) { try { await FB.hrReload(); await FB.reopenLocked(h); } catch (e) { } }
     }, () => { }));
-    FB.unsubs.push(FB.doc('meta/settings').onSnapshot(s => { FB.settingsCache = s.exists ? s.data() : {}; h.settings(FB.settingsCache); }, () => { }));
+    FB.unsubs.push(FB.doc('meta/settings').onSnapshot(s => {
+      FB.settingsCache = s.exists ? s.data() : {}; h.settings(FB.settingsCache);
+      const k = FB.drKey(); if (FB.isOwner() && k && (!FB.drPriv || FB.drX !== k.pub.x)) FB.drOpen().catch(() => { }); // made or restored on another of Dr. A's screens
+    }, () => { }));
     FB.unsubs.push(FB.doc('meta/toTeam').onSnapshot(s => h.team(s.exists ? (s.data().sids || []) : []), () => h.team([])));
-    FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.roster(s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => h.error(e)));
+    FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => {
+      const list = s.docs.map(d => Object.assign({ sid: d.id }, d.data())), o = list.find(r => r.role === 'owner'), was = FB.ownerStaff;
+      FB.ownerStaff = o ? o.sid : ''; h.roster(list);
+      if (FB.ownerStaff !== was && FB.perkRaw && FB.perkRaw.size) FB.inOrder(() => FB.emitPerks(h)).catch(() => { }); // forms only Dr. A reads check who saved them
+    }, e => h.error(e)));
     FB.unsubs.push(FB.db.collection('toPeople').onSnapshot(s => { FB.people = new Map(s.docs.map(d => [d.id, d.data()])); h.people(FB.people); }, () => { }));
     // who's out (the office key)
     FB.unsubs.push(FB.db.collection('toOut').onSnapshot(async snap => {
@@ -2152,16 +2655,25 @@ const FB = {
   /* a scrubs request, opened like a time-off request: the HR copy for the people who approve, the person's own for them */
   async openPerk(id, d) {
     const base = { id, sid: d.sid, status: d.status, rev: d.rev, v: d.v, year: d.year, pubX: d.pub ? d.pub.x : '', by: d.bsid || '', updatedAt: FB.tsMs(d.updatedAt), createdAtSrv: FB.tsMs(d.createdAt), hasMe: !!d.me };
-    try {
-      let c;
-      if (FB.hr && FB.hr.drop.has(d.v)) c = await Crypto.openJSONFrom(FB.hr.drop.get(d.v), d.hr, 'toperk:' + id);
-      else if (d.me && d.sid === FB.me.staffId) c = await Crypto.openJSONFrom(FB.priv, d.me, 'toperkme:' + id);
-      else return Object.assign(base, { locked: true });
-      if (c.sid !== d.sid || !okPerk(c)) return Object.assign(base, { locked: true, odd: 'bad' });
-      return Object.assign({}, c, base);
-    } catch (e) { return Object.assign(base, { locked: true }); }
+    // the HR copy (sealed to the HR key, or — a form only Dr. A reads — to his forms key), else the person's own copy
+    const tries = [];
+    if (FB.hr && FB.hr.drop.has(d.v)) tries.push(['hr', () => Crypto.openJSONFrom(FB.hr.drop.get(d.v), d.hr, 'toperk:' + id)]);
+    if (FB.drPriv && d.hr) tries.push(['dr', () => Crypto.openJSONFrom(FB.drPriv, d.hr, 'toperkdr:' + id)]);
+    if (d.me && FB.me && d.sid === FB.me.staffId) tries.push(['me', () => Crypto.openJSONFrom(FB.priv, d.me, 'toperkme:' + id)]);
+    let c = null, via = '';
+    for (const [k, open] of tries) { try { c = await open(); via = k; break; } catch (e) { } }
+    if (!c) return Object.assign(base, { locked: true });
+    // a form for Dr. A alone opens with his forms key only, anything else with the HR key (the person's own copy either way)
+    if (c.sid !== d.sid || !okPerk(c, true) || (via === 'dr' && c.aud !== 'owner') || (via === 'hr' && c.aud === 'owner')) return Object.assign(base, { locked: true, odd: 'bad' });
+    // the people who approve can't read a form only Dr. A reads, so they never write one: the database records who saved a
+    // document last (bsid, which the rules check), and only its sender or Dr. A may have — anything else was put there by
+    // someone else and is set aside (never shown, never sealed again)
+    if (c.kind === 'form' && c.aud === 'owner' && d.bsid !== d.sid && d.bsid !== FB.ownerSid()) return Object.assign(base, { locked: true, odd: 'bad' });
+    return Object.assign({}, c, base);
   },
   newPerkId() { return 'p' + hexId(12); },
+  ownerStaff: '',
+  ownerSid() { return FB.isOwner() ? FB.me.staffId : FB.ownerStaff || ''; },
   /* saving a scrubs request: fn(content) changes the sealed content and may return { status }. opts: { create: { sid, year }, rev, a } */
   async savePerk(id, fn, opts) {
     opts = opts || {};
@@ -2189,10 +2701,15 @@ const FB = {
         const content = FB.clean(cur || { sid: opts.create.sid, kind: 'scrubs', events: [] }); delete content.year;
         const prev = cur ? cur.status : null, r = fn(content, { mailed: !!note }) || {}, status = r.status || prev || 'pending';
         if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
-        if (!okPerk(content)) throw errCode('bad', 'Say how many pairs and why.');
+        if (content.kind === 'form') formFit(content);
+        if (!okPerk(content)) throw errCode('bad', content.kind === 'form' ? (formTooBig(content, content.sid === FB.me.staffId ? 'staff' : 'hr') || 'Something in this form doesn’t look right. Check it and try again.') : 'Say how many pairs and why.');
+        const toDr = content.kind === 'form' && content.aud === 'owner', drPub = toDr ? FB.drPub() : null;
+        if (toDr && !drPub) throw errCode('no-dr', 'Dr. A needs to open Time Off once before forms only he reads can be sent.');
         let mine = FB.trustedPub(content.sid);
         if (!mine && content.sid !== FB.me.staffId && !FB.people.has(content.sid)) { const pp = await tx.get(FB.doc('toPeople/' + content.sid)); if (pp.exists) mine = FB.trusted(pp.data()); }
-        const hrBox = await Crypto.sealJSONTo(hrPub, content, 'toperk:' + id), meBox = mine ? await Crypto.sealJSONTo(mine, content, 'toperkme:' + id) : null;
+        // a form is sealed padded to one size, so its length says nothing about which form it is or how much it says
+        const bytes = content.kind === 'form' ? FB.padded(content, FORM_MAX) : TE.encode(JSON.stringify(content));
+        const hrBox = await Crypto.sealTo(toDr ? drPub : hrPub, bytes, (toDr ? 'toperkdr:' : 'toperk:') + id), meBox = mine ? await Crypto.sealTo(mine, bytes, 'toperkme:' + id) : null;
         const doc = { sid: content.sid, status, rev, by: FB.uid, bsid: FB.me.staffId, v: hrV, pub: mine ? { kty: mine.kty, crv: mine.crv, x: mine.x, y: mine.y } : null, year: cur ? cur.year : opts.create.year, hr: hrBox, me: meBox, updatedAt: FB.ts() };
         if (s.exists) tx.update(ref, Object.assign(doc, { createdAt: s.data().createdAt })); else tx.set(ref, Object.assign(doc, { createdAt: FB.ts() }));
         if (note) tx.set(note.ref, note.data);
@@ -2206,6 +2723,71 @@ const FB = {
       throw e;
     }
     return { id, mailed: !!note };
+  },
+  /* JSON with spaces after it up to a size (JSON.parse ignores them) */
+  padded(obj, size) { const s = JSON.stringify(obj), n = TE.encode(s).length; return TE.encode(n < size ? s + ' '.repeat(size - n) : s); },
+  /* ---------- Dr. A's forms key: forms only he reads (complaints, accommodation, money) are sealed to it ----------
+     A key pair of its own, kept in the office settings (meta/settings.to.drKey, which only Dr. A writes and everyone reads):
+     its public half for everyone to seal to, its private half sealed to his own login (me) and to the office recovery key
+     (rec) — so a new password, which gives his login a new key, never loses these forms: the recovery code opens rec once
+     and seals it to the new key. */
+  drPriv: null, drState: '',
+  drKey() { const t = FB.settingsCache && FB.settingsCache.to, k = t && t.drKey; return k && typeof k === 'object' && k.pub && typeof k.pub.x === 'string' && k.me && k.rec ? k : null; },
+  drPub() { const k = FB.drKey(); return k ? { kty: k.pub.kty, crv: k.pub.crv, x: k.pub.x, y: k.pub.y } : null; },
+  drReady() { return !!FB.drPub(); },
+  async drOpen() {
+    if (!FB.isOwner()) return 'no';
+    const k = FB.drKey(); if (!k) return (FB.drState = 'none');
+    if (FB.drPriv && FB.drX === k.pub.x) return (FB.drState = 'ok');
+    try { FB.drPriv = await Crypto.importPriv(await Crypto.openFrom(FB.priv, k.me, 'todrkey:me')); FB.drX = k.pub.x; FB.drState = 'ok'; }
+    catch (e) { FB.drPriv = null; FB.drState = 'stale'; }
+    if (FB.drState === 'ok' && FB.h) FB.inOrder(() => FB.emitPerks(FB.h)).catch(() => { });
+    return FB.drState;
+  },
+  /* made once, by Dr. A's first Time Off after this update; if another of his screens made one meanwhile, that one stays */
+  async drSetup() {
+    if (!FB.isOwner() || FB.drKey()) return false;
+    const r = await FB.doc('meta/recovery').get();
+    if (!r.exists || !r.data().pub) throw errCode('no-escrow', 'The office recovery key is missing, so the key for forms only you read isn’t made.');
+    const pair = await Crypto.newPair(), pub = await Crypto.pubJwk(pair), bytes = await Crypto.privBytes(pair), rpub = r.data().pub;
+    const k = { v: 1, pub, me: await Crypto.sealTo(FB.me.pub, bytes, 'todrkey:me'), meX: FB.me.pub.x, rec: await Crypto.sealTo(rpub, bytes, 'todrkey:rec'), recX: rpub.x, at: Date.now() };
+    const ref = FB.doc('meta/settings');
+    const made = await FB.track(FB.db.runTransaction(async tx => {
+      const s = await tx.get(ref), t = s.exists ? s.data().to : null;
+      if (t && t.drKey && t.drKey.pub) return false;
+      tx.set(ref, { to: { drKey: k } }, { merge: true }); return true;
+    }));
+    if (made) { FB.settingsCache = Object.assign({}, FB.settingsCache, { to: Object.assign({}, (FB.settingsCache || {}).to, { drKey: k }) }); FB.drPriv = await Crypto.importPriv(bytes); FB.drX = pub.x; FB.drState = 'ok'; }
+    else { const s = await ref.get(); FB.settingsCache = s.exists ? s.data() : {}; await FB.drOpen(); }
+    return made;
+  },
+  /* Dr. A's upkeep: after a new recovery code (NLO Cases → Team & security), the forms key's recovery copy is sealed again to
+     the new recovery key — while his login can open the forms key — so the code he has now always opens it */
+  async drFixRec() {
+    const k = FB.drKey(); if (!FB.isOwner() || !k || FB.drState !== 'ok') return false;
+    const r = await FB.doc('meta/recovery').get(), rp = r.exists ? r.data().pub : null;
+    if (!rp || !rp.x || rp.x === k.recX) return false;
+    let bytes; try { bytes = await Crypto.openFrom(FB.priv, k.me, 'todrkey:me'); } catch (e) { return false; }
+    if ((await Crypto.pubOfPriv(bytes)).x !== k.pub.x) return false; // only ever the forms key itself
+    const rec = await Crypto.sealTo(rp, bytes, 'todrkey:rec');
+    await FB.track(FB.doc('meta/settings').set({ to: { drKey: { rec, recX: rp.x } } }, { merge: true }));
+    FB.mergeCache('drKey', { rec, recX: rp.x });
+    return true;
+  },
+  /* Dr. A, after a new password: the recovery code opens the forms key's recovery copy, which is sealed again to his new key */
+  async drRestore(code) {
+    const k = FB.drKey(); if (!k) return false;
+    if ((await FB.drOpen()) === 'ok') return true;
+    const r = await FB.doc('meta/recovery').get();
+    let bytes;
+    try { const rpriv = await Crypto.importPriv(await Crypto.pwOpen(recoveryCodeNorm(code), r.data().priv, 'recovery-priv')); bytes = await Crypto.openFrom(rpriv, k.rec, 'todrkey:rec'); }
+    catch (e) { throw errCode('bad-code'); }
+    const me = await Crypto.sealTo(FB.me.pub, bytes, 'todrkey:me');
+    await FB.track(FB.doc('meta/settings').set({ to: { drKey: { me, meX: FB.me.pub.x } } }, { merge: true }));
+    FB.settingsCache = Object.assign({}, FB.settingsCache, { to: Object.assign({}, (FB.settingsCache || {}).to, { drKey: Object.assign({}, k, { me, meX: FB.me.pub.x }) }) });
+    FB.drPriv = await Crypto.importPriv(bytes); FB.drX = k.pub.x; FB.drState = 'ok';
+    if (FB.h) FB.inOrder(() => FB.emitPerks(FB.h)).catch(() => { });
+    return true;
   },
   /* where scrubs orders go (meta/toMail, which only Dr. A writes and the email robot reads), and whether the robot can send
      them: it sends the front-desk notices; its script is new enough (v3) to send these to that address and nowhere else; it has
@@ -2530,7 +3112,8 @@ const DEMO = {
     const all = Array.from(DEMO.reqs.values()), me = DEMO.me.staffId, hr = DEMO.hrOn();
     h.board(all.filter(r => r.status === 'approved').map(r => Object.assign(outEntry(r), { id: r.id })));
     h.reqs((hr ? all : all.filter(r => r.sid === me)).map(DEMO.copy), []);
-    if (h.perks) h.perks(Array.from(DEMO.perks.values()).filter(x => hr || x.sid === me).map(DEMO.copy));
+    // forms only Dr. A reads are sealed to his forms key: the people who approve never see them (unless it's their own)
+    if (h.perks) h.perks(Array.from(DEMO.perks.values()).filter(x => x.sid === me || (hr && (x.aud !== 'owner' || DEMO.isOwner()))).map(DEMO.copy));
     const rec = DEMO.recs.get(me); h.mine(rec ? DEMO.mineOf(rec) : null);
     if (hr) h.hr(Array.from(DEMO.recs.values()).map(r => Object.assign(DEMO.copy(r), { rev: 1, v: DEMO.hr.curV })));
   },
@@ -2561,19 +3144,21 @@ const DEMO = {
     return id;
   },
   newReqId() { return 'q' + hexId(12); },
-  /* a scrubs request, saved inside the same limits as the database's rules */
+  /* a scrubs request or a form, saved inside the same limits as the database's rules */
   async savePerk(id, fn, opts) {
     opts = opts || {}; await DEMO.wait(160);
     const cur = DEMO.perks.get(id), me = DEMO.me.staffId, hr = DEMO.hrOn(), owner = DEMO.isOwner();
     if (!cur && !opts.create) throw errCode('gone');
     if (cur && opts.rev && cur.rev !== opts.rev) throw errCode('changed', 'This request was just changed — look at it again.');
     if (cur && !hr && cur.sid !== me) throw errCode('permission-denied');
+    if (cur && cur.aud === 'owner' && !owner && cur.sid !== me) throw errCode('locked', 'This request can’t be opened on this login.'); // sealed to Dr. A's forms key
     const content = DEMO.clean(DEMO.copy(cur || { sid: opts.create.sid, kind: 'scrubs', events: [] })); delete content.year;
     const mailed = !!(opts.mail && DEMO.toMail);
     const prev = cur ? cur.status : null, r = fn(content, { mailed }) || {}, status = r.status || prev || 'pending';
     if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
-    if (!okPerk(content)) throw errCode('bad', 'Say how many pairs and why.');
-    if (!cur && !scrubsOpen(todayISO(), scrubsOf(DEMO.settings).byDay)) throw errCode('bad', 'Scrubs for this year had to be asked for by December ' + scrubsOf(DEMO.settings).byDay + '.');
+    if (content.kind === 'form') formFit(content);
+    if (!okPerk(content)) throw errCode('bad', content.kind === 'form' ? (formTooBig(content, content.sid === me ? 'staff' : 'hr') || 'Something in this form doesn’t look right. Check it and try again.') : 'Say how many pairs and why.');
+    if (!cur && content.kind === 'scrubs' && !scrubsOpen(todayISO(), scrubsOf(DEMO.settings).byDay)) throw errCode('bad', 'Scrubs for this year had to be asked for by December ' + scrubsOf(DEMO.settings).byDay + '.');
     const okCreate = status === 'pending' && content.sid === me;
     const okUpdate = !!cur && ((hr && (owner || cur.sid !== me)) || (cur.sid === me && prev === 'pending' && ['pending', 'cancelled'].includes(status)));
     if (cur ? !okUpdate : !okCreate) throw errCode('permission-denied', 'Not allowed.');
@@ -2583,6 +3168,8 @@ const DEMO = {
     return { id, mailed };
   },
   toMail: SCRUBS.to,
+  /* Dr. A's forms key: nothing to seal in the demo */
+  drReady() { return true; }, async drOpen() { return 'ok'; }, async drSetup() { return false; }, async drRestore() { return true; },
   async scrubsMailState() { await DEMO.wait(80); return { to: DEMO.toMail, on: true, ver: 3, fresh: true, keyOk: true, ok: !!DEMO.toMail }; },
   async setScrubsMail(to) { await DEMO.wait(120); if (!DEMO.isOwner()) throw errCode('permission-denied'); DEMO.toMail = to; },
   newPerkId() { return 'p' + hexId(12); },
@@ -2711,6 +3298,29 @@ const DEMO = {
     perk('riley', [it('navy', 'set', 'M')], 'The knee tore on my navy pair', { status: 'approved', by: 'jordan', asked: at(addDays(t, -60), 9) });
     perk('taylor', [it('teal', 'set', 'S', true), it('black', 'set', 'S', true)], 'Still wearing the one set I started with', { asked: at(addDays(t, -1), 16) });
     perk('jordan', [it('gray', 'top', 'L')], 'My top faded in the wash', { asked: at(addDays(t, -3), 11) });
+    // forms: Riley's accident report waits; Casey's hazard report (name left off) waits; Jordan's own CE request waits for Dr. A;
+    // Taylor's overtime was approved; Morgan's payroll deduction (only Dr. A reads it) is set up; Taylor's concern (only Dr. A) was answered
+    const name = sid => (DEMO.roster.find(r => r.sid === sid) || {}).name || sid;
+    const form = (sid, fid, aud, f, o) => {
+      o = o || {}; const id = 'p' + hexId(12), D = FORMS[fid], status = o.status || 'pending', sent = o.at || at(addDays(t, -1), 10), ev = [{ a: 'send', by: sid, at: sent }];
+      const c = { sid, kind: 'form', form: fid, fv: 1, aud, f, at: sent, sign: D.sign.staff ? { staff: { by: sid, at: sent, n: name(sid) } } : {}, events: ev };
+      if (o.by) {
+        const when = Math.min(now - 1800000, sent + 86400000);
+        if (D.sign.hr) c.sign.hr = { by: o.by, at: when, n: name(o.by) };
+        c.decision = { s: status, by: o.by, at: when, note: o.note || '' };
+        ev.push({ a: D.decide === 'approve' ? 'approve' : 'file', by: o.by, at: when, note: o.note || '' });
+        Object.assign(c.f, o.hr || {});
+      }
+      DEMO.perks.set(id, Object.assign(c, { id, status, rev: ev.length, v: 1, year: y, pubX: 'demo', by: ev[ev.length - 1].by, updatedAt: ev[ev.length - 1].at, createdAtSrv: sent, hasMe: true }));
+    };
+    const yday = office(addDays(t, -1), -1), lastWk = office(addDays(t, -6), -1);
+    form('riley', 'accident', 'hr', { position: 'Clinical assistant', day: yday, time: '15:20', where: 'Sterilization, by the ultrasonic cleaner', how: 'I was taking the basket out of the ultrasonic and a loose bur in it went through my glove into my thumb.', cause: 'A bur was left loose in the basket instead of the bur block.', injury: 'Small puncture on the left thumb', treated: false }, { at: at(t, 9) - 86400000 + 3600000 * 6 });
+    form('casey', 'hazard', 'hr', { anon: true, type: ['cond'], time: '07:45', place: 'Back hallway by the lab', desc: 'The floor mat by the lab door curls up at the corner and catches feet when carrying trays.', rec: 'Replace the mat or tape the corner down.' }, { at: at(addDays(t, -2), 8) });
+    form('jordan', 'ce', 'hr', { course: 'Orthodontic assisting update (online)', from: office(addDays(t, 20), 1), where: 'Online', items: ['tuition'], cost: 295 }, { at: at(addDays(t, -1), 14) });
+    form('taylor', 'overtime', 'hr', { days: [lastWk], why: 'Two debond patients moved to the end of the day, and inventory had to be done before the order.', overWeek: 2, total: 2 }, { status: 'approved', by: 'jordan', at: at(addDays(t, -9), 11) });
+    form('morgan', 'deduct', 'owner', { self: true, selfAmt: 32.5, selfPer: 'month', selfCov: ['medical'] }, { status: 'approved', by: 'amir', at: at(addDays(t, -24), 10) });
+    form('taylor', 'concern', 'owner', { position: 'Clinical assistant', reason: 'Lunch breaks keep getting cut short on Thursdays because the afternoon starts early.', fix: 'Start Thursday afternoons 15 minutes later, or rotate who takes the early lunch.' },
+      { status: 'approved', by: 'amir', at: at(addDays(t, -14), 9), hr: { action: 'Thursday afternoons now start at 1:15. Lunches rotate on a posted schedule.' }, note: 'Thank you for raising it.' });
   }
 };
 
@@ -2883,8 +3493,8 @@ function errText(e) {
 
 /* ---------- boot ---------- */
 /* a link can open one screen once, after signing in: nlo-timeoff.html#approvals (CADANCe's link), #new, #out, #mine */
-const START_VIEWS = { approvals: 'appr', appr: 'appr', new: 'new', out: 'out', mine: 'mine', team: 'team', benefits: 'ben', home: 'home' };
-window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
+const START_VIEWS = { approvals: 'appr', appr: 'appr', new: 'new', out: 'out', mine: 'mine', team: 'team', benefits: 'ben', forms: 'forms', home: 'home' };
+window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav', '#printDoc'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
 window.addEventListener('pageshow', e => { if (e.persisted && S.leftPage) location.reload(); });
 function boot() {
   if (!DEMO_ONLY && window.top !== window.self) { document.body.innerHTML = '<p style="font:15px sans-serif;padding:24px">NLO Time Off opens in its own tab. <a href="nlo-timeoff.html" target="_blank" rel="noopener">Open it</a>.</p>'; return; }
@@ -3007,7 +3617,7 @@ async function enterApp() {
   const sv = S.startView; S.startView = '';
   Object.assign(S, {
     inApp: true, st: 'opening', view: 'home', tab: {}, q: '', roster: [], team: [], people: new Map(), reqs: new Map(), perks: new Map(), board: [], mine: undefined, hrRecs: new Map(),
-    form: null, openId: '', openSid: '', month: todayISO().slice(0, 8) + '01', firstLoad: true, loadErr: '', lastAct: Date.now(), day: todayISO(), ver: S.ver + 1, gotReqs: false,
+    form: null, fm: null, openId: '', openSid: '', month: todayISO().slice(0, 8) + '01', firstLoad: true, loadErr: '', lastAct: Date.now(), day: todayISO(), ver: S.ver + 1, gotReqs: false,
     imp: null, polEd: null, hrP: null, desk: null, feedInfo: null, accessBusy: '', rotating: null, benAs: '', scrubsMail: null, gotRoster: false, gotHR: false
   });
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
@@ -3022,6 +3632,8 @@ async function enterApp() {
   let st;
   try { st = await B.toOpen(); } catch (e) { st = 'error'; S.loadErr = errText(e); }
   if (st === 'stale' && isOwner() && B.lastCode) { try { await B.hrRestore(B.lastCode); st = 'hr'; toast('HR key restored with your recovery code'); } catch (e) { } }
+  // a new password gave Dr. A's login a new key: the same recovery code opens his forms key again (forms only he reads)
+  if (isOwner() && B.lastCode && B.drRestore) { try { await B.drRestore(B.lastCode); } catch (e) { } }
   B.lastCode = '';
   if (!S.inApp) return;
   S.st = st;
@@ -3044,7 +3656,12 @@ function startLive() {
       if (S.openId) refreshDrawer();
     },
     mine(m) { if (!S.inApp) return; S.mine = m && !m.locked ? m : null; bump(); queueRender(); },
-    perks(list) { if (!S.inApp) return; S.perks = new Map(list.filter(x => x && !x.locked).map(x => [x.id, x])); bump(); queueRender(); if (S.openSid) refreshDrawer(); },
+    perks(list) {
+      if (!S.inApp) return;
+      S.perks = new Map(list.filter(x => x && !x.locked).map(x => [x.id, perkShown(x)]));
+      S.perksOdd = list.filter(x => x && x.locked && x.status !== 'cancelled');
+      bump(); queueRender(); if (S.openSid) refreshDrawer();
+    },
     hr(list) { if (!S.inApp) return; S.hrRecs = new Map(list.filter(x => !x.locked).map(x => [x.sid, x])); S.gotHR = true; bump(); queueRender(); if (S.openSid) refreshDrawer(); },
     access(kind) { if (kind === 'off') lockOut('Your approver access was turned off. Sign in again.'); else toast('You can approve time off now — sign in again to see Approvals.', { ms: 9000, action: 'Lock', onAction: () => lockOut('Sign in again to see Approvals.') }); },
     revoked() { lockOut('Your access was turned off.'); },
@@ -3059,7 +3676,7 @@ async function lockOut(msg) {
   if (!S.inApp) return;
   S.inApp = false; clearInterval(S.idleTimer);
   closeModal(); closeDrawer(true); $('#toasts').innerHTML = '';
-  ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; });
+  ['#view', '#topSlot', '#side', '#mobTop', '#mobNav', '#printDoc'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; });
   document.title = APP_NAME;
   for (let i = 0; i < 30 && B.pending; i++) await new Promise(r => setTimeout(r, 100));
   await B.signOut();
@@ -3108,8 +3725,11 @@ function pendingAll() { return allReqs().filter(r => r.status === 'pending'); }
 function waitingForMe() { return isHR() ? pendingAll().filter(r => isOwner() || r.sid !== meSid()) : []; }
 /* scrubs requests (and any other benefit asked for) */
 function allPerks() { return Array.from((S.perks || new Map()).values()); }
+/* a form only Dr. A reads is saved as just "decided" (approved) in plain view, whether or not it was approved, so the
+   database never says which; its sealed decision says */
+function perkShown(x) { return x.kind === 'form' && x.status === 'approved' && x.decision && x.decision.s === 'denied' ? Object.assign({}, x, { status: 'denied' }) : x; }
 function perksOf(sid) { return allPerks().filter(x => x.sid === sid); }
-function perksWaitingForMe() { return isHR() ? allPerks().filter(x => x.status === 'pending' && (isOwner() || x.sid !== meSid())) : []; }
+function perksWaitingForMe() { return isHR() ? allPerks().filter(x => x.status === 'pending' && !x.back && (isOwner() || x.sid !== meSid())) : []; } // (a form sent back waits for its sender)
 function deptOf(sid) { const p = S.hrRecs.get(sid); return p && p.dept ? p.dept : ''; }
 
 /* ---------- owner (and approver) upkeep: keys, everyone's public key, copies sealed to people, the feed ---------- */
@@ -3131,6 +3751,9 @@ async function upkeep() {
 }
 async function ownerUpkeep() {
   if (!S.inApp || S.demo || !isOwner() || !isHR()) return;
+  // the key for forms only Dr. A reads: made by his first Time Off after the Forms update
+  if (B.drSetup && !B.drReady()) { try { await B.drSetup(); } catch (e) { toast('The key for forms only you read couldn’t be made: ' + errText(e), { bad: true, ms: 12000 }); } }
+  if (B.drFixRec) { try { await B.drFixRec(); } catch (e) { } } // a new recovery code: the forms key's recovery copy follows it
   // anything under an older HR key, sealed again
   if (allReqs().some(r => r.v < B.hr.curV) || Array.from(S.hrRecs.values()).some(x => x.v < B.hr.curV) || allPerks().some(x => x.v < B.hr.curV)) { try { await B.hrReseal(); } catch (e) { } }
   // the person's copy of a request, or of their HR record, sealed to the key their login holds now (never to a key that
@@ -3204,7 +3827,7 @@ function queueRender(kind) {
   });
 }
 function navList() {
-  const L = [['home', 'Home', 'home'], ['new', 'Request time off', 'plus'], ['mine', 'My time off', 'list'], ['out', 'Who’s out', 'cal'], ['ben', 'My benefits', 'heart']];
+  const L = [['home', 'Home', 'home'], ['new', 'Request time off', 'plus'], ['mine', 'My time off', 'list'], ['out', 'Who’s out', 'cal'], ['ben', 'My benefits', 'heart'], ['forms', 'Forms', 'note']];
   if (isHR()) L.splice(1, 0, ['appr', 'Approvals', 'check'], ['team', 'Team', 'people']);
   return L;
 }
@@ -3229,8 +3852,9 @@ function renderNav() {
   if (S.st === 'hr' || S.st === 'staff') {
     const w = waitingForMe().length + perksWaitingForMe().length; set('appr', w, w > 0);
     const mineWait = reqsOf(meSid()).filter(r => r.status === 'pending').length; set('mine', mineWait, false);
+    const back = formsBackToMe().length; set('forms', back, back > 0);
   }
-  $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
+  $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view || (S.view === 'fm' && b.dataset.v === 'forms')));
 }
 function updateTitle() { if (!S.inApp) return; const n = waitingForMe().length + perksWaitingForMe().length; document.title = (n ? '(' + n + ') ' : '') + APP_NAME; }
 function renderSync() {
@@ -3240,11 +3864,11 @@ function renderSync() {
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
 }
-const TITLES = { home: 'Home', new: 'Request time off', mine: 'My time off', out: 'Who’s out', ben: 'My benefits', appr: 'Approvals', team: 'Team', settings: 'Settings', account: 'My account', import: 'Move from the old app' };
+const TITLES = { home: 'Home', new: 'Request time off', mine: 'My time off', out: 'Who’s out', ben: 'My benefits', forms: 'Forms', fm: 'Forms', appr: 'Approvals', team: 'Team', settings: 'Settings', account: 'My account', import: 'Move from the old app' };
 function topBar() {
   const live = S.st === 'hr' || S.st === 'staff';
   return '<div class="topBar"><h2>' + esc(S.view === 'new' && S.form && S.form.editId ? 'Change a request' : TITLES[S.view] || 'Time Off') + '</h2><span style="flex:1"></span>' +
-    (live && S.view !== 'new' ? '<button class="btn btn-teal" data-act="nav" data-v="new">' + ic('plus', 16) + 'Request time off</button>' : '') + '</div>';
+    (live && S.view === 'fm' ? '<button class="btn btn-ghost" data-act="nav" data-v="forms">' + ic('prev', 15) + 'All forms</button>' : live && S.view !== 'new' ? '<button class="btn btn-teal" data-act="nav" data-v="new">' + ic('plus', 16) + 'Request time off</button>' : '') + '</div>';
 }
 function renderView() {
   const v = $('#view'); let h = '';
@@ -3255,6 +3879,8 @@ function renderView() {
   else if (S.view === 'mine') h = viewMine();
   else if (S.view === 'out') h = viewOut();
   else if (S.view === 'ben') h = viewBenefits();
+  else if (S.view === 'forms') h = viewForms();
+  else if (S.view === 'fm') h = viewFm();
   else if (S.view === 'appr') h = isHR() ? viewApprovals() : '';
   else if (S.view === 'team') h = isHR() ? viewTeam() : '';
   else if (S.view === 'settings') h = isOwner() && isHR() ? viewSettings() : '';
@@ -3357,6 +3983,8 @@ Object.assign(ACT, {
   async nav(t) {
     const v = t.dataset.v; if (!v) return;
     if (S.view === 'new' && v !== 'new' && formDirty() && !(await confirmBox('Leave without sending this request?', 'What you’ve filled in so far will be lost.', 'Leave', true))) return;
+    if (S.view === 'fm' && fmDirty() && !(await confirmBox('Leave this form?', 'What you’ve changed on it so far will be lost.', 'Leave', true))) return;
+    if (S.view === 'fm') S.fm = null;
     if (v === 'new' && (S.view !== 'new' || t.dataset.fresh)) S.form = null;
     S.view = v; if (t.dataset.tab) S.tab[v] = t.dataset.tab;
     closeDrawer(); renderNav(); renderView(); window.scrollTo(0, 0);
@@ -3380,7 +4008,11 @@ Object.assign(ACT, {
 document.addEventListener('submit', async e => {
   if (e.target.id !== 'hrRestoreForm') return; e.preventDefault();
   const btn = $('button[type=submit]', e.target); busyBtn(btn, true, 'Restoring…');
-  try { await B.hrRestore($('#hrCode').value); toast('HR key restored'); S.st = 'hr'; renderShell(); startLive(); } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
+  try {
+    const code = $('#hrCode').value; await B.hrRestore(code); toast('HR key restored');
+    if (B.drRestore) { try { await B.drRestore(code); } catch (x) { } } // and the key for forms only Dr. A reads
+    S.st = 'hr'; renderShell(); startLive();
+  } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
 });
 function onClick(e) {
   const t = e.target.closest('[data-act]'); if (!t) return;
@@ -3405,10 +4037,15 @@ function viewHome() {
     const w = waitingForMe();
     if (w.length) h += '<button class="callout amber" data-act="nav" data-v="appr">' + ic('check', 20) + '<span><b>' + plural(w.length, 'request') + ' waiting for you</b>' +
       esc(w.slice(0, 3).map(r => shortName(r.sid) + ' (' + fmtRange(r.start, r.end) + ')').join(', ') + (w.length > 3 ? ' and ' + (w.length - 3) + ' more' : '')) + '</span>' + ic('next') + '</button>';
-    const pw = perksWaitingForMe();
+    const pw = perksWaitingForMe().filter(x => x.kind !== 'form');
     if (pw.length) h += '<button class="callout amber" data-act="nav" data-v="appr">' + ic('check', 20) + '<span><b>' + plural(pw.length, 'scrubs request') + ' waiting for you</b>' +
       esc(pw.slice(0, 3).map(x => shortName(x.sid) + ' (' + plural(x.pairs, 'pair') + ')').join(', ') + (pw.length > 3 ? ' and ' + (pw.length - 3) + ' more' : '')) + '</span>' + ic('next') + '</button>';
+    const fw = formsWaitingForMe();
+    if (fw.length) h += '<button class="callout amber" data-act="nav" data-v="appr">' + ic('note', 20) + '<span><b>' + plural(fw.length, 'form') + ' waiting for you</b>' +
+      esc(fw.slice(0, 3).map(x => formShort(x.form) + ' (' + (formAnon(x) ? 'name left off' : shortName(x.sid)) + ')').join(', ') + (fw.length > 3 ? ' and ' + (fw.length - 3) + ' more' : '')) + '</span>' + ic('next') + '</button>';
   }
+  if (isOwner() && B.drState === 'stale') h += '<button class="callout amber" data-act="nav" data-v="forms">' + ic('key', 20) + '<span><b>Forms only you read can’t be opened on this login</b>Your login has a new key since your password was reset. Enter your recovery code once, under Forms.</span>' + ic('next') + '</button>';
+  formsBackToMe().forEach(x => { h += '<button class="callout amber" data-act="fmOpen" data-id="' + esc(x.id) + '">' + ic('undo', 20) + '<span><b>Your ' + esc(formShort(x.form).toLowerCase()) + ' was sent back for a change</b>' + esc(x.back.note ? '“' + clip(x.back.note, 120) + '”' : 'Open it to see what to change.') + '</span>' + ic('next') + '</button>'; });
   h += '<div class="balGrid">' + balCards(me, mine) + '</div>';
   const my = reqsOf(me), wait = my.filter(r => r.status === 'pending').sort(byStart), soon = my.filter(r => r.status === 'approved' && r.end >= t).sort(byStart);
   h += '<div class="twoCol"><div>';
@@ -3825,20 +4462,24 @@ function viewBenefits() {
     '<p><b>Vesting:</b> your own deferrals and the Safe Harbor match are always 100% vested; profit sharing vests 25% a year (100% at 4 years).</p>' +
     '<p><b>Loans, withdrawals and rollovers</b> follow the plan document. Plan trustee: Ascensus Trust Company · (701) 234-0207. Plan administrator: Amir Akhavan DMD, PLLC · (352) 332-7466.</p>' +
     '<p><b>To enroll:</b> talk to the Office Coordinator or Dr. Akhavan once you’re eligible.</p></div></details></div></div>';
+  if (own) h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Forms</h3><span class="sub">Sent and signed here</span></div><div class="cardBd">' +
+    '<p class="small">Report an accident or a safety hazard, ask to work overtime or for CE reimbursement, set up a payroll deduction, or raise a concern.</p>' +
+    '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="nav" data-v="forms">' + ic('note', 15) + 'Open Forms</button></div></div></div>';
   return bar + h + '</div></div>';
 }
 
 /* ---------- Approvals (the people who approve) ---------- */
 function viewApprovals() {
   const tab = S.tab.appr || 'wait';
-  const pk = allPerks().filter(x => x.status === 'pending').sort((a, b) => (a.at || 0) - (b.at || 0));
-  let h = '<div class="listHd"><div class="seg" role="tablist">' + [['wait', 'Waiting', pendingAll().length + pk.length], ['all', 'All requests', 0]].map(([k, l, n]) => '<button role="tab" data-act="tab" data-t="' + k + '" aria-pressed="' + (tab === k) + '">' + l + (n ? ' <span class="cntPill">' + n + '</span>' : '') + '</button>').join('') + '</div><span></span>' +
+  const pk = allPerks().filter(x => x.kind !== 'form' && x.status === 'pending').sort((a, b) => (a.at || 0) - (b.at || 0)), fw = formsWaitingForMe().sort((a, b) => (a.at || 0) - (b.at || 0));
+  let h = '<div class="listHd"><div class="seg" role="tablist">' + [['wait', 'Waiting', pendingAll().length + pk.length + fw.length], ['all', 'All requests', 0]].map(([k, l, n]) => '<button role="tab" data-act="tab" data-t="' + k + '" aria-pressed="' + (tab === k) + '">' + l + (n ? ' <span class="cntPill">' + n + '</span>' : '') + '</button>').join('') + '</div><span></span>' +
     '<button class="btn btn-sec btn-sm" data-act="recordFor">' + ic('plus', 15) + 'Record time off for someone</button></div>';
   if (tab === 'all') return h + allReqsHTML();
   h += unreadableHTML();
   const list = pendingAll().sort(byStart);
-  if (!list.length && !pk.length) return h + '<div class="card"><div class="cardBd"><div class="empty">' + ic('done', 22) + '<br>Nothing waiting.</div></div></div>';
-  return h + list.map(approvalCard).join('') + (pk.length ? '<div class="subH" style="margin-top:' + (list.length ? '22' : '0') + 'px">Scrubs</div>' + pk.map(perkCard).join('') : '');
+  if (!list.length && !pk.length && !fw.length) return h + '<div class="card"><div class="cardBd"><div class="empty">' + ic('done', 22) + '<br>Nothing waiting.</div></div></div>';
+  return h + list.map(approvalCard).join('') + (pk.length ? '<div class="subH" style="margin-top:' + (list.length ? '22' : '0') + 'px">Scrubs</div>' + pk.map(perkCard).join('') : '') +
+    (fw.length ? '<div class="subH" style="margin-top:' + (list.length || pk.length ? '22' : '0') + 'px">Forms</div>' + fw.map(fmCard).join('') : '');
 }
 /* ---------- scrubs: a yearly allowance, asked for with a reason and approved ---------- */
 function perkItemsHTML(x) { const L = x.items || []; return L.map((it, i) => '<div class="small">' + (L.length > 1 ? '<span class="muted">Pair ' + (i + 1) + ':</span> ' : '') + esc(scrubItemText(it)) + '</div>').join(''); }
@@ -4130,11 +4771,13 @@ function openPersonDrawer(sid, keep) {
     h += '<div class="sec"><h5>Benefits</h5><div class="kvRow"><span>Celebrate Primary Care</span><b>' + (ben.celebrate ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : 'Not enrolled') + '</b></div>' +
       '<div class="kvRow"><span>401(k)</span><b>' + (ben.k401 ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : k && k <= t ? 'Eligible — not enrolled' : k ? 'Eligible from ' + esc(fmtDate(k)) : '—') + '</b></div>' +
       '<div class="kvRow"><span>Scrubs in ' + y + '</span><b>' + scrubsUsed(allPerks(), sid, y) + ' of ' + plural(per, 'pair') + '</b></div>' +
-      perksOf(sid).filter(x => x.year === y).map(perkRow).join('') + '</div>';
+      perksOf(sid).filter(x => x.kind !== 'form' && x.year === y).map(perkRow).join('') + '</div>';
     if ((p.adj || []).length) h += '<div class="sec"><h5>Adjustments</h5>' + p.adj.slice().sort((a, b) => a.date < b.date ? 1 : -1).map(a => '<div class="hist"><time>' + esc(fmtDate(a.date)) + '</time><span><b>' + (a.h > 0 ? '+' : '−') + hrs(Math.abs(a.h)) + ' h ' + (a.b === 'sick' ? 'sick' : 'vacation') + '</b> — ' + esc(a.note || '') + (a.by ? ' <span class="muted">(' + esc(shortName(a.by)) + ')</span>' : '') + '</span>' + (owner ? '<button class="linkBtn small" style="margin-left:auto" data-act="rmAdj" data-sid="' + esc(sid) + '" data-id="' + esc(a.id || '') + '">Remove</button>' : '') + '</div>').join('') + '</div>';
     h += '<div class="sec">' + statementHTML(sid).replace('<div class="card">', '<div class="card flat">') + '</div>';
   } else if (owner) h += '<div class="empty">No hire date or balance yet.<br><button class="btn btn-teal btn-sm" style="margin-top:12px" data-act="editHR" data-sid="' + esc(sid) + '">Add the HR record</button></div>' + (shWhoHTML(sid) ? '<div class="sec">' + shWhoHTML(sid) + '</div>' : '');
   else h += '<div class="empty">Dr. A hasn’t added an HR record yet.</div>';
+  const fs = formsOf(sid).filter(x => !formAnon(x)).sort((a, b) => (b.at || 0) - (a.at || 0));
+  if (fs.length) h += '<div class="sec"><h5>Forms</h5>' + fs.slice(0, 30).map(x => fmRow(x, false)).join('') + '</div>';
   const rs = reqsOf(sid).sort(byStart).reverse();
   h += '<div class="sec"><h5>Requests</h5>' + (rs.length ? rs.slice(0, 40).map(r => reqRow(r)).join('') : '<div class="small muted">None yet.</div>') + '</div>';
   h += '</div>';
@@ -4207,6 +4850,586 @@ function yearEndHTML() {
   return h + '</div></div>';
 }
 CHG.yeY = t => { S.tab.yeY = t.value; renderView(); };
+
+/* =====================================================================
+   Forms (the forms themselves are in forms.js): the Forms screen, filling
+   one out, the review (the office part, signing and filing, sending it
+   back), and the printout.
+   ===================================================================== */
+
+/* ---------- the data ---------- */
+function allForms() { return allPerks().filter(x => x.kind === 'form' && formDef(x.form)); }
+function formsOf(sid) { return allForms().filter(x => x.sid === sid); }
+/* sent in and waiting for the office (not sent back, not my own unless I'm Dr. A) */
+function formsWaitingForMe() { return isHR() ? allForms().filter(x => x.status === 'pending' && !x.back && (isOwner() || x.sid !== meSid())) : []; }
+/* my own, sent back to me for a change */
+function formsBackToMe() { return allForms().filter(x => x.sid === meSid() && x.status === 'pending' && x.back); }
+/* a hazard report sent without a name: whose it is shows to no one but its sender */
+function formAnon(x) { return !!(x && x.f && x.f.anon === true && x.sid !== meSid() && (formDef(x.form) || {}).anon); }
+/* decided (approved or not): only then are the office's signature and decision shown, and printed */
+function fmDecided(x) { return !!x && (x.status === 'approved' || x.status === 'denied'); }
+function formWho(x) { return formAnon(x) ? 'Name left off' : staffName(x.sid); }
+function formAvatar(x, lg) { return formAnon(x) ? '<span class="av none' + (lg ? ' lg' : '') + '" title="Name left off">?</span>' : avatarHTML(x.sid, '', lg); }
+function fullName(sid) { const r = staff(sid); return r ? String(r.name || '') : (sid || ''); }
+/* the people who approve time off, besides Dr. A (they read forms sealed to the HR key) */
+function approverNames() { return S.team.filter(s => { const r = staff(s); return r && r.role !== 'owner' && r.active; }).map(shortName).filter(Boolean); }
+/* full names, for the printout: "Dr. Amir Akhavan and Sarah Betz" */
+function audFull(a) {
+  const owner = S.roster.find(r => r.role === 'owner'), names = a === 'owner' ? [] : S.team.filter(s => { const r = staff(s); return r && r.role !== 'owner' && r.active; }).map(fullName);
+  return [owner ? fullName(owner.sid) : 'Dr. Akhavan'].concat(names).join(' and ');
+}
+function audWords(a) { const n = approverNames(); return a === 'owner' ? 'Only Dr. A' : 'Dr. A' + (n.length ? ' and ' + n.join(' and ') : ' and the people who approve time off'); }
+/* can I work on the office part (sign, file, approve, send back)? Never my own unless I'm Dr. A */
+function canReview(x) { return isHR() && (x.status === 'pending' || x.status === 'approved') && (isOwner() || x.sid !== meSid()); }
+function fmWhen(ms) { if (!ms) return ''; const d = new Date(ms); return fmtDateLong(isoOfMs(ms)) + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
+
+/* ---------- the Forms screen ---------- */
+function viewForms() {
+  const me = meSid(), mine = formsOf(me).sort((a, b) => (b.at || 0) - (a.at || 0)), back = formsBackToMe();
+  let h = '';
+  if (back.length) h += back.map(x => '<button class="callout amber" data-act="fmOpen" data-id="' + esc(x.id) + '">' + ic('undo', 20) + '<span><b>' + esc(shortName(x.back.by)) + ' sent your ' + esc(formShort(x.form).toLowerCase()) + ' back for a change</b>' + esc(x.back.note ? '“' + clip(x.back.note, 120) + '”' : 'Open it to see what to change.') + '</span>' + ic('next') + '</button>').join('');
+  // Dr. A's login got a new key (a password reset) and his forms key wasn't opened again with the recovery code at sign-in
+  if (isOwner() && B.drState === 'stale') h += '<div class="card" style="margin-bottom:18px"><div class="cardBd" style="padding-top:16px"><p class="small"><b>Forms only you read can’t be opened on this login.</b> Your login has a new key since your password was reset, so the key for those forms needs your <b>recovery code</b> once (the one from NLO Cases). Until then they’re kept, sealed, and staff can still send them.</p>' +
+    '<form id="drRestoreForm" style="margin-top:12px;max-width:420px"><div class="field"><label for="drCode">Recovery code</label><input id="drCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required></div><button class="btn btn-pri" type="submit">' + ic('key', 16) + 'Open them again</button></form></div></div>';
+  // forms (and scrubs requests) this copy can't show: saved by a newer copy of Time Off, or by someone who shouldn't have
+  const odd = (S.perksOdd || []).filter(x => x.sid === me || x.odd === 'bad' || (isOwner() && B.drState !== 'stale'));
+  if (odd.length) h += '<div class="card" style="margin-bottom:18px;border-color:var(--coral-200)"><div class="cardBd" style="padding-top:16px"><p class="small"><b>' + plural(odd.length, 'form or scrubs request', 'forms or scrubs requests') + ' can’t be shown here' + (odd.every(x => x.sid === me) ? ' (yours)' : ' (' + esc(Array.from(new Set(odd.map(x => shortName(x.sid)))).join(', ')) + ')') + '.</b> Reload the page: a newer copy of Time Off may have saved ' + (odd.length === 1 ? 'it' : 'them') + '. If ' + (odd.length === 1 ? 'it stays' : 'they stay') + ', ' + (odd.length === 1 ? 'it was' : 'they were') + ' saved in a way this login can’t trust or open' + (isOwner() ? '; ask the person to send it again.' : '; tell Dr. A.') + '</p></div></div>';
+  h += '<div class="twoCol"><div>';
+  if (isHR()) h += formsInCardHTML();
+  h += '<div class="card"' + (isHR() ? ' style="margin-top:18px"' : '') + '><div class="cardHd"><h3>Fill out a form</h3><span class="sub">Sealed like your time-off requests</span></div><div class="cardBd">' +
+    FORM_GROUPS.map(([g, ids]) => '<div class="subH">' + esc(g) + '</div><div class="fmTiles">' + ids.map(id => {
+      const D = FORMS[id];
+      return '<button type="button" class="fmTile" data-act="fmNew" data-f="' + id + '">' + ic(D.icon || 'note', 20) + '<span class="grow"><b>' + esc(D.title) + '</b><small>' + esc(D.blurb) + '</small></span>' +
+        (D.kind === 'print' ? '<span class="sug">' + ic('download', 12) + 'Print</span>' : audDefault(D) === 'owner' && !audPick(D) ? '<span class="sug navy" title="Only Dr. A can read it">' + ic('lock', 12) + 'Dr. A</span>' : '') + '</button>';
+    }).join('') + '</div>').join('') + '</div></div>';
+  h += '</div><div>';
+  h += '<div class="card"><div class="cardHd"><h3>My forms</h3><span class="sub">What you sent, and the answers</span></div><div class="cardBd">' +
+    (mine.length ? mine.slice(0, 60).map(x => fmRow(x, false)).join('') : '<div class="empty">None yet.</div>') + '</div></div>';
+  h += '<div class="card" style="margin-top:18px"><div class="cardBd small muted" style="padding-top:14px">' + ic('shield', 15) + ' A form is sealed on this device before it’s saved. You can always open your own; the office part is added by Dr. A' + (approverNames().length ? ' or ' + esc(approverNames().join(' or ')) : '') + '. Forms marked ' + ic('lock', 12) + ' Dr. A are read by him alone.</div></div>';
+  return h + '</div></div>';
+}
+/* the people who approve: what's been sent in */
+function formsInCardHTML() {
+  const tab = S.tab.fmIn || 'wait', all = allForms().filter(x => isOwner() || x.sid !== meSid() || x.status !== 'pending');
+  const wait = formsWaitingForMe().sort((a, b) => (a.at || 0) - (b.at || 0)), backs = all.filter(x => x.status === 'pending' && x.back && x.sid !== meSid());
+  const done = all.filter(x => x.status !== 'pending').sort((a, b) => (b.updatedAt || b.at || 0) - (a.updatedAt || a.at || 0));
+  const list = tab === 'wait' ? wait.concat(backs) : done;
+  return '<div class="card"><div class="cardHd"><h3>Sent in</h3><span style="flex:1"></span><div class="seg" role="tablist">' +
+    [['wait', 'Waiting', wait.length], ['done', 'Done', 0]].map(([k, l, n]) => '<button role="tab" data-act="fmTab" data-t="' + k + '" aria-pressed="' + (tab === k) + '">' + l + (n ? ' <span class="cntPill">' + n + '</span>' : '') + '</button>').join('') + '</div></div><div class="cardBd">' +
+    (list.length ? list.slice(0, 80).map(x => fmRow(x, true)).join('') : '<div class="empty">' + (tab === 'wait' ? ic('done', 22) + '<br>Nothing waiting.' : 'Nothing yet.') + '</div>') +
+    (tab === 'done' && done.length > 80 ? '<p class="small muted">The 80 most recent.</p>' : '') + '</div></div>';
+}
+ACT.fmTab = t => { S.tab.fmIn = t.dataset.t; renderView(); };
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'drRestoreForm') return; e.preventDefault();
+  const btn = $('button[type=submit]', e.target); busyBtn(btn, true, 'Opening…');
+  try { await B.drRestore($('#drCode').value); toast('Forms only you read open again'); renderNav(); renderView(); }
+  catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
+});
+function fmRow(x, who) {
+  const st = formStatus(x), D = formDef(x.form), s = D && D.sum ? clip(D.sum(x.f || {}), 90) : '';
+  return '<div class="reqRow" role="button" tabindex="0" data-act="fmOpen" data-id="' + esc(x.id) + '">' + (who ? '<span class="nameCell">' + formAvatar(x) + '<b>' + esc(formAnon(x) ? 'Name left off' : shortName(x.sid)) + '</b></span>' : '') +
+    '<div class="rrMain"><div class="rrDates">' + esc(formShort(x.form)) + (x.aud === 'owner' ? ' <span title="Only Dr. A can read it">' + ic('lock', 12) + '</span>' : '') + '</div><div class="small muted">' + esc((x.at ? 'Sent ' + fmtAgo(x.at) : '') + (s ? ' · ' + s : '')) + '</div></div>' +
+    '<span class="stat ' + st[1] + '">' + esc(st[0]) + '</span></div>';
+}
+/* a form waiting on Approvals */
+function fmCard(x) {
+  const own = x.sid === meSid() && !isOwner(), D = formDef(x.form), s = D && D.sum ? D.sum(x.f || {}) : '';
+  return '<div class="card apCard"><div class="apHd">' + formAvatar(x, true) + '<div class="grow"><b>' + esc(formWho(x)) + '</b><div class="small muted"><span class="badge">' + esc(formShort(x.form)) + '</span> · sent ' + esc(x.at ? fmtAgo(x.at) : '') + (x.aud === 'owner' ? ' · ' + ic('lock', 12) + ' only you can read it' : '') + '</div></div></div>' +
+    (s ? '<div class="apBd"><div class="small">' + esc(s) + '</div></div>' : '') +
+    '<div class="apFt">' + (own ? '<span class="small muted">Your own — Dr. A reviews it.</span>' : '<button class="btn btn-teal btn-sm" data-act="fmOpen" data-id="' + esc(x.id) + '">' + ic('next', 15) + 'Open</button>') + '</div></div>';
+}
+
+/* ---------- filling out a form, and looking at one ---------- */
+/* S.fm = { form, id ('' while new), sid, f (the answers being edited), aud, agree, rev, dirty } */
+function fmDefaults(D) {
+  const f = {}, me = meSid(), p = personOf(me), owner = S.roster.find(r => r.role === 'owner');
+  formFields(D).forEach(fd => {
+    if (fd.def === 'employer') f[fd.k] = OFFICE_NAME;
+    else if (fd.def === 'contact') f[fd.k] = (owner ? fullName(owner.sid) : 'Dr. Akhavan') + ', ' + OFFICE_PHONE;
+    else if (fd.def === 'sched') f[fd.k] = 'Monday to Thursday, ' + hrs(S.pol.day) + '-hour days' + (p && p.type === 'PT' ? ' (part-time)' : '');
+    else if (fd.def === 'name') f[fd.k] = fullName(me);
+    else if (fd.def === 'today') f[fd.k] = todayISO();
+  });
+  return f;
+}
+ACT.fmNew = t => {
+  const D = formDef(t.dataset.f); if (!D) return;
+  S.fm = { form: D.id, id: '', sid: meSid(), f: fmDefaults(D), aud: audDefault(D), agree: false, rev: 0, dirty: false };
+  S.view = 'fm'; closeDrawer(); renderNav(); renderView(); window.scrollTo(0, 0);
+};
+ACT.fmOpen = t => {
+  const x = S.perks.get(t.dataset.id); if (!x || x.kind !== 'form') return;
+  fmLoad(x); S.view = 'fm'; closeDrawer(); renderNav(); renderView(); window.scrollTo(0, 0);
+};
+function fmLoad(x) {
+  const D = formDef(x.form), f = JSON.parse(JSON.stringify(x.f || {}));
+  // the office part starts from what was asked for (CE: the costs the office will pay back)
+  if (canReview(x) && x.status === 'pending') formFields(D).forEach(fd => { if (fd.by === 'hr' && fd.from && f[fd.k] == null && Array.isArray(f[fd.from])) f[fd.k] = f[fd.from].slice(); });
+  S.fm = { form: x.form, id: x.id, sid: x.sid, f, aud: x.aud || audDefault(D), agree: false, rev: x.rev, dirty: false };
+}
+function fmDirty() { return !!(S.fm && S.fm.dirty); }
+function fmCur() { return S.fm && S.fm.id ? S.perks.get(S.fm.id) || null : null; }
+/* what this person can do with the form open now */
+function fmMode() {
+  const fm = S.fm, x = fmCur(), D = formDef(fm.form);
+  if (D.kind === 'print') return { staff: true, hr: false, print: true };
+  if (!x) return { staff: true, hr: false, isNew: true };
+  return { staff: x.sid === meSid() && x.status === 'pending', hr: canReview(x), x };
+}
+function viewFm() {
+  const fm = S.fm; if (!fm) return viewForms();
+  const D = formDef(fm.form), x = fmCur(), m = fmMode();
+  if (fm.id && !x) return '<div class="card" style="max-width:720px"><div class="cardBd"><div class="empty">This form isn’t here any more.<br><button class="btn btn-sec btn-sm" style="margin-top:12px" data-act="nav" data-v="forms">Back to Forms</button></div></div></div>';
+  // someone else saved it meanwhile: take theirs if nothing's been changed here, else say so
+  if (x && x.rev !== fm.rev) { if (!fm.dirty) { const keep = fm.agree; fmLoad(x); S.fm.agree = keep; } }
+  const stale = x && x.rev !== S.fm.rev;
+  let h = '<div class="fmWrap"><div class="card"><div class="fmHd">' + ic(D.icon || 'note', 22) + '<div class="grow"><h3>' + esc(D.title) + '</h3><div class="small muted">' +
+    (x ? esc(formWho(x)) + ' · sent ' + esc(fmWhen(x.at)) : D.kind === 'print' ? 'Fill in what you can, then print it. Nothing here is saved.' : esc(audLine(D, fm.aud))) + '</div></div>' +
+    (x ? '<span class="stat ' + formStatus(x)[1] + '">' + esc(formStatus(x)[0]) + '</span>' : '') + '</div>';
+  if (stale) h += '<div class="notice" style="margin:0 20px 12px">Someone changed this form since you opened it. <button class="linkBtn" data-act="fmReload">Load their changes</button> (what you changed here is dropped).</div>';
+  if (x && x.back && x.status === 'pending') h += '<div class="notice" style="margin:0 20px 12px">' + esc(shortName(x.back.by)) + ' sent it back for a change' + (x.back.note ? ': “' + esc(x.back.note) + '”' : '.') + (m.staff ? ' Change it below and send it again.' : '') + '</div>';
+  if (x && x.decision && x.decision.note && (x.status === 'denied' || x.status === 'approved' || x.status === 'cancelled')) h += '<div class="notice ' + (x.status === 'denied' ? 'bad' : 'info') + '" style="margin:0 20px 12px">' + esc(shortName(x.decision.by)) + ': “' + esc(x.decision.note) + '”</div>';
+  h += '<div class="cardBd" id="fmBody">' + fmBodyHTML(D, m) + '</div>' + fmFootHTML(D, m, x) + '</div>';
+  if (x) h += fmHistHTML(x);
+  return h + '</div>';
+}
+function audLine(D, a) { return audWords(a) + (a === 'owner' ? ' reads it.' : ' read it.'); }
+function fmBodyHTML(D, m) {
+  const fm = S.fm, f = fm.f, x = m.x;
+  const ctx = { name: fullName(fm.sid), employer: OFFICE_NAME };
+  let h = '';
+  (D.parts || []).forEach(p => {
+    const office = p.by === 'hr';
+    const edit = office ? m.hr : p.by === 'staff' || p.by === 'emp' ? m.staff : false;
+    // the office part: shown to the people who review it; to the sender once it's decided
+    if (office && !m.hr && !(fmDecided(x) && formFields(D).some(fd => fd.by === 'hr' && (filled(fd, f[fd.k]) || (fd.from && Array.isArray(f[fd.k])))))) return;
+    if (p.h) h += '<div class="fmPart' + (office ? ' office' : '') + '">' + esc(p.h) + (office && m.hr ? ' <span class="opt">— you fill this in</span>' : '') + '</div>';
+    h += fmFieldsHTML(p.fields, f, edit, ctx, D);
+  });
+  // the signatures
+  if (D.kind === 'send') {
+    if (D.sign.staff) {
+      const sg = x && x.sign && x.sign.staff;
+      if (m.staff) h += '<label class="chk fmAgree"><input type="checkbox" data-chg="fmAgree"' + (fm.agree ? ' checked' : '') + '> I’ve read this, it’s true and correct, and I sign it with my NLO login</label>' +
+        (sg ? '<div class="small muted">Signed ' + esc(fmWhen(sg.at)) + '. Sending it again signs it again.</div>' : '');
+      else if (sg) h += sigHTML('Employee’s signature', sg);
+    }
+    if (D.sign.hr && fmDecided(x) && x.sign && x.sign.hr) h += sigHTML('Employer’s signature', x.sign.hr);
+  }
+  return h;
+}
+function sigHTML(label, sg) { return '<div class="fmSig">' + ic('tick', 15) + '<span><b>' + esc(label) + ':</b> signed electronically by ' + esc(sg.n || fullName(sg.by)) + ' · ' + esc(fmWhen(sg.at)) + '</span></div>'; }
+/* the fields of one part, two or three to a row where they're marked so */
+function fmFieldsHTML(fields, f, edit, ctx, D) {
+  let h = '', row = [];
+  const flush = () => { if (row.length) { h += '<div class="grid' + (row.some(r => r.fd.third) ? '3' : '2') + '">' + row.map(r => r.h).join('') + '</div>'; row = []; } };
+  fields.forEach(fd => {
+    if (!fieldShown(fd, f)) return;
+    if (fd.t === 'say') { flush(); h += '<p class="fmSay">' + esc(formSay(fd.s, ctx)) + '</p>'; return; }
+    if (fd.t === 'aud') { flush(); h += audFieldHTML(D, edit); return; }
+    if (!edit && !filled(fd, f[fd.k]) && fd.t !== 'yesno' && !(fd.from && Array.isArray(f[fd.k]))) return; // a blank optional answer isn't shown when reading
+    const one = edit ? fmInputHTML(fd, f) : fmValueHTML(fd, f);
+    if (fd.half || fd.third) { row.push({ fd, h: one }); if (row.length === (fd.third ? 3 : 2)) flush(); } else { flush(); h += one; }
+  });
+  flush();
+  return h;
+}
+function audFieldHTML(D, edit) {
+  const a = S.fm.aud, pick = audPick(D), names = approverNames();
+  if (!edit || !pick) return '<div class="field"><span class="flabel">' + esc(pick ? D.aud.l : 'Who reads it') + '</span><div class="small">' + ic(a === 'owner' ? 'lock' : 'people', 14) + ' ' + esc(audLine(D, a)) + '</div></div>';
+  const lab = k => k === 'owner' ? (D.aud.owner || 'Only Dr. A') : (D.aud.hr ? D.aud.hr + ' — ' : '') + 'Dr. A' + (names.length ? ' and ' + names.join(' and ') : ' and the people who approve time off');
+  return '<div class="field"><span class="flabel">' + esc(D.aud.l) + '</span><div class="seg wrap" role="group" aria-label="' + esc(D.aud.l) + '">' +
+    ['owner', 'hr'].map(k => '<button type="button" data-act="fmAud" data-v="' + k + '" aria-pressed="' + (a === k) + '">' + ic(k === 'owner' ? 'lock' : 'people', 14) + esc(lab(k)) + '</button>').join('') + '</div>' +
+    '<div class="hint">' + (a === 'owner' ? 'Sealed so that only Dr. A can open it.' : 'Anyone Dr. A later asks to approve time off can read it too.') + '</div></div>';
+}
+function fmLabel(fd, office) { return esc(fd.l) + (fd.need ? '' : ' <span class="opt">(optional)</span>'); }
+function fmInputHTML(fd, f) {
+  const k = fd.k, v = f[k], id = 'fm_' + k, lab = fmLabel(fd), hint = fd.hint ? '<div class="hint">' + esc(fd.hint) + '</div>' : '';
+  const box = inner => '<div class="field" data-fbox="' + k + '"><label for="' + id + '">' + lab + '</label>' + inner + hint + '</div>';
+  const span = inner => '<div class="field" data-fbox="' + k + '"><span class="flabel">' + lab + '</span>' + inner + hint + '</div>';
+  switch (fd.t) {
+    case 'text': return box('<input id="' + id + '" data-inp="fm" data-fk="' + k + '" maxlength="' + (fd.max || 200) + '" value="' + esc(v || '') + '"' + (fd.ph ? ' placeholder="' + esc(fd.ph) + '"' : '') + '>');
+    case 'area': return box('<textarea id="' + id + '" data-inp="fm" data-fk="' + k + '" maxlength="' + (fd.max || 1000) + '" rows="' + (fd.rows || 4) + '"' + (fd.ph ? ' placeholder="' + esc(fd.ph) + '"' : '') + '>' + esc(v || '') + '</textarea>');
+    case 'date': return box('<input type="date" id="' + id + '" data-inp="fm" data-fk="' + k + '" value="' + esc(v || '') + '"' + (fd.past ? ' max="' + todayISO() + '"' : '') + '>');
+    case 'time': return box('<input type="time" id="' + id + '" data-inp="fm" data-fk="' + k + '" value="' + esc(v || '') + '" step="300">');
+    case 'num': return box('<input type="number" inputmode="decimal" id="' + id + '" data-inp="fm" data-fk="' + k + '" value="' + (v == null ? '' : esc(String(v))) + '" min="' + (fd.min != null ? fd.min : 0) + '" max="' + (fd.max != null ? fd.max : 1000) + '" step="' + (fd.step || 1) + '">');
+    case 'money': return box('<div class="inMoney"><span>$</span><input type="number" inputmode="decimal" id="' + id + '" data-inp="fm" data-fk="' + k + '" value="' + (v == null ? '' : esc(String(v))) + '" min="0" max="' + (fd.max || 1000000) + '" step="0.01"></div>');
+    case 'yesno': return span('<div class="seg" role="group">' + [[true, 'Yes'], [false, 'No']].map(([b, l]) => '<button type="button" data-act="fmSet" data-k="' + k + '" data-v="' + b + '" aria-pressed="' + (v === b) + '">' + l + '</button>').join('') + '</div>');
+    case 'pick': return span('<div class="seg wrap" role="group">' + fd.opts.map(([o, l]) => '<button type="button" data-act="fmSet" data-k="' + k + '" data-v="' + esc(o) + '" aria-pressed="' + (v === o) + '">' + esc(l) + '</button>').join('') + '</div>');
+    case 'checks': return span('<div class="chkList">' + fd.opts.map(([o, l]) => '<label><input type="checkbox" data-chg="fmChecks" data-fk="' + k + '" value="' + esc(o) + '"' + (Array.isArray(v) && v.includes(o) ? ' checked' : '') + '><span>' + esc(l) + '</span></label>').join('') + '</div>');
+    case 'check': return '<div class="field" data-fbox="' + k + '"><label class="chk"><input type="checkbox" data-chg="fmCheck" data-fk="' + k + '"' + (v === true ? ' checked' : '') + '> ' + esc(fd.l) + '</label>' + hint + '</div>';
+    case 'dates': {
+      const L = Array.isArray(v) && v.length ? v : [''];
+      return span('<div class="fmDates">' + L.map((d, i) => '<div class="inRow"><input type="date" data-inp="fmDate" data-fk="' + k + '" data-i="' + i + '" value="' + esc(d || '') + '" aria-label="Date ' + (i + 1) + '">' +
+        (L.length > 1 ? '<button type="button" class="iconBtn" data-act="fmDateDel" data-k="' + k + '" data-i="' + i + '" aria-label="Remove this date">' + ic('x', 16) + '</button>' : '') + '</div>').join('') +
+        (L.length < (fd.max || 3) ? '<button type="button" class="linkBtn small" data-act="fmDateAdd" data-k="' + k + '">Add a date</button>' : '') + '</div>');
+    }
+    case 'pay': return span(payTableHTML(fd, f, true));
+    default: return '';
+  }
+}
+/* the repayment table: date, payment, and what's still owed after it */
+function payTableHTML(fd, f, edit) {
+  const L = Array.isArray(f[fd.k]) && f[fd.k].length ? f[fd.k] : (edit ? [{ d: '', a: null }] : []), owed = Number(f[fd.of]) || 0;
+  let left = owed;
+  const rows = L.map((r, i) => {
+    left = round2(left - (Number(r.a) || 0));
+    return '<tr><td class="num">' + (i + 1) + '.</td><td>' + (edit ? '<input type="date" data-inp="fmPay" data-fk="' + fd.k + '" data-i="' + i + '" data-p="d" value="' + esc(r.d || '') + '" aria-label="Payment ' + (i + 1) + ' date">' : esc(r.d ? fmtDate(r.d) : '')) + '</td>' +
+      '<td>' + (edit ? '<div class="inMoney"><span>$</span><input type="number" inputmode="decimal" min="0" step="0.01" data-inp="fmPay" data-fk="' + fd.k + '" data-i="' + i + '" data-p="a" value="' + (r.a == null ? '' : esc(String(r.a))) + '" aria-label="Payment ' + (i + 1) + ' amount"></div>' : esc(money(r.a || 0))) + '</td>' +
+      '<td class="num" data-left="' + i + '">' + esc(money(Math.max(0, left))) + '</td>' + (edit ? '<td>' + (L.length > 1 ? '<button type="button" class="iconBtn" data-act="fmPayDel" data-k="' + fd.k + '" data-i="' + i + '" aria-label="Remove this payment">' + ic('x', 16) + '</button>' : '') + '</td>' : '') + '</tr>';
+  }).join('');
+  return '<div class="tblWrap"><table class="tbl fmPay"><thead><tr><th class="num">#</th><th>Date</th><th>Payment</th><th class="num">Still owed</th>' + (edit ? '<th></th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    (edit && L.length < (fd.max || 6) ? '<button type="button" class="linkBtn small" data-act="fmPayAdd" data-k="' + fd.k + '">Add a payment</button>' : '');
+}
+/* an answer, for reading */
+function fmValueText(fd, v) {
+  switch (fd.t) {
+    case 'date': return v ? fmtDateLong(v) : '';
+    case 'time': return v ? fmtClock(v) : '';
+    case 'money': return v == null ? '' : money(v);
+    case 'num': return v == null ? '' : hrs(v);
+    case 'yesno': return v === true ? 'Yes' : v === false ? 'No' : '—';
+    case 'pick': return optLabel(fd.opts, v);
+    case 'checks': return (v || []).length ? v.map(o => optLabel(fd.opts, o)).join(', ') : fd.from && Array.isArray(v) ? 'None' : '';
+    case 'check': return v ? 'Yes' : '';
+    case 'dates': return (v || []).map(d => fmtDateLong(d)).join(', ');
+    default: return v == null ? '' : String(v);
+  }
+}
+function fmValueHTML(fd, f) {
+  const v = f[fd.k];
+  if (fd.t === 'pay') return '<div class="fmVal"><span class="flabel">' + esc(fd.l) + '</span>' + payTableHTML(fd, f, false) + '</div>';
+  if (fd.t === 'check') return '<div class="fmVal"><div class="small">' + ic('tick', 14) + ' ' + esc(fd.l) + '</div></div>';
+  const txt = fmValueText(fd, v);
+  return '<div class="fmVal"><span class="flabel">' + esc(fd.l) + '</span><div class="' + (fd.t === 'area' ? 'txt' : 'fmV') + '">' + esc(txt || '—') + '</div></div>';
+}
+/* who did what, when */
+function fmHistHTML(x) {
+  const ev = (x.events || []).filter(e => FORM_EVT[e.a] && e.a !== 'reseal' && e.a !== 'rekey');
+  if (!ev.length) return '';
+  const who = e => formAnon(x) && e.by === x.sid ? 'The sender' : shortName(e.by);
+  return '<div class="card" style="margin-top:14px"><div class="cardHd"><h3>History</h3></div><div class="cardBd">' + ev.map(e => '<div class="hist"><time>' + esc(fmtWhen(e.at)) + '</time><span><b>' + esc(who(e)) + '</b> ' + esc(FORM_EVT[e.a]) + (e.note ? ': “' + esc(e.note) + '”' : '') + '</span></div>').join('') + '</div></div>';
+}
+/* the buttons under the form */
+function fmFootHTML(D, m, x) {
+  const fm = S.fm, b = [];
+  if (m.print) b.push('<button class="btn btn-teal" data-act="fmPrint">' + ic('download', 16) + 'Print</button>', '<button class="btn btn-ghost" data-act="nav" data-v="forms">Back to Forms</button>');
+  else if (m.isNew) {
+    const noKey = fm.aud === 'owner' && !B.drReady();
+    b.push('<button class="btn btn-teal" data-act="fmSend"' + (noKey ? ' disabled' : '') + '>' + ic('tick', 16) + (D.sign.staff ? 'Sign and send' : 'Send') + '</button>', '<button class="btn btn-ghost" data-act="nav" data-v="forms">Cancel</button>');
+    if (noKey) b.push('<div class="small coral" style="flex-basis:100%">Dr. A needs to open Time Off once before forms only he reads can be sent' + (audPick(D) ? ' — or choose to include ' + esc(approverNames().join(' and ') || 'the people who approve') + ' above.' : '. Ask him, then try again.') + '</div>');
+  } else {
+    if (m.staff) {
+      b.push('<button class="btn btn-teal" data-act="fmSaveOwn"' + (fm.aud === 'owner' && !B.drReady() ? ' disabled' : '') + '>' + ic('tick', 16) + (x.back ? (D.sign.staff ? 'Sign and send again' : 'Send again') : 'Save the change') + '</button>');
+      b.push('<button class="btn btn-sec btn-sm" data-act="fmWithdraw">Take it back…</button>');
+    }
+    if (m.hr) {
+      if (x.status === 'pending') {
+        b.push('<button class="btn btn-teal" data-act="fmDecide">' + ic('tick', 16) + esc(D.act) + '</button>');
+        if (formFields(D).some(fd => fd.by === 'hr')) b.push('<button class="btn btn-sec btn-sm" data-act="fmSaveHR">Save for now</button>');
+        if (D.decide === 'approve') b.push('<button class="btn btn-sec btn-sm" data-act="fmDeny">Not approved…</button>');
+        b.push('<button class="btn btn-ghost" data-act="fmBack">Send back for a change…</button>');
+      } else if (formFields(D).some(fd => fd.by === 'hr')) b.push('<button class="btn btn-sec btn-sm" data-act="fmSaveHR">Save changes</button>');
+    }
+    b.push('<button class="btn btn-ghost" data-act="fmPrint">' + ic('download', 15) + 'Print or save as PDF</button>');
+    if (isOwner() && x.status !== 'cancelled' && x.sid !== meSid()) b.push('<button class="btn btn-ghost" data-act="fmCancel">Cancel it…</button>');
+    if (D.id === 'advance' && m.hr && x.f && x.f.repay === 'pto') b.push('<div class="small muted" style="flex-basis:100%">Paid time off goes toward this advance: once it’s approved, take it off as it’s earned with an adjustment (Team → the person → Add an adjustment).</div>');
+  }
+  return '<div class="fmFt">' + b.join('') + '</div>';
+}
+
+/* ---------- typing and ticking ---------- */
+/* a change that shows or hides other fields redraws the form; typing never does */
+function fmDeps(D) { const s = new Set(); formFields(D).forEach(fd => { if (fd.if) s.add(typeof fd.if === 'string' ? fd.if : fd.if[0]); if (fd.of) s.add(fd.of); }); return s; }
+function fmRedraw() { const el = $('#fmBody'); if (!el || !S.fm) return; const D = formDef(S.fm.form); el.innerHTML = fmBodyHTML(D, fmMode()); paintPhotos(el); const ft = $('.fmFt'); if (ft) ft.outerHTML = fmFootHTML(D, fmMode(), fmCur()); }
+function fmTouch(k) { S.fm.dirty = true; const D = formDef(S.fm.form); if (k && fmDeps(D).has(k)) fmRedraw(); }
+Object.assign(CHG, {
+  fm(t) {
+    const k = t.dataset.fk, D = formDef(S.fm.form), fd = formField(D, k); if (!fd) return;
+    let v = t.value;
+    if (fd.t === 'num' || fd.t === 'money') v = v === '' ? null : Number(v);
+    else if (fd.t === 'date' || fd.t === 'time') v = v || null;
+    if (v == null || (typeof v === 'number' && !isFinite(v))) delete S.fm.f[k]; else S.fm.f[k] = v;
+    S.fm.dirty = true;
+    if (fd.t === 'money' && fmDeps(D).has(k)) payLeftRefresh(D); // the repayment table's "still owed"
+  },
+  fmChecks(t) {
+    const k = t.dataset.fk, D = formDef(S.fm.form), fd = formField(D, k), cur = Array.isArray(S.fm.f[k]) ? S.fm.f[k] : [];
+    const next = fd.opts.map(o => o[0]).filter(o => o === t.value ? t.checked : cur.includes(o));
+    if (next.length || fd.from) S.fm.f[k] = next; else delete S.fm.f[k];
+    fmTouch(k);
+  },
+  fmCheck(t) { const k = t.dataset.fk; if (t.checked) S.fm.f[k] = true; else delete S.fm.f[k]; fmTouch(k); },
+  fmDate(t) { const k = t.dataset.fk, i = Number(t.dataset.i), L = Array.isArray(S.fm.f[k]) ? S.fm.f[k].slice() : []; while (L.length <= i) L.push(''); L[i] = t.value; S.fm.f[k] = L; S.fm.dirty = true; },
+  fmPay(t) {
+    const k = t.dataset.fk, i = Number(t.dataset.i), L = Array.isArray(S.fm.f[k]) ? S.fm.f[k].map(r => Object.assign({}, r)) : [];
+    while (L.length <= i) L.push({ d: '', a: null });
+    L[i][t.dataset.p] = t.dataset.p === 'a' ? (t.value === '' ? null : Number(t.value)) : t.value;
+    S.fm.f[k] = L; S.fm.dirty = true; payLeftRefresh(formDef(S.fm.form));
+  },
+  fmAgree(t) { S.fm.agree = t.checked; }
+});
+/* "still owed" after each payment, updated as amounts are typed */
+function payLeftRefresh(D) {
+  formFields(D).filter(fd => fd.t === 'pay').forEach(fd => {
+    let left = Number(S.fm.f[fd.of]) || 0;
+    (S.fm.f[fd.k] || []).forEach((r, i) => { left = round2(left - (Number(r.a) || 0)); const el = $('[data-left="' + i + '"]'); if (el) el.textContent = money(Math.max(0, left)); });
+  });
+}
+Object.assign(ACT, {
+  fmSet(t) {
+    const k = t.dataset.k, D = formDef(S.fm.form), fd = formField(D, k); if (!fd) return;
+    S.fm.f[k] = fd.t === 'yesno' ? t.dataset.v === 'true' : t.dataset.v;
+    $$('[data-act=fmSet][data-k="' + k + '"]').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
+    fmTouch(k);
+  },
+  fmAud(t) { S.fm.aud = t.dataset.v === 'owner' ? 'owner' : 'hr'; S.fm.dirty = true; renderView(); },
+  fmDateAdd(t) { const k = t.dataset.k, L = Array.isArray(S.fm.f[k]) && S.fm.f[k].length ? S.fm.f[k].slice() : ['']; L.push(''); S.fm.f[k] = L; S.fm.dirty = true; fmRedraw(); },
+  fmDateDel(t) { const k = t.dataset.k, L = (S.fm.f[k] || []).slice(); L.splice(Number(t.dataset.i), 1); S.fm.f[k] = L; S.fm.dirty = true; fmRedraw(); },
+  fmPayAdd(t) { const k = t.dataset.k, L = Array.isArray(S.fm.f[k]) && S.fm.f[k].length ? S.fm.f[k].slice() : [{ d: '', a: null }]; L.push({ d: '', a: null }); S.fm.f[k] = L; S.fm.dirty = true; fmRedraw(); },
+  fmPayDel(t) { const k = t.dataset.k, L = (S.fm.f[k] || []).slice(); L.splice(Number(t.dataset.i), 1); S.fm.f[k] = L; S.fm.dirty = true; fmRedraw(); },
+  fmReload() { const x = fmCur(); if (x) fmLoad(x); renderView(); }
+});
+
+/* ---------- saving ---------- */
+/* the answers of one part, tidied: blanks and hidden answers dropped */
+function fmPart(D, f, by) {
+  const out = {};
+  formFields(D).filter(fd => fd.by === by).forEach(fd => {
+    if (!fieldShown(fd, f)) return;
+    let v = f[fd.k];
+    if (typeof v === 'string') v = fd.t === 'area' ? v.replace(/\s+$/, '') : v.trim();
+    if (fd.t === 'dates' && Array.isArray(v)) v = Array.from(new Set(v.filter(isISO))).sort();
+    if (fd.t === 'pay' && Array.isArray(v)) v = v.filter(r => r && (r.d || r.a != null)).map(r => ({ d: r.d, a: Number(r.a) }));
+    if (filled(fd, v) || (fd.from && Array.isArray(v))) out[fd.k] = v; // "none of them" is an answer for the costs the office pays back
+  });
+  return out;
+}
+function fmProblem(D, f, by) {
+  const miss = formMissing(D, f, by); if (!miss.length) return '';
+  const m = miss[0], el = m.k && $('[data-fbox="' + m.k + '"]');
+  if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); const i = $('input,textarea,select,button', el); if (i) setTimeout(() => i.focus({ preventScroll: true }), 300); }
+  return m.msg || (miss.length > 1 ? 'Fill in “' + m.l + '” and ' + (miss.length - 1) + ' more.' : 'Fill in “' + m.l + '”.');
+}
+function sigNow() { return { by: meSid(), at: Date.now(), n: fullName(meSid()).slice(0, 80) }; }
+async function fmSave(t, fn, opts, okMsg) {
+  busyBtn(t, true, 'Saving…');
+  try { await fn(); S.fm.dirty = false; if (okMsg) toast(okMsg, { ms: 6000 }); return true; }
+  catch (e) {
+    busyBtn(t, false);
+    if (e && e.code === 'changed') { toast('This form was just changed — look at it again.', { bad: true }); renderView(); }
+    else toast(errText(e), { bad: true, ms: 8000 });
+    return false;
+  }
+}
+Object.assign(ACT, {
+  async fmSend(t) {
+    const fm = S.fm, D = formDef(fm.form), staffF = fmPart(D, fm.f, 'staff'), p = fmProblem(D, staffF, 'staff');
+    if (p) return toast(p, { bad: true });
+    if (D.sign.staff && !fm.agree) { const a = $('.fmAgree'); if (a) a.scrollIntoView({ block: 'center' }); return toast('Tick the box to sign it first.', { bad: true }); }
+    const me = meSid(), now = Date.now(), y = Number(todayISO().slice(0, 4));
+    const c0 = { sid: me, kind: 'form', form: D.id, fv: 1, aud: fm.aud, f: staffF, at: now, sign: D.sign.staff ? { staff: sigNow() } : {}, events: [{ a: 'send', by: me, at: now }] };
+    const big = formTooBig(c0); if (big) return toast(big, { bad: true, ms: 9000 });
+    const ok = await fmSave(t, () => B.savePerk(B.newPerkId(), c => { Object.assign(c, c0); return { status: 'pending' }; }, { create: { sid: me, year: y }, a: 'send' }));
+    if (ok) { toast('Sent — ' + (fm.aud === 'owner' ? 'only Dr. A can read it.' : audWords('hr') + ' can read it.') + ' You’ll see the answer under My forms.', { ms: 7000 }); S.fm = null; S.view = 'forms'; renderNav(); renderView(); window.scrollTo(0, 0); }
+  },
+  async fmSaveOwn(t) {
+    const fm = S.fm, x = fmCur(), D = formDef(fm.form); if (!x) return;
+    const staffF = fmPart(D, fm.f, 'staff'), p = fmProblem(D, staffF, 'staff'); if (p) return toast(p, { bad: true });
+    if (D.sign.staff && !fm.agree) { const a = $('.fmAgree'); if (a) a.scrollIntoView({ block: 'center' }); return toast('Tick the box to sign it again first.', { bad: true }); }
+    const me = meSid(), now = Date.now(), wasBack = !!x.back, widen = x.aud === 'owner' && fm.aud !== 'owner';
+    if (widen && !(await confirmBox('Let ' + audWords('hr').replace(/^Dr\. A and /, '') + ' read it too?', 'From now on ' + audWords('hr') + ' can read this form. What Dr. A has written on it so far stays with him.', 'Yes, send it', false))) return;
+    const ok = await fmSave(t, () => B.savePerk(x.id, c => {
+      const known = new Set(formFields(D).map(fd => fd.k)), newer = {};
+      Object.keys(c.f || {}).forEach(k => { if (!known.has(k)) newer[k] = c.f[k]; }); // answers a newer copy of Time Off added
+      c.f = Object.assign(newer, widen ? {} : fmPart(D, c.f || {}, 'hr'), staffF); c.aud = fm.aud;
+      if (widen) { c.events = (c.events || []).map(e => { if (e.by === me || !e.note) return e; const o = Object.assign({}, e); delete o.note; return o; }); c.sign = {}; delete c.decision; }
+      if (D.sign.staff) c.sign = Object.assign({}, c.sign || {}, { staff: sigNow() });
+      delete c.back; c.events = formEvent(c.events, { a: wasBack ? 'resend' : 'edit', by: me, at: now });
+      formFit(c); if (formTooBig(c)) throw errCode('bad', formTooBig(c));
+      return { status: 'pending' };
+    }, { rev: fm.rev, a: wasBack ? 'resend' : 'edit' }), null, wasBack ? 'Sent again' : 'Saved — it still waits for the office');
+    if (ok) { S.fm = null; S.view = 'forms'; renderNav(); renderView(); }
+  },
+  async fmWithdraw() {
+    const x = fmCur(); if (!x) return;
+    if (!(await confirmBox('Take this form back?', 'It’s marked as taken back. You can fill out a new one any time.', 'Take it back', true))) return;
+    const me = meSid(), now = Date.now();
+    if (await fmSave(null, () => B.savePerk(x.id, c => { c.decision = { s: 'cancelled', by: me, at: now, note: '' }; c.events = formEvent(c.events, { a: 'withdraw', by: me, at: now }); return { status: 'cancelled' }; }, { rev: x.rev, a: 'withdraw' }), null, 'Taken back')) { S.fm = null; S.view = 'forms'; renderView(); }
+  },
+  async fmSaveHR(t) {
+    const fm = S.fm, x = fmCur(), D = formDef(fm.form); if (!x) return;
+    const hrF = fmPart(D, fm.f, 'hr'), bad = formMissing(D, hrF, 'hr').find(m => m.msg); if (bad) return toast(bad.msg, { bad: true });
+    const me = meSid(), now = Date.now();
+    await fmSave(t, () => B.savePerk(x.id, c => {
+      c.f = Object.assign({}, c.f || {}); formFields(D).filter(fd => fd.by === 'hr').forEach(fd => { delete c.f[fd.k]; }); Object.assign(c.f, hrF);
+      c.events = formEvent(c.events, { a: 'save', by: me, at: now });
+      formFit(c); if (formTooBig(c, 'hr')) throw errCode('bad', formTooBig(c, 'hr'));
+    }, { rev: fm.rev, a: 'save' }), null, 'Saved');
+    renderView();
+  },
+  async fmDecide(t) {
+    const fm = S.fm, x = fmCur(), D = formDef(fm.form); if (!x) return;
+    const hrF = fmPart(D, fm.f, 'hr'), p = fmProblem(D, hrF, 'hr'); if (p) return toast(p, { bad: true });
+    const who = formAnon(x) ? 'The sender' : shortName(x.sid);
+    const note = await noteBox(D.act, (D.sign.hr ? 'You sign it with your login. ' : '') + (x.sid === meSid() ? '' : who + ' sees it' + (D.noteL ? ', with your reply below.' : ', with any note you add.')), D.act, false, false);
+    if (note == null) return;
+    const me = meSid(), now = Date.now();
+    const ok = await fmSave(t, () => B.savePerk(x.id, c => {
+      c.f = Object.assign({}, c.f || {}); formFields(D).filter(fd => fd.by === 'hr').forEach(fd => { delete c.f[fd.k]; }); Object.assign(c.f, hrF);
+      if (D.sign.hr) c.sign = Object.assign({}, c.sign || {}, { hr: sigNow() });
+      delete c.back; c.decision = { s: 'approved', by: me, at: now, note: note.slice(0, 500) };
+      c.events = formEvent(c.events, { a: D.decide === 'approve' ? 'approve' : 'file', by: me, at: now, note: note.slice(0, 500) });
+      formFit(c); if (formTooBig(c, 'hr')) throw errCode('bad', formTooBig(c, 'hr'));
+      return { status: 'approved' };
+    }, { rev: fm.rev, a: D.decide === 'approve' ? 'approve' : 'file' }), null, D.done + ' — ' + (formAnon(x) ? 'the sender sees' : shortName(x.sid) + ' sees') + ' it now');
+    if (ok) renderView();
+  },
+  async fmDeny(t) {
+    const fm = S.fm, x = fmCur(), D = formDef(fm.form); if (!x) return;
+    const note = await noteBox('Not approved', 'Tell ' + shortName(x.sid) + ' why — they’ll see this note with the answer.', 'Send the answer', true, true); if (note == null) return;
+    const me = meSid(), now = Date.now();
+    if (await fmSave(t, () => B.savePerk(x.id, c => { if (D.sign.hr) c.sign = Object.assign({}, c.sign || {}, { hr: sigNow() }); delete c.back; c.decision = { s: 'denied', by: me, at: now, note: note.slice(0, 500) }; c.events = formEvent(c.events, { a: 'deny', by: me, at: now, note: note.slice(0, 500) }); return { status: c.aud === 'owner' ? 'approved' : 'denied' }; }, { rev: fm.rev, a: 'deny' }), null, 'Answered — ' + shortName(x.sid) + ' sees it now')) renderView();
+  },
+  async fmBack(t) {
+    const fm = S.fm, x = fmCur(); if (!x) return;
+    const who = formAnon(x) ? 'the sender' : shortName(x.sid);
+    const note = await noteBox('Send it back for a change', 'Say what to change — ' + who + ' sees this note, changes the form and sends it again.', 'Send it back', true, false); if (note == null) return;
+    const me = meSid(), now = Date.now();
+    if (await fmSave(t, () => B.savePerk(x.id, c => { c.back = { by: me, at: now, note: note.slice(0, 500) }; c.events = formEvent(c.events, { a: 'back', by: me, at: now, note: note.slice(0, 500) }); return { status: 'pending' }; }, { rev: fm.rev, a: 'back' }), null, 'Sent back to ' + who)) renderView();
+  },
+  async fmCancel(t) {
+    const x = fmCur(); if (!x) return;
+    const note = await noteBox('Cancel this form?', 'It’s marked as cancelled (its history is kept), e.g. a duplicate or a test. ' + (formAnon(x) ? 'The sender' : shortName(x.sid)) + ' sees your note.', 'Cancel it', false, true); if (note == null) return;
+    const me = meSid(), now = Date.now();
+    if (await fmSave(t, () => B.savePerk(x.id, c => { c.decision = { s: 'cancelled', by: me, at: now, note: note.slice(0, 500) }; c.events = formEvent(c.events, { a: 'cancel', by: me, at: now, note: note.slice(0, 500) }); return { status: 'cancelled' }; }, { rev: x.rev, a: 'cancel' }), null, 'Cancelled')) { S.fm = null; S.view = 'forms'; renderView(); }
+  },
+  fmPrint() { printForm(); }
+});
+
+/* ---------- the printout (Print → Save as PDF to keep a copy) ---------- */
+function printForm() {
+  const fm = S.fm; if (!fm) return;
+  const D = formDef(fm.form), x = fmCur();
+  // a sent form prints as saved; a printout prints what's on the screen
+  const f = x && D.kind === 'send' ? x.f || {} : fm.f, html = formPrintHTML(D, f, x);
+  let el = $('#printDoc'); if (!el) { el = document.createElement('div'); el.id = 'printDoc'; document.body.appendChild(el); }
+  el.innerHTML = html;
+  const was = document.title, who = x ? (formAnon(x) ? 'name left off' : fullName(x.sid)) : fullName(meSid());
+  document.title = D.title.replace(/[:’]/g, '') + ' - ' + who + ' - ' + (x ? isoOfMs(x.at) : todayISO());
+  document.body.classList.add('printing');
+  const done = () => { document.body.classList.remove('printing'); el.innerHTML = ''; document.title = was; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  const pt = document.title; setTimeout(() => { if (document.title === pt) document.title = was; }, 90000); // a browser that never says printing is over
+  try { window.print(); } catch (e) { done(); toast('This page can’t print here.', { bad: true }); }
+}
+const PBOX = on => '<span class="pBox">' + (on ? '✕' : '') + '</span>';
+function pLab(fd) { return fd.p || fd.l; }
+function pLine(label, val, wide) { return '<div class="pF' + (wide ? ' w' : '') + '"><span class="pL">' + esc(label) + '</span><span class="pV">' + esc(val || '') + '</span></div>'; }
+function formPrintHTML(D, f, x) {
+  const sid = x ? x.sid : meSid(), name = x && formAnon(x) ? '(left off by the sender)' : fullName(sid), sent = x ? x.at : Date.now();
+  const ctx = { name: x && formAnon(x) ? '________' : name, employer: OFFICE_NAME };
+  let h = '<div class="pDoc"><div class="pTop"><div><b>' + esc(OFFICE_NAME.toUpperCase()) + '</b><span>' + esc(OFFICE_ADDR + ' · ' + OFFICE_PHONE) + '</span></div>' + (x ? '<div class="pRef">' + esc(formStatus(x)[0]) + '</div>' : '') + '</div>';
+  h += '<h1 class="pTitle">' + esc(D.title.toUpperCase()) + '</h1>';
+  if (D.kind === 'print') return h + printoutHTML(D, f) + '</div>';
+  h += '<div class="pRow">' + pLine(D.anon && f.anon ? 'Employee name (optional)' : 'Employee', name, true) + pLine('Date', fmtDateLong(isoOfMs(sent))) + '</div>';
+  (D.parts || []).forEach(p => {
+    // the office part: for the people who review it, or once it's decided (never a draft on the sender's copy)
+    if (p.by === 'hr' && !(x && (canReview(x) || fmDecided(x)) && (fmDecided(x) || formFields(D).some(fd => fd.by === 'hr' && filled(fd, f[fd.k]))))) return;
+    if (p.h) h += '<div class="pSec">' + esc(p.h) + '</div>';
+    let row = [];
+    const flush = () => { if (row.length) { h += '<div class="pRow">' + row.join('') + '</div>'; row = []; } };
+    p.fields.forEach(fd => {
+      if (!fieldShown(fd, f)) return;
+      if (fd.t === 'say') { flush(); h += '<p class="pSay">' + esc(formSay(fd.s, ctx)) + '</p>'; return; }
+      if (fd.t === 'aud') { flush(); if (!(audPick(D) && D.aud.pr)) return; const a = x ? x.aud : S.fm.aud; h += D.aud.hr ? '<div class="pChk"><span class="pL">' + esc(D.aud.l) + ':</span> ' + PBOX(a === 'hr') + ' Manager/administrator ' + PBOX(a === 'owner') + ' Employer</div>' : pLine(D.aud.l, audFull(a), true); return; }
+      if (fd.k === 'anon') return;
+      const v = f[fd.k];
+      if (fd.t === 'area') { flush(); h += '<div class="pArea"><span class="pL">' + esc(pLab(fd)) + '</span><div class="pText">' + esc(v || '') + '</div></div>'; return; }
+      if (fd.t === 'yesno') { flush(); h += '<div class="pChk"><span class="pL">' + esc(pLab(fd)) + '</span> ' + PBOX(v === false) + ' No ' + PBOX(v === true) + ' Yes</div>'; return; }
+      if (fd.t === 'checks' || fd.t === 'pick') { flush(); const on = o => fd.t === 'pick' ? v === o : Array.isArray(v) && v.includes(o); h += '<div class="pChk"><span class="pL">' + esc(pLab(fd)) + ':</span> ' + fd.opts.map(([o, l]) => '<span class="pOpt">' + PBOX(on(o)) + ' ' + esc(l) + (o === 'other' && fd.k === 'items' && f.itemsOther ? ': ' + esc(f.itemsOther) : '') + '</span>').join(' ') + '</div>'; return; }
+      if (fd.t === 'check') { flush(); h += '<div class="pChk">' + PBOX(v === true) + ' ' + esc(pLab(fd)) + '</div>'; return; }
+      if (fd.t === 'pay') { flush(); h += '<div class="pArea"><span class="pL">' + esc(pLab(fd)) + '</span>' + payTableHTML(fd, f, false) + '</div>'; return; }
+      if (fd.k === 'itemsOther') return; // printed beside "Other"
+      const one = pLine(pLab(fd), fmValueText(fd, v));
+      if (fd.half || fd.third) { row.push(one); if (row.length === (fd.third ? 3 : 2)) flush(); } else { flush(); h += one; }
+    });
+    flush();
+  });
+  // decision, signatures, received
+  if (x && D.decide === 'approve' && (x.status === 'approved' || x.status === 'denied')) h += '<div class="pChk"><span class="pL">Employer:</span> ' + PBOX(x.status === 'approved') + ' Approved ' + PBOX(x.status === 'denied') + ' Not approved' + (x.status === 'denied' && x.decision && x.decision.note ? ' — ' + esc(x.decision.note) : '') + '</div>';
+  else if (x && x.decision && x.decision.note && x.status === 'approved') h += pLine(D.noteL || 'Office note', x.decision.note, true);
+  const sg = Object.assign({}, x && x.sign ? x.sign : {}); if (!fmDecided(x)) delete sg.hr;
+  if (D.sign.staff) h += '<div class="pSig">' + pLine('Employee’s signature', sg.staff ? 'Signed electronically by ' + (sg.staff.n || name) : '', true) + pLine('Date', sg.staff ? fmtDateLong(isoOfMs(sg.staff.at)) : '') + '</div>';
+  if (D.sign.hr) h += '<div class="pSig">' + pLine('Employer’s signature', sg.hr ? 'Signed electronically by ' + (sg.hr.n || fullName(sg.hr.by)) : '', true) + pLine(D.pr && D.pr.received ? 'Date received' : 'Date', D.pr && D.pr.received ? fmtDateLong(isoOfMs(sent)) : sg.hr ? fmtDateLong(isoOfMs(sg.hr.at)) : '') + '</div>';
+  if (D.pr && D.pr.cc) h += '<div class="pCc">cc: Employee’s personnel file · Employee</div>';
+  h += '<div class="pFoot">Sent through NLO Time Off' + (x ? ' (form ' + esc(x.id.slice(0, 9)) + ')' : '') + ' · printed ' + esc(fmWhen(Date.now())) + (sg.staff || sg.hr ? ' · each person signs in NLO Time Off while signed in with their own NLO login' : '') + '</div>';
+  return h + '</div>';
+}
+/* the provider's certifications: Sections 1 and 2 as filled in, then the provider's part to fill in by hand */
+const BL = n => Array.from({ length: n }, () => '<div class="pBlank"></div>').join('');
+function provIdHTML() {
+  return '<div class="pRow">' + pLine('Health care provider’s name', '', true) + '</div><div class="pRow">' + pLine('Address', '', true) + '</div>' +
+    '<div class="pRow">' + pLine('Telephone', '') + pLine('Fax', '') + '</div>';
+}
+function printoutHTML(D, f) {
+  let h = '';
+  (D.parts || []).forEach(p => {
+    h += '<div class="pSec">' + esc(p.h) + '</div>'; let row = [];
+    const flush = () => { if (row.length) { h += '<div class="pRow">' + row.join('') + '</div>'; row = []; } };
+    p.fields.forEach(fd => {
+      if (fd.t === 'pick') { flush(); h += '<div class="pArea"><span class="pL">' + esc(fd.l) + ':</span>' + fd.opts.map(([o, l]) => '<div class="pOptL">' + PBOX(f[fd.k] === o) + ' ' + esc(l) + '</div>').join('') + '</div>'; return; }
+      const one = pLine(fd.l, fmValueText(fd, f[fd.k]));
+      if (fd.half) { row.push(one); if (row.length === 2) flush(); } else { flush(); h += one; }
+    });
+    flush();
+    if (D.id === 'family' && p.by === 'emp') h += '<p class="pSay">The law lets us ask for a timely, complete and sufficient medical certification to support a request for leave to care for a covered family member with a serious health condition. If we ask for it, you need to give it to us to have certain protections under the law, and an incomplete certification may lead to the leave being denied. Please return this form within <b>15 calendar days</b>.</p>';
+    if (D.id === 'family' && p.by === 'staff') h += '<p class="pSay">Fill out <b>Attachment B</b> and give it to the health care provider, not to the employer.</p><p class="pSay">I certify that what I have given here is true and correct.</p><div class="pSig">' + pLine('Employee’s signature', '', true) + '</div>';
+  });
+  if (D.id === 'pregnancy') {
+    const item = (label, more, dates) => '<div class="pItem">' + PBOX(false) + ' <b>' + label + '</b>' + (more ? '<div class="pSay">' + more + '</div>' : '') + BL(dates === 'only' ? 0 : 3) + (dates ? '<div class="pRow">' + pLine('Starting (estimate)', '') + pLine('Ending (estimate)', '') + '</div>' : '') + '</div>';
+    h += '<div class="pSec">Section 3 — the health care provider</div><p class="pSay">Please confirm that, because of this patient’s pregnancy, childbirth or a related medical condition (for example recovery from childbirth, the loss or end of a pregnancy, or postpartum depression), the patient needs the following. Tick each that applies.</p>' +
+      item('Time off for medical appointments.', 'When, and for how long:', false) +
+      item('Disability leave.', 'Because of the pregnancy, childbirth or a related condition, the patient can’t do one or more of the essential functions of the job, or can’t do them without undue risk to herself, to the pregnancy, or to others.', 'only') +
+      item('Intermittent leave.', 'The medically advisable schedule of intermittent leave:', true) +
+      item('A reduced work schedule.', 'The medically advisable reduced schedule:', true) +
+      item('A transfer to a less strenuous or hazardous position, or less strenuous or hazardous duties.', 'What would be medically advisable:', false) +
+      item('Reasonable accommodation.', 'What is medically advisable — for example limits on lifting, more frequent breaks, or a stool or chair:', true) +
+      provIdHTML() + '<div class="pRow">' + pLine('License number', '') + pLine('Specialty', '') + '</div>' +
+      '<div class="pSig">' + pLine('Signature of health care provider', '', true) + pLine('Date', '') + '</div><p class="pSay"><b>Please give this form back to the employee.</b></p>';
+  }
+  if (D.id === 'family') {
+    const yn = '<span class="pOpt">' + PBOX(false) + ' Yes</span> <span class="pOpt">' + PBOX(false) + ' No</span>';
+    const freq = what => '<div class="pSay">Frequency: ______ times per ______ week(s) ______ month(s)<br>Duration: ______ hours or ______ day(s) per ' + what + '</div>';
+    h += '<div class="pBreak"></div><div class="pSec">Section 3 — the health care provider</div>' +
+      '<div class="pNote"><b>Important.</b> The Genetic Information Nondiscrimination Act of 2008 (GINA) prohibits employers and other entities covered by GINA Title II from requesting or requiring genetic information of an individual or family member of the individual, except as specifically allowed by this law. To comply with this law, we are asking that you not provide any genetic information when responding to this request for medical information. “Genetic information” as defined by GINA, includes an individual’s family medical history, the results of an individual’s or family member’s genetic tests, the fact that an individual or an individual’s family member sought or received genetic services, and genetic information of a fetus carried by an individual or an individual’s family member or an embryo lawfully held by an individual or family member receiving assistive reproductive services.</div>' +
+      '<p class="pSay">The employee named above has asked for leave to care for your patient, who is their family member or “designated person.” Please answer every part that applies. Where a question asks how often or how long, give your best estimate from your medical knowledge, experience and examination of the patient, and be as specific as you can: words like “lifetime,” “unknown” or “indeterminate” may not be enough to decide whether the leave is protected. Answer only about the condition the employee needs the leave for. <b>Please don’t give the underlying diagnosis without the patient’s consent, and don’t give any genetic information.</b> Please sign the form.</p>' +
+      provIdHTML() +
+      '<ol class="pList"><li>When did the medical condition or need for treatment begin? ____________________</li>' +
+      '<li>How long will the condition or need for treatment probably last? ____________________</li>' +
+      '<li>Attachment A describes a “serious health condition.” Does the patient’s condition qualify as one? ' + yn + '</li>' +
+      '<li>a. Does or will the patient need help with basic medical, hygiene, nutrition, safety or transportation needs, or with physical or psychological care? ' + yn + '<br>b. Having read the employee’s statement (Attachment B), does the condition call for the employee to take part in the care? (This can include psychological comfort or arranging care by others.) ' + yn + '</li>' +
+      '<li>About how long would the employee’s presence help in caring for the family member?' + BL(2) + '</li>' +
+      '<li>Answer only if the employee is asking for intermittent leave or a reduced schedule.<br><b>Intermittent leave:</b> Is it medically necessary for the employee to be off work now and then because of the family member’s serious health condition? ' + yn + '<br>If yes, how often and for how long (e.g. one episode every 3 months lasting 1–2 days):' + freq('episode') +
+      '<b>Reduced schedule:</b> Is it medically necessary for the employee to work less than their normal schedule because of the family member’s serious health condition? ' + yn + '<br>If yes: ______ hour(s) a day; ______ day(s) a week, from ____________ through ____________<br>' +
+      '<b>Appointments or treatment:</b> Is it medically necessary for the employee to take time off for the family member’s doctor visits or treatment? ' + yn + '<br>If yes, how often, and the time each takes including any recovery:' + freq('appointment or treatment') + '</li></ol>' +
+      '<div class="pSig">' + pLine('Signature of health care provider', '', true) + pLine('Date', '') + '</div><p class="pSay"><b>Please give this form back to the employee.</b></p>' +
+      '<div class="pBreak"></div><div class="pSec">Attachment A — what a “serious health condition” is</div>' +
+      '<p class="pSay">An illness, injury (including an injury at work), impairment, or physical or mental condition of the family member that involves inpatient care or continuing treatment (treatment for substance abuse included). It can be any of these:</p>' +
+      '<ul class="pList"><li><b>Hospital care:</b> an inpatient stay in a hospital, hospice or residential medical care facility — formally admitted with the expectation of staying at least overnight — including any time unable to work, or treatment, that goes with it.</li>' +
+      '<li><b>Absence plus treatment:</b> more than three days in a row unable to work, school or other regular activities, with treatment by a health care provider two or more times (or by others on the provider’s orders), or treatment once that leads to continuing treatment under the provider’s supervision.</li>' +
+      '<li><b>Pregnancy:</b> any time unable to work because of pregnancy, or for prenatal care.</li>' +
+      '<li><b>Chronic conditions:</b> a condition that needs periodic visits for treatment, continues over a long time, and may cause episodes rather than a continuing period of incapacity (e.g. asthma, diabetes, epilepsy).</li>' +
+      '<li><b>Permanent or long-term conditions:</b> incapacity for which treatment may not be effective, under the continuing supervision of a health care provider (e.g. Alzheimer’s, a severe stroke, the terminal stages of a disease).</li>' +
+      '<li><b>Multiple treatments:</b> time off for several treatments (and recovery) for restorative surgery after an accident or injury, or for a condition that would likely mean more than three days of incapacity without treatment (e.g. chemotherapy or radiation, physical therapy for severe arthritis, dialysis).</li></ul>' +
+      '<div class="pBreak"></div><div class="pSec">Attachment B — the employee’s statement about the seriously ill family member</div>' +
+      '<p class="pSay"><b>Fill this out and sign it, then give it to the health care provider separately. Don’t give it to the employer.</b></p>' +
+      '<p class="pSay">Describe the care you will give your family member, with about how long you will give it, and a schedule if the leave is intermittent or a reduced schedule:</p>' + BL(12) +
+      '<p class="pSay">I certify that what I have given here is true and correct.</p><div class="pSig">' + pLine('Signature of employee', '', true) + pLine('Date', '') + '</div>';
+  }
+  return h + '<div class="pFoot">Printed from NLO Time Off · ' + esc(fmWhen(Date.now())) + '</div>';
+}
 
 /* =====================================================================
    Settings (Dr. A): who approves, the HR key, the policy (with the day
