@@ -446,6 +446,9 @@ console.log('10. lock');
   ok((await page.evaluate(() => ppLive().length)) === before, '…no half-uploaded file on the list');
   const unf = await page.evaluate(() => ppAll().filter(f => f.up).map(f => f.id));
   ok(unf.length === 1, '…it is known as an unfinished upload (listed before its pieces were written)');
+  await page.evaluate(() => { ppAll().filter(f => f.up).forEach(f => { f.up = Date.now() - 2 * 3600e3; }); });
+  await page.waitForFunction(() => !ppSweeping); await page.evaluate(() => ppSweep()); await page.waitForFunction(() => !ppSweeping);
+  ok(await page.evaluate(id => !!ppById(id) && !!ppById(id).up, unf[0]), 'an hour later it’s checked, found incomplete, and left on the list (hidden; not erased before a day)');
   await page.evaluate(() => { ppAll().filter(f => f.up).forEach(f => { f.up = Date.now() - 25 * 3600e3; }); });
   await page.waitForFunction(() => !ppSweeping); await page.evaluate(() => ppSweep());
   await page.waitForFunction(id => !ppById(id), unf[0], { timeout: 15000 }).catch(() => {});
@@ -453,11 +456,14 @@ console.log('10. lock');
   ok(!(await pieces(hubUid)).some(p => p.id.startsWith(unf[0] + '_')) && !(await page.evaluate(id => !!ppById(id), unf[0])), '…nothing of it left on the server or the list');
   // an upload that finished, but whose "done" save never reached the server (the tab closed while offline)
   const fin = meta.find(f => f.name === FILES.packet.name).id;
-  await page.evaluate(id => { ppById(id).up = Date.now() - 25 * 3600e3; }, fin);
+  await page.evaluate(id => { ppById(id).up = Date.now() - 2 * 3600e3; }, fin);
   ok(await page.evaluate(id => !ppLive().some(f => f.id === id), fin), 'a finished file still marked as uploading is hidden…');
   await page.waitForFunction(() => !ppSweeping); await page.evaluate(() => ppSweep());
   await page.waitForFunction(id => ppById(id) && !ppById(id).up, fin, { timeout: 20000 }).catch(() => {});
-  ok(await page.evaluate(id => !!ppById(id) && !ppById(id).up, fin) && (await pieces(hubUid)).some(p => p.id === fin + '_0'), '…and a day later the clean-up checks it, finds it whole, and lists it again (nothing erased)');
+  ok(await page.evaluate(id => !!ppById(id) && !ppById(id).up, fin) && (await pieces(hubUid)).some(p => p.id === fin + '_0'), '…and an hour later the clean-up checks it, finds it whole, and lists it again (nothing erased)');
+  const ks = await page.evaluate(() => { const nx = { paper: [{ id: 'ppx', up: 5, removed: 7 }], paperKeys: [], paperGone: [] }, th = { paper: [{ id: 'ppx', up: 0, removed: 0 }], paperKeys: [], paperGone: [] };
+    ppKeepServer(nx, th); return nx.paper[0].up === 0 && nx.paper[0].removed === 0; });
+  ok(ks, 'a restore keeps "finished" and "put back" from the server for files both sides list');
 }
 
 // ---------- 11. the hire record can't be deleted out from under its paperwork ----------

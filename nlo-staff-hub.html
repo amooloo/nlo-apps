@@ -8143,10 +8143,11 @@ H.rosterDisconnect = () => { if (rosterApp) rosterApp.auth().signOut(); };
    - The list (S.paper: type, file name, size, SHA-256 of the original, key id)
      is in the encrypted record. An entry is listed BEFORE its pieces are
      written (marked "up" while uploading), so an interrupted upload is always
-     known: one that failed here is erased; one still marked after a day is
-     checked — kept if every piece is there and it matches its SHA-256 (the
-     upload finished, only the "done" save was lost), erased if not. Opening a
-     file checks every piece and the SHA-256.
+     known: one that failed here is erased; one still marked after an hour is
+     checked — listed if every piece is there and it matches its SHA-256 (the
+     upload finished, only the "done" save was lost), erased after a day if
+     not. Erase decisions only ever use the server's answer. Opening a file
+     checks every piece and the SHA-256.
    - Removed files stay under "Removed" for 30 days, then are deleted for good;
      ids deleted for good are remembered (S.paperGone) so a merge with another
      device can't bring an entry back. Restoring an earlier version or a backup
@@ -8159,7 +8160,8 @@ ICONS.paperclip = '<path d="M20.5 11.5 12 20a5.3 5.3 0 0 1-7.5-7.5l8.8-8.8a3.5 3
 const PP_PIECE = 900 * 1024;              /* bytes of a file per Firestore doc: ciphertext + fields stay well under the 1 MiB cap */
 const PP_MAX = 25 * 1024 * 1024;          /* largest file */
 const PP_KEEP_DAYS = 30;                  /* a removed file can be put back for this long */
-const PP_UP_STALE = 24 * 3600 * 1000;     /* an upload still marked unfinished after a day: check whether it finished, else erase it */
+const PP_UP_CHECK = 3600 * 1000;          /* an upload still marked unfinished after an hour: listed if it's whole… */
+const PP_UP_STALE = 24 * 3600 * 1000;     /* …and erased after a day if it still isn't */
 const PP_PIECE_WAIT = 90 * 1000;          /* give up on a piece the server hasn't taken in this long */
 const PP_CACHE_MAX = 6;                   /* opened files kept in memory (until Lock) */
 const PP_GONE_MAX = 500;
@@ -8408,7 +8410,7 @@ async function ppCheck(f) {
   const key = f.kid ? await ppKeyOf(f.kid) : cryptoKey;
   if (!key) throw new Error('no key');
   if (n < 1) return false;
-  const snaps = await Promise.all(Array.from({ length: n }, (_, i) => ppTimeout(col.doc(f.id + '_' + i).get(), PP_PIECE_WAIT)));
+  const snaps = await Promise.all(Array.from({ length: n }, (_, i) => ppTimeout(col.doc(f.id + '_' + i).get({ source: 'server' }), PP_PIECE_WAIT)));
   const parts = [];
   for (let i = 0; i < n; i++) {
     const d = snaps[i] && snaps[i].exists ? snaps[i].data() : null;
@@ -8489,7 +8491,11 @@ function ppKeepServer(nx, theirs) {
   const gone = new Set(mineGone.concat(Array.isArray(theirs.paperGone) ? theirs.paperGone.filter(x => typeof x === 'string') : []));
   if (gone.size > new Set(mineGone).size) ch = true;
   const mine = Array.isArray(nx.paper) ? nx.paper.filter(ok) : [], have = new Set(mine.map(f => f.id));
-  const extra = (Array.isArray(theirs.paper) ? theirs.paper.filter(ok) : []).filter(f => !have.has(f.id) && !gone.has(f.id));
+  const srv = new Map((Array.isArray(theirs.paper) ? theirs.paper.filter(ok) : []).map(f => [f.id, f]));
+  mine.forEach(f => { const t = srv.get(f.id); if (!t) return;   /* on both: "finished" and "put back" from the server win */
+    if (f.up && !t.up) { f.up = 0; ch = true; }
+    if (f.removed && !t.removed) { f.removed = 0; ch = true; } });
+  const extra = Array.from(srv.values()).filter(f => !have.has(f.id) && !gone.has(f.id));
   if (extra.length) ch = true;
   if (!ch) return false;
   nx.paperKeys = keys;
@@ -8517,6 +8523,7 @@ function ppRevokeCert(all) {   /* the certificate viewer's unlocked copies */
 }
 function ppWipe() {
   ppSess++; ppCache.clear(); ppKeys.clear(); ppRevoke(); ppRevokeCert(true); ppViewTok++;
+  if (ppUp && ppUp.stopNow) { try { ppUp.stopNow(); } catch (e) {} }
   ppUp = null; ppEd = null; ppHi(null);
   if (ppPurgeTimer) { clearTimeout(ppPurgeTimer); ppPurgeTimer = null; }
   /* certificate files opened or being edited this session, too */
@@ -8538,16 +8545,17 @@ async function ppSweep() {
         if (f.removed && f.removed < cut) { await ppErase(f); gone.push(f.id); }
         else if (f.up === 1) { await ppErase(f); gone.push(f.id); }                 /* failed in this browser */
         else if (f.up) {                                                            /* still uploading — or finished and the "done" save was lost */
-          if (now - f.up > PP_UP_STALE) { if (await ppCheck(f)) kept.push(f.id); else { await ppErase(f); gone.push(f.id); } }
+          if (now - f.up > PP_UP_CHECK) { if (await ppCheck(f)) kept.push(f.id); else if (now - f.up > PP_UP_STALE) { await ppErase(f); gone.push(f.id); } }
         } else if (f.chk) {                                                         /* back from a restore: still stored? */
-          const s = await ppTimeout(col.doc(f.id + '_0').get(), PP_PIECE_WAIT);
+          const s = await ppTimeout(col.doc(f.id + '_0').get({ source: 'server' }), PP_PIECE_WAIT);
           if (s.exists) kept.push(f.id); else { await ppErase(f); gone.push(f.id); }
         }
       } catch (e) { /* couldn't tell (connection, or no key here): leave it for next time */ }
     }
   } finally { ppSweeping = false; }
   if (sess !== ppSess || !S || (!gone.length && !kept.length)) return 0;
-  kept.forEach(id => { const f = ppById(id); if (f) { delete f.chk; if (f.up) f.up = 0; } });
+  kept.forEach(id => { const f = ppById(id); if (!f) return; delete f.chk;
+    if (f.up) { f.up = 0; ppMarkReturned({ sid: f.sid, hid: f.hid }, f); act('Listed ' + ppLabel(f) + ' in ' + (ppWho(f) || 'someone') + '’s paperwork (its upload had finished)'); } });
   if (gone.length) { ppDrop(gone); act('Deleted ' + plural(gone.length, 'paperwork file') + ' for good (removed over ' + PP_KEEP_DAYS + ' days ago, an upload that didn’t finish, or no longer stored)'); }
   persist();
   if (route.page === 'staffDetail' || route.page === 'newhire' || route.page === 'settings') render();
