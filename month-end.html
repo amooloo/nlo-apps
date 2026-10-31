@@ -360,7 +360,7 @@ function oldWatchStart(then) {
   const run = () => { const f = oldThen; oldThen = null; if (f) f(); };
   if (oldWatching) { oldThen = then; if (oldClear) run(); return true; }
   oldWatching = true; oldThen = then;
-  try { NLOM.watchOldDb(firebase.database(), () => false, () => { oldClear = true; run(); }); }
+  try { NLOM.watchOldDb(firebase.database(), () => false, () => { oldClear = true; run(); }, () => { oldWatching = false; oldClear = false; }); }
   catch (e) { oldWatching = false; oldThen = null; return false; }
   setTimeout(() => { if (!oldClear && !document.getElementById('nlomOverlay')) run(); }, 6000);
   return true;

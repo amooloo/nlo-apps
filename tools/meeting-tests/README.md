@@ -35,7 +35,10 @@ Cadence's "Staff meeting" button (`../../cadence.html`, `<script id="nlo-meeting
   the Cadence screen follow). After the independent review: the other screens pause while it moves (and moves back);
   Month-End open and idle saves nothing again and again; a computer that can't reach the NLO Cases database after the move
   says so and saves nothing to the old copy; the move can't be run again once moved; closing the move page signs Dr. A's
-  NLO Cases login out. 85 checks (`--quick`: 83). Screenshots in `shots/`.
+  NLO Cases login out. After the second review: Cadence as it really runs (on the NLO Cases system; one screen with the
+  office Google connection, one without), a move claimed by one screen at a time (a claim left by a closed tab goes by
+  itself; an old one is ignored), writes refused on a paused screen, no false "can't confirm" while switching. 97 checks
+  (`--quick`: 95). Screenshots in `shots/`.
 
 Run (Java and Node 20+):
 

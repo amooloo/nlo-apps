@@ -55,13 +55,17 @@ const inboxTexts = p => p.evaluate(() => Object.values(S.inbox || {}).map(x => x
 const CAD = fs.readFileSync(new URL('../../cadence.html', import.meta.url), 'utf8');
 const between = (s, a, b) => { const i = s.indexOf(a); if (i < 0) throw new Error('not in cadence.html: ' + a); const k = s.indexOf(b, i + a.length); return s.slice(i + a.length, k); };
 const ADDON_JS = between(CAD, '<script id="nlo-meeting-addon">', '</script>'), ADDON_CSS = between(CAD, '<style id="nlo-meeting-addon-css">', '</style>');
-async function cadenceScreen() {
-  const C = await device('cadence');
+async function cadenceScreen(withGoogle) {
+  const C = await device(withGoogle ? 'cadence-google' : 'cadence');
   await C.page.goto(BASE + 'tools/meeting-tests/blank.html');
-  await C.page.evaluate(() => { document.body.insertAdjacentHTML('beforeend', '<div class="staff-content" style="height:600px"></div>'); window.__nloCad = { me: 's_gwen', staff: [{ id: 's_gwen', name: 'Gwen Rodis', status: 'active' }], authed: false, cloud: true }; });
+  await C.page.evaluate(() => { document.body.insertAdjacentHTML('beforeend', '<div class="staff-content" style="height:600px"></div>'); window.__nloCad = { me: null, staff: [{ id: 's_gwen', name: 'Gwen Rodis', status: 'active' }], authed: false, cloud: true, mode: 'fs' }; });
+  if (withGoogle) {   // the office Google connection on that computer (Cadence's default app → the old database)
+    await C.page.evaluate(() => { firebase.initializeApp({ apiKey: 'x', authDomain: 'nlo-inventory.firebaseapp.com', databaseURL: 'https://nlo-inventory-default-rtdb.firebaseio.com', projectId: 'nlo-inventory' }); });
+    await google(C.page, 'records@thenextlevelorthodontics.com');
+  }
   await C.page.addStyleTag({ content: ADDON_CSS });
   await C.page.addScriptTag({ content: ADDON_JS });
-  await C.page.evaluate(async pw => { await NLOM.signIn('gwen', pw); window.__nloCad.authed = true; window.dispatchEvent(new Event('nlo-cadence-user')); }, E.PW);
+  await C.page.evaluate(async ([pw, g]) => { await NLOM.signIn('gwen', pw); window.__nloCad.me = 's_gwen'; window.__nloCad.authed = g; window.dispatchEvent(new Event('nlo-cadence-user')); }, [E.PW, !!withGoogle]);
   return C;
 }
 const fabShown = p => p.evaluate(() => { const f = document.querySelector('.nlo-mtg-fab'); return !!(f && f.classList.contains('show')); });
@@ -112,8 +116,35 @@ await pb.evaluate(() => closeSheet());
 // a Cadence screen open all day: Gwen on her NLO Cases login, no office Google account on that computer
 const CS = await cadenceScreen();
 const pc = CS.page;
+// and one that also has the office Google connection (the button works on the old database there, as today)
+const CG = await cadenceScreen(true);
+const pcg = CG.page;
 await sleep(2500);
 ok(!(await fabShown(pc)), 'Cadence (NLO Cases login, no Google): no “Staff meeting” button before the move, as today');
+await pcg.waitForFunction(() => { const f = document.querySelector('.nlo-mtg-fab'); return f && f.classList.contains('show'); }, null, { timeout: 20000 }).catch(() => { });
+ok(await fabShown(pcg) && /Staff meeting\s*1/.test(await pcg.textContent('.nlo-mtg-fab')), 'Cadence with the office Google connection: the button, from the old database, as today');
+// an interrupted move mustn't pause everyone for good: the claim goes when that screen goes, and an old one is ignored
+{
+  const X = await device('drA-tab');
+  await X.page.goto(HUB);
+  await X.page.waitForSelector('#gate .gbtn:not([hidden])', { timeout: 20000 });
+  await google(X.page, 'akhavan.ak@gmail.com');
+  await waitApp(X.page);
+  ok(!!(await X.page.evaluate(() => NLOM.claimMove(firebase.database(), 'test').catch(e => ''))), 'a move claimed on one screen (Dr. A’s tab)…');
+  await pb.waitForSelector('#nlomOverlay', { timeout: 10000 }).catch(() => { });
+  ok(/moving the Staff Meeting Hub to the NLO Cases system/.test(await pb.textContent('#nlomOverlay').catch(() => '')), '…pauses the other screens');
+  ok(await pa.evaluate(() => NLOM.claimMove(firebase.database(), 'second').then(() => 'claimed', e => e.code)) === 'busy', 'a second screen can’t start a move at the same time');
+  await X.ctx.close();   // that tab closed mid-way
+  let gone = false;
+  for (let i = 0; i < 60 && !gone; i++) { gone = !(await E.dbGet('nlo/staffMeeting/moving')); if (!gone) await sleep(500); }
+  ok(gone, 'its tab closed mid-way: the claim goes by itself');
+  await pb.waitForFunction(() => !document.getElementById('nlomOverlay'), null, { timeout: 10000 }).catch(() => { });
+  ok(!(await pb.isVisible('#nlomOverlay')), '…and the other screens carry on');
+  await E.dbPut('nlo/staffMeeting/moving', { at: Date.now() - 16 * 60000, by: 'old', token: 'old' });
+  await sleep(1500);
+  ok(!(await pb.isVisible('#nlomOverlay')), 'a claim left over from long ago is ignored');
+  await E.dbPut('nlo/staffMeeting/moving', null);
+}
 
 // ---------- 2. the move ----------
 console.log('2. the move');
@@ -146,6 +177,9 @@ const copy = JSON.parse(fs.readFileSync(copyFile, 'utf8'));
 ok(copy.data && copy.data['nlo/staffMeeting/inbox'] && Object.keys(copy.data['nlo/staffMeeting/inbox']).length === 3, 'a copy of everything goes to Downloads first');
 await pb.waitForSelector('#nlomOverlay', { timeout: 10000 }).catch(() => { });
 ok(/moving the Staff Meeting Hub to the NLO Cases system/.test(await pb.textContent('#nlomOverlay').catch(() => '')), 'the other computer (on the old database) pauses while it moves');
+await pcg.waitForFunction(() => { const f = document.querySelector('.nlo-mtg-fab'); return f && !f.classList.contains('show'); }, null, { timeout: 8000 }).catch(() => { });
+ok(!(await fabShown(pcg)), '…and the Google Cadence screen’s button stops saving to the old database');
+await pb.evaluate(() => { new MutationObserver(() => { const e = document.getElementById('nlomOvMsg'); if (e) try { sessionStorage.setItem('testOv', (sessionStorage.getItem('testOv') || '') + '|' + e.textContent); } catch (x) { } }).observe(document.body, { childList: true, subtree: true, characterData: true }); });
 await pa.waitForFunction(() => /Switched over|Stopped/.test(document.getElementById('mvBody') ? document.getElementById('mvBody').textContent : ''), null, { timeout: 60000 }).catch(() => { });
 ok(/Switched over/.test(await pa.textContent('#mvBody').catch(() => '')), 'moved and switched over');
 const moved = await E.fsGet('nlo-cases', 'mtgMeta/moved');
@@ -160,10 +194,13 @@ await pa.waitForSelector('#ncForm', { timeout: 20000 });
 ok(/NLO Cases username and password/.test(await pa.textContent('#gate')) && !(await pa.isVisible('#gate .gbtn[data-act="sign-in"]')), 'Dr. A’s computer: the NLO Cases sign-in, no Google button');
 await pb.waitForSelector('#ncForm', { timeout: 20000 }).catch(() => { });
 ok(await pb.isVisible('#ncForm'), 'the other computer switched over by itself (NLO Cases sign-in)');
+ok(!/can’t confirm/.test(await pb.evaluate(() => sessionStorage.getItem('testOv') || '')), '…without a false “can’t confirm” on the way');
 // (it was refused before the rules were published, so it listens again 30 s later, then 60 s… — up to 10 min on a screen
 // that's been open for hours; signing in on Cadence again also does it)
 await pc.waitForFunction(() => { const f = document.querySelector('.nlo-mtg-fab'); return f && f.classList.contains('show'); }, null, { timeout: 100000 }).catch(() => { });
 ok(await fabShown(pc) && /Staff meeting\s*1/.test(await pc.textContent('.nlo-mtg-fab')), 'the Cadence screen left open gets its “Staff meeting” button by itself (Gwen’s 1 to-do)');
+await pcg.waitForFunction(() => { const f = document.querySelector('.nlo-mtg-fab'); return f && f.classList.contains('show'); }, null, { timeout: 100000 }).catch(() => { });
+ok(await fabShown(pcg), '…and the Google one, now from the NLO Cases records');
 ok((await fsSignIn(pb, 'gone', E.PW)) !== 'app' && /turned off/.test(await pb.textContent('#gateErr')), 'a turned-off login is refused');
 ok((await fsSignIn(pb, 'newbie', E.PW)) !== 'app' && /Finish setting up/.test(await pb.textContent('#gateErr')), 'a login still on its temporary password: finish in NLO Cases first');
 ok((await fsSignIn(pb, 'gwen', 'wrong-pw')) !== 'app' && /incorrect/.test(await pb.textContent('#gateErr')), 'wrong password');
@@ -346,10 +383,12 @@ console.log('8. moving back');
   await pa.check('#mbOk');
   const curMid = await pa.evaluate(() => S.meetingId);
   ok(await fabShown(pc), '(Cadence’s button is there before moving back)');
+  if (!(await appOpen(pb))) await fsSignIn(pb, 'gwen', E.PW);   // Gwen at work on the other computer
   const dlP = pa.waitForEvent('download', { timeout: 40000 });
   await pa.click('#mbGo');
   await pb.waitForSelector('#nlomOverlay', { timeout: 8000 }).catch(() => { });
   ok(/moving the Staff Meeting Hub back/.test(await pb.textContent('#nlomOverlay').catch(() => '')), 'the other computer pauses while it moves back');
+  ok(await pb.evaluate(() => db.ref('nlo/staffMeeting/inbox/-Nq0zzzzzzzzzzzzzzzz').set({ text: 'during the move back', status: 'open' }).then(() => 'saved', e => e.code)) === 'paused', '…and nothing saves there meanwhile (not even in the background)');
   ok(!(await fabShown(pc)), '…and so does Cadence’s button');
   const dl2 = await dlP.catch(() => null);
   ok(!!dl2, 'a copy goes to Downloads first');
@@ -364,9 +403,11 @@ console.log('8. moving back');
   await pa.waitForFunction(() => Object.values(S.inbox || {}).some(x => x.text === 'The sterilizer is making a noise'), null, { timeout: 15000 }).catch(() => { });
   ok(await pa.evaluate(() => Object.values(S.inbox || {}).some(x => x.text === 'The sterilizer is making a noise') && Object.values(S.inbox || {}).some(x => x.text === 'The autoclave door sticks')), '…and shows what was done on the NLO Cases system');
   await pb.waitForFunction(() => typeof MODE !== 'undefined' && MODE === 'rtdb', null, { timeout: 20000 }).catch(() => { });
-  ok(await pb.evaluate(() => MODE === 'rtdb') && await waitApp(pb), 'the other computer (at the NLO Cases sign-in) goes back by itself: the office Google account it still has opens the Hub');
+  ok(await pb.evaluate(() => MODE === 'rtdb') && await waitApp(pb), 'the other computer goes back by itself: the office Google account it still has opens the Hub');
   await pc.waitForFunction(() => { const f = document.querySelector('.nlo-mtg-fab'); return f && !f.classList.contains('show'); }, null, { timeout: 15000 }).catch(() => { });
   ok(!(await fabShown(pc)), 'the Cadence screen (no Google there) puts its button away rather than keep using the NLO Cases copy');
+  await pcg.waitForFunction(() => { const f = document.querySelector('.nlo-mtg-fab'); return f && f.classList.contains('show'); }, null, { timeout: 20000 }).catch(() => { });
+  ok(await fabShown(pcg), '…the Google one goes back to the old database');
 }
 
 await browser.close();

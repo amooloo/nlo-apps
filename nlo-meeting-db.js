@@ -242,6 +242,7 @@
       });
     }
     function write(entries) {
+      if (NL.paused) return Promise.reject(pausedErr());
       try { const per = plan(entries), b = fs.batch(); apply(b, per); return b.commit(); }
       catch (e) { return Promise.reject(e); }
     }
@@ -281,6 +282,7 @@
             const p = c.set(v); c.then = p.then.bind(p); c.catch = p.catch.bind(p); return c;
           },
           async transaction(fn) {
+            if (NL.paused) throw pausedErr();
             const t = target(path);
             if (!t || t.col || t.m.ro) throw notHere(path);
             let out, committed = false;
@@ -307,7 +309,8 @@
   /* =====================================================================
      the NLO Cases login (as Case Tracker): username → email → sign in → an active member, set up
      ===================================================================== */
-  const NL = { app: null, auth: null, fs: null, ready: null, me: null, unsubs: [], idleMin: 10 };
+  const NL = { app: null, auth: null, fs: null, ready: null, me: null, unsubs: [], idleMin: 10, paused: false };
+  function pausedErr() { const e = new Error('The Staff Meeting Hub is being moved right now — try again in a minute.'); e.code = 'paused'; return e; }
   function init() {
     if (NL.app) return NL;
     try { NL.app = firebase.app(APP); } catch (e) { NL.app = firebase.initializeApp(NC_FB, APP); }
@@ -407,7 +410,7 @@
     let unsub = null, timer = null, wait = 30000, stopped = false;
     const sub = () => {
       if (stopped) return;
-      unsub = f.doc('mtgMeta/moved').onSnapshot(s => {
+      unsub = f.doc('mtgMeta/moved').onSnapshot({ includeMetadataChanges: true }, s => {
         wait = 30000;
         if (s.metadata && s.metadata.fromCache) return;
         const d = s.exists ? s.data() : null;
@@ -435,6 +438,7 @@
      (nothing is saved to the old copy) and says so. */
   let ovKeys = false;
   function overlay(msg, opts) {
+    if (switching) return;
     let el = document.getElementById('nlomOverlay');
     if (!msg) { if (el) el.remove(); return; }
     if (!el) {
@@ -449,37 +453,78 @@
     const b = el.querySelector('#nlomOvBtn'); if (b) { b.onclick = () => location.reload(); setTimeout(() => { try { b.focus(); } catch (e) { } }, 30); }
     try { if (document.activeElement && document.activeElement !== b && document.activeElement.blur) document.activeElement.blur(); } catch (e) { }
   }
-  function switchNow(text) { overlay(text + ' Switching over…'); setTimeout(() => location.reload(), 1200); }
+  /* switching: this screen is about to reload (nothing else is shown over that) */
+  let switching = false;
+  function switchNow(text) { if (switching) return; overlay(text + ' Switching over…'); switching = true; setTimeout(() => location.reload(), 1200); }
+  /* a move that was interrupted (Dr. A's screen closed mid-way) mustn't pause everyone for good: a marker older than this is
+     ignored (the moving screen re-stamps it as it goes; the old database also removes it when that screen disconnects) */
+  const STALE = 15 * 60000;
+  const msOf = at => (typeof at === 'number' ? at : at && typeof at.toMillis === 'function' ? at.toMillis() : 0);
+  const fresh = at => { const t = msOf(at); return t > 0 && Date.now() - t < STALE; };
+  const rememberFs = on => { try { if (on) localStorage.setItem('nloMtg.fs', '1'); else localStorage.removeItem('nloMtg.fs'); } catch (e) { } };
   const FREEZE_IN = 'Dr. A is moving the Staff Meeting Hub to the NLO Cases system. This screen switches over by itself in a minute or two — nothing to do.';
   const FREEZE_BACK = 'Dr. A is moving the Staff Meeting Hub back to the old database. This screen switches over by itself in a minute or two — nothing to do.';
-  /* the old database's own markers (moving / movedTo) */
-  function watchOld(rt, cb) {
-    const st = { moving: null, movedTo: null }; let got = 0;
+  /* the old database's own markers (moving: a fresh one only / movedTo); cb(state) on each change, and again when a moving
+     marker goes stale; onCancel(): the old database stopped them (e.g. its sign-in ended) */
+  function watchOld(rt, cb, onCancel) {
+    const st = { moving: null, movedTo: null, rawMoving: null }; let got = 0, timer = null, dead = false;
     const a = rt.ref(ROOT + '/moving'), b = rt.ref(ROOT + '/movedTo');
-    const fa = s => { st.moving = s.val(); got |= 1; if (got === 3) cb(st); };
-    const fb = s => { st.movedTo = s.val(); got |= 2; if (got === 3) cb(st); };
-    a.on('value', fa, () => { }); b.on('value', fb, () => { });
-    return () => { try { a.off('value', fa); b.off('value', fb); } catch (e) { } };
+    const emit = () => {
+      if (dead || got !== 3) return;
+      clearTimeout(timer);
+      const m = st.rawMoving;
+      st.moving = m && fresh(m.at) ? m : null;
+      if (st.moving) timer = setTimeout(emit, Math.max(1000, STALE - (Date.now() - msOf(m.at)) + 1000));
+      cb(st);
+    };
+    const fa = s => { st.rawMoving = s.val(); got |= 1; emit(); };
+    const fb = s => { st.movedTo = s.val(); got |= 2; emit(); };
+    const cancel = () => { if (dead) return; dead = true; clearTimeout(timer); stop(); if (typeof onCancel === 'function') { try { onCancel(); } catch (e) { } } };
+    const stop = () => { try { a.off('value', fa); b.off('value', fb); } catch (e) { } };
+    a.on('value', fa, cancel); b.on('value', fb, cancel);
+    return () => { dead = true; clearTimeout(timer); stop(); };
   }
   /* busy(): this screen is the one doing the move */
   function followNew(busy) {
+    let timer = null;
     return onMoved((on, d) => {
-      if (busy()) return;
-      if (!on) { if (d.on === false) switchNow('The Staff Meeting Hub has moved back to the office Google sign-in.'); return; }
-      overlay(d.pause === true ? FREEZE_BACK : null);
+      clearTimeout(timer);
+      if (busy()) { NL.paused = false; return; }
+      if (!on) { NL.paused = false; if (d.on === false) { rememberFs(false); switchNow('The Staff Meeting Hub has moved back to the office Google sign-in.'); } return; }
+      const p = d.pause === true && fresh(d.at);
+      NL.paused = p;
+      overlay(p ? FREEZE_BACK : null);
+      if (p) timer = setTimeout(() => { NL.paused = false; overlay(null); }, Math.max(1000, STALE - (Date.now() - msOf(d.at)) + 1000));
     });
   }
-  function followOld(busy) { return onMoved(on => { if (on && !busy()) switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); }); }
+  function followOld(busy) { return onMoved(on => { if (on && !busy()) { rememberFs(true); switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); } }); }
   /* onClear(): told each time the old database is neither being moved nor marked moved (the page starts only then) */
-  function watchOldDb(rt, busy, onClear) {
+  function watchOldDb(rt, busy, onClear, onCancel) {
     return watchOld(rt, st => {
       if (busy()) return;
       if (st.movedTo) { movedAway(); return; }
       overlay(st.moving ? FREEZE_IN : null);
       if (!st.moving && typeof onClear === 'function') onClear();
-    });
+    }, onCancel);
+  }
+  /* Dr. A's screen claims the move (one screen at a time; a claim left by a screen that went away is taken over once stale;
+     the old database removes it when that screen disconnects): resolves to the claim's token, or rejects (code 'busy') */
+  async function claimMove(rt, by) {
+    const token = pushKey(), ref = rt.ref(ROOT + '/moving');
+    const r = await ref.transaction(cur => (cur && fresh(cur.at) && cur.token !== token) ? undefined : { at: firebase.database.ServerValue.TIMESTAMP, by: String(by || ''), token });
+    if (!r.committed) { const e = new Error('another screen is moving the Hub right now'); e.code = 'busy'; throw e; }
+    try { await ref.onDisconnect().remove(); } catch (e) { }
+    return token;
+  }
+  async function moveStillMine(rt, token) { const v = (await rt.ref(ROOT + '/moving').once('value')).val(); return !!(v && v.token === token); }
+  function touchMove(rt, token) { return rt.ref(ROOT + '/moving').transaction(cur => cur && cur.token === token ? Object.assign({}, cur, { at: firebase.database.ServerValue.TIMESTAMP }) : undefined).catch(() => { }); }
+  async function releaseMove(rt, token) {
+    const ref = rt.ref(ROOT + '/moving');
+    try { await ref.transaction(cur => cur && cur.token === token ? null : undefined); } catch (e) { }
+    try { await ref.onDisconnect().cancel(); } catch (e) { }
   }
   function movedAway() {
+    if (switching) return;
     let t = 0; try { t = Number(sessionStorage.getItem('nloMtg.awayAt') || 0); } catch (e) { }
     if (!(Date.now() - t < 120000)) { try { sessionStorage.setItem('nloMtg.awayAt', String(Date.now())); } catch (e) { } switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); return; }
     overlay('The Staff Meeting Hub has moved to the NLO Cases system, but this computer can’t confirm that with the NLO Cases database right now (no connection, or its database rules need publishing again — ask Dr. A). Nothing can be saved on this screen until then.', { reload: true });
@@ -641,7 +686,8 @@
   window.NLOM = {
     ROOT, MOUNTS, MOVED, RULES_MARK,
     init, db: makeDb, signIn, signOut, watch, unwatch, idleMin, lock, lockMsg, lastLogin, errText, badLogin, moved, onMoved, moveState, rulesLive, personOf,
-    overlay, watchOld, followNew, followOld, watchOldDb,
+    overlay, watchOld, followNew, followOld, watchOldDb, claimMove, moveStillMine, touchMove, releaseMove, fresh,
+    get paused() { return NL.paused; },
     cadenceCopy, inventoryOld, readOld, readNew, recordsOf, writeRecords, counts, badIds, tooBig, fpr, clean, plain, pushKey, target, sidFor,
     get me() { return NL.me; }, get fs() { return NL.fs; }, get auth() { return NL.auth; }
   };

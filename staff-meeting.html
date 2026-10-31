@@ -933,7 +933,7 @@ function oldWatchStart(then) {
   const run = () => { const f = oldThen; oldThen = null; if (f) f(); };
   if (oldWatching) { oldThen = then; if (oldClear) run(); return true; }
   oldWatching = true; oldThen = then;
-  try { NLOM.watchOldDb(firebase.database(), () => MOVING, () => { oldClear = true; run(); }); }
+  try { NLOM.watchOldDb(firebase.database(), () => MOVING, () => { oldClear = true; run(); }, () => { oldWatching = false; oldClear = false; }); }
   catch (e) { oldWatching = false; oldThen = null; return false; }
   setTimeout(() => { if (!oldClear && !document.getElementById('nlomOverlay')) run(); }, 6000);
   return true;
@@ -1080,18 +1080,17 @@ function moveSheet() {
     const line = t => { body.insertAdjacentHTML('beforeend', '<p class="hint">' + esc(t) + '</p>'); };
     body.innerHTML = '';
     MOVING = true;
-    let paused = false;
+    let claim = '';
     try {
       download('staff-meeting-hub-before-move-' + todayYmd() + '.json', JSON.stringify(Object.assign({ app: 'staff-meeting-hub', at: new Date().toISOString(), data: old }, before ? { nloCasesBefore: before } : {}), null, 1));
       line('Copy saved to Downloads ✓');
       const no = await movedAlready(); if (no) throw new Error(no);
-      await db.ref(P('moving')).set({ at: Date.now(), by: S.email });   /* other screens on the old database pause */
-      paused = true;
+      claim = await NLOM.claimMove(db, S.email);   /* other screens on the old database pause (one move at a time) */
       line('Pausing the Hub on other screens…');
       await sleep(4000);
       let cur = await NLOM.readOld(db), res = null;
       for (let k = 0; k < 3; k++) {
-        res = await NLOM.writeRecords(NLOM.fs, NLOM.me.sid, NLOM.recordsOf(cur), (n, all) => { const p = body.querySelector('.mvProg') || (body.insertAdjacentHTML('beforeend', '<p class="hint mvProg"></p>'), body.querySelector('.mvProg')); p.textContent = 'Writing… ' + n + ' of ' + all; });
+        res = await NLOM.writeRecords(NLOM.fs, NLOM.me.sid, NLOM.recordsOf(cur), (n, all) => { NLOM.touchMove(db, claim); const p = body.querySelector('.mvProg') || (body.insertAdjacentHTML('beforeend', '<p class="hint mvProg"></p>'), body.querySelector('.mvProg')); p.textContent = 'Writing… ' + n + ' of ' + all; });
         if (res.missing.length || res.differ.length || res.left.length) throw new Error('the check after writing found ' + (res.missing.length + res.differ.length + res.left.length) + ' records not as written — nothing was switched over');
         const again = await NLOM.readOld(db);   /* changed meanwhile (a screen saving something)? then write that too */
         if (NLOM.fpr(again) === NLOM.fpr(cur)) break;
@@ -1100,14 +1099,17 @@ function moveSheet() {
       }
       line('Checked: ' + plural(res.written, 'record') + ' written and read back the same ✓');
       const FV = firebase.firestore.FieldValue;
+      /* still this screen's move, and nobody else's switch meanwhile? */
+      if (!(await NLOM.moveStillMine(db, claim))) throw new Error('the pause on the other screens was interrupted (a connection dropped) — nothing was switched over; try again');
+      const no2 = await movedAlready(); if (no2) throw new Error(no2);
       await NLOM.fs.doc('mtgMeta/info').set({ counts: NLOM.counts(cur), by: OWNER_EMAIL, _up: FV.serverTimestamp(), _by: NLOM.me.sid });
       await NLOM.fs.doc('mtgMeta/moved').set({ on: true, at: FV.serverTimestamp() });
       try { await db.ref(P('movedTo')).set({ at: Date.now(), by: S.email, to: 'nlo-cases' }); } catch (x) { }
-      try { await db.ref(P('moving')).remove(); } catch (x) { }
+      await NLOM.releaseMove(db, claim);
       line('Switched over ✓ — the Hub and Month-End now open with the NLO Cases login.');
       setTimeout(() => location.reload(), 2500);
     } catch (x) {
-      if (paused) { try { await db.ref(P('moving')).remove(); } catch (y) { } }
+      if (claim) await NLOM.releaseMove(db, claim);
       MOVING = false;
       NLOM.signOut();
       line('Stopped: ' + (x.message || x));
@@ -1145,10 +1147,16 @@ function moveBackSheet() {
         body.innerHTML = '<p class="hint">Pausing the Hub on other screens…</p>';
         await sleep(4000);
         body.innerHTML = '<p class="hint">Moving back…</p>';
-        const cur = await NLOM.readNew(NLOM.fs);
+        let cur = await NLOM.readNew(NLOM.fs);
         download('staff-meeting-hub-before-move-back-' + todayYmd() + '.json', JSON.stringify({ app: 'staff-meeting-hub', at: new Date().toISOString(), data: cur }, null, 1));
-        for (const m of NLOM.MOVED) await rt.ref(m.path).set(cur[m.path] == null ? null : JSON.parse(JSON.stringify(cur[m.path])));
-        try { await rt.ref(P('movedTo')).remove(); } catch (x) { }
+        for (let k = 0; k < 3; k++) {
+          for (const m of NLOM.MOVED) await rt.ref(m.path).set(cur[m.path] == null ? null : JSON.parse(JSON.stringify(cur[m.path])));
+          const again = await NLOM.readNew(NLOM.fs);   /* (a screen that hadn't paused saved something meanwhile? then that too) */
+          if (NLOM.fpr(again) === NLOM.fpr(cur)) break;
+          if (k === 2) throw new Error('the data kept changing while moving back — nothing was switched back; try again when it’s quiet');
+          cur = again;
+        }
+        await rt.ref(P('movedTo')).remove();
         try { await rt.ref(P('moving')).remove(); } catch (x) { }
         await NLOM.fs.doc('mtgMeta/moved').set({ on: false, at: FV.serverTimestamp() });
         body.innerHTML = '<p class="hint">Moved back ✓ — the Hub and Month-End use the office Google sign-in again.</p>';
@@ -2898,7 +2906,7 @@ document.addEventListener('input', e => {
 });
 $('#capText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); capAdd(); } });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && sheetOpen()) { closeSheet(); return; }
+  if (e.key === 'Escape' && sheetOpen()) { if (!MOVING) closeSheet(); return; }   /* (not while moving: its result must be seen) */
   if (S.tab !== 'run' || sheetOpen() || e.metaKey || e.ctrlKey || e.altKey) return;
   const a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) return;
   const r = liveRun(); if (!r) return;
