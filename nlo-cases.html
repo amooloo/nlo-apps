@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-0HClVH2APzchxRGyqTTu4lmuXcUh3FtdFviunDsB54k=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-wD+i8x8ASE7FNDsVhdzMGX36UQqUhU7OEH4YJUMqRYE=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2466,6 +2466,12 @@ function qdMonth(w) { return QD_MONTHS.indexOf(w) + 1 || qdGet(QD_MAB, w) || 0; 
 function qdMonthSpan(y, mo, what) { const from = qdYmd(y, mo, 1); return from ? { from, to: isoOf(new Date(y, mo, 0)), what } : null; }
 function qdSpans(r) { return r.spans || [{ from: r.from, to: r.to, open: r.open || '', at: r.at || '' }]; }
 const qdIsNum = x => /^\d{1,2}(st|nd|rd|th)?$/.test(x); // (a day of the month on its own: 6, 6th)
+/* days of the month after a date, each after the one before it: 6 after Nov 5 is Nov 6, 1 after Nov 30 is Dec 1 */
+function qdDaysAfter(iso, nums) {
+  let [y, mo, d] = iso.split('-').map(Number); const out = [];
+  for (const x of nums) { const n = parseInt(x, 10); if (n < d) { mo++; if (mo > 12) { mo = 1; y++; } } const v = qdYmd(y, mo, n); if (!v) return null; out.push({ from: v, to: v, what: '' }); d = n; }
+  return out;
+}
 /* several readings as one (a list of days, or a day plus another day beside it): in date order, each day once */
 function qdUnion(rs) {
   const all = [].concat(...rs.map(qdSpans)).sort((a, b) => a.from < b.from ? -1 : a.from > b.from ? 1 : 0);
@@ -2473,7 +2479,7 @@ function qdUnion(rs) {
   if (spans.length === 1) return Object.assign({ what: rs.length === 1 ? rs[0].what || '' : '' }, spans[0]);
   return { from: spans[0].from, to: spans.reduce((m, s) => s.to > m ? s.to : m, ''), spans, what: '' };
 }
-/* times say nothing about the day: 2pm, 10:30, 2:30pm, "2 p.m.", "at 10" */
+/* times say nothing about the day: 2pm, 10:30, 2:30pm, "2 p.m.", "at 10", "Thursday 2" */
 function qdNoTimes(toks) {
   const time = t => /^\d{1,2}(:\d{2})?(am|pm)$|^\d{1,2}:\d{2}$/i.test(t.r), hour = t => !!t && /^\d{1,2}(:\d{2})?$/.test(t.r), ap = t => !!t && /^(am|pm)$/.test(t.n);
   const out = [];
@@ -2481,6 +2487,7 @@ function qdNoTimes(toks) {
     const t = toks[i];
     if (time(t)) continue;
     if (hour(t) && ap(toks[i + 1])) { i++; continue; }
+    if (hour(t) && +t.r.split(':')[0] <= 12 && i && (qdWdStd(toks[i - 1].n) != null || /^(today|tonight|tomorrow|tmrw|yesterday)$/.test(toks[i - 1].n))) continue; // ("Thursday 2")
     if ((t.n === 'at' || t.r === '@') && (hour(toks[i + 1]) || (toks[i + 1] && time(toks[i + 1])))) { i++; if (ap(toks[i + 1])) i++; continue; }
     out.push(t);
   }
@@ -2492,7 +2499,7 @@ function apptQuery(text, today) {
   // each word as a day reads it (n: lower case, punctuation and 's off, wk = week) and as the rest of the search (r: as typed, only the
   // punctuation around it and 's off, so O'Brien stays O'Brien); then without the times and the words around a day (delivery, appts, on…)
   const toks = qdNoTimes(str.split(/\s+/).map(w => ({ n: w.toLowerCase().replace(/[.,!?;:()"“”]+$/, '').replace(/[’']s$/, '').replace(/[’'"“”.,!?;:()]+/g, '').replace(/^wks$/, 'weeks').replace(/^wk$/, 'week'),
-    r: w.replace(/^[.,!?;:()"“”]+|[.,!?;:()"“”]+$/g, '').replace(/[’']s$/i, '') })).filter(t => t.n)).filter(t => !QD_SKIP.has(t.n));
+    r: w.replace(/^[.,!?;:()"“”]+|[.,!?;:()"“”]+$/g, '').replace(/[’']s$/i, ''), c: /,$/.test(w) })).filter(t => t.n)).filter(t => !QD_SKIP.has(t.n));
   // a weekday by any other start of its name than its usual short form (thursd, frida) is a day typed on its own or after next, last,
   // to, and…; anywhere else it's taken for a name (Frida)
   if (toks.length > 1) toks.forEach((t, i) => { if (qdGet(QD_WD, t.n) != null && !QD_WD_STD.has(t.n) && !(i && /^(this|next|last|coming|upcoming|past|previous|to|through|thru|until|till|and|or|&|-|–|—)$/.test(toks[i - 1].n))) t.n += '~'; });
@@ -2509,19 +2516,24 @@ function apptQuery(text, today) {
     const gs = groups.map(g => g.filter(t => !QD_REST_SKIP.has(t.n))).filter(g => g.length), words = [].concat(...gs);
     if (words.some(t => QD_BLOCK.has(t.n))) return null;
     if (!words.length) return out(r, []);
-    const one = r.from === r.to && !r.open && !r.spans;
-    // more days of that month after a date: "Nov 5, 6", "11/5 6"
-    if (!end && one && words.every(t => qdIsNum(t.n))) {
-      const [y, mo] = r.from.split('-').map(Number), ds = words.map(t => qdYmd(y, mo, parseInt(t.n, 10)));
-      return ds.every(Boolean) ? out(qdUnion([r].concat(ds.map(x => ({ from: x, to: x, what: '' })))), []) : null;
+    const single = x => x.from === x.to && !x.open && !x.spans;
+    // more days after a date and its comma: "Nov 5, 6", "11/5, 6, 7" (a smaller day is the next month's: "Nov 30, 1"); without the comma
+    // a number beside a date is a word ("11/5 12": a chart #)
+    if (!end && single(r) && d[d.length - 1].c && qdDay(d.map(t => t.n).join(' '), today) && o.every(t => qdIsNum(t.n))) {
+      const ds = qdDaysAfter(r.from, o.map(t => t.n)); return ds ? out(qdUnion([r].concat(ds)), []) : null;
     }
     // another day beside it ("11/5 Thursday", "Thursday Friday"): both, in the order typed — not with a day open at one end
     // ("Monday before Thursday"): that isn't read as a day at all
-    // A short weekday (Sun, Mon) beside another day is taken for a name: "Sun tomorrow" is Sun's appts tomorrow (the other way round is
-    // tried next)
-    const od = gs.length === 1 ? read(words) : null;
-    if (od && short(d)) continue;
-    if (od && !short(words)) {
+    const od = gs.length === 1 ? read(words) : null, wdOf = a => a.length === 1 ? qdGet(QD_WD, a[0].n) : undefined, wdBased = a => a.some(t => qdWdStd(t.n) != null);
+    if (od) {
+      // a weekday that is that very day is only a reminder ("tomorrow Thu" on a Wednesday, "Fri today" on a Friday)
+      if (wdOf(words) != null && single(r) && qdWd(r.from) === wdOf(words)) return out(r, []);
+      if (wdOf(d) != null && single(od) && qdWd(od.from) === wdOf(d)) continue; // (the other way round drops it)
+      // a short weekday (Sun, Mon) beside a day that isn't a weekday is taken for a name: "Sun tomorrow" and "Sun 11/5" are Sun's appts
+      // then (the other way round is tried next) — beside another weekday it's a day ("Thu Fri next week")
+      if (short(d) && !wdBased(words)) continue;
+    }
+    if (od && !(short(words) && !wdBased(d))) {
       if (qdSpans(r).concat(qdSpans(od)).some(s => s.open)) return null;
       const wt = words.map(t => t.n).join(' '), dt = d.map(t => t.n).join(' '), both = qdPhrase(end ? wt + ' and ' + dt : dt + ' and ' + wt, today);
       return both ? out(both, []) : null;
@@ -2536,21 +2548,31 @@ function qdPhrase(s, today) {
   let m = /^between (.+) and (.+)$/.exec(s), r;
   if (m && (r = qdRange(m[1], m[2], today))) return r;
   // a list: Thursday and Friday, Mon or Wed, 11/5 & 11/12, Nov 5 and 6, Monday Wednesday Thursday
-  let items = s.split(' ').length > 1 && s.split(' ').every(w => qdWdStd(w) != null) ? s.split(' ') : s.split(/ (?:and|or|&|\+|plus) /);
+  const run = x => x.split(' ').every(w => qdWdStd(w) != null);
+  let items = (s.includes(' ') && run(s) ? s.split(' ') : s.split(/ (?:and|or|&|\+|plus) /)).flatMap(x => {
+    // a run of weekdays in one item is one item each, a modifier staying with its end ("Mon Wed and Fri next week", "next week Mon Wed Fri")
+    if (x.includes(' ') && run(x)) return x.split(' ');
+    let m = /^(next week|this week|last week|next|last|this|coming|past) (.+ .+)$/.exec(x); if (m && run(m[2])) { const w = m[2].split(' '); return [m[1] + ' ' + w[0]].concat(w.slice(1)); }
+    m = /^(.+ .+) (next week|this week|last week|after next|next|last)$/.exec(x); if (m && run(m[1])) { const w = m[1].split(' '); return w.slice(0, -1).concat(w[w.length - 1] + ' ' + m[2]); }
+    return [x];
+  });
   if (items.length > 1) {
-    // a modifier on the last weekday (Thursday and Friday next week) or the first (next week Thursday and Friday) goes with each bare one
-    const bare = x => qdGet(QD_WD, x) != null, lastI = items.length - 1;
+    // a week modifier on the last weekday (Thursday and Friday next week, … after next) or the first (next week Thursday and Friday)
+    // goes with each bare one
+    const bare = x => qdGet(QD_WD, x.replace(/^(this|coming|upcoming) /, '')) != null, lastI = items.length - 1;
     let mm = /^([a-z]+) (next week|this week|last week|after next|next|last)$/.exec(items[lastI]);
     if (mm && bare(mm[1]) && items.slice(0, -1).every(bare)) items = items.map((x, i) => i < lastI ? x + ' ' + mm[2] : x);
-    else if ((mm = /^(next week|this week|last week|next|last|this|coming|past) ([a-z]+)$/.exec(items[0])) && bare(mm[2]) && items.slice(1).every(bare)) items = items.map((x, i) => i ? mm[1] + ' ' + x : x);
-    const rs = [];
+    else if ((mm = /^(next week|this week|last week) ([a-z]+)$/.exec(items[0])) && bare(mm[2]) && items.slice(1).every(bare)) items = items.map((x, i) => i ? mm[1] + ' ' + x : x);
+    const rs = []; let prevX = '';
     for (const x of items) {
-      const prev = rs[rs.length - 1];
-      // a day of the month on its own after a date is that month's ("Nov 5 and 6"); a weekday or a month that comes before the one
-      // before it is read on from it (Thursday and Friday: that Thursday's Friday; December and January: the January after)
-      let y = prev && qdIsNum(x) ? (prev.from === prev.to && !prev.open && !prev.spans ? (iso => iso ? { from: iso, to: iso, what: '' } : null)(qdYmd(+prev.from.slice(0, 4), +prev.from.slice(5, 7), parseInt(x, 10))) : null) : qdPhrase(x, today);
-      if (y && prev && y.from < prev.from && (bare(x.replace(/^(this|coming|upcoming) /, '')) || QD_MONTHS.includes(x))) y = qdPhrase(x, prev.from);
-      if (!y) break; rs.push(y);
+      const prev = rs[rs.length - 1], closed = prev && prev.from !== QD_MIN && prev.to !== QD_MAX;
+      // a day of the month on its own after a date is a day after it (Nov 5 and 6; the 31st and 1st = the next month's); a bare weekday
+      // after a day is the next one on or after it (Thursday and Friday: that Thursday's Friday; last Thursday and Friday: the day
+      // after); a month that comes before the one before it is the one after (December and January: the January after)
+      let y = closed && qdIsNum(x) && prev.from === prev.to && !prev.spans && qdDay(prevX, today) ? (qdDaysAfter(prev.from, [x]) || [null])[0]
+        : closed && bare(x) ? qdPhrase(x, prev.to) : qdPhrase(x, today); // (Thursday and the 1st: the 1st on its own)
+      if (y && prev && closed && y.from < prev.from && QD_MONTHS.includes(x)) y = qdPhrase(x, prev.from);
+      if (!y) break; rs.push(y); prevX = x;
     }
     if (rs.length === items.length) return qdUnion(rs);
   }
@@ -2601,9 +2623,9 @@ function qdOne(t, today) {
     return off(m[1]) < 0 ? span(add(1 - k), today, 'in the last ' + k + ' days') : span(today, add(k - 1), 'in the next ' + k + ' days');
   }
   // this week, next week, last week (Monday to Sunday); the coming week (this one on a Monday, else next week), the past week (this one
-  // on a Sunday, else last week); the week after next; the rest of this week / month (from today)
+  // from Friday on — the office's Mon–Thu is done — else last week); the week after next; the rest of this week / month (from today)
   if ((m = /^(this|current|next|coming|upcoming|following|last|past|previous) week$/.exec(t))) {
-    const k = m[1], coming = /^(coming|upcoming)$/.test(k), o = coming ? (wd === 0 ? 0 : 7) : k === 'past' ? (wd === 6 ? 0 : -7) : off(k) * 7;
+    const k = m[1], coming = /^(coming|upcoming)$/.test(k), o = coming ? (wd === 0 ? 0 : 7) : k === 'past' ? (wd >= 4 ? 0 : -7) : off(k) * 7;
     return span(addDays(mon, o), addDays(mon, o + 6), coming ? 'the coming week' : k === 'past' ? 'the past week' : o ? (o < 0 ? 'last week' : 'next week') : 'this week');
   }
   if (t === 'week after next') return span(addDays(mon, 14), addDays(mon, 20), 'the week after next');
@@ -2646,10 +2668,12 @@ function qdOne(t, today) {
     if (/^(last|past|previous)$/.test(k)) return day(add(-((wd - w + 7) % 7 || 7)), 'last ' + QD_WDN[w]);
     return day(add((w - wd + 7) % 7));
   }
-  // a date; a weekday (by its full name or usual short form) before or after it is only a reminder ("Thu 11/5", "Thursday, Nov 5th",
-  // "11/5 Thursday"): the date decides
-  const ws = t.split(' '), lead = ws.length > 1 && qdWdStd(ws[0]) != null, trail = ws.length > 1 && qdWdStd(ws[ws.length - 1]) != null;
-  return lead && qdDay(ws.slice(1).join(' '), today) || trail && qdDay(ws.slice(0, -1).join(' '), today) || qdDay(t, today);
+  // a date; a weekday before or after it is only a reminder ("Thursday, Nov 5th", "11/5 Thursday", "Thu 11/5" — a short form only when
+  // it is that day: "Sun 11/5" is Sun's appts on Nov 5): the date decides
+  const ws = t.split(' '), full = w => QD_WDN.some(x => x.toLowerCase() === w);
+  const rem = (w, r) => r && (full(w) || r.from === r.to && qdWd(r.from) === qdWdStd(w)) ? r : null; // (a short form only when it is that day)
+  return ws.length > 1 && qdWdStd(ws[0]) != null && rem(ws[0], qdDay(ws.slice(1).join(' '), today)) ||
+    ws.length > 1 && qdWdStd(ws[ws.length - 1]) != null && rem(ws[ws.length - 1], qdDay(ws.slice(0, -1).join(' '), today)) || qdDay(t, today);
 }
 /* one date: 11/5, 11/5/26, 2026-11-05, Nov 5, November 5th, 5 Nov, 5th of November (2026), the 5th. With no year: the nearest */
 function qdDay(t, today) {

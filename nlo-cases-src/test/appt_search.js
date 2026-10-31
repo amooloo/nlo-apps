@@ -96,7 +96,8 @@ const isS = (today, q, sp, rest) => {
 };
 const d1 = x => [x + '..' + x];
 isS(D, 'this coming Thursday', d1('2026-11-05'), ''); isS(D, 'this coming week', ['2026-11-02..2026-11-08'], ''); isS(D, 'this past Monday', d1('2026-10-26'), '');
-isS(D, 'this past week', ['2026-10-19..2026-10-25'], ''); isS(D, 'in the next week', ['2026-10-30..2026-11-05'], ''); isS(D, 'within the next week', ['2026-10-30..2026-11-05'], '');
+isS(D, 'this past week', ['2026-10-26..2026-11-01'], ''); // (from Friday on, the past week is this one: Mon–Thu are done)
+ isS(D, 'in the next week', ['2026-10-30..2026-11-05'], ''); isS(D, 'within the next week', ['2026-10-30..2026-11-05'], '');
 isS(D, 'in the next month', ['2026-10-30..2026-11-28'], ''); isS(D, 'deliveries Thursday and Friday', ['2026-11-05..2026-11-05', '2026-11-06..2026-11-06'], '');
 isS(D, '11/5 Thursday', d1('2026-11-05'), ''); isS(D, 'Nov 5 Thursday', d1('2026-11-05'), ''); isS(D, "what's due Thursday", d1('2026-11-05'), '');
 isS(D, 'show me deliveries next week', ['2026-11-02..2026-11-08'], ''); isS(D, 'tomorrow morning', d1('2026-10-31'), ''); isS(D, 'Thursday afternoon', d1('2026-11-05'), '');
@@ -144,6 +145,26 @@ isS('2026-11-01', 'this past week', ['2026-10-26..2026-11-01'], ''); isS(M2, 'th
 isS('2026-11-01', 'last week', ['2026-10-19..2026-10-25']);
 // list order: a later month is read on from the one before; the 1st isn't
 isS(D, 'Thursday and the 1st', ['2026-11-01..2026-11-01', '2026-11-05..2026-11-05'], ''); isS('2026-06-15', 'December and January', ['2026-12-01..2026-12-31', '2027-01-01..2027-01-31'], '');
+console.log('  (the third review, 30 Oct 2026)');
+// short weekday pairs and runs keep their modifier (Monday, Nov 2)
+isS(M2, 'Thu Fri next week', ['2026-11-12..2026-11-12', '2026-11-13..2026-11-13'], ''); isS(M2, 'Tue Thu next week', ['2026-11-10..2026-11-10', '2026-11-12..2026-11-12'], '');
+isS(M2, 'Mon Wed next week', ['2026-11-09..2026-11-09', '2026-11-11..2026-11-11'], ''); isS(M2, 'thu, fri next week', ['2026-11-12..2026-11-12', '2026-11-13..2026-11-13'], '');
+isS(M2, 'next week thu fri', ['2026-11-12..2026-11-12', '2026-11-13..2026-11-13'], ''); isS(M2, 'thu fri after next', ['2026-11-12..2026-11-12', '2026-11-13..2026-11-13'], '');
+const mwf = ['2026-11-09..2026-11-09', '2026-11-11..2026-11-11', '2026-11-13..2026-11-13'];
+isS(M2, 'Mon, Wed and Fri next week', mwf, ''); isS(M2, 'Monday, Wednesday, Friday next week', mwf, ''); isS(M2, 'next week Mon, Wed and Fri', mwf, ''); isS(M2, 'next week mon wed fri', mwf, '');
+// last Thursday and Friday is a pair; so is last Monday and Tuesday on a Tuesday
+isS(D, 'last Thursday and Friday', ['2026-10-29..2026-10-29', '2026-10-30..2026-10-30'], ''); isS('2026-11-03', 'last Monday and Tuesday', ['2026-11-02..2026-11-02', '2026-11-03..2026-11-03'], '');
+// a number after a date: the next one after it (into the next month), only after a comma or and; a time after a weekday or tomorrow
+isS(D, 'the 31st and 1st', ['2026-10-31..2026-10-31', '2026-11-01..2026-11-01'], ''); isS(D, 'Oct 31 and 1', ['2026-10-31..2026-10-31', '2026-11-01..2026-11-01'], '');
+isS(D, 'Friday and the 1st', ['2026-10-30..2026-10-30', '2026-11-01..2026-11-01'], ''); isS(D, '11/30 and 1', ['2026-11-30..2026-11-30', '2026-12-01..2026-12-01'], '');
+isS(D, 'Nov 30, 1', ['2026-11-30..2026-11-30', '2026-12-01..2026-12-01'], ''); isS(D, 'the 30th and 1st', ['2026-10-30..2026-10-30', '2026-11-01..2026-11-01'], '');
+isS(D, 'Thursday 2', d1('2026-11-05'), ''); isS(D, 'tomorrow 3', d1('2026-10-31'), ''); isS(D, '11/5 12', d1('2026-11-05'), '12'); isS(D, 'Nov 5 6', d1('2026-11-05'), '6');
+// a weekday that is that very day is a reminder; a short one that isn't is a name
+const W4 = '2026-11-04';
+isS(W4, 'tomorrow Thu', d1('2026-11-05'), ''); isS(W4, 'Thu tomorrow', d1('2026-11-05'), ''); isS(D, 'today Fri', d1('2026-10-30'), ''); isS(D, 'Fri today', d1('2026-10-30'), '');
+isS(D, 'Sun 11/5', d1('2026-11-05'), 'Sun'); isS(D, 'Thu 11/5', d1('2026-11-05'), ''); isS(D, '11/5 Sun', d1('2026-11-05'), 'Sun');
+// the past week from Friday on is this one (Saturday too)
+isS('2026-10-31', 'the past week', ['2026-10-26..2026-11-01'], ''); isS('2026-10-29', 'the past week', ['2026-10-19..2026-10-25'], '');
 console.log('\n# Monday, Nov 2, 2026');
 D = '2026-11-02';
 is(D, 'monday', '2026-11-02'); is(D, 'thursday', '2026-11-05'); is(D, 'next thursday', '2026-11-12'); is(D, 'last thursday', '2026-10-29');
