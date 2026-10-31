@@ -52,6 +52,14 @@ button{cursor:pointer;}
 .stk-btn{border:1px solid var(--grey-200);background:#fff;border-radius:10px;width:42px;height:42px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:23px;line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;transition:transform .12s;}
 .stk-btn:hover:not([disabled]){background:var(--grey-100);transform:scale(1.1) rotate(-4deg);}
 .stk-btn[disabled]{opacity:.35;cursor:default;}
+@media print{
+  @page{size:landscape;margin:8mm;}
+  html,body{background:#fff !important;}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  header,.no-print,nlo-home,button,[role=alert],[role=status],.detail-panel{display:none !important;}
+  .fadeup,.fadeup-fast{animation:none !important;}
+  .month-cell{min-height:86px !important;box-shadow:none !important;break-inside:avoid;}
+}
 @media (max-width:700px){
   .month-cell{min-height:74px !important;}
   .detail-panel{width:100vw !important;}
@@ -121,7 +129,7 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "2.0.2 (Oct 31, 2026)";
+const CAL_VERSION = "2.1 (Oct 31, 2026)";
 
 /* =====================================================================
    On the NLO Cases system (2.0, 31 Oct 2026; nlo-meeting-db.js). Amir: the Office Calendar signs in like Case Tracker, with
@@ -194,7 +202,8 @@ const PHONE = window.matchMedia("(max-width:700px)");
 const S = {
   view: PHONE.matches ? "agenda" : "month",
   cursor: null,
-  filters: { pto: true, event: true, task: true, hr: true },
+  filters: { pto: true, event: true, task: true, hr: true, school: true },
+  presetOpen: false, presetMsg: "",
   admin: false,
   data: null,               // mirrors RTDB: {events, staff, settings, adminDays}
   detailDate: null,
@@ -255,7 +264,15 @@ function fixedHolidaysForYear(y){
   out[fmt(new Date(y,11,25))]="Christmas Day";
   return out;
 }
+let holMemo=null, holMemoSrc=null, holMemoKey="";
 function holidayMap(){
+  /* asked for many times per screen (every day, every repeating task): rebuilt only when its sources change */
+  const cl0=(S.data&&S.data.settings&&S.data.settings.closures)||{}, k0=JSON.stringify(cl0)+"|"+new Date().getFullYear();
+  if(holMemo&&holMemoSrc===S.sync.holidays&&holMemoKey===k0) return holMemo;
+  holMemoSrc=S.sync.holidays; holMemoKey=k0;
+  return (holMemo=holidayMapBuild());
+}
+function holidayMapBuild(){
   const map={};
   if(S.sync.holidays && S.sync.holidays.length){
     S.sync.holidays.forEach(h=>{ if(h&&h.date) map[String(h.date).slice(0,10)]={label:h.label||"Day Off",source:h.source||"custom"}; });
@@ -563,7 +580,20 @@ db.ref(ROSTER_AT).on("value",(snap)=>{ calRosterAt=typeof snap.val()==="number"?
 }
 
 /* ================= ENTRY QUERIES ================= */
+/* A repeating task by the month or year (month-end numbers, a license renewal) that falls on a day the office is closed
+   is due the last open day before it instead, so it never sits on a Friday, weekend or holiday. Weekly and every-2-weeks
+   tasks keep their weekday (payroll is run on Fridays on purpose). */
+const SHIFT_REC={monthly:1,quarterly:1,yearly:1,biennial:1,triennial:1};
 function occursOn(e,ds){
+  if(e&&e.type==="task"&&e.recurrence&&SHIFT_REC[e.recurrence]){
+    if(officeClosed(ds)) return false;
+    if(rawOccursOn(e,ds)) return true;
+    for(let k=1,d=addDays(ds,1);k<=7&&officeClosed(d);k++,d=addDays(d,1)){ if(rawOccursOn(e,d)) return true; }
+    return false;
+  }
+  return rawOccursOn(e,ds);
+}
+function rawOccursOn(e,ds){
   if(e.recurrence){
     if(ds<e.startDate) return false;
     if(e.until&&ds>e.until) return false;   /* "Repeat until" ends the series */
@@ -577,6 +607,7 @@ function occursOn(e,ds){
     const mdiff=(d.getFullYear()-b.getFullYear())*12+(d.getMonth()-b.getMonth());
     if(e.recurrence==="quarterly") return mdiff%3===0;
     if(e.recurrence==="yearly") return d.getMonth()===b.getMonth();
+    if(e.recurrence==="biennial"||e.recurrence==="triennial") return d.getMonth()===b.getMonth()&&(d.getFullYear()-b.getFullYear())%(e.recurrence==="biennial"?2:3)===0;
     return false;
   }
   const end=e.endDate||e.startDate;
@@ -702,7 +733,7 @@ function outTimes(a,b){
 }
 function entryLabel(e){ return e.type==="pto"?(e.staffName||OUT_NOBODY):e.title; }
 const HR_LABEL={review:"Review",cert:"Cert",start:"First day",last:"Last day"};
-function entryTypeLabel(e){ return e.type==="pto"?"Out":(e.type==="hr"?(HR_LABEL[e.kind]||"Staff Hub"):typeColors(e.type).label); }
+function entryTypeLabel(e){ const ct=catOf(e); if(ct) return ct.glyph+" "+ct.label; return e.type==="pto"?"Out":(e.type==="hr"?(HR_LABEL[e.kind]||"Staff Hub"):typeColors(e.type).label); }
 function entrySub(e){
   if(e.type==="pto") return "Out "+prettyRange(e.startDate,e.endDate)+(e.part?" · "+e.part:"");
   if(e.type==="hr") return e.hrSub+" · from Staff Hub";
@@ -711,10 +742,11 @@ function entrySub(e){
   if(e.type==="anniv") return "Work anniversary";
   const parts=[e.time?fmtTime(e.time):"All day"];
   if(e.recurrence){
-    let r="repeats "+(e.recurrence==="biweekly"?"every 2 weeks":e.recurrence);
+    let r="repeats "+(REC_LABEL[e.recurrence]||e.recurrence);
     if(e.until){ const u=parseD(e.until); r+=" until "+prettyDate(e.until)+(u.getFullYear()!==new Date().getFullYear()?", "+u.getFullYear():""); }
     parts.push(r);
   }
+  if(e.type==="task"&&leadOf(e)) parts.push(leadOf(e)+" day"+(leadOf(e)===1?"":"s")+" heads-up");
   return parts.join(" · ");
 }
 function isBlackout(ds){ const s=S.data&&S.data.settings; return !!(s&&s.blackoutDates&&s.blackoutDates[ds]); }
@@ -864,7 +896,7 @@ function stickerPanelHtml(dd){
 /* ================= MUTATIONS ================= */
 function blankForm(ds){
   const d=ds||todayStr();
-  return {id:null,type:"event",title:"",staffId:"",startDate:d,endDate:d,allDay:true,time:"09:00",notes:"",recurrence:"",until:""};
+  return {id:null,type:"event",title:"",staffId:"",startDate:d,endDate:d,allDay:true,time:"09:00",notes:"",recurrence:"",until:"",cat:"",lead:""};
 }
 function readFormDom(){
   const f=S.form; if(!f) return;
@@ -878,6 +910,8 @@ function readFormDom(){
   if(g("f-rec")) f.recurrence=g("f-rec").value;
   if(g("f-notes")) f.notes=g("f-notes").value;
   if(g("f-allday")) f.allDay=g("f-allday").checked;
+  if(g("f-cat")) f.cat=g("f-cat").value;
+  if(g("f-lead")) f.lead=g("f-lead").value;
 }
 function saveEntry(force){
   readFormDom();
@@ -909,10 +943,14 @@ function saveEntry(force){
     until:until,
     createdAt:Date.now()
   };
+  /* a category (vendor visit; compliance or payroll & money) and a task's heads-up days */
+  if(f.cat&&CATS[f.cat]&&CATS[f.cat].type===f.type) rec.cat=f.cat;
+  if(f.type==="task"&&String(f.lead==null?"":f.lead).trim()!==""){ const n=Math.round(Number(f.lead)); if(isFinite(n)&&n>=0) rec.lead=Math.min(n,120); }
   const id=f.id||("e"+Date.now()+Math.floor(Math.random()*999));
   const old=f.id?data.events[f.id]:null;
   if(old){
     if(old.createdAt) rec.createdAt=old.createdAt;
+    if(old.preset&&f.type==="task") rec.preset=old.preset;
     /* editing a task keeps its check-offs */
     if(f.type==="task"){
       if(old.done){ rec.done=true; rec.doneAt=old.doneAt||null; }
@@ -940,6 +978,305 @@ function setAdminDay(ds,val){
 function cycleAdminDay(ds){
   const cur=adminDayOf(ds);
   setAdminDay(ds, cur===null?"admin":(cur==="admin"?"meeting":null));
+}
+
+/* ================= OFFICE EXTRAS (Oct 31, 2026) =================
+   Amir, 31 Oct 2026: watch days (amber) around holidays when debonds and emergencies go up, a "today" line under
+   Who's out, compliance and payroll/money deadlines with heads-ups (tasks with a category), vendor/rep visits (events
+   with a category), the Alachua County school calendar, a printable month, and themed tiles for the major holidays.
+   Everything new is kept in places the calendar already saves (settings.*, an entry's own fields), so the NLO Cases
+   records and the Staff Meeting Hub's reads are unchanged: entries stay type "event" / "task". */
+
+/* ---------- categories on events and tasks ---------- */
+const CATS={
+  visit:{type:"event",glyph:"🚚",label:"Visit",long:"Vendor / rep visit",lead:0},
+  compliance:{type:"task",glyph:"🛡",label:"Compliance",long:"Compliance",lead:14},
+  money:{type:"task",glyph:"💵",label:"Payroll",long:"Payroll & money",lead:3}
+};
+function catOf(e){ const c=e&&e.cat&&CATS[e.cat]; return c&&c.type===e.type?c:null; }
+function entryGlyph(e,done){ if(done) return "✓"; const c=catOf(e); return c?c.glyph:typeColors(e.type).glyph; }
+/* days of heads-up before a task is due (an entry's own `lead`, else its category's) */
+function leadOf(e){ if(!e||e.type!=="task") return 0; if(typeof e.lead==="number"&&e.lead>=0) return Math.min(e.lead,120); const c=catOf(e); return c?c.lead:0; }
+const REC_LABEL={weekly:"weekly",biweekly:"every 2 weeks",monthly:"monthly",quarterly:"quarterly",yearly:"yearly",biennial:"every 2 years",triennial:"every 3 years"};
+
+/* ---------- heads-up: tasks coming due (and compliance/money ones overdue) ---------- */
+function dueSoon(from){
+  const ev=(S.data&&S.data.events)||{}, out=[];
+  Object.keys(ev).forEach(id=>{
+    const e=ev[id];
+    if(!e||e.type!=="task") return;
+    const lead=leadOf(e), c=catOf(e);
+    if(!lead&&!c) return;
+    /* a missed compliance / money date stays on the list for a month — only the latest one (a weekly test missed
+       three weeks running is one line, not three) */
+    if(c){
+      for(let i=-1;i>=-30;i--){
+        const ds=addDays(from,i);
+        if(occursOn(e,ds)){ if(!isDone(e,ds)) out.push({id,e,ds,days:i}); break; }
+      }
+    }
+    for(let i=0;i<=lead;i++){
+      const ds=addDays(from,i);
+      if(occursOn(e,ds)){ if(!isDone(e,ds)) out.push({id,e,ds,days:i}); break; }
+    }
+  });
+  out.sort((a,b)=>a.ds.localeCompare(b.ds)||String(a.e.title).localeCompare(String(b.e.title)));
+  return out;
+}
+function inDays(n){ return n<0?(n===-1?"yesterday":(-n)+" days ago"):(n===0?"today":(n===1?"tomorrow":"in "+n+" days")); }
+
+/* ---------- watch days: when broken brackets and emergency calls go up ---------- */
+function easterSunday(y){
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+    h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;
+  return new Date(y,mo-1,da);
+}
+const WATCH_RULES=[
+  {key:"valentine",label:"Valentine's candy week",days:y=>range(fmt(new Date(y,1,15)),7)},
+  {key:"easter",label:"Easter candy week",days:y=>range(addDays(fmt(easterSunday(y)),1),7)},
+  {key:"halloween",label:"Halloween candy week",days:y=>range(fmt(new Date(y,10,1)),7)},
+  {key:"thanksgiving",label:"Thanksgiving",days:y=>{ const t=fmt(nthWeekday(y,10,4,4)); return range(addDays(t,-3),2).concat(range(addDays(t,4),7)); }},
+  {key:"winter",label:"Winter holidays",days:y=>range(fmt(new Date(y,11,18)),6).concat(range(fmt(new Date(y,0,2)),7))}
+];
+function range(start,n){ const a=[]; for(let i=0;i<n;i++) a.push(addDays(start,i)); return a; }
+const WATCH_NOTE="Expect more broken brackets, loose wires and emergency calls — keep emergency slots open.";
+let watchMemo=null, watchKey="";
+function watchMap(){
+  const st=(S.data&&S.data.settings)||{}, off=st.watchOff||{}, custom=st.watchCustom||{};
+  const key=JSON.stringify([off,custom,todayStr().slice(0,4)]);
+  if(watchMemo&&watchKey===key) return watchMemo;
+  const map={}, y=new Date().getFullYear();
+  WATCH_RULES.forEach(r=>{
+    if(off[r.key]) return;
+    [y-1,y,y+1].forEach(yy=>r.days(yy).forEach(ds=>{ if(!map[ds]) map[ds]={label:r.label,key:r.key}; }));
+  });
+  Object.keys(custom).forEach(start=>{
+    const c=custom[start]; if(!c||typeof c!=="object"||!/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
+    const end=/^\d{4}-\d{2}-\d{2}$/.test(c.end||"")&&c.end>=start?c.end:start;
+    for(let ds=start,i=0;ds<=end&&i<62;ds=addDays(ds,1),i++) map[ds]={label:String(c.label||"Watch"),key:"custom:"+start};
+  });
+  watchMemo=map; watchKey=key; return map;
+}
+/* only on days the office is open */
+function watchOf(ds){ if(officeClosed(ds)) return null; return watchMap()[ds]||null; }
+const WATCH_BG="#FFF5DE", WATCH_EDGE="#F2C66D", WATCH_INK="#A3670A";
+function watchTag(ds,small){
+  const w=watchOf(ds); if(!w) return "";
+  return `<span class="disp" title="${esc(w.label+" — "+WATCH_NOTE)}" style="font-weight:600;letter-spacing:.08em;font-size:${small?"10px":"11px"};background:${WATCH_EDGE};color:#5A3A00;border-radius:4px;padding:2px 6px;white-space:nowrap;">⚠ Watch</span>`;
+}
+
+/* ---------- Alachua County Public Schools, 2026–27 (students off) ----------
+   From the district's published 2026–27 calendar (via floridaschoolcalendar.com, Oct 31, 2026). Elementary schools also
+   let out early every Wednesday. Dates Dr. A adds or changes in Settings (settings.school) are added on top. */
+const SCHOOL_BUILTIN=(()=>{
+  const m={}, put=(a,n,l)=>{ for(let i=0;i<n;i++) m[addDays(a,i)]=l; };
+  put("2026-09-07",1,"Labor Day"); put("2026-10-09",1,"UF Homecoming"); put("2026-10-16",1,"Student holiday");
+  put("2026-11-11",1,"Veterans Day"); put("2026-11-23",5,"Thanksgiving break"); put("2026-12-21",12,"Winter break");
+  put("2027-01-15",1,"Student holiday"); put("2027-01-18",1,"MLK Day"); put("2027-02-15",1,"Presidents' Day");
+  put("2027-03-15",5,"Spring break"); put("2027-03-29",1,"Student holiday");
+  m["2026-08-10"]="First day of school"; m["2027-05-28"]="Last day of school";
+  return m;
+})();
+function schoolOf(ds){
+  const own=(S.data&&S.data.settings&&S.data.settings.school)||{};
+  if(Object.prototype.hasOwnProperty.call(own,ds)) return own[ds]?String(own[ds]):null;   /* "" hides a built-in day */
+  return SCHOOL_BUILTIN[ds]||null;
+}
+/* the school line on a day: only on days the office is open, and only when the School filter is on */
+function schoolLine(ds){ if(S.filters.school===false||officeClosed(ds)) return null; return schoolOf(ds); }
+function schoolIsOff(label){ return !/first day|last day/i.test(label); }
+
+/* ---------- themed tiles for the major holidays ---------- */
+const svgUrl=s=>"url('data:image/svg+xml,"+encodeURIComponent(s).replace(/'/g,"%27")+"')";
+const HOLI_ART={
+  newyear:{tint:"#FFF8E5",art:`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="110" viewBox="0 0 160 110"><g opacity=".85"><circle cx="18" cy="20" r="3" fill="#E29A14"/><circle cx="48" cy="8" r="2.5" fill="#FA624D"/><circle cx="86" cy="26" r="3" fill="#64F4C9"/><circle cx="130" cy="12" r="2.5" fill="#2E52C9"/><circle cx="146" cy="44" r="3" fill="#E29A14"/><circle cx="104" cy="60" r="2" fill="#FA624D"/><rect x="60" y="44" width="5" height="9" rx="1" transform="rotate(30 62 48)" fill="#2E52C9"/><rect x="122" y="76" width="5" height="9" rx="1" transform="rotate(-25 124 80)" fill="#64F4C9"/><rect x="30" y="58" width="5" height="9" rx="1" transform="rotate(60 32 62)" fill="#FA624D"/><path d="M8 100c20-18 30 8 50-8s28 10 46-6 26 6 46-6" fill="none" stroke="#E29A14" stroke-width="2.5" stroke-linecap="round"/><path d="M128 96l6-14 6 14m-12-5h12" fill="none" stroke="#C2820A" stroke-width="2"/><g transform="translate(140 90)"><path d="M-6-22h12l-2 14h-8z" fill="#FDE7AE" stroke="#C2820A" stroke-width="1.5"/><path d="M0-8v12m-5 0h10" stroke="#C2820A" stroke-width="1.5"/><circle cx="-2" cy="-17" r="1.2" fill="#fff"/><circle cx="2" cy="-13" r="1" fill="#fff"/></g></g></svg>`},
+  valentine:{tint:"#FFF0F3",art:`<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><g fill="#FA7A8C" opacity=".75"><path d="M120 82c-14-10-22-17-22-26 0-6 5-10 10-10 5 0 9 3 12 7 3-4 7-7 12-7 5 0 10 4 10 10 0 9-8 16-22 26z"/><path d="M84 92c-6-4-10-8-10-12 0-3 2-5 5-5 2 0 4 1 5 3 1-2 3-3 5-3 3 0 5 2 5 5 0 4-4 8-10 12z" opacity=".7"/><path d="M140 30c-5-3-8-6-8-9 0-2 2-4 4-4s3 1 4 2c1-1 2-2 4-2s4 2 4 4c0 3-3 6-8 9z" opacity=".6"/></g></svg>`},
+  easter:{tint:"#F6F0FF",art:`<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><g opacity=".85"><ellipse cx="98" cy="74" rx="14" ry="18" fill="#C9B6F5"/><path d="M85 70q6-5 13 0t13 0" stroke="#fff" stroke-width="3" fill="none"/><path d="M85 80q6 5 13 0t13 0" stroke="#FFE08A" stroke-width="3" fill="none"/><ellipse cx="128" cy="80" rx="12" ry="15" fill="#9FF0D6"/><circle cx="123" cy="76" r="2" fill="#fff"/><circle cx="131" cy="83" r="2" fill="#fff"/><circle cx="127" cy="71" r="2" fill="#fff"/><ellipse cx="72" cy="86" rx="9" ry="11" fill="#FFC8BF"/><path d="M64 86h16" stroke="#fff" stroke-width="2.5"/><path d="M50 98q30-10 100 0" stroke="#7BC67E" stroke-width="3" fill="none"/></g></svg>`},
+  memorial:{tint:"#F2F4FA",art:`<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><g opacity=".8"><path d="M112 98V40" stroke="#6B7685" stroke-width="2"/><rect x="113" y="40" width="30" height="20" fill="#E9EDF7"/><path d="M113 44h30M113 52h30" stroke="#D8412E" stroke-width="2.5"/><rect x="113" y="40" width="12" height="10" fill="#294169"/><g fill="#D8412E"><circle cx="88" cy="84" r="6"/><circle cx="96" cy="88" r="5"/><circle cx="82" cy="90" r="5"/></g><circle cx="89" cy="88" r="2" fill="#11203A"/><path d="M89 94v6" stroke="#4E8B4F" stroke-width="2"/></g></svg>`},
+  july4:{tint:"#F1F4FF",art:`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="110" viewBox="0 0 160 110"><g opacity=".85" stroke-linecap="round"><g stroke="#D8412E" stroke-width="2.5"><path d="M118 40v-14M118 54v14M104 47h-14M132 47h14M108 37l-9-9M128 57l9 9M128 37l9-9M108 57l-9 9"/></g><g stroke="#2E52C9" stroke-width="2"><path d="M70 82v-9M70 94v9M61 88h-9M79 88h9M64 82l-6-6M76 94l6 6M76 82l6-6M64 94l-6 6"/></g><g fill="#E29A14" stroke="none"><path d="M146 92l2.4 5 5.4.6-4 3.7 1.1 5.3-4.9-2.7-4.9 2.7 1.1-5.3-4-3.7 5.4-.6z"/><path d="M30 20l1.8 3.7 4 .5-3 2.8.8 4-3.6-2-3.6 2 .8-4-3-2.8 4-.5z"/></g></g></svg>`},
+  labor:{tint:"#EEF6FF",art:`<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><g opacity=".85"><circle cx="126" cy="30" r="13" fill="#FFD36B"/><g stroke="#FFD36B" stroke-width="2.5" stroke-linecap="round"><path d="M126 8v6M126 46v6M104 30h6M142 30h6M111 15l4 4M137 41l4 4M141 15l-4 4M115 41l-4 4"/></g><path d="M70 92c10-6 20-6 30 0s20 6 30 0 14-4 20-2" fill="none" stroke="#5FA8E8" stroke-width="3" stroke-linecap="round"/><path d="M80 100c10-6 20-6 30 0s20 6 30 0" fill="none" stroke="#9CCBF2" stroke-width="3" stroke-linecap="round"/><path d="M96 80V58" stroke="#6B7685" stroke-width="2"/><path d="M97 58h22l-5 6 5 6H97z" fill="#D8412E"/><path d="M97 62h10" stroke="#fff" stroke-width="1.5"/></g></svg>`},
+  halloween:{tint:"#FFF1E3",art:`<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><g opacity=".9"><ellipse cx="118" cy="80" rx="22" ry="17" fill="#F28C28"/><path d="M106 66q-4 14 0 28M130 66q4 14 0 28M118 63v34" stroke="#D96F12" stroke-width="2" fill="none"/><path d="M116 64q0-8 6-10" stroke="#4E8B4F" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M108 76l4-4 4 4zM120 76l4-4 4 4zM108 86q10 6 20 0l-4 1-2-3-3 3-3-3-3 3-2-3z" fill="#7A3A00"/><ellipse cx="80" cy="90" rx="10" ry="8" fill="#F5A04E"/><path d="M79 82q0-4 3-5" stroke="#4E8B4F" stroke-width="2" fill="none"/><path d="M128 22q6-6 10 0 4-6 10 0-5-1-6 4-4-4-4 0-4-4-4 0-1-5-6-4z" fill="#33404F"/><path d="M96 36q4-4 7 0 3-4 7 0-3 0-4 3-3-3-3 0-3-3-3 0-1-3-4-3z" fill="#33404F" opacity=".7"/></g></svg>`},
+  thanksgiving:{tint:"#FFF4E6",art:`<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><g opacity=".85"><path d="M120 56c10 4 18 16 16 30-12-2-22-10-24-22 2-4 4-6 8-8z" fill="#E07B2A"/><path d="M136 86L116 60" stroke="#8A4A12" stroke-width="1.5"/><path d="M92 70c8-6 20-6 26 2-6 8-18 10-26 4z" fill="#C2410C"/><path d="M118 72H88" stroke="#7A3A00" stroke-width="1.5"/><path d="M104 84c4 6 2 14-4 16-4-6-2-14 4-16z" fill="#E29A14"/><path d="M100 100l4-16" stroke="#8A5A0A" stroke-width="1.2"/><circle cx="140" cy="40" r="4" fill="#B45309"/><circle cx="132" cy="44" r="3.5" fill="#B45309"/><path d="M138 36l3-4" stroke="#4E3B1F" stroke-width="1.5"/></g></svg>`},
+  christmas:{tint:"#EEF8F2",art:`<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><g opacity=".85"><path d="M118 40l-18 28h10l-14 20h44l-14-20h10z" fill="#2F8F5B"/><rect x="114" y="88" width="8" height="8" fill="#8A5A2B"/><path d="M118 33l2 5h5l-4 3 1.5 5-4.5-3-4.5 3 1.5-5-4-3h5z" fill="#E29A14"/><circle cx="110" cy="70" r="2.5" fill="#D8412E"/><circle cx="126" cy="64" r="2.5" fill="#FFD36B"/><circle cx="120" cy="80" r="2.5" fill="#D8412E"/><circle cx="106" cy="84" r="2.5" fill="#FFD36B"/><g stroke="#8CB8E8" stroke-width="1.8" stroke-linecap="round"><path d="M74 20v14M67 27h14M69 22l10 10M79 22l-10 10"/><path d="M140 14v10M135 19h10M136.5 15.5l7 7M143.5 15.5l-7 7"/><path d="M84 60v8M80 64h8"/></g></g></svg>`}
+};
+function holidayThemeOf(ds){
+  const d=parseD(ds), y=d.getFullYear(), m=d.getMonth(), n=d.getDate();
+  if((m===0&&n===1)||(m===11&&n===31)) return "newyear";
+  if(m===1&&n===14) return "valentine";
+  if(ds===fmt(easterSunday(y))) return "easter";
+  if(ds===fmt(lastWeekday(y,4,1))) return "memorial";
+  if(m===6&&n===4) return "july4";
+  if(ds===fmt(nthWeekday(y,8,1,1))) return "labor";
+  if(m===9&&n===31) return "halloween";
+  if(ds===fmt(nthWeekday(y,10,4,4))) return "thanksgiving";
+  if(m===11&&(n===24||n===25)) return "christmas";
+  return null;
+}
+const HOLI_NAME={newyear:"New Year",valentine:"Valentine's Day",easter:"Easter",memorial:"Memorial Day",july4:"Fourth of July",labor:"Labor Day",halloween:"Halloween",thanksgiving:"Thanksgiving",christmas:"Christmas"};
+/* the CSS background for a themed day: the picture in the bottom-right corner over a soft tint */
+function holidayBg(ds,size){
+  const t=holidayThemeOf(ds); if(!t) return null;
+  const a=HOLI_ART[t];
+  return `${svgUrl(a.art)} right 2px bottom 2px / ${size||"min(150px,100%)"} auto no-repeat, ${a.tint}`;
+}
+
+/* ---------- standard deadlines Dr. A can add in one go (Settings → Deadlines) ----------
+   Each becomes an ordinary repeating task with a category and a heads-up; `preset` remembers which one it was. */
+function nextWeekday(from,wd){ const d=parseD(from); const off=(wd-d.getDay()+7)%7||7; return addDays(from,off); }
+function nextDateOf(m,day){ const t=parseD(todayStr()); let d=new Date(t.getFullYear(),m,day); if(fmt(d)<=todayStr()) d=new Date(t.getFullYear()+1,m,day); return fmt(d); }
+function nextMonthDay(day){ const t=parseD(todayStr()); let d=new Date(t.getFullYear(),t.getMonth(),day); if(fmt(d)<=todayStr()) d=new Date(t.getFullYear(),t.getMonth()+1,day); return fmt(d); }
+const DEADLINE_PRESETS=[
+  {key:"spore",cat:"compliance",title:"Sterilizer spore test",rec:"weekly",lead:1,first:()=>nextWeekday(todayStr(),1),on:true,notes:"Run the biological indicator and log the result."},
+  {key:"eyewash",cat:"compliance",title:"Eyewash station flush",rec:"weekly",lead:1,first:()=>nextWeekday(todayStr(),1),on:true,notes:"Run each eyewash for a few minutes and initial the log."},
+  {key:"waterline",cat:"compliance",title:"Dental unit waterline test",rec:"quarterly",lead:7,first:()=>nextMonthDay(15),on:true,notes:"Test each unit's water and file the results."},
+  {key:"aed",cat:"compliance",title:"AED and emergency kit check",rec:"monthly",lead:3,first:()=>nextMonthDay(1),on:true,notes:"AED status light and pads, oxygen, emergency drug expiration dates."},
+  {key:"extinguisher",cat:"compliance",title:"Fire extinguisher check",rec:"monthly",lead:3,first:()=>nextMonthDay(1),on:true,notes:"Gauge in the green, pin and seal in place; initial the tag."},
+  {key:"osha",cat:"compliance",title:"OSHA bloodborne pathogens training (OSHAcademy 656)",rec:"yearly",lead:30,first:()=>nextDateOf(0,31),on:true,notes:"Everyone completes the course; file the certificates."},
+  {key:"hipaa",cat:"compliance",title:"HIPAA training (OSHAcademy 637)",rec:"yearly",lead:30,first:()=>nextDateOf(0,31),on:true,notes:"Everyone completes the course; file the certificates."},
+  {key:"hipaarisk",cat:"compliance",title:"HIPAA security risk assessment",rec:"yearly",lead:30,first:()=>nextDateOf(1,28),on:true,notes:"Review the office apps, devices and vendors (BAAs)."},
+  {key:"xray",cat:"compliance",title:"X-ray machine registration renewal",rec:"yearly",lead:45,first:()=>"",on:false,notes:"Florida DOH radiation machine registration — date from the current certificate."},
+  {key:"license",cat:"compliance",title:"Dental license renewal",rec:"biennial",lead:60,first:()=>"",on:false,notes:"Date from the current license."},
+  {key:"dea",cat:"compliance",title:"DEA registration renewal",rec:"triennial",lead:60,first:()=>"",on:false,notes:"Date from the current registration."},
+  {key:"payroll",cat:"money",title:"Payroll — enter hours in Paychex",rec:"biweekly",lead:2,first:()=>"",on:true,need:true,notes:"Hours from the Time Clock app."},
+  {key:"payday",cat:"money",title:"Payday (direct deposit)",rec:"biweekly",lead:0,first:()=>"",on:true,after:"payroll",afterDays:4,notes:""},
+  {key:"monthend",cat:"money",title:"Month-end numbers due",rec:"monthly",lead:3,first:()=>nextMonthDay(5),on:true,notes:"Month-End Numbers app."},
+  {key:"q941",cat:"money",title:"Quarterly payroll tax filings — check Paychex filed (941, RT-6)",rec:"quarterly",lead:7,first:()=>nextDateOf(0,31),on:true,notes:""},
+  {key:"w2",cat:"money",title:"W-2s to staff — check Paychex sent them",rec:"yearly",lead:14,first:()=>nextDateOf(0,31),on:true,notes:""},
+  {key:"k5500",cat:"money",title:"401(k) Form 5500 — check with the plan's recordkeeper",rec:"yearly",lead:30,first:()=>nextDateOf(6,31),on:true,notes:""},
+  {key:"sunbiz",cat:"money",title:"Florida annual report (Sunbiz)",rec:"yearly",lead:30,first:()=>nextDateOf(4,1),on:true,notes:"Late fee after May 1."},
+  {key:"btr",cat:"money",title:"Local business tax receipt renewal",rec:"yearly",lead:30,first:()=>nextDateOf(8,30),on:true,notes:""}
+];
+function presetAdded(key){ const ev=(S.data&&S.data.events)||{}; return Object.keys(ev).some(id=>ev[id]&&ev[id].preset===key); }
+
+/* ---------- the "today" line under Who's out: what's on the next open day, and deadlines coming up ---------- */
+function todayStripHtml(today,d1,lbl1,phone){
+  const chip=(ds,inner,bg,fg,bd)=>`<button data-act="goto-day" data-date="${ds}" style="border:1px solid ${bd||"transparent"};background:${bg};color:${fg};border-radius:999px;padding:${phone?"3px 10px":"4px 12px"};font-size:${phone?"12.5px":"13.5px"};font-weight:600;display:inline-flex;align-items:center;gap:6px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${inner}</button>`;
+  const items=[];
+  const ad=adminDayOf(d1);
+  if(ad) items.push(chip(d1,ad==="meeting"?"Admin day + staff meeting":"Admin day",ad==="meeting"?"var(--coral-100)":"var(--mint-100)",ad==="meeting"?"var(--coral-700)":"var(--mint-700)"));
+  const w=watchOf(d1);
+  if(w) items.push(chip(d1,"⚠ "+esc(w.label)+" — expect more debonds",WATCH_BG,WATCH_INK,WATCH_EDGE));
+  const sc=schoolLine(d1);
+  if(sc) items.push(chip(d1,"🏫 "+esc(schoolIsOff(sc)?"No school · "+sc:sc),"var(--grey-100)","var(--grey-600)"));
+  const listed={};
+  entriesFor(d1,true).forEach(e=>{
+    if(e.type==="event"){
+      const c=catOf(e);
+      items.push(chip(d1,`${c?c.glyph:"■"} ${e.time?esc(fmtTime(e.time))+" ":""}${esc(e.title)}`,"var(--blue-100)","var(--blue-700)"));
+    } else if(e.type==="task"&&!isDone(e,d1)){
+      listed[e.id]=1;
+      items.push(chip(d1,`${entryGlyph(e)} ${esc(e.title)} · due`,"var(--amber-100)","#996709"));
+    }
+  });
+  const soon=dueSoon(today).filter(x=>!(listed[x.id]&&x.ds===d1));
+  if(!items.length&&!soon.length) return "";
+  const lab=t=>`<span class="disp" style="font-weight:600;letter-spacing:.14em;font-size:${phone?"12px":"13px"};color:var(--blue-600);white-space:nowrap;">${t}</span>`;
+  let h=`<div style="background:#fff;border-bottom:1px solid var(--grey-200);padding:${phone?"8px 14px":"9px 24px"};display:flex;align-items:center;gap:${phone?"6px 8px":"6px 10px"};flex-wrap:wrap;">`;
+  const icap=phone?3:99;
+  if(items.length){ h+=lab(lbl1)+items.slice(0,icap).join(""); if(items.length>icap) h+=`<button data-act="goto-day" data-date="${d1}" style="border:none;background:none;font-size:12.5px;font-weight:600;color:var(--grey-500);padding:0;">+${items.length-icap} more</button>`; }
+  if(soon.length){
+    const cap=phone?2:4, show=soon.slice(0,cap);
+    if(items.length) h+=`<span style="width:1px;height:18px;background:var(--grey-200);margin:0 4px;"></span>`;
+    h+=lab("Coming up");
+    show.forEach(x=>{
+      const late=x.days<0;
+      h+=chip(x.ds,`${entryGlyph(x.e)} ${esc(x.e.title)} · ${late?"overdue, ":""}${esc(prettyDate(x.ds))}${late?"":" ("+inDays(x.days)+")"}`,late?"var(--coral-100)":"var(--grey-50)",late?"var(--coral-700)":"var(--navy-800)",late?"var(--coral-200)":"var(--grey-200)");
+    });
+    if(soon.length>cap) h+=`<span style="font-size:12.5px;font-weight:600;color:var(--grey-500);">+${soon.length-cap} more</span>`;
+  }
+  return h+`</div>`;
+}
+
+/* ---------- Settings: watch days, deadlines, school calendar ---------- */
+function extrasSettingsHtml(){
+  const st=S.data.settings||{}, off=st.watchOff||{}, custom=st.watchCustom||{};
+  const H=t=>`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">${t}</div>`;
+  const inp=`padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);`;
+  const pillX=(act,attr,label)=>`<span style="display:inline-flex;align-items:center;gap:8px;background:var(--navy-800);color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font-size:13.5px;font-weight:600;">${label}<button data-act="${act}" ${attr} aria-label="Remove" style="border:none;background:var(--navy-700);color:#fff;border-radius:999px;width:22px;height:22px;font-size:11px;line-height:1;">✕</button></span>`;
+  let h=H("Watch days (debond risk)")+`<div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Shaded amber on open days when broken brackets and emergency calls usually go up. ${esc(WATCH_NOTE)}</div><div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">`;
+  const y=new Date().getFullYear();
+  WATCH_RULES.forEach(r=>{
+    const days=[y,y+1].map(yy=>r.days(yy).filter(d=>!officeClosed(d))).find(a=>a.length&&a[a.length-1]>=todayStr())||[];
+    h+=`<label style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;cursor:pointer;">
+      <input type="checkbox" data-chg="watch-rule" data-k="${r.key}" ${off[r.key]?"":"checked"} style="width:18px;height:18px;accent-color:${WATCH_EDGE};flex:none;">
+      <span style="flex:1;min-width:0;font-size:14px;font-weight:600;color:var(--navy-800);">${esc(r.label)}</span>
+      <span style="font-size:12px;color:var(--grey-400);">${days.length?esc(prettyRange(days[0],days[days.length-1])):""}</span></label>`;
+  });
+  h+=`</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">`;
+  Object.keys(custom).sort().forEach(d=>{ const c=custom[d]||{}; h+=pillX("watch-remove",`data-date="${d}"`,"⚠ "+esc(c.label||"Watch")+" — "+esc(prettyRange(d,c.end||d))); });
+  h+=`</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <input type="date" id="new-watch-start" aria-label="From" style="${inp}"><input type="date" id="new-watch-end" aria-label="To (optional)" style="${inp}"></div>
+    <div style="display:flex;gap:8px;margin-bottom:24px;">
+      <input type="text" id="new-watch-label" placeholder="Label, e.g. Spring break" style="flex:1;min-width:0;${inp}">
+      <button data-act="watch-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button></div>`;
+
+  /* deadlines */
+  const ev=S.data.events||{};
+  const mine=Object.keys(ev).filter(id=>ev[id]&&ev[id].type==="task"&&catOf(ev[id])).sort((a,b)=>String(ev[a].cat).localeCompare(String(ev[b].cat))||String(ev[a].title).localeCompare(String(ev[b].title)));
+  h+=H("Deadlines")+`<div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Repeating tasks marked 🛡 Compliance or 💵 Payroll &amp; money. They show under “Coming up” ahead of time (the heads-up days) and stay there until someone ticks them done. Add or change one like any task (+ Add entry → Task → Category).</div>`;
+  if(mine.length){
+    h+=`<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">`;
+    mine.forEach(id=>{ const e=ev[id], c=catOf(e);
+      h+=`<button data-act="edit-entry" data-from="settings" data-id="${esc(id)}" class="hov-grey" style="text-align:left;border:1px solid var(--grey-200);background:#fff;border-radius:10px;padding:7px 12px;display:flex;align-items:center;gap:10px;">
+        <span style="flex:none;">${c.glyph}</span><span style="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--navy-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.title)}</span>
+        <span style="font-size:12px;color:var(--grey-400);flex:none;">${esc(e.recurrence?REC_LABEL[e.recurrence]||e.recurrence:prettyDate(e.startDate))} · ${leadOf(e)}d heads-up</span></button>`;
+    });
+    h+=`</div>`;
+  }
+  if(!S.presetOpen){
+    h+=`<button data-act="preset-open" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:24px;">+ Add standard deadlines…</button>`;
+  } else {
+    h+=`<div style="border:2px solid var(--blue-500);border-radius:12px;padding:12px;margin-bottom:24px;display:flex;flex-direction:column;gap:6px;">
+      <div style="font-size:13px;color:var(--grey-600);">Tick the ones that apply and check each first due date. Each becomes a repeating task you can edit or delete later.</div>`;
+    let lastCat="";
+    DEADLINE_PRESETS.forEach(p=>{
+      if(p.cat!==lastCat){ lastCat=p.cat; h+=`<div class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;color:var(--grey-600);margin-top:6px;">${CATS[p.cat].glyph} ${esc(CATS[p.cat].long)}</div>`; }
+      const added=presetAdded(p.key);
+      h+=`<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--grey-200);border-radius:10px;padding:6px 10px;${added?"opacity:.55;":""}">
+        <input type="checkbox" id="pre-chk-${p.key}" ${added?"disabled":(p.on?"checked":"")} style="width:17px;height:17px;accent-color:#1D3EA9;flex:none;">
+        <label for="pre-chk-${p.key}" style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--navy-800);cursor:pointer;">${esc(p.title)}<span style="display:block;font-size:11.5px;font-weight:500;color:var(--grey-400);">${esc(REC_LABEL[p.rec])}${added?" · already added":(p.after?" · leave blank: "+p.afterDays+" days after payroll":(p.need||!p.first()?" · pick the date":""))}</span></label>
+        ${added?"":`<input type="date" id="pre-date-${p.key}" value="${p.first()}" style="padding:6px;border:2px solid var(--grey-300);border-radius:8px;font-size:12.5px;color:var(--navy-800);flex:none;width:140px;">`}
+      </div>`;
+    });
+    if(S.presetMsg) h+=`<div style="font-size:13px;font-weight:600;color:var(--coral-700);">${esc(S.presetMsg)}</div>`;
+    h+=`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">
+        <button data-act="preset-close" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--navy-800);">Cancel</button>
+        <button data-act="preset-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:999px;padding:8px 18px;font-size:13px;font-weight:700;color:#fff;">Add selected</button></div></div>`;
+  }
+
+  /* school calendar */
+  const own=st.school||{};
+  h+=H("School calendar")+`<div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Alachua County Public Schools 2026–27 days off are built in and show as 🏫 on open days (the School button above the calendar hides them). Elementary schools also let out early every Wednesday. Add a day here, or ✕ one that's wrong.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">`;
+  const all={}; Object.keys(SCHOOL_BUILTIN).forEach(d=>all[d]=SCHOOL_BUILTIN[d]); Object.keys(own).forEach(d=>all[d]=own[d]);
+  const t=todayStr(), up=Object.keys(all).filter(d=>d>=t&&all[d]&&!isClosedDay(d)).sort();
+  /* consecutive days with the same label read as one range */
+  const groups=[]; up.forEach(d=>{ const g=groups[groups.length-1]; if(g&&g.label===all[d]&&addDays(g.end,1)<=d&&d<=addDays(g.end,4)) { g.end=d; g.days.push(d); } else groups.push({start:d,end:d,label:all[d],days:[d]}); });
+  if(!groups.length) h+=`<span style="font-size:14px;color:var(--grey-500);">None ahead.</span>`;
+  groups.slice(0,14).forEach(g=>{ h+=pillX("school-hide",`data-dates="${g.days.join(",")}"`,"🏫 "+esc(g.label)+" — "+esc(prettyRange(g.start,g.end))); });
+  h+=`</div><div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;">
+      <input type="date" id="new-school-date" style="${inp}">
+      <input type="text" id="new-school-label" placeholder="Label, e.g. Teacher workday" style="flex:1;min-width:150px;${inp}">
+      <button data-act="school-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button></div>`;
+  return h;
+}
+function addPresets(){
+  const picked=DEADLINE_PRESETS.filter(p=>{ const c=document.getElementById("pre-chk-"+p.key); return c&&c.checked&&!presetAdded(p.key); });
+  if(!picked.length){ S.presetMsg="Tick at least one."; return render(); }
+  const val=k=>{ const x=document.getElementById("pre-date-"+k); return x&&/^\d{4}-\d{2}-\d{2}$/.test(x.value)?x.value:""; };
+  const dates={};
+  for(const p of picked){
+    let d=val(p.key);
+    if(!d&&p.after){ const base=val(p.after)||(()=>{ const ev=S.data.events||{}; const id=Object.keys(ev).find(i=>ev[i]&&ev[i].preset===p.after); return id?ev[id].startDate:""; })(); if(base) d=addDays(base,p.afterDays); }
+    if(!d){ S.presetMsg="Pick the first date for “"+p.title+"”"+(p.after?" (or for payroll)":"")+"."; return render(); }
+    dates[p.key]=d;
+  }
+  picked.forEach((p,i)=>{
+    const id="e"+Date.now()+"p"+i;
+    fbSet("events/"+id,{ type:"task", title:p.title, staffId:null, staffName:null, startDate:dates[p.key], endDate:dates[p.key], time:null,
+      notes:p.notes||"", recurrence:p.rec, until:null, cat:p.cat, lead:p.lead, preset:p.key, createdAt:Date.now() });
+  });
+  S.presetOpen=false; S.presetMsg=""; render();
 }
 
 /* ================= RENDER ================= */
@@ -1065,6 +1402,7 @@ function render(){
     h+=`</header>`;
   }
 
+  h+=`<div class="no-print">`;
   /* ---- who's out: only says "full team" once the Time-Off app has actually answered ---- */
   const st=syncState();
   const bPad=phone?"8px 14px":"10px 24px", bFs=phone?"14px":"15px", bGap=phone?"4px 14px":"6px 20px";
@@ -1089,9 +1427,10 @@ function render(){
   if(S.dbError && !S.connected){
     h+=`<div style="background:var(--amber-100);padding:${phone?"8px 14px":"8px 24px"};font-size:13.5px;color:var(--amber-700);font-weight:600;">⚠ Cannot reach the shared database (${esc(S.dbError)}). Check the Firebase rules for nlo/calendar.</div>`;
   }
+  h+=todayStripHtml(today,d1,lbl1,phone)+`</div>`;
 
   /* ---- toolbar ---- */
-  const FILTERS=[["pto","●","Out","--coral-500","#FFE7E1","#C13A28"],["event","■","Events","--blue-600","#E5EAF8","#16318C"],["task","▲","Tasks","--amber-600","#FEF2D7","#996709"],["hr","◆","Staff Hub","--violet-500","#F0EAFB","#5B3A9E"]];
+  const FILTERS=[["pto","●","Out","--coral-500","#FFE7E1","#C13A28"],["event","■","Events","--blue-600","#E5EAF8","#16318C"],["task","▲","Tasks","--amber-600","#FEF2D7","#996709"],["hr","◆","Staff Hub","--violet-500","#F0EAFB","#5B3A9E"],["school","🏫","School","--grey-400","#ECEEF0","#4C5868"]];
   if(phone){
     h+=`<div style="display:flex;align-items:center;gap:6px;padding:12px 14px 8px;">
       <h1 class="disp" style="margin:0;flex:1;min-width:0;font-weight:700;letter-spacing:.01em;font-size:22px;line-height:1.1;color:var(--navy-800);">${esc(periodLabel)}</h1>
@@ -1129,6 +1468,7 @@ function render(){
       const on=S.filters[k];
       h+=`<button data-act="filter" data-f="${k}" aria-pressed="${on}" style="border-radius:999px;padding:8px 16px;font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;border:2px solid var(${bc});background:${on?bg:"#FFFFFF"};color:${on?fg:"#969FAB"};"><span style="font-size:11px;">${g}</span> ${l}</button>`;
     });
+    h+=`<button data-act="print" title="Print this month" class="hov-grey" style="border-radius:999px;padding:8px 16px;font-weight:600;font-size:14px;border:2px solid var(--grey-300);background:#fff;color:var(--navy-800);">🖨 Print</button>`;
     h+=`</div></div>`;
   }
 
@@ -1188,16 +1528,19 @@ function renderMonth(today,cd){
     const stk=stickersFor(ds);
     const ad=adminDayOf(ds);
     const adTint=ad==="meeting"?"#FFE7E1":"#E2FBF4";
-    const bg=blackout?"repeating-linear-gradient(135deg,#ECEEF0 0 6px,#F7F8F9 6px 12px)":(ad?adTint:(closed?"#F0F1F3":"#FFFFFF"));
-    const border=isToday?"2px solid #1D3EA9":(ad?("1px solid "+(ad==="meeting"?"#FFC8BF":"#C0FBEC")):"1px solid #DCE0E4");
+    const wch=watchOf(ds), sch=schoolLine(ds), hbg=holidayBg(ds,phone?"min(44px,100%)":"min(150px,100%)");
+    const bg=blackout?"repeating-linear-gradient(135deg,#ECEEF0 0 6px,#F7F8F9 6px 12px)":(hbg||(ad?adTint:(wch?WATCH_BG:(closed?"#F0F1F3":"#FFFFFF"))));
+    const border=isToday?"2px solid #1D3EA9":(ad?("1px solid "+(ad==="meeting"?"#FFC8BF":"#C0FBEC")):(wch?"1px solid "+WATCH_EDGE:"1px solid #DCE0E4"));
     h+=`<div data-act="open-day" data-date="${ds}" class="hov-cell month-cell" style="position:relative;min-width:0;min-height:${phone?"74px":"118px"};border-radius:${phone?"8px":"12px"};padding:${phone?(closed?"4px 1px":"4px 3px"):"8px"};cursor:pointer;display:flex;flex-direction:column;${phone?"align-items:center;":""}gap:${phone?"3px":"4px"};overflow:hidden;border:${border};background:${bg};opacity:${inMonth?"1":"0.45"};">`;
     if(stk.length&&!phone) h+=`<div style="position:absolute;top:6px;right:6px;display:flex;align-items:center;z-index:1;">${stickerCluster(stk,closed?1:3,closed?19:24,true)}</div>`;
     h+=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;${stk.length&&!phone?"padding-right:"+(closed?22:64)+"px;":""}">
         <span style="font-weight:700;font-size:${phone?"13px":"15px"};min-width:${phone?"22px":"26px"};height:${phone?"22px":"26px"};display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:${isToday?"#1D3EA9":"transparent"};color:${isToday?"#FFFFFF":(closed?"#969FAB":"#1B2F4C")};">${d.getDate()}</span>`;
     /* admin day: a clean label beside the date (the cell is already tinted) */
     if(ad&&!phone) h+=`<span class="disp" style="font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:${ad==="meeting"?"#C2392A":"#178A6D"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">${ad==="meeting"?"Admin + Mtg":"Admin Day"}</span>`;
+    if(wch&&!phone) h+=`<span class="disp" title="${esc(wch.label+" — "+WATCH_NOTE)}" style="font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:${WATCH_INK};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">${ad?"· ":""}⚠ Watch</span>`;
     if(blackout&&!phone) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:10px;background:var(--navy-800);color:#fff;border-radius:4px;padding:2px 6px;">No time off</span>`;
     h+=`</div>`;
+    if(sch&&!phone) h+=`<div title="Alachua County schools" style="font-size:11.5px;font-weight:600;color:var(--grey-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-2px;">🏫 ${esc(schoolIsOff(sch)?"No school · "+sch:sch)}</div>`;
     if(phone&&stk.length) h+=`<div style="line-height:1;">${stickerCluster(stk,1,15,false)}</div>`;
     if(phone){
       /* phones: one small coloured mark per entry; tap the day for the details */
@@ -1206,7 +1549,7 @@ function renderMonth(today,cd){
         h+=`<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center;">`;
         shown.forEach(e=>{
           const c=typeColors(e.type), done=isDone(e,ds);
-          h+=`<span style="width:16px;height:16px;border-radius:4px;background:${c.bg};color:${c.fg};font-size:9px;line-height:1;display:inline-flex;align-items:center;justify-content:center;${done?"opacity:.5;":""}">${done?"✓":c.glyph}</span>`;
+          h+=`<span style="width:16px;height:16px;border-radius:4px;background:${c.bg};color:${c.fg};font-size:${catOf(e)&&!done?"10px":"9px"};line-height:1;display:inline-flex;align-items:center;justify-content:center;${done?"opacity:.5;":""}">${entryGlyph(e,done)}</span>`;
         });
         h+=`</div>`;
       }
@@ -1216,7 +1559,7 @@ function renderMonth(today,cd){
       entries.slice(0,MAX).forEach(e=>{
         const c=typeColors(e.type), done=isDone(e,ds), pp=entryPerson(e);
         const label=e.type==="event"&&e.time?fmtTime(e.time)+" "+entryLabel(e):entryLabel(e);
-        const lead=pp&&pp.photo?calAvatar(pp,16):`<span style="font-size:9px;flex:none;">${done?"✓":c.glyph}</span>`;
+        const lead=pp&&pp.photo?calAvatar(pp,16):`<span style="font-size:${catOf(e)&&!done?"11px":"9px"};flex:none;">${entryGlyph(e,done)}</span>`;
         h+=`<div style="font-size:13px;font-weight:600;border-radius:6px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;background:${c.bg};color:${c.fg};${done?"opacity:.6;":""}">${lead}<span style="overflow:hidden;text-overflow:ellipsis;${done?"text-decoration:line-through;":""}">${esc(label)}</span></div>`;
       });
       if(entries.length>MAX) h+=`<div style="font-size:12px;font-weight:600;color:var(--grey-500);padding:0 8px;">+${entries.length-MAX} more</div>`;
@@ -1230,7 +1573,7 @@ function renderMonth(today,cd){
 function weekEntry(e,ds){
   const c=typeColors(e.type), done=isDone(e,ds);
   return `<div style="border-radius:8px;padding:8px 10px;background:${c.bg};">
-        <div style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;color:${c.fg};">${e.type==="task"?taskBox(e,ds,18):(entryPerson(e)?whoFace(e,20):`<span style="font-size:9px;flex:none;">${c.glyph}</span>`)}<span style="min-width:0;overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</span></div>
+        <div style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;color:${c.fg};">${e.type==="task"?taskBox(e,ds,18):(entryPerson(e)?whoFace(e,20):`<span style="font-size:${catOf(e)?"13px":"9px"};flex:none;">${entryGlyph(e)}</span>`)}<span style="min-width:0;overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</span></div>
         <div style="font-size:12.5px;font-weight:500;margin-top:2px;color:${c.fg};opacity:.85;overflow-wrap:break-word;">${esc(entrySub(e))}</div>
       </div>`;
 }
@@ -1246,7 +1589,8 @@ function renderWeek(today,cursor){
     const closed=isClosedDay(ds);
     const blackout=isBlackout(ds);
     const adW=adminDayOf(ds);
-    const weekBg=adW?(adW==="meeting"?"#FFE7E1":"#E2FBF4"):(closed?"#F0F1F3":"#FFFFFF");
+    const wchW=watchOf(ds), schW=schoolLine(ds);
+    const weekBg=holidayBg(ds)||(adW?(adW==="meeting"?"#FFE7E1":"#E2FBF4"):(wchW?WATCH_BG:(closed?"#F0F1F3":"#FFFFFF")));
     h+=`<div data-act="open-day" data-date="${ds}" class="hov-cell" style="min-width:0;border-radius:14px;min-height:380px;padding:${closed?"12px 8px":"12px"};display:flex;flex-direction:column;gap:8px;cursor:pointer;border:${isToday?"2px solid #1D3EA9":"1px solid #DCE0E4"};background:${weekBg};">
       <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;border-bottom:1px solid var(--grey-200);padding-bottom:8px;">
         <span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:13px;color:${isToday?"#1D3EA9":"#6B7685"};">${DAYS[d.getDay()].slice(0,3)}</span>
@@ -1256,7 +1600,8 @@ function renderWeek(today,cursor){
     if(stkW.length) h+=`<span style="margin-left:auto;display:inline-flex;align-items:center;">${stickerCluster(stkW,closed?1:3,20,true)}</span>`;
     h+=`</div>`;
     if(blackout) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:11px;background:var(--navy-800);color:#fff;border-radius:4px;padding:3px 8px;align-self:flex-start;">Blackout — no time off</span>`;
-    if(adW) h+=`<div style="align-self:flex-start;">${adminDayTag(ds)}</div>`;
+    if(adW||wchW) h+=`<div style="align-self:flex-start;display:flex;gap:6px;flex-wrap:wrap;">${adminDayTag(ds)}${watchTag(ds)}</div>`;
+    if(schW) h+=`<div style="font-size:12.5px;font-weight:600;color:var(--grey-500);">🏫 ${esc(schoolIsOff(schW)?"No school · "+schW:schW)}</div>`;
     entriesFor(ds).forEach(e=>{ h+=weekEntry(e,ds); });
     h+=`</div>`;
   }
@@ -1284,16 +1629,18 @@ function renderWeekList(today,ws){
       </div>`;
       continue;
     }
-    const bg=blackout?"repeating-linear-gradient(135deg,#ECEEF0 0 6px,#F7F8F9 6px 12px)":(ad?(ad==="meeting"?"#FFE7E1":"#E2FBF4"):(closed?"#F0F1F3":"#FFFFFF"));
+    const wchL=watchOf(ds), schL=schoolLine(ds);
+    const bg=blackout?"repeating-linear-gradient(135deg,#ECEEF0 0 6px,#F7F8F9 6px 12px)":(holidayBg(ds,"min(90px,40%)")||(ad?(ad==="meeting"?"#FFE7E1":"#E2FBF4"):(wchL?WATCH_BG:(closed?"#F0F1F3":"#FFFFFF"))));
     h+=`<div data-act="open-day" data-date="${ds}" style="border-radius:12px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:6px;border:${isToday?"2px solid #1D3EA9":"1px solid #DCE0E4"};background:${bg};">
       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;">
         <span class="disp" style="font-weight:700;letter-spacing:.06em;font-size:16px;color:${isToday?"#1D3EA9":"#1B2F4C"};">${name}</span>`;
     if(isToday) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:11px;background:var(--blue-600);color:#fff;border-radius:999px;padding:2px 10px;">Today</span>`;
     if(closed) h+=`<span style="font-size:11px;font-weight:600;color:var(--grey-400);text-transform:uppercase;letter-spacing:.08em;">Closed</span>`;
     if(blackout) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:10px;background:var(--navy-800);color:#fff;border-radius:4px;padding:2px 6px;">No time off</span>`;
-    h+=adminDayTag(ds,true);
+    h+=adminDayTag(ds,true)+watchTag(ds,true);
     if(stk.length) h+=`<span style="margin-left:auto;display:inline-flex;align-items:center;">${stickerCluster(stk,3,18,true)}</span>`;
     h+=`</div>`;
+    if(schL) h+=`<div style="font-size:12.5px;font-weight:600;color:var(--grey-500);">🏫 ${esc(schoolIsOff(schL)?"No school · "+schL:schL)}</div>`;
     h+=stickerLabelLine(stk,13,0);
     if(!entries.length&&!stk.some(s=>s.label)) h+=`<div style="font-size:13px;color:var(--grey-400);">Nothing scheduled</div>`;
     entries.forEach(e=>{ h+=weekEntry(e,ds); });
@@ -1321,7 +1668,7 @@ function renderAgenda(today,cursor){
         <span class="disp" style="font-weight:700;letter-spacing:.06em;font-size:${phone?"17px":"20px"};color:${isToday?"#1D3EA9":"#1B2F4C"};">${DAYS[d.getDay()]} · ${SMON[d.getMonth()]} ${d.getDate()}</span>`;
     if(isToday) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;background:var(--blue-600);color:#fff;border-radius:999px;padding:3px 12px;">Today</span>`;
     if(isBlackout(ds)) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;background:var(--navy-800);color:#fff;border-radius:4px;padding:3px 10px;">No time off</span>`;
-    h+=adminDayTag(ds);
+    h+=adminDayTag(ds)+watchTag(ds);
     if(stk.length) h+=`<span style="display:inline-flex;align-items:center;">${stickerCluster(stk,4,22,true)}</span>`;
     h+=`<div style="flex:1;min-width:20px;height:1px;background:var(--grey-200);"></div></div>
       ${stickerLabelLine(stk,14,8)}<div style="display:flex;flex-direction:column;gap:8px;">`;
@@ -1330,7 +1677,7 @@ function renderAgenda(today,cursor){
       const timeLabel=e.time?fmtTime(e.time):(e.type==="pto"?prettyRange(e.startDate,e.endDate):"All day");
       h+=`<div style="background:var(--white);border:1px solid var(--grey-200);border-left:6px solid ${c.edge};border-radius:10px;padding:${phone?"12px":"14px 16px"};display:flex;gap:${phone?"10px":"14px"};align-items:center;">
         <span style="font-family:var(--font-mono);font-size:${phone?"12.5px":"14px"};font-weight:500;color:var(--grey-500);min-width:${phone?"58px":"76px"};flex:none;">${esc(timeLabel)}</span>
-        ${e.type==="task"?taskBox(e,ds):whoFace(e,phone?28:30)}
+        ${e.type==="task"?taskBox(e,ds):(whoFace(e,phone?28:30)||(catOf(e)?`<span style="font-size:22px;flex:none;">${catOf(e).glyph}</span>`:""))}
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:${phone?"16px":"17px"};color:var(--navy-800);overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</div>`;
       if(e.type==="pto"&&e.part) h+=`<div style="font-size:14px;color:var(--grey-500);margin-top:3px;">${esc(e.part)}</div>`;
@@ -1361,6 +1708,10 @@ function renderDetail(today,dd){
       <button data-act="close-detail" aria-label="Close" style="border:none;background:var(--navy-700);color:#F2F3F4;border-radius:999px;width:34px;height:34px;font-size:16px;">✕</button>
     </div>`;
   if(isBlackout(dd)) h+=`<div class="disp" style="background:var(--navy-800);color:#E29A14;padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;">Blackout date — no time off</div>`;
+  const wD=watchOf(dd), sD=schoolLine(dd), tD=holidayThemeOf(dd);
+  if(tD) h+=`<div style="background:${holidayBg(dd,"auto 100%")};background-size:auto 100%;height:54px;border-bottom:1px solid var(--grey-200);display:flex;align-items:center;padding:0 22px;"><span class="disp" style="font-weight:700;letter-spacing:.1em;font-size:14px;color:var(--navy-800);background:rgba(255,255,255,.75);border-radius:6px;padding:3px 8px;">${esc(HOLI_NAME[tD])}</span></div>`;
+  if(wD) h+=`<div style="background:${WATCH_BG};color:${WATCH_INK};padding:8px 22px;font-size:13px;font-weight:600;border-bottom:1px solid ${WATCH_EDGE};"><span class="disp" style="letter-spacing:.06em;">⚠ Watch day — ${esc(wD.label)}</span><div style="font-weight:500;color:var(--grey-600);margin-top:2px;">${esc(WATCH_NOTE)}</div></div>`;
+  if(sD) h+=`<div style="background:var(--grey-50);color:var(--grey-600);padding:8px 22px;font-size:13px;font-weight:600;border-bottom:1px solid var(--grey-200);">🏫 ${esc(schoolIsOff(sD)?"No school in Alachua County — "+sD:sD+" (Alachua County)")}</div>`;
   if(ad==="admin") h+=`<div class="disp" style="background:var(--mint-100);color:var(--mint-700);padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--mint-200);">Admin day — flexible (Dr. A can schedule off)</div>`;
   if(ad==="meeting") h+=`<div class="disp" style="background:var(--coral-100);color:var(--coral-700);padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--coral-200);">Admin day + staff meeting — Dr. A must attend</div>`;
   /* quick admin-day toggle (admin only) */
@@ -1383,7 +1734,7 @@ function renderDetail(today,dd){
     const doneAt=done?(e.recurrence?e.doneDates[dd]:e.doneAt):null;
     h+=`<div style="border:1px solid var(--grey-200);border-left:6px solid ${c.edge};border-radius:10px;padding:12px 14px;">
       <div style="display:flex;align-items:center;gap:10px;">
-        ${e.type==="task"?taskBox(e,dd):whoFace(e,30)}
+        ${e.type==="task"?taskBox(e,dd):(whoFace(e,30)||(catOf(e)?`<span style="font-size:22px;flex:none;">${catOf(e).glyph}</span>`:""))}
         <div style="flex:1;min-width:0;font-weight:700;font-size:16px;color:var(--navy-800);overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</div>
         <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${c.edge};flex:none;">${entryTypeLabel(e)}</span>
       </div>
@@ -1460,7 +1811,17 @@ function renderEntry(){
   if(f.type!=="pto"){
     const o=(v,l)=>`<option value="${v}" ${(f.recurrence||"")===v?"selected":""}>${l}</option>`;
     h+=`<label style="${lab}">Repeats
-      <select id="f-rec" style="${inp}background:#fff;">${o("","Does not repeat")}${o("weekly","Weekly")}${o("biweekly","Every 2 weeks")}${o("monthly","Monthly")}${o("quarterly","Quarterly")}${o("yearly","Yearly")}</select></label>`;
+      <select id="f-rec" style="${inp}background:#fff;">${o("","Does not repeat")}${o("weekly","Weekly")}${o("biweekly","Every 2 weeks")}${o("monthly","Monthly")}${o("quarterly","Quarterly")}${o("yearly","Yearly")}${o("biennial","Every 2 years")}${o("triennial","Every 3 years")}</select></label>`;
+    /* category: events can be a vendor / rep visit; tasks can be compliance or payroll & money (with a heads-up) */
+    const co=(v,l)=>`<option value="${v}" ${(f.cat||"")===v?"selected":""}>${l}</option>`;
+    const catSel=f.type==="event"?co("","General")+co("visit","🚚 Vendor / rep visit"):co("","General")+co("compliance","🛡 Compliance")+co("money","💵 Payroll & money");
+    h+=`<div style="display:grid;grid-template-columns:${f.type==="task"?"1fr 1fr":"1fr"};gap:10px;">
+      <label style="${lab}">Category<select id="f-cat" style="${inp}background:#fff;">${catSel}</select></label>`;
+    if(f.type==="task"){
+      const dl=f.cat&&CATS[f.cat]?CATS[f.cat].lead:0;
+      h+=`<label style="${lab}">Heads-up (days)<input type="number" id="f-lead" min="0" max="120" value="${esc(f.lead)}" placeholder="${dl}" style="${inp}"></label>`;
+    }
+    h+=`</div>`;
   }
   h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <label style="${lab}">${rep?"First date":"Start date"}<input type="date" id="f-start" value="${f.startDate}" style="${inp}font-size:14px;"></label>`;
@@ -1581,6 +1942,7 @@ function renderSettings(){
     </div>
 
     ${hrSettingsHtml()}
+    ${extrasSettingsHtml()}
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Office closures</div>
     <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Office-specific closed days (beyond the handbook holidays) — shown as ★ holidays; nobody shows as out on them.</div>
@@ -1667,7 +2029,27 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "open-add": S.form=blankForm(S.detailDate||today); S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
     case "add-for-day": S.form=blankForm(el.dataset.date); S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
     case "close-entry": if(ev.target===el||el.tagName==="BUTTON"){ S.entryOpen=false; S.form=null; S.blackoutWarn=false; S.formError=""; render(); } break;
-    case "form-type": readFormDom(); S.form.type=el.dataset.v; S.blackoutWarn=false; S.formError=""; render(); break;
+    case "form-type": readFormDom(); S.form.type=el.dataset.v; if(S.form.cat&&(!CATS[S.form.cat]||CATS[S.form.cat].type!==S.form.type)) S.form.cat=""; S.blackoutWarn=false; S.formError=""; render(); break;
+    case "goto-day": S.detailDate=el.dataset.date; render(); break;
+    case "print": S.view="month"; S.detailDate=null; S.paintMode=false; render(); setTimeout(()=>window.print(),60); break;
+    case "preset-open": S.presetOpen=true; S.presetMsg=""; render(); break;
+    case "preset-close": S.presetOpen=false; S.presetMsg=""; render(); break;
+    case "preset-add": addPresets(); break;
+    case "watch-remove": fbRemove("settings/watchCustom/"+el.dataset.date); break;
+    case "watch-add": {
+      const a=document.getElementById("new-watch-start").value, b=document.getElementById("new-watch-end").value;
+      const lbl=(document.getElementById("new-watch-label").value||"").trim().slice(0,60)||"Watch";
+      if(!a) break;
+      fbSet("settings/watchCustom/"+a,{ end:b&&b>=a?b:a, label:lbl });
+      clearInputs(["new-watch-start","new-watch-end","new-watch-label"]); break;
+    }
+    case "school-hide": String(el.dataset.dates||"").split(",").filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).forEach(d=>{ if(SCHOOL_BUILTIN[d]) fbSet("settings/school/"+d,""); else fbRemove("settings/school/"+d); }); break;
+    case "school-add": {
+      const d=document.getElementById("new-school-date").value, lbl=(document.getElementById("new-school-label").value||"").trim().slice(0,60)||"No school";
+      if(!d) break;
+      fbSet("settings/school/"+d,lbl);
+      clearInputs(["new-school-date","new-school-label"]); break;
+    }
     case "save-entry": saveEntry(false); break;
     case "save-anyway": saveEntry(true); break;
     case "del-from-form": deleteEntry(el.dataset.id); break;
@@ -1676,7 +2058,8 @@ document.getElementById("app").addEventListener("click",(ev)=>{
       if(!e) break;
       S.form={ id:el.dataset.id, type:e.type, title:e.type==="pto"?"":e.title, staffId:e.staffId||"",
                startDate:e.startDate, endDate:e.endDate||e.startDate, allDay:!e.time, time:e.time||"09:00",
-               notes:e.notes||"", recurrence:e.recurrence||"", until:e.until||"" };
+               notes:e.notes||"", recurrence:e.recurrence||"", until:e.until||"", cat:e.cat||"", lead:typeof e.lead==="number"?String(e.lead):"" };
+      if(el.dataset.from==="settings") S.settingsOpen=false;
       S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
     }
     case "del-entry": deleteEntry(el.dataset.id); break;
@@ -1769,7 +2152,11 @@ document.getElementById("app").addEventListener("change",(ev)=>{
     fbSet("settings/hrReviewsAdminOnly",el.checked?true:null);
     return;
   }
-  if(ev.target.id==="f-allday"||ev.target.id==="f-rec"){ readFormDom(); render(); }
+  if(el&&el.dataset.chg==="watch-rule"){
+    if(el.checked) fbRemove("settings/watchOff/"+el.dataset.k); else fbSet("settings/watchOff/"+el.dataset.k,true);
+    return;
+  }
+  if(ev.target.id==="f-allday"||ev.target.id==="f-rec"||ev.target.id==="f-cat"){ readFormDom(); render(); }
   if(ev.target.id==="f-start"){
     readFormDom();
     if(S.form.endDate<S.form.startDate){ S.form.endDate=S.form.startDate; render(); }
