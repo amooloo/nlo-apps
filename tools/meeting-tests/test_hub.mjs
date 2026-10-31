@@ -174,9 +174,14 @@ ok(/rules_mtg_1/.test(clip) && /akhavan\.ak@gmail\.com/.test(clip) && !/__OWNER_
 await pa.click('#mvCheck');
 await pa.waitForFunction(() => /Not yet/.test((document.getElementById('mvRulesMsg') || {}).textContent || ''), null, { timeout: 10000 }).catch(() => { });
 ok(/Not yet/.test(await pa.textContent('#mvBody')), 'Check again before publishing: “Not yet”');
-await E.loadRules();
+// just after Publish, a part of the database can still have the older rules for a few minutes (31 Oct: the first try failed
+// on the browser that was open before Publish): the move page waits and tries again by itself
+await E.loadRulesWithout('meMonths/{ym}');
 await pa.click('#mvCheck');
-await pa.waitForSelector('#mvNow', { timeout: 20000 });
+await pa.waitForFunction(() => /still taking in the new rules/.test((document.getElementById('mvBody') || {}).textContent || ''), null, { timeout: 20000 }).catch(() => { });
+ok(/Trying again by itself/.test(await pa.textContent('#mvBody')), 'new rules not everywhere yet: it waits and tries again by itself');
+await E.loadRules();
+await pa.waitForSelector('#mvNow', { timeout: 40000 });
 const what = await pa.textContent('#mvBody');
 ok(/Inbox items: 3/.test(what) && /Action items: 3/.test(what) && /Meetings: 2/.test(what) && /Month-End months: 1/.test(what), 'after publishing: what moves, counted');
 await pa.screenshot({ path: 'shots/02-move.png' });

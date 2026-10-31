@@ -23,6 +23,15 @@ export async function loadOlderCasesRules() {
   await E.putRules('nlo-cases', full.slice(0, i) + '  }\n}\n');
 }
 
+/* the full rules but with one of the Hub's matches left out (a database that has only partly taken in the new rules) */
+export async function loadRulesWithout(match) {
+  const full = E.casesRules();
+  const i = full.indexOf('    match /' + match + ' {');
+  if (i < 0) throw new Error('match not found: ' + match);
+  const j = full.indexOf('\n    }\n', i) + 7;
+  await E.putRules('nlo-cases', full.slice(0, i) + full.slice(j));
+}
+
 export const PEOPLE = [
   { id: 's_amir', name: 'Dr. Amir Akhavan', first: 'Amir', last: 'Akhavan', nick: 'Dr. A', short: 'Dr. A', title: 'Orthodontist / Owner', active: true },
   { id: 's_gwen', name: 'Gwen Rodis', first: 'Gwen', last: 'Rodis', title: 'Orthodontic Assistant', active: true },

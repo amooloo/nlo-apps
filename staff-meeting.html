@@ -1054,15 +1054,36 @@ function moveSheet() {
         if (!navigator.clipboard) { const ta = document.createElement('textarea'); ta.value = text; ta.className = 'field'; ta.rows = 6; ta.readOnly = true; out.after(ta); }
       } catch (x) { out.textContent = 'Couldn’t get the rules: ' + (x.message || x); }
     };
-    body.querySelector('#mvCheck').onclick = async () => { const m = body.querySelector('#mvRulesMsg'); m.textContent = 'Checking…'; try { if (await NLOM.rulesLive()) step3(); else m.textContent = 'Not yet — the database still has the older rules (it can take a minute after Publish).'; } catch (x) { m.textContent = 'Can’t reach the database: ' + (x.message || x); } };
+    body.querySelector('#mvCheck').onclick = async () => {
+      const m = body.querySelector('#mvRulesMsg'); m.textContent = 'Checking…';
+      try { await NLOM.fs.disableNetwork(); await NLOM.fs.enableNetwork(); } catch (e) { }   /* (a fresh connection: one opened before Publish can keep the older rules for a few minutes) */
+      try { if (await NLOM.rulesLive()) step3(); else m.textContent = 'Not yet — the database still has the older rules (it can take a few minutes after Publish).'; } catch (x) { m.textContent = 'Can’t reach the database: ' + (x.message || x); }
+    };
   };
   /* 3. what moves */
   let old = null, before = null;
-  const step3 = async () => {
+  /* a stop here: say why, with Try again (nothing has been written yet) */
+  const stop3 = t => { body.innerHTML = msg(t, true) + '<div class="row end" style="margin-top:12px"><button class="btn ghost" data-act="sheet-close">Not now</button><button class="btn mint" id="mvAgain">Try again</button></div>'; body.querySelector('#mvAgain').onclick = () => step3(0); };
+  const step3 = async tries => {
+    tries = tries || 0;
     body.innerHTML = msg('Reading the Hub’s data in the old database…');
-    const no = await movedAlready(); if (no) { body.innerHTML = msg(no, true); return; }
-    try { old = await NLOM.readOld(db); } catch (x) { body.innerHTML = msg('Couldn’t read the old database: ' + (x.message || x), true); return; }
-    try { before = await NLOM.readNew(NLOM.fs); } catch (x) { body.innerHTML = msg('Couldn’t read the NLO Cases database: ' + (x.message || x), true); return; }
+    const no = await movedAlready(); if (no) { stop3(no); return; }
+    try { old = await NLOM.readOld(db); } catch (x) { stop3('Couldn’t read the old database: ' + (x.message || x)); return; }
+    try { before = await NLOM.readNew(NLOM.fs); } catch (x) {
+      /* right after Publish, parts of the database can still have the older rules for a minute or two: wait and ask again */
+      if (/permission/i.test(String((x && (x.code || x.message)) || '')) && tries < 12) {
+        body.innerHTML = msg('The NLO Cases database is still taking in the new rules (this can take a few minutes after Publish). Trying again by itself…');
+        setTimeout(async () => {
+          if (document.getElementById('mvBody') !== body || MOVING) return;
+          /* (a connection opened before Publish can keep the older rules for a few minutes: a fresh one) */
+          try { await NLOM.fs.disableNetwork(); await NLOM.fs.enableNetwork(); } catch (e) { }
+          step3(tries + 1);
+        }, 10000);
+        return;
+      }
+      stop3('Couldn’t read the NLO Cases database: ' + (x.message || x));
+      return;
+    }
     if (!Object.keys(before).some(k => before[k] != null)) before = null;   /* (records there already: from a move back; they go in the copy too) */
     const recs = NLOM.recordsOf(old), bad = NLOM.badIds(recs);
     if (bad.length) { body.innerHTML = msg('These records have ids the new database won’t take, so nothing was moved: ' + bad.slice(0, 8).join(', '), true); return; }

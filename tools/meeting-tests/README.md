@@ -39,8 +39,9 @@ Cadence's "Staff meeting" button (`../../cadence.html`, `<script id="nlo-meeting
   says so and saves nothing to the old copy; the move can't be run again once moved; closing the move page signs Dr. A's
   NLO Cases login out. After the second review: Cadence as it really runs (on the NLO Cases system; one screen with the
   office Google connection, one without), a move claimed by one screen at a time (a claim left by a closed tab goes by
-  itself; an old one is ignored), writes refused on a paused screen, no false "can't confirm" while switching. 97 checks
-  (`--quick`: 95). Screenshots in `shots/`.
+  itself; an old one is ignored), writes refused on a paused screen, no false "can't confirm" while switching. After the
+  real move (31 Oct: the first try failed on a browser that was open before Publish): new rules not yet everywhere — the
+  move page waits and tries again by itself, on a fresh connection. 98 checks (`--quick`: 96). Screenshots in `shots/`.
 
 Run (Java and Node 20+):
 

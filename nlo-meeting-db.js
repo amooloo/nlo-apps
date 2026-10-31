@@ -576,8 +576,10 @@
     if (!(Date.now() - t < 120000)) { try { sessionStorage.setItem('nloMtg.awayAt', String(Date.now())); } catch (e) { } rememberFs(true); switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); return; }
     overlay('The Staff Meeting Hub has moved to the NLO Cases system, but this computer can’t confirm that with the NLO Cases database right now (no connection, or its database rules need publishing again — ask Dr. A). Nothing can be saved on this screen until then.', { reload: true });
   }
+  /* the rules with the Hub's part are in force: their marker, and the Hub's own records (new rules can take about a minute
+     after Publish to reach every part of the database, so the marker alone isn't enough — 31 Oct 2026) */
   async function rulesLive() {
-    try { await NL.fs.doc(RULES_MARK).get({ source: 'server' }); return true; }
+    try { await NL.fs.doc(RULES_MARK).get({ source: 'server' }); await NL.fs.collection('mtgInbox').limit(1).get({ source: 'server' }); return true; }
     catch (e) { if (/permission/i.test(codeOf(e))) return false; throw e; }
   }
 
