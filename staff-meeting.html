@@ -42,6 +42,9 @@ a{color:var(--blue)}
 .gbtn{display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:12px;padding:12px 20px;font-weight:700;color:var(--navy);background:#fff}
 .gbtn:hover{border-color:var(--blue)}
 #gateErr{color:var(--coral-7);font-size:13px;font-weight:700;margin-top:14px;min-height:18px}
+#gate .ncform{text-align:left;margin-top:4px}#gate .ncform .lbl{margin-top:10px}#gate .ncform .field{width:100%}#gate .ncform .gbtn{margin-top:16px;width:100%;justify-content:center}
+#gate .gateOk{background:#E6F7F1;color:#11624E;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;margin:0 0 6px}
+#gate .gatefoot{font-size:12px;margin:12px 0 0;color:var(--muted)}
 .crest{width:58px;height:58px;border-radius:16px;background:var(--navy);display:inline-flex;align-items:center;justify-content:center;color:var(--mint)}
 
 /* ---------- header ---------- */
@@ -402,8 +405,8 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
   <div class="box">
     <span class="crest"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
     <h1>Staff Meeting Hub</h1>
-    <p>Next Level Orthodontics. Sign in with the office Google account.</p>
-    <button class="gbtn" data-act="sign-in"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/><path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/><path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/></svg>Sign in with Google</button>
+    <p id="gateP">Next Level Orthodontics.</p>
+    <button class="gbtn" data-act="sign-in" hidden><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/><path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/><path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/></svg>Sign in with Google</button>
     <div id="gateErr"></div>
   </div>
 </div>
@@ -439,6 +442,8 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="nlo-meeting-db.js"></script>
 <script>
 'use strict';
 /* =====================================================================
@@ -478,7 +483,7 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
    Cadence shows each person's action items and has a "raise for the
    staff meeting" button (see the add-on block at the end of cadence.html).
    ===================================================================== */
-const APP_VERSION = '2.3.2';
+const APP_VERSION = '3.0.0';
 const FB_CONFIG = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
@@ -510,8 +515,18 @@ const TEAM_ID = 'team';
 const MAX_TRANSCRIPT = 400000;
 
 firebase.initializeApp(FB_CONFIG);
-const db = firebase.database();
+let db = firebase.database();   /* the old database until Dr. A moves the Hub; after that the NLO Cases records (NLOM.db) */
 const auth = firebase.auth();
+/* =====================================================================
+   On the NLO Cases system (3.0, 30 Oct 2026; nlo-meeting-db.js). Amir: the Staff Meeting Hub signs in like Case Tracker,
+   with no Google step. Until Dr. A moves its data (Settings → Move to the NLO Cases system) everything stays as it was
+   (the office Google account, the old database). Once moved (mtgMeta/moved): each person's NLO Cases username and
+   password; the same calls, on the NLO Cases records; notes in each person's own name; Lock; NLO Cases' idle minutes
+   (2 hours while a meeting is running); a login turned off is locked out at once.
+   ===================================================================== */
+let MODE = '';
+let MOVING = false;   /* this screen is doing the move (or the move back): it reloads itself once it has said so */
+const isFs = () => MODE === 'fs';
 
 /* ---------------------------------------------------------------- utils */
 const $ = (s, r) => (r || document).querySelector(s);
@@ -645,6 +660,7 @@ function setRoster(v) {
   S.rosterOk = list.length > 0;
   if (!list.length) list = valsOf(S.legacyRoster).filter(p => p.name).map(p => ({ id: 'n_' + slug(p.name), name: String(p.name).trim(), title: p.role || '', active: true }));
   if (!list.some(p => p.id === OWNER_ID)) list.push({ id: OWNER_ID, name: 'Dr. Amir Akhavan', first: 'Amir', last: 'Akhavan', nick: 'Dr. A', short: 'Dr. A', title: 'Orthodontist / Owner', active: true });
+  if (isFs() && NLOM.me) { const me = NLOM.personOf(NLOM.me, list, OWNER_ID); if (me && !list.some(p => p.id === me.id)) list.push(me); }
   S.roster = list; S.rosterById = {}; list.forEach(p => { S.rosterById[p.id] = p; });
 }
 const isActive = p => !!p && p.active !== false && !(p.end && p.end <= todayYmd());
@@ -680,6 +696,7 @@ function whoLabel(p, fallback) { return p ? shortName(p) : (fallback || ''); }
 /* who is typing on this computer */
 function rememberedAuthor() { try { const a = JSON.parse(localStorage.getItem('nloMtgAuthor') || 'null'); if (a && Date.now() - a.at < AUTHOR_TTL && person(a.id)) return person(a.id); } catch (e) {} return null; }
 function currentAuthor() {
+  if (isFs()) return fsPerson();
   const r = rememberedAuthor(); if (r) return r;
   if (S.isOwner) return person(OWNER_ID);
   const local = (S.email || '').split('@')[0];
@@ -871,7 +888,12 @@ function kpiRows() {
 
 /* ---------------------------------------------------------------- auth + boot */
 function isAllowed(email) { const e = (email || '').toLowerCase(); return e === OWNER_EMAIL || e.endsWith('@' + ALLOWED_DOMAIN); }
+function rtdbStart() {
+const gp = $('#gateP'), gb = $('#gate .gbtn[data-act="sign-in"]');
+if (gp) gp.textContent = 'Next Level Orthodontics. Sign in with the office Google account.';
+if (gb) gb.hidden = false;
 auth.onAuthStateChanged(user => {
+  if (isFs()) return;
   if (!user) { showGate(); return; }
   const email = (user.email || '').toLowerCase();
   if (!isAllowed(email)) { $('#gateErr').textContent = 'Access denied for ' + (email || 'this account') + '.'; auth.signOut(); showGate(); return; }
@@ -880,8 +902,204 @@ auth.onAuthStateChanged(user => {
   if (!S.booted) { S.booted = true; boot(); }
   render('all');
 });
+}
 function showGate() { $('#gate').hidden = false; $('#app').hidden = true; }
 function signIn() { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); $('#gateErr').textContent = ''; auth.signInWithPopup(p).catch(e => { $('#gateErr').textContent = e.message || 'Sign-in failed.'; }); }
+
+/* ---------------------------------------------------------------- the NLO Cases system (3.0) */
+/* the office's Google sign-in, if this computer already has one (from before the move, or from Onboarding / the Office
+   Calendar): only to show those two apps' parts here. Never asked for after the move. */
+function rtExtra() { const u = auth.currentUser; return u && isAllowed(u.email) ? firebase.database() : null; }
+function fsPerson() { return NLOM.me ? NLOM.personOf(NLOM.me, S.roster, OWNER_ID) : null; }
+async function start() {
+  let r = { mode: 'rtdb' };
+  try { if (window.NLOM && firebase.firestore) r = await NLOM.moved(); } catch (e) { r = { mode: 'rtdb' }; }
+  MODE = r.mode;
+  if (isFs()) {
+    auth.onAuthStateChanged(() => { });   /* (lets an existing office Google sign-in come back, for those parts) */
+    fsGate(NLOM.lockMsg());
+    window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });   /* back from the page cache: locked */
+    try { NLOM.onMoved(on => { if (!on && !MOVING) location.reload(); }); } catch (e) { }   /* Dr. A moved it back: this screen goes back to the office Google sign-in */
+  } else {
+    rtdbStart();
+    try { if (window.NLOM && firebase.firestore) NLOM.onMoved(on => { if (on && !MOVING) location.reload(); }); } catch (e) { }   /* Dr. A moved the Hub: this screen switches over */
+  }
+}
+function fsGate(okMsg) {
+  showGate();
+  const box = $('#gate .box');
+  box.innerHTML = '<span class="crest"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>' +
+    '<h1>Staff Meeting Hub</h1><p>Next Level Orthodontics. Sign in with your NLO Cases username and password.</p>' +
+    (okMsg ? '<div class="gateOk" role="status">' + esc(okMsg) + '</div>' : '') +
+    '<form id="ncForm" autocomplete="on" class="ncform">' +
+    '<label class="lbl" for="ncUser">Username</label><input class="field" id="ncUser" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(NLOM.lastLogin()) + '" required>' +
+    '<label class="lbl" for="ncPw">Password</label><input class="field" id="ncPw" name="password" type="password" autocomplete="current-password" required>' +
+    '<button class="gbtn" id="ncGo" type="submit">Sign in</button></form>' +
+    '<div id="gateErr" role="alert"></div><p class="gatefoot">Same username and password as NLO Cases</p>';
+  const f = $('#ncForm');
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const btn = $('#ncGo'); if (btn.disabled) return;
+    const u = $('#ncUser').value.trim(), pw = $('#ncPw').value;
+    if (!u || !pw) return;
+    btn.disabled = true; btn.textContent = 'Signing in…'; $('#gateErr').textContent = '';
+    try { const me = await NLOM.signIn(u, pw); $('#ncPw').value = ''; fsSignedIn(me); }
+    catch (x) { $('#gateErr').textContent = NLOM.errText(x); btn.disabled = false; btn.textContent = 'Sign in'; $('#ncPw').value = ''; $('#ncPw').focus(); }
+  };
+  setTimeout(() => { const u = $('#ncUser'); (u && u.value ? $('#ncPw') : u).focus(); }, 50);
+}
+function fsSignedIn(me) {
+  S.email = me.email; S.isOwner = me.role === 'owner'; S.userName = me.name || me.email.split('@')[0];
+  db = NLOM.db(NLOM.fs, () => (NLOM.me && NLOM.me.sid) || '', rtExtra);
+  NLOM.watch(() => NLOM.lock('Your access changed. Sign in again.'));
+  idleStart();
+  const box = $('#gate .box'); if (box) box.innerHTML = '';   /* nothing typed stays in the page */
+  $('#gate').hidden = true; $('#app').hidden = false;
+  if (!S.booted) { S.booted = true; boot(); }
+  render('all');
+}
+/* idle lock: NLO Cases' idle minutes (2 hours while a meeting is running), with a minute's notice */
+let idleAt = Date.now(), idleWarned = false, idleT = null;
+['click', 'keydown', 'pointerdown', 'scroll', 'input', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { idleAt = Date.now(); }, { passive: true, capture: true }));
+function idleStart() {
+  if (idleT) return;
+  idleAt = Date.now();
+  idleT = setInterval(() => {
+    if (!isFs() || !NLOM.me) return;
+    const base = NLOM.idleMin(), min = liveRun() ? Math.max(base, 120) : base, idle = Date.now() - idleAt;
+    if (idle > min * 60000) { clearInterval(idleT); NLOM.lock('Locked after ' + plural(min, 'minute') + ' without activity.'); }
+    else if (idle > min * 60000 - 60000) { if (!idleWarned) { idleWarned = true; toast('No activity for a while: the Hub locks in about a minute.'); } }
+    else idleWarned = false;
+  }, 15000);
+}
+
+/* ---------------------------------------------------------------- Dr. A: moving the Hub onto the NLO Cases system */
+function dataCardHTML() {
+  if (!S.isOwner) return '';
+  if (isFs()) return '<label class="lbl">Data</label><p class="hint">On the NLO Cases system: the Hub and Month-End sign in with the NLO Cases login, and the database checks every read and write.</p>' +
+    '<div class="row" style="margin-top:8px"><button class="btn ghost sm" id="mvBack">Move back to the old database…</button></div>';
+  return '<label class="lbl">Move to the NLO Cases system</label><p class="hint">Everyone signs in with their NLO Cases username and password (no Google step), notes go in each person’s own name, and the database checks every read and write. Month-End Numbers moves with it.</p>' +
+    '<div class="row" style="margin-top:8px"><button class="btn coral sm" id="mvOpen">Move to the NLO Cases system…</button></div>';
+}
+const MOVE_LABELS = { inbox: 'Inbox items', actionItems: 'Action items', decisions: 'Decisions', kpiDefs: 'KPIs', meetings: 'Meetings', config: 'Settings', currentMeetingId: 'Current meeting', roster: 'Old roster', 'monthEnd/months': 'Month-End months', 'monthEnd/years': 'Month-End goals', 'monthEnd/config': 'Month-End setup', aisaAdminKey: 'Shared AISA key' };
+function moveCounts(old) { const c = NLOM.counts(old); return Object.keys(c).filter(k => c[k]).map(k => '<li>' + esc(MOVE_LABELS[k] || k) + ': <b>' + c[k] + '</b></li>').join(''); }
+function moveSheet() {
+  const card = openSheet('<h3 class="sheet-t">Move to the NLO Cases system</h3><div id="mvBody"></div>', null, { wide: true });
+  const body = card.querySelector('#mvBody');
+  const msg = (t, bad) => '<p class="hint" style="' + (bad ? 'color:var(--coral-7);font-weight:700' : '') + '">' + esc(t) + '</p>';
+  /* 1. Dr. A's NLO Cases login (the new records are written with it) */
+  const step1 = err => {
+    body.innerHTML = '<p class="hint">First, your NLO Cases login (the one you use for Case Tracker).</p>' + (err ? msg(err, true) : '') +
+      '<form id="mvForm" class="ncform"><label class="lbl" for="mvUser">Username</label><input class="field" id="mvUser" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(NLOM.lastLogin() || OWNER_EMAIL) + '">' +
+      '<label class="lbl" for="mvPw">Password</label><input class="field" id="mvPw" type="password" autocomplete="current-password"><div class="row end" style="margin-top:14px"><button class="btn coral" id="mvGo" type="submit">Continue</button></div></form>';
+    body.querySelector('#mvForm').onsubmit = async e => {
+      e.preventDefault();
+      const b = body.querySelector('#mvGo'); b.disabled = true; b.textContent = 'Signing in…';
+      try { const me = await NLOM.signIn(body.querySelector('#mvUser').value, body.querySelector('#mvPw').value); if (me.role !== 'owner') { try { await NLOM.auth.signOut(); } catch (x) { } step1('Only Dr. A’s NLO Cases login can move the Hub.'); return; } step2(); }
+      catch (x) { step1(NLOM.errText(x)); }
+    };
+    setTimeout(() => { const pw = body.querySelector('#mvPw'); if (pw) pw.focus(); }, 60);
+  };
+  /* 2. the database rules with the Hub's part in them */
+  const step2 = async () => {
+    body.innerHTML = msg('Checking the NLO Cases database rules…');
+    let live = false;
+    try { live = await NLOM.rulesLive(); } catch (x) { body.innerHTML = msg('Can’t reach the NLO Cases database: ' + (x.message || x), true) + '<div class="row end"><button class="btn ghost" id="mvRetry">Try again</button></div>'; body.querySelector('#mvRetry').onclick = step2; return; }
+    if (live) { step3(); return; }
+    body.innerHTML = '<p class="hint"><b>One step first: publish the updated database rules</b> (they add the Hub’s part; every other app’s part stays as it is).</p><ol class="hint" style="margin:8px 0 0 18px;line-height:1.7">' +
+      '<li><button class="btn mint sm" id="mvCopy">Copy the new rules</button> <span id="mvCopied" class="hint"></span></li>' +
+      '<li><a href="https://console.firebase.google.com/project/nlo-cases/firestore" target="_blank" rel="noopener">Open the Firebase console (nlo-cases)</a> → <b>Firestore Database</b> in the left menu → <b>Rules</b> tab</li>' +
+      '<li>Select all, paste, <b>Publish</b></li></ol><div class="row end" style="margin-top:14px"><button class="btn coral" id="mvCheck">Check again</button></div><p class="hint" id="mvRulesMsg"></p>';
+    body.querySelector('#mvCopy').onclick = async () => {
+      const out = body.querySelector('#mvCopied'); out.textContent = 'Getting the rules…';
+      try {
+        const r = await fetch('nlo-cases-src/firestore.rules?cb=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const text = (await r.text()).replace(/__OWNER_EMAIL__/g, OWNER_EMAIL);
+        if (text.indexOf('rules_mtg_1') < 0) throw new Error('that file doesn’t have the Hub’s part yet');
+        out.textContent = (await copyText(text)) ? 'Copied ✓ — now paste it in the console' : 'Couldn’t copy: select it from the box below';
+        if (!navigator.clipboard) { const ta = document.createElement('textarea'); ta.value = text; ta.className = 'field'; ta.rows = 6; ta.readOnly = true; out.after(ta); }
+      } catch (x) { out.textContent = 'Couldn’t get the rules: ' + (x.message || x); }
+    };
+    body.querySelector('#mvCheck').onclick = async () => { const m = body.querySelector('#mvRulesMsg'); m.textContent = 'Checking…'; try { if (await NLOM.rulesLive()) step3(); else m.textContent = 'Not yet — the database still has the older rules (it can take a minute after Publish).'; } catch (x) { m.textContent = 'Can’t reach the database: ' + (x.message || x); } };
+  };
+  /* 3. what moves */
+  let old = null;
+  const step3 = async () => {
+    body.innerHTML = msg('Reading the Hub’s data in the old database…');
+    try { old = await NLOM.readOld(db); } catch (x) { body.innerHTML = msg('Couldn’t read the old database: ' + (x.message || x), true); return; }
+    const recs = NLOM.recordsOf(old), bad = NLOM.badIds(recs);
+    if (bad.length) { body.innerHTML = msg('These records have ids the new database won’t take, so nothing was moved: ' + bad.slice(0, 8).join(', '), true); return; }
+    body.innerHTML = '<p class="hint">What moves:</p><ul class="hint" style="margin:6px 0 0 18px;line-height:1.7">' + moveCounts(old) + '</ul>' +
+      '<p class="hint" style="margin-top:12px">Before you start: close the Staff Meeting Hub and Month-End Numbers on other computers (or reload them afterwards). A copy of everything goes to your Downloads first. The old database keeps its copy too.</p>' +
+      '<div class="row end" style="margin-top:14px"><button class="btn ghost" data-act="sheet-close">Not now</button><button class="btn coral" id="mvNow">Move it now</button></div>';
+    body.querySelector('#mvNow').onclick = step4;
+  };
+  /* 4. the move */
+  const step4 = async () => {
+    card.querySelectorAll('.sheet-x,[data-act="sheet-close"]').forEach(x => x.remove());
+    $('#sheet .sheet-back') && $('#sheet .sheet-back').removeAttribute('data-act');
+    const line = t => { body.insertAdjacentHTML('beforeend', '<p class="hint">' + esc(t) + '</p>'); };
+    body.innerHTML = '';
+    MOVING = true;
+    try {
+      download('staff-meeting-hub-before-move-' + todayYmd() + '.json', JSON.stringify({ app: 'staff-meeting-hub', at: new Date().toISOString(), data: old }, null, 1));
+      line('Copy saved to Downloads ✓');
+      let cur = old, res = null;
+      for (let k = 0; k < 3; k++) {
+        res = await NLOM.writeRecords(NLOM.fs, NLOM.me.sid, NLOM.recordsOf(cur), (n, all) => { const p = body.querySelector('.mvProg') || (body.insertAdjacentHTML('beforeend', '<p class="hint mvProg"></p>'), body.querySelector('.mvProg')); p.textContent = 'Writing… ' + n + ' of ' + all; });
+        if (res.missing.length || res.differ.length || res.left.length) throw new Error('the check after writing found ' + (res.missing.length + res.differ.length + res.left.length) + ' records not as written — nothing was switched over');
+        const again = await NLOM.readOld(db);   /* changed meanwhile (a screen saving something)? then write that too */
+        if (NLOM.fpr(again) === NLOM.fpr(cur)) break;
+        if (k === 2) throw new Error('the old data kept changing while moving (someone is using the Hub) — nothing was switched over; try again when it’s quiet');
+        cur = again; line('Something changed meanwhile — writing it too…');
+      }
+      line('Checked: ' + plural(res.written, 'record') + ' written and read back the same ✓');
+      const FV = firebase.firestore.FieldValue;
+      await NLOM.fs.doc('mtgMeta/info').set({ counts: NLOM.counts(cur), by: OWNER_EMAIL, _up: FV.serverTimestamp(), _by: NLOM.me.sid });
+      await NLOM.fs.doc('mtgMeta/moved').set({ on: true, at: FV.serverTimestamp() });
+      try { await firebase.database().ref(P('movedTo')).set({ at: Date.now(), by: S.email, to: 'nlo-cases' }); } catch (x) { }
+      line('Switched over ✓ — the Hub and Month-End now open with the NLO Cases login.');
+      setTimeout(() => location.reload(), 2500);
+    } catch (x) {
+      MOVING = false;
+      line('Stopped: ' + (x.message || x));
+      body.insertAdjacentHTML('beforeend', '<div class="row end" style="margin-top:12px"><button class="btn ghost" id="mvClose">Close</button></div>');
+      body.querySelector('#mvClose').onclick = () => { $('#sheet').classList.remove('open'); $('#sheet').innerHTML = ''; document.body.classList.remove('noscroll'); };
+    }
+  };
+  step1('');
+}
+/* the way back (only if something's wrong): needs this computer's office Google sign-in for the old database */
+function moveBackSheet() {
+  const card = openSheet('<h3 class="sheet-t">Move back to the old database</h3><div id="mbBody"></div>', null, { wide: true });
+  const body = card.querySelector('#mbBody');
+  const draw = err => {
+    const g = rtExtra();
+    body.innerHTML = '<p class="hint">Only if something is wrong. Everything in the Hub and Month-End as it is now goes back to the old database (a copy goes to your Downloads first), and both go back to the office Google sign-in.</p>' + (err ? '<p class="hint" style="color:var(--coral-7);font-weight:700">' + esc(err) + '</p>' : '') +
+      (g ? '' : '<p class="hint">This needs the office Google sign-in (Dr. A’s) on this computer.</p><div class="row" style="margin-top:8px"><button class="gbtn" id="mbG" style="max-width:260px">Sign in with Google</button></div>') +
+      '<label class="row" style="margin-top:12px;gap:8px;align-items:center"><input type="checkbox" id="mbOk"> <span class="hint">Yes, move it back</span></label>' +
+      '<div class="row end" style="margin-top:14px"><button class="btn ghost" data-act="sheet-close">Cancel</button><button class="btn coral" id="mbGo"' + (g ? '' : ' disabled') + '>Move it back</button></div>';
+    const gb = body.querySelector('#mbG'); if (gb) gb.onclick = async () => { try { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); await auth.signInWithPopup(p); draw(rtExtra() ? '' : 'That Google account can’t write the old database.'); } catch (x) { draw(x.message || 'Sign-in failed.'); } };
+    body.querySelector('#mbGo').onclick = async () => {
+      if (!body.querySelector('#mbOk').checked) { draw('Tick “Yes, move it back” first.'); return; }
+      const rt = rtExtra(); if (!rt) { draw('Sign in with Google first.'); return; }
+      card.querySelectorAll('.sheet-x,[data-act="sheet-close"]').forEach(x => x.remove());
+      body.innerHTML = '<p class="hint">Moving back…</p>';
+      MOVING = true;
+      try {
+        const cur = await NLOM.readNew(NLOM.fs);
+        download('staff-meeting-hub-before-move-back-' + todayYmd() + '.json', JSON.stringify({ app: 'staff-meeting-hub', at: new Date().toISOString(), data: cur }, null, 1));
+        for (const m of NLOM.MOVED) await rt.ref(m.path).set(cur[m.path] == null ? null : JSON.parse(JSON.stringify(cur[m.path])));
+        try { await rt.ref(P('movedTo')).remove(); } catch (x) { }
+        await NLOM.fs.doc('mtgMeta/moved').set({ on: false, at: firebase.firestore.FieldValue.serverTimestamp() });
+        body.innerHTML = '<p class="hint">Moved back ✓ — the Hub and Month-End use the office Google sign-in again.</p>';
+        setTimeout(() => location.reload(), 2500);
+      } catch (x) { MOVING = false; body.innerHTML = '<p class="hint" style="color:var(--coral-7);font-weight:700">Stopped: ' + esc(x.message || x) + '</p><p class="hint">Nothing was switched back.</p>'; }
+    };
+  };
+  draw('');
+}
 
 let meetingRef = null, rosterLoaded = () => {};
 S.rosterReady = new Promise(r => { rosterLoaded = r; setTimeout(r, 4000); });
@@ -1037,7 +1255,7 @@ RENDER.top = () => {
     '<button class="chip-top' + (live ? ' live' : '') + '" data-act="' + (live ? 'tab' : 'meeting-date') + '" data-tab="run"><span class="dot"></span>' + (live ? 'Meeting live · ' + esc(fmtShort(d)) : 'Next meeting · ' + esc(fmtDate(d))) + '</button>' +
     '<span class="who-top">' + esc(S.userName) + '</span>' +
     '<button class="ibtn" data-act="settings" title="Settings" aria-label="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>' +
-    '<button class="ibtn" data-act="sign-out" title="Sign out" aria-label="Sign out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button>';
+    '<button class="ibtn" data-act="sign-out" title="' + (isFs() ? 'Lock' : 'Sign out') + '" aria-label="' + (isFs() ? 'Lock' : 'Sign out') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button>';
 };
 RENDER.tabs = () => {
   const nIn = openInbox().length, open = openActions(), od = open.filter(([, a]) => isOverdue(a)).length, live = liveRun();
@@ -1069,7 +1287,8 @@ RENDER.cap = () => {
   const txt = $('#capText').value.trim(); const sel = S.capCat || '';
   const g = sel || guessCategory(txt);
   let who;
-  if (a) who = '<span class="who">' + avatar(a, 20) + 'As ' + esc(shortName(a)) + '</span> <button class="linkbtn" data-act="cap-author">' + (remembered && !S.isOwner ? 'not you?' : 'change') + '</button>';
+  if (a && isFs()) who = '<span class="who">' + avatar(a, 20) + 'As ' + esc(shortName(a)) + '</span>';
+  else if (a) who = '<span class="who">' + avatar(a, 20) + 'As ' + esc(shortName(a)) + '</span> <button class="linkbtn" data-act="cap-author">' + (remembered && !S.isOwner ? 'not you?' : 'change') + '</button>';
   else who = '<span>You’ll tap your photo after Add</span>';
   $('#capMeta').innerHTML = who + '<span class="sep">·</span>' +
     '<span>Files under</span><select id="capCat" class="cat-select c-' + g + '" aria-label="Agenda section"><option value="">' + (txt ? 'Auto: ' + esc(CATS[g].label) : 'Auto-sort') + '</option>' + ['issue', 'action', 'suggestion', 'update', 'kpi', 'kudos'].map(k => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + esc(CATS[k].label) + '</option>').join('') + '</select>' +
@@ -1118,14 +1337,15 @@ async function loadAuto(force) {
       if (src.cadence) { auto.cadence = computeCadence(st); if (asOf) auto.cadence.asOf = asOf; }
       if (src.out) auto.out = computeOut(st);
     }).catch(e => { if (src.cadence) auto.cadence = { err: e.message }; if (src.out) auto.out = { err: e.message }; }));
-    if (src.spend) jobs.push(Promise.all([readOnce('nlo/budget', 20000), readOnce('nlo/log', 20000), readOnce('nlo/orders', 20000), readOnce('nlo/items', 20000)]).then(([budget, log, orders, items]) => { auto.spend = computeSpending(items, orders, log, budget); }).catch(e => { auto.spend = { err: /permission/i.test(e.message) ? 'this sign-in can’t read Inventory’s budget — use the office or Dr. A’s sign-in' : e.message }; }));
-    if (src.newhires) jobs.push(computeNewHires().then(r => { auto.newHires = r; }).catch(e => { auto.newHires = { err: e.message }; }));
+    if (src.spend) jobs.push((isFs() ? NLOM.inventoryOld(NLOM.fs).then(x => [x.budget, x.log, x.orders, x.items]) : Promise.all([readOnce('nlo/budget', 20000), readOnce('nlo/log', 20000), readOnce('nlo/orders', 20000), readOnce('nlo/items', 20000)])).then(([budget, log, orders, items]) => { auto.spend = computeSpending(items, orders, log, budget); }).catch(e => { auto.spend = { err: /permission/i.test(e.message) ? 'this sign-in can’t read Inventory’s budget — use the office or Dr. A’s sign-in' : e.message }; }));
+    if (src.newhires) jobs.push(computeNewHires().then(r => { auto.newHires = r; }).catch(e => { auto.newHires = { err: e && e.code === 'not-available' ? 'Onboarding is still on the office Google account: it shows here on a computer signed in to Onboarding' : e.message }; }));
     await Promise.all(jobs);
     S.auto = auto; S.autoAt = Date.now();
   })();
   try { await S.autoPromise; } finally { S.autoLoading = false; render('inbox', 'run'); }
 }
 async function readCadence() {
+  if (isFs()) { const c = await NLOM.cadenceCopy(NLOM.fs); return [c.staff, c.checklists, c.instances, c.timeOff, c.at]; }
   const [moved, copy] = await Promise.all([readOnce(CADENCE_MOVED).catch(() => null), readOnce(CADENCE_COPY).catch(() => null)]);
   if (!moved) return Promise.all(['staff', 'checklists', 'instances', 'timeOff'].map(k => readOnce(CADENCE_PATH + '/' + k)));
   if (!copy || typeof copy.at !== 'number') throw new Error('Cadence moved to the NLO Cases system; its numbers show here once Cadence has been open on a computer connected to the office Google account');
@@ -1835,7 +2055,7 @@ function itemSheet(id, mode, opts) {
 async function geminiKey() {
   if (S.gemKey) return S.gemKey;
   let k = null;
-  try { k = (await db.ref('nlo/settings/geminiKey').once('value')).val(); } catch (e) { throw new Error('This account can’t read the office AI key (nlo/settings). Use the office or Dr. A’s sign-in.'); }
+  try { k = (await db.ref('nlo/settings/geminiKey').once('value')).val(); } catch (e) { throw new Error(isFs() ? 'Couldn’t read the office AI key (Inventory’s AI settings): ' + ((e && e.message) || 'error') : 'This account can’t read the office AI key (nlo/settings). Use the office or Dr. A’s sign-in.'); }
   if (!k || typeof k !== 'string' || k.trim().length < 20) throw new Error('No office Gemini key is saved. Add one in the Inventory app’s AI settings.');
   S.gemKey = k.trim(); return S.gemKey;
 }
@@ -2338,7 +2558,7 @@ async function loadSharedAisa() {
   S.sharedAisaLoaded = true; render('follow'); return S.sharedAisa;
 }
 async function shareAisaKey(k) { await db.ref(AISA_SHARED).set(k); S.sharedAisa = k; S.sharedAisaLoaded = true; }
-const shareErr = e => /permission/i.test((e && e.message) || '') ? 'Only Dr. A’s or the office sign-in can set this up.' : ((e && e.message) || 'Could not save');
+const shareErr = e => /permission/i.test((e && (e.code || e.message)) || '') ? (isFs() ? 'Only Dr. A can set this up.' : 'Only Dr. A’s or the office sign-in can set this up.') : ((e && e.message) || 'Could not save');
 function decisionsText() {
   const list = valsOf(S.decisions).filter(d => d.text).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
   const groups = {}; list.forEach(d => { (groups[d.date || ''] = groups[d.date || ''] || []).push(d); });
@@ -2516,7 +2736,8 @@ function settingsSheet() {
     '<label class="lbl">AISA</label><p class="hint" id="aStatus">' + (S.sharedAisa ? 'Set up for all office computers — each meeting’s decisions go to AISA when it ends.' : localAisaKey() ? 'This computer has the AISA admin key (from the AISA portal), so meetings run here send their decisions to AISA. Share it so every office computer can.' : 'No AISA admin key yet, so decisions aren’t sent to AISA automatically.') + '</p><div class="row" style="margin-top:8px">' +
       (!S.sharedAisa && localAisaKey() ? '<button class="btn mint sm" id="aShare">Use it on all office computers</button>' : '') + '<button class="btn ghost sm" id="aKey">' + (aisaKey() ? 'Change key' : 'Add key') + '</button><button class="btn ghost sm" id="aSend">Send decisions now</button>' + (S.sharedAisa ? '<button class="btn ghost sm" id="aUnshare">Stop sharing</button>' : '') + '</div>' +
     '<label class="lbl">AI</label><p class="hint">Plaud transcripts are read with the office Gemini key saved in the Inventory app’s AI settings.</p><div class="row" style="margin-top:8px"><button class="btn ghost sm" id="gCheck">Check the key</button><span class="hint" id="gRes"></span></div>' +
-    '<p class="hint" style="margin-top:18px">Staff Meeting Hub ' + APP_VERSION + ' · signed in as ' + esc(S.email) + '</p>', card => {
+    dataCardHTML() +
+    '<p class="hint" style="margin-top:18px">Staff Meeting Hub ' + APP_VERSION + ' · signed in as ' + esc(isFs() ? (S.userName + ' with the NLO Cases login') : S.email) + '</p>', card => {
     card.addEventListener('change', e => {
       const t = e.target;
       if (t.dataset.src) db.ref(P('config', 'sources', t.dataset.src)).set(t.checked).then(() => { S.auto = null; loadAuto(true); });
@@ -2530,6 +2751,8 @@ function settingsSheet() {
     const sh = card.querySelector('#aShare'); if (sh) sh.onclick = async () => { sh.disabled = true; try { await shareAisaKey(localAisaKey()); toast('AISA is set up for all office computers ✓', 'good'); closeSheet(); settingsSheet(); } catch (e) { sh.disabled = false; toast(shareErr(e), 'bad'); } };
     const us = card.querySelector('#aUnshare'); if (us) us.onclick = async () => { if (!confirm('Stop sharing the AISA key? Only computers that have it saved will send decisions.')) return; try { await db.ref(AISA_SHARED).remove(); S.sharedAisa = ''; closeSheet(); settingsSheet(); } catch (e) { toast(shareErr(e), 'bad'); } };
     card.querySelector('#aSend').onclick = () => { closeSheet(); doAisaSend(); };
+    const mv = card.querySelector('#mvOpen'); if (mv) mv.onclick = () => { closeSheet(); moveSheet(); };
+    const mb = card.querySelector('#mvBack'); if (mb) mb.onclick = () => { closeSheet(); moveBackSheet(); };
     card.querySelector('#gCheck').onclick = async () => { const r = card.querySelector('#gRes'); r.textContent = 'Checking…'; try { await geminiKey(); r.textContent = 'Found the office key ✓'; } catch (e) { r.textContent = e.message; } };
   }, { wide: true });
 }
@@ -2540,7 +2763,7 @@ document.addEventListener('click', e => {
   const act = el.dataset.act, id = el.dataset.id, key = el.dataset.key;
   switch (act) {
     case 'sign-in': signIn(); break;
-    case 'sign-out': if (confirm('Sign out of the Staff Meeting Hub?')) auth.signOut(); break;
+    case 'sign-out': if (isFs()) NLOM.lock('Locked. Sign in to continue.'); else if (confirm('Sign out of the Staff Meeting Hub?')) auth.signOut(); break;
     case 'sheet-close': closeSheet(); break;
     case 'tab': setTab(el.dataset.tab); break;
     case 'settings': settingsSheet(); break;
@@ -2634,6 +2857,7 @@ window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; })
 
 /* test hooks (harmless in production) */
 window.SMH = { S, parseMentions, stripMentions, mentionToken, todoText, calFrom, isPushed, openInbox, pushedInbox, closedInbox, laterChoices, lastMeetingDate, defaultOutcomeDate, outcomeInfo, backText, calPrevMeeting, quickResolve, saveOutcome, pushItem, reopenItem, calNextMeeting, calOccursOn, syncMeetingDateFromCalendar, nextMeetingDefault, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
+start();
 </script>
 <script src="nlo-home.js" defer></script>
 <script src="nlo-aisa.js" defer></script>

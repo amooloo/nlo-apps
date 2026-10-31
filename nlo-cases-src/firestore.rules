@@ -1698,5 +1698,81 @@ service cloud.firestore {
     match /meta/rules_cad_2 {
       allow get: if isMember();
     }
+
+    // =====================================================================
+    // ---------- the Staff Meeting Hub + Month-End Numbers (same office, same logins; 30 Oct 2026) ----------
+    // Amir, 30 Oct 2026: "make the login for staff hub the same as case tracker" (he meant the Staff Meeting Hub) → "Full move
+    // only" (no Google step at all). Everything that lived under nlo/staffMeeting in the old database (nlo-inventory):
+    //   inbox → mtgInbox, actionItems → mtgActions, decisions → mtgDecisions, kpiDefs → mtgKpiDefs, meetings → mtgMeetings
+    //   (a meeting's transcript and pasted notes → mtgTexts, the same id), config / currentMeetingId / roster → mtgState/
+    //   {config, current, roster}, the shared AISA key → mtgState/aisa, monthEnd/{months, years, config} → meMonths /
+    //   meState/{years, config}.
+    // As before the move, everyone signed in uses all of it (the pages are built that way); what's new is that the database
+    // checks the login: only an active NLO Cases login reads or writes, and every write is stamped with who and when (`_by` =
+    // the NLO Cases staff id, `_up` = the database's time). Only Dr. A shares the AISA key and moves the data.
+    // mtgMeta/moved says which database these pages use (readable before anyone signs in; it holds nothing else).
+    // =====================================================================
+    function mtgOk(d) { return isMember() && d.get('_up', null) == request.time && d.get('_by', '') == mySid() && d.size() <= 120; }
+    function mtgId(id) { return id.size() <= 100 && id.matches('^[A-Za-z0-9_-]+$'); }
+    match /mtgInbox/{id} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && mtgId(id);
+      allow delete: if isMember();
+    }
+    match /mtgActions/{id} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && mtgId(id);
+      allow delete: if isMember();
+    }
+    match /mtgDecisions/{id} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && mtgId(id);
+      allow delete: if isMember();
+    }
+    match /mtgKpiDefs/{id} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && mtgId(id);
+      allow delete: if isMember();
+    }
+    match /mtgMeetings/{id} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && mtgId(id);
+      allow delete: if isMember();
+    }
+    match /mtgTexts/{id} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && mtgId(id);
+      allow delete: if isMember();
+    }
+    match /mtgState/{id} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && (id in ['config', 'current', 'roster'] || (id == 'aisa' && isOwner()));
+      allow delete: if isOwner() && id == 'aisa';
+    }
+    match /meMonths/{ym} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && ym.matches('^[0-9]{4}-[0-9]{2}$');
+      allow delete: if isMember();
+    }
+    match /meState/{id} {
+      allow read: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && id in ['years', 'config'];
+      allow delete: if false;
+    }
+    match /mtgMeta/moved {
+      allow get: if true;
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['on', 'at'])
+        && request.resource.data.get('on', null) is bool && request.resource.data.get('at', null) == request.time;
+      allow delete: if false;
+    }
+    match /mtgMeta/info {
+      allow get: if isMember();
+      allow create, update: if mtgOk(request.resource.data) && isOwner();
+      allow delete: if false;
+    }
+    // which set of these rules is live (the Staff Meeting Hub and Month-End read this; older rules refuse it)
+    match /meta/rules_mtg_1 {
+      allow get: if isMember();
+    }
   }
 }

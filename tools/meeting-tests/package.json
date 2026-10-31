@@ -1,0 +1,11 @@
+{
+  "name": "meeting-tests",
+  "private": true,
+  "description": "The Staff Meeting Hub's move onto the NLO Cases system, on the Firebase emulators (made-up office). See README.md.",
+  "type": "module",
+  "devDependencies": {
+    "firebase": "10.12.2",
+    "firebase-tools": "^14.0.0",
+    "playwright": "^1.50.0"
+  }
+}

@@ -34,6 +34,9 @@ a{color:var(--blue)}
 #gate p{color:var(--muted);font-size:14px;margin-bottom:22px}
 .gbtn{display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:12px;padding:12px 20px;font-weight:700;color:var(--navy);background:#fff}
 #gateErr{color:var(--coral-7);font-size:13px;font-weight:700;margin-top:14px;min-height:18px}
+#gate .ncform{text-align:left;margin-top:4px}#gate .ncform .lbl{margin-top:10px}#gate .ncform .field{width:100%}#gate .ncform .gbtn{margin-top:16px;width:100%;justify-content:center}
+#gate .gateOk{background:#E6F7F1;color:#11624E;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;margin:0 0 6px}
+#gate .gatefoot{font-size:12px;margin:12px 0 0;color:var(--muted)}
 .crest{width:58px;height:58px;border-radius:16px;background:var(--navy);display:inline-flex;align-items:center;justify-content:center;color:var(--mint)}
 .top{background:var(--navy);color:#fff;padding:14px 18px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .top .brand{display:flex;flex-direction:column;line-height:1.1;margin-right:auto}
@@ -139,8 +142,8 @@ html:has(#sheet.open)>:is(nlo-home,nlo-aisa){display:none!important}
 <div id="gate"><div class="box">
   <span class="crest"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span>
   <h1>Month-End Numbers</h1>
-  <p>Next Level Orthodontics. Sign in with the office Google account.</p>
-  <button class="gbtn" data-act="sign-in"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/><path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/><path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/></svg>Sign in with Google</button>
+  <p id="gateP">Next Level Orthodontics.</p>
+  <button class="gbtn" data-act="sign-in" hidden><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/><path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/><path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/></svg>Sign in with Google</button>
   <div id="gateErr"></div>
 </div></div>
 
@@ -160,6 +163,8 @@ html:has(#sheet.open)>:is(nlo-home,nlo-aisa){display:none!important}
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="nlo-meeting-db.js"></script>
 <script>
 'use strict';
 /* =====================================================================
@@ -177,7 +182,7 @@ html:has(#sheet.open)>:is(nlo-home,nlo-aisa){display:none!important}
    (that path already has the right access rules). Each month also stores
    computed `totals`, which the Staff Meeting Hub reads for its KPIs.
    ===================================================================== */
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '2.0.0';
 const FB_CONFIG = { apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4", authDomain: "nlo-inventory.firebaseapp.com", databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com", projectId: "nlo-inventory", storageBucket: "nlo-inventory.firebasestorage.app", messagingSenderId: "471691286148", appId: "1:471691286148:web:b362a98186f648bd4914d1" };
 const ME = 'nlo/staffMeeting/monthEnd';
 const ROSTER_PATH = 'nlo/cadence/roster/people';
@@ -185,7 +190,13 @@ const OWNER_EMAIL = 'akhavan.ak@gmail.com', OWNER_ID = 's_amir', ALLOWED_DOMAIN 
 const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const AUTHOR_TTL = 30 * 60 * 1000;
 firebase.initializeApp(FB_CONFIG);
-const db = firebase.database(), auth = firebase.auth();
+let db = firebase.database();   /* the old database until Dr. A moves the Staff Meeting Hub (this moves with it); then NLOM.db */
+const auth = firebase.auth();
+/* On the NLO Cases system (2.0, 30 Oct 2026; nlo-meeting-db.js): moves with the Staff Meeting Hub (its numbers live in the
+   Hub's data). Before the move: as it was (office Google account). After: each person's NLO Cases login, numbers entered in
+   their own name, Lock, NLO Cases' idle minutes. */
+let MODE = '';
+const isFs = () => MODE === 'fs';
 
 /* ---------------------------------------------------------------- fields */
 const NP_ROWS = [['np', 'New patients', 'Seen for the first time ever at NLO this month.'], ['obs', 'Went into observation'], ['pending', 'Went into pending (will think about it)'], ['sameday', 'Same-day start (contract signed)'], ['scheduled', 'Scheduled to start'], ['declined', 'Declined treatment'], ['notx', 'No treatment recommended']];
@@ -260,6 +271,7 @@ function avatar(p, size) { size = size || 28; const st = 'width:' + size + 'px;h
 function setRoster(v) {
   const list = v && typeof v === 'object' ? Object.keys(v).map(k => { const p = v[k]; return p && p.name ? Object.assign({}, p, { id: String(p.id || k) }) : null; }).filter(Boolean) : [];
   if (!list.some(p => p.id === OWNER_ID)) list.push({ id: OWNER_ID, name: 'Dr. Amir Akhavan', first: 'Amir', nick: 'Dr. A', active: true });
+  if (isFs() && NLOM.me) { const me = NLOM.personOf(NLOM.me, list, OWNER_ID); if (me && !list.some(p => p.id === me.id)) list.push(me); }
   S.roster = list; S.rosterById = {}; list.forEach(p => { S.rosterById[p.id] = p; });
 }
 /* TC columns: the ones picked in Goals & setup, else everyone whose Staff Hub title says Treatment Coordinator */
@@ -276,6 +288,7 @@ function tcColumns(rec) {
 
 /* who is entering numbers on this computer */
 function author() {
+  if (isFs()) return NLOM.me ? NLOM.personOf(NLOM.me, S.roster, OWNER_ID) : null;
   try { const a = JSON.parse(localStorage.getItem('nloMeAuthor') || 'null'); if (a && Date.now() - a.at < AUTHOR_TTL && person(a.id)) return person(a.id); } catch (e) {}
   return S.isOwner ? person(OWNER_ID) : null;
 }
@@ -308,7 +321,12 @@ function flushPending() { if (!pending.size) return; const p = [...pending]; pen
 document.addEventListener('focusout', () => setTimeout(() => { if (!editingIn(document.body)) flushPending(); }, 0));
 
 /* ---------------------------------------------------------------- auth + boot */
+function rtdbStart() {
+const gp = $('#gateP'), gb = $('#gate .gbtn[data-act="sign-in"]');
+if (gp) gp.textContent = 'Next Level Orthodontics. Sign in with the office Google account.';
+if (gb) gb.hidden = false;
 auth.onAuthStateChanged(u => {
+  if (isFs()) return;
   if (!u) { $('#gate').hidden = false; $('#app').hidden = true; return; }
   const email = (u.email || '').toLowerCase();
   if (!(email === OWNER_EMAIL || email.endsWith('@' + ALLOWED_DOMAIN))) { $('#gateErr').textContent = 'Access denied for ' + email + '.'; auth.signOut(); return; }
@@ -317,6 +335,68 @@ auth.onAuthStateChanged(u => {
   if (!S.booted) { S.booted = true; boot(); }
   render('all');
 });
+}
+/* ---------- the NLO Cases system (2.0) ---------- */
+function rtExtra() { const u = auth.currentUser; const e = u ? (u.email || '').toLowerCase() : ''; return u && (e === OWNER_EMAIL || e.endsWith('@' + ALLOWED_DOMAIN)) ? firebase.database() : null; }
+async function start() {
+  let r = { mode: 'rtdb' };
+  try { if (window.NLOM && firebase.firestore) r = await NLOM.moved(); } catch (e) { r = { mode: 'rtdb' }; }
+  MODE = r.mode;
+  if (isFs()) {
+    auth.onAuthStateChanged(() => { });
+    fsGate(NLOM.lockMsg());
+    window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
+    try { NLOM.onMoved(on => { if (!on) location.reload(); }); } catch (e) { }
+  } else {
+    rtdbStart();
+    try { if (window.NLOM && firebase.firestore) NLOM.onMoved(on => { if (on) location.reload(); }); } catch (e) { }
+  }
+}
+function fsGate(okMsg) {
+  $('#gate').hidden = false; $('#app').hidden = true;
+  const box = $('#gate .box');
+  box.innerHTML = '<span class="crest"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span>' +
+    '<h1>Month-End Numbers</h1><p>Next Level Orthodontics. Sign in with your NLO Cases username and password.</p>' +
+    (okMsg ? '<div class="gateOk" role="status">' + esc(okMsg) + '</div>' : '') +
+    '<form id="ncForm" autocomplete="on" class="ncform">' +
+    '<label class="lbl" for="ncUser">Username</label><input class="field" id="ncUser" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(NLOM.lastLogin()) + '" required>' +
+    '<label class="lbl" for="ncPw">Password</label><input class="field" id="ncPw" name="password" type="password" autocomplete="current-password" required>' +
+    '<button class="gbtn" id="ncGo" type="submit">Sign in</button></form>' +
+    '<div id="gateErr" role="alert"></div><p class="gatefoot">Same username and password as NLO Cases</p>';
+  $('#ncForm').onsubmit = async e => {
+    e.preventDefault();
+    const btn = $('#ncGo'); if (btn.disabled) return;
+    const u = $('#ncUser').value.trim(), pw = $('#ncPw').value;
+    if (!u || !pw) return;
+    btn.disabled = true; btn.textContent = 'Signing in…'; $('#gateErr').textContent = '';
+    try { const me = await NLOM.signIn(u, pw); $('#ncPw').value = ''; fsSignedIn(me); }
+    catch (x) { $('#gateErr').textContent = NLOM.errText(x); btn.disabled = false; btn.textContent = 'Sign in'; $('#ncPw').value = ''; $('#ncPw').focus(); }
+  };
+  setTimeout(() => { const u = $('#ncUser'); (u && u.value ? $('#ncPw') : u).focus(); }, 50);
+}
+function fsSignedIn(me) {
+  S.email = me.email; S.isOwner = me.role === 'owner'; S.userName = me.name || me.email.split('@')[0];
+  db = NLOM.db(NLOM.fs, () => (NLOM.me && NLOM.me.sid) || '', rtExtra);
+  NLOM.watch(() => NLOM.lock('Your access changed. Sign in again.'));
+  idleStart();
+  const box = $('#gate .box'); if (box) box.innerHTML = '';
+  $('#gate').hidden = true; $('#app').hidden = false;
+  if (!S.booted) { S.booted = true; boot(); }
+  render('all');
+}
+let idleAt = Date.now(), idleWarned = false, idleT = null;
+['click', 'keydown', 'pointerdown', 'scroll', 'input', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { idleAt = Date.now(); }, { passive: true, capture: true }));
+function idleStart() {
+  if (idleT) return;
+  idleAt = Date.now();
+  idleT = setInterval(() => {
+    if (!isFs() || !NLOM.me) return;
+    const min = NLOM.idleMin(), idle = Date.now() - idleAt;
+    if (idle > min * 60000) { clearInterval(idleT); NLOM.lock('Locked after ' + min + ' minute' + (min === 1 ? '' : 's') + ' without activity.'); }
+    else if (idle > min * 60000 - 60000) { if (!idleWarned) { idleWarned = true; toast('No activity for a while: Month-End locks in about a minute.'); } }
+    else idleWarned = false;
+  }, 15000);
+}
 function defaultMonth() { const d = new Date(); const m = new Date(d.getFullYear(), d.getMonth() - (d.getDate() <= 20 ? 1 : 0), 15); return ymOf(m); }
 function boot() {
   const h = (location.hash || '').replace('#', ''); S.month = parseYm(h) ? h : defaultMonth();
@@ -341,7 +421,7 @@ window.addEventListener('hashchange', () => { const h = location.hash.replace('#
 
 /* ---------------------------------------------------------------- header + month bar */
 RENDER.top = () => {
-  $('#top').innerHTML = '<div class="brand"><b>Month-End Numbers</b><span>Next Level Orthodontics</span></div><a class="ibtn" href="staff-meeting.html" title="Staff Meeting Hub" aria-label="Staff Meeting Hub"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg></a><span class="who-top">' + esc(S.userName) + '</span><button class="ibtn" data-act="sign-out" title="Sign out" aria-label="Sign out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button>';
+  $('#top').innerHTML = '<div class="brand"><b>Month-End Numbers</b><span>Next Level Orthodontics</span></div><a class="ibtn" href="staff-meeting.html" title="Staff Meeting Hub" aria-label="Staff Meeting Hub"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg></a><span class="who-top">' + esc(S.userName) + '</span><button class="ibtn" data-act="sign-out" title="' + (isFs() ? 'Lock' : 'Sign out') + '" aria-label="' + (isFs() ? 'Lock' : 'Sign out') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button>';
 };
 RENDER.mbar = () => {
   const yr = S.month.slice(0, 4);
@@ -504,7 +584,7 @@ document.addEventListener('click', e => {
   const act = el.dataset.act;
   switch (act) {
     case 'sign-in': { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); auth.signInWithPopup(p).catch(er => { $('#gateErr').textContent = er.message; }); break; }
-    case 'sign-out': if (confirm('Sign out?')) auth.signOut(); break;
+    case 'sign-out': if (isFs()) NLOM.lock('Locked. Sign in to continue.'); else if (confirm('Sign out?')) auth.signOut(); break;
     case 'sheet-close': closeSheet(); break;
     case 'tab': setTab(el.dataset.tab); break;
     case 'prev': S.tab === 'month' ? goMonth(addMonths(S.month, -1)) : goMonth(addMonths(S.month, -12)); break;
@@ -564,7 +644,7 @@ function printYear() { const tbl = $('#p-year table'); printDoc('<h1>Next Level 
 const IMPORT_KEYS = { np_total: 'np', np_obs: 'obs', np_pending: 'pending', np_sameday: 'sameday', np_scheduled: 'scheduled', np_declined: 'declined', np_notx: 'notx', st_ph1: 'ph1', st_ph1a: 'ph1a', st_ph2: 'ph2', st_ph2a: 'ph2a', st_ft: 'ft', st_fta: 'fta', st_lmt: 'lmt', st_retreat: 'retreat' };
 const IMPORT_TOP = ['net_coll', 'gross_prod', 'adj', 'cred_pt', 'cred_ins', 'pending', 'active', 'active_noappt', 'obs', 'obs_noappt', 'past', 'ins_ar', 'ins_ar_n', 'ins_pd', 'ins_pd_n', 'pt_ar', 'pt_ar_n', 'pt_pd', 'pt_pd_n'];
 const IMPORT_LABELS = { np_total: 'New patients', np_obs: 'Went into observation', np_pending: 'Went into pending', np_sameday: 'Same day start (contract signed)', np_scheduled: 'Patients scheduled start', np_declined: 'Declined Tx', np_notx: 'No Tx recommended', st_ph1: 'Ph.I starts', st_ph1a: 'Ph.I Aligners starts', st_ph2: 'Ph.II starts', st_ph2a: 'Ph.II Aligners starts', st_ft: 'FT starts', st_fta: 'FT Aligners starts', st_lmt: 'LMT starts', st_retreat: 'Retreat starts', net_coll: 'Net collections', gross_prod: 'Gross production', adj: 'Less adjustments', cred_pt: 'Patient credits', cred_ins: 'Insurance credits', pending: '# of pending patients', active: '# of TOTAL active patients', active_noappt: '# of active pts w/out apts', obs: '# of TOTAL obs pts', obs_noappt: '# of obs pts w/out apts', past: '# of patients past completion', ins_ar: 'Insurance accounts — dollar amount', ins_ar_n: 'Insurance accounts — number of accounts', ins_pd: 'Insurance accounts past due — dollar amount', ins_pd_n: 'Insurance accounts past due — number of accounts', pt_ar: 'Patient accounts — dollar amount', pt_ar_n: 'Patient accounts — number of accounts', pt_pd: 'Patient accounts past due — dollar amount', pt_pd_n: 'Patient accounts past due — number of accounts' };
-async function geminiKey() { if (S.gemKey) return S.gemKey; let k = null; try { k = (await db.ref('nlo/settings/geminiKey').once('value')).val(); } catch (e) { throw new Error('This account can’t read the office AI key. Use the office or Dr. A’s sign-in.'); } if (!k || String(k).trim().length < 20) throw new Error('No office Gemini key is saved (Inventory app → AI settings).'); S.gemKey = String(k).trim(); return S.gemKey; }
+async function geminiKey() { if (S.gemKey) return S.gemKey; let k = null; try { k = (await db.ref('nlo/settings/geminiKey').once('value')).val(); } catch (e) { throw new Error(isFs() ? 'Couldn’t read the office AI key (Inventory’s AI settings): ' + ((e && e.message) || 'error') : 'This account can’t read the office AI key. Use the office or Dr. A’s sign-in.'); } if (!k || String(k).trim().length < 20) throw new Error('No office Gemini key is saved (Inventory app → AI settings).'); S.gemKey = String(k).trim(); return S.gemKey; }
 async function geminiJSON(system, parts) {
   const key = await geminiKey(); let last = null;
   for (const model of GEMINI_MODELS) {
@@ -749,6 +829,7 @@ function reviewEdge(m, out) {
   openSheet('<h3 class="sheet-t">Check the Edge numbers</h3><div id="eBody">' + draw(target) + '</div>', card => mount(card), { wide: true });
 }
 window.MEH = { S, computeTotals, yearData, baseline, edgeValues, edgePhaseKey, version: APP_VERSION };
+start();
 </script>
 <script src="nlo-home.js" defer></script>
 <script src="nlo-aisa.js" defer></script>
