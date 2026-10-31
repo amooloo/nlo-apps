@@ -121,7 +121,7 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "2.0.1 (Oct 31, 2026)";
+const CAL_VERSION = "2.0.2 (Oct 31, 2026)";
 
 /* =====================================================================
    On the NLO Cases system (2.0, 31 Oct 2026; nlo-meeting-db.js). Amir: the Office Calendar signs in like Case Tracker, with
@@ -642,6 +642,19 @@ function entriesFor(ds,ignoreFilters){
                      notes:"", recurrence:null, synced:true });
         }
     });
+  }
+  /* a manual "Out" entry for someone NLO Time Off already shows out that day is skipped (Oct 31, 2026): the synced one wins */
+  const outKey=x=>String(x==null?"":x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z ]/g," ").replace(/\s+/g," ").trim();
+  const syncedOut=out.filter(e=>e.type==="pto"&&e.synced);
+  if(syncedOut.length){
+    const names={}, ppl=[];
+    syncedOut.forEach(e=>{ const k=outKey(e.staffName); if(k) names[k]=1; if(e.who) ppl.push(e.who); });
+    for(let i=out.length-1;i>=0;i--){
+      const e=out[i];
+      if(e.type!=="pto"||e.synced) continue;
+      const st=e.staffId?staffL[e.staffId]:null;
+      if((st&&ppl.indexOf(st)!==-1)||names[outKey(e.staffName)]) out.splice(i,1);
+    }
   }
   const order={holiday:0,pto:1,bday:2,anniv:3,hr:3.5,event:4,task:5};
   /* same kind and time: by what's shown, so the people out are in name order */
