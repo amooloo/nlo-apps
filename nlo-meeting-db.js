@@ -405,9 +405,14 @@
      Hub's part yet — before Dr. A publishes them, as part of the move) or cut off: listen again later (30 s, doubling to
      10 min), so a screen opened before the rules were published still hears the move. fsIn: another page's Firestore
      (Cadence's own login) instead of this one's; onErr(e): told about each refusal. */
+  const movedSubs = new Set();
+  /* a move is under way (the old database says so): every listener that's waiting to ask again asks now */
+  function kickMoved() { movedSubs.forEach(k => { try { k(); } catch (e) { } }); }
   function onMoved(cb, fsIn, onErr) {
     const f = fsIn || init().fs;
     let unsub = null, timer = null, wait = 30000, stopped = false;
+    const kick = () => { if (!stopped && !unsub) { clearTimeout(timer); wait = 30000; sub(); } };
+    movedSubs.add(kick);
     const sub = () => {
       if (stopped) return;
       unsub = f.doc('mtgMeta/moved').onSnapshot({ includeMetadataChanges: true }, s => {
@@ -422,12 +427,16 @@
       });
     };
     sub();
-    return () => { stopped = true; clearTimeout(timer); if (unsub) { try { unsub(); } catch (e) { } unsub = null; } };
+    return () => { stopped = true; movedSubs.delete(kick); clearTimeout(timer); if (unsub) { try { unsub(); } catch (e) { } unsub = null; } };
   }
   /* where the Hub's data is, asked of the server: { on, pause, at } (null: can't tell — refused or no connection) */
-  async function moveState() {
-    try { const s = await init().fs.doc('mtgMeta/moved').get({ source: 'server' }); const d = s.exists ? s.data() : {}; return { on: d.on === true, pause: d.pause === true, at: d.at && d.at.toMillis ? d.at.toMillis() : null }; }
-    catch (e) { return null; }
+  async function moveState(fsIn) {
+    try {
+      const f = fsIn || init().fs;
+      const s = await Promise.race([f.doc('mtgMeta/moved').get({ source: 'server' }), new Promise((_, rej) => setTimeout(() => rej(err('deadline-exceeded')), 8000))]);
+      const d = s.exists ? s.data() : {};
+      return { on: d.on === true, pause: d.pause === true, at: d.at && d.at.toMillis ? d.at.toMillis() : null };
+    } catch (e) { return /permission/i.test(codeOf(e)) ? { on: false, refused: true } : null; }
   }
 
   /* ---------- the screens' side of a move ----------
@@ -460,58 +469,81 @@
      ignored (the moving screen re-stamps it as it goes; the old database also removes it when that screen disconnects) */
   const STALE = 15 * 60000;
   const msOf = at => (typeof at === 'number' ? at : at && typeof at.toMillis === 'function' ? at.toMillis() : 0);
-  const fresh = at => { const t = msOf(at); return t > 0 && Date.now() - t < STALE; };
+  const fresh = (at, off) => { const t = msOf(at); return t > 0 && (Date.now() + (off || 0)) - t < STALE; };   /* off: the server's clock offset */
+  const waitFor = ms => Math.min(STALE + 1000, Math.max(1000, ms));
+  /* a pause marker on the NLO Cases side: stale once this screen has seen the same one for STALE (no clocks compared) */
+  function pauseClock() { let key = null, since = 0; return d => { const k = d && d.pause === true ? String(msOf(d.at)) : null; if (k !== key) { key = k; since = Date.now(); } return k === null ? -1 : STALE - (Date.now() - since); }; }
   const rememberFs = on => { try { if (on) localStorage.setItem('nloMtg.fs', '1'); else localStorage.removeItem('nloMtg.fs'); } catch (e) { } };
   const FREEZE_IN = 'Dr. A is moving the Staff Meeting Hub to the NLO Cases system. This screen switches over by itself in a minute or two — nothing to do.';
   const FREEZE_BACK = 'Dr. A is moving the Staff Meeting Hub back to the old database. This screen switches over by itself in a minute or two — nothing to do.';
   /* the old database's own markers (moving: a fresh one only / movedTo); cb(state) on each change, and again when a moving
      marker goes stale; onCancel(): the old database stopped them (e.g. its sign-in ended) */
   function watchOld(rt, cb, onCancel) {
-    const st = { moving: null, movedTo: null, rawMoving: null }; let got = 0, timer = null, dead = false;
-    const a = rt.ref(ROOT + '/moving'), b = rt.ref(ROOT + '/movedTo');
+    const st = { moving: null, movedTo: null, rawMoving: null }; let got = 0, timer = null, dead = false, off = 0;
+    const a = rt.ref(ROOT + '/moving'), b = rt.ref(ROOT + '/movedTo'), o = rt.ref('.info/serverTimeOffset');
     const emit = () => {
       if (dead || got !== 3) return;
       clearTimeout(timer);
       const m = st.rawMoving;
-      st.moving = m && fresh(m.at) ? m : null;
-      if (st.moving) timer = setTimeout(emit, Math.max(1000, STALE - (Date.now() - msOf(m.at)) + 1000));
+      st.moving = m && fresh(m.at, off) ? m : null;
+      if (st.moving) timer = setTimeout(emit, waitFor(STALE - (Date.now() + off - msOf(m.at)) + 1000));
+      if (st.moving || st.movedTo) kickMoved();   /* (the NLO Cases rules are always published by the time of a move) */
       cb(st);
     };
     const fa = s => { st.rawMoving = s.val(); got |= 1; emit(); };
     const fb = s => { st.movedTo = s.val(); got |= 2; emit(); };
+    const fo = s => { off = Number(s.val()) || 0; emit(); };
     const cancel = () => { if (dead) return; dead = true; clearTimeout(timer); stop(); if (typeof onCancel === 'function') { try { onCancel(); } catch (e) { } } };
-    const stop = () => { try { a.off('value', fa); b.off('value', fb); } catch (e) { } };
-    a.on('value', fa, cancel); b.on('value', fb, cancel);
+    const stop = () => { try { a.off('value', fa); b.off('value', fb); o.off('value', fo); } catch (e) { } };
+    o.on('value', fo, () => { }); a.on('value', fa, cancel); b.on('value', fb, cancel);
     return () => { dead = true; clearTimeout(timer); stop(); };
   }
   /* busy(): this screen is the one doing the move */
   function followNew(busy) {
     let timer = null;
+    const left = pauseClock();
     return onMoved((on, d) => {
       clearTimeout(timer);
       if (busy()) { NL.paused = false; return; }
       if (!on) { NL.paused = false; if (d.on === false) { rememberFs(false); switchNow('The Staff Meeting Hub has moved back to the office Google sign-in.'); } return; }
-      const p = d.pause === true && fresh(d.at);
+      const ms = left(d), p = ms > 0;
       NL.paused = p;
       overlay(p ? FREEZE_BACK : null);
-      if (p) timer = setTimeout(() => { NL.paused = false; overlay(null); }, Math.max(1000, STALE - (Date.now() - msOf(d.at)) + 1000));
+      if (p) timer = setTimeout(() => { NL.paused = false; overlay(null); }, waitFor(ms + 1000));
     });
   }
   function followOld(busy) { return onMoved(on => { if (on && !busy()) { rememberFs(true); switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); } }); }
   /* onClear(): told each time the old database is neither being moved nor marked moved (the page starts only then) */
   function watchOldDb(rt, busy, onClear, onCancel) {
+    let wasPaused = false, checking = false, last = null;
+    const resume = () => { overlay(null); if (typeof onClear === 'function') onClear(); };
+    /* a pause that ended without the old database being marked moved (Dr. A's screen went away mid-way, or couldn't mark
+       it): ask the NLO Cases database before carrying on here — moved: switch; no answer: stay paused and ask again */
+    const check = () => {
+      if (checking) return; checking = true;
+      moveState().then(ms => {
+        checking = false;
+        if (busy() || switching || !last || last.moving || last.movedTo) return;
+        if (ms && ms.on) { rememberFs(true); switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); return; }
+        if (!ms) { setTimeout(() => { if (wasPaused) check(); }, 5000); return; }
+        wasPaused = false; resume();
+      });
+    };
     return watchOld(rt, st => {
+      last = st;
       if (busy()) return;
       if (st.movedTo) { movedAway(); return; }
-      overlay(st.moving ? FREEZE_IN : null);
-      if (!st.moving && typeof onClear === 'function') onClear();
+      if (st.moving) { wasPaused = true; overlay(FREEZE_IN); return; }
+      if (wasPaused) { overlay(FREEZE_IN); check(); return; }
+      resume();
     }, onCancel);
   }
   /* Dr. A's screen claims the move (one screen at a time; a claim left by a screen that went away is taken over once stale;
      the old database removes it when that screen disconnects): resolves to the claim's token, or rejects (code 'busy') */
   async function claimMove(rt, by) {
     const token = pushKey(), ref = rt.ref(ROOT + '/moving');
-    const r = await ref.transaction(cur => (cur && fresh(cur.at) && cur.token !== token) ? undefined : { at: firebase.database.ServerValue.TIMESTAMP, by: String(by || ''), token });
+    let off = 0; try { off = Number((await rt.ref('.info/serverTimeOffset').once('value')).val()) || 0; } catch (e) { }
+    const r = await ref.transaction(cur => (cur && fresh(cur.at, off) && cur.token !== token) ? undefined : { at: firebase.database.ServerValue.TIMESTAMP, by: String(by || ''), token });
     if (!r.committed) { const e = new Error('another screen is moving the Hub right now'); e.code = 'busy'; throw e; }
     try { await ref.onDisconnect().remove(); } catch (e) { }
     return token;
@@ -526,7 +558,7 @@
   function movedAway() {
     if (switching) return;
     let t = 0; try { t = Number(sessionStorage.getItem('nloMtg.awayAt') || 0); } catch (e) { }
-    if (!(Date.now() - t < 120000)) { try { sessionStorage.setItem('nloMtg.awayAt', String(Date.now())); } catch (e) { } switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); return; }
+    if (!(Date.now() - t < 120000)) { try { sessionStorage.setItem('nloMtg.awayAt', String(Date.now())); } catch (e) { } rememberFs(true); switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); return; }
     overlay('The Staff Meeting Hub has moved to the NLO Cases system, but this computer can’t confirm that with the NLO Cases database right now (no connection, or its database rules need publishing again — ask Dr. A). Nothing can be saved on this screen until then.', { reload: true });
   }
   async function rulesLive() {
@@ -686,7 +718,7 @@
   window.NLOM = {
     ROOT, MOUNTS, MOVED, RULES_MARK,
     init, db: makeDb, signIn, signOut, watch, unwatch, idleMin, lock, lockMsg, lastLogin, errText, badLogin, moved, onMoved, moveState, rulesLive, personOf,
-    overlay, watchOld, followNew, followOld, watchOldDb, claimMove, moveStillMine, touchMove, releaseMove, fresh,
+    overlay, watchOld, followNew, followOld, watchOldDb, claimMove, moveStillMine, touchMove, releaseMove, rememberFs, pauseClock, STALE,
     get paused() { return NL.paused; },
     cadenceCopy, inventoryOld, readOld, readNew, recordsOf, writeRecords, counts, badIds, tooBig, fpr, clean, plain, pushKey, target, sidFor,
     get me() { return NL.me; }, get fs() { return NL.fs; }, get auth() { return NL.auth; }

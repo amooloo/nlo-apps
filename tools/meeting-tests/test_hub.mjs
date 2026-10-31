@@ -157,6 +157,15 @@ ok(/Only Dr\. A’s NLO Cases login/.test(await pa.textContent('#mvBody')), 'a s
 await pa.fill('#mvUser', E.OWNER.email); await pa.fill('#mvPw', E.PW); await pa.click('#mvGo');
 await pa.waitForSelector('#mvCopy', { timeout: 20000 }).catch(() => { });
 ok(await pa.isVisible('#mvCopy'), 'older rules: asks to publish the updated rules first');
+ok(await pa.evaluate(() => !!NLOM.me && NLOM.me.role === 'owner'), '(his NLO Cases login is in use on the move page)');
+await pa.evaluate(() => closeSheet());   // he closes it for now
+await sleep(500);
+ok(await pa.evaluate(() => !NLOM.me && !(NLOM.auth && NLOM.auth.currentUser)), 'closing the move page signs his NLO Cases login out (this screen has no Lock of its own)');
+await pa.evaluate(() => { settingsSheet(); });
+await pa.click('#mvOpen');
+await pa.waitForSelector('#mvForm');
+await pa.fill('#mvUser', E.OWNER.email); await pa.fill('#mvPw', E.PW); await pa.click('#mvGo');
+await pa.waitForSelector('#mvCopy', { timeout: 20000 }).catch(() => { });
 await A.ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE.replace(/\/$/, '') });
 await pa.click('#mvCopy');
 await pa.waitForFunction(() => /Copied|Couldn’t/.test(document.getElementById('mvCopied').textContent), null, { timeout: 10000 }).catch(() => { });
@@ -337,22 +346,20 @@ console.log('6b. a computer that can’t reach the NLO Cases database');
   await pd.goto(HUB);
   await pd.waitForSelector('#gate .gbtn:not([hidden])', { timeout: 30000 });   // (can't tell: the old sign-in, as before)
   await google(pd, 'akhavan.ak@gmail.com');
-  await pd.waitForSelector('#nlomOvBtn', { timeout: 60000 }).catch(() => { });   // switches once, then can't confirm
-  ok(/can’t confirm/.test(await pd.textContent('#nlomOverlay').catch(() => '')), 'it finds the old database marked moved: says so, with Reload (no loop)');
-  ok(await pd.evaluate(() => !S.booted), '…and the Hub never starts there (nothing saved to the old copy)');
-  // the move page reached anyway (a page from before the move): it refuses to run again. (MOVING: this screen would
-  // otherwise switch over by itself the moment it reaches the NLO Cases database — as it should.)
-  await pd.evaluate(() => { MOVING = true; NLOM.overlay(null); });
+  // the old database is marked moved: it switches to the NLO Cases sign-in and stays there (it remembers the move, even with
+  // no connection to the NLO Cases database) — the Hub never starts on the old copy
+  await pd.waitForSelector('#ncForm', { timeout: 60000 }).catch(() => { });
+  ok(await pd.isVisible('#ncForm') && await pd.evaluate(() => isFs() && !S.booted), 'it finds the old database marked moved: switches to the NLO Cases sign-in and stays there (nothing saved to the old copy)');
+  // the move page reached anyway (as a page from before the move could): it refuses to run again
   await D.ctx.unroute(FSURL);
-  await pd.evaluate(async () => { await NLOM.fs.disableNetwork(); await NLOM.fs.enableNetwork(); moveSheet(); });
+  await pd.evaluate(async () => { await NLOM.fs.disableNetwork(); await NLOM.fs.enableNetwork(); });
+  for (let i = 0; i < 30; i++) { if (await pd.evaluate(() => NLOM.fs.doc('mtgMeta/moved').get({ source: 'server' }).then(() => true, () => false))) break; await sleep(1000); }   // (back online)
+  await pd.evaluate(() => moveSheet());
   await pd.waitForSelector('#mvForm');
   await pd.fill('#mvUser', E.OWNER.email); await pd.fill('#mvPw', E.PW); await pd.click('#mvGo');
   await pd.waitForFunction(() => /already on the NLO Cases system|Couldn|Can’t/.test((document.getElementById('mvBody') || {}).textContent || ''), null, { timeout: 30000 }).catch(() => { });
-  ok(/already on the NLO Cases system/.test(await pd.textContent('#mvBody')), 'the move can’t be run again once moved (it would put the old data over everything since)');
-  ok(await pd.evaluate(() => !!NLOM.me), '(his NLO Cases login was in use on that page)');
-  await pd.evaluate(() => { MOVING = false; closeSheet(); });
-  await sleep(600);
-  ok(await pd.evaluate(() => !NLOM.me && !(NLOM.auth && NLOM.auth.currentUser)), 'closing the move page signs his NLO Cases login out there');
+  const said = await pd.textContent('#mvBody').catch(() => '');
+  ok(/already on the NLO Cases system/.test(said), 'the move can’t be run again once moved (it would put the old data over everything since)' + (/already on/.test(said) ? '' : ' — it said: ' + said.slice(0, 200)));
   await D.ctx.close();
 }
 
@@ -386,6 +393,8 @@ console.log('8. moving back');
   if (!(await appOpen(pb))) await fsSignIn(pb, 'gwen', E.PW);   // Gwen at work on the other computer
   const dlP = pa.waitForEvent('download', { timeout: 40000 });
   await pa.click('#mbGo');
+  await pa.mouse.click(6, 6);   // a click outside the card while it runs
+  ok(await pa.isVisible('#mbBody'), 'the move-back page can’t be closed while it runs');
   await pb.waitForSelector('#nlomOverlay', { timeout: 8000 }).catch(() => { });
   ok(/moving the Staff Meeting Hub back/.test(await pb.textContent('#nlomOverlay').catch(() => '')), 'the other computer pauses while it moves back');
   ok(await pb.evaluate(() => db.ref('nlo/staffMeeting/inbox/-Nq0zzzzzzzzzzzzzzzz').set({ text: 'during the move back', status: 'open' }).then(() => 'saved', e => e.code)) === 'paused', '…and nothing saves there meanwhile (not even in the background)');

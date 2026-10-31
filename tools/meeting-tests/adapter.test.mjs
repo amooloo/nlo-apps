@@ -261,6 +261,39 @@ console.log('records');
   ok(!r.bad.length, 'every record id is one the rules take');
 }
 
+/* ---------- a screen on the old database, during a move: paused; after a pause that ended without the old copy being
+   marked moved, it carries on only once the NLO Cases database says it hasn't moved ---------- */
+console.log('a screen during a move');
+{
+  const W = await device();
+  const pw = W.page;
+  await pw.evaluate(async ([email, pwd]) => {
+    firebase.initializeApp({ apiKey: 'x', databaseURL: 'https://nlo-inventory-default-rtdb.firebaseio.com', projectId: 'nlo-inventory' });
+    window.rt = firebase.database();
+    await NLOM.signIn(email, pwd);
+    window.clears = 0;
+    NLOM.watchOldDb(rt, () => false, () => { window.clears++; });
+  }, [E.OWNER.email, E.PW]);
+  await pw.waitForFunction(() => window.clears >= 1, null, { timeout: 10000 }).catch(() => { });
+  const claim = t => pw.evaluate(t => rt.ref('nlo/staffMeeting/moving').set({ at: firebase.database.ServerValue.TIMESTAMP, by: 'test', token: t }), t);
+  await claim('t1');
+  await pw.waitForSelector('#nlomOverlay', { timeout: 10000 }).catch(() => { });
+  ok(/moving the Staff Meeting Hub to the NLO Cases system/.test(await pw.textContent('#nlomOverlay').catch(() => '')), 'a move under way: this screen pauses');
+  const c0 = await pw.evaluate(() => window.clears);
+  await pw.evaluate(() => rt.ref('nlo/staffMeeting/moving').remove());
+  await pw.waitForFunction(c => window.clears > c && !document.getElementById('nlomOverlay'), c0, { timeout: 20000 }).catch(() => { });
+  ok(await pw.evaluate(c => window.clears > c && !document.getElementById('nlomOverlay'), c0), 'the pause ends and the NLO Cases database says not moved: it carries on');
+  await claim('t2');
+  await pw.waitForSelector('#nlomOverlay', { timeout: 10000 }).catch(() => { });
+  await pw.evaluate(() => NLOM.fs.doc('mtgMeta/moved').set({ on: true, at: firebase.firestore.FieldValue.serverTimestamp() }));
+  const reloaded = pw.waitForNavigation({ timeout: 20000 }).then(() => true, () => false);
+  await pw.evaluate(() => rt.ref('nlo/staffMeeting/moving').remove());   // (Dr. A's screen went away before marking the old copy)
+  ok(await reloaded, 'the pause ends without the old copy marked, but the NLO Cases database says moved: it switches over');
+  ok(await pw.evaluate(() => localStorage.getItem('nloMtg.fs')) === '1', '…and remembers that for its next load');
+  await E.fsSet('nlo-cases', 'mtgMeta/moved', { on: false, at: new Date() });
+  await W.ctx.close();
+}
+
 await browser.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) { console.log('FAILED:\n - ' + fails.join('\n - ')); process.exit(1); }

@@ -1104,8 +1104,12 @@ function moveSheet() {
       const no2 = await movedAlready(); if (no2) throw new Error(no2);
       await NLOM.fs.doc('mtgMeta/info').set({ counts: NLOM.counts(cur), by: OWNER_EMAIL, _up: FV.serverTimestamp(), _by: NLOM.me.sid });
       await NLOM.fs.doc('mtgMeta/moved').set({ on: true, at: FV.serverTimestamp() });
-      try { await db.ref(P('movedTo')).set({ at: Date.now(), by: S.email, to: 'nlo-cases' }); } catch (x) { }
-      await NLOM.releaseMove(db, claim);
+      NLOM.rememberFs(true);
+      let marked = true;
+      try { await db.ref(P('movedTo')).set({ at: Date.now(), by: S.email, to: 'nlo-cases' }); } catch (x) { marked = false; }
+      /* (if the old copy couldn't be marked, the claim stays — the old database drops it as this screen reloads — so the
+         other screens ask the NLO Cases database before carrying on) */
+      if (marked) await NLOM.releaseMove(db, claim);
       line('Switched over ✓ — the Hub and Month-End now open with the NLO Cases login.');
       setTimeout(() => location.reload(), 2500);
     } catch (x) {
@@ -1134,6 +1138,7 @@ function moveBackSheet() {
       if (!body.querySelector('#mbOk').checked) { draw('Tick “Yes, move it back” first.'); return; }
       const rt = rtExtra(); if (!rt) { draw('Sign in with Google first.'); return; }
       card.querySelectorAll('.sheet-x,[data-act="sheet-close"]').forEach(x => x.remove());
+      $('#sheet .sheet-back') && $('#sheet .sheet-back').removeAttribute('data-act');
       body.innerHTML = '<p class="hint">Moving back…</p>';
       MOVING = true;
       const FV = firebase.firestore.FieldValue;
@@ -1159,6 +1164,7 @@ function moveBackSheet() {
         await rt.ref(P('movedTo')).remove();
         try { await rt.ref(P('moving')).remove(); } catch (x) { }
         await NLOM.fs.doc('mtgMeta/moved').set({ on: false, at: FV.serverTimestamp() });
+        NLOM.rememberFs(false);
         body.innerHTML = '<p class="hint">Moved back ✓ — the Hub and Month-End use the office Google sign-in again.</p>';
         setTimeout(() => location.reload(), 2500);
       } catch (x) {

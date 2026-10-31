@@ -1547,24 +1547,40 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   function fmtDay(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); if (!m) return ''; return new Date(+m[1], +m[2] - 1, +m[3], 12).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
   /* the Hub on the NLO Cases system: its records through Cadence's own NLO Cases sign-in (never made here: Cadence makes it) */
   /* whether the Hub has moved is watched live: a Cadence screen left open all day follows the move (and a move back) at once */
-  var MTG = { uid: '', on: null, db: null, sid: '', unsub: null, busy: false, tryAt: 0, oldGone: false, oldOff: null, paused: false };
+  var MTG = { uid: '', on: null, db: null, sid: '', unsub: null, busy: false, tryAt: 0, oldGone: false, oldOff: null, oldSt: null, oldAsk: false, paused: false, pauseLeft: null, pauseUntil: 0 };
   function ncApp() { try { return window.firebase && firebase.app('nloCasesLogin'); } catch (e) { return null; } }
   function ncUser() { var a = ncApp(); try { return a ? a.auth().currentUser : null; } catch (e) { return null; } }
   function gUser() { try { return window.firebase && firebase.apps && firebase.apps.length ? firebase.auth().currentUser : null; } catch (e) { return null; } }
   /* signed in, for the button: Cadence's office Google connection (the old database), or — Cadence being on the NLO Cases
      system — its NLO Cases login (the Hub's records there, once the Hub has moved) */
   function authedNow() { var c = window.__nloCad || {}; return !!c.authed || (c.mode === 'fs' && !!c.me && !!ncUser()); }
-  function mtgOff() { if (MTG.unsub) { try { MTG.unsub(); } catch (e) { } } MTG.unsub = null; MTG.uid = ''; MTG.on = null; MTG.db = null; MTG.sid = ''; MTG.busy = false; MTG.tryAt = 0; MTG.paused = false; }
+  function mtgOff() { if (MTG.unsub) { try { MTG.unsub(); } catch (e) { } } MTG.unsub = null; MTG.uid = ''; MTG.on = null; MTG.db = null; MTG.sid = ''; MTG.busy = false; MTG.tryAt = 0; MTG.paused = false; MTG.pauseUntil = 0; }
   /* the old database's own move markers, watched whenever this screen could save there (its office Google connection, and
      not on the Hub's NLO Cases records): while Dr. A moves the Hub, and once it has moved, nothing more is saved there */
   function oldTick() {
     var want = !MTG.db && !!gUser() && !!window.NLOM;
     if (want && !MTG.oldOff) {
       try {
-        MTG.oldOff = NLOM.watchOld(firebase.database(), function (st) { var g = !!(st.moving || st.movedTo); if (g === MTG.oldGone) return; MTG.oldGone = g; if (g) detach(); else attach(); render(); },
-          function () { MTG.oldOff = null; MTG.oldGone = false; });   /* (stopped by the old database: watched again at the next tick) */
+        MTG.oldOff = NLOM.watchOld(firebase.database(), function (st) {
+          MTG.oldSt = st;
+          if (st.moving || st.movedTo) { if (!MTG.oldGone) { MTG.oldGone = true; detach(); render(); } return; }
+          if (MTG.oldGone) oldAsk();
+        }, function () { MTG.oldOff = null; });   /* (stopped by the old database: watched again at the next tick) */
       } catch (e) { MTG.oldOff = null; }
-    } else if (!want && MTG.oldOff) { try { MTG.oldOff(); } catch (e) { } MTG.oldOff = null; MTG.oldGone = false; }
+    } else if (!want && MTG.oldOff) { try { MTG.oldOff(); } catch (e) { } MTG.oldOff = null; MTG.oldGone = false; MTG.oldSt = null; }
+    if (MTG.oldGone && MTG.oldSt && !MTG.oldSt.moving && !MTG.oldSt.movedTo) oldAsk();
+  }
+  /* the move's pause ended without the old copy being marked moved (Dr. A's screen went away mid-way): carry on with the old
+     database only once the NLO Cases database says it hasn't moved (no answer: ask again at the next tick) */
+  function oldAsk() {
+    var a = ncApp(); if (MTG.oldAsk) return;
+    if (!a) { MTG.oldGone = false; attach(); render(); return; }
+    MTG.oldAsk = true;
+    NLOM.moveState(a.firestore()).then(function (ms) {
+      MTG.oldAsk = false;
+      if (!ms || ms.on || !MTG.oldSt || MTG.oldSt.moving || MTG.oldSt.movedTo) return;   /* (moved: its listener switches the button) */
+      MTG.oldGone = false; attach(); render();
+    });
   }
   function mtgOpen() {   /* moved: the Hub's records through this NLO Cases login (its NLO Cases id stamps each change) */
     var a = ncApp(), uid = MTG.uid;
@@ -1586,9 +1602,11 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     var was = !!MTG.db; mtgOff(); if (was) detach();
     var fs = a.firestore(), uid = u.uid; MTG.uid = uid;
     /* (refused — the NLO Cases rules don't have the Hub's part yet — means not moved; NLOM listens again later) */
+    MTG.pauseLeft = NLOM.pauseClock();
     MTG.unsub = NLOM.onMoved(function (on, d) {
       if (MTG.uid !== uid) return;
-      var p = !!(on && d && d.pause === true);   /* Dr. A moving it back: nothing saved meanwhile */
+      var left = on ? MTG.pauseLeft(d) : -1, p = left > 0;   /* Dr. A moving it back: nothing saved meanwhile (an old pause: ignored) */
+      MTG.pauseUntil = p ? Date.now() + left : 0;
       if (p !== MTG.paused) { MTG.paused = p; if (p) detach(); else attach(); render(); }
       if (on === MTG.on) return;
       MTG.on = on;
@@ -1757,7 +1775,11 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     else if (k === 'add') raise();
     else if (k === 'mic') mic();
   }
-  function tick() { if (authedNow() !== S.authed) { sync(); return; } if (S.authed) mtgCheck(); oldTick(); if (!S.ref && S.authed) attach(); render(); }
+  function tick() {
+    if (authedNow() !== S.authed) { sync(); return; }
+    if (MTG.paused && MTG.pauseUntil && Date.now() > MTG.pauseUntil) { MTG.paused = false; MTG.pauseUntil = 0; }   /* a pause left behind: over */
+    if (S.authed) mtgCheck(); oldTick(); if (!S.ref && S.authed) attach(); render();
+  }
   function init() { build(); sync(); window.addEventListener('nlo-cadence-user', sync); setInterval(tick, 2000); }
   if (document.body) init(); else document.addEventListener('DOMContentLoaded', init);
 })();
