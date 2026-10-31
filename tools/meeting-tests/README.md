@@ -22,7 +22,9 @@ Cadence's "Staff meeting" button (`../../cadence.html`, `<script id="nlo-meeting
   arrays, listeners, a meeting's texts, the read-only paths; and what the rules let each login do (staff, turned off,
   signed out, still on a temporary password; stamps that aren't theirs; the move flag and the AISA key, Dr. A only); and
   the old database's events: a save that changes nothing is no event, and nothing is reported from an empty cache while
-  offline as a page opens. 64 checks.
+  offline as a page opens; a screen during a move (paused; after a pause that ended without the old copy marked moved, it
+  carries on only once the NLO Cases database says not moved, else switches); a pause left behind counted from when the
+  computer first saw it. 70 checks.
 - `test_hub.mjs` — the real pages, start to finish, on a made-up office (`seed.mjs`): before the move (Google, as today,
   on two computers, and a Cadence screen with no button); the move (a staff login refused, the older rules → copy the new
   file → "Not yet" → published, the counts, the copy in Downloads, switched over, the old copy kept and marked); after it
