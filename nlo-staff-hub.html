@@ -7968,7 +7968,7 @@ function rosterPeople() {
   });
   return people;
 }
-/* dates for the office calendar (roster "dates"): start date, next review date, and each certification's
+/* dates for the office calendar (roster "dates"): start date, birthday (month and day), next review date, and each certification's
    name + expiry date, for current staff only. Never review notes, scores, cert numbers, issuers or files.
    Turned off (Settings → Office roster) = nothing is shared and the calendar shows none. */
 function rosterShareDates() { return !(S && S.settings && S.settings.rosterDates === false); }
@@ -7980,6 +7980,8 @@ function rosterDates() {
     const d = {};
     if (SEP_YMD.test(p.hireDate || '')) d.start = p.hireDate;
     if (SEP_YMD.test(p.nextReview || '')) d.review = p.nextReview;
+    /* birthday for the office calendar (Amir, 31 Oct 2026): month and day only, never the year */
+    if (SEP_YMD.test(p.birthday || '')) d.bday = p.birthday.slice(5);
     const certs = (Array.isArray(S.certs) ? S.certs : [])
       .filter(c => c && c.staffId === p.id && SEP_YMD.test(c.expires || '') && String(c.name || '').trim())
       .map(c => ({ name: String(c.name).trim().slice(0, 80), expires: c.expires }))
@@ -7990,7 +7992,7 @@ function rosterDates() {
   return out;
 }
 function rosterDatesBox() {
-  return `<label style="display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.45;color:var(--grey-700);background:var(--grey-100);padding:10px 12px;border-radius:10px;margin:0 0 12px;cursor:pointer"><input type="checkbox" data-chg="rosterDatesToggle" ${rosterShareDates() ? 'checked' : ''} style="width:16px;height:16px;margin-top:2px;flex:none;accent-color:var(--blue)"><span>Show staff dates on the office calendar: start dates, next review dates and certification expiry dates. <span class="tiny">Only the date and the certification’s name are shared, never review notes, scores, numbers or files. (Start dates and full- or part-time are in the team list either way: the office apps can read them, and NLO Time Off counts vacation from them.)</span></span></label>`;
+  return `<label style="display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.45;color:var(--grey-700);background:var(--grey-100);padding:10px 12px;border-radius:10px;margin:0 0 12px;cursor:pointer"><input type="checkbox" data-chg="rosterDatesToggle" ${rosterShareDates() ? 'checked' : ''} style="width:16px;height:16px;margin-top:2px;flex:none;accent-color:var(--blue)"><span>Show staff dates on the office calendar: birthdays (month and day only), start dates and work anniversaries, next review dates and certification expiry dates. <span class="tiny">Only the date and the certification’s name are shared, never the birth year, review notes, scores, numbers or files. (Start dates and full- or part-time are in the team list either way: the office apps can read them, and NLO Time Off counts vacation from them.)</span></span></label>`;
 }
 function rosterErrText(e) {
   const c = String((e && (e.code || e.message)) || '');

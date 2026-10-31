@@ -129,7 +129,7 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "2.2 (Oct 31, 2026)";
+const CAL_VERSION = "2.3 (Oct 31, 2026)";
 
 /* =====================================================================
    On the NLO Cases system (2.0, 31 Oct 2026; nlo-meeting-db.js). Amir: the Office Calendar signs in like Case Tracker, with
@@ -391,7 +391,11 @@ function calStaff(){
   if(ids.length){
     const norm=x=>String(x==null?"":x).trim().toLowerCase();
     const only=test=>{ const c=ids.filter(test); return c.length===1?c[0]:null; };
-    const hubStart=pid=>{ const d=calDates&&calDates[pid]; return d&&typeof d.start==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(d.start)?d.start:null; };
+    const ymd=v=>typeof v==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(v);
+    /* Staff Hub is the source of truth (Amir, 31 Oct 2026): its start date (from the dates it shares, else the team
+       list's) and its birthday (month and day; shown as a birthday every year) win over anything kept here */
+    const hubStart=pid=>{ const d=calDates&&calDates[pid], p=ppl[pid]; return d&&ymd(d.start)?d.start:(p&&ymd(p.start)?p.start:null); };
+    const hubBday=pid=>{ const d=calDates&&calDates[pid]; return d&&typeof d.bday==="string"&&/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(d.bday)?"1904-"+d.bday:null; };
     const claimed={};
     out={};
     Object.keys(raw).forEach(id=>{
@@ -408,7 +412,9 @@ function calStaff(){
       if(ph) o.photo=ph; else delete o.photo;
       /* Staff Hub's start date wins; the calendar's own hire date only counts for someone Staff Hub has none for */
       if(hubStart(pid)){ o.hireDate=hubStart(pid); o.hireFromHub=true; }
+      if(hubBday(pid)){ o.birthday=hubBday(pid); o.bdayFromHub=true; }
       if(!nloRosterActive(p)){ o.active=false; o.left=true; }
+      else o.active=true;   /* (who's working comes from Staff Hub too) */
       out[id]=o;
     });
     ids.forEach(pid=>{
@@ -416,6 +422,7 @@ function calStaff(){
       const p=ppl[pid], o={ name:rosterLabel(p)||pid, active:true, roster:true, rid:pid };
       if(nloRosterPhoto(p)) o.photo=nloRosterPhoto(p);
       if(hubStart(pid)){ o.hireDate=hubStart(pid); o.hireFromHub=true; }
+      if(hubBday(pid)){ o.birthday=hubBday(pid); o.bdayFromHub=true; }
       out[pid]=o;
     });
   }
@@ -2022,62 +2029,39 @@ function renderSettings(){
       <div class="disp" style="flex:1;font-weight:700;font-size:24px;color:var(--navy-800);">Admin settings</div>
       <button data-act="close-settings" aria-label="Close" style="border:none;background:var(--grey-100);color:var(--navy-800);border-radius:999px;width:34px;height:34px;font-size:15px;">✕</button>
     </div>
-    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Staff</div>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">`;
-  const inpSm=`padding:8px;border:2px solid var(--grey-300);border-radius:8px;font-size:13px;color:var(--navy-800);`;
-  const staffL=calStaff();
-  Object.keys(staffL).forEach(id=>{
-    const st=staffL[id];
-    if(S.editStaffId===id){
-      h+=`<div style="border:2px solid var(--blue-500);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;">
-        ${st.rid
-          ?`<div style="display:flex;align-items:center;gap:10px;">${calAvatar(st,34)}<div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--navy-800);">${esc(st.name)}</div><div style="font-size:12px;color:var(--grey-400);">Name and photo come from Staff Hub — change them there.</div></div></div>`
-          :`<input type="text" id="se-name" value="${esc(st.name)}" placeholder="Name" style="${inpSm}font-size:14px;font-weight:600;">`}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">🎂 Birthday<input type="date" id="se-bday" value="${st.birthday||""}" style="${inpSm}"></label>
-          ${st.hireFromHub
-            ?`<div style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Date of hire<span style="font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--navy-800);padding:9px 0;">${prettyDate(st.hireDate)}, ${parseD(st.hireDate).getFullYear()} · Staff Hub</span></div>`
-            :`<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Date of hire<input type="date" id="se-hire" value="${st.hireDate||""}" style="${inpSm}"></label>`}
-        </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button data-act="staff-edit-cancel" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;color:var(--navy-800);">Cancel</button>
-          <button data-act="staff-edit-save" data-id="${id}" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:999px;padding:7px 16px;font-size:13px;font-weight:700;color:#fff;">Save</button>
-        </div>
-      </div>`;
-    } else {
-      let meta=[];
-      if(st.birthday) meta.push("🎂 "+prettyDate(st.birthday));
-      if(st.hireDate){
-        const t=tierFor(fullYearsSince(st.hireDate,todayStr()));
-        meta.push("Hired "+prettyDate(st.hireDate)+", "+parseD(st.hireDate).getFullYear()+" · Tier "+t.n);
-      }
-      if(st.left) meta.push("Marked as left in Staff Hub");
-      else if(st.rid) meta.push("Name and photo from Staff Hub");
-      h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
-        <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0;">
-          <input type="checkbox" data-chg="staff-toggle" data-id="${id}" ${st.active?"checked":""}${st.left||st.roster?" disabled":""} style="width:18px;height:18px;accent-color:#1D3EA9;flex:none;">
-          ${calAvatar(st,34)}
-          <span style="min-width:0;">
-            <span style="display:block;font-size:15px;font-weight:600;color:${st.active?"#1B2F4C":"#969FAB"};">${esc(st.name)}</span>
-            ${meta.length?`<span style="display:block;font-size:12px;color:var(--grey-400);">${esc(meta.join("  ·  "))}</span>`:""}
-          </span>
-        </label>
-        ${st.left?`<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--coral-700);flex:none;">Left</span>`:st.active?"":`<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--grey-400);flex:none;">Inactive</span>`}
-        <button data-act="staff-edit" data-id="${id}" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--navy-800);flex:none;">Edit</button>
-        ${st.roster?"":`<button data-act="staff-remove" data-id="${id}" aria-label="Remove staff" style="border:none;background:transparent;color:var(--grey-400);font-size:15px;padding:4px;flex:none;">✕</button>`}
-      </div>`;
-    }
+    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Staff</div>`;
+  /* read-only (Amir, 31 Oct 2026: Staff Hub is the source of truth): names, photos, who's working, start dates,
+     birthdays and work anniversaries all come from Staff Hub. Only people the calendar knew before Staff Hub and that
+     Staff Hub doesn't have can be removed here. */
+  const staffL=calStaff(), ids=Object.keys(staffL).filter(id=>staffL[id]&&typeof staffL[id]==="object");
+  const hub=ids.filter(id=>staffL[id].rid&&!staffL[id].left).sort((x,y)=>String(staffL[x].name).localeCompare(String(staffL[y].name)));
+  const orphans=ids.filter(id=>!staffL[id].rid);
+  h+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">`;
+  if(!hub.length) h+=`<div style="font-size:13px;color:var(--grey-500);">Staff Hub's team list isn't reachable on this computer yet.</div>`;
+  hub.forEach(id=>{
+    const st=staffL[id], meta=[];
+    if(st.birthday) meta.push("🎂 "+prettyDate(st.birthday)+(st.bdayFromHub?"":" (kept here)"));
+    else meta.push("🎂 no birthday in Staff Hub");
+    if(st.hireDate){ const t=tierFor(fullYearsSince(st.hireDate,todayStr())); meta.push("🎉 started "+prettyDate(st.hireDate)+", "+parseD(st.hireDate).getFullYear()+" · Tier "+t.n); }
+    h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
+      ${calAvatar(st,34)}
+      <span style="min-width:0;flex:1;"><span style="display:block;font-size:15px;font-weight:600;color:#1B2F4C;">${esc(st.name)}</span>
+      <span style="display:block;font-size:12px;color:var(--grey-400);">${esc(meta.join("  ·  "))}</span></span>
+    </div>`;
   });
-  h+=`</div>
-    <div style="border:1px dashed var(--grey-300);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;flex-direction:column;gap:8px;">
-      <input type="text" id="new-staff" placeholder="Add staff member — name" style="${inpSm}font-size:14px;font-weight:600;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">🎂 Birthday<input type="date" id="new-staff-bday" style="${inpSm}"></label>
-        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Date of hire<input type="date" id="new-staff-hire" style="${inpSm}"></label>
-      </div>
-      <button data-act="staff-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:999px;padding:9px;font-weight:700;font-size:14px;color:#fff;">Add staff member</button>
-    </div>
-    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">Names and photos come from Staff Hub: add or end staff there and the calendar follows. Birthdays are kept here (hire dates too, for anyone Staff Hub has none for). Birthday 🎂 and work-anniversary 🎉 entries (with vacation-tier milestones at 2 and 5 years) appear on the calendar automatically. Removing someone here deletes all their calendar entries.</div>
+  h+=`</div>`;
+  if(orphans.length){
+    h+=`<div style="font-size:12.5px;font-weight:700;color:var(--grey-600);margin:4px 0 6px;">Not in Staff Hub (from before)</div><div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">`;
+    orphans.forEach(id=>{
+      const st=staffL[id];
+      h+=`<div style="display:flex;align-items:center;gap:10px;border:1px dashed var(--grey-300);border-radius:10px;padding:8px 12px;">
+        <span style="flex:1;min-width:0;font-size:14px;font-weight:600;color:var(--grey-500);">${esc(st.name)}</span>
+        <button data-act="staff-remove" data-id="${id}" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--coral-700);flex:none;">Remove</button>
+      </div>`;
+    });
+    h+=`</div>`;
+  }
+  h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">All from <b>Staff Hub</b>: add or end staff, and set birthdays and start dates there (the person → Birthday / Date of hire) and the calendar follows. Birthdays 🎂 (month and day only) and work anniversaries 🎉 (with the vacation-tier milestones at 2 and 5 years) show automatically. They need Staff Hub's “Show staff dates on the office calendar” on (Staff Hub → Settings → Office roster).</div>
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Time-Off app sync</div>
     <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved time off and office holidays appear on the calendar automatically, from ${S.toFeed.key?"<b>NLO Time Off</b>":isFs()?"<b>NLO Time Off</b> (once its key is saved below)":"the old Time-Off Request app"}.</div>
