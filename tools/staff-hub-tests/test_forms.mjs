@@ -130,6 +130,16 @@ await page.goto(PAGE);
 ok(await signIn(page, E.OWNER.email, PW) === 'link', 'NLO Cases sign-in asks once for Staff Hub’s own password');
 await page.fill('#ncHubEmail', HUB.email); await page.fill('#ncHubPw', HUB.pw); await page.click('#ncGo');
 ok(await outcome(page) === 'app', 'Staff Hub opens');
+{ /* data from before the staff forms: looking at them changes nothing (no save just for opening the new version) */
+  await page.waitForFunction(() => !!S && !!S.settings && (S.settings.rosterMig || 0) >= 2, null, { timeout: 15000 }).catch(() => {});   /* (older data saves its roster ids once on opening — not the forms') */
+  ok(await synced(page), 'opened and in step with the server');
+  const r0 = await hubRecord(hubUid, HUB.pw);
+  await page.evaluate(() => { route.page = 'newhire'; route.nhHire = null; route.nhTab = 'forms'; render(); });
+  await page.evaluate(() => goStaff(S.staff[0].id, 'paper'));
+  await sleep(1500);
+  const r1 = await hubRecord(hubUid, HUB.pw);
+  ok(await page.evaluate(() => !shDirty() && !(S.nh && 'issued' in S.nh)) && r0.raw.rev > 0 && r1.raw.rev === r0.raw.rev, 'opening the Form library and a Paperwork tab on data from before the staff forms changes nothing to save');
+}
 const ids = await page.evaluate(() => {
   const by = n => S.staff.find(p => p.name === n);
   const g = by('Gwen Rodis'), s = by('Sarah Betz'), t = by('Tess Abbott');
@@ -155,6 +165,7 @@ await page.waitForSelector('#main .nhRow');
   ok(g('During employment').fill === 6 && g('Leaving').fill === 7, 'each staff form has “Fill out…”');
   ok(g('Before day one').rows.includes('Reference Check') && g('Before day one').rows.includes('Working Interview Agreement') && g('Before day one').fill === 0, 'Before day one: Reference Check and Working Interview Agreement (printed, no Fill out…)');
   ok(g('New-hire packet').rows.includes('Photo & Social Media Release') && g('New-hire packet').rows.includes('Health Benefit Waiver'), 'New-hire packet: Photo & Social Media Release, Health Benefit Waiver');
+  ok(g('Students & observers').rows.join('|') === 'Student & Observer Confidentiality Agreement' && g('Students & observers').fill === 0, 'Students & observers: a confidentiality agreement for anyone shadowing (printed; not filled out for staff)');
   const optional = await page.evaluate(() => { const r = Array.from(document.querySelectorAll('#main .nhRow')).find(x => /Health Benefit Waiver/.test(x.textContent)); return r && /Optional/.test(r.textContent); });
   ok(optional, '…the waiver marked Optional (not in every packet)');
   await page.screenshot({ path: 'shots/ef-01-library.png', fullPage: true });
@@ -202,7 +213,7 @@ await page.click('#main .ppBar [data-act=efPick]');
 await page.waitForSelector('.efPickRow');
 {
   const grp = await page.$$eval('.efGrpHd b', els => els.map(e => e.textContent.trim()));
-  ok(grp.slice(0, 5).join('|') === 'During employment|Leaving|New-hire packet|Before day one|After the 90-day review', 'the form picker: During employment first, then Leaving, the packet, hiring, later (' + grp.join(', ') + ')');
+  ok(grp.join('|') === 'During employment|Leaving|New-hire packet|Before day one|After the 90-day review', 'the form picker: During employment first, then Leaving, the packet, hiring, later — not the students’ form (' + grp.join(', ') + ')');
   await page.screenshot({ path: 'shots/ef-02-picker.png' });
 }
 await page.click('.efPickRow:has-text("Employee Counseling Record")');
@@ -547,6 +558,14 @@ console.log('11. a phone');
   ok(lay.stacked && lay.fits && lay.oneCol, 'phone: the fill window stacks the questions over the preview, one column, nothing cut off');
   await p2.screenshot({ path: 'shots/ef-06-phone-fill.png' });
   await p2.evaluate(() => closeModal());
+  await p2.click('#main .ppBar [data-act=efPick]');
+  await p2.waitForSelector('.efPickRow');
+  await sleep(400);
+  ok(await p2.evaluate(() => { const m = document.querySelector('#modalWrap .modal'); return m.scrollWidth <= m.clientWidth + 1 && getComputedStyle(document.querySelector('.efGrpL')).gridTemplateColumns.split(' ').length === 1; }) && await noScrollX(p2), 'phone: the form picker, one column, nothing cut off');
+  await p2.evaluate(() => closeModal());
+  await p2.evaluate(() => { route.page = 'newhire'; route.nhHire = null; route.nhTab = 'forms'; render(); });
+  await p2.waitForSelector('#main [data-act=efWho]');
+  ok(await noScrollX(p2), 'phone: the Form library with its new groups, no sideways scrolling');
   await p2.evaluate(id => goStaff(id, 'paper'), ids.s);
   await p2.waitForSelector('#main .efSep');
   ok(await noScrollX(p2), 'phone: the leaving paperwork buttons wrap');

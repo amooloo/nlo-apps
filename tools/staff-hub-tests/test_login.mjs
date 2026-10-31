@@ -193,6 +193,9 @@ console.log('3. first time: link');
 // ---------- 4. changes save as before ----------
 console.log('4. saving');
 {
+  /* first open of older data saves its roster ids once (rosterMigrate): let that land before counting versions */
+  await page.waitForFunction(() => !!S && !!S.settings && (S.settings.rosterMig || 0) >= 2, null, { timeout: 15000 }).catch(() => {});
+  await synced(page);
   const before = await hubRecord(hubUid, HUB.pw);
   await page.evaluate(() => { importStaffList([{ name: 'Wila Jordan', role: 'Treatment Coordinator' }]); });
   ok(await synced(page), 'a change saves');
@@ -244,6 +247,7 @@ console.log('8. settings and restore');
   await page.screenshot({ path: 'shots/06-settings.png', fullPage: true });
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=expEnc]')]);
   const file = 'shots/backup.json'; await dl.saveAs(file);
+  await synced(page);   /* a save still on its way from the steps before (e.g. the color quiz link) isn't the restore's */
   const before = await hubRecord(hubUid, HUB.pw);
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-act=restore]')]);
   await fc.setFiles(file);

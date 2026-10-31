@@ -67,8 +67,8 @@ piece on the server. 118 checks (~2.5 min); screenshots `shots/pp-*.png`.
 
 `test_forms.mjs` checks the employer's forms filled out for someone on staff (Amir: "All" of the seven additions recommended
 from the Bent Ericksen / Shimmin comparison — write-ups, pay/status changes, leave and accommodation letters, the leaving
-paperwork, the hiring and new-hire additions): the Form library's new During employment and Leaving groups (Fill out… on
-each), every form in the library printing no markup blank or filled in, a blank Termination letter (its alternatives as boxes
+paperwork, the hiring and new-hire additions, a confidentiality agreement for students and observers): the Form library's
+new During employment, Leaving and Students & observers groups (Fill out… on the staff forms), every form in the library printing no markup blank or filled in, a blank Termination letter (its alternatives as boxes
 to tick) and a blank Counseling Record (two pages); a write-up from a person's Paperwork tab (the form picker, the usual
 answers, required parts named and marked, the preview ticking boxes and printing what was typed, Save & print with the file
 name, the list on the Paperwork tab with what was chosen, kept inside the encrypted record and nothing of it readable on the
@@ -80,8 +80,11 @@ with nothing to say left out), and switching to Terminated; Fill out… from the
 said to the employee, not the office's labels; where signed copies file (leave and accommodation letters with the medical
 records); upload types and guesses from file names; a new hire's packet (the photo release in it, the waiver printed with the
 benefit); a candidate card printing the Reference Check / Working Interview Agreement with their name and position;
-deleting; two devices merging; a phone; no page errors. 93 checks (~1 min); screenshots `shots/ef-*.png`. With this change
-`test_paperwork.mjs`'s one-scan packet covers 14 forms (the photo release joined the packet).
+deleting; two devices merging; opening older data making no change to save; a phone (the picker, the fill window, the
+library); no page errors. 98 checks (~1.5 min); screenshots `shots/ef-*.png`. With this change `test_paperwork.mjs`'s
+one-scan packet covers 14 forms (the photo release joined the packet), and `test_login.mjs` waits for saves already on their
+way before counting versions (older data saves its roster ids once on opening, since the calendar move: those two checks
+had been failing on main too).
 
 The page's Firebase SDK (gstatic 10.12.2) is served from `node_modules/firebase` (`FIREBASE_SDK_DIR` to change it) and every
 app it makes is pointed at the emulators by an init script; other outside requests are refused (except the PDF reader in

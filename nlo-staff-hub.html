@@ -5785,7 +5785,7 @@ I understand that due to my occupational exposure to blood or other potentially 
 - I’ll follow the office’s directions and its safety and infection-control rules, and I won’t do anything I’m not trained or licensed to do.
 - Everything I see or hear about patients is confidential under HIPAA. I won’t share it, photograph it or post about it — during the working interview or after.
 [[Candidate signature *1.6]] [[Date]]
-[[For {practice} *1.6]] [[Date]]` },
+[[Signature for {practice} *1.6]] [[Date]]` },
 
   { id:'photo', group:'packet', title:'Photo & Social Media Release', packet:true,
     desc:'Permission to show the employee in the practice’s photos, videos and social media — or to leave them out. It’s their choice.',
@@ -5934,7 +5934,7 @@ I’ve been told about this change.
 - That amount is due {due|within 30 days of my last day of work}, unless we agree on a payment plan in writing. With my written permission, it may be taken from my final paycheck as the law allows.
 - Treatment continues as planned either way.
 [[Employee signature *1.6]] [[Date]]
-[[For {practice} *1.6]] [[Date]]` },
+[[Signature for {practice} *1.6]] [[Date]]` },
 
   { id:'loa', group:'employ', title:'Leave of Absence Confirmation', packet:false, letter:true, sum:['leavetype', 'from'],
     desc:'A letter confirming someone’s leave: the dates, how it’s paid, benefits, and what’s needed to come back.',
@@ -6152,7 +6152,24 @@ Sincerely,
 - I release {practice}, Dr. Akhavan and the staff from any claims about information shared in good faith under this authorization.
 - This authorization lasts until {until|__________}, unless I take it back in writing before then.
 [[Employee =name *1.6]] [[Last day =lastday *1]]
-[[Employee signature *1.6]] [[Date]]` }
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'student', group:'visitors', title:'Student & Observer Confidentiality Agreement', packet:false,
+    desc:'For a student or visitor shadowing in the office: patient privacy, no photos or posts, observe only — signed before they start.',
+    body:`{practice} is glad to have students and observers learn about orthodontics with us. While you’re here you’ll see and hear patients’ health information, which the law (HIPAA) and our office keep private.
+[[Name *1.6]] [[School or program *1.4]]
+[[Date(s) in the office *1.4]] [[Supervised by *1.6]]
+# I agree
+- I’ll keep everything I see or hear about patients private — names, faces, treatment, conversations and records — during my visit and after. Anything I write for my school or program will leave out anything that could identify a patient.
+- I won’t take photos, video or recordings in the office, and I won’t post about patients or the office on social media.
+- I’m here to observe. I won’t touch patients, instruments or records unless the person supervising me asks me to, and I’ll follow the office’s safety and infection-control rules.
+- My phone stays silenced and put away in patient areas.
+- I’m not an employee, and I won’t be paid for my time here.
+- If something seems wrong or unsafe, I’ll tell the person supervising me.
+- The office may end my visit at any time.
+[[Student or observer signature *1.6]] [[Date]]
+[[Parent or guardian signature (if under 18) *1.6]] [[Date]]
+[[Signature for {practice} *1.6]] [[Date]]` }
 ];
 
 const NH_OFFICIAL = [
@@ -6184,7 +6201,8 @@ const NH_GROUPS = [
   { id:'official', label:'Official government forms',  icon:'shield',    sub:'Always print the current version from the source' },
   { id:'later',    label:'After the 90-day review',    icon:'key',       sub:'' },
   { id:'employ',   label:'During employment',          icon:'note',      sub:'Fill one out for someone: Fill out… here, or their Paperwork tab' },
-  { id:'leaving',  label:'Leaving',                    icon:'door',      sub:'Also offered on their End employment record' }
+  { id:'leaving',  label:'Leaving',                    icon:'door',      sub:'Also offered on their End employment record' },
+  { id:'visitors', label:'Students & observers',       icon:'users',     sub:'Print one for anyone shadowing in the office' }
 ];
 const NH_TASKS = [
   { sec:'Setup', items:[['payroll','Added to payroll'],['staffhub','Staff Hub profile + 90-day review date'],['edge','Ortho2 Edge login (clinical: template column)'],['weave','Weave access'],['clock','Time clock procedure reviewed'],['timeoff','Time-off request process reviewed'],['hepb','Hep B vaccine offered within 10 working days','clin'],['training','Training schedule set with their lead']] },
@@ -6209,8 +6227,7 @@ function nhS() {
   if (!Array.isArray(n.hidden)) n.hidden = [];
   if (!Array.isArray(n.cands)) n.cands = [];
   if (!n.lh || typeof n.lh !== 'object' || Array.isArray(n.lh)) n.lh = {};
-  if (!Array.isArray(n.issued)) n.issued = [];   /* forms filled out for someone on staff (efFillModal) */
-  return n;
+  return n;   /* n.issued (forms filled out for someone on staff) is made on the first save, not here: adding it on a read would be an unsaved change */
 }
 function nhLH() {
   const lh = nhS().lh, o = Object.assign({}, NH_LH_DEFAULT);
@@ -6553,7 +6570,7 @@ function nhView() {
   const head = tab === 'cands'
     ? pageHeadHTML('People', 'New Hire Paperwork', 'People you’re interviewing. Track each one’s stage and next step, and send them the application and the color quiz by link. If you hire them, their details carry over to their paperwork and staff profile.',
         `<button class="btn btn-sec" data-act="nhAddHire">${ic('plus', 15)} New hire</button><button class="btn btn-pri" data-act="candAdd">${ic('userPlus', 15)} Add candidate</button>`)
-    : pageHeadHTML('People', 'New Hire Paperwork', 'All of our onboarding forms on NLO letterhead. Print one form, a blank packet, or a new hire’s whole packet with their name, position and start date filled in.',
+    : pageHeadHTML('People', 'New Hire Paperwork', 'All of our staff forms on NLO letterhead, from hiring to leaving. Print one form, a blank packet, or a new hire’s whole packet with their name, position and start date filled in — and fill out the staff forms for someone with Fill out… or on their Paperwork tab.',
         `<button class="btn btn-sec" data-act="nhPrintBlank">${ic('printer', 15)} Blank packet</button><button class="btn btn-pri" data-act="nhAddHire">${ic('plus', 15)} New hire</button>`);
   return `${head}
   <div class="subtabs"><button class="stab ${tab === 'cands' ? 'on' : ''}" data-act="nhTab" data-id="cands">Candidates${candsOpen.length ? ' · ' + candsOpen.length : ''}</button><button class="stab ${tab === 'hires' ? 'on' : ''}" data-act="nhTab" data-id="hires">New hires${active.length ? ' · ' + active.length : ''}</button><button class="stab ${tab === 'forms' ? 'on' : ''}" data-act="nhTab" data-id="forms">Form library · ${nForms}</button></div>
@@ -7226,7 +7243,7 @@ const EF_SEP_FORMS = { resigned: ['resignok', 'resign'], terminated: ['term'], l
 const EF_SEP_ALL = ['checkout', 'exit', 'refauth'];
 const EF_INC_LEVEL = { minor: 'coaching', moderate: 'verbal', serious: 'written' };
 
-const efList = () => nhS().issued.filter(r => r && typeof r === 'object' && typeof r.id === 'string');
+const efList = () => { const L = nhS().issued; return Array.isArray(L) ? L.filter(r => r && typeof r === 'object' && typeof r.id === 'string') : []; };
 const efRec = id => efList().find(r => r.id === id) || null;
 const efFor = sid => efList().filter(r => r.sid === sid)
   .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || (b.at || 0) - (a.at || 0));
@@ -7261,7 +7278,12 @@ function efFmt(a, v, onScreen) {
   if (v == null || v === '') return '';
   switch (a.t) {
     case 'date': return EF_YMD.test(v) ? (onScreen ? fmtD(v) : nhLong(v)) : '';
-    case 'money': return nhMoney(v);
+    case 'money': {   /* 5800 -> $5,800 · 2900.5 -> $2,900.50 · anything else as typed */
+      const t = String(v).trim().replace(/[$,\s]/g, '');
+      if (!/^\d+(\.\d+)?$/.test(t)) return String(v).trim();
+      const n = parseFloat(t);
+      return '$' + n.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+    }
     case 'pick': return efOpt(a, v, onScreen);
     case 'checks': return (Array.isArray(v) ? v : []).map(k => efOpt(a, k, onScreen)).filter(Boolean).join(', ');
     default: return String(v).trim();
@@ -7324,7 +7346,7 @@ function efPanelHTML(p) {
 /* ---------- choosing a form ---------- */
 function efPickModal(sid) {
   const p = staffById(sid); if (!p) return;
-  const forms = nhVisibleForms().filter(f => f.group !== 'official');
+  const forms = nhVisibleForms().filter(f => f.group !== 'official' && f.group !== 'visitors');   /* students and observers aren't staff */
   const order = (p.sep ? ['leaving', 'employ'] : ['employ', 'leaving']).concat(['packet', 'hiring', 'later']);
   forms.forEach(f => { if (order.indexOf(f.group) < 0) order.push(f.group); });
   const note = { packet: 'for someone already on staff, e.g. a policy they haven’t signed yet' };
@@ -7455,7 +7477,7 @@ function efFillModal(sid, fid, rid, opt) {
     const rec = cur || { id: uid(), sid: who.id, form: f.id, at: Date.now() };
     Object.assign(rec, { title: f.title, date, v, up: Date.now() });
     if (!cur && inc) rec.inc = inc.id;
-    if (!cur) nhS().issued.push(rec);
+    if (!cur) { const n = nhS(); if (!Array.isArray(n.issued)) n.issued = []; n.issued.push(rec); }
     act((cur ? 'Changed “' : 'Filled out “') + f.title + '” for ' + who.name);
     persist(); closeModal(); render();
     toast(cur ? 'Saved' : '“' + f.title + '” saved with ' + efFirst(who) + '’s paperwork');
@@ -7506,7 +7528,7 @@ H.efDel = t => {
   const r = efRec(t.dataset.id); if (!r) return;
   const f = nhFormById(r.form), p = staffById(r.sid), title = (f && f.title) || r.title || 'form';
   confirmModal('Delete this “' + title + '”?', 'It comes off ' + (p ? efFirst(p) + '’s' : 'their') + ' list of forms. A signed copy you attached stays with their paperwork.', () => {
-    const n = nhS(); n.issued = n.issued.filter(x => !x || x.id !== r.id);
+    const n = nhS(); n.issued = (Array.isArray(n.issued) ? n.issued : []).filter(x => !x || x.id !== r.id);
     act('Deleted “' + title + '” for ' + (p ? p.name : 'someone')); persist(); render(); toast('Deleted');
   });
 };
