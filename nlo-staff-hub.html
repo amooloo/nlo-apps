@@ -7954,7 +7954,7 @@ function rosterPerson(p) {
   /* NLO Time Off (Oct 2026) follows these: vacation tiers count from the start date, and part-time staff earn none */
   if (SEP_YMD.test(p.hireDate || '')) o.start = p.hireDate;
   if (p.employment) o.employment = String(p.employment).slice(0, 40);
-  if (photoOK(p)) o.photo = p.photo;
+  if (o.active && photoOK(p)) o.photo = p.photo;   /* (no photos for people who have left: the shared list stays small) */
   return o;
 }
 function rosterPeople() {
@@ -7964,7 +7964,7 @@ function rosterPeople() {
   /* anyone shared before but since deleted from Staff Hub stays listed as "left", so no app keeps showing them */
   Object.keys(rosterPrev || {}).forEach(id => {
     const q = rosterPrev[id];
-    if (!people[id] && q && q.name) people[id] = Object.assign({}, q, { active: false });
+    if (!people[id] && q && q.name) { people[id] = Object.assign({}, q, { active: false }); delete people[id].photo; }
   });
   return people;
 }
@@ -8012,6 +8012,9 @@ function rosterInit() {
   });
   return rosterApp;
 }
+function rosterNcErrText(e) {
+  return /permission/i.test(ncCode(e)) ? 'The NLO Cases database rules don’t have the roster’s part yet (publish the newest rules from NLO Cases).' : 'Couldn’t share the team list on the NLO Cases system (' + (ncCode(e) || 'error') + ').';
+}
 function rosterQueue(ms) {
   if (!rosterUser && !rosterNcReady()) return;
   clearTimeout(rosterTimer);
@@ -8027,7 +8030,10 @@ async function rosterPublish() {
          computer is connected to it, else from the NLO Cases copy */
       let prev = null;
       if (toRt) prev = (await rosterApp.database().ref(ROSTER_PATH + '/people').once('value')).val();
-      else { const sn = await NC.db.doc('hubRoster/live').get(); prev = sn.exists ? (sn.data() || {}).people : null; }
+      else {
+        try { const sn = await NC.db.doc('hubRoster/live').get(); prev = sn.exists ? (sn.data() || {}).people : null; }
+        catch (e) { rosterNcErr = rosterNcErrText(e); throw e; }   /* (refused: the rules don't have the roster's part yet — say so) */
+      }
       rosterPrev = prev && typeof prev === 'object' ? prev : {}; rosterLoaded = true;
     }
     if (rosterMigrate() && typeof fbQueueWrite === 'function') fbQueueWrite();
@@ -8044,7 +8050,7 @@ async function rosterPublish() {
         await NC.db.doc('hubRoster/live').set(Object.assign({}, rec, { _up: firebase.firestore.FieldValue.serverTimestamp() }));
         rosterNcSent = json; rosterNcAt = Date.now();
       } catch (e) {
-        rosterNcErr = /permission/i.test(ncCode(e)) ? 'The NLO Cases database rules don’t have the roster’s part yet (publish the newest rules from NLO Cases).' : 'Couldn’t share the team list on the NLO Cases system (' + (ncCode(e) || 'error') + ').';
+        rosterNcErr = rosterNcErrText(e);
         if (!needRt) throw e;
       }
     }
@@ -8056,6 +8062,7 @@ async function rosterPublish() {
     rosterPrev = people;
   } catch (e) {
     if (toRt) { rosterStatus = 'error'; rosterErr = rosterErrText(e); }
+    else if (!rosterNcErr) rosterNcErr = rosterNcErrText(e);
     const msg = toRt ? rosterErr : rosterNcErr;
     if (msg && msg !== rosterToldErr) { rosterToldErr = msg; toast(msg, true); }
   }

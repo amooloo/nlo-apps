@@ -226,6 +226,11 @@ await pb.waitForFunction(() => S.admin === false, null, { timeout: 15000 }).catc
 ok(await pb.evaluate(() => S.admin === false && /no longer edit/.test(S.lockNote || '')), 'Dr. A unticks her: Gwen’s screen says she can no longer edit');
 const tryB = code => pb.evaluate(async code => { try { await (new Function('d', 'return ' + code))(db); return 'ok'; } catch (e) { return String(e.code || e.message); } }, code);
 ok(/permission/.test(await tryB(`d.ref('nlo/calendar/events/sneaky').set({ type: 'event', title: 'x', startDate: '2026-11-18', endDate: '2026-11-18' })`)), '…and the database itself refuses her writes');
+// …but anyone may still tick a task (as before the move)
+await pb.evaluate(() => { const id = Object.keys(S.data.events).find(k => S.data.events[k].type === 'task'); toggleDone(id, S.data.events[id].startDate); });
+await pb.waitForFunction(() => Object.values(S.data.events).some(e => e.type === 'task' && e.done === true), null, { timeout: 10000 }).catch(() => { });
+ok(await pb.evaluate(() => Object.values(S.data.events).some(e => e.type === 'task' && e.done === true)), '…but she still ticks a task done (anyone can, as before)');
+{ let t = null; for (let i = 0; i < 20 && !(t && t.done === true); i++) { const ev = await E.fsList('nlo-cases', 'calEvents'); t = (ev.find(e => e.data.type === 'task') || {}).data; if (!(t && t.done === true)) await sleep(300); } ok(t && t.done === true && t._by === 'gwen', 'the task is done on the NLO Cases system, stamped by her'); }
 await pa.evaluate(() => { S.settingsOpen = false; render(); });
 // a login still being set up; a login turned off
 {
@@ -276,7 +281,8 @@ ok(await waitApp(pa), '…and opens with the office Google sign-in it still has'
 ok(await pa.evaluate(() => !isFs()), '…on the old database');
 ok((await eventTitles(pa)).includes('Vendor lunch') && (await eventTitles(pa)).length === 5, 'everything, including what was added meanwhile, is back in the old database');
 const back = await E.dbGet('nlo/calendar');
-ok(back && back.settings && back.settings.closures['2026-12-26'] === 'Day after Christmas' && (!back.config || !back.config.editors) && !back.movedTo && !back.moving, 'the old database has it all (the closure; no editors, since none were ticked), unmarked');
+ok(back && back.settings && back.settings.closures['2026-12-26'] === 'Day after Christmas' && back.settings.adminPin === '2468' && (!back.config || !back.config.editors) && !back.movedTo && !back.moving, 'the old database has it all (the closure; the admin PIN as it was; no editors, since none were ticked), unmarked');
+ok(((await E.dbGet('nlo/cadence/timeOffFeed')) || {}).key === E.FEED_KEY, 'NLO Time Off’s feed key is in the old database (as it was)');
 const moved2 = await fsDoc('calMeta/moved');
 ok(moved2 && moved2.on === false, 'calMeta/moved says not moved');
 // (that computer still has the office Google account from before the move, so it opens the calendar straight away)

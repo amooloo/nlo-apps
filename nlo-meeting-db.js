@@ -118,7 +118,7 @@
       if (hits.length === 1) return hits[0];
     }
     const parts = String(me.name || '').trim().split(/\s+/);
-    return { id: 'nc_' + slug(me.sid || me.uid), name: me.name || 'Someone', first: parts[0] || '', last: parts.length > 1 ? parts[parts.length - 1] : '', active: true, nc: true };
+    return { id: 'nc_' + slug(me.sid || me.uid).replace(/[^A-Za-z0-9_-]/g, ''), name: me.name || 'Someone', first: parts[0] || '', last: parts.length > 1 ? parts[parts.length - 1] : '', active: true, nc: true };
   }
 
   /* ---------- Cadence's numbers, from Cadence's own records (the shape its old copy for the Hub had) ---------- */
@@ -716,7 +716,8 @@
             } else recs.push({ doc: m.col + '/' + id, data: c, m });
           });
         } else {
-          const c = clean(v, false); if (c === null) return;
+          let c = clean(v, false); if (c === null) return;
+          if (m.drop && isObj(c)) { c = Object.assign({}, c); m.drop.forEach(k => { delete c[k]; }); if (!Object.keys(c).length) return; }   /* (parts that stay behind, e.g. the calendar's admin PIN) */
           const data = m.field ? { [m.field]: c } : c;
           if (!isObj(data)) return;
           const prev = recs.find(r => r.doc === m.doc);
@@ -730,15 +731,18 @@
     function tooBig(recs) { return recs.filter(r => sizeOf(r.data) + 200 > 1000000).map(r => r.doc + ' (' + Math.round((sizeOf(r.data) + 200) / 1024) + ' KB)'); }
     /* write the records (in batches of ≤ 400 and ≤ ~8 MB), removing NLO Cases records the old database doesn't have (a re-run
        is clean); then read them all back and compare */
+    /* a record holds something (its stamps aside): a value that isn't empty */
+    const hasContent = (d, keys) => Object.keys(stripStamps(d || {}, keys)).some(k => { const v = d[k]; return !(v === null || v === undefined || v === '' || (isObj(v) && !Object.keys(v).length) || (Array.isArray(v) && !v.length)); });
     async function writeRecords(fs, sid, recsIn, onStep) {
       const FV = firebase.firestore.FieldValue;
       /* a copied-in place that is already there (copy: 'ifMissing' — e.g. Staff Hub already keeps its roster on the NLO
-         Cases system): left as it is, not written over with the old database's copy */
+         Cases system): left as it is, not written over with the old database's copy (an empty one — Cadence's mirror of a
+         feed key that was never saved — counts as not there) */
       const recs = [];
       for (const r of recsIn) {
         if (r.m && r.m.copy === 'ifMissing') {
           const s = await fs.doc(r.doc).get({ source: 'server' });
-          if (s.exists && Object.keys(stripStamps(s.data() || {}, stampKeys(r.m))).length) continue;
+          if (s.exists && hasContent(s.data(), stampKeys(r.m))) continue;
         }
         recs.push(r);
       }
@@ -747,9 +751,16 @@
       const have = new Set(recsIn.map(r => r.doc));   // (a copied-in record left as it is counts as accounted for)
       const extra = [];
       for (const c of Object.keys(cols)) { const q = await fs.collection(c).get({ source: 'server' }); q.forEach(d => { if (!have.has(c + '/' + d.id)) extra.push(c + '/' + d.id); }); }
-      // (the single records — config, current, roster, the AISA key, Month-End's years and setup — are set whole when the old
-      // database has them; they can't have been made without it, so none is left over)
-      const ops = recs.map(r => ({ set: r, s: sizeOf(r.data) + 200 })).concat(extra.map(d => ({ del: d, s: 200 })));
+      /* a single record this app owns (config, the editors, the roles…) that the old database has nothing for, left from a
+         move back that couldn't write it back: emptied (its stamps alone — the rules don't let these be deleted), so the
+         NLO Cases side ends up exactly as the old database is */
+      const blank = [];
+      for (const m of MOVED) {
+        if (!m.doc || have.has(m.doc) || blank.some(x => x.doc === m.doc)) continue;
+        const s = await fs.doc(m.doc).get({ source: 'server' });
+        if (s.exists && hasContent(s.data(), stampKeys(m))) blank.push({ doc: m.doc, m });
+      }
+      const ops = recs.map(r => ({ set: r, s: sizeOf(r.data) + 200 })).concat(extra.map(d => ({ del: d, s: 200 })), blank.map(x => ({ blank: x, s: 200 })));
       /* a record over Firestore's 1 MB limit: say so before anything is written */
       const big = ops.find(op => op.s > 1000000);
       if (big) { const e = new Error('Too big to move: ' + big.set.doc + ' (' + Math.round(big.s / 1024) + ' KB) — nothing was written'); e.code = 'too-big'; throw e; }
@@ -757,7 +768,9 @@
       for (const op of ops) {
         const s = op.s;
         if (n && (n >= 400 || size + s > 8000000)) { await b.commit(); done += n; if (onStep) onStep(done, ops.length); b = fs.batch(); n = 0; size = 0; }
-        if (op.set) { const sk = stampKeys(op.set.m), st = {}; st[sk[0]] = FV.serverTimestamp(); st[sk[1]] = String(sid || ''); b.set(fs.doc(op.set.doc), Object.assign({}, op.set.data, st)); }
+        const stampsOf = m => { const sk = stampKeys(m), st = {}; st[sk[0]] = FV.serverTimestamp(); st[sk[1]] = String(sid || ''); return st; };
+        if (op.set) b.set(fs.doc(op.set.doc), Object.assign({}, op.set.data, stampsOf(op.set.m)));
+        else if (op.blank) b.set(fs.doc(op.blank.doc), stampsOf(op.blank.m));
         else b.delete(fs.doc(op.del));
         n++; size += s;
       }
@@ -768,8 +781,10 @@
       for (const m of MOVED.concat(COPIED)) if (m.doc && !back[m.doc]) { const s = await fs.doc(m.doc).get({ source: 'server' }); if (s.exists) back[m.doc] = s.data(); }
       const missing = [], differ = [];
       recs.forEach(r => { const got = back[r.doc]; if (!got) missing.push(r.doc); else if (fpr(stripStamps(got, stampKeys(r.m))) !== fpr(r.data)) differ.push(r.doc); });
-      const left = Object.keys(back).filter(d => !have.has(d) && Object.keys(stripStamps(back[d])).length);
-      return { written: recs.length, removed: extra.length, missing, differ, left };
+      blank.forEach(x => { if (back[x.doc] && hasContent(back[x.doc], stampKeys(x.m))) differ.push(x.doc); });
+      /* anything else in this app's own collections (the single records were set, emptied or copied in above) */
+      const left = Object.keys(back).filter(d => cols[d.split('/')[0]] && !have.has(d) && hasContent(back[d]));
+      return { written: recs.length, removed: extra.length, emptied: blank.length, missing, differ, left };
     }
     function counts(old) {
       const o = {};

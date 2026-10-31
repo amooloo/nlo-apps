@@ -189,7 +189,11 @@ async function wipeNew() {
     for (const d of docs) await fetch(`${E.FS}/v1/projects/nlo-cases/databases/(default)/documents/${c}/${d.id}`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
   }
 }
-await wipeNew();   // a first move: nothing of either app's, Staff Hub's or Cadence's on the NLO Cases side yet
+await wipeNew();   // a first move: nothing of either app's or Staff Hub's on the NLO Cases side yet…
+// …but Cadence's mirror of a feed key that was never saved (Dr. A's Cadence screen writes {key: ''}), and an editors
+// record left from an earlier try (the old database has no config): neither may stop the move
+await E.fsSet('nlo-cases', 'cadMirror/tofeed', { key: '', up: new Date(), upBy: 'amir' });
+await E.fsSet('nlo-cases', 'calState/config', { editors: ['gwen'], _up: new Date(), _by: 'amir' });
 // the Office Calendar
 {
   const r = await p.evaluate(async () => {
@@ -197,18 +201,22 @@ await wipeNew();   // a first move: nothing of either app's, Staff Hub's or Cade
     const recs = NLOC.recordsOf(old);
     const res = await NLOC.writeRecords(NLOC.fs, NLOC.me.sid, recs);
     const back = await NLOC.readNew(NLOC.fs);
-    const diffs = Object.keys(back).filter(k => NLOC.fpr(old[k]) !== NLOC.fpr(back[k]));
+    const noPin = v => { if (v && typeof v === 'object' && 'adminPin' in v) { v = Object.assign({}, v); delete v.adminPin; } return v; };
+    const diffs = Object.keys(back).filter(k => NLOC.fpr(noPin(old[k])) !== NLOC.fpr(back[k]));
     const ros = (await NLOC.fs.doc('hubRoster/live').get()).data(), feed = (await NLOC.fs.doc('cadMirror/tofeed').get()).data();
+    const settings = (await NLOC.fs.doc('calState/settings').get()).data();
     const viaLayer = (await cal.ref('nlo/cadence/roster/people').once('value')).val(), key = (await cal.ref('nlo/cadence/timeOffFeed/key').once('value')).val();
-    return { n: recs.length, res, diffs, counts: NLOC.counts(old), bad: NLOC.badIds(recs), ros, feed, viaLayer, key };
+    return { n: recs.length, res, diffs, counts: NLOC.counts(old), bad: NLOC.badIds(recs), ros, feed, viaLayer, key, settings, config: back['nlo/calendar/config'] };
   });
   ok(!r.res.missing.length && !r.res.differ.length && !r.res.left.length, 'the calendar’s old data written as records reads back the same (' + r.n + ' records; ' + JSON.stringify(r.res).slice(0, 200) + ')');
   ok(!r.diffs.length, 'every old place of the calendar’s reads back the same through the new layer' + (r.diffs.length ? ': ' + r.diffs.join(', ') : ''));
+  ok(r.settings && !('adminPin' in r.settings) && r.settings.closures, 'the admin PIN stays behind in the old database (no PIN on the NLO Cases system)');
+  ok(r.res.emptied === 1 && r.config === null, 'an editors record left from before, with nothing for it in the old database, is emptied (not flagged, not kept)');
   ok(!r.bad.length, 'every record id is one the rules take');
   ok(r.counts.events === 4 && r.counts.stickers === 1 && r.counts.staff === 1 && r.counts.settings === 1 && r.counts.adminDays === 1 && r.counts['nlo/cadence/roster'] === 1 && r.counts['nlo/cadence/timeOffFeed'] === 1, 'the counts the move page shows: ' + JSON.stringify(r.counts));
   ok(r.ros && r.ros.source === 'staff-hub' && r.ros.people && r.ros.people.s_gwen && r.ros.people.s_gwen.name === 'Gwen Rodis' && r.ros._by === 'amir' && r.ros.dates && r.ros.dates.s_gwen, 'Staff Hub’s roster copied in (not there yet): people and dates, stamped');
   ok(r.viaLayer && r.viaLayer.s_nora && r.viaLayer.s_nora.title === 'Orthodontic Assistant', '…and read back through the old path nlo/cadence/roster/people');
-  ok(r.feed && r.feed.key === E.FEED_KEY && r.feed.upBy === 'amir' && !!r.feed.up && !('_by' in r.feed), 'NLO Time Off’s feed key copied into Cadence’s record with Cadence’s stamps (up, upBy)');
+  ok(r.feed && r.feed.key === E.FEED_KEY && r.feed.upBy === 'amir' && !!r.feed.up && !('_by' in r.feed), 'NLO Time Off’s feed key copied into Cadence’s record (its empty mirror counted as not there) with Cadence’s stamps (up, upBy)');
   ok(r.key === E.FEED_KEY, '…and read back through nlo/cadence/timeOffFeed/key');
   const again = await p.evaluate(async () => { const old = await NLOC.readOld(rt); return NLOC.writeRecords(NLOC.fs, NLOC.me.sid, NLOC.recordsOf(old)); });
   ok(again.written === 8 && !again.removed && !again.missing.length && !again.differ.length && !again.left.length, 'run again (nothing changed): the same records, the copied-in ones left alone, nothing flagged (' + JSON.stringify(again).slice(0, 120) + ')');
@@ -253,6 +261,8 @@ ok(/permission/.test(await tryG(`d.ref('nlo/calendar/settings/closures/2026-12-2
 ok(/permission/.test(await tryG(`d.ref('nlo/calendar/adminDays/2026-11-06').set('admin')`)), 'not an editor: can’t paint an admin day');
 ok(/permission/.test(await tryG(`d.ref('nlo/calendar/stickers/g1').set({ date: '2026-11-03', emoji: '🎉', at: 1 })`)), 'not an editor: can’t add a sticker');
 ok(/permission/.test(await tryG(`d.ref('nlo/calendar/config/editors').set(['gwen'])`)), 'staff can’t make themselves an editor');
+ok(await tryG(`d.ref('nlo/calendar/events/e1700000000002/doneDates/2026-11-04').set(1)`) === 'ok' && await tryG(`d.ref('nlo/calendar/events/e1700000000002').update({ done: true, doneAt: 2 })`) === 'ok' && await tryG(`d.ref('nlo/calendar/events/e1700000000002').update({ done: null, doneAt: null })`) === 'ok', 'not an editor: still ticks a task done and undone (as before the move)');
+ok(/permission/.test(await tryG(`d.ref('nlo/calendar/events/e1700000000002').update({ done: true, doneAt: 3, title: 'Order gloves!' })`)), '…but can’t change anything else of it that way');
 ok(await tryA(`d.ref('nlo/calendar/config/editors').set(['gwen'])`) === 'ok', 'Dr. A picks Gwen as an editor');
 ok(await tryG(`d.ref('nlo/calendar/events/g1').set({ type: 'event', title: 'x', startDate: '2026-11-03', endDate: '2026-11-03' })`) === 'ok', 'an editor: adds an entry');
 ok(await tryG(`d.ref('nlo/calendar/events/g1/doneDates/2026-11-03').set(1)`) === 'ok', 'an editor: a deep change');
@@ -298,7 +308,21 @@ ok(await G.page.evaluate(async () => { const v = (await onb.ref('nlo/onboarding/
 ok(await tryG(`o.ref('nlo/onboarding/people/s_nora/progress/core-welcome/l-quiz1').set({ opened: 1, done: 2, score: 100, by: 's_nora' })`) === 'ok', 'a member saves training progress');
 ok(await tryG(`o.ref('nlo/onboarding/people/s_nora/log').push({ at: 3, t: 'done', m: 'core-welcome', l: 'l-quiz1', by: 's_nora' })`) === 'ok', '…a log line');
 ok(await tryG(`o.ref('nlo/onboarding/people/s_nora/signoffs/clinic-steri/l-skill1').set({ at: 4, by: 's_gwen', byName: 'Gwen Rodis' })`) === 'ok', '…a sign-off (the page makes sure it’s the signed-in trainer)');
-ok(await tryG(`o.ref('nlo/onboarding/people/s_nora/plan/status').set('done')`) === 'ok', '…and a plan (assigning is any member’s, as before)');
+ok(/permission/.test(await tryG(`o.ref('nlo/onboarding/people/s_nora/plan/status').set('done')`)), '…but not a plan (assigning is a manager’s)');
+ok(/permission/.test(await tryG(`o.ref('nlo/onboarding/people/s_bri').set({ plan: { tracks: { core: true }, status: 'active', name: 'Bri' } })`)), '…nor a new person’s plan');
+// a member who is neither trainer nor manager (Nora): her own progress, not a sign-off
+{
+  await E.fsSet('nlo-cases', 'members/' + E.STAFF[1].uid, { mustSetup: false }, ['mustSetup']);
+  const N2 = await device();
+  await N2.page.evaluate(async ([user, pw]) => { await NLOO.signIn(user, pw); window.onb = NLOO.db(NLOO.fs, () => NLOO.me.sid, null); }, ['newbie', E.PW]);
+  const tryN = code => N2.page.evaluate(async code => { try { await (new Function('o', 'return ' + code))(onb); return 'ok'; } catch (e) { return String(e.code || e.message); } }, code);
+  ok(await tryN(`o.ref('nlo/onboarding/people/s_nora/progress/core-welcome/l-ack1').set({ opened: 1, done: 2, ack: { name: 'Nora Newman', at: 2 } })`) === 'ok', 'a trainee saves her own progress');
+  ok(/permission/.test(await tryN(`o.ref('nlo/onboarding/people/s_nora/signoffs/clinic-steri/l-skill1').set({ at: 5, by: 's_gwen', byName: 'Gwen Rodis', note: 'self' })`)), '…but can’t write a sign-off (even in a trainer’s name)');
+  ok(/permission/.test(await tryN(`o.ref('nlo/onboarding/people/s_nora/signoffs/clinic-steri/l-skill1').remove()`)), '…nor remove one');
+  ok(/permission/.test(await tryN(`o.ref('nlo/onboarding/people/s_nora/plan/status').set('complete')`)), '…nor touch her plan');
+  await N2.ctx.close();
+  await E.fsSet('nlo-cases', 'members/' + E.STAFF[1].uid, { mustSetup: true }, ['mustSetup']);
+}
 ok(/permission/.test(await tryG(`fs.doc('onbPeople/s_nora').set({ plan: {}, pins: { h: 'x' }, _up: firebase.firestore.FieldValue.serverTimestamp(), _by: 'gwen' })`)), 'a person’s record takes only plan, progress, sign-offs and log');
 ok(/permission/.test(await tryG(`o.ref('nlo/onboarding/people/s_nora').remove()`)), 'not a manager: can’t remove a person');
 ok(/permission/.test(await tryG(`o.ref('nlo/onboarding/catalog/tracks/core/name').set('x')`)), 'not a manager: can’t change the curriculum');
@@ -312,6 +336,7 @@ ok(await tryG(`o.ref('nlo/onboarding/catalog/modules/m9').set({ id: 'm9', title:
 ok(await tryG(`o.ref('nlo/onboarding/catalog/modules/m9').remove()`) === 'ok', '…removes one');
 ok(await tryG(`o.ref('nlo/onboarding/catalog/meta').set({ version: 'v2', updatedAt: 5, by: 's_gwen' })`) === 'ok', '…the catalog’s version');
 ok(await tryG(`o.ref('nlo/onboarding/settings/idleMin').set(5)`) === 'ok', '…the settings');
+ok(await tryG(`o.ref('nlo/onboarding/people/s_nora/plan/status').set('active')`) === 'ok', '…a plan');
 ok(await tryG(`o.ref('nlo/onboarding/people/s_bri').set({ plan: { tracks: { core: true }, status: 'active', name: 'Bri' } })`) === 'ok' && await tryG(`o.ref('nlo/onboarding/people/s_bri').remove()`) === 'ok', '…removes a person');
 ok(/permission/.test(await tryG(`o.ref('nlo/onboarding/roles/trainers/s_nora').set(true)`)), 'a manager still can’t change the roles');
 ok(/permission/.test(await tryA(`fs.doc('onbState/roles').set({ trainers: {}, managers: {}, other: 1, _up: firebase.firestore.FieldValue.serverTimestamp(), _by: 'amir' })`)), 'the roles record holds trainers and managers only');
@@ -351,7 +376,7 @@ console.log('the Hub’s view of the calendar and Onboarding');
     await NLOM.fs.doc('calMeta/moved').set({ on: false, at: firebase.firestore.FieldValue.serverTimestamp() });
     await NLOM.fs.doc('onbMeta/moved').set({ on: false, at: firebase.firestore.FieldValue.serverTimestamp() });
     await NLOM.fs.doc('calEvents/onlyNew').delete();
-    return { before: before && !before.onlyNew && Object.keys(before).length === 4, beforeNoRt, beforeOnb, beforeOnbRt: beforeOnbRt && !!beforeOnbRt.s_nora, after: after && !!after.onlyNew, afterNoRt: afterNoRt && !!afterNoRt.onlyNew, settings: settings && settings.closures && Object.keys(settings.closures).length >= 1 && settings.adminPin === '2468', afterOnb: afterOnb && !!afterOnb.s_nora, mods: mods && Object.keys(mods).length === 2, roster: roster && roster.s_gwen && roster.s_gwen.name === 'Gwen Rodis' };
+    return { before: before && !before.onlyNew && Object.keys(before).length === 4, beforeNoRt, beforeOnb, beforeOnbRt: beforeOnbRt && !!beforeOnbRt.s_nora, after: after && !!after.onlyNew, afterNoRt: afterNoRt && !!afterNoRt.onlyNew, settings: settings && settings.closures && Object.keys(settings.closures).length >= 1 && !('adminPin' in settings), afterOnb: afterOnb && !!afterOnb.s_nora, mods: mods && Object.keys(mods).length === 2, roster: roster && roster.s_gwen && roster.s_gwen.name === 'Gwen Rodis' };
   });
   ok(r.before && r.beforeOnbRt, 'before the moves, a Hub screen with the office Google sign-in reads both apps from the old database');
   ok(r.beforeNoRt === null && r.beforeOnb === null, '…one without it reads nothing of them (no error)');

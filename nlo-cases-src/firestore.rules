@@ -1804,16 +1804,19 @@ service cloud.firestore {
     //   events → calEvents, stickers → calStickers, staff / settings / adminDays → calState/{staff, settings, adminDays}.
     // Everyone signed in reads the calendar. Entries, closures, blackout dates, stickers, the calendar's own staff list and
     // the admin-day paint are changed by Dr. A and by the editors he names in calState/config (NLO Cases staff ids); only
-    // he changes that list. Every write is stamped `_by` (the staff id) and `_up` (the database's time). NLO Time Off's feed
-    // key is kept in Cadence's cadMirror/tofeed (its rules above). calMeta/moved says which database the calendar uses
-    // (readable before anyone signs in; it holds nothing else) and pauses screens while Dr. A moves the data back.
+    // he changes that list. Anyone signed in may tick a task done or not (as before the move: the task's done fields only).
+    // Every write is stamped `_by` (the staff id) and `_up` (the database's time). NLO Time Off's feed key is kept in
+    // Cadence's cadMirror/tofeed (its rules above). calMeta/moved says which database the calendar uses (readable before
+    // anyone signs in; it holds nothing else) and pauses screens while Dr. A moves the data back.
     // =====================================================================
     function calCfg() { return /databases/$(db)/documents/calState/config; }
     function calEditor() { return isOwner() || (isMember() && exists(calCfg()) && mySid() in get(calCfg()).data.get('editors', [])); }
     function calOk(d, n) { return mtgMember() && d.get('_up', null) == request.time && d.get('_by', '') == mySid() && d.size() <= n; }
     match /calEvents/{id} {
       allow read: if mtgMember();
-      allow create, update: if calEditor() && calOk(request.resource.data, 60) && mtgId(id);
+      allow create: if calEditor() && calOk(request.resource.data, 60) && mtgId(id);
+      allow update: if calOk(request.resource.data, 60) && mtgId(id)
+        && (calEditor() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'doneAt', 'doneDates', '_up', '_by']));
       allow delete: if calEditor();
     }
     match /calStickers/{id} {
@@ -1852,19 +1855,25 @@ service cloud.firestore {
     // old database that still matters: people/<roster id> → onbPeople (plan, progress, sign-offs, log), roles →
     // onbState/roles, settings → onbState/settings, catalog/{tracks, modules, meta} → onbTracks, onbMods, onbState/meta.
     // (pins, keys and devices are left behind.) A person is matched to their Staff Hub roster id through the NLO Cases
-    // roster (roster/<sid>.rid). Everyone signed in reads all of it and may save training records (who's training is who's
-    // signed in; a sign-off is made by the signed-in trainer — the page checks that, and every write is stamped `_by` =
-    // the staff id, `_up` = the database's time). The curriculum and the settings are changed by Dr. A and by the managers
-    // named in onbState/roles; only he changes the roles. onbMeta/moved says which database Onboarding uses (readable before
+    // roster (roster/<sid>.rid). Everyone signed in reads all of it and may save training progress and activity (who's
+    // training is who's signed in; every write is stamped `_by` = the staff id, `_up` = the database's time). A plan is
+    // assigned or changed by Dr. A and the managers named in onbState/roles; a sign-off is written by Dr. A, a manager or
+    // a trainer named there (the page makes it the signed-in trainer). The curriculum and the settings are changed by Dr. A
+    // and the managers; only he changes the roles. onbMeta/moved says which database Onboarding uses (readable before
     // anyone signs in; it holds nothing else) and pauses screens while Dr. A moves the data back.
     // =====================================================================
     function onbRid() { return get(/databases/$(db)/documents/roster/$(mySid())).data.get('rid', ''); }
     function onbRoles() { return /databases/$(db)/documents/onbState/roles; }
     function onbMgr() { return isOwner() || (isMember() && exists(onbRoles()) && get(onbRoles()).data.get('managers', {}).get(onbRid(), false) == true); }
+    function onbTrainer() { return onbMgr() || (isMember() && exists(onbRoles()) && get(onbRoles()).data.get('trainers', {}).get(onbRid(), false) == true); }
+    // the top-level parts of a person's record this write touches (all of them when the record is new)
+    function onbTouched() { return resource == null ? request.resource.data.keys() : request.resource.data.diff(resource.data).affectedKeys(); }
     match /onbPeople/{rid} {
       allow read: if mtgMember();
       allow create, update: if calOk(request.resource.data, 20) && mtgId(rid)
-        && request.resource.data.keys().hasOnly(['plan', 'progress', 'signoffs', 'log', '_up', '_by']);
+        && request.resource.data.keys().hasOnly(['plan', 'progress', 'signoffs', 'log', '_up', '_by'])
+        && (!onbTouched().hasAny(['plan']) || onbMgr())
+        && (!onbTouched().hasAny(['signoffs']) || onbTrainer());
       allow delete: if onbMgr();
     }
     match /onbTracks/{id} {

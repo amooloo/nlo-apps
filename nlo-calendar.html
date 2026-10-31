@@ -138,7 +138,7 @@ const NLOC = window.NLOM ? NLOM.forApp({
     { path: CAL_ROOT + '/events', col: 'calEvents' },
     { path: CAL_ROOT + '/stickers', col: 'calStickers' },
     { path: CAL_ROOT + '/staff', doc: 'calState/staff' },
-    { path: CAL_ROOT + '/settings', doc: 'calState/settings' },
+    { path: CAL_ROOT + '/settings', doc: 'calState/settings', drop: ['adminPin'] },   /* (the admin PIN stays in the old database: no PIN on the NLO Cases system) */
     { path: CAL_ROOT + '/adminDays', doc: 'calState/adminDays' },
     { path: CAL_ROOT + '/config', doc: 'calState/config' },
     /* Staff Hub's roster: copied in once by the move if Staff Hub hasn't put it there yet; Staff Hub keeps it up to date */
@@ -2152,13 +2152,26 @@ function moveBackSheet(){
         body.innerHTML="<p>Moving back…</p>";
         let cur=await NLOC.readNew(NLOC.fs);
         download("office-calendar-before-move-back-"+todayStr()+".json",JSON.stringify({app:"office-calendar",at:new Date().toISOString(),data:cur},null,1));
+        /* the admin PIN never left the old database: it stays as it was there */
+        let oldPin=null; try{ oldPin=(await rt.ref(CAL_ROOT+"/settings/adminPin").once("value")).val(); }catch(x){}
         for(let k=0;k<3;k++){
-          for(const m of NLOC.MOVED) await rt.ref(m.path).set(cur[m.path]==null?null:JSON.parse(JSON.stringify(cur[m.path])));
+          for(const m of NLOC.MOVED){
+            let v=cur[m.path]==null?null:JSON.parse(JSON.stringify(cur[m.path]));
+            if(m.path===CAL_ROOT+"/settings"&&typeof oldPin==="string"&&oldPin){ v=v||{}; v.adminPin=oldPin; }
+            await rt.ref(m.path).set(v);
+          }
           const again=await NLOC.readNew(NLOC.fs);
           if(NLOC.fpr(again)===NLOC.fpr(cur)) break;
           if(k===2) throw new Error("the data kept changing while moving back — nothing was switched back; try again when it’s quiet");
           cur=again;
         }
+        /* NLO Time Off's feed key saved while on the NLO Cases system goes back to the old database too (Cadence mirrors the
+           old database's copy again once the calendar is back) */
+        try{
+          const tf=(await NLOC.fs.doc("cadMirror/tofeed").get()).data()||{}, k=typeof tf.key==="string"?tf.key:"";
+          const was=(await rt.ref(TO_FEED_CFG).once("value")).val();
+          if(k&&!(was&&was.key===k)) await rt.ref(TO_FEED_CFG).set({ key:k, at:firebase.database.ServerValue.TIMESTAMP, by:(auth.currentUser&&auth.currentUser.email)||"" });
+        }catch(x){}
         await rt.ref(CAL_ROOT+"/movedTo").remove();
         try{ await rt.ref(CAL_ROOT+"/moving").remove(); }catch(x){}
         await NLOC.fs.doc("calMeta/moved").set({ on:false, at:FV.serverTimestamp() });

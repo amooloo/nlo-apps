@@ -19,19 +19,22 @@ the Firebase emulators: nothing live is read or written.
   copied in once and never written over a roster Staff Hub already keeps there; a re-run changes nothing; Onboarding's
   PINs, phone links and devices never read); the rules — the calendar's editors (Dr. A plus the staff he ticks; the list
   only he changes), stamps, odd ids, the "moved" records, nobody signed in, a login on its temporary password or turned
-  off, Staff Hub's roster record (only Dr. A writes it, only its own fields, never deleted); Onboarding — everyone saves
-  training records, only managers (Dr. A plus the ones he names, with a login linked to their Staff Hub person) change
-  the curriculum and the settings, only he the roles; what the Staff Meeting Hub reads of both apps before and after
+  off, Staff Hub's roster record (only Dr. A writes it, only its own fields, never deleted), anyone ticking a task done;
+  Onboarding — everyone saves training progress, plans only managers (Dr. A plus the ones he names, with a login linked
+  to their Staff Hub person), sign-offs only trainers and managers, the curriculum and the settings only managers, the
+  roles only he; a single record left on the NLO Cases side with nothing for it in the old database (an empty feed-key
+  mirror, an editors list) never stops a move; what the Staff Meeting Hub reads of both apps before and after
   their moves (the old database when the screen has the office Google sign-in, else nothing; then the records) and
-  Staff Hub's roster (else Cadence's copy); a screen on the old database during a move. 143 checks.
+  Staff Hub's roster (else Cadence's copy); a screen on the old database during a move. 153 checks.
 - `test_cal.mjs` — the real calendar page: before the move (the office Google sign-in and the admin PIN, as today; a move
   claimed on one screen pausing the others and going with that screen), the move (a staff login refused, a wrong
   password, the rules card until the rules are published, what moves counted, the copy to Downloads, the other screen
   paused then switched over, the records), after it (Dr. A's NLO Cases login edits at once; Who can edit from the team's
   logins; Gwen sees but can't edit until ticked, then adds a closure and an entry — stamped — and loses editing when
-  unticked, the database refusing her; Staff Hub's roster and NLO Time Off's key from the NLO Cases system; a login still
+  unticked, the database refusing her, though she still ticks a task done; Staff Hub's roster and NLO Time Off's key from the NLO Cases system; a login still
   being set up, one turned off; Lock; a phone), and the way back (no Google step on a computer that still has it, the
-  tick, the copy, the other screen going back by itself, everything in the old database). 73 checks.
+  tick, the copy, the other screen going back by itself, everything in the old database with its admin PIN and the feed
+  key as they were). 77 checks.
 - `test_onb.mjs` — the real Onboarding page: before (the office account and the name picker, Nora's personal link on her
   phone, as today), the move (as above; PINs, links and devices stay behind; the phone on its link switches over too and
   says links aren't used any more), after it (Dr. A; People & access without PIN or link columns; Nora sent to NLO Cases
@@ -39,7 +42,7 @@ the Firebase emulators: nothing live is read or written.
   skill ready for sign-off with no sign-off button for herself; Gwen the trainer landing on Sign-offs and signing it off
   as the signed-in trainer — no picking, no PIN —, every item checked first, Nora's phone showing it at once; Gwen kept
   out of the curriculum until Dr. A names her a manager, the database following; a login turned off; Lock; the plan
-  dialog without phone links), and the way back (Nora's phone reopening her training from its link). 70 checks.
+  dialog without phone links), and the way back (Nora's phone reopening her training from its link). 71 checks.
 
 Run (Java and Node 20+; the pages' Firebase SDK is served from `node_modules/firebase` — 10.12.2 compat — for the calendar's
 9.23.0 and Onboarding's 10.12.2 gstatic addresses; `../meeting-tests/node_modules` can be symlinked here):
