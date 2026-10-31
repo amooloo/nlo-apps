@@ -458,6 +458,54 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .nhDrop input{display:none}
 .nhDrop svg{color:var(--blue)}
 .nhDrop b{font-size:14px}
+/* ---------- paperwork (signed forms & documents, encrypted) ---------- */
+.ppBar{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.ppBarT{display:flex;gap:11px;align-items:flex-start;flex:1;min-width:240px;color:var(--grey-700);font-size:13px;line-height:1.5}
+.ppBarT svg{color:var(--mint-700);flex:none;margin-top:1px}
+.ppSafe{display:flex;gap:10px;align-items:flex-start;background:var(--mint-100);color:var(--mint-700);border-radius:10px;padding:11px 14px;font-size:13px;line-height:1.5;margin-bottom:14px}
+.ppSafe svg{flex:none;margin-top:2px}
+.ppIc{width:34px;height:42px;border-radius:6px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;font-size:9px;font-weight:700;letter-spacing:.06em;color:#fff;flex:none;cursor:pointer;position:relative;box-shadow:var(--sh-xs)}
+.ppIc:before{content:"";position:absolute;top:0;right:0;width:10px;height:10px;background:rgba(255,255,255,.35);border-radius:0 6px 0 4px}
+.ppIc.pdf{background:var(--coral-600)}
+.ppIc.img{background:var(--blue)}
+.ppIc.sm{width:28px;height:34px;font-size:8px;padding-bottom:4px}
+.ppRow .nhRowT .muted{font-size:12.5px}
+.ppRow .ppCov{display:block;margin-top:3px;font-size:11.5px;color:var(--grey-600)}
+.ppSecSub{text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:11px;font-weight:500;color:var(--grey-500)}
+[data-ppzone].hot{outline:2px dashed var(--blue);outline-offset:4px;border-radius:var(--r)}
+.nhDrop.hot{border-color:var(--blue);background:var(--blue-100)}
+.ppDropSm{padding:18px 14px}
+.ppUpList{margin-top:14px;border:1px solid var(--grey-200);border-radius:12px;overflow:hidden}
+.ppUpRow{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--grey-100)}
+.ppUpRow:last-child{border-bottom:none}
+.ppUpT{flex:1;min-width:0}
+.ppUpT b{display:block;color:var(--navy);font-size:13px;overflow-wrap:anywhere}
+.ppUpF{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.ppUpF select{flex:1.4 1 210px;min-width:0}
+.ppUpF input{flex:1 1 150px;min-width:0}
+.ppUpF select,.ppUpF input{padding:8px 12px;border:1.5px solid var(--grey-200);border-radius:9px;background:#fff;outline:none;font-size:13px}
+.ppUpF select:focus,.ppUpF input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.ppHire{margin-bottom:18px}
+.ppMulti{margin-top:10px;background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:10px 12px}
+.ppMultiH{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--navy);font-weight:600}
+.ppMultiG{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin-top:8px;font-size:12.5px;color:var(--grey-700)}
+.ppMultiG label{display:flex;gap:7px;align-items:flex-start;cursor:pointer;line-height:1.35}
+.ppMultiG input{width:15px;height:15px;margin-top:1px;flex:none;accent-color:var(--blue)}
+.ppEss{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:-4px 0 16px}
+.ppEssL{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--grey-500);margin-right:4px}
+.ppChip{display:inline-flex;align-items:center;gap:5px;border:1px dashed var(--grey-300);background:#fff;color:var(--grey-600);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--fb)}
+.ppChip:hover{border-color:var(--blue);color:var(--blue)}
+.ppChip.on{border:1px solid transparent;background:var(--mint-100);color:var(--mint-700);cursor:default}
+.ppGone{margin-top:4px;font-size:13px}
+.ppGone summary{cursor:pointer;color:var(--grey-600);font-weight:600;display:flex;align-items:center;gap:7px;padding:4px 0}
+.ppGone .nhRow{padding:10px 4px}
+.ppOn{color:var(--mint-700) !important}
+.ppViewBox{background:var(--grey-100)}
+.ppPanelFoot:empty{display:none}
+@media (max-width:560px){
+  .ppMultiG{grid-template-columns:1fr}
+  .ppUpRow{flex-wrap:wrap}
+}
 .nhThumbs{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px}
 .nhThumbs img{height:96px;border:1px solid var(--grey-200);border-radius:4px;background:#fff;box-shadow:var(--sh-xs)}
 @media (max-width:920px){
@@ -976,6 +1024,7 @@ function enterApp() {
   render();
   if (typeof renderSyncStatus === 'function') renderSyncStatus();
   if (typeof rosterInit === 'function') { try { rosterInit(); } catch (e) {} }
+  if (typeof ppAfterOpen === 'function') { try { ppAfterOpen(); } catch (e) {} }
 }
 /* (input: dictation and autofill type without key presses) */
 ['click','keydown','pointerdown','scroll','input','wheel'].forEach(ev => document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive:true }));
@@ -1223,6 +1272,7 @@ function viewStaffDetail() {
     ['reviews','Reviews'],
     ['kpis','KPIs'],
     ['certs','Certs'],
+    ['paper','Paperwork' + (ppCountFor(p) ? ` (${ppCountFor(p)})` : '')],
     ['color','Color']
   ];
   let body = '';
@@ -1231,6 +1281,7 @@ function viewStaffDetail() {
     case 'reviews': body = subReviews(p); break;
     case 'kpis': body = subKPIs(p); break;
     case 'certs': body = subCerts(p); break;
+    case 'paper': body = subPaper(p); break;
     case 'color': body = subColor(p); break;
     case 'timeoff': body = subTimeoff(p); break;
     default: body = subTimeline(p);
@@ -5168,6 +5219,7 @@ function fbEnter() {
 
 /* lock: drop the key and sign out (NLO Cases at once; Staff Hub's own account once a save on its way has landed) */
 function fbLock(msg) {
+  if (typeof ppWipe === 'function') ppWipe();   /* paperwork opened on screen or in memory */
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
   if (typeof quizWatchStop === 'function') quizWatchStop();
   if (typeof appWatchStop === 'function') appWatchStop();
@@ -6088,10 +6140,10 @@ function nhHireView(h) {
     return `<div class="nhRow${inc ? '' : ' off'}">
       ${withInc ? `<input type="checkbox" class="nhInc" data-chg="nhInc" data-id="${h.id}" data-f="${f.id}" ${inc ? 'checked' : ''} title="Include in this packet">` : `<div class="nhRowIc sm">${ic('fileText', 15)}</div>`}
       <div class="nhRowT"><b class="nhLink" data-act="nhPreview" data-id="${f.id}" data-h="${h.id}">${esc(f.title)}</b>${f.office ? ' <span class="badge b-gray">Office use</span>' : ''}${f.clinical ? ' <span class="badge b-amber">Clinical &amp; lab</span>' : ''}</div>
-      <div class="nhRowA"><button class="btn-ghost btn-sm" data-act="nhPrintOne" data-id="${f.id}" data-h="${h.id}">${ic('printer', 13)} Print</button>${f.office ? '' : doneBtn(f.id)}</div>
+      <div class="nhRowA"><button class="btn-ghost btn-sm" data-act="nhPrintOne" data-id="${f.id}" data-h="${h.id}">${ic('printer', 13)} Print</button>${ppRowBtn(h, f.id)}${f.office ? '' : doneBtn(f.id)}</div>
     </div>`;
   };
-  const offRow = o => `<div class="nhRow"><div class="nhRowIc sm">${ic('shield', 15)}</div><div class="nhRowT"><b>${esc(o.title)}</b></div><div class="nhRowA"><a class="btn-ghost btn-sm" href="${o.url}" target="_blank" rel="noopener">${ic('external', 13)} Get form</a>${doneBtn(o.id, o.given)}</div></div>`;
+  const offRow = o => `<div class="nhRow"><div class="nhRowIc sm">${ic('shield', 15)}</div><div class="nhRowT"><b>${esc(o.title)}</b></div><div class="nhRowA"><a class="btn-ghost btn-sm" href="${o.url}" target="_blank" rel="noopener">${ic('external', 13)} Get form</a>${o.given ? '' : ppRowBtn(h, o.id)}${doneBtn(o.id, o.given)}</div></div>`;
   let tDone = 0, tAll = 0;
   const tasks = NH_TASKS.map(sec => {
     const items = sec.items.filter(it => !(it[2] === 'clin' && h.team === 'admin'));
@@ -6126,6 +6178,7 @@ function nhHireView(h) {
       <button class="btn-ghost btn-sm" data-act="nhDelHire" data-id="${h.id}">Delete</button>
     </div>
   </div>
+  ${ppHirePanelHTML(h)}
   <div class="dashGrid">
     <div class="colStack">
       ${panelHTML('Day-one packet', inPacket + ' forms', packet.map(f => fRow(f, true)).join('') + `<div class="nhSubHd">Official forms — print from the source</div>` + NH_OFFICIAL.map(offRow).join(''),
@@ -6188,7 +6241,7 @@ function nhHireModal(id, candId) {
       ${grid(NH_EC.slice(0, 3), 'frow3')}
       ${grid(NH_EC.slice(3), 'frow3')}
     </details>
-    <div class="tiny" style="margin-top:12px">The Hep B form is included automatically for clinical and lab hires. Social Security and bank account numbers are never stored here — they’re written on the signed paper forms only.</div>
+    <div class="tiny" style="margin-top:12px">The Hep B form is included automatically for clinical and lab hires. Social Security and bank account numbers are never typed in here. Scans of the signed forms go under Signed paperwork on their page, locked with your password.</div>
   </div>
   <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="nhSave">${h ? 'Save changes' : cd ? 'Hire and start paperwork' : 'Add new hire'}</button></div>`, true);
   const from = $('#nhFrom');
@@ -6588,7 +6641,11 @@ H.nhComplete = t => {
 };
 H.nhDelHire = t => {
   const h = nhHire(t.dataset.id); if (!h) return;
-  confirmModal('Delete ' + h.name + '’s onboarding record?', 'This removes the paperwork tracker only. Their staff profile, if they have one, is not touched.', () => {
+  const papers = typeof ppAll === 'function' ? ppAll().filter(f => f.hid === h.id) : [];
+  const keepWith = h.staffId && staffById(h.staffId) ? h.staffId : '', stranded = papers.filter(f => !f.sid && !f.removed).length;
+  if (stranded && !keepWith) { toast(h.name + ' has ' + plural(stranded, 'signed paperwork file') + '. Add them to the staff roster first (the files move to their profile), or remove the files from this page.', true, 9000); return; }
+  confirmModal('Delete ' + h.name + '’s onboarding record?', 'This removes the paperwork tracker only. Their staff profile, if they have one, is not touched.' + (keepWith && papers.some(f => !f.removed) ? ' Their signed paperwork stays on their staff profile.' : ''), () => {
+    if (keepWith) papers.forEach(f => { const cur = ppById(f.id); if (cur && !cur.sid) cur.sid = keepWith; });
     const n = nhS(); n.hires = n.hires.filter(x => x.id !== h.id);
     n.cands.forEach(c => { if (c && c.hireId === h.id) delete c.hireId; });   /* their candidate card stays */
     route.nhHire = null; act('Deleted onboarding record for ' + h.name);
@@ -6598,6 +6655,7 @@ H.nhDelHire = t => {
 H.nhRoster = t => {
   const h = nhHire(t.dataset.id); if (!h) return;
   const link = (hire, p) => { hire.staffId = p.id; if (!hire.tasks || typeof hire.tasks !== 'object') hire.tasks = {}; if (!hire.tasks.staffhub) hire.tasks.staffhub = todayYMD();
+    if (typeof ppAll === 'function') ppAll().forEach(f => { if (f.hid === hire.id && !f.sid) f.sid = p.id; });   /* their signed paperwork goes with them */
     /* their color quiz from when they were a candidate comes along (newest own quiz wins, as with any quiz import) */
     const had = p.color, cd = hire.candId ? candById(hire.candId) : null;
     const a = quizCarryInto(p, hire), b = cd ? quizCarryInto(p, cd) : false;
@@ -8047,6 +8105,597 @@ H.rosterPhotos = () => {
   inp.click();
 };
 H.rosterDisconnect = () => { if (rosterApp) rosterApp.auth().signOut(); };
+
+/* =====================================================
+   PAPERWORK — each person's signed forms and documents
+   (W-4, I-9, direct deposit, the signed packet, ID copies…).
+   Amir, 30 Oct 2026: "upload paperwork for the staff in staff hub …
+   this will have sensitive information about their bank account, SS etc."
+
+   How it's kept:
+   - Each file is encrypted in this browser with Staff Hub's own key (the same
+     AES-256-GCM key as everything else here), in pieces of at most 900 KB.
+     Every piece has a fresh random IV, and its place (file id, piece number,
+     number of pieces) is bound in as additional data, so pieces can't be
+     swapped, dropped or reordered without the file refusing to open.
+   - Pieces live in staffhub/<uid>/paper/<file id>_<n> — owner-only under the
+     existing rule for everything below the record (no rules change).
+   - The list (S.paper: type, file name, size, SHA-256 of the original) is in
+     the encrypted main record. Opening a file checks the SHA-256.
+   - Nothing here goes to the AI, the office roster, or the readable export's
+     files; opened files stay in memory only until Staff Hub locks.
+   - Removing a file keeps it under "Removed" for 30 days, then it is deleted.
+   ===================================================== */
+ICONS.paperclip = '<path d="M20.5 11.5 12 20a5.3 5.3 0 0 1-7.5-7.5l8.8-8.8a3.5 3.5 0 0 1 5 5l-8.8 8.8a1.8 1.8 0 0 1-2.5-2.5L15 7"/>';
+
+const PP_PIECE = 900 * 1024;              /* bytes of a file per Firestore doc: ciphertext + fields stay well under the 1 MiB cap */
+const PP_MAX = 25 * 1024 * 1024;          /* largest file */
+const PP_KEEP_DAYS = 30;                  /* a removed file can be put back for this long */
+const PP_CACHE_MAX = 6;                   /* opened files kept in memory (until Lock) */
+const PP_ACCEPT = 'application/pdf,.pdf,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif';
+const PP_IMG = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', webp:'image/webp', gif:'image/gif', heic:'image/heic', heif:'image/heif' };
+const PP_OFF_TITLES = { w4:'Form W-4', i9:'Form I-9' };
+const PP_EXTRA = {
+  resume:  { title:'Résumé', grp:'Hiring', sec:'hire' },
+  review:  { title:'Signed review', grp:'Later', sec:'hire' },
+  writeup: { title:'Signed write-up or warning', grp:'Later', sec:'hire' },
+  bank:    { title:'Voided check or bank letter', grp:'Copies & records', sec:'pay' },
+  idcopy:  { title:'ID / Social Security card copies', grp:'Copies & records', sec:'i9' },
+  medical: { title:'Other medical record', grp:'Copies & records', sec:'med' },
+  other:   { title:'Other document', grp:'Other', sec:'other' }
+};
+const PP_SECS = [
+  { id:'hire',  label:'Hiring & personnel' },
+  { id:'pay',   label:'Payroll & tax' },
+  { id:'i9',    label:'I-9 & ID copies', sub:'kept apart from the personnel file' },
+  { id:'med',   label:'Medical', sub:'confidential, kept apart from the personnel file' },
+  { id:'other', label:'Other' }
+];
+const PP_SEC_OF = { w4:'pay', deposit:'pay', paystub:'pay', payroll:'pay', bank:'pay', i9:'i9', idcopy:'i9', hepb:'med', medical:'med', other:'other' };
+const PP_ESSENTIALS = ['w4', 'i9', 'deposit', 'handbook', 'hipaa', 'hepb'];
+const PP_ESS_LABEL = { w4:'W-4', i9:'I-9', deposit:'Direct deposit', handbook:'Policy manual', hipaa:'HIPAA agreement', hepb:'Hep B record' };
+/* a first guess from the file name (Brandi W4.pdf, I-9.pdf, direct deposit.jpg, packet.pdf …); he can change it */
+const PP_GUESS = [
+  [/\bi ?9\b|eligibility/, 'i9'], [/\bw ?4\b|withholding/, 'w4'], [/\bvoid|bank letter/, 'bank'],
+  [/direct ?dep|\bdeposit\b/, 'deposit'], [/pay ?stub|electronic pay/, 'paystub'], [/payroll/, 'payroll'],
+  [/check ?list/, 'checklist'], [/\boffer/, 'offer'], [/applica/, 'application'], [/r[eé]sum[eé]|\bcv\b/, 'resume'],
+  [/hand ?book|policy manual|\bmanual\b/, 'handbook'], [/job ?desc/, 'jobdesc'], [/hipaa|confidential/, 'hipaa'],
+  [/social media|cell ?phone|technology/, 'tech'], [/\bsafe/, 'safety'], [/commitment/, 'commit'],
+  [/\bhep ?b?\b|hepatitis|vaccin/, 'hepb'], [/favou?rite/, 'favorites'], [/get to know/, 'intro'], [/welcome/, 'welcome'],
+  [/employee info|emergency/, 'info'], [/\bkeys?\b|\balarm/, 'keys'],
+  [/licen[cs]e|passport|social security|\bss ?card|\bssn\b|driver|\bid\b|\bdl\b/, 'idcopy'],
+  [/review|evaluation|appraisal/, 'review'], [/write ?up|warning|disciplin/, 'writeup'],
+  [/packet|onboarding|new ?hire|paperwork/, 'multi']
+];
+
+const ppCache = new Map();   /* file id -> decrypted Blob, only while unlocked */
+let ppUp = null;             /* the upload window: { ctx, items, busy } */
+let ppEd = null;             /* the "change type" window */
+let ppViewUrl = null, ppViewTok = 0, ppPurgeTimer = null, ppHot = null;
+
+/* ---------- the list (in the encrypted record) ---------- */
+const ppAll = () => (S && Array.isArray(S.paper)) ? S.paper.filter(f => f && typeof f === 'object' && typeof f.id === 'string') : [];
+const ppById = id => ppAll().find(f => f.id === id) || null;
+const ppHires = () => (S && S.nh && Array.isArray(S.nh.hires)) ? S.nh.hires.filter(h => h && h.id) : [];
+const ppHire = id => ppHires().find(h => h.id === id) || null;
+const ppHireOfStaff = sid => sid ? (ppHires().find(h => h.staffId === sid) || null) : null;
+function ppCtxStaff(p) { const h = ppHireOfStaff(p.id); return { sid: p.id, hid: h ? h.id : '', who: p.name || '' }; }
+function ppCtxHire(h) { return { sid: h.staffId || '', hid: h.id, who: h.name || '' }; }
+function ppCtxFrom(el) {
+  const d = (el && el.dataset) || {};
+  const h = d.hid ? ppHire(d.hid) : null;
+  if (h) return ppCtxHire(h);
+  const p = d.sid ? staffById(d.sid) : null;
+  return p ? ppCtxStaff(p) : null;
+}
+/* a person's files: uploaded on their staff profile, or on their new-hire page (before or after it was linked) */
+function ppFilesFor(ctx, removed) {
+  const hireSid = id => { const h = ppHire(id); return h ? (h.staffId || '') : ''; };
+  return ppAll().filter(f => !!f.removed === !!removed && (
+    (ctx.sid && (f.sid === ctx.sid || (!!f.hid && hireSid(f.hid) === ctx.sid))) ||
+    (ctx.hid && f.hid === ctx.hid)));
+}
+function ppWho(f) {
+  const p = f.sid ? staffById(f.sid) : null; if (p) return p.name || '';
+  const h = f.hid ? ppHire(f.hid) : null; if (h) { const q = h.staffId ? staffById(h.staffId) : null; return (q && q.name) || h.name || ''; }
+  return '';
+}
+const ppKinds = f => f.kind === 'multi' ? (Array.isArray(f.kinds) ? f.kinds : []) : [f.kind];
+const ppHasKind = (files, k) => files.some(f => ppKinds(f).indexOf(k) >= 0);
+
+/* ---------- document types ---------- */
+function ppTypeTitle(k) {
+  if (!k) return '';
+  if (k === 'multi') return 'Signed packet (one scan)';
+  if (PP_OFF_TITLES[k]) return PP_OFF_TITLES[k];
+  if (PP_EXTRA[k]) return PP_EXTRA[k].title;
+  try { const f = nhFormById(k); if (f) return f.title || ''; } catch (e) {}
+  return '';
+}
+function ppSecOf(k, title) {
+  if (PP_SEC_OF[k]) return PP_SEC_OF[k];
+  if (PP_EXTRA[k]) return PP_EXTRA[k].sec;
+  const t = String(title || '').toLowerCase();
+  if (/\bi-?9\b|eligibility/.test(t)) return 'i9';
+  if (/deposit|bank|\bw-?4\b|withholding|payroll|pay ?stub/.test(t)) return 'pay';
+  if (/\bhep|hepatitis|vaccin|medical|immuni/.test(t)) return 'med';
+  return 'hire';
+}
+function ppSecOfFile(f) {
+  if (f.kind === 'multi') { const s = new Set(ppKinds(f).map(k => ppSecOf(k, ppTypeTitle(k)))); return s.size === 1 ? Array.from(s)[0] : 'hire'; }
+  return ppSecOf(f.kind, ppTypeTitle(f.kind));
+}
+const ppBaseName = n => String(n || '').replace(/\.[A-Za-z0-9]{1,5}$/, '');
+const ppLabel = f => ppTypeTitle(f.kind) || ppBaseName(f.name) || 'Document';
+/* the choices, in groups: what he picks most first */
+function ppTypeList() {
+  const L = [], seen = new Set();
+  const add = (id, title, grp) => { if (id && !seen.has(id)) { seen.add(id); L.push({ id, title, grp }); } };
+  let forms = [];
+  try { forms = nhVisibleForms(); } catch (e) {}
+  add('multi', 'Several signed forms in one scan…', 'One scan, several forms');
+  add('w4', PP_OFF_TITLES.w4, 'Government forms'); add('i9', PP_OFF_TITLES.i9, 'Government forms');
+  forms.filter(f => f.group === 'packet').forEach(f => add(f.id, f.title, 'New-hire packet'));
+  forms.filter(f => f.group === 'hiring').forEach(f => add(f.id, f.title, 'Hiring'));
+  add('resume', PP_EXTRA.resume.title, 'Hiring');
+  forms.filter(f => f.group === 'later').forEach(f => add(f.id, f.title, 'Later'));
+  ['review', 'writeup', 'bank', 'idcopy', 'medical', 'other'].forEach(k => add(k, PP_EXTRA[k].title, PP_EXTRA[k].grp));
+  forms.filter(f => ['packet', 'hiring', 'later'].indexOf(f.group) < 0).forEach(f => add(f.id, f.title, 'Other'));
+  return L;
+}
+const ppTypeOk = k => k === 'multi' || ppTypeList().some(t => t.id === k);
+function ppGuess(name) {
+  const t = ' ' + String(name || '').toLowerCase().replace(/\.[a-z0-9]{1,5}$/, '').replace(/[_.\-–]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  for (const [re, id] of PP_GUESS) if (re.test(t)) return ppTypeOk(id) ? id : 'other';
+  return 'other';
+}
+function ppTypeOptions(sel) {
+  const types = ppTypeList(), groups = [];
+  types.forEach(t => { let g = groups.find(x => x.n === t.grp); if (!g) groups.push(g = { n: t.grp, L: [] }); g.L.push(t); });
+  let h = groups.map(g => `<optgroup label="${esc(g.n)}">${g.L.map(t => `<option value="${esc(t.id)}"${t.id === sel ? ' selected' : ''}>${esc(t.title)}</option>`).join('')}</optgroup>`).join('');
+  if (sel && !types.some(t => t.id === sel)) h = `<option value="${esc(sel)}" selected>${esc(ppTypeTitle(sel) || 'A form no longer in the library')}</option>` + h;
+  return h;
+}
+/* the forms a one-scan packet can cover */
+function ppMultiHTML(chosen, key, h) {
+  const list = ppTypeList().filter(t => ['Government forms', 'New-hire packet', 'Hiring', 'Later'].indexOf(t.grp) >= 0 && PP_EXTRA[t.id] === undefined);
+  return `<div class="ppMulti"><div class="ppMultiH">Which signed forms are in this scan?<span class="sp"></span><button type="button" class="btn-ghost btn-sm" data-act="ppMultiAll" data-key="${key}"${h ? ` data-hid="${h.id}"` : ''}>Tick the whole packet</button></div>
+    <div class="ppMultiG">${list.map(t => `<label><input type="checkbox" data-chg="ppMk" data-key="${key}" value="${esc(t.id)}"${chosen.indexOf(t.id) >= 0 ? ' checked' : ''}> ${esc(t.title)}</label>`).join('')}</div></div>`;
+}
+
+/* ---------- files: checks, sizes, names ---------- */
+function ppMime(file) {
+  if (isPdfFile(file)) return 'application/pdf';
+  if (Object.values(PP_IMG).indexOf(file.type) >= 0) return file.type;
+  const m = /\.([a-z0-9]+)$/i.exec(file.name || '');
+  return (m && PP_IMG[m[1].toLowerCase()]) || '';
+}
+function ppRefuse(file) {
+  const n = file.name || 'That file';
+  if (!ppMime(file)) return n + ': only PDFs and photos (JPG, PNG, HEIC) — save Word files as PDF first';
+  if (!file.size) return n + ' is empty';
+  if (file.size > PP_MAX) return n + ' is ' + fmtBytes(file.size) + ', over the 25 MB limit — rescan it in black & white or at a lower resolution';
+  return '';
+}
+const ppIsPdf = f => f && f.mime === 'application/pdf';
+const ppIsImg = f => f && Object.values(PP_IMG).indexOf(f.mime) >= 0;
+const ppWhen = ts => { const d = new Date(ts || 0); return isNaN(d) || !ts ? '—' : d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); };
+function ppFileName(f) {
+  const ext = ((String(f.name || '').match(/\.[A-Za-z0-9]{1,5}$/) || [''])[0] || (ppIsPdf(f) ? '.pdf' : '.jpg')).toLowerCase();
+  const base = [ppWho(f), ppLabel(f)].filter(Boolean).join(' - ').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return (base || 'paperwork') + ext;
+}
+const ppNewId = () => 'pp' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(16).padStart(2, '0')).join('');
+async function ppSha(buf) { const h = await crypto.subtle.digest('SHA-256', buf); return Array.from(new Uint8Array(h), b => b.toString(16).padStart(2, '0')).join(''); }
+function ppErrText(e) {
+  const s = String((e && (e.code || e.message)) || e || '');
+  if (/permission/i.test(s)) return 'Firebase refused it (permission). Lock Staff Hub, sign in again and retry.';
+  if (/unavailable|network|offline|failed to fetch|deadline/i.test(s)) return 'No connection to the server. Check the internet and try again.';
+  return (e && e.message) || 'Something went wrong.';
+}
+
+/* ---------- storage: encrypted pieces under staffhub/<uid>/paper ---------- */
+const ppCol = () => (fbUser && fbDB) ? fbDB.collection(FB_COLLECTION).doc(fbUser.uid).collection('paper') : null;
+const ppAad = (id, i, n) => new TextEncoder().encode('nlo-staff-hub/paper/v1/' + id + '/' + i + '/' + n);
+async function ppPut(id, buf, key, onPiece) {
+  const col = ppCol();
+  if (!col || !key || cryptoKey !== key) throw new Error('Staff Hub is locked. Sign in and try again.');
+  const n = Math.max(1, Math.ceil(buf.byteLength / PP_PIECE)), written = [];
+  try {
+    for (let i = 0; i < n; i++) {
+      if (cryptoKey !== key) throw new Error('Staff Hub locked during the upload.');
+      const part = new Uint8Array(buf, i * PP_PIECE, Math.min(PP_PIECE, buf.byteLength - i * PP_PIECE));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name:'AES-GCM', iv, additionalData: ppAad(id, i, n) }, key, part));
+      written.push(i);
+      await col.doc(id + '_' + i).set({ app:'nlo-staff-hub', v:1, i, n, iv: b64(iv), ct: firebase.firestore.Blob.fromUint8Array(ct), at: Date.now() });
+      if (onPiece) onPiece(i + 1, n);
+    }
+  } catch (e) {
+    await Promise.all(written.map(i => col.doc(id + '_' + i).delete().catch(() => {})));
+    throw e;
+  }
+  return n;
+}
+async function ppGet(f) {
+  if (ppCache.has(f.id)) return ppCache.get(f.id);
+  const col = ppCol(), key = cryptoKey;
+  if (!col || !key) throw new Error('Staff Hub is locked.');
+  const n = f.n | 0;
+  if (n < 1) throw new Error('This file has no stored copy.');
+  const snaps = await Promise.all(Array.from({ length: n }, (_, i) => col.doc(f.id + '_' + i).get()));
+  const parts = [];
+  for (let i = 0; i < n; i++) {
+    const d = snaps[i] && snaps[i].exists ? snaps[i].data() : null;
+    if (!d || !d.ct || typeof d.iv !== 'string') throw new Error('Part of this file is missing on the server, so it can’t be opened.');
+    try { parts.push(new Uint8Array(await crypto.subtle.decrypt({ name:'AES-GCM', iv: unb64(d.iv), additionalData: ppAad(f.id, i, n) }, key, d.ct.toUint8Array()))); }
+    catch (e) { throw new Error('This file didn’t pass its tamper check, so it won’t be opened.'); }
+  }
+  const blob = new Blob(parts, { type: ppIsPdf(f) || ppIsImg(f) ? f.mime : 'application/octet-stream' });
+  if (f.sha && (await ppSha(await blob.arrayBuffer())) !== f.sha) throw new Error('This file didn’t pass its tamper check, so it won’t be opened.');
+  if (cryptoKey !== key) throw new Error('Staff Hub is locked.');
+  ppCache.set(f.id, blob);
+  while (ppCache.size > PP_CACHE_MAX) ppCache.delete(ppCache.keys().next().value);
+  return blob;
+}
+async function ppErase(f) {   /* deletes the stored pieces for good */
+  const col = ppCol();
+  if (!col) throw new Error('Staff Hub is locked.');
+  ppCache.delete(f.id);
+  await Promise.all(Array.from({ length: Math.max(1, f.n | 0) }, (_, i) => col.doc(f.id + '_' + i).delete()));
+}
+
+/* ---------- after an upload: mark the form returned on their new-hire record ---------- */
+function ppMarkReturned(ctx, f) {
+  const h = (ctx.hid && ppHire(ctx.hid)) || ppHireOfStaff(ctx.sid);
+  if (!h) return 0;
+  let ids;
+  try { ids = new Set(nhAllForms().map(x => x.id).concat(NH_OFFICIAL.filter(o => !o.given).map(o => o.id))); } catch (e) { return 0; }
+  if (!h.done || typeof h.done !== 'object' || Array.isArray(h.done)) h.done = {};
+  let n = 0;
+  ppKinds(f).forEach(k => { if (ids.has(k) && !h.done[k]) { h.done[k] = todayYMD(); n++; } });
+  return n;
+}
+
+/* ---------- lock: nothing opened stays behind ---------- */
+function ppRevoke() { if (ppViewUrl) { try { URL.revokeObjectURL(ppViewUrl); } catch (e) {} ppViewUrl = null; } }
+function ppWipe() {
+  ppCache.clear(); ppRevoke(); ppViewTok++;
+  ppUp = null; ppEd = null; ppHi(null);
+  if (ppPurgeTimer) { clearTimeout(ppPurgeTimer); ppPurgeTimer = null; }
+  try { Object.keys(photoCache).forEach(k => { delete photoCache[k]; }); } catch (e) {}   /* certificate files opened this session, too */
+}
+function ppAfterOpen() { if (ppPurgeTimer) clearTimeout(ppPurgeTimer); ppPurgeTimer = setTimeout(() => { ppPurgeTimer = null; ppPurgeOld(); }, 8000); }
+/* files removed more than 30 days ago are deleted for good */
+async function ppPurgeOld() {
+  if (!S || !cryptoKey || !fbUser) return 0;
+  const cut = Date.now() - PP_KEEP_DAYS * 864e5, key = cryptoKey;
+  const old = ppAll().filter(f => f.removed && f.removed < cut);
+  const gone = [];
+  for (const f of old) { try { await ppErase(f); gone.push(f.id); } catch (e) { break; } }
+  if (!gone.length || !S || cryptoKey !== key || !Array.isArray(S.paper)) return 0;
+  S.paper = S.paper.filter(f => !f || gone.indexOf(f.id) < 0);
+  act('Deleted ' + plural(gone.length, 'removed paperwork file') + ' for good (removed over ' + PP_KEEP_DAYS + ' days ago)');
+  persist();
+  if (route.page === 'staffDetail' || route.page === 'newhire') render();
+  return gone.length;
+}
+/* the viewer's unlocked copy goes as soon as its window closes */
+(function () {
+  const w = document.getElementById('modalWrap');
+  if (w && typeof MutationObserver === 'function') new MutationObserver(() => { if (ppViewUrl && !document.getElementById('ppViewer')) ppRevoke(); }).observe(w, { childList: true });
+})();
+window.addEventListener('beforeunload', e => { if (ppUp && ppUp.busy) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- views ---------- */
+function ppRowHTML(f) {
+  const pdf = ppIsPdf(f), cov = f.kind === 'multi' ? ppKinds(f).map(k => ppTypeTitle(k)).filter(Boolean) : [];
+  const covTxt = cov.length > 4 ? cov.slice(0, 3).join(' · ') + ' and ' + (cov.length - 3) + ' more' : cov.join(' · ');
+  return `<div class="nhRow ppRow">
+    <div class="ppIc ${pdf ? 'pdf' : 'img'}" data-act="ppOpen" data-id="${f.id}" title="Open">${pdf ? 'PDF' : 'IMG'}</div>
+    <div class="nhRowT"><b class="nhLink" data-act="ppOpen" data-id="${f.id}">${esc(ppLabel(f))}</b>${f.note ? ` <span class="muted">— ${esc(f.note)}</span>` : ''}
+      <span class="tiny">${esc(f.name || '')} · ${fmtBytes(f.size || 0)} · added ${esc(ppWhen(f.added))}</span>${cov.length ? `<span class="ppCov" title="${esc(cov.join(' · '))}">Covers ${plural(cov.length, 'form')}: ${esc(covTxt)}</span>` : ''}</div>
+    <div class="nhRowA"><button class="btn-ghost btn-sm" data-act="ppOpen" data-id="${f.id}">${ic('eye', 13)} Open</button><button class="btn-ghost btn-sm" data-act="ppDownload" data-id="${f.id}" title="Download an unlocked copy">${ic('download', 13)}</button><button class="btn-ghost btn-sm" data-act="ppEdit" data-id="${f.id}" title="Change what it is">${ic('edit', 13)}</button><button class="btn-ghost btn-sm" data-act="ppRemove" data-id="${f.id}" title="Remove">${ic('trash', 13)}</button></div>
+  </div>`;
+}
+function ppListHTML(files) {
+  return PP_SECS.map(s => {
+    const L = files.filter(f => ppSecOfFile(f) === s.id).sort((a, b) => (b.added || 0) - (a.added || 0));
+    return L.length ? `<div class="nhSubHd">${esc(s.label)}${s.sub ? `<span class="ppSecSub"> · ${esc(s.sub)}</span>` : ''}</div>` + L.map(ppRowHTML).join('') : '';
+  }).join('');
+}
+function ppRemovedHTML(ctx) {
+  const gone = ppFilesFor(ctx, true).sort((a, b) => (b.removed || 0) - (a.removed || 0));
+  if (!gone.length) return '';
+  return `<details class="ppGone"><summary>${ic('trash', 14)} Removed (${gone.length}) · deleted for good ${PP_KEEP_DAYS} days after removal</summary>${gone.map(f => `<div class="nhRow">
+    <div class="ppIc sm ${ppIsPdf(f) ? 'pdf' : 'img'}">${ppIsPdf(f) ? 'PDF' : 'IMG'}</div>
+    <div class="nhRowT"><b>${esc(ppLabel(f))}</b><span class="tiny">${esc(f.name || '')} · removed ${esc(ppWhen(f.removed))} · deleted for good after ${esc(ppWhen(f.removed + PP_KEEP_DAYS * 864e5))}</span></div>
+    <div class="nhRowA"><button class="btn-ghost btn-sm" data-act="ppRestore" data-id="${f.id}">${ic('undo', 13)} Put back</button><button class="btn-ghost btn-sm" data-act="ppPurge" data-id="${f.id}">Delete now</button></div></div>`).join('')}</details>`;
+}
+const ppAttrs = ctx => ctx.hid && !ctx.sid ? `data-hid="${esc(ctx.hid)}"` : `data-sid="${esc(ctx.sid)}"`;
+function ppDropHTML(ctx, big) {
+  const first = esc(String(ctx.who || '').trim().split(/\s+/)[0] || 'their');
+  return `<label class="nhDrop${big ? '' : ' ppDropSm'}" data-ppzone="1" ${ppAttrs(ctx)}><input type="file" multiple accept="${PP_ACCEPT}" data-chg="ppPicked" ${ppAttrs(ctx)}>${ic('upload', big ? 26 : 20)}<b>Drop ${first}’s signed paperwork here</b><span class="tiny">or click to choose · PDFs or photos · locked with your password before it’s uploaded</span></label>`;
+}
+function ppClinical(ctx) {
+  const h = (ctx.hid && ppHire(ctx.hid)) || ppHireOfStaff(ctx.sid);
+  if (h && h.team) return h.team !== 'admin';
+  const p = ctx.sid ? staffById(ctx.sid) : null;
+  if (!p) return true;
+  try { if (typeof rosterChairside === 'function') return !!rosterChairside(p); } catch (e) {}
+  return /assist|\boa\b|lab|steril|hygien|clinic|chair/i.test(p.role || '');
+}
+function ppEssHTML(ctx) {
+  const files = ppFilesFor(ctx, false), ids = PP_ESSENTIALS.filter(k => k !== 'hepb' || ppClinical(ctx));
+  return `<div class="ppEss"><span class="ppEssL">On file</span>${ids.map(k => ppHasKind(files, k)
+    ? `<span class="ppChip on" title="On file">${ic('check', 12)} ${esc(PP_ESS_LABEL[k])}</span>`
+    : `<button type="button" class="ppChip" data-act="ppAdd" ${ppAttrs(ctx)} data-k="${k}" title="Add the signed ${esc(PP_ESS_LABEL[k])}">${ic('plus', 12)} ${esc(PP_ESS_LABEL[k])}</button>`).join('')}</div>`;
+}
+/* staff profile → Paperwork */
+function subPaper(p) {
+  const ctx = ppCtxStaff(p), files = ppFilesFor(ctx, false), gone = ppRemovedHTML(ctx);
+  return `
+  <div class="tlAdd ppBar">
+    <div class="ppBarT">${ic('lock', 18)}<span><b>Locked with your password.</b> Each file is encrypted on this computer before it’s uploaded, so Google only ever stores scrambled data. Paperwork never goes to the AI or to the other office apps.</span></div>
+    <button class="btn btn-pri btn-sm" data-act="ppAdd" data-sid="${p.id}">${ic('upload', 13)} Add paperwork</button>
+  </div>
+  ${ppEssHTML(ctx)}
+  <div class="panel" data-ppzone="1" data-sid="${p.id}">${files.length ? `<div class="pb flush">${ppListHTML(files)}</div>` : `<div class="pb">${ppDropHTML(ctx, true)}</div>`}</div>
+  ${gone ? `<div class="panel" style="margin-top:16px"><div class="pb">${gone}</div></div>` : ''}`;
+}
+/* new-hire page → Signed paperwork */
+function ppHirePanelHTML(h) {
+  const ctx = ppCtxHire(h), files = ppFilesFor(ctx, false), gone = ppRemovedHTML(ctx);
+  const body = (files.length ? ppListHTML(files) : `<div class="pb">${ppDropHTML(ctx, false)}</div>`) + (gone ? `<div class="pb">${gone}</div>` : '');
+  return `<div class="ppHire" data-ppzone="1" data-hid="${h.id}">${panelHTML('Signed paperwork', files.length ? plural(files.length, 'file') : null, body,
+    `<button class="btn btn-sec btn-sm" data-act="ppAdd" data-hid="${h.id}">${ic('upload', 13)} Upload</button>`, 'lock')}</div>`;
+}
+/* a form's row on the new-hire page: its signed copy, or a way to attach it */
+function ppRowBtn(h, kind) {
+  const files = ppFilesFor(ppCtxHire(h), false).filter(f => ppKinds(f).indexOf(kind) >= 0).sort((a, b) => (b.added || 0) - (a.added || 0));
+  return files.length
+    ? `<button class="btn-ghost btn-sm ppOn" data-act="ppOpen" data-id="${files[0].id}" title="Open the signed copy">${ic('paperclip', 13)} Signed copy</button>`
+    : `<button class="btn-ghost btn-sm" data-act="ppAdd" data-hid="${h.id}" data-k="${esc(kind)}" title="Upload the signed copy">${ic('paperclip', 13)} Attach</button>`;
+}
+const ppCountFor = p => ppFilesFor(ppCtxStaff(p), false).length;
+
+/* ---------- the upload window ---------- */
+function ppUploadModal(ctx, files, kind) {
+  if (!S || !cryptoKey || !ctx) return;
+  if (ppUp && ppUp.busy) { toast('An upload is still running — wait for it to finish', true); return; }
+  ppUp = { ctx, items: [], busy: false, preset: (kind && ppTypeOk(kind)) ? kind : '' };
+  openModal(`<div class="mh"><h3>Add paperwork — ${esc(ctx.who)}</h3><button class="x" data-act="ppCancel">✕</button></div>
+  <div class="mb">
+    <div class="ppSafe">${ic('lock', 15)}<span>Each file is locked with your Staff Hub password <b>on this computer</b> before it’s uploaded. Google only stores scrambled data, and only you can open it, signed in to Staff Hub.</span></div>
+    <label class="nhDrop" id="ppDrop" data-ppzone="modal"><input type="file" id="ppPick" multiple accept="${PP_ACCEPT}">${ic('upload', 24)}<b>Drop PDFs or photos here, or click to choose</b><span class="tiny">ScanSnap scans or phone photos · several at once · up to 25 MB each</span></label>
+    <div id="ppList"></div>
+  </div>
+  <div class="mf"><span class="tiny" id="ppStat"></span><div class="sp"></div><button class="btn btn-sec" data-act="ppCancel">Cancel</button><button class="btn btn-pri" id="ppGo" disabled>${ic('lock', 14)} Lock &amp; upload</button></div>`, true);
+  $('#ppPick').onchange = e => { ppAddFiles(Array.from(e.target.files || [])); e.target.value = ''; };
+  $('#ppGo').onclick = () => { ppGo(); };
+  if (files && files.length) ppAddFiles(files);
+}
+const ppItem = key => (ppUp && ppUp.items.find(it => it.key === key)) || null;
+function ppAddFiles(files) {
+  if (!ppUp || ppUp.busy) return;
+  const bad = [];
+  files.forEach(file => {
+    const why = ppRefuse(file);
+    if (why) { bad.push(why); return; }
+    if (ppUp.items.some(it => it.file.name === file.name && it.file.size === file.size && it.file.lastModified === file.lastModified)) return;
+    /* opened from a form's Attach (or an "On file" chip): that form, for a single file or one whose name says nothing */
+    let k = ppGuess(file.name);
+    if (ppUp.preset && (files.length === 1 || k === 'other')) { k = ppUp.preset; ppUp.preset = ''; }
+    ppUp.items.push({ key: 'u' + Math.random().toString(36).slice(2, 10), file, kind: k, kinds: [], note: '' });
+  });
+  if (bad.length) toast(bad.join(' · '), true, 9000);
+  ppListRender();
+}
+function ppListRender() {
+  const box = $('#ppList'); if (!box || !ppUp) return;
+  const h = (ppUp.ctx.hid && ppHire(ppUp.ctx.hid)) || null;
+  box.innerHTML = ppUp.items.length ? `<div class="ppUpList">${ppUp.items.map(it => {
+    const pdf = isPdfFile(it.file);
+    return `<div class="ppUpRow">
+      <div class="ppIc ${pdf ? 'pdf' : 'img'}">${pdf ? 'PDF' : 'IMG'}</div>
+      <div class="ppUpT"><b>${esc(it.file.name)}</b><span class="tiny">${fmtBytes(it.file.size)}</span>
+        <div class="ppUpF"><select data-chg="ppKind" data-key="${it.key}" aria-label="What is it?">${ppTypeOptions(it.kind)}</select><input type="text" data-chg="ppNote" data-key="${it.key}" placeholder="Note (optional)" maxlength="120" value="${esc(it.note)}"></div>
+        ${it.kind === 'multi' ? ppMultiHTML(it.kinds, it.key, h) : ''}
+      </div>
+      <button type="button" class="btn-ghost btn-sm" data-act="ppDropItem" data-key="${it.key}" title="Leave this file out">✕</button>
+    </div>`; }).join('')}</div>` : '';
+  const go = $('#ppGo'), n = ppUp.items.length;
+  if (go && !ppUp.busy) { go.disabled = !n; go.innerHTML = ic('lock', 14) + ' Lock &amp; upload' + (n ? ' ' + plural(n, 'file') : ''); }
+}
+H.ppKind = t => { const it = ppItem(t.dataset.key); if (!it) return; it.kind = t.value; ppNotesIn(); ppListRender(); };
+H.ppNote = t => { const it = ppItem(t.dataset.key); if (it) it.note = String(t.value || '').trim().slice(0, 120); };
+function ppNotesIn() { $$('#ppList [data-chg="ppNote"]').forEach(el => { const it = ppItem(el.dataset.key); if (it) it.note = String(el.value || '').trim().slice(0, 120); }); }
+H.ppMk = t => {
+  if (t.dataset.key === 'edit') { if (!ppEd) return; const s = new Set(ppEd.kinds); if (t.checked) s.add(t.value); else s.delete(t.value); ppEd.kinds = Array.from(s); return; }
+  const it = ppItem(t.dataset.key); if (!it) return;
+  const s = new Set(it.kinds); if (t.checked) s.add(t.value); else s.delete(t.value); it.kinds = Array.from(s);
+};
+H.ppMultiAll = t => {
+  const h = t.dataset.hid ? ppHire(t.dataset.hid) : null;
+  let ids = [];
+  try { ids = nhPacketForms(h).filter(f => !f.office).map(f => f.id); } catch (e) {}
+  const box = t.closest('.ppMulti'); if (!box) return;
+  $$('input[type=checkbox]', box).forEach(cb => { if (ids.indexOf(cb.value) >= 0 && !cb.checked) { cb.checked = true; H.ppMk(cb); } });
+};
+H.ppDropItem = t => { if (!ppUp || ppUp.busy) return; ppNotesIn(); ppUp.items = ppUp.items.filter(it => it.key !== t.dataset.key); ppListRender(); };
+H.ppCancel = () => {
+  if (ppUp && ppUp.busy) { toast('Still uploading — wait a moment', true); return; }
+  ppUp = null; closeModal();
+};
+async function ppGo() {
+  const up = ppUp;
+  if (!up || up.busy || !up.items.length) return;
+  ppNotesIn();
+  const noForms = up.items.find(it => it.kind === 'multi' && !it.kinds.length);
+  if (noForms) { toast('Tick which forms are in ' + noForms.file.name, true); return; }
+  const key = cryptoKey, ctx = up.ctx;
+  if (!S || !key) return;
+  up.busy = true;
+  $$('#ppList select, #ppList input, #ppList button, #ppPick, #ppGo').forEach(el => { el.disabled = true; });
+  const stat = t => { const el = $('#ppStat'); if (el) el.textContent = t; };
+  const items = up.items.slice(), N = items.length;
+  let added = 0, err = '';
+  const skipped = [];
+  for (let x = 0; x < N; x++) {
+    const it = items[x];
+    if (!S || cryptoKey !== key || ppUp !== up) { err = 'Staff Hub locked before everything was uploaded.'; break; }
+    try {
+      stat('Locking ' + (x + 1) + ' of ' + N + '…');
+      const buf = await it.file.arrayBuffer();
+      if (!buf.byteLength) throw new Error(it.file.name + ' is empty.');
+      const sha = await ppSha(buf);
+      if (!S || cryptoKey !== key) { err = 'Staff Hub locked before everything was uploaded.'; break; }
+      if (ppFilesFor(ctx, false).some(f => f.sha === sha)) { skipped.push(it.file.name); it.done = true; continue; }
+      const id = ppNewId();
+      const n = await ppPut(id, buf, key, (i, m) => stat('Uploading ' + (x + 1) + ' of ' + N + (m > 1 ? ' (part ' + i + ' of ' + m + ')' : '') + '…'));
+      if (!S || cryptoKey !== key) { err = 'Staff Hub locked before everything was uploaded.'; break; }
+      const f = { id, sid: ctx.sid || '', hid: ctx.hid || '', kind: it.kind, name: String(it.file.name || 'file').slice(0, 160), mime: ppMime(it.file), size: buf.byteLength, n, sha, added: Date.now(), removed: 0 };
+      if (it.kind === 'multi') f.kinds = it.kinds.filter(k => ppTypeOk(k) && k !== 'multi').slice(0, 40);
+      if (it.note) f.note = it.note;
+      if (!Array.isArray(S.paper)) S.paper = [];
+      S.paper.push(f);
+      ppMarkReturned(ctx, f);
+      act('Added ' + ppLabel(f) + ' to ' + ctx.who + '’s paperwork');
+      persist();
+      added++; it.done = true;
+    } catch (e) { err = it.file.name + ': ' + ppErrText(e); break; }
+  }
+  up.busy = false;
+  const mine = ppUp === up && !!$('#ppList');
+  const msg = (added ? plural(added, 'file') + ' added to ' + ctx.who + '’s paperwork, locked with your password' : '') +
+    (skipped.length ? (added ? '. ' : '') + 'Already on file, skipped: ' + skipped.join(', ') : '');
+  if (err && mine) {
+    up.items = up.items.filter(it => !it.done);
+    $$('#ppPick, #ppGo').forEach(el => { el.disabled = false; });
+    ppListRender(); stat('');
+    toast((msg ? msg + '. ' : '') + 'Couldn’t upload ' + err + ' Try the rest again.', true, 12000);
+    if (added) render();
+    return;
+  }
+  if (mine) { ppUp = null; closeModal(); }
+  if (S) render();
+  if (err) toast((msg ? msg + '. ' : '') + err, true, 12000);
+  else if (msg) toast(msg, !added, 6000);
+}
+
+/* ---------- open, download, change, remove ---------- */
+H.ppAdd = t => { const ctx = ppCtxFrom(t); if (ctx) ppUploadModal(ctx, null, t.dataset.k || ''); };
+H.ppPicked = t => { const ctx = ppCtxFrom(t), files = Array.from(t.files || []); t.value = ''; if (ctx && files.length) ppUploadModal(ctx, files, t.dataset.k || ''); };
+H.ppOpen = async t => {
+  const f = ppById(t.dataset.id); if (!f || !S) return;
+  const tok = ++ppViewTok, who = ppWho(f);
+  ppRevoke();
+  openModal(`<div class="mh"><h3>${esc(ppLabel(f))}${who ? ' — ' + esc(who) : ''}</h3><button class="x" data-act="closeModal">✕</button></div>
+    <div class="mb ppViewBox" id="ppViewer"><div class="certLoad" id="ppViewIn">${ic('lock', 16)}&nbsp; Unlocking…</div></div>
+    <div class="mf"><span class="tiny">${ic('lock', 12)} Unlocked on this screen only${f.note ? ' · ' + esc(f.note) : ''}</span><div class="sp"></div><button class="btn btn-sec" data-act="ppDownload" data-id="${f.id}">${ic('download', 13)} Download</button><button class="btn btn-sec" data-act="closeModal">Close</button></div>`, true);
+  let blob;
+  try { blob = await ppGet(f); }
+  catch (e) { const el = $('#ppViewIn'); if (el && tok === ppViewTok) el.textContent = ppErrText(e); return; }
+  const box = $('#ppViewIn');
+  if (!box || tok !== ppViewTok || !S) return;
+  if (!ppIsPdf(f) && !ppIsImg(f)) { box.textContent = 'This file can’t be shown here — use Download.'; return; }
+  ppViewUrl = URL.createObjectURL(blob);
+  if (ppIsPdf(f)) { box.outerHTML = `<iframe src="${ppViewUrl}" class="certPdf" title="${esc(ppLabel(f))}"></iframe>`; return; }
+  box.outerHTML = `<img src="${ppViewUrl}" class="certFull" id="ppViewImg" alt="${esc(ppLabel(f))}">`;
+  const im = $('#ppViewImg');
+  if (im) im.onerror = () => { const b = document.createElement('div'); b.className = 'certLoad'; b.textContent = 'This browser can’t show this kind of photo (HEIC). Use Download to open it.'; im.replaceWith(b); };
+};
+H.ppDownload = async t => {
+  const f = ppById(t.dataset.id); if (!f || !S) return;
+  let blob;
+  try { blob = await ppGet(f); } catch (e) { toast(ppErrText(e), true); return; }
+  if (!S) return;
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = ppFileName(f);
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+  act('Downloaded ' + ppLabel(f) + (ppWho(f) ? ' (' + ppWho(f) + ')' : ''));
+  persist();
+  toast('Downloaded an unlocked copy. Delete it from Downloads when you’re done.', false, 7000);
+};
+H.ppEdit = t => {
+  const f = ppById(t.dataset.id); if (!f) return;
+  ppEd = { id: f.id, kind: f.kind, kinds: ppKinds(f).filter(k => f.kind === 'multi' && k) };
+  const h = (f.hid && ppHire(f.hid)) || ppHireOfStaff(f.sid);
+  const draw = () => {
+    const box = $('#ppEdBody'); if (!box || !ppEd) return;
+    const note = $('#ppEdNote') ? $('#ppEdNote').value : (f.note || '');
+    box.innerHTML = `<div class="field"><label>What is it?</label><select id="ppEdKind">${ppTypeOptions(ppEd.kind)}</select></div>
+      ${ppEd.kind === 'multi' ? ppMultiHTML(ppEd.kinds, 'edit', h) : ''}
+      <div class="field" style="margin-top:12px"><label>Note <span class="tiny">(optional)</span></label><input type="text" id="ppEdNote" maxlength="120" value="${esc(note)}"></div>
+      <div class="tiny">File: ${esc(f.name || '')} · ${fmtBytes(f.size || 0)} · added ${esc(ppWhen(f.added))}</div>`;
+    $('#ppEdKind').onchange = e => { ppEd.kind = e.target.value; draw(); };
+  };
+  openModal(`<div class="mh"><h3>Change ${esc(ppLabel(f))}</h3><button class="x" data-act="closeModal">✕</button></div>
+    <div class="mb" id="ppEdBody"></div>
+    <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="ppEdSave">Save</button></div>`);
+  draw();
+  $('#ppEdSave').onclick = () => {
+    const cur = ppById(f.id); if (!cur || !ppEd) { closeModal(); return; }
+    if (ppEd.kind === 'multi' && !ppEd.kinds.length) { toast('Tick which forms are in this scan', true); return; }
+    cur.kind = ppEd.kind;
+    if (ppEd.kind === 'multi') cur.kinds = ppEd.kinds.filter(k => ppTypeOk(k) && k !== 'multi').slice(0, 40); else delete cur.kinds;
+    const note = String(($('#ppEdNote') || {}).value || '').trim().slice(0, 120);
+    if (note) cur.note = note; else delete cur.note;
+    ppMarkReturned({ sid: cur.sid, hid: cur.hid }, cur);
+    act('Updated ' + ppLabel(cur) + ' in ' + (ppWho(cur) || 'someone') + '’s paperwork');
+    ppEd = null; persist(); closeModal(); render(); toast('Saved');
+  };
+};
+H.ppRemove = t => {
+  const f = ppById(t.dataset.id); if (!f) return;
+  confirmModal('Remove ' + ppLabel(f) + '?', 'It moves to Removed, where you can put it back for ' + PP_KEEP_DAYS + ' days. After that it’s deleted for good.', () => {
+    const cur = ppById(f.id); if (!cur) return;
+    cur.removed = Date.now(); ppCache.delete(cur.id);
+    act('Removed ' + ppLabel(cur) + ' from ' + (ppWho(cur) || 'someone') + '’s paperwork');
+    persist(); render(); toast('Moved to Removed');
+  });
+};
+H.ppRestore = t => {
+  const f = ppById(t.dataset.id); if (!f) return;
+  f.removed = 0;
+  act('Put back ' + ppLabel(f) + ' in ' + (ppWho(f) || 'someone') + '’s paperwork');
+  persist(); render(); toast('Put back');
+};
+H.ppPurge = t => {
+  const f = ppById(t.dataset.id); if (!f) return;
+  confirmModal('Delete ' + ppLabel(f) + ' for good?', 'The file is erased from Staff Hub’s storage now. This can’t be undone.', async () => {
+    const cur = ppById(f.id); if (!cur) return;
+    try { await ppErase(cur); } catch (e) { toast('Couldn’t delete it — ' + ppErrText(e), true); return; }
+    if (!S || !Array.isArray(S.paper)) return;
+    S.paper = S.paper.filter(x => !x || x.id !== cur.id);
+    act('Deleted ' + ppLabel(cur) + ' for good (' + (ppWho(cur) || 'paperwork') + ')');
+    persist(); render(); toast('Deleted for good');
+  });
+};
+
+/* ---------- drag and drop: onto a Paperwork tab, a new-hire page, or the upload window ---------- */
+const ppHasFiles = e => !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0);
+function ppHi(z) { if (ppHot === z) return; if (ppHot) ppHot.classList.remove('hot'); ppHot = z || null; if (ppHot) ppHot.classList.add('hot'); }
+document.addEventListener('dragover', e => {
+  if (!ppHasFiles(e) || e.defaultPrevented) return;
+  e.preventDefault();   /* a file let go anywhere in Staff Hub never opens in this tab */
+  const z = S && e.target && e.target.closest ? e.target.closest('[data-ppzone]') : null;
+  e.dataTransfer.dropEffect = z ? 'copy' : 'none';
+  ppHi(z);
+});
+document.addEventListener('dragleave', e => { if (!e.relatedTarget || !document.documentElement.contains(e.relatedTarget)) ppHi(null); });
+document.addEventListener('drop', e => {
+  if (!ppHasFiles(e) || e.defaultPrevented) return;
+  e.preventDefault(); ppHi(null);
+  if (!S || !cryptoKey) return;
+  const z = e.target && e.target.closest ? e.target.closest('[data-ppzone]') : null;
+  const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+  if (!files.length) return;
+  if (!z) { toast('Drop paperwork on someone’s Paperwork tab or their new-hire page', true); return; }
+  if (z.dataset.ppzone === 'modal') { ppAddFiles(files); return; }
+  const ctx = ppCtxFrom(z); if (ctx) ppUploadModal(ctx, files, '');
+});
 
 </script>
 

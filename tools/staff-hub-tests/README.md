@@ -40,6 +40,22 @@ Run (Java and Node 20+):
     git show 3cd6428:nlo-staff-hub.html > /tmp/sh-site/nlo-staff-hub-old.html
     (cd /tmp/sh-site && python3 -m http.server 8765 --bind 127.0.0.1)
     NO_PROXY=localhost,127.0.0.1 node test_login.mjs            # ~4 min; --quick ~3 min
+    NO_PROXY=localhost,127.0.0.1 node test_paperwork.mjs        # ~1.5 min (same emulators and folder)
+
+## Paperwork (30 Oct 2026)
+
+`test_paperwork.mjs` checks the encrypted Paperwork feature (signed W-4s, I-9s, direct deposit forms… on each person's
+new-hire page and staff profile; Amir: "upload paperwork for the staff in staff hub … sensitive information about their
+bank account, SS etc."), all on made-up files that carry a fake SSN and account number: the upload window (guesses from
+file names, Word/SVG/empty files refused, a one-scan packet needing its forms ticked, "Tick the whole packet", notes), what
+the server holds (only `app, v, i, n, iv, ct, at` per 900 KB piece; no SSN, account number or file header in any piece; a
+fresh IV per piece; the list only inside the encrypted record; another account and no account refused by the rules), the
+new-hire tracker marking uploaded forms returned, open and download round trips (exact bytes, SHA-256), refusing a piece
+changed, swapped, missing or taken from another file, duplicates skipped, changing a file's type, the files following the
+person onto the staff roster (Paperwork tab, "On file" chips), drag and drop (and a file let go elsewhere never opening in
+the tab), a phone, remove / put back / deleted for good after 30 days / Delete now (pieces gone from the server), nothing in
+the AI's notes or the office roster, Lock leaving no opened file, viewer or certificate copy in memory, Lock in the middle
+of an upload, and deleting onboarding records without stranding paperwork. 81 checks; screenshots `shots/pp-*.png`.
 
 The page's Firebase SDK (gstatic 10.12.2) is served from `node_modules/firebase` (`FIREBASE_SDK_DIR` to change it) and every
 app it makes is pointed at the emulators by an init script; other outside requests are refused (except the PDF reader in
