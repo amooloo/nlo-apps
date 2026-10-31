@@ -1145,7 +1145,7 @@ function moveBackSheet() {
       let paused = false;
       try {
         const st = await NLOM.moveState();   /* (already moved back from another screen? then this copy is old: don't) */
-        if (!st) throw new Error('can’t check with the NLO Cases database — try again in a minute');
+        if (!st || st.refused) throw new Error('can’t check with the NLO Cases database — try again in a minute');
         if (!st.on) throw new Error('the Hub is already back on the old database — reload this page');
         await NLOM.fs.doc('mtgMeta/moved').set({ on: true, pause: true, at: FV.serverTimestamp() });   /* other screens pause */
         paused = true;
@@ -1170,7 +1170,8 @@ function moveBackSheet() {
       } catch (x) {
         if (paused) { try { await NLOM.fs.doc('mtgMeta/moved').set({ on: true, at: FV.serverTimestamp() }); } catch (y) { } }
         MOVING = false;
-        body.innerHTML = '<p class="hint" style="color:var(--coral-7);font-weight:700">Stopped: ' + esc(x.message || x) + '</p><p class="hint">Nothing was switched back.</p>';
+        body.innerHTML = '<p class="hint" style="color:var(--coral-7);font-weight:700">Stopped: ' + esc(x.message || x) + '</p><p class="hint">Nothing was switched back.</p><div class="row end" style="margin-top:12px"><button class="btn ghost" id="mbClose">Close</button></div>';
+        body.querySelector('#mbClose').onclick = () => { $('#sheet').classList.remove('open'); $('#sheet').innerHTML = ''; document.body.classList.remove('noscroll'); };
       }
     };
   };

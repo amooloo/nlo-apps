@@ -472,7 +472,19 @@
   const fresh = (at, off) => { const t = msOf(at); return t > 0 && (Date.now() + (off || 0)) - t < STALE; };   /* off: the server's clock offset */
   const waitFor = ms => Math.min(STALE + 1000, Math.max(1000, ms));
   /* a pause marker on the NLO Cases side: stale once this screen has seen the same one for STALE (no clocks compared) */
-  function pauseClock() { let key = null, since = 0; return d => { const k = d && d.pause === true ? String(msOf(d.at)) : null; if (k !== key) { key = k; since = Date.now(); } return k === null ? -1 : STALE - (Date.now() - since); }; }
+  function pauseClock() {
+    let key = null, since = 0;
+    return d => {
+      const at = msOf(d && d.at), k = d && d.pause === true ? String(at) : null;
+      if (k === null) { key = null; return -1; }
+      if (at > 0 && Date.now() - at > STALE + 3600000) return 0;   /* long past by this computer's clock too: over */
+      if (k !== key) {
+        key = k; since = Date.now();
+        try { const v = JSON.parse(localStorage.getItem('nloMtg.pauseSeen') || 'null'); if (v && v.k === k && v.since > 0 && v.since <= since) since = v.since; else localStorage.setItem('nloMtg.pauseSeen', JSON.stringify({ k, since })); } catch (e) { }
+      }
+      return STALE - (Date.now() - since);
+    };
+  }
   const rememberFs = on => { try { if (on) localStorage.setItem('nloMtg.fs', '1'); else localStorage.removeItem('nloMtg.fs'); } catch (e) { } };
   const FREEZE_IN = 'Dr. A is moving the Staff Meeting Hub to the NLO Cases system. This screen switches over by itself in a minute or two — nothing to do.';
   const FREEZE_BACK = 'Dr. A is moving the Staff Meeting Hub back to the old database. This screen switches over by itself in a minute or two — nothing to do.';
@@ -515,6 +527,7 @@
   function followOld(busy) { return onMoved(on => { if (on && !busy()) { rememberFs(true); switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); } }); }
   /* onClear(): told each time the old database is neither being moved nor marked moved (the page starts only then) */
   function watchOldDb(rt, busy, onClear, onCancel) {
+    kickMoved();   /* (a waiting listener for mtgMeta/moved asks now: a screen that never saw a pause still hears a move) */
     let wasPaused = false, checking = false, last = null;
     const resume = () => { overlay(null); if (typeof onClear === 'function') onClear(); };
     /* a pause that ended without the old database being marked moved (Dr. A's screen went away mid-way, or couldn't mark

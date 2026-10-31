@@ -261,6 +261,24 @@ console.log('records');
   ok(!r.bad.length, 'every record id is one the rules take');
 }
 
+// a pause left on the NLO Cases side by a move back that never finished: counted from when this computer first saw it, across
+// reloads and sign-ins (not again from each new page); one whose own time is long past is over at once
+{
+  const r = await p.evaluate(() => {
+    try { localStorage.removeItem('nloMtg.pauseSeen'); } catch (e) { }
+    const d = { on: true, pause: true, at: Date.now() - 60000 };
+    const a = NLOM.pauseClock()(d);
+    const seen = JSON.parse(localStorage.getItem('nloMtg.pauseSeen'));
+    localStorage.setItem('nloMtg.pauseSeen', JSON.stringify({ k: seen.k, since: seen.since - 10 * 60000 }));   // first seen 10 min ago
+    const b = NLOM.pauseClock()(d);   // a new page / sign-in
+    const old = NLOM.pauseClock()({ on: true, pause: true, at: Date.now() - 2 * 3600000 });
+    const none = NLOM.pauseClock()({ on: true });
+    return { a, b, old, none, S: NLOM.STALE };
+  });
+  ok(r.a > r.S - 2000 && r.b > 0 && r.b < r.S - 9 * 60000, 'a pause left behind: counted from when this computer first saw it, across new pages (' + Math.round(r.b / 60000) + ' min left, not ' + Math.round(r.S / 60000) + ')');
+  ok(r.old <= 0 && r.none < 0, '…and one from hours ago is over at once');
+}
+
 /* ---------- a screen on the old database, during a move: paused; after a pause that ended without the old copy being
    marked moved, it carries on only once the NLO Cases database says it hasn't moved ---------- */
 console.log('a screen during a move');
