@@ -2,3 +2,4 @@ node_modules
 node_modules/
 shots/
 *.log
+package-lock.json
