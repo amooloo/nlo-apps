@@ -31,7 +31,7 @@ async function device(tag, opts = {}) {
   });
   const page = await ctx.newPage();
   page.on('pageerror', e => { errors.push(tag + ': ' + String(e && e.stack || e)); console.log('  PAGEERROR', tag, String(e).slice(0, 300)); });
-  page.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED|net::|Failed to load resource|ERR_BLOCKED|identitytoolkit/.test(m.text())) { errors.push(tag + ': ' + m.text()); console.log('  console.error', tag, m.text().slice(0, 300)); } });
+  page.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED|net::|Failed to load resource|ERR_BLOCKED|identitytoolkit|Could not reach Cloud Firestore backend/.test(m.text())) { errors.push(tag + ': ' + m.text()); console.log('  console.error', tag, m.text().slice(0, 300)); } });
   return { ctx, page };
 }
 /* the office Google account on this browser (the emulator takes a made-up Google token) */
@@ -144,6 +144,8 @@ const [dl] = await Promise.all([pa.waitForEvent('download', { timeout: 30000 }),
 const copyFile = 'shots/before-move.json'; await dl.saveAs(copyFile);
 const copy = JSON.parse(fs.readFileSync(copyFile, 'utf8'));
 ok(copy.data && copy.data['nlo/staffMeeting/inbox'] && Object.keys(copy.data['nlo/staffMeeting/inbox']).length === 3, 'a copy of everything goes to Downloads first');
+await pb.waitForSelector('#nlomOverlay', { timeout: 10000 }).catch(() => { });
+ok(/moving the Staff Meeting Hub to the NLO Cases system/.test(await pb.textContent('#nlomOverlay').catch(() => '')), 'the other computer (on the old database) pauses while it moves');
 await pa.waitForFunction(() => /Switched over|Stopped/.test(document.getElementById('mvBody') ? document.getElementById('mvBody').textContent : ''), null, { timeout: 60000 }).catch(() => { });
 ok(/Switched over/.test(await pa.textContent('#mvBody').catch(() => '')), 'moved and switched over');
 const moved = await E.fsGet('nlo-cases', 'mtgMeta/moved');
@@ -240,6 +242,11 @@ console.log('5. Month-End');
   ok(got(oct), '…and its totals follow (the Hub reads those)');
   await pa.waitForFunction(() => S.me && S.me.months && S.me.months['2026-10'] && S.me.months['2026-10'].totals && S.me.months['2026-10'].totals.np_total === 7, null, { timeout: 15000 }).catch(() => { });
   ok(await pa.evaluate(() => !!(S.me.months['2026-10'] && S.me.months['2026-10'].totals && S.me.months['2026-10'].totals.np_total === 7)), 'the Hub sees it at once');
+  // open and idle: nothing saved again and again (the old database never fired for a save that changed nothing)
+  const ups = async () => { const o = {}; for (const d of await E.fsList('nlo-cases', 'meMonths')) o[d.id] = JSON.stringify(d.data._up); return o; };
+  await sleep(2500);
+  const u1 = await ups(); await sleep(5000); const u2 = await ups();
+  ok(Object.keys(u1).length >= 2 && JSON.stringify(u1) === JSON.stringify(u2), 'Month-End open and idle: nothing is saved again and again');
   await pm.screenshot({ path: 'shots/05-month-end.png' });
   await C.ctx.close();
 }
@@ -281,6 +288,35 @@ console.log('6. turned off while open');
   await E.fsSet('nlo-cases', 'members/' + E.STAFF[0].uid, { active: true }, ['active']);
 }
 
+// ---------- 6b. a computer that can't reach the NLO Cases database (after the move) ----------
+console.log('6b. a computer that can’t reach the NLO Cases database');
+{
+  const D = await device('drA-laptop');
+  const FSURL = 'http://127.0.0.1:8080/**';
+  await D.ctx.route(FSURL, r => r.abort());
+  const pd = D.page;
+  await pd.goto(HUB);
+  await pd.waitForSelector('#gate .gbtn:not([hidden])', { timeout: 30000 });   // (can't tell: the old sign-in, as before)
+  await google(pd, 'akhavan.ak@gmail.com');
+  await pd.waitForSelector('#nlomOvBtn', { timeout: 60000 }).catch(() => { });   // switches once, then can't confirm
+  ok(/can’t confirm/.test(await pd.textContent('#nlomOverlay').catch(() => '')), 'it finds the old database marked moved: says so, with Reload (no loop)');
+  ok(await pd.evaluate(() => !S.booted), '…and the Hub never starts there (nothing saved to the old copy)');
+  // the move page reached anyway (a page from before the move): it refuses to run again. (MOVING: this screen would
+  // otherwise switch over by itself the moment it reaches the NLO Cases database — as it should.)
+  await pd.evaluate(() => { MOVING = true; NLOM.overlay(null); });
+  await D.ctx.unroute(FSURL);
+  await pd.evaluate(async () => { await NLOM.fs.disableNetwork(); await NLOM.fs.enableNetwork(); moveSheet(); });
+  await pd.waitForSelector('#mvForm');
+  await pd.fill('#mvUser', E.OWNER.email); await pd.fill('#mvPw', E.PW); await pd.click('#mvGo');
+  await pd.waitForFunction(() => /already on the NLO Cases system|Couldn|Can’t/.test((document.getElementById('mvBody') || {}).textContent || ''), null, { timeout: 30000 }).catch(() => { });
+  ok(/already on the NLO Cases system/.test(await pd.textContent('#mvBody')), 'the move can’t be run again once moved (it would put the old data over everything since)');
+  ok(await pd.evaluate(() => !!NLOM.me), '(his NLO Cases login was in use on that page)');
+  await pd.evaluate(() => { MOVING = false; closeSheet(); });
+  await sleep(600);
+  ok(await pd.evaluate(() => !NLOM.me && !(NLOM.auth && NLOM.auth.currentUser)), 'closing the move page signs his NLO Cases login out there');
+  await D.ctx.close();
+}
+
 // ---------- 7. idle lock ----------
 if (!QUICK) {
   console.log('7. idle lock (about 1.5 min)');
@@ -307,7 +343,13 @@ console.log('8. moving back');
   ok(/Tick “Yes, move it back” first/.test(await pa.textContent('#mbBody')), 'needs the “Yes, move it back” tick');
   await pa.check('#mbOk');
   const curMid = await pa.evaluate(() => S.meetingId);
-  const [dl2] = await Promise.all([pa.waitForEvent('download', { timeout: 30000 }), pa.click('#mbGo')]);
+  ok(await fabShown(pc), '(Cadence’s button is there before moving back)');
+  const dlP = pa.waitForEvent('download', { timeout: 40000 });
+  await pa.click('#mbGo');
+  await pb.waitForSelector('#nlomOverlay', { timeout: 8000 }).catch(() => { });
+  ok(/moving the Staff Meeting Hub back/.test(await pb.textContent('#nlomOverlay').catch(() => '')), 'the other computer pauses while it moves back');
+  ok(!(await fabShown(pc)), '…and so does Cadence’s button');
+  const dl2 = await dlP.catch(() => null);
   ok(!!dl2, 'a copy goes to Downloads first');
   await pa.waitForFunction(() => /Moved back|Stopped/.test((document.getElementById('mbBody') || {}).textContent || ''), null, { timeout: 30000 }).catch(() => { });
   ok(/Moved back/.test(await pa.textContent('#mbBody').catch(() => '')), 'moved back');

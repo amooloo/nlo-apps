@@ -899,8 +899,8 @@ auth.onAuthStateChanged(user => {
   if (!isAllowed(email)) { $('#gateErr').textContent = 'Access denied for ' + (email || 'this account') + '.'; auth.signOut(); showGate(); return; }
   S.email = email; S.isOwner = email === OWNER_EMAIL; S.userName = user.displayName || email.split('@')[0];
   $('#gate').hidden = true; $('#app').hidden = false;
-  if (!S.booted) { S.booted = true; boot(); }
-  render('all');
+  const go = () => { if (!S.booted) { S.booted = true; boot(); } render('all'); };
+  if (!oldWatchStart(go)) go();   /* (starts once the old database is known not to be moving or moved) */
 });
 }
 function showGate() { $('#gate').hidden = false; $('#app').hidden = true; }
@@ -919,11 +919,24 @@ async function start() {
     auth.onAuthStateChanged(() => { });   /* (lets an existing office Google sign-in come back, for those parts) */
     fsGate(NLOM.lockMsg());
     window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });   /* back from the page cache: locked */
-    try { NLOM.onMoved(on => { if (!on && !MOVING) location.reload(); }); } catch (e) { }   /* Dr. A moved it back: this screen goes back to the office Google sign-in */
+    try { NLOM.followNew(() => MOVING); } catch (e) { }   /* Dr. A moving it back: this screen waits, then goes back to the office Google sign-in */
   } else {
     rtdbStart();
-    try { if (window.NLOM && firebase.firestore) NLOM.onMoved(on => { if (on && !MOVING) location.reload(); }); } catch (e) { }   /* Dr. A moved the Hub: this screen switches over */
+    try { if (window.NLOM && firebase.firestore) NLOM.followOld(() => MOVING); } catch (e) { }   /* Dr. A moved the Hub: this screen switches over */
   }
+}
+/* signed in on the old database: the old database's own move markers (frozen while Dr. A moves it, switched after). The
+   page starts (then) only once they say it isn't moving or moved — or after 6 s if they can't be read, as before. */
+let oldWatching = false, oldClear = false, oldThen = null;
+function oldWatchStart(then) {
+  if (isFs() || !window.NLOM) return false;
+  const run = () => { const f = oldThen; oldThen = null; if (f) f(); };
+  if (oldWatching) { oldThen = then; if (oldClear) run(); return true; }
+  oldWatching = true; oldThen = then;
+  try { NLOM.watchOldDb(firebase.database(), () => MOVING, () => { oldClear = true; run(); }); }
+  catch (e) { oldWatching = false; oldThen = null; return false; }
+  setTimeout(() => { if (!oldClear && !document.getElementById('nlomOverlay')) run(); }, 6000);
+  return true;
 }
 function fsGate(okMsg) {
   showGate();
@@ -983,10 +996,30 @@ function dataCardHTML() {
 }
 const MOVE_LABELS = { inbox: 'Inbox items', actionItems: 'Action items', decisions: 'Decisions', kpiDefs: 'KPIs', meetings: 'Meetings', config: 'Settings', currentMeetingId: 'Current meeting', roster: 'Old roster', 'monthEnd/months': 'Month-End months', 'monthEnd/years': 'Month-End goals', 'monthEnd/config': 'Month-End setup', aisaAdminKey: 'Shared AISA key' };
 function moveCounts(old) { const c = NLOM.counts(old); return Object.keys(c).filter(k => c[k]).map(k => '<li>' + esc(MOVE_LABELS[k] || k) + ': <b>' + c[k] + '</b></li>').join(''); }
+/* Dr. A's NLO Cases login on the move page (this screen is on the old database: no Lock, no idle lock of its own) is signed
+   out when the page closes in any way, when the move stops, and after NLO Cases' idle minutes without activity */
+function moveGuard(bodyId) {
+  const iv = setInterval(() => {
+    if (MOVING) return;
+    if (!document.getElementById(bodyId)) { clearInterval(iv); NLOM.signOut(); return; }
+    if (Date.now() - idleAt > NLOM.idleMin() * 60000) { clearInterval(iv); closeSheet(); NLOM.signOut(); toast('The move page closed after ' + plural(NLOM.idleMin(), 'minute') + ' without activity.'); }
+  }, 5000);
+}
 function moveSheet() {
-  const card = openSheet('<h3 class="sheet-t">Move to the NLO Cases system</h3><div id="mvBody"></div>', null, { wide: true });
+  const card = openSheet('<h3 class="sheet-t">Move to the NLO Cases system</h3><div id="mvBody"></div>', null, { wide: true, onClose: () => { if (!MOVING) NLOM.signOut(); } });
   const body = card.querySelector('#mvBody');
+  moveGuard('mvBody');
   const msg = (t, bad) => '<p class="hint" style="' + (bad ? 'color:var(--coral-7);font-weight:700' : '') + '">' + esc(t) + '</p>';
+  /* already moved (another screen, or a page from before)? then nothing here may write: moving again would put the old
+     data over everything done since */
+  const movedAlready = async () => {
+    const st = await NLOM.moveState();
+    if (!st) return 'Can’t check with the NLO Cases database whether the Hub has already moved. Try again in a minute.';
+    if (st.on) return 'The Hub is already on the NLO Cases system' + (st.at ? ' (moved ' + new Date(st.at).toLocaleString() + ')' : '') + '. Reload this page.';
+    let mark = null; try { mark = (await db.ref(P('movedTo')).once('value')).val(); } catch (x) { return 'Can’t read the old database: ' + (x.message || x); }
+    if (mark) return 'The old database is marked as moved' + (mark.at ? ' (' + new Date(mark.at).toLocaleString() + ')' : '') + ', but the NLO Cases database says it isn’t. Nothing was done — reload, and if this shows again, ask for help before moving.';
+    return '';
+  };
   /* 1. Dr. A's NLO Cases login (the new records are written with it) */
   const step1 = err => {
     body.innerHTML = '<p class="hint">First, your NLO Cases login (the one you use for Case Tracker).</p>' + (err ? msg(err, true) : '') +
@@ -1024,16 +1057,19 @@ function moveSheet() {
     body.querySelector('#mvCheck').onclick = async () => { const m = body.querySelector('#mvRulesMsg'); m.textContent = 'Checking…'; try { if (await NLOM.rulesLive()) step3(); else m.textContent = 'Not yet — the database still has the older rules (it can take a minute after Publish).'; } catch (x) { m.textContent = 'Can’t reach the database: ' + (x.message || x); } };
   };
   /* 3. what moves */
-  let old = null;
+  let old = null, before = null;
   const step3 = async () => {
     body.innerHTML = msg('Reading the Hub’s data in the old database…');
+    const no = await movedAlready(); if (no) { body.innerHTML = msg(no, true); return; }
     try { old = await NLOM.readOld(db); } catch (x) { body.innerHTML = msg('Couldn’t read the old database: ' + (x.message || x), true); return; }
+    try { before = await NLOM.readNew(NLOM.fs); } catch (x) { body.innerHTML = msg('Couldn’t read the NLO Cases database: ' + (x.message || x), true); return; }
+    if (!Object.keys(before).some(k => before[k] != null)) before = null;   /* (records there already: from a move back; they go in the copy too) */
     const recs = NLOM.recordsOf(old), bad = NLOM.badIds(recs);
     if (bad.length) { body.innerHTML = msg('These records have ids the new database won’t take, so nothing was moved: ' + bad.slice(0, 8).join(', '), true); return; }
     const big = NLOM.tooBig(recs);
     if (big.length) { body.innerHTML = msg('These records are too big for one record in the new database (1 MB each), so nothing was moved: ' + big.slice(0, 8).join(', '), true); return; }
     body.innerHTML = '<p class="hint">What moves:</p><ul class="hint" style="margin:6px 0 0 18px;line-height:1.7">' + moveCounts(old) + '</ul>' +
-      '<p class="hint" style="margin-top:12px">Before you start: close the Staff Meeting Hub and Month-End Numbers on other computers (or reload them afterwards). A copy of everything goes to your Downloads first. The old database keeps its copy too.</p>' +
+      '<p class="hint" style="margin-top:12px">Best when nobody is using the Hub or Month-End. Screens open elsewhere pause while it moves and switch over by themselves (a screen opened before today’s update: reload it afterwards). A copy of everything goes to your Downloads first. The old database keeps its copy too.</p>' +
       '<div class="row end" style="margin-top:14px"><button class="btn ghost" data-act="sheet-close">Not now</button><button class="btn coral" id="mvNow">Move it now</button></div>';
     body.querySelector('#mvNow').onclick = step4;
   };
@@ -1044,10 +1080,16 @@ function moveSheet() {
     const line = t => { body.insertAdjacentHTML('beforeend', '<p class="hint">' + esc(t) + '</p>'); };
     body.innerHTML = '';
     MOVING = true;
+    let paused = false;
     try {
-      download('staff-meeting-hub-before-move-' + todayYmd() + '.json', JSON.stringify({ app: 'staff-meeting-hub', at: new Date().toISOString(), data: old }, null, 1));
+      download('staff-meeting-hub-before-move-' + todayYmd() + '.json', JSON.stringify(Object.assign({ app: 'staff-meeting-hub', at: new Date().toISOString(), data: old }, before ? { nloCasesBefore: before } : {}), null, 1));
       line('Copy saved to Downloads ✓');
-      let cur = old, res = null;
+      const no = await movedAlready(); if (no) throw new Error(no);
+      await db.ref(P('moving')).set({ at: Date.now(), by: S.email });   /* other screens on the old database pause */
+      paused = true;
+      line('Pausing the Hub on other screens…');
+      await sleep(4000);
+      let cur = await NLOM.readOld(db), res = null;
       for (let k = 0; k < 3; k++) {
         res = await NLOM.writeRecords(NLOM.fs, NLOM.me.sid, NLOM.recordsOf(cur), (n, all) => { const p = body.querySelector('.mvProg') || (body.insertAdjacentHTML('beforeend', '<p class="hint mvProg"></p>'), body.querySelector('.mvProg')); p.textContent = 'Writing… ' + n + ' of ' + all; });
         if (res.missing.length || res.differ.length || res.left.length) throw new Error('the check after writing found ' + (res.missing.length + res.differ.length + res.left.length) + ' records not as written — nothing was switched over');
@@ -1060,11 +1102,14 @@ function moveSheet() {
       const FV = firebase.firestore.FieldValue;
       await NLOM.fs.doc('mtgMeta/info').set({ counts: NLOM.counts(cur), by: OWNER_EMAIL, _up: FV.serverTimestamp(), _by: NLOM.me.sid });
       await NLOM.fs.doc('mtgMeta/moved').set({ on: true, at: FV.serverTimestamp() });
-      try { await firebase.database().ref(P('movedTo')).set({ at: Date.now(), by: S.email, to: 'nlo-cases' }); } catch (x) { }
+      try { await db.ref(P('movedTo')).set({ at: Date.now(), by: S.email, to: 'nlo-cases' }); } catch (x) { }
+      try { await db.ref(P('moving')).remove(); } catch (x) { }
       line('Switched over ✓ — the Hub and Month-End now open with the NLO Cases login.');
       setTimeout(() => location.reload(), 2500);
     } catch (x) {
+      if (paused) { try { await db.ref(P('moving')).remove(); } catch (y) { } }
       MOVING = false;
+      NLOM.signOut();
       line('Stopped: ' + (x.message || x));
       body.insertAdjacentHTML('beforeend', '<div class="row end" style="margin-top:12px"><button class="btn ghost" id="mvClose">Close</button></div>');
       body.querySelector('#mvClose').onclick = () => { $('#sheet').classList.remove('open'); $('#sheet').innerHTML = ''; document.body.classList.remove('noscroll'); };
@@ -1089,15 +1134,30 @@ function moveBackSheet() {
       card.querySelectorAll('.sheet-x,[data-act="sheet-close"]').forEach(x => x.remove());
       body.innerHTML = '<p class="hint">Moving back…</p>';
       MOVING = true;
+      const FV = firebase.firestore.FieldValue;
+      let paused = false;
       try {
+        const st = await NLOM.moveState();   /* (already moved back from another screen? then this copy is old: don't) */
+        if (!st) throw new Error('can’t check with the NLO Cases database — try again in a minute');
+        if (!st.on) throw new Error('the Hub is already back on the old database — reload this page');
+        await NLOM.fs.doc('mtgMeta/moved').set({ on: true, pause: true, at: FV.serverTimestamp() });   /* other screens pause */
+        paused = true;
+        body.innerHTML = '<p class="hint">Pausing the Hub on other screens…</p>';
+        await sleep(4000);
+        body.innerHTML = '<p class="hint">Moving back…</p>';
         const cur = await NLOM.readNew(NLOM.fs);
         download('staff-meeting-hub-before-move-back-' + todayYmd() + '.json', JSON.stringify({ app: 'staff-meeting-hub', at: new Date().toISOString(), data: cur }, null, 1));
         for (const m of NLOM.MOVED) await rt.ref(m.path).set(cur[m.path] == null ? null : JSON.parse(JSON.stringify(cur[m.path])));
         try { await rt.ref(P('movedTo')).remove(); } catch (x) { }
-        await NLOM.fs.doc('mtgMeta/moved').set({ on: false, at: firebase.firestore.FieldValue.serverTimestamp() });
+        try { await rt.ref(P('moving')).remove(); } catch (x) { }
+        await NLOM.fs.doc('mtgMeta/moved').set({ on: false, at: FV.serverTimestamp() });
         body.innerHTML = '<p class="hint">Moved back ✓ — the Hub and Month-End use the office Google sign-in again.</p>';
         setTimeout(() => location.reload(), 2500);
-      } catch (x) { MOVING = false; body.innerHTML = '<p class="hint" style="color:var(--coral-7);font-weight:700">Stopped: ' + esc(x.message || x) + '</p><p class="hint">Nothing was switched back.</p>'; }
+      } catch (x) {
+        if (paused) { try { await NLOM.fs.doc('mtgMeta/moved').set({ on: true, at: FV.serverTimestamp() }); } catch (y) { } }
+        MOVING = false;
+        body.innerHTML = '<p class="hint" style="color:var(--coral-7);font-weight:700">Stopped: ' + esc(x.message || x) + '</p><p class="hint">Nothing was switched back.</p>';
+      }
     };
   };
   draw('');

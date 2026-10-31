@@ -20,7 +20,9 @@ Cadence's "Staff meeting" button (`../../cadence.html`, `<script id="nlo-meeting
 - `adapter.test.mjs` — every step done to the old database (Realtime Database emulator) and through the layer (Firestore
   emulator, the real rules) must read back the same: sets, updates (multi-path, nested, nulls), pushes, transactions,
   arrays, listeners, a meeting's texts, the read-only paths; and what the rules let each login do (staff, turned off,
-  signed out; stamps that aren't theirs; the move flag and the AISA key, Dr. A only). 60 checks.
+  signed out, still on a temporary password; stamps that aren't theirs; the move flag and the AISA key, Dr. A only); and
+  the old database's events: a save that changes nothing is no event, and nothing is reported from an empty cache while
+  offline as a page opens. 64 checks.
 - `test_hub.mjs` — the real pages, start to finish, on a made-up office (`seed.mjs`): before the move (Google, as today,
   on two computers, and a Cadence screen with no button); the move (a staff login refused, the older rules → copy the new
   file → "Not yet" → published, the counts, the copy in Downloads, switched over, the old copy kept and marked); after it
@@ -30,7 +32,10 @@ Cadence's "Staff meeting" button (`../../cadence.html`, `<script id="nlo-meeting
   October typed in her name, totals, the Hub sees it); Cadence's button (tick a to-do off and undo, raise something); a
   login turned off while open; the idle lock (`--quick` skips it, ~1.5 min); moving back (needs the office Google
   sign-in and the tick; everything done since the move goes back without the stamps; this screen, the other computer and
-  the Cadence screen follow). 75 checks (`--quick`: 73). Screenshots in `shots/`.
+  the Cadence screen follow). After the independent review: the other screens pause while it moves (and moves back);
+  Month-End open and idle saves nothing again and again; a computer that can't reach the NLO Cases database after the move
+  says so and saves nothing to the old copy; the move can't be run again once moved; closing the move page signs Dr. A's
+  NLO Cases login out. 85 checks (`--quick`: 83). Screenshots in `shots/`.
 
 Run (Java and Node 20+):
 

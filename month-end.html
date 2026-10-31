@@ -332,8 +332,8 @@ auth.onAuthStateChanged(u => {
   if (!(email === OWNER_EMAIL || email.endsWith('@' + ALLOWED_DOMAIN))) { $('#gateErr').textContent = 'Access denied for ' + email + '.'; auth.signOut(); return; }
   S.email = email; S.isOwner = email === OWNER_EMAIL; S.userName = u.displayName || email.split('@')[0];
   $('#gate').hidden = true; $('#app').hidden = false;
-  if (!S.booted) { S.booted = true; boot(); }
-  render('all');
+  const go = () => { if (!S.booted) { S.booted = true; boot(); } render('all'); };
+  if (!oldWatchStart(go)) go();   /* (starts once the old database is known not to be moving or moved) */
 });
 }
 /* ---------- the NLO Cases system (2.0) ---------- */
@@ -346,11 +346,24 @@ async function start() {
     auth.onAuthStateChanged(() => { });
     fsGate(NLOM.lockMsg());
     window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
-    try { NLOM.onMoved(on => { if (!on) location.reload(); }); } catch (e) { }
+    try { NLOM.followNew(() => false); } catch (e) { }   /* Dr. A moving the Hub back: this screen waits, then goes back */
   } else {
     rtdbStart();
-    try { if (window.NLOM && firebase.firestore) NLOM.onMoved(on => { if (on) location.reload(); }); } catch (e) { }
+    try { if (window.NLOM && firebase.firestore) NLOM.followOld(() => false); } catch (e) { }   /* moved: switch over */
   }
+}
+/* signed in on the old database: its own move markers (frozen while Dr. A moves the Hub, switched after); the page starts
+   only once they say it isn't moving or moved — or after 6 s if they can't be read, as before */
+let oldWatching = false, oldClear = false, oldThen = null;
+function oldWatchStart(then) {
+  if (isFs() || !window.NLOM) return false;
+  const run = () => { const f = oldThen; oldThen = null; if (f) f(); };
+  if (oldWatching) { oldThen = then; if (oldClear) run(); return true; }
+  oldWatching = true; oldThen = then;
+  try { NLOM.watchOldDb(firebase.database(), () => false, () => { oldClear = true; run(); }); }
+  catch (e) { oldWatching = false; oldThen = null; return false; }
+  setTimeout(() => { if (!oldClear && !document.getElementById('nlomOverlay')) run(); }, 6000);
+  return true;
 }
 function fsGate(okMsg) {
   $('#gate').hidden = false; $('#app').hidden = true;
@@ -413,7 +426,8 @@ function syncTotals() {
   clearTimeout(syncT);
   syncT = setTimeout(() => {
     const map = {};
-    Object.keys(S.months).forEach(m => { const rec = S.months[m] || {}; const t = computeTotals(rec); if (Object.keys(t).length && JSON.stringify(t) !== JSON.stringify(rec.totals || {})) map[MP('months', m, 'totals')] = t; });
+    const same = (a, b) => window.NLOM ? NLOM.fpr(a) === NLOM.fpr(b) : JSON.stringify(a) === JSON.stringify(b || {});   /* (key order and empty values don't count) */
+    Object.keys(S.months).forEach(m => { const rec = S.months[m] || {}; const t = computeTotals(rec); if (Object.keys(t).length && !same(t, rec.totals)) map[MP('months', m, 'totals')] = t; });
     if (Object.keys(map).length) up(map).catch(() => {});
   }, 400);
 }

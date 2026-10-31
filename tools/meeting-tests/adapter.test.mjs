@@ -157,6 +157,51 @@ ok(await p.evaluate(async () => { try { await fsdb.ref('nlo/settings/geminiKey')
   ok(r.by === 'amir' && r.up && !r.leak, 'records are stamped with the NLO Cases staff id and time; reads leave the stamps out');
 }
 
+// as the old database: a save that changes nothing (the stamps aside, or only the order of keys) is no event — so a page that
+// saves what it computes from what it reads (Month-End's totals) settles instead of saving again and again
+{
+  const r = await p.evaluate(async P1 => {
+    let n = 0, last = null;
+    fsdb.ref(P1).on('value', s => { n++; last = s.val(); });
+    await new Promise(r => setTimeout(r, 500));
+    const n0 = n;
+    await fsdb.ref(P1).set({ np: 1, conv: 50 });
+    await new Promise(r => setTimeout(r, 500));
+    const n1 = n;
+    await fsdb.ref(P1).set({ conv: 50, np: 1 });   // the same, keys in another order
+    await fsdb.ref(P1).set({ np: 1, conv: 50, gone: null });   // the same with an empty value
+    await new Promise(r => setTimeout(r, 700));
+    const n2 = n;
+    await fsdb.ref(P1).set({ np: 2, conv: 50 });
+    await new Promise(r => setTimeout(r, 500));
+    fsdb.ref(P1).off();
+    return { n0, n1, n2, n3: n, last };
+  }, P('monthEnd', 'months', '2026-10', 'totals'));
+  ok(r.n0 === 1 && r.n1 === 2 && r.n2 === 2 && r.n3 === 3 && r.last && r.last.np === 2, 'a save that changes nothing is no event; a real change is (' + [r.n0, r.n1, r.n2, r.n3].join('/') + ')');
+}
+// offline as the page opens: no "nothing here" from the empty cache (the Hub would start a new meeting over the real one);
+// the server's value once it's back
+{
+  const O = await device();
+  const r = await O.page.evaluate(async ([email, pw]) => {
+    await NLOM.signIn(email, pw);
+    const d = NLOM.db(NLOM.fs, () => NLOM.me.sid, null);
+    await NLOM.fs.disableNetwork();
+    const got = [];
+    d.ref('nlo/staffMeeting/currentMeetingId').on('value', s => got.push(s.val()));
+    const once = d.ref('nlo/staffMeeting/meetings').once('value').then(s => s.val());
+    await new Promise(r => setTimeout(r, 2500));
+    const offline = got.slice();
+    await NLOM.fs.enableNetwork();
+    const m = await once;
+    await new Promise(r => setTimeout(r, 1500));
+    return { offline, after: got, meetings: m ? Object.keys(m).length : 0 };
+  }, ['gwen', E.PW]);
+  ok(r.offline.length === 0, 'offline as the page opens: nothing is reported (not "no current meeting")');
+  ok(r.after.length === 1 && r.after[0] === '2026-11-05' && r.meetings >= 1, 'back online: the real values (a listener and a once)');
+  await O.ctx.close();
+}
+
 /* ---------- the rules ---------- */
 console.log('rules');
 // a staff login: uses everything but the AISA key
@@ -184,6 +229,17 @@ await E.fsSet('nlo-cases', 'members/' + E.STAFF[0].uid, { active: false }, ['act
 ok(/permission/.test(await tryG(`d.ref('nlo/staffMeeting/inbox/g5').set({ text: 'after off' })`)), 'a login turned off can’t write');
 ok(/permission/.test(await G.page.evaluate(async () => { try { await NLOM.fs.collection('mtgInbox').get(); return 'ok'; } catch (e) { return String(e.code); } })), '…or read');
 await E.fsSet('nlo-cases', 'members/' + E.STAFF[0].uid, { active: true }, ['active']);
+// a login still on its temporary password (it's refused at sign-in too)
+{
+  const T1 = await device();
+  const r = await T1.page.evaluate(async pw => {
+    NLOM.init(); await NLOM.auth.signInWithEmailAndPassword('newbie.1@staff.example.com', pw);
+    const t = async f => { try { await f(); return 'ok'; } catch (e) { return String(e.code || e.message); } };
+    return { read: await t(() => NLOM.fs.collection('mtgInbox').get()), moved: await t(() => NLOM.fs.doc('mtgMeta/moved').get()) };
+  }, E.PW);
+  ok(/permission/.test(r.read) && r.moved === 'ok', 'a login still on its temporary password: nothing of the Hub’s (where the data is, only)');
+  await T1.ctx.close();
+}
 const N = await device();
 ok(/permission/.test(await N.page.evaluate(async () => { NLOM.init(); try { await NLOM.fs.collection('mtgInbox').get(); return 'ok'; } catch (e) { return String(e.code); } })), 'not signed in: nothing readable');
 ok(await N.page.evaluate(async () => { NLOM.init(); try { await NLOM.fs.doc('mtgMeta/moved').get(); return true; } catch (e) { return String(e.code); } }) === true, 'not signed in: where the data is, only');

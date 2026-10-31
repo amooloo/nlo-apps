@@ -141,58 +141,65 @@
     function snap(path, val) { const s = segsOf(path); return { key: s.length ? s[s.length - 1] : null, val: () => val, exists: () => val !== null, ref: api.ref(path) }; }
     function notHere(path) { const e = new Error('Not on the NLO Cases system: ' + path); e.code = 'not-available'; return e; }
 
-    /* ---- reading ---- */
-    async function readNow(path) {
-      const t = target(path);
-      if (!t) { const rt = rtOf(); if (rt) return (await rt.ref(path).once('value')).val(); throw notHere(path); }
-      if (t.col) {
-        const qs = await fs.collection(t.col).get();
-        const out = {};
-        let tx = {};
-        if (t.m.texts) { const q2 = await fs.collection(t.m.texts).get(); q2.forEach(d => { tx[d.id] = d.data(); }); }
-        const main = {}; qs.forEach(d => { main[d.id] = d.data(); });
-        Object.keys(main).concat(Object.keys(tx).filter(id => !(id in main))).sort().forEach(id => { const v = withTexts(t, main[id] || null, tx[id]); if (v !== null) out[id] = v; });
-        return Object.keys(out).length ? out : null;
-      }
-      if (t.texts) {
-        const [a, b] = await Promise.all([docRef(t.doc).get(), docRef(t.texts).get()]);
-        return withTexts(t, dataOf(a), dataOf(b));
-      }
-      const d = await docRef(t.doc).get();
-      const v = plain(dataOf(d), true);
-      return t.fp.length ? plain(getIn(v, t.fp), false) : v;
-    }
+    /* ---- reading: a path's value, as the old database gives it ----
+       The first value comes only once the server has answered (offline, Firestore would first say "nothing here" from its
+       empty cache, and the pages would start a new meeting over the real one); after that, only a real change is an event
+       (a save that changes nothing but the stamps, or only the order of keys, isn't one — as in the old database, so a page
+       that saves what it computes from what it reads settles instead of saving again and again). A listener that fails
+       (e.g. refused) is dropped. */
+    const META = { includeMetadataChanges: true };
     function listen(path, cb, err) {
-      const t = target(path), fail = e => { if (typeof err === 'function') { try { err(e); } catch (x) { } } else console.warn(path, e); };
+      const t = target(path), subs = [];
+      let dead = false, last;   // last: what was delivered last (its fingerprint); undefined = nothing yet
+      const stopAll = () => { subs.splice(0).forEach(u => { try { u(); } catch (e) { } }); };
+      const fail = e => { if (dead) return; dead = true; stopAll(); if (typeof err === 'function') { try { err(e); } catch (x) { } } else console.warn(path, e); };
+      const deliver = (v, fromServer) => {
+        if (dead || (last === undefined && !fromServer)) return;
+        const f = JSON.stringify(canon(v));
+        if (f === last) return;
+        last = f; cb(snap(path, v));
+      };
+      const stop = () => { dead = true; stopAll(); };
       if (!t) {
         const rt = rtOf();
-        if (rt) { const r = rt.ref(path); const f = s => cb(snap(path, s.val())); r.on('value', f, fail); return () => r.off('value', f); }
+        if (rt) { const r = rt.ref(path); const f = s => { if (!dead) cb(snap(path, s.val())); }; r.on('value', f, fail); subs.push(() => r.off('value', f)); return stop; }
         setTimeout(() => fail(notHere(path)), 0);
-        return () => { };
+        return stop;
       }
       if (t.col) {
-        let main = null, tx = t.m.texts ? null : {};
+        let main = null, tx = t.m.texts ? null : {}, sa = false, sb = !t.m.texts;
         const emit = () => {
           if (main === null || tx === null) return;
           const out = {};
           Object.keys(main).concat(Object.keys(tx).filter(id => !(id in main))).sort().forEach(id => { const v = withTexts(t, main[id] || null, tx[id]); if (v !== null) out[id] = v; });
-          cb(snap(path, Object.keys(out).length ? out : null));
+          deliver(Object.keys(out).length ? out : null, sa && sb);
         };
-        const a = fs.collection(t.col).onSnapshot(q => { main = {}; q.forEach(d => { main[d.id] = d.data(); }); emit(); }, fail);
-        const b = t.m.texts ? fs.collection(t.m.texts).onSnapshot(q => { tx = {}; q.forEach(d => { tx[d.id] = d.data(); }); emit(); }, fail) : null;
-        return () => { a(); if (b) b(); };
+        subs.push(fs.collection(t.col).onSnapshot(META, q => { main = {}; q.forEach(d => { main[d.id] = d.data(); }); if (!q.metadata.fromCache) sa = true; emit(); }, fail));
+        if (t.m.texts) subs.push(fs.collection(t.m.texts).onSnapshot(META, q => { tx = {}; q.forEach(d => { tx[d.id] = d.data(); }); if (!q.metadata.fromCache) sb = true; emit(); }, fail));
+        return stop;
       }
       if (t.texts) {
-        let A, B, ga = false, gb = false;
-        const emit = () => { if (ga && gb) cb(snap(path, withTexts(t, A, B))); };
-        const a = docRef(t.doc).onSnapshot(s => { A = dataOf(s); ga = true; emit(); }, fail);
-        const b = docRef(t.texts).onSnapshot(s => { B = dataOf(s); gb = true; emit(); }, fail);
-        return () => { a(); b(); };
+        let A, B, ga = false, gb = false, sa = false, sb = false;
+        const emit = () => { if (ga && gb) deliver(withTexts(t, A, B), sa && sb); };
+        subs.push(docRef(t.doc).onSnapshot(META, s => { A = dataOf(s); ga = true; if (!s.metadata.fromCache) sa = true; emit(); }, fail));
+        subs.push(docRef(t.texts).onSnapshot(META, s => { B = dataOf(s); gb = true; if (!s.metadata.fromCache) sb = true; emit(); }, fail));
+        return stop;
       }
-      return docRef(t.doc).onSnapshot(s => {
+      let sv = false;
+      subs.push(docRef(t.doc).onSnapshot(META, s => {
+        if (!s.metadata.fromCache) sv = true;
         const v = plain(dataOf(s), true);
-        cb(snap(path, t.fp.length ? plain(getIn(v, t.fp), false) : v));
-      }, fail);
+        deliver(t.fp.length ? plain(getIn(v, t.fp), false) : v, sv);
+      }, fail));
+      return stop;
+    }
+    /* once: the first value from the server (as the old database: from what a listener already has, else it asks) */
+    function readOnce(path) {
+      return new Promise((res, rej) => {
+        let stop = null, done = false;
+        const end = () => { done = true; setTimeout(() => { if (stop) stop(); }, 0); };
+        stop = listen(path, s => { if (!done) { end(); res(s); } }, e => { if (!done) { end(); rej(e); } });
+      });
     }
 
     /* ---- writing: one or more old paths → one batch (the old database's multi-path update) ---- */
@@ -247,8 +254,12 @@
           path,
           child: p => api.ref(path + '/' + p),
           on(ev, cb, err) {
-            const stop = listen(path, cb, err);
-            listeners.push({ path, cb, stop });
+            const ent = { path, cb, stop: null };
+            listeners.push(ent);
+            ent.stop = listen(path, cb, e => {
+              const i = listeners.indexOf(ent); if (i >= 0) listeners.splice(i, 1);
+              if (typeof err === 'function') err(e); else console.warn(path, e);
+            });
             return cb;
           },
           off(ev, cb) {
@@ -257,7 +268,7 @@
               if (l.path === path && (!cb || l.cb === cb)) { try { l.stop(); } catch (e) { } listeners.splice(i, 1); }
             }
           },
-          once() { return readNow(path).then(v => snap(path, v)); },
+          once() { return readOnce(path); },
           set(v) { return write([[path, v]]); },
           remove() { return write([[path, null]]); },
           update(obj) {
@@ -369,13 +380,15 @@
     location.reload();
   }
   function lockMsg() { let m = ''; try { m = sessionStorage.getItem('nloMtg.lockMsg') || ''; sessionStorage.removeItem('nloMtg.lockMsg'); } catch (e) { } return m; }
+  /* sign the NLO Cases login out without reloading (Dr. A's login on the move page, when it closes) */
+  async function signOut() { unwatch(); NL.me = null; try { if (NL.auth) await NL.auth.signOut(); } catch (e) { } }
   function lastLogin() { try { return localStorage.getItem(LAST) || ''; } catch (e) { return ''; } }
 
   /* which database: 'fs' (moved), 'rtdb' (not yet), or 'rtdb' with refused:true (older rules: can't tell) */
   async function moved() {
     init();
     try {
-      const s = await Promise.race([NL.fs.doc('mtgMeta/moved').get({ source: 'server' }), new Promise((_, rej) => setTimeout(() => rej(err('deadline-exceeded')), 12000))]);
+      const s = await Promise.race([NL.fs.doc('mtgMeta/moved').get({ source: 'server' }), new Promise((_, rej) => setTimeout(() => rej(err('deadline-exceeded')), 8000))]);
       const d = s.exists ? s.data() : null;
       const on = !!(d && d.on === true);
       try { if (on) localStorage.setItem('nloMtg.fs', '1'); else localStorage.removeItem('nloMtg.fs'); } catch (e) { }
@@ -385,10 +398,91 @@
       return { mode: seen ? 'fs' : 'rtdb', refused: /permission/i.test(codeOf(e)), offline: !/permission/i.test(codeOf(e)), seen };
     }
   }
-  /* hear the move happen (a page still on the old database switches over) */
-  function onMoved(cb) {
-    init();
-    return NL.fs.doc('mtgMeta/moved').onSnapshot(s => { const d = s.exists ? s.data() : null; if (d && d.on === true) cb(true); else if (d && d.on === false) cb(false); }, () => { });
+  /* hear the move happen: cb(on, record) on every change of mtgMeta/moved. Refused (e.g. NLO Cases' rules don't have the
+     Hub's part yet — before Dr. A publishes them, as part of the move) or cut off: listen again later (30 s, doubling to
+     10 min), so a screen opened before the rules were published still hears the move. fsIn: another page's Firestore
+     (Cadence's own login) instead of this one's; onErr(e): told about each refusal. */
+  function onMoved(cb, fsIn, onErr) {
+    const f = fsIn || init().fs;
+    let unsub = null, timer = null, wait = 30000, stopped = false;
+    const sub = () => {
+      if (stopped) return;
+      unsub = f.doc('mtgMeta/moved').onSnapshot(s => {
+        wait = 30000;
+        if (s.metadata && s.metadata.fromCache) return;
+        const d = s.exists ? s.data() : null;
+        cb(!!(d && d.on === true), d || {});
+      }, e => {
+        unsub = null;
+        if (typeof onErr === 'function') { try { onErr(e); } catch (x) { } }
+        if (!stopped) { timer = setTimeout(sub, wait); wait = Math.min(wait * 2, 600000); }
+      });
+    };
+    sub();
+    return () => { stopped = true; clearTimeout(timer); if (unsub) { try { unsub(); } catch (e) { } unsub = null; } };
+  }
+  /* where the Hub's data is, asked of the server: { on, pause, at } (null: can't tell — refused or no connection) */
+  async function moveState() {
+    try { const s = await init().fs.doc('mtgMeta/moved').get({ source: 'server' }); const d = s.exists ? s.data() : {}; return { on: d.on === true, pause: d.pause === true, at: d.at && d.at.toMillis ? d.at.toMillis() : null }; }
+    catch (e) { return null; }
+  }
+
+  /* ---------- the screens' side of a move ----------
+     A screen on the old database freezes while Dr. A moves the Hub (the old database's marker nlo/staffMeeting/moving, which
+     every screen signed in there can read whatever the NLO Cases rules say) and switches over after (movedTo, or
+     mtgMeta/moved). A screen on the NLO Cases system freezes while he moves it back (mtgMeta/moved.pause) and switches back
+     after. A screen that finds the old database marked moved but can't confirm it with the NLO Cases database stops there
+     (nothing is saved to the old copy) and says so. */
+  let ovKeys = false;
+  function overlay(msg, opts) {
+    let el = document.getElementById('nlomOverlay');
+    if (!msg) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div'); el.id = 'nlomOverlay'; el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-modal', 'true');
+      el.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(15,23,42,.74);display:flex;align-items:center;justify-content:center;padding:16px';
+      document.body.appendChild(el);
+      if (!ovKeys) { ovKeys = true; document.addEventListener('keydown', e => { if (document.getElementById('nlomOverlay') && !(e.target && e.target.id === 'nlomOvBtn')) { e.preventDefault(); e.stopPropagation(); } }, true); }
+    }
+    el.innerHTML = '<div style="max-width:430px;background:#fff;border-radius:16px;padding:22px 22px 18px;font:500 15px/1.5 Montserrat,system-ui,sans-serif;color:#1e293b;box-shadow:0 20px 60px rgba(0,0,0,.35)"><div id="nlomOvMsg"></div>' +
+      (opts && opts.reload ? '<div style="text-align:right;margin-top:14px"><button type="button" id="nlomOvBtn" style="font:700 14px Montserrat,system-ui,sans-serif;padding:9px 16px;border-radius:10px;border:0;background:#1D3EA9;color:#fff;cursor:pointer">Reload</button></div>' : '') + '</div>';
+    el.querySelector('#nlomOvMsg').textContent = msg;
+    const b = el.querySelector('#nlomOvBtn'); if (b) { b.onclick = () => location.reload(); setTimeout(() => { try { b.focus(); } catch (e) { } }, 30); }
+    try { if (document.activeElement && document.activeElement !== b && document.activeElement.blur) document.activeElement.blur(); } catch (e) { }
+  }
+  function switchNow(text) { overlay(text + ' Switching over…'); setTimeout(() => location.reload(), 1200); }
+  const FREEZE_IN = 'Dr. A is moving the Staff Meeting Hub to the NLO Cases system. This screen switches over by itself in a minute or two — nothing to do.';
+  const FREEZE_BACK = 'Dr. A is moving the Staff Meeting Hub back to the old database. This screen switches over by itself in a minute or two — nothing to do.';
+  /* the old database's own markers (moving / movedTo) */
+  function watchOld(rt, cb) {
+    const st = { moving: null, movedTo: null }; let got = 0;
+    const a = rt.ref(ROOT + '/moving'), b = rt.ref(ROOT + '/movedTo');
+    const fa = s => { st.moving = s.val(); got |= 1; if (got === 3) cb(st); };
+    const fb = s => { st.movedTo = s.val(); got |= 2; if (got === 3) cb(st); };
+    a.on('value', fa, () => { }); b.on('value', fb, () => { });
+    return () => { try { a.off('value', fa); b.off('value', fb); } catch (e) { } };
+  }
+  /* busy(): this screen is the one doing the move */
+  function followNew(busy) {
+    return onMoved((on, d) => {
+      if (busy()) return;
+      if (!on) { if (d.on === false) switchNow('The Staff Meeting Hub has moved back to the office Google sign-in.'); return; }
+      overlay(d.pause === true ? FREEZE_BACK : null);
+    });
+  }
+  function followOld(busy) { return onMoved(on => { if (on && !busy()) switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); }); }
+  /* onClear(): told each time the old database is neither being moved nor marked moved (the page starts only then) */
+  function watchOldDb(rt, busy, onClear) {
+    return watchOld(rt, st => {
+      if (busy()) return;
+      if (st.movedTo) { movedAway(); return; }
+      overlay(st.moving ? FREEZE_IN : null);
+      if (!st.moving && typeof onClear === 'function') onClear();
+    });
+  }
+  function movedAway() {
+    let t = 0; try { t = Number(sessionStorage.getItem('nloMtg.awayAt') || 0); } catch (e) { }
+    if (!(Date.now() - t < 120000)) { try { sessionStorage.setItem('nloMtg.awayAt', String(Date.now())); } catch (e) { } switchNow('The Staff Meeting Hub has moved to the NLO Cases system.'); return; }
+    overlay('The Staff Meeting Hub has moved to the NLO Cases system, but this computer can’t confirm that with the NLO Cases database right now (no connection, or its database rules need publishing again — ask Dr. A). Nothing can be saved on this screen until then.', { reload: true });
   }
   async function rulesLive() {
     try { await NL.fs.doc(RULES_MARK).get({ source: 'server' }); return true; }
@@ -545,7 +639,8 @@
 
   window.NLOM = {
     ROOT, MOUNTS, MOVED, RULES_MARK,
-    init, db: makeDb, signIn, watch, unwatch, idleMin, lock, lockMsg, lastLogin, errText, badLogin, moved, onMoved, rulesLive, personOf,
+    init, db: makeDb, signIn, signOut, watch, unwatch, idleMin, lock, lockMsg, lastLogin, errText, badLogin, moved, onMoved, moveState, rulesLive, personOf,
+    overlay, watchOld, followNew, followOld, watchOldDb,
     cadenceCopy, inventoryOld, readOld, readNew, recordsOf, writeRecords, counts, badIds, tooBig, fpr, clean, plain, pushKey, target, sidFor,
     get me() { return NL.me; }, get fs() { return NL.fs; }, get auth() { return NL.auth; }
   };
