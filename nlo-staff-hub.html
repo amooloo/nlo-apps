@@ -632,6 +632,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .nhBox.on::after{content:"";position:absolute;left:.036in;top:.004in;width:.034in;height:.07in;border:solid #1B2F4C;border-width:0 1.4pt 1.4pt 0;transform:rotate(45deg)}
 /* staff forms: an answer typed when the form was filled out for someone, printed in place of writing lines */
 .nhTyped{border:.75pt solid #C3C9D0;border-radius:2.5pt;padding:.06in .1in;margin-top:.03in;font-size:9.5pt;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:#11203A}
+.nhFields.sigrow + .nhFields.sigrow,.nhBody p + .nhFields.sigrow{break-before:avoid;page-break-before:avoid}
 .nhLetter .nhTyped{border:0;border-left:1.6pt solid #C3C9D0;border-radius:0;padding:.01in 0 .01in .14in;margin:.02in 0 .02in;font-size:inherit}
 /* staff forms: the Paperwork tab, choosing a form, filling one out */
 .ppBarB{display:flex;gap:8px;flex-wrap:wrap}
@@ -5751,7 +5752,7 @@ I understand that due to my occupational exposure to blood or other potentially 
      sum: the answers shown on their list of forms. In the text, {box:key=value} and [?key=value] tick a box from an
      answer, ?key=value prints a line only for that answer (on a blank copy: a box to tick), [[lines:N =key]] prints the
      typed answer (or N lines to write on). ---------- */
-  { id:'reference', group:'hiring', title:'Reference Check', packet:false, office:true,
+  { id:'reference', group:'hiring', title:'Reference Check', packet:false, rev:'2026-10', office:true,
     desc:'Notes from a call with one of a candidate’s references — print one sheet per reference.',
     body:`> Call notes, one sheet per reference. Ask only about the work — never about health, family, age, religion or anything else personal.
 [[Candidate =name *1.6]] [[Position applied for =position *1.4]]
@@ -5774,7 +5775,7 @@ I understand that due to my occupational exposure to blood or other potentially 
 **8.** Anything else we should know? _________________________________________________
 [[Called by *1.6]] [[Date called]]` },
 
-  { id:'working', group:'hiring', title:'Working Interview Agreement', packet:false,
+  { id:'working', group:'hiring', title:'Working Interview Agreement', packet:false, rev:'2026-10',
     desc:'For a paid working interview: the hours, the pay, and what the candidate agrees to (confidentiality, safety, no promise of a job).',
     body:`{practice} invites {name|the candidate} to a working interview for the position of {position|________}: a paid tryout working alongside our team, so we can each see whether the job is a good fit.
 [[Candidate =name *1.6]] [[Position =position *1.4]]
@@ -5787,7 +5788,7 @@ I understand that due to my occupational exposure to blood or other potentially 
 [[Candidate signature *1.6]] [[Date]]
 [[Signature for {practice} *1.6]] [[Date]]` },
 
-  { id:'photo', group:'packet', title:'Photo & Social Media Release', packet:true,
+  { id:'photo', group:'packet', title:'Photo & Social Media Release', packet:true, rev:'2026-10', since:'2026-10-31',
     desc:'Permission to show the employee in the practice’s photos, videos and social media — or to leave them out. It’s their choice.',
     body:`I give {practice} permission to take photos, video and audio recordings of me at work and at office events, and to use them with my first name in the practice’s marketing: its website, social media, emails and texts to patients, printed materials and displays in the office.
 - I won’t be paid for this, and I don’t need to approve each photo or post.
@@ -5799,7 +5800,7 @@ I understand that due to my occupational exposure to blood or other potentially 
 [[Employee =name *1.6]] [[Position =position *1.4]]
 [[Employee signature *1.6]] [[Date]]` },
 
-  { id:'waiver', group:'packet', title:'Health Benefit Waiver', packet:false, sum:['benefit'],
+  { id:'waiver', group:'packet', title:'Health Benefit Waiver', packet:false, rev:'2026-10', sum:['benefit'],
     desc:'Optional: when someone turns down a health benefit the practice offers, so the file shows it was offered and declined.',
     ask:[ { k:'benefit', l:'Benefit offered', t:'text', need:true, def: () => 'Celebrate Primary Care membership' },
           { k:'offered', l:'Date offered', t:'date', def: () => todayYMD() },
@@ -5814,11 +5815,11 @@ I understand that due to my occupational exposure to blood or other potentially 
 [[Employee =name *1.6]] [[Position =position *1.4]]
 [[Employee signature *1.6]] [[Date]]` },
 
-  { id:'counsel', group:'employ', title:'Employee Counseling Record', packet:false,
+  { id:'counsel', group:'employ', title:'Employee Counseling Record', packet:false, rev:'2026-10', calc: r => efCounselPB(r),
     desc:'A write-up: coaching, a verbal or written warning, or a final warning — the facts, what has to change, and signatures.',
     ask:[ { k:'level', l:'Level', t:'pick', need:true, def: () => 'verbal', opts:[['coaching', 'Coaching (a documented conversation)'], ['verbal', 'Verbal warning'], ['written', 'Written warning'], ['final', 'Final written warning']] },
           { k:'about', l:'About', t:'checks', opts:[['attendance', 'Attendance or punctuality'], ['performance', 'Job performance'], ['conduct', 'Conduct or teamwork'], ['policy', 'Policy or safety rules'], ['other', 'Other']] },
-          { k:'when', l:'Date(s) of what happened', t:'text', def: () => nhLong(todayYMD()) },
+          { k:'when', l:'Date(s) of what happened', t:'text' },
           { k:'what', l:'What happened', t:'area', need:true, hint:'Facts only: dates, times, what was seen or said, who was there.' },
           { k:'before', l:'Earlier conversations or warnings about this', t:'area', hint:'Dates and what was said. Leave blank if this is the first time.' },
           { k:'expect', l:'What needs to change, and by when', t:'area', need:true },
@@ -5826,7 +5827,7 @@ I understand that due to my occupational exposure to blood or other potentially 
           { k:'next', l:'If it doesn’t improve', t:'area', def: () => 'Further corrective action, up to and including termination of employment.' },
           { k:'followup', l:'Follow-up meeting', t:'date' },
           { k:'by', l:'Meeting held by', t:'text', def: () => nhLH().signer } ],
-    body:`> Confidential — personnel file. This record documents a conversation about a concern with the employee’s work. Signing it means the employee received it, not that they agree with it.
+    body:`> Confidential — personnel file. This record documents a conversation about a concern with the employee’s work. Signing it means the employee received it, not that they agree with it. Employment remains at-will: the levels below aren’t steps the practice must follow in order.
 [[Employee =name *1.6]] [[Position =position *1.4]] [[Date =today *1]]
 [[Meeting held by =by *1.6]] [[Date(s) of what happened =when *1.4]]
 ## Level
@@ -5846,7 +5847,7 @@ I understand that due to my occupational exposure to blood or other potentially 
 [[lines:3 =before]]
 # What needs to change, and by when
 [[lines:3 =expect]]
-===
+?pb ===
 # Support from the office
 [[lines:2 =help]]
 # If it doesn’t improve
@@ -5859,16 +5860,16 @@ I understand that due to my occupational exposure to blood or other potentially 
 [[Supervisor signature *1.6]] [[Date]]
 [[Witness signature (if the employee declines to sign) *1.6]] [[Date]]` },
 
-  { id:'change', group:'employ', title:'Change of Status or Pay', packet:false,
+  { id:'change', group:'employ', title:'Change of Status or Pay', packet:false, rev:'2026-10',
     desc:'A raise, a new position, full-/part-time or salary, a new schedule or benefits — what changes and from when, signed by the employee.',
-    ask:[ { k:'eff', l:'Effective date', t:'date', need:true, def: () => todayYMD() },
+    ask:[ { k:'eff', l:'Effective date', t:'date', need:true, def: () => todayYMD(), hint:'A pay cut can only start after the employee is told — never dated back.' },
           { k:'what', l:'What’s changing', t:'checks', need:true, opts:[['pay', 'Pay'], ['title', 'Position'], ['status', 'Full-time / part-time / salary'], ['sched', 'Schedule'], ['ben', 'Benefits'], ['other', 'Other']] },
           { k:'payfrom', l:'Pay — from', t:'text', half:true, hint:'e.g. $18.50 an hour' },
           { k:'payto', l:'Pay — to', t:'text', half:true },
           { k:'titlefrom', l:'Position — from', t:'text', half:true, def: p => p.role || '' },
           { k:'titleto', l:'Position — to', t:'text', half:true },
           { k:'statusfrom', l:'Status — from', t:'text', half:true, def: p => p.employment || '' },
-          { k:'statusto', l:'Status — to', t:'text', half:true },
+          { k:'statusto', l:'Status — to', t:'text', half:true, hint:'Paying a salary doesn’t by itself make a job exempt from overtime.' },
           { k:'schedfrom', l:'Schedule — from', t:'text', half:true },
           { k:'schedto', l:'Schedule — to', t:'text', half:true },
           { k:'bennote', l:'Benefits change', t:'text' },
@@ -5897,7 +5898,7 @@ Employment with {practice} remains at-will; this notice doesn’t change that.
 I’ve been told about this change.
 [[Employee signature *1.6]] [[Date]]` },
 
-  { id:'policyupd', group:'employ', title:'Policy Manual Update — Acknowledgment', packet:false, sum:['version'],
+  { id:'policyupd', group:'employ', title:'Policy Manual Update — Acknowledgment', packet:false, rev:'2026-10', sum:['version'],
     desc:'When the personnel policy manual changes: each person signs that they received the update.',
     ask:[ { k:'version', l:'Date of the updated manual', t:'date', need:true, def: () => (/^\d{4}-\d{2}-\d{2}$/.test(nhLH().policy) ? nhLH().policy : todayYMD()) },
           { k:'changes', l:'What changed', t:'area', hint:'A short summary, or “the whole manual”.' } ],
@@ -5910,7 +5911,7 @@ I’ve been told about this change.
 [[Employee =name *1.6]] [[Position =position *1.4]]
 [[Employee signature *1.6]] [[Date]]` },
 
-  { id:'treatment', group:'employ', title:'Staff Treatment Agreement', packet:false, sum:['patient', 'tx'],
+  { id:'treatment', group:'employ', title:'Staff Treatment Agreement', packet:false, rev:'2026-10', sum:['patient', 'tx'],
     desc:'Orthodontic treatment for an employee or their family at a staff courtesy — and what’s owed if employment ends before treatment is done.',
     ask:[ { k:'patient', l:'Patient', t:'text', need:true, def: p => p.name || '' },
           { k:'rel', l:'Relationship to the employee', t:'text', def: () => 'Self' },
@@ -5929,22 +5930,23 @@ I’ve been told about this change.
 | {fee} | {courtesy} | {pays} |
 [[How the employee pays =how *2.4]]
 # If employment ends before treatment is finished
-- The courtesy is earned month by month over the estimated length of treatment.
-- If my employment ends for any reason before treatment is finished, I’ll pay the part of the courtesy not yet earned: the courtesy × the months of treatment left ÷ the estimated months.
-- That amount is due {due|within 30 days of my last day of work}, unless we agree on a payment plan in writing. With my written permission, it may be taken from my final paycheck as the law allows.
+- The courtesy is earned in equal parts each month over the estimated length of treatment above.
+- If my employment ends for any reason before those months are up, I’ll repay the part not yet earned: the courtesy × the estimated months still to go ÷ the estimated months. It’s never more than the courtesy, and nothing is owed once the estimated months have passed.
+- That amount is due {due|within 30 days of my last day of work}, unless we agree on a payment plan in writing. It’s taken from my final paycheck only if I sign a separate authorization at that time, and never so that my pay falls below minimum wage.
 - Treatment continues as planned either way.
+- Part of a courtesy can count as taxable pay (for example, the part over 20% of the usual fee, or a courtesy for a family member other than a spouse or dependent child); the practice reports it with my pay when the law requires.
 [[Employee signature *1.6]] [[Date]]
 [[Signature for {practice} *1.6]] [[Date]]` },
 
-  { id:'loa', group:'employ', title:'Leave of Absence Confirmation', packet:false, letter:true, sum:['leavetype', 'from'],
+  { id:'loa', group:'employ', title:'Leave of Absence Confirmation', packet:false, rev:'2026-10', letter:true, sum:['from', 'to'],
     desc:'A letter confirming someone’s leave: the dates, how it’s paid, benefits, and what’s needed to come back.',
     ask:[ { k:'leavetype', l:'Type of leave', t:'pick', need:true, opts:[['medical', 'Medical (their own health)', 'Medical leave'], ['pregnancy', 'Pregnancy or childbirth', 'Pregnancy and childbirth leave'], ['family', 'Caring for a family member', 'Leave to care for a family member'], ['military', 'Military service', 'Military leave'], ['personal', 'Personal', 'Personal leave']] },
           { k:'from', l:'Leave starts', t:'date', need:true },
           { k:'to', l:'Expected return', t:'date', need:true },
-          { k:'paid', l:'Pay during the leave', t:'pick', def: () => 'first', opts:[['unpaid', 'Unpaid', 'Your leave is unpaid'], ['first', 'Vacation and sick time first, then unpaid', 'You’ll use your available vacation and sick time first; the rest of your leave is unpaid'], ['paid', 'Paid', 'Your leave is paid']] },
+          { k:'paid', l:'Pay during the leave', t:'pick', hint:'Military leave: using vacation is their choice — pick “Their choice”.', opts:[['unpaid', 'Unpaid', 'Your leave is unpaid'], ['first', 'Vacation and sick time first, then unpaid', 'You’ll use your available vacation and sick time first; the rest of your leave is unpaid'], ['choose', 'Their choice to use vacation', 'You may use your available vacation time during your leave if you’d like — that’s your choice'], ['paid', 'Paid', 'Your leave is paid']] },
           { k:'benefits', l:'Benefits during the leave', t:'area', hint:'e.g. what continues, and who pays for it' },
-          { k:'held', l:'Their position', t:'pick', opts:[['held', 'Held until the expected return date', 'We’ll hold your position for you until your expected return date'], ['talk', 'We’ll talk as the date gets closer', 'As your return date gets closer, we’ll talk with you about your schedule and position']] },
-          { k:'needs', l:'Needed before they return', t:'area', def: () => 'a note from your health care provider saying you can return to work, with any limits' },
+          { k:'held', l:'Their position', t:'pick', hint:'Military leave: their job (or one like it) must be held.', opts:[['held', 'Held until the expected return date', 'We’ll hold your position for you until your expected return date'], ['talk', 'We’ll talk as the date gets closer', 'As your return date gets closer, we’ll talk with you about your schedule and position']] },
+          { k:'needs', l:'Needed before they return', t:'area', hint:'e.g. for their own medical or pregnancy leave: a note from their health care provider saying they can return, with any limits. Not for military leave.' },
           { k:'contact', l:'Who to keep in touch with', t:'text', def: () => nhLH().contact || nhLH().phone } ],
     body:`{today}
 
@@ -5953,6 +5955,7 @@ Dear {first},
 This letter confirms your leave of absence from {practice}.
 | Type of leave *1.6 | Starts | Expected return |
 | {leavetype} | {from} | {to} |
+?leavetype=military Your job rights during military service are protected by federal law (USERRA). Please let us know your return date as soon as you know it.
 ?paid {paid}.
 ?benefits {benefits}
 ?held {held}.
@@ -5962,7 +5965,7 @@ If you need more time, or want to come back sooner, please tell us as soon as yo
 Wishing you well,
 [[{doctor} ~sig]] [[- *0.8]]` },
 
-  { id:'accom', group:'employ', title:'Response to an Accommodation Request', packet:false, letter:true, sum:['decision'],
+  { id:'accom', group:'employ', title:'Response to an Accommodation Request', packet:false, rev:'2026-10', letter:true, sum:['decision'],
     desc:'A letter answering a request for an accommodation (a disability, pregnancy or a religious practice): granted, an alternative, more information needed, or not granted.',
     ask:[ { k:'reqdate', l:'Date of the request', t:'date', need:true },
           { k:'basis', l:'Because of', t:'pick', need:true, opts:[['health', 'A disability or medical condition', 'a disability or medical condition'], ['pregnancy', 'Pregnancy or a related condition', 'pregnancy, childbirth or a related condition'], ['religion', 'A religious belief or practice', 'a religious belief or practice'], ['other', 'Something else', 'your needs at work']] },
@@ -5980,22 +5983,23 @@ Thank you for your request of {reqdate|__________} for an accommodation related 
 [[lines:2 =req]]
 ?decision=granted We’re glad to grant your request:
 ?decision=alt We can’t provide exactly what you asked for, but we’d like to offer an accommodation we believe will meet your needs:
+?decision=granted|alt [[lines:2 =what]]
+?decision=alt ?why [[lines:2 =why]]
 ?decision=more To decide, we need a little more information:
+?decision=more [[lines:2 =more]]
 ?decision=denied After careful thought, we aren’t able to grant this request.
-?what [[lines:2 =what]]
-?more [[lines:2 =more]]
-?why [[lines:2 =why]]
-?review We’ll check in with you on {review} to see how it’s working.
-If your needs change, or this isn’t working, please tell us — we’d like to keep talking. Information about your request is kept confidential and separate from your personnel file.
+?decision=denied ?why [[lines:2 =why]]
+?decision=granted|alt ?review We’ll check in with you on {review} to see how it’s working.
+If your needs change, or this isn’t working, please tell us — we’d like to keep talking. We keep medical information about your request confidential and apart from your personnel file, and share only what others need to know to make an accommodation work.
 
 Sincerely,
 [[{doctor} ~sig]] [[- *0.8]]` },
 
-  { id:'resign', group:'leaving', title:'Notice of Resignation', packet:false, sum:['lastday'],
+  { id:'resign', group:'leaving', title:'Notice of Resignation', packet:false, rev:'2026-10', sum:['lastday'],
     desc:'For an employee who is resigning to sign: their last day, an optional reason, and where to send the final pay stub and W-2.',
     ask:[ { k:'noticedate', l:'Date of this notice', t:'date', def: (p, s) => (s && s.notice) || todayYMD() },
-          { k:'lastday', l:'Last day of work', t:'date', need:true, def: (p, s) => (s && s.lastDay) || '' },
-          { k:'reason', l:'Reason (optional)', t:'area', def: (p, s) => (s && s.type === 'resigned' && s.reason && s.reason !== 'Didn’t say' && s.reason !== 'Other') ? s.reason : '' } ],
+          { k:'lastday', l:'Last day of work', t:'date', need:true, def: (p, s) => efLastDay(p, s) },
+          { k:'reason', l:'Reason (optional)', t:'area', hint:'Their own words, if they want to give one — or leave it for them to write.' } ],
     body:`I’m resigning from my position as {position|________} at {practice}.
 [[Employee =name *1.6]] [[Date of this notice =noticedate *1]]
 [[My last day of work will be =lastday *1.6]] [[- *1]]
@@ -6005,14 +6009,14 @@ Sincerely,
 [[Mailing address *2.6]]
 [[Personal email *1.6]] [[Phone *1]]
 - I’ll return my office key, anything else that belongs to the practice, and anything with patient information by my last day.
-- I understand my final paycheck comes on the regular payday after my last day.
+- I understand my final pay comes on the regular payday for my last pay period.
 [[Employee signature *1.6]] [[Date]]
 [[Received by (for the office) *1.6]] [[Date]]` },
 
-  { id:'resignok', group:'leaving', title:'Resignation Confirmation', packet:false, letter:true, sum:['lastday'],
+  { id:'resignok', group:'leaving', title:'Resignation Confirmation', packet:false, rev:'2026-10', letter:true, sum:['lastday'],
     desc:'A letter confirming a resignation: the last day, the final paycheck, benefits and what to bring back.',
     ask:[ { k:'noticedate', l:'Resignation received on', t:'date', need:true, def: (p, s) => (s && s.notice) || todayYMD() },
-          { k:'lastday', l:'Last day of work', t:'date', need:true, def: (p, s) => (s && s.lastDay) || '' },
+          { k:'lastday', l:'Last day of work', t:'date', need:true, def: (p, s) => efLastDay(p, s) },
           { k:'payday', l:'Final paycheck date', t:'date' },
           { k:'benefits', l:'Benefits', t:'area', hint:'e.g. when coverage ends, and any continuation notice to expect' },
           { k:'items', l:'Please return', t:'text', def: () => 'your office key and anything else that belongs to the practice' },
@@ -6022,7 +6026,7 @@ Sincerely,
 Dear {first},
 
 We received your resignation on {noticedate|__________}, and we confirm that your last day of work will be {lastday|__________}.
-?payday Your final paycheck, with any pay owed to you under our policy manual, will be paid on {payday}.
+?payday Your final paycheck — all wages owed, plus any unused vacation our policy manual pays out — will be paid on {payday}.
 ?benefits {benefits}
 Before your last day, please return {items|your office key and anything else that belongs to the practice}. We’ll mail your W-2 to the address we have on file — let us know if it changes.
 When someone asks us for a reference, we confirm your dates of employment and your position. If you’d like us to share more, ask us for an Authorization to Release References.
@@ -6032,15 +6036,15 @@ Thank you for your work at {practice}. We wish you all the best.
 Sincerely,
 [[{doctor} ~sig]] [[- *0.8]]` },
 
-  { id:'term', group:'leaving', title:'Termination of Employment', packet:false, letter:true, sum:['kind', 'lastday'],
+  { id:'term', group:'leaving', title:'Termination of Employment', packet:false, rev:'2026-10', letter:true, sum:['kind', 'lastday'],
     desc:'A letter ending someone’s employment (or a layoff): the effective date, final pay, benefits and property — with a line for them to sign that they received it.',
     ask:[ { k:'kind', l:'Type', t:'pick', need:true, def: (p, s) => (s && s.type === 'laidoff') ? 'layoff' : 'term', opts:[['term', 'Termination'], ['layoff', 'Layoff (the position or hours are no longer needed)']] },
-          { k:'lastday', l:'Effective date (last day)', t:'date', need:true, def: (p, s) => (s && s.lastDay) || todayYMD() },
-          { k:'reason', l:'Reason (optional)', t:'area', def: (p, s) => (s && (s.type === 'terminated' || s.type === 'laidoff') && s.reason && s.reason !== 'Other') ? s.reason : '', hint:'Florida employment is at-will; a short, factual reason is fine, or leave it out.' },
+          { k:'lastday', l:'Effective date (last day)', t:'date', need:true, def: (p, s) => efLastDay(p, s) || todayYMD() },
+          { k:'reason', l:'Reason (optional)', t:'area', hint:'Florida employment is at-will: leave it out, or give a short, factual reason (not the reason category from End employment).' },
           { k:'payday', l:'Final paycheck date', t:'date' },
           { k:'benefits', l:'Benefits', t:'area' },
           { k:'items', l:'Please return', t:'text', def: () => 'your office key and anything else that belongs to the practice' },
-          { k:'returnby', l:'Return by', t:'date', def: (p, s) => (s && s.lastDay) || todayYMD() } ],
+          { k:'returnby', l:'Return by', t:'date', def: (p, s) => efLastDay(p, s) || todayYMD() } ],
     body:`{today}
 
 Dear {first},
@@ -6048,7 +6052,7 @@ Dear {first},
 ?kind=term This letter confirms that your employment with {practice} ends effective {lastday|__________}.
 ?kind=layoff We’re sorry to tell you that, because the practice no longer needs your position or hours, your employment with {practice} ends effective {lastday|__________}. This is a layoff, not a reflection on your conduct.
 ?reason Reason: {reason}
-?payday Your final paycheck, with any pay owed to you under our policy manual, will be paid on {payday}.
+?payday Your final paycheck — all wages owed, plus any unused vacation our policy manual pays out — will be paid on {payday}.
 ?benefits {benefits}
 Please return {items|your office key and anything else that belongs to the practice} by {returnby|your last day}. We’ll mail your W-2 to the address we have on file — let us know if it changes. Information about Florida’s Reemployment Assistance program is available from FloridaCommerce.
 
@@ -6058,14 +6062,14 @@ Sincerely,
 I received a copy of this letter. Signing means I received it, not that I agree with it.
 [[Employee signature *1.6]] [[Date]]` },
 
-  { id:'abandon', group:'leaving', title:'Job Abandonment Letter', packet:false, letter:true, sum:['mode'],
+  { id:'abandon', group:'leaving', title:'Job Abandonment Letter', packet:false, rev:'2026-10', letter:true, sum:['mode'],
     desc:'For an employee who stopped coming to work without calling: either a last chance to contact the office by a date, or confirmation that employment ended.',
-    ask:[ { k:'mode', l:'This letter', t:'pick', need:true, def: () => 'chance', opts:[['chance', 'Asks them to contact the office by a date'], ['final', 'Confirms their employment has ended']] },
-          { k:'since', l:'Last day they worked', t:'date', need:true },
+    ask:[ { k:'mode', l:'This letter', t:'pick', need:true, def: (p, s) => (s && s.type === 'abandoned') ? 'final' : 'chance', opts:[['chance', 'Asks them to contact the office by a date'], ['final', 'Confirms their employment has ended']] },
+          { k:'since', l:'Last day they worked', t:'date', need:true, def: (p, s) => (s && s.type === 'abandoned' && s.lastDay) || '' },
           { k:'missed', l:'Scheduled days they missed without calling', t:'text', need:true },
           { k:'tried', l:'How the office tried to reach them', t:'area', hint:'Calls, texts, emails — with dates.' },
           { k:'by', l:'Contact the office by', t:'date' },
-          { k:'effective', l:'Employment ended effective', t:'date', def: (p, s) => (s && s.type === 'abandoned' && s.lastDay) || '' },
+          { k:'effective', l:'Employment ended effective', t:'date', hint:'For “Confirms their employment has ended”.' },
           { k:'payday', l:'Final paycheck date', t:'date' } ],
     body:`{today}
 
@@ -6075,15 +6079,15 @@ You haven’t come to work or contacted the office since {since|__________}. You
 ?tried We tried to reach you: {tried}
 ?mode=chance Please contact the office by {by|__________}. If we don’t hear from you by then, we’ll consider that you have resigned, and your employment will end on that date.
 ?mode=final Because you missed scheduled work without contacting us, we consider that you have voluntarily resigned (job abandonment). Your employment with {practice} ended effective {effective|__________}.
-?payday Your final paycheck, with any pay owed to you under our policy manual, will be paid on {payday}.
+?payday Your final paycheck — all wages owed, plus any unused vacation our policy manual pays out — will be paid on {payday}.
 Please return your office key and anything else that belongs to the practice. If something serious kept you from contacting us, please call us at {contact} right away.
 
 Sincerely,
 [[{doctor} ~sig]] [[- *0.8]]` },
 
-  { id:'checkout', group:'leaving', title:'Employee Checkout Record', packet:false, office:true, sum:['lastday'],
+  { id:'checkout', group:'leaving', title:'Employee Checkout Record', packet:false, rev:'2026-10', office:true, sum:['lastday'],
     desc:'Office copy for the personnel file — property returned, logins turned off, final pay and benefits. Ticked from the offboarding checklist.',
-    ask:[ { k:'lastday', l:'Last day', t:'date', need:true, def: (p, s) => (s && s.lastDay) || '' },
+    ask:[ { k:'lastday', l:'Last day', t:'date', need:true, def: (p, s) => efLastDay(p, s) },
           { k:'done', l:'Done', t:'checks', def: (p, s) => efSepDone(s), opts:[['keys', 'Office key returned'], ['alarm', 'Alarm code changed'], ['property', 'Scrubs, badge and other office property returned'], ['edge', 'Ortho2 Edge login turned off and taken off the schedule template'], ['access', 'Weave, email and computer logins turned off'], ['cases', 'NLO Cases login turned off'], ['pay', 'Final paycheck processed and taken off payroll'], ['benefits', 'Health insurance and 401(k) providers told'], ['w2', 'Forwarding address for the W-2']] },
           { k:'notes', l:'Notes', t:'area' } ],
     body:`> Office use — keep with the personnel file. Never write passwords or alarm codes on this sheet.
@@ -6110,11 +6114,11 @@ Sincerely,
 [[Employee signature *1.6]] [[Date]]
 [[Checked out by *1.6]] [[Date]]` },
 
-  { id:'exit', group:'leaving', title:'Exit Interview', packet:false, sum:['lastday'],
+  { id:'exit', group:'leaving', title:'Exit Interview', packet:false, rev:'2026-10', sum:['lastday'],
     desc:'Optional questions for someone who is leaving — what worked, what didn’t, and what would make the practice better.',
-    ask:[ { k:'lastday', l:'Last day', t:'date', def: (p, s) => (s && s.lastDay) || '' },
+    ask:[ { k:'lastday', l:'Last day', t:'date', def: (p, s) => efLastDay(p, s) },
           { k:'by', l:'Interview by', t:'text', def: () => nhLH().signer } ],
-    body:`> Optional and confidential. Your answers help us make {practice} a better place to work. They won’t affect your final pay or any reference.
+    body:`> Optional. Your answers help us make {practice} a better place to work, and they won’t affect your final pay. We keep them private — but if you tell us about something like harassment, a safety problem or a patient-privacy concern, we may need to look into it.
 [[Employee =name *1.6]] [[Position =position *1.4]] [[Last day =lastday *1]]
 [[Interview by =by *1.6]] [[Date =today *1]]
 **1.** What made you decide to leave?
@@ -6138,11 +6142,11 @@ Sincerely,
 [[lines:3]]
 [[Employee signature (optional) *1.6]] [[Date]]` },
 
-  { id:'refauth', group:'leaving', title:'Authorization to Release References', packet:false, sum:['share'],
+  { id:'refauth', group:'leaving', title:'Authorization to Release References', packet:false, rev:'2026-10', sum:['share'],
     desc:'The employee’s permission for the practice to share more than dates and position when a future employer calls.',
     ask:[ { k:'share', l:'What may be shared', t:'checks', def: () => ['dates'], opts:[['dates', 'Dates of employment and position'], ['pay', 'Rate of pay'], ['perf', 'Job performance, attendance and eligibility for rehire'], ['why', 'The reason employment ended']] },
-          { k:'lastday', l:'Last day', t:'date', def: (p, s) => (s && s.lastDay) || '' },
-          { k:'until', l:'Good until', t:'date', def: (p, s) => addMonthsYMD((s && s.lastDay) || todayYMD(), 24) } ],
+          { k:'lastday', l:'Last day', t:'date', def: (p, s) => efLastDay(p, s) },
+          { k:'until', l:'Good until', t:'date', def: (p, s) => addMonthsYMD(efLastDay(p, s) || todayYMD(), 24) } ],
     body:`I give {practice} permission to answer reference requests about my employment from prospective employers, landlords and others I’ve applied to.
 # What may be shared
 [?share=dates] Dates of employment and position
@@ -6154,7 +6158,7 @@ Sincerely,
 [[Employee =name *1.6]] [[Last day =lastday *1]]
 [[Employee signature *1.6]] [[Date]]` },
 
-  { id:'student', group:'visitors', title:'Student & Observer Confidentiality Agreement', packet:false,
+  { id:'student', group:'visitors', title:'Student & Observer Confidentiality Agreement', packet:false, rev:'2026-10',
     desc:'For a student or visitor shadowing in the office: patient privacy, no photos or posts, observe only — signed before they start.',
     body:`{practice} is glad to have students and observers learn about orthodontics with us. While you’re here you’ll see and hear patients’ health information, which the law (HIPAA) and our office keep private.
 [[Name *1.6]] [[School or program *1.4]]
@@ -6243,7 +6247,7 @@ function nhAllForms() {
     const content = !!(o && (o.title || typeof o.body === 'string'));
     return Object.assign({}, f, { builtIn:true, kind:'markup', edited: content,
       title: (o && o.title) || f.title, body: (o && typeof o.body === 'string') ? o.body : f.body,
-      packet: (o && typeof o.packet === 'boolean') ? o.packet : !!f.packet, rev: (content && o.updated) || NH_REV });
+      packet: (o && typeof o.packet === 'boolean') ? o.packet : !!f.packet, rev: (content && o.updated) || f.rev || NH_REV });
   });
   n.custom.forEach(c => { if (c && c.id) out.push(Object.assign({ group:'packet', kind:'markup', packet:false }, c, { builtIn:false, rev: c.updated || c.created || NH_REV })); });
   return out;
@@ -6253,6 +6257,7 @@ const nhFormById = id => nhAllForms().find(f => f.id === id) || null;
 function nhIncluded(f, h) {
   if (h && h.inc && typeof h.inc[f.id] === 'boolean') return h.inc[f.id];
   if (h && f.clinical && h.team === 'admin') return false;
+  if (h && f.since && h.created && h.created < Date.parse(f.since + 'T00:00:00')) return false;   /* added to the packet later: not for anyone already onboarding (they can still tick it) */
   return !!f.packet;
 }
 const nhPacketForms = h => nhVisibleForms().filter(f => f.group === 'packet' && nhIncluded(f, h));
@@ -6347,7 +6352,7 @@ function nhInline(text, ctx) {
     k = k.toLowerCase();
     if (!NH_KEYS.has(k) && !(ctx.keys && ctx.keys.has(k))) return m;
     const v = ctx.vals[k];
-    if (v) return esc(v);
+    if (v) return esc(v).replace(/\n/g, '<br>');
     if (fb) return fb;
     return ctx.cell ? '' : '<span class="nhBlank"></span>';   /* in a table cell the cell itself is the space to write in */
   });
@@ -6405,20 +6410,21 @@ function nhSlimHTML(ctx, title, newPage) {
 function nhBlocks(body, ctx) {
   const lines = [];
   String(body || '').replace(/\r\n?/g, '\n').split('\n').forEach(raw => {
-    let line = raw.trim();
-    const m = line.match(/^\?([a-z0-9_]+)(?:=([a-z0-9_-]+))?\s+([\s\S]*)$/i);
-    if (m) {
+    let line = raw.trim(), m, chose = false;
+    /* conditions, one or more (all must hold): ?key — that detail is filled in · ?key=a|b — one of those answers was chosen */
+    while ((m = line.match(/^\?([a-z0-9_]+)(?:=([a-z0-9_|-]+))?\s+([\s\S]*)$/i))) {
       const k = m[1].toLowerCase(), rest = m[3].trim();
-      if (m[2]) {   // ?key=value: printed only for that answer; on a blank copy it's a box to tick
-        if (ctx.blank) line = /^(\[\[|#|- |\||>|\[[ ?])/.test(rest) || rest === '===' || rest === '---' ? rest : '[ ] ' + rest;
-        else if (!nhRawHas(ctx, k, m[2])) return;
-        else line = rest;
+      if (m[2]) {
+        if (!ctx.blank && !m[2].split('|').some(v => v && nhRawHas(ctx, k, v))) return;
+        chose = true;
       } else {
         if (!ctx.blank && !ctx.vals[k]) return;   // conditional line, value missing -> skip
         if (ctx.blank && new RegExp('^\\{\\s*' + k + '\\s*\\}\\.?$', 'i').test(rest)) return;   // only the answer itself: nothing to show on a blank copy
-        line = rest;
       }
+      line = rest;
     }
+    /* on a blank copy a line for one answer is a box to tick */
+    if (chose && ctx.blank && !/^(\[\[|#|- |\||>|\[[ ?])/.test(line) && line !== '===' && line !== '---') line = '[ ] ' + line;
     lines.push(line);
   });
   let out = '', i = 0;
@@ -6426,7 +6432,7 @@ function nhBlocks(body, ctx) {
   while (i < lines.length) {
     const line = lines[i];
     if (!line) { i++; continue; }
-    if (line === '===') { out += `<div class="nhPB"></div>${nhSlimHTML(ctx, ctx.title + ' — continued', true)}`; i++; continue; }
+    if (line === '===') { out += `<div class="nhPB"></div>${nhSlimHTML(ctx, ctx.title + (!ctx.blank && ctx.vals && ctx.vals.name ? ' — ' + ctx.vals.name : '') + ' — continued', true)}`; i++; continue; }
     if (line === '---') { out += '<hr class="nhRule">'; i++; continue; }
     if (/^## /.test(line)) { out += `<h4>${nhInline(line.slice(3), ctx)}</h4>`; i++; continue; }
     if (/^# /.test(line)) { out += `<h3>${nhInline(line.slice(2), ctx)}</h3>`; i++; continue; }
@@ -7255,6 +7261,20 @@ function efHireOf(p) {
     start: p.hireDate || '', cell: p.phone || '', email: p.email || '' };
 }
 const efStaffOfHire = h => ({ name: h.name || '', nick: h.preferred || '', role: h.position || '', employment: h.employment || '', hireDate: h.start || '' });
+/* their last day: from the End employment record, or the end date of someone archived without one */
+const efLastDay = (p, s) => (s && s.lastDay) || (p && p.status === 'former' && p.endDate) || '';
+/* the Counseling Record starts its second page (comments, signatures) on a page of its own only when what was
+   typed fits on the first; otherwise the page breaks where it falls (no page left holding one box) */
+function efCounselPB(r) {
+  const h = (k, n) => { const t = String(r[k] || ''); return t ? 16 + 18.5 * t.split('\n').reduce((a, ln) => a + Math.max(1, Math.ceil(ln.length / 100)), 0) : n * 29; };
+  return h('what', 5) + h('before', 3) + h('expect', 3) <= 345 ? { pb: '1' } : {};
+}
+/* the form as it was worded when this one was filled out (kept with it), with today's questions */
+function efFormFor(r) {
+  const f = nhFormById(r.form);
+  if (typeof r.body !== 'string') return f;
+  return Object.assign({ id: r.form, group: 'employ', kind: 'markup', ask: [] }, f || {}, { title: r.title || (f && f.title) || 'Form', body: r.body, rev: r.rev || (f && f.rev) || NH_REV });
+}
 /* the End employment record's offboarding checklist, as the Checkout Record's boxes */
 function efSepDone(s) {
   const C = (s && s.checks && typeof s.checks === 'object') ? s.checks : {}, out = [];
@@ -7299,6 +7319,7 @@ function efX(f, raw, date) {
     const s = efFmt(a, r[a.k], false); if (s) vals[a.k] = s;
   });
   if (date && EF_YMD.test(date)) vals.today = nhLong(date);
+  if (f && typeof f.calc === 'function') { try { Object.assign(vals, f.calc(r) || {}); } catch (e) {} }
   return { vals, raw: r };
 }
 function efSummary(r, f) {
@@ -7307,31 +7328,31 @@ function efSummary(r, f) {
   const L = Array.isArray(f.sum) ? f.sum.map(k => A.find(a => a.k === k)).filter(Boolean) : A.filter(a => a.t === 'pick' || a.t === 'checks').slice(0, 1);
   return L.map(a => efFmt(a, r.v ? r.v[a.k] : undefined, true)).filter(Boolean).join(' · ');
 }
-/* its signed copy: a file of that form on their Paperwork tab, added after this one was filled out (and before the next) */
+/* its signed copy: a file attached from its row (linked to it), or — when it's their only one of that form — a signed
+   copy of that form added another way (Add paperwork) */
 function efSigned(r) {
   const p = staffById(r.sid); if (!p) return null;
   let files = [];
   try { files = ppFilesFor(ppCtxStaff(p), false).filter(f => ppKinds(f).indexOf(r.form) >= 0); } catch (e) { return null; }
-  if (!files.length) return null;
-  const same = efList().filter(x => x.sid === r.sid && x.form === r.form).sort((a, b) => (a.at || 0) - (b.at || 0));
-  const next = same[same.findIndex(x => x.id === r.id) + 1];
-  const from = (r.at || 0) - 60000, to = next ? (next.at || 0) - 60000 : Infinity;
-  return files.filter(f => (f.added || 0) >= from && (f.added || 0) < to).sort((a, b) => (b.added || 0) - (a.added || 0))[0] || null;
+  const newest = L => L.sort((a, b) => (b.added || 0) - (a.added || 0))[0] || null;
+  const linked = files.filter(f => f.ef === r.id);
+  if (linked.length) return newest(linked);
+  return efList().filter(x => x.sid === r.sid && x.form === r.form).length === 1 ? newest(files.filter(f => !f.ef)) : null;
 }
 function efPrintRec(r) {
-  const f = nhFormById(r.form), p = staffById(r.sid);
+  const f = efFormFor(r), p = staffById(r.sid);
   if (!f || !p) { toast('That form or person isn’t in Staff Hub any more', true); return; }
   nhPrint([{ f, h: efHireOf(p), x: efX(f, r.v, r.date) }], f.title + ' - ' + p.name);
 }
 
 /* ---------- the Paperwork tab: forms filled out for them ---------- */
 function efRowHTML(r, p) {
-  const f = nhFormById(r.form), title = (f && f.title) || r.title || 'A form no longer in the library';
+  const f = efFormFor(r), title = (f && f.title) || r.title || 'A form no longer in the library';
   const sum = efSummary(r, f), signed = f ? efSigned(r) : null;
   const del = `<button class="btn-ghost btn-sm" data-act="efDel" data-id="${esc(r.id)}" title="Delete">${ic('trash', 13)}</button>`;
   const acts = f ? `<button class="btn-ghost btn-sm" data-act="efPrint" data-id="${esc(r.id)}">${ic('printer', 13)} Print</button>` +
     (signed ? `<button class="btn-ghost btn-sm ppOn" data-act="ppOpen" data-id="${esc(signed.id)}" title="Open the signed copy">${ic('paperclip', 13)} Signed copy</button>`
-            : `<button class="btn-ghost btn-sm" data-act="ppAdd" data-sid="${esc(p.id)}" data-k="${esc(r.form)}" title="Upload the signed copy — locked with your password">${ic('paperclip', 13)} Attach signed</button>`) +
+            : `<button class="btn-ghost btn-sm" data-act="ppAdd" data-sid="${esc(p.id)}" data-k="${esc(r.form)}" data-ef="${esc(r.id)}" title="Upload the signed copy — locked with your password">${ic('paperclip', 13)} Attach signed</button>`) +
     `<button class="btn-ghost btn-sm" data-act="efOpen" data-id="${esc(r.id)}" title="See or change what was filled in">${ic('edit', 13)}</button>` + del : del;
   return `<div class="nhRow efRow"><div class="nhRowIc sm">${ic('fileText', 15)}</div>
     <div class="nhRowT"><b${f ? ` class="nhLink" data-act="efOpen" data-id="${esc(r.id)}"` : ''}>${esc(title)}</b>${sum ? ` <span class="muted">— ${esc(sum)}</span>` : ''}<span class="tiny">Dated ${esc(fmtD(r.date))}${r.inc ? ' · from an incident write-up' : ''}</span></div>
@@ -7410,7 +7431,7 @@ function efFillModal(sid, fid, rid, opt) {
   const r0 = rid ? efRec(rid) : null;
   if (rid && !r0) { toast('That form was deleted', true); render(); return; }
   const p = staffById(r0 ? r0.sid : sid); if (!p) { toast('That person isn’t in Staff Hub any more', true); return; }
-  const f = nhFormById(r0 ? r0.form : fid); if (!f) { toast('That form isn’t in the library any more', true); return; }
+  const f = r0 ? efFormFor(r0) : nhFormById(fid); if (!f) { toast('That form isn’t in the library any more', true); return; }
   const A = efAsk(f), first = efFirst(p), h = efHireOf(p), tok = ++efTok;
   const v0 = r0 ? JSON.parse(JSON.stringify(r0.v || {})) : Object.assign(efDefaults(f, p, p.sep), opt.pre || {});
   const date0 = r0 && EF_YMD.test(r0.date || '') ? r0.date : todayYMD();
@@ -7473,14 +7494,33 @@ function efFillModal(sid, fid, rid, opt) {
     const cur = r0 ? efRec(r0.id) : null;
     if (r0 && !cur) { toast('This form was deleted on another device', true); closeModal(); render(); return; }
     const who = staffById(p.id); if (!who) { toast('That person isn’t in Staff Hub any more', true); closeModal(); render(); return; }
-    if (!ppRoomFor(JSON.stringify(v).length + 600)) { toast('Staff Hub’s storage is nearly full — delete old forms or files first', true); return; }
+    if (!ppRoomFor(JSON.stringify(v).length + (cur ? 600 : String(f.body || '').length + 800))) { toast('Staff Hub’s storage is nearly full — delete old forms or files first', true); return; }
+    /* changed on another device while this was open: their change stands wherever nothing was changed here */
+    let v2 = v, date2 = date;
+    const kept = [];
+    if (cur) {
+      const norm = x => (x == null || x === '' || (Array.isArray(x) && !x.length)) ? '' : x, same = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+      const theirs = (cur.v && typeof cur.v === 'object') ? cur.v : {};
+      v2 = {};
+      A.forEach(a => {
+        const mine = v[a.k], was = v0[a.k], now = theirs[a.k];
+        const pick = same(mine, was) ? now : mine;
+        if (same(mine, was) && !same(now, was)) kept.push(a.l);
+        if (norm(pick) !== '') v2[a.k] = pick;
+      });
+      if (date === date0 && EF_YMD.test(cur.date || '') && cur.date !== date0) { date2 = cur.date; kept.push('Date on the form'); }
+    }
     const rec = cur || { id: uid(), sid: who.id, form: f.id, at: Date.now() };
-    Object.assign(rec, { title: f.title, date, v, up: Date.now() });
-    if (!cur && inc) rec.inc = inc.id;
+    Object.assign(rec, { title: f.title, date: date2, v: v2, up: Date.now() });
+    if (!cur) {
+      if (f.kind !== 'upload' && typeof f.body === 'string') { rec.body = f.body; rec.rev = f.rev || NH_REV; }   /* the wording it was given with */
+      if (inc) rec.inc = inc.id;
+      if (who.sep && f.group === 'leaving') rec.sep = who.sep.created || 0;   /* part of this departure */
+    }
     if (!cur) { const n = nhS(); if (!Array.isArray(n.issued)) n.issued = []; n.issued.push(rec); }
     act((cur ? 'Changed “' : 'Filled out “') + f.title + '” for ' + who.name);
     persist(); closeModal(); render();
-    toast(cur ? 'Saved' : '“' + f.title + '” saved with ' + efFirst(who) + '’s paperwork');
+    toast(!cur ? '“' + f.title + '” saved with ' + efFirst(who) + '’s paperwork' : kept.length ? 'Saved — kept what was changed on another device: ' + kept.join(', ') : 'Saved', false, kept.length ? 6000 : 0);
     if (andPrint) efPrintRec(rec);
   };
   $('#efSave').onclick = () => save(false);
@@ -7493,7 +7533,10 @@ function efSepHTML(p) {
   const vis = new Set(nhVisibleForms().map(f => f.id));
   const ids = (EF_SEP_FORMS[s.type] || []).concat(EF_SEP_ALL).filter(id => vis.has(id));
   if (!ids.length) return '';
-  const mine = efFor(p.id);
+  /* this departure's: filled out from it, or (not tied to one) since they were last rehired */
+  const past = Array.isArray(p.pastSeps) && p.pastSeps.length ? p.pastSeps[p.pastSeps.length - 1] : null;
+  const since = past ? Math.max(past.created || 0, past.updated || 0) : 0;
+  const mine = efFor(p.id).filter(r => r.sep != null ? r.sep === (s.created || 0) : (r.at || 0) > since);
   const btns = ids.map(id => {
     const f = nhFormById(id), r = mine.find(x => x.form === id);
     return r ? `<button class="btn btn-sec btn-sm efDone" data-act="efOpen" data-id="${esc(r.id)}" title="Filled out — dated ${esc(fmtD(r.date))}. Open it to see, change or print it.">${ic('check', 13)} ${esc(f.title)}</button>`
@@ -9060,23 +9103,24 @@ const PP_ESSENTIALS = ['w4', 'i9', 'deposit', 'handbook', 'hipaa', 'hepb'];
 const PP_ESS_LABEL = { w4:'W-4', i9:'I-9', deposit:'Direct deposit', handbook:'Policy manual', hipaa:'HIPAA agreement', hepb:'Hep B record' };
 /* a first guess from the file name (Brandi W4.pdf, I-9.pdf, direct deposit.jpg, packet.pdf …); he can change it */
 const PP_GUESS = [
-  /* the staff forms (31 Oct 2026) first: their names are the more specific */
-  [/counsel/, 'counsel'], [/exit ?interview/, 'exit'], [/check ?out/, 'checkout'], [/abandon/, 'abandon'],
-  [/terminat|lay ?off|laid off/, 'term'], [/resignation (confirm|accept)/, 'resignok'], [/resign/, 'resign'],
-  [/(photo|media) release/, 'photo'], [/waiver/, 'waiver'], [/accommodat/, 'accom'], [/leave of absence|\bloa\b/, 'loa'],
-  [/(authoriz|release).*referenc|referenc.*(authoriz|release)/, 'refauth'], [/referenc/, 'reference'],
-  [/working interview/, 'working'], [/treatment (agreement|benefit)|staff treatment/, 'treatment'],
-  [/change of (status|pay)|(pay|status) change|\braise\b/, 'change'], [/polic.*update|updated? polic/, 'policyupd'],
   [/\bi ?9\b|eligibility/, 'i9'], [/\bw ?4\b|withholding/, 'w4'], [/\bvoid|bank letter/, 'bank'],
   [/direct ?dep|\bdeposit\b/, 'deposit'], [/pay ?stub|electronic pay/, 'paystub'], [/payroll/, 'payroll'],
   [/check ?list/, 'checklist'], [/\boffer/, 'offer'], [/applica/, 'application'], [/r[eé]sum[eé]|\bcv\b/, 'resume'],
-  [/hand ?book|policy manual|\bmanual\b/, 'handbook'], [/job ?desc/, 'jobdesc'], [/hipaa|confidential/, 'hipaa'],
+  [/polic.*update|updated? polic/, 'policyupd'], [/hand ?book|policy manual|\bmanual\b/, 'handbook'], [/job ?desc/, 'jobdesc'], [/hipaa|confidential/, 'hipaa'],
   [/social media|cell ?phone|technology/, 'tech'], [/\bsafe/, 'safety'], [/commitment/, 'commit'],
   [/\bhep ?b?\b|hepatitis|vaccin/, 'hepb'], [/favou?rite/, 'favorites'], [/get to know/, 'intro'], [/welcome/, 'welcome'],
   [/employee info|emergency/, 'info'], [/\bkeys?\b|\balarm/, 'keys'],
   [/licen[cs]e|passport|social security|\bss ?card|\bssn\b|driver|\bid\b|\bdl\b/, 'idcopy'],
   [/review|evaluation|appraisal/, 'review'], [/write ?up|warning|disciplin/, 'writeup'],
-  [/packet|onboarding|new ?hire|paperwork/, 'multi']
+  [/packet|onboarding|new ?hire|paperwork/, 'multi'],
+  /* the staff forms (31 Oct 2026): after the older guesses, so a name those already knew still means what it did */
+  [/counsel/, 'counsel'], [/exit ?interview/, 'exit'], [/check ?out/, 'checkout'], [/abandon/, 'abandon'],
+  [/terminat|lay ?off|laid off/, 'term'], [/resignation (confirm|accept)/, 'resignok'], [/resign/, 'resign'],
+  [/(photo|media) release/, 'photo'], [/(health|insurance|benefit|coverage).*waiver|waiver.*(health|insurance|benefit|coverage)/, 'waiver'],
+  [/accommodat/, 'accom'], [/leave of absence|\bloa\b/, 'loa'],
+  [/(authoriz|release).*referenc|referenc.*(authoriz|release)/, 'refauth'], [/referenc/, 'reference'],
+  [/working interview/, 'working'], [/treatment (agreement|benefit)|staff treatment/, 'treatment'],
+  [/change of (status|pay)|(pay|status) change|\braise\b/, 'change']
 ];
 
 const ppCache = new Map();   /* file id -> decrypted Blob, only while unlocked */
@@ -9532,10 +9576,11 @@ function ppUnfiledHTML() {
 }
 
 /* ---------- the upload window ---------- */
-function ppUploadModal(ctx, files, kind) {
+function ppUploadModal(ctx, files, kind, ef) {
   if (!S || !cryptoKey || !ctx) return;
   if (ppUp && ppUp.busy) { toast('An upload is still running — wait for it to finish', true); return; }
-  ppUp = { ctx, items: [], busy: false, stop: false, preset: (kind && ppTypeOk(kind)) ? kind : '' };
+  const preset = (kind && ppTypeOk(kind)) ? kind : '';
+  ppUp = { ctx, items: [], busy: false, stop: false, preset, ef: preset && ef ? String(ef).slice(0, 40) : '' };   /* ef: the staff form (S.nh.issued) a signed copy is for */
   openModal(`<div class="mh"><h3>Add paperwork — ${esc(ctx.who)}</h3><button class="x" data-act="ppCancel">✕</button></div>
   <div class="mb">
     <div class="ppSafe">${ic('lock', 15)}<span>Each file is locked with your Staff Hub password <b>on this computer</b> before it’s uploaded. Google only stores scrambled data, and only you can open it, signed in to Staff Hub.</span></div>
@@ -9556,9 +9601,10 @@ function ppAddFiles(files) {
     if (why) { bad.push(why); return; }
     if (ppUp.items.some(it => it.file.name === file.name && it.file.size === file.size && it.file.lastModified === file.lastModified)) return;
     /* opened from a form's Attach (or an "On file" chip): that form, for a single file or one whose name says nothing */
-    let k = ppGuess(file.name);
-    if (ppUp.preset && (files.length === 1 || k === 'other')) { k = ppUp.preset; ppUp.preset = ''; }
-    ppUp.items.push({ key: 'u' + Math.random().toString(36).slice(2, 10), file, kind: k, kinds: [], note: '' });
+    let k = ppGuess(file.name), ef = '';
+    if (ppUp.preset && (files.length === 1 || k === 'other')) { k = ppUp.preset; ef = ppUp.ef || ''; ppUp.preset = ''; ppUp.ef = ''; }
+    /* ef: from a staff form's Attach signed — the file is linked to that form while it stays that type */
+    ppUp.items.push({ key: 'u' + Math.random().toString(36).slice(2, 10), file, kind: k, kinds: [], note: '', ef, efKind: ef ? k : '' });
   });
   if (bad.length) toast(bad.join(' · '), true, 9000);
   ppListRender();
@@ -9631,6 +9677,7 @@ async function ppGo() {
         size: buf.byteLength, n: Math.max(1, Math.ceil(buf.byteLength / PP_PIECE)), sha, kid: ppKeyForNew(), added: Date.now(), removed: 0, up: Date.now() };
       if (it.kind === 'multi') f.kinds = it.kinds.filter(k => ppTypeOk(k) && k !== 'multi').slice(0, 40);
       if (it.note) f.note = it.note;
+      if (it.ef && it.kind === it.efKind) f.ef = it.ef;
       if (!Array.isArray(S.paper)) S.paper = [];
       S.paper.push(f);
       persist();
@@ -9673,7 +9720,7 @@ async function ppGo() {
 }
 
 /* ---------- open, download, change, remove ---------- */
-H.ppAdd = t => { const ctx = ppCtxFrom(t); if (ctx) ppUploadModal(ctx, null, t.dataset.k || ''); };
+H.ppAdd = t => { const ctx = ppCtxFrom(t); if (ctx) ppUploadModal(ctx, null, t.dataset.k || '', t.dataset.ef || ''); };
 H.ppPicked = t => { const ctx = ppCtxFrom(t), files = Array.from(t.files || []); t.value = ''; if (ctx && files.length) ppUploadModal(ctx, files, t.dataset.k || ''); };
 H.ppOpen = async t => {
   const f = ppById(t.dataset.id); if (!f || !S) return;

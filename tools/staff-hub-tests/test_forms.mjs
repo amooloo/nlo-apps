@@ -254,6 +254,7 @@ await settle(page);
   const pr = await printed(page, n0);
   const t = text(pr.html);
   ok(pr.title === 'Employee Counseling Record - Gwen Rodis', 'prints as “Employee Counseling Record - Gwen Rodis”');
+  ok(/Employee Counseling Record — Gwen Rodis — continued/.test(text(pr.html)) && /Rev\. Oct 2026/.test(text(pr.html)), '…its second page headed with her name; revised Oct 2026');
   ok(/Gwen Rodis/.test(t) && /Late three times in October/.test(t) && (pr.html.match(/nhBox on/g) || []).length === 2 && !LEFT.test(t), '…with her name, what happened, the two boxes ticked, no markup');
 }
 await page.waitForSelector('#main .efPanel .efRow');
@@ -303,6 +304,7 @@ await page.click('#ppGo');
 ok(await waitToast(page, /added to Gwen Rodis’s paperwork/, 60000), 'the signed copy is locked and uploaded');
 await page.waitForSelector('#main .efPanel .efRow [data-act=ppOpen]');
 ok(/Signed copy/.test(await page.$eval('#main .efPanel .efRow', r => r.textContent)), 'the form’s row now opens its Signed copy');
+ok(await page.evaluate(() => { const f = S.paper.find(x => x.kind === 'counsel'); return !!f && f.ef === S.nh.issued[0].id; }), '…the file linked to that write-up');
 {
   const sec = await page.evaluate(() => { const f = S.paper.find(x => x.kind === 'counsel'); return f ? ppSecOfFile(f) : ''; });
   ok(sec === 'hire', '…filed with the personnel forms');
@@ -431,10 +433,13 @@ await page.click('#main .efSep button:has-text("Termination of Employment")');
 await page.waitForSelector('#efQs');
 {
   const st = await page.evaluate(() => ({ kind: (document.querySelector('[data-q=kind] .chip.on') || {}).dataset.v, reason: document.getElementById('efq_reason').value, ld: document.getElementById('efq_lastday').value }));
-  ok(st.kind === 'term' && st.reason === 'Attendance or tardiness' && st.ld === ids.in14, 'Termination: a termination, the reason and last day from her record');
+  ok(st.kind === 'term' && st.reason === '' && st.ld === ids.in14, 'Termination: a termination and the last day from her record; the reason left for him to write (not the internal category)');
+  await page.fill('#efq_reason', 'Repeated late arrivals after two written warnings.\nNo improvement since the final warning.');
+  await page.fill('#efq_payday', ids.in14);
   await settle(page);
   const pv = await prevText(page);
-  ok(/ends effective/.test(pv) && !/This is a layoff/.test(pv) && /Reason: Attendance or tardiness/.test(pv) && /Signing means I received it/.test(pv), 'the letter: only the termination wording, the reason, and a line for her to sign she received it');
+  ok(/ends effective/.test(pv) && !/This is a layoff/.test(pv) && /Reason: Repeated late arrivals after two written warnings\.\s*\n\s*No improvement/.test(pv) && /Signing means I received it/.test(pv), 'the letter: only the termination wording, the reason with its line break kept, and a line for her to sign she received it');
+  ok(/Your final paycheck — all wages owed, plus any unused vacation our policy manual pays out — will be paid on/.test(pv), 'final pay: all wages owed, plus any vacation the manual pays out');
 }
 await page.click('#modalWrap [data-act=closeModal]');
 
@@ -455,9 +460,13 @@ await page.waitForSelector('#efQs');
 await page.click('[data-q=leavetype] .chip[data-v=medical]');
 await page.fill('#efq_from', '2026-11-09'); await page.fill('#efq_to', '2026-12-07');
 await page.click('[data-q=held] .chip[data-v=held]');
+ok(await page.evaluate(() => !document.querySelector('[data-q=paid] .chip.on') && !document.getElementById('efq_needs').value), 'leave: how it’s paid and what’s needed to return start empty (nothing assumed for every kind of leave)');
+await page.click('[data-q=paid] .chip[data-v=first]');
+await page.fill('#efq_needs', 'a note from your health care provider saying you can return to work, with any limits');
 await settle(page);
 {
   const pv = await prevText(page);
+  ok(!/USERRA/.test(pv), 'no military-leave line on a medical leave');
   ok(/Medical leave/.test(pv) && /November 9, 2026/.test(pv) && /You’ll use your available vacation and sick time first/.test(pv) && /We’ll hold your position for you/.test(pv) && !/Medical \(their own health\)/.test(pv), 'the letter says it to her (“Medical leave”, “We’ll hold your position for you”), not the office’s labels');
 }
 await page.click('#efSave');
@@ -570,6 +579,132 @@ console.log('11. a phone');
   await p2.waitForSelector('#main .efSep');
   ok(await noScrollX(p2), 'phone: the leaving paperwork buttons wrap');
   await ph.ctx.close();
+}
+
+// ---------- 12. after the independent review ----------
+console.log('12. after the independent review');
+const pickForm = async (sid, title) => {
+  await page.evaluate(id => goStaff(id, 'paper'), sid);
+  await page.waitForSelector('#main .ppBar [data-act=efPick]');
+  await page.click('#main .ppBar [data-act=efPick]');
+  await page.waitForSelector('.efPickRow');
+  await page.click('.efPickRow:has-text("' + title + '")');
+  await page.waitForSelector('#efQs');
+};
+// an accommodation letter says only what goes with the decision
+await pickForm(ids.g, 'Response to an Accommodation Request');
+await page.fill('#efq_reqdate', '2026-10-20');
+await page.click('[data-q=basis] .chip[data-v=health]');
+await page.fill('#efq_req', 'A stool at the front desk.');
+await page.click('[data-q=decision] .chip[data-v=granted]');
+await page.fill('#efq_what', 'A stool at the front desk from November 2.');
+await page.fill('#efq_review', '2026-12-01');
+await settle(page);
+{
+  let pv = await prevText(page);
+  ok(/glad to grant/.test(pv) && /stool at the front desk from November 2/.test(pv) && /check in with you on December 1, 2026/.test(pv), 'accommodation granted: the accommodation and a check-in date');
+  ok(/share only what others need to know/.test(pv) && !/kept confidential and separate from your personnel file/.test(pv), '…medical information kept apart and shared only as needed (no blanket promise)');
+  await page.click('[data-q=decision] .chip[data-v=denied]');
+  await page.fill('#efq_why', 'Explained in our meeting on October 28.');
+  await settle(page);
+  pv = await prevText(page);
+  ok(/aren’t able to grant/.test(pv) && !/from November 2/.test(pv) && !/check in with you/.test(pv) && /Explained in our meeting/.test(pv), 'changed to Not granted: the accommodation and check-in no longer print, the reason does — the letter can’t contradict itself');
+  await page.click('[data-q=decision] .chip[data-v=more]');
+  await settle(page);
+  pv = await prevText(page);
+  ok(/need a little more information/.test(pv) && !/Explained in our meeting/.test(pv) && !/from November 2/.test(pv), '…More information needed: only what goes with that');
+}
+await page.click('#modalWrap [data-act=closeModal]');
+{
+  const b = await page.evaluate(() => { const d = document.createElement('div'); d.innerHTML = nhDocHTML(nhFormById('accom'), nhCtx(null)); return { t: d.textContent, boxes: d.querySelectorAll('.nhBox').length }; });
+  ok(/glad to grant/.test(b.t) && /aren’t able to grant/.test(b.t) && b.boxes >= 4, 'a blank accommodation letter: each decision a box to tick');
+}
+// a second write-up for Gwen: each signed copy stays with its own record
+await pickForm(ids.g, 'Employee Counseling Record');
+await page.click('[data-q=level] .chip[data-v=coaching]');
+const LONG = ('On 10/30 a patient waited 20 minutes at the window while the phones rang unanswered; we talked about it the same day. ').repeat(14);
+await page.fill('#efq_what', LONG);
+await page.fill('#efq_expect', 'Answer the phones and greet patients at the window within a minute.');
+{
+  const n0 = await prints(page);
+  await page.click('#efSavePrint');
+  const pr = await printed(page, n0);
+  ok(!/nhNewPage/.test(pr.html) && /patient waited 20 minutes/.test(text(pr.html)), 'a long “what happened”: no forced page break (no page left holding one box)');
+}
+await page.waitForSelector('#main .efPanel .efRow:has-text("Coaching")');
+{
+  const rows = await page.$$eval('#main .efPanel .efRow', rs => rs.map(r => ({ t: r.textContent.replace(/\s+/g, ' '), open: (r.querySelector('[data-act=ppOpen]') || {}).dataset ? r.querySelector('[data-act=ppOpen]').dataset.id : '' })));
+  const fin = rows.find(r => /Final written warning/.test(r.t)), coach = rows.find(r => /Coaching/.test(r.t));
+  ok(fin && fin.open && coach && !coach.open && /Attach signed/.test(coach.t), 'two write-ups: the signed copy stays with the one it was attached to; the new one still says Attach signed');
+}
+await page.click('#main .efPanel .efRow:has-text("Coaching") [data-act=ppAdd]');
+await page.waitForSelector('#ppPick', { state: 'attached' });
+await page.setInputFiles('#ppPick', [{ name: 'scan_0002.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% second write-up\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n') }]);
+await page.click('#ppGo');
+ok(await waitToast(page, /added to Gwen Rodis’s paperwork/, 60000), 'its signed copy uploaded from its own row');
+await page.waitForSelector('#main .efPanel .efRow:has-text("Coaching") [data-act=ppOpen]');
+{
+  const ids2 = await page.$$eval('#main .efPanel .efRow [data-act=ppOpen]', bs => bs.map(b => b.dataset.id));
+  const links = await page.evaluate(() => S.paper.filter(f => f.kind === 'counsel').map(f => f.ef));
+  ok(ids2.length === 2 && ids2[0] !== ids2[1] && links.length === 2 && links.every(Boolean) && links[0] !== links[1], 'each write-up opens its own signed copy (each file linked to its record)');
+}
+// changed on another device while open: both changes kept
+const coachId = await page.evaluate(() => S.nh.issued.find(r => r.v && r.v.level === 'coaching').id);
+await page.evaluate(id => H.efOpen({ dataset: { id } }), coachId);
+await page.waitForSelector('#efQs');
+await page.evaluate(id => { const r = S.nh.issued.find(x => x.id === id); r.v = Object.assign({}, r.v, { help: 'Paired with Sarah at the front desk for two weeks.' }); }, coachId);
+await page.fill('#efq_expect', 'Answer within a minute, every time; check in with Dr. A on Friday.');
+await page.click('#efSave');
+ok(await waitToast(page, /kept what was changed on another device: Support the office will give/, 5000), 'saving after another device changed it: says which change it kept');
+{
+  const r = await page.evaluate(id => ({ ...S.nh.issued.find(x => x.id === id).v }), coachId);
+  ok(r.help === 'Paired with Sarah at the front desk for two weeks.' && /check in with Dr\. A on Friday/.test(r.expect) && r.level === 'coaching', '…both changes kept (theirs and this one)');
+}
+// the wording it was given with
+await page.evaluate(() => { const f = nhFormById('counsel'); nhS().forms.counsel = { body: f.body.replace('Confidential — personnel file.', 'REWORDED SINCE.'), updated: todayYMD() }; });
+{
+  const n0 = await prints(page);
+  await page.evaluate(id => efPrintRec(S.nh.issued.find(x => x.id === id)), coachId);
+  const pr = await printed(page, n0);
+  ok(/Confidential — personnel file\./.test(text(pr.html)) && !/REWORDED SINCE/.test(text(pr.html)), 'a reprint keeps the wording it was given with, after the form is edited');
+}
+await page.evaluate(() => { delete nhS().forms.counsel; });
+// file-name guesses the older ones already knew stay the same
+{
+  const g = await page.evaluate(() => ['Brandi Hep B waiver.pdf', 'COVID vaccine waiver.pdf', 'resume and references.pdf', '90 day review - counseling.pdf', 'offer letter - pay change.pdf', 'hipaa photo release.pdf', 'Health insurance waiver.pdf', 'Brandi direct deposit.jpg'].map(ppGuess).join(','));
+  ok(g === 'hepb,hepb,resume,review,offer,hipaa,waiver,deposit', 'file-name guesses the older ones knew stay the same; new ones only where nothing matched (' + g + ')');
+}
+// the photo release joins only packets started from today
+{
+  const r = await page.evaluate(() => { const f = nhFormById('photo'); return [nhIncluded(f, { created: Date.parse('2026-10-20T12:00:00') }), nhIncluded(f, { created: Date.now() }), nhIncluded(f, { created: Date.parse('2026-10-20T12:00:00'), inc: { photo: true } }), nhIncluded(f, null)].join(); });
+  ok(r === 'false,true,true,true', 'the photo release: not added to packets already under way (unless ticked), in new ones and blank packets');
+}
+// job abandonment from an End employment record; someone archived without one
+{
+  const st = await page.evaluate(id => {
+    const p = staffById(id); p.sep = { type: 'abandoned', reason: 'No call, no show', lastDay: '2026-10-27', notice: '', rehire: '', details: '', checks: {}, created: Date.now(), updated: Date.now() };
+    efFillModal(id, 'abandon', null);
+    const o = { mode: (document.querySelector('[data-q=mode] .chip.on') || {}).dataset.v, since: document.getElementById('efq_since').value, eff: document.getElementById('efq_effective').value };
+    closeModal(); delete p.sep; return o;
+  }, ids.t);
+  ok(st.mode === 'final' && st.since === '2026-10-27' && st.eff === '', 'job abandonment from the End employment record: “employment has ended”, the last day worked in its place');
+  const kim = await page.evaluate(() => {
+    const p = { id: uid(), name: 'Kim Lowe', role: 'Lab Technician', employment: 'Full-time', hireDate: '2022-02-01', status: 'former', endDate: '2026-09-30', created: Date.now() };
+    S.staff.push(p); efFillModal(p.id, 'checkout', null);
+    const v = document.getElementById('efq_lastday').value; closeModal(); S.staff = S.staff.filter(x => x.id !== p.id); return v;
+  });
+  ok(kim === '2026-09-30', 'archived without an End employment record: the Checkout Record uses their end date');
+}
+// rehired, then leaving again: the first departure's paperwork isn't shown as done
+{
+  const n = await page.evaluate(id => {
+    const p = staffById(id);
+    p.pastSeps = (p.pastSeps || []).concat([Object.assign({}, p.sep, { updated: Date.now() - 1000 })]);
+    p.sep = { type: 'resigned', reason: 'Moving away', lastDay: '2027-01-15', notice: todayYMD(), rehire: '', details: '', checks: {}, created: Date.now(), updated: Date.now() };
+    goStaff(id, 'paper');
+    return document.querySelectorAll('#main .efSep .efDone').length;
+  }, ids.s);
+  ok(n === 0, 'rehired and leaving again: the earlier departure’s forms aren’t shown as done');
 }
 
 // ---------- done ----------

@@ -81,7 +81,13 @@ said to the employee, not the office's labels; where signed copies file (leave a
 records); upload types and guesses from file names; a new hire's packet (the photo release in it, the waiver printed with the
 benefit); a candidate card printing the Reference Check / Working Interview Agreement with their name and position;
 deleting; two devices merging; opening older data making no change to save; a phone (the picker, the fill window, the
-library); no page errors. 98 checks (~1.5 min); screenshots `shots/ef-*.png`. With this change `test_paperwork.mjs`'s
+library); no page errors. After the independent review: an accommodation letter printing only what goes with its decision
+(blank: each decision a box), each signed copy linked to its own write-up, a change made on another device while one is
+open kept on Save (and said), a reprint keeping the wording it was given with, a long write-up not forced onto a near-empty
+page, a continued page naming the person, line breaks kept in letters, the older file-name guesses unchanged (Hep B waiver,
+résumé and references…), the photo release not added to packets already under way, job abandonment and archived staff
+defaults, leave pay and return requirements not assumed, the termination reason left blank, and a rehire's second
+departure not showing the first's paperwork as done. 120 checks (~1.5 min); screenshots `shots/ef-*.png`. With this change `test_paperwork.mjs`'s
 one-scan packet covers 14 forms (the photo release joined the packet), and `test_login.mjs` waits for saves already on their
 way before counting versions (older data saves its roster ids once on opening, since the calendar move: those two checks
 had been failing on main too).
