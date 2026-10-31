@@ -1847,6 +1847,32 @@ service cloud.firestore {
     match /meta/rules_cal_1 {
       allow get: if isMember();
     }
+    // ---------- the Office Calendar's lab dates and phone feed (Amir, 31 Oct 2026) ----------
+    // calLab/live: how many open cases are due each day, by kind (aligners, appliances, retainers…) — counts only, never a
+    // patient — kept current by any screen with NLO Cases open; the calendar shows them. calFeed/<secret id>: the
+    // calendar as a subscribable .ics (what the calendar itself shows staff: who's out, events, deadlines, closures; no
+    // patients), written by an editor's calendar screen; anyone with the address can fetch it (the address is the secret,
+    // as with any calendar's "secret address"), nobody can list them.
+    match /calLab/{id} {
+      allow get: if mtgMember();
+      allow list: if false;
+      allow create, update: if isMember() && id == 'live' && request.resource.data.keys().hasOnly(['days', '_up', '_by'])
+        && request.resource.data.days is map && request.resource.data.days.size() <= 400
+        && request.resource.data._up == request.time && request.resource.data._by == mySid();
+      allow delete: if isOwner();
+    }
+    match /calFeed/{id} {
+      allow get: if id.size() >= 32 && id.size() <= 64;
+      allow list: if false;
+      allow create, update: if calEditor() && id.size() >= 32 && id.size() <= 64 && id.matches('^[A-Za-z0-9]+$')
+        && request.resource.data.keys().hasOnly(['ics', '_up', '_by'])
+        && request.resource.data.ics is string && request.resource.data.ics.size() <= 600000
+        && request.resource.data._up == request.time && request.resource.data._by == mySid();
+      allow delete: if calEditor();
+    }
+    match /meta/rules_cal_2 {
+      allow get: if isMember();
+    }
 
     // =====================================================================
     // ---------- Onboarding (same office, same logins; 31 Oct 2026) ----------

@@ -292,6 +292,9 @@ const FB = {
     beats.docs.filter(d => labBeat(d.data())).forEach(d => b.delete(d.ref)); // (its check-ins: nothing to show once it's off)
     await FB.track(b.commit());
   },
+  /* the Office Calendar's lab-date counts (callab.js): null when there are none yet */
+  async calLabGet() { const s = await FB.db.doc('calLab/live').get(); return s.exists ? (s.data().days || {}) : null; },
+  async calLabPut(days) { await FB.db.doc('calLab/live').set({ days, _up: FB.ts(), _by: FB.me.staffId }); },
   async mailSenders(list) { await FB.db.doc('meta/inbox').update({ senders: list }); },
   /* ---------- the front-desk email for a case not shipped in time (noship.js) ----------
      The owner's settings sit with the inbox key the scripts read (meta/inbox.notify: on, to, box, pub, names); a note for the sending

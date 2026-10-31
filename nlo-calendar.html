@@ -129,7 +129,7 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "2.1 (Oct 31, 2026)";
+const CAL_VERSION = "2.2 (Oct 31, 2026)";
 
 /* =====================================================================
    On the NLO Cases system (2.0, 31 Oct 2026; nlo-meeting-db.js). Amir: the Office Calendar signs in like Case Tracker, with
@@ -202,8 +202,8 @@ const PHONE = window.matchMedia("(max-width:700px)");
 const S = {
   view: PHONE.matches ? "agenda" : "month",
   cursor: null,
-  filters: { pto: true, event: true, task: true, hr: true, school: true },
-  presetOpen: false, presetMsg: "",
+  filters: { pto: true, event: true, task: true, hr: true, school: true, lab: true },
+  presetOpen: false, presetMsg: "", lab: null, feedMsg: "", feedErr: "", feedCodeMsg: "", rulesMsg: "",
   admin: false,
   data: null,               // mirrors RTDB: {events, staff, settings, adminDays}
   detailDate: null,
@@ -532,6 +532,7 @@ if(isFs()){
     if(was&&!S.admin) lockAdmin("You can no longer edit the calendar (Dr. A changed who can).");
     else bgRender();
   };
+  labWatch(); checkRules2();
   KEYS.forEach(k=>{
     db.ref(CAL_ROOT+"/"+k).on("value",snap=>{ parts[k]=snap.val(); got[k]=true; apply(); },err=>{
       S.connected=false;
@@ -687,7 +688,8 @@ function entriesFor(ds,ignoreFilters){
       if((st&&ppl.indexOf(st)!==-1)||names[outKey(e.staffName)]) out.splice(i,1);
     }
   }
-  const order={holiday:0,pto:1,bday:2,anniv:3,hr:3.5,event:4,task:5};
+  if(ignoreFilters||S.filters.lab!==false) labEntriesFor(ds).forEach(e=>out.push(e));
+  const order={holiday:0,pto:1,bday:2,anniv:3,hr:3.5,event:4,lab:4.5,task:5};
   /* same kind and time: by what's shown, so the people out are in name order */
   out.sort((a,b)=>(order[a.type]-order[b.type])||String(a.time||"").localeCompare(String(b.time||""))||String(entryLabel(a)).localeCompare(String(entryLabel(b))));
   return out;
@@ -700,6 +702,7 @@ function typeColors(t){
   if(t==="task")    return {bg:"#FEF2D7",fg:"#996709",edge:"#E29A14",glyph:"▲",label:"Task"};
   if(t==="holiday") return {bg:"#1B2F4C",fg:"#FFFFFF",edge:"#1B2F4C",glyph:"★",label:"Holiday"};
   if(t==="hr")      return {bg:"#F0EAFB",fg:"#5B3A9E",edge:"#7C5CD6",glyph:"◆",label:"Staff Hub"};
+  if(t==="lab")     return {bg:"#DFF4F2",fg:"#0F6B66",edge:"#27A9A1",glyph:"🧪",label:"Lab"};
   return {bg:"#E5EAF8",fg:"#16318C",edge:"#1D3EA9",glyph:"■",label:"Event"};
 }
 /* ================= WHO'S OUT =================
@@ -994,7 +997,7 @@ const CATS={
   money:{type:"task",glyph:"💵",label:"Payroll",long:"Payroll & money",lead:3}
 };
 function catOf(e){ const c=e&&e.cat&&CATS[e.cat]; return c&&c.type===e.type?c:null; }
-function entryGlyph(e,done){ if(done) return "✓"; const c=catOf(e); return c?c.glyph:typeColors(e.type).glyph; }
+function entryGlyph(e,done){ if(done) return "✓"; if(e&&e.glyph) return e.glyph; const c=catOf(e); return c?c.glyph:typeColors(e.type).glyph; }
 /* days of heads-up before a task is due (an entry's own `lead`, else its category's) */
 function leadOf(e){ if(!e||e.type!=="task") return 0; if(typeof e.lead==="number"&&e.lead>=0) return Math.min(e.lead,120); const c=catOf(e); return c?c.lead:0; }
 const REC_LABEL={weekly:"weekly",biweekly:"every 2 weeks",monthly:"monthly",quarterly:"quarterly",yearly:"yearly",biennial:"every 2 years",triennial:"every 3 years"};
@@ -1279,6 +1282,154 @@ function addPresets(){
   S.presetOpen=false; S.presetMsg=""; render();
 }
 
+/* ---------- lab dates from NLO Cases (counts only; calLab/live, kept by NLO Cases' screens — Oct 31, 2026) ---------- */
+const LAB_KIND_ONE={Aligners:"aligner",Appliances:"appliance",Retainers:"retainer",Models:"model",Other:"other"};
+let labUnsub=null, labRetry=null;
+function labWatch(){
+  if(!isFs()||!NLOC||!NLOC.fs||labUnsub) return;
+  try{
+    labUnsub=NLOC.fs.doc("calLab/live").onSnapshot(s=>{
+      const d=s.exists?(s.data()||{}).days:null;
+      S.lab=d&&typeof d==="object"?d:{};
+      bgRender();
+    },()=>{   /* not signed in, or the rules aren't published yet: ask again in a minute */
+      labUnsub=null; S.lab=null;
+      clearTimeout(labRetry); labRetry=setTimeout(labWatch,60000);
+    });
+  }catch(_){ labUnsub=null; }
+}
+function labEntriesFor(ds){
+  const day=S.lab&&S.lab[ds]; if(!day||typeof day!=="object") return [];
+  const out=[];
+  ["lab","appt"].forEach(kind=>{
+    const parts=Object.keys(day).filter(k=>k.indexOf(kind+"|")===0&&Number(day[k])>0).sort()
+      .map(k=>{ const g=k.slice(kind.length+1), n=Math.min(999,Math.round(Number(day[k]))); return n+" "+(n===1?(LAB_KIND_ONE[g]||"case"):(LAB_KIND_ONE[g]||"case")+"s"); });
+    if(!parts.length) return;
+    out.push({ id:"lab_"+kind+"_"+ds, type:"lab", glyph:kind==="lab"?"🧪":"📦", title:(kind==="lab"?"Due from lab: ":"Deliveries: ")+parts.join(", "),
+      startDate:ds, endDate:ds, time:null, notes:"", recurrence:null, synced:true });
+  });
+  return out;
+}
+
+/* ---------- phone sync: the calendar as a subscribable .ics (calFeed/<secret id>, served by a small feed service) ---------- */
+const FEED_DAYS_BACK=30, FEED_DAYS_AHEAD=180;
+let feedTimer=null, feedLast="", feedAt=0;
+function feedId(){ const v=S.data&&S.data.settings&&S.data.settings.feedId; return typeof v==="string"&&/^[A-Za-z0-9]{32,64}$/.test(v)?v:""; }
+function feedBase(){ const v=S.data&&S.data.settings&&S.data.settings.feedBase; return typeof v==="string"&&/^https:\/\/[^\s"'<>]+$/i.test(v)?v.replace(/\/+$/,""):""; }
+function feedUrl(){ return feedId()&&feedBase()?feedBase()+"/"+feedId()+".ics":""; }
+function newFeedId(){ const a=new Uint8Array(30), A="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"; crypto.getRandomValues(a); let s=""; a.forEach(b=>{ s+=A[b%A.length]; }); return s+Date.now().toString(36).slice(-6); }
+function icsEsc(s){ return String(s==null?"":s).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n"); }
+function icsFold(line){ const cp=Array.from(line); if(cp.length<=60) return line; const out=[]; for(let i=0;i<cp.length;i+=60) out.push((i?" ":"")+cp.slice(i,i+60).join("")); return out.join("\r\n"); }
+const icsD=ds=>ds.replace(/-/g,"");
+const NY_TZ=["BEGIN:VTIMEZONE","TZID:America/New_York","BEGIN:DAYLIGHT","TZOFFSETFROM:-0500","TZOFFSETTO:-0400","TZNAME:EDT","DTSTART:19700308T020000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU","END:DAYLIGHT","BEGIN:STANDARD","TZOFFSETFROM:-0400","TZOFFSETTO:-0500","TZNAME:EST","DTSTART:19701101T020000","RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU","END:STANDARD","END:VTIMEZONE"];
+function buildIcs(){
+  const today=todayStr(), from=addDays(today,-FEED_DAYS_BACK), stamp=icsD(today)+"T000000Z";
+  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Next Level Orthodontics//Office Calendar//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:NLO Office","X-WR-TIMEZONE:America/New_York","REFRESH-INTERVAL;VALUE=DURATION:PT1H","X-PUBLISHED-TTL:PT1H"].concat(NY_TZ);
+  const seen={};
+  const ev=(uid,ds,end,summary,time,desc)=>{
+    L.push("BEGIN:VEVENT","UID:"+uid+"@nlo-office-calendar","DTSTAMP:"+stamp);
+    if(time&&/^\d{2}:\d{2}$/.test(time)){
+      const t=time.replace(":","")+"00", h=(Number(time.slice(0,2))+1)%24, t2=String(h).padStart(2,"0")+time.slice(3,5)+"00";
+      L.push("DTSTART;TZID=America/New_York:"+icsD(ds)+"T"+t,"DTEND;TZID=America/New_York:"+icsD(h===0?addDays(ds,1):ds)+"T"+t2);
+    } else L.push("DTSTART;VALUE=DATE:"+icsD(ds),"DTEND;VALUE=DATE:"+icsD(addDays(end||ds,1)));
+    L.push(icsFold("SUMMARY:"+icsEsc(summary)));
+    if(desc) L.push(icsFold("DESCRIPTION:"+icsEsc(desc)));
+    L.push("TRANSP:TRANSPARENT","END:VEVENT");
+  };
+  for(let i=0;i<=FEED_DAYS_BACK+FEED_DAYS_AHEAD;i++){
+    const ds=addDays(from,i);
+    entriesFor(ds,true).forEach(e=>{
+      if(e.type==="hr"&&e.kind==="review") return;          /* review dates stay in the app */
+      if(e.type==="task"&&isDone(e,ds)) return;
+      const multi=!e.recurrence&&e.endDate&&e.endDate!==e.startDate;
+      const uid=multi?String(e.id):String(e.id)+"-"+ds;
+      if(seen[uid]) return; seen[uid]=1;
+      let sum;
+      if(e.type==="pto") sum="Out: "+(e.staffName||OUT_NOBODY)+(e.part?" ("+e.part+")":"");
+      else if(e.type==="holiday") sum="Office closed: "+e.title;
+      else if(e.type==="bday") sum="🎂 "+e.title;
+      else if(e.type==="anniv") sum="🎉 "+e.title;
+      else if(e.type==="task") sum=entryGlyph(e)+" Due: "+e.title;
+      else if(e.type==="lab") sum=e.glyph+" "+e.title;
+      else { const c=catOf(e); sum=(c?c.glyph+" ":"")+e.title; }
+      ev(uid, multi?(e.startDate<from?from:e.startDate):ds, multi?e.endDate:ds, sum, e.type==="event"?e.time:null, e.type==="event"||e.type==="task"?e.notes:"");
+    });
+    const ad=adminDayOf(ds);
+    if(ad) ev("admin-"+ds,ds,ds,ad==="meeting"?"Admin day + staff meeting":"Admin day",null,"");
+  }
+  L.push("END:VCALENDAR");
+  return L.join("\r\n")+"\r\n";
+}
+/* an editor's screen keeps the feed current: 30 s after the last change, and only when it changed (once a day at most
+   for the date stamp) */
+function feedSoon(){
+  if(!isFs()||!S.admin||!feedId()||!S.data) return;
+  clearTimeout(feedTimer); feedTimer=setTimeout(feedPublish,30000);
+}
+async function feedPublish(){
+  const id=feedId(); if(!isFs()||!S.admin||!id||!NLOC||!NLOC.fs) return;
+  let ics; try{ ics=buildIcs(); }catch(_){ return; }
+  if(ics===feedLast) return;
+  try{
+    await NLOC.fs.doc("calFeed/"+id).set({ ics, _up:firebase.firestore.FieldValue.serverTimestamp(), _by:(NCME&&NCME.sid)||"" });
+    feedLast=ics; feedAt=Date.now(); S.feedErr="";
+  }catch(x){ S.feedErr=(x&&(x.code||x.message))||"couldn't save"; }
+}
+let calRules2=null;   /* the database has the lab-date and phone-feed rules (meta/rules_cal_2) */
+async function checkRules2(){
+  if(!isFs()||!NLOC||!NLOC.fs) return;
+  try{ await NLOC.fs.doc("meta/rules_cal_2").get(); calRules2=true; }catch(_){ calRules2=false; }
+  bgRender();
+}
+function phoneSettingsHtml(){
+  const H=t=>`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">${t}</div>`;
+  const inp=`padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:13.5px;color:var(--navy-800);`;
+  const btn=(act,label,dark)=>`<button data-act="${act}" class="${dark?"hov-navy9":"hov-grey"}" style="border:${dark?"none":"1px solid var(--grey-300)"};background:${dark?"var(--navy-800)":"#fff"};border-radius:999px;padding:8px 16px;font-weight:${dark?700:600};font-size:13px;color:${dark?"#fff":"var(--navy-800)"};">${label}</button>`;
+  let h=H("Phone sync and lab dates");
+  if(!isFs()) return h+`<div style="font-size:13px;color:var(--grey-500);margin-bottom:24px;">Both come once the calendar is on the NLO Cases system (Move to the NLO Cases system, below).</div>`;
+  if(calRules2===false){
+    return h+`<div style="font-size:13px;color:var(--grey-600);margin-bottom:8px;">One step first: publish the updated NLO Cases database rules (they add the lab-date counts and the phone feed; every other app's part stays as it is).</div>
+      <ol style="margin:0 0 10px 18px;padding:0;font-size:13px;line-height:1.7;color:var(--grey-600);"><li>${btn("rules2-copy","Copy the new rules",false)} <span style="font-weight:600;color:var(--mint-700);">${esc(S.rulesMsg||"")}</span></li>
+      <li><a href="https://console.firebase.google.com/project/nlo-cases/firestore/rules" target="_blank" rel="noopener">Open the Firebase console (nlo-cases) → Firestore → Rules</a></li><li>Select all, paste, <b>Publish</b>, then ${btn("rules2-check","Check again",true)}</li></ol><div style="margin-bottom:24px;"></div>`;
+  }
+  const labN=S.lab?Object.keys(S.lab).length:0;
+  h+=`<div style="font-size:13px;color:var(--grey-500);margin-bottom:12px;">🧪 Lab dates: ${S.lab?(labN?"showing — how many cases are due from the lab and how many deliveries each day (counts only, no patients). NLO Cases keeps them current whenever it's open.":"on; they appear once someone opens NLO Cases."):"waiting for the NLO Cases database…"}</div>`;
+  const id=feedId(), base=feedBase(), url=feedUrl(), owner=isOwnerNc();
+  h+=`<div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">📱 Phone sync puts the office calendar (who's out, events, visits, deadlines, closures, admin days, lab counts — never patients or review dates) into Google Calendar or the iPhone Calendar, read-only, updating on its own.</div>`;
+  if(!id){
+    h+=owner?`<div style="margin-bottom:24px;">${btn("feed-on","Turn on phone sync",true)}</div>`:`<div style="font-size:13px;color:var(--grey-500);margin-bottom:24px;">Dr. A turns it on.</div>`;
+    return h;
+  }
+  if(!base){
+    h+=`<div style="border:1px solid var(--grey-200);border-radius:10px;padding:12px;margin-bottom:24px;font-size:13px;color:var(--grey-600);line-height:1.55;">
+      <b>Set up the feed service (once, about 3 minutes):</b>
+      <ol style="margin:6px 0 10px 18px;padding:0;"><li>Sign in at <a href="https://dash.cloudflare.com" target="_blank" rel="noopener">dash.cloudflare.com</a> (the account AISA's worker is on).</li>
+      <li>Workers &amp; Pages → Create → Create Worker → name it <b>nlo-calendar-feed</b> → Deploy.</li>
+      <li>Edit code → replace everything with the code from ${btn("feed-code","Copy the feed service code",false)} <span style="font-weight:600;color:var(--mint-700);">${esc(S.feedCodeMsg||"")}</span> → Deploy.</li>
+      <li>Paste the worker's address (like https://nlo-calendar-feed.<i>yourname</i>.workers.dev) here:</li></ol>
+      <div style="display:flex;gap:8px;"><input type="url" id="feed-base" placeholder="https://nlo-calendar-feed….workers.dev" style="flex:1;min-width:0;${inp}">${btn("feed-base-save","Save",true)}</div></div>`;
+    return h;
+  }
+  const when=feedAt?"updated "+new Date(feedAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):(S.admin?"updates within a minute of any change while an editor has the calendar open":"");
+  h+=`<div style="border:1px solid var(--grey-200);border-radius:10px;padding:12px;margin-bottom:24px;display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--grey-600);line-height:1.5;">
+    <div style="font-weight:700;color:var(--navy-800);">The calendar's subscribe address</div>
+    <div style="display:flex;gap:8px;"><input type="text" readonly value="${esc(url)}" id="feed-url" style="flex:1;min-width:0;${inp}font-family:var(--font-mono);font-size:12px;">${btn("feed-copy","Copy",true)}</div>
+    ${S.feedMsg?`<div style="font-weight:600;color:var(--mint-700);">${esc(S.feedMsg)}</div>`:""}
+    ${S.feedErr?`<div style="font-weight:600;color:var(--coral-700);">Couldn't update the feed: ${esc(S.feedErr)}</div>`:`<div style="font-size:12px;color:var(--grey-400);">${esc(when)}</div>`}
+    <div><b>iPhone:</b> Settings → Calendar → Calendar Accounts → Add Account → Other → Add Subscribed Calendar → paste.<br><b>Google Calendar</b> (on a computer): calendar.google.com → Other calendars <b>+</b> → From URL → paste. It then shows on the phone's Google Calendar too (Google refreshes it every few hours).</div>
+    <div style="font-size:12px;color:var(--grey-400);">Anyone with this address can see the calendar, so share it only with staff. If it gets out, make a new one — the old address stops working.</div>
+    ${owner?`<div style="display:flex;gap:8px;flex-wrap:wrap;">${btn("feed-new","Make a new address",false)}${btn("feed-off","Turn off phone sync",false)}${btn("feed-base-clear","Change the feed service",false)}</div>`:""}
+  </div>`;
+  return h;
+}
+async function copyRulesText(){
+  const r=await fetch("nlo-cases-src/firestore.rules?cb="+Date.now(),{cache:"no-store"});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const text=(await r.text()).replace(/__OWNER_EMAIL__/g,ALLOWED_EMAILS[0]);
+  if(text.indexOf("rules_cal_2")<0) throw new Error("that file doesn’t have the new part yet");
+  return text;
+}
+
 /* ================= RENDER ================= */
 function adminDayTag(ds,small){
   const ad=adminDayOf(ds);
@@ -1431,6 +1582,7 @@ function render(){
 
   /* ---- toolbar ---- */
   const FILTERS=[["pto","●","Out","--coral-500","#FFE7E1","#C13A28"],["event","■","Events","--blue-600","#E5EAF8","#16318C"],["task","▲","Tasks","--amber-600","#FEF2D7","#996709"],["hr","◆","Staff Hub","--violet-500","#F0EAFB","#5B3A9E"],["school","🏫","School","--grey-400","#ECEEF0","#4C5868"]];
+  if(S.lab) FILTERS.splice(4,0,["lab","🧪","Lab","--grey-400","#DFF4F2","#0F6B66"]);
   if(phone){
     h+=`<div style="display:flex;align-items:center;gap:6px;padding:12px 14px 8px;">
       <h1 class="disp" style="margin:0;flex:1;min-width:0;font-weight:700;letter-spacing:.01em;font-size:22px;line-height:1.1;color:var(--navy-800);">${esc(periodLabel)}</h1>
@@ -1504,6 +1656,7 @@ function render(){
   app.querySelectorAll("[data-keep-scroll]").forEach(el=>{ const v=sc[el.getAttribute("data-keep-scroll")]; if(v) el.scrollTop=v; });
   const pin=document.getElementById("pin-input");
   if(pin){ pin.focus(); pin.value=S.pinValue; }
+  feedSoon();
 }
 
 function renderMonth(today,cd){
@@ -1749,6 +1902,8 @@ function renderDetail(today,dd){
       h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">Synced from ${S.sync.src==="timeoff"?"NLO Time Off":"the Time-Off Request app"} — manage it there.</div>`;
     } else if(S.admin&&(e.type==="bday"||e.type==="anniv")){
       h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">From the staff list — edit in Settings → Staff.</div>`;
+    } else if(e.type==="lab"){
+      h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">From NLO Cases — counts only. Open NLO Cases for the cases themselves.</div>`;
     } else if(S.admin&&e.type==="hr"){
       h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">From Staff Hub — change it there.</div>`;
     }
@@ -1943,6 +2098,7 @@ function renderSettings(){
 
     ${hrSettingsHtml()}
     ${extrasSettingsHtml()}
+    ${phoneSettingsHtml()}
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Office closures</div>
     <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Office-specific closed days (beyond the handbook holidays) — shown as ★ holidays; nobody shows as out on them.</div>
@@ -2035,6 +2191,31 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "preset-open": S.presetOpen=true; S.presetMsg=""; render(); break;
     case "preset-close": S.presetOpen=false; S.presetMsg=""; render(); break;
     case "preset-add": addPresets(); break;
+    case "feed-on": if(isOwnerNc()) fbSet("settings/feedId",newFeedId()); break;
+    case "feed-new": {
+      if(!isOwnerNc()||!window.confirm("Make a new subscribe address?\n\nThe current one stops working: everyone who added it adds the new one.")) break;
+      const old=feedId(); if(old) NLOC.fs.doc("calFeed/"+old).delete().catch(()=>{});
+      feedLast=""; S.feedMsg=""; fbSet("settings/feedId",newFeedId()); break;
+    }
+    case "feed-off": {
+      if(!isOwnerNc()||!window.confirm("Turn off phone sync?\n\nThe subscribe address stops working.")) break;
+      const old=feedId(); if(old) NLOC.fs.doc("calFeed/"+old).delete().catch(()=>{});
+      feedLast=""; S.feedMsg=""; fbRemove("settings/feedId"); break;
+    }
+    case "feed-base-save": {
+      const v=(document.getElementById("feed-base").value||"").trim().replace(/\/+$/,"");
+      if(!/^https:\/\/[A-Za-z0-9.-]+(\/[^\s"'<>]*)?$/.test(v)){ S.feedCodeMsg="That needs to be the worker's https:// address."; render(); break; }
+      fbSet("settings/feedBase",v); break;
+    }
+    case "feed-base-clear": if(isOwnerNc()) fbRemove("settings/feedBase"); break;
+    case "feed-copy": copyText(feedUrl()).then(ok=>{ S.feedMsg=ok?"Copied ✓":"Select the address and copy it."; bgRender(); }); break;
+    case "feed-code":
+      fetch("nlo-cal-feed-worker.js?cb="+Date.now(),{cache:"no-store"}).then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.text(); })
+        .then(t=>copyText(t)).then(ok=>{ S.feedCodeMsg=ok?"Copied ✓":"Couldn't copy — it's nlo-cal-feed-worker.js in the nlo-apps repo."; bgRender(); })
+        .catch(x=>{ S.feedCodeMsg="Couldn't get it: "+(x.message||x); bgRender(); });
+      break;
+    case "rules2-copy": copyRulesText().then(t=>copyText(t)).then(ok=>{ S.rulesMsg=ok?"Copied ✓ — paste it in the console":"Couldn't copy"; bgRender(); }).catch(x=>{ S.rulesMsg="Couldn't get the rules: "+(x.message||x); bgRender(); }); break;
+    case "rules2-check": (async()=>{ try{ await NLOC.fs.disableNetwork(); await NLOC.fs.enableNetwork(); }catch(_){} S.rulesMsg="Checking…"; bgRender(); await checkRules2(); S.rulesMsg=calRules2?"":"Not yet — it can take a few minutes after Publish."; if(calRules2){ labUnsub=null; labWatch(); } bgRender(); })(); break;
     case "watch-remove": fbRemove("settings/watchCustom/"+el.dataset.date); break;
     case "watch-add": {
       const a=document.getElementById("new-watch-start").value, b=document.getElementById("new-watch-end").value;

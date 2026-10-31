@@ -229,6 +229,7 @@ const DEMO = {
   async mailState() { return { on: DEMO.mail.on, pub: Object.assign({ senders: MAIL_SENDERS }, DEMO.notify ? { notify: JSON.parse(JSON.stringify(DEMO.notify)) } : {}), beats: DEMO.mail.beats.slice(),
     bots: (DEMO.mail.on ? [{ uid: 'bot', email: 'mailbot.demo@staff.example' }] : []).concat(DEMO.lab.on ? [{ uid: 'labbot', email: 'labbot.demo@staff.example' }] : []) }; },
   async labSetup() { DEMO.lab.on = true; return { email: 'labbot.demo@staff.example', password: 'demo-only-not-a-real-login' }; },
+  async calLabGet() { return null; }, async calLabPut() { },
   async labOff() { DEMO.lab.on = false; DEMO.mail.beats = DEMO.mail.beats.filter(b => !labBeat(b)); },
   async mailSetup() { DEMO.mail.on = true; return DEMO.mailCreds(); },
   async mailCreds() { return DEMO.mail.on ? { email: 'mailbot.demo@staff.example', password: 'demo-only-not-a-real-login' } : null; },
