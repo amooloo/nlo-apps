@@ -1030,6 +1030,8 @@ function moveSheet() {
     try { old = await NLOM.readOld(db); } catch (x) { body.innerHTML = msg('Couldn’t read the old database: ' + (x.message || x), true); return; }
     const recs = NLOM.recordsOf(old), bad = NLOM.badIds(recs);
     if (bad.length) { body.innerHTML = msg('These records have ids the new database won’t take, so nothing was moved: ' + bad.slice(0, 8).join(', '), true); return; }
+    const big = NLOM.tooBig(recs);
+    if (big.length) { body.innerHTML = msg('These records are too big for one record in the new database (1 MB each), so nothing was moved: ' + big.slice(0, 8).join(', '), true); return; }
     body.innerHTML = '<p class="hint">What moves:</p><ul class="hint" style="margin:6px 0 0 18px;line-height:1.7">' + moveCounts(old) + '</ul>' +
       '<p class="hint" style="margin-top:12px">Before you start: close the Staff Meeting Hub and Month-End Numbers on other computers (or reload them afterwards). A copy of everything goes to your Downloads first. The old database keeps its copy too.</p>' +
       '<div class="row end" style="margin-top:14px"><button class="btn ghost" data-act="sheet-close">Not now</button><button class="btn coral" id="mvNow">Move it now</button></div>';

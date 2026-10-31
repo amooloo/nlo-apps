@@ -483,6 +483,8 @@
   const fpr = v => JSON.stringify(canon(plain(clean(v, false), false)));
   function canon(v) { if (Array.isArray(v)) return v.map(canon); if (isObj(v)) { const o = {}; Object.keys(v).sort().forEach(k => { o[k] = canon(v[k]); }); return o; } return v; }
   function badIds(recs) { return recs.map(r => r.doc.split('/')[1]).filter(id => !/^[A-Za-z0-9_-]{1,100}$/.test(id)); }
+  /* records over Firestore's 1 MB limit for one record (none is expected: a transcript that big would be ~19 hours of talk) */
+  function tooBig(recs) { return recs.filter(r => sizeOf(r.data) + 200 > 1000000).map(r => r.doc + ' (' + Math.round((sizeOf(r.data) + 200) / 1024) + ' KB)'); }
   /* write the records (in batches of ≤ 400 and ≤ ~8 MB), removing NLO Cases records the old database doesn't have (a re-run
      is clean); then read them all back and compare */
   async function writeRecords(fs, sid, recs, onStep) {
@@ -494,11 +496,13 @@
     for (const c of Object.keys(cols)) { const q = await fs.collection(c).get({ source: 'server' }); q.forEach(d => { if (!have.has(c + '/' + d.id)) extra.push(c + '/' + d.id); }); }
     // (the single records — config, current, roster, the AISA key, Month-End's years and setup — are set whole when the old
     // database has them; they can't have been made without it, so none is left over)
-    const ops = recs.map(r => ({ set: r })).concat(extra.map(d => ({ del: d })));
+    const ops = recs.map(r => ({ set: r, s: sizeOf(r.data) + 200 })).concat(extra.map(d => ({ del: d, s: 200 })));
+    /* a record over Firestore's 1 MB limit: say so before anything is written */
+    const big = ops.find(op => op.s > 1000000);
+    if (big) { const e = new Error('Too big to move: ' + big.set.doc + ' (' + Math.round(big.s / 1024) + ' KB) — nothing was written'); e.code = 'too-big'; throw e; }
     let b = fs.batch(), n = 0, size = 0, done = 0;
     for (const op of ops) {
-      const s = op.set ? sizeOf(op.set.data) + 200 : 200;
-      if (s > 1000000) { const e = new Error('Too big to move: ' + op.set.doc + ' (' + Math.round(s / 1024) + ' KB)'); e.code = 'too-big'; throw e; }
+      const s = op.s;
       if (n && (n >= 400 || size + s > 8000000)) { await b.commit(); done += n; if (onStep) onStep(done, ops.length); b = fs.batch(); n = 0; size = 0; }
       if (op.set) b.set(fs.doc(op.set.doc), Object.assign({}, op.set.data, { _up: FV.serverTimestamp(), _by: String(sid || '') }));
       else b.delete(fs.doc(op.del));
@@ -542,7 +546,7 @@
   window.NLOM = {
     ROOT, MOUNTS, MOVED, RULES_MARK,
     init, db: makeDb, signIn, watch, unwatch, idleMin, lock, lockMsg, lastLogin, errText, badLogin, moved, onMoved, rulesLive, personOf,
-    cadenceCopy, inventoryOld, readOld, readNew, recordsOf, writeRecords, counts, badIds, fpr, clean, plain, pushKey, target, sidFor,
+    cadenceCopy, inventoryOld, readOld, readNew, recordsOf, writeRecords, counts, badIds, tooBig, fpr, clean, plain, pushKey, target, sidFor,
     get me() { return NL.me; }, get fs() { return NL.fs; }, get auth() { return NL.auth; }
   };
 })();
