@@ -39,10 +39,11 @@ const URL = (process.env.NLO_PAGE || 'http://127.0.0.1:8765/nlo-cases.html') + '
       after: put(pick('appliance'), { deliveryDate: a.after, deliveryTime: '14:00' }),
       monica: put(pick('ulab'), { patient: 'Monica Placeholder', deliveryDate: a.far, deliveryTime: '' }),
       mon: put(pick('angel'), { deliveryDate: a.mon, deliveryTime: '11:00' }),
-      wkThu: put(pick('oliv'), { deliveryDate: a.wkThu, deliveryTime: '14:00', shipToPatient: '' })
+      wkThu: put(pick('oliv'), { deliveryDate: a.wkThu, deliveryTime: '14:00', shipToPatient: '' }),
+      old: put(pick('models'), { patient: 'Olive Oldcase', deliveryDate: a.old, deliveryTime: '', labDate: '', scanDate: a.oldScan })
     };
     queueRender(); return r;
-  }, { tue: plus(8 - wd), thu: plus(10 - wd), after: plus(14 - wd), far: plus(30), mon: coming(0), wkThu: coming(3), tom: plus(1) });
+  }, { tue: plus(8 - wd), thu: plus(10 - wd), after: plus(14 - wd), far: plus(30), mon: coming(0), wkThu: coming(3), tom: plus(1), old: plus(-150), oldScan: plus(-155) });
   await p.waitForTimeout(200);
   // every open case as the search sees it: its delivery appt (else an older due date) and the words it can be found by
   const snap = () => p.evaluate(() => openCases().map(c => ({ id: c.id, patient: c.patient, type: c.type, d: c.deliveryDate || c.dueDate || '', tm: c.deliveryDate ? c.deliveryTime || '' : '',
@@ -86,6 +87,12 @@ const URL = (process.env.NLO_PAGE || 'http://127.0.0.1:8765/nlo-cases.html') + '
   exp = want(cs, 'tomorrow', plus(1), plus(1)).sort(byKey); await search('tomorrow');
   check(exp.some(c => c.id === ids.tom) && JSON.stringify(await rows()) === JSON.stringify(exp.map(c => c.id)) && await hint() === 'Delivery appts tomorrow · ' + dayTxt(plus(1)), '“tomorrow”: ' + exp.length + ' case(s), “' + await hint() + '”');
 
+  console.log('\n# A list: “Thursday and Friday” (the Friday after that Thursday)');
+  { const thu = coming(3), f = at(thu); f.setDate(f.getDate() + 1); const fri = iso(f);
+    exp = cs.filter(c => has(c, 'thursday and friday') || c.d === thu || c.d === fri).sort(byKey); await search('Thursday and Friday');
+    check(exp.length >= 1 && JSON.stringify(await rows()) === JSON.stringify(exp.map(c => c.id)) && await hint() === 'Delivery appts ' + dayTxt(thu) + ' and ' + dayTxt(fri), '“Thursday and Friday”: ' + exp.length + ' case(s), “' + await hint() + '”');
+    await search("what's due Thursday"); check(JSON.stringify(await rows()) === JSON.stringify(cs.filter(c => c.d === thu).sort(byKey).map(c => c.id)), '“what’s due Thursday”: just Thursday’s (the words that can’t narrow anything are left out)'); }
+
   console.log('\n# A date, and a stretch of days');
   const [, mm, dd] = plus(10 - wd).split('-').map(Number);
   exp = want(cs, mm + '/' + dd, plus(10 - wd), plus(10 - wd)).sort(byKey); await search(mm + '/' + dd);
@@ -114,11 +121,18 @@ const URL = (process.env.NLO_PAGE || 'http://127.0.0.1:8765/nlo-cases.html') + '
   await p.fill('#q', ''); await p.waitForTimeout(150); await p.click('#q'); await p.keyboard.type('next week', { delay: 35 }); await p.waitForTimeout(250);
   check(await p.inputValue('#q') === 'next week' && await p.evaluate(() => document.activeElement && document.activeElement.id === 'q') && /^Delivery appts next week/.test(await hint() || ''), 'the box says “next week”, still has the cursor, and the line is there');
 
+  console.log('\n# Typing “thursday”: the line comes at “thu” and holds');
+  await p.fill('#q', ''); await p.waitForTimeout(150); await p.click('#q'); const seen = [];
+  for (const ch of 'thursday') { await p.keyboard.type(ch); await p.waitForTimeout(80); seen.push(await hint() !== null); }
+  check(JSON.stringify(seen) === JSON.stringify([false, false, true, true, true, true, true, true]), 'the line, letter by letter: ' + seen.map(x => x ? '●' : '○').join(''));
+
   console.log('\n# The line sits under the box without covering anything');
   const box = s => p.evaluate(s => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, b: r.bottom, r: r.right, w: r.width }; }, s);
   const sideways = () => p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   let hb = await box('#qdHint'), ib = await box('#q'), fb = await box('#view .filters');
   check(hb && hb.y >= ib.b && hb.b <= fb.y, 'under the search box (' + Math.round(hb.y - ib.b) + ' px) and above the filters (' + Math.round(fb.y - hb.b) + ' px to spare)');
+  const moves = async () => { await search('next wee'); const a = (await box('#view .filters')).y; await search('next week'); const b = (await box('#view .filters')).y; return [a, b]; };
+  let mv = await moves(); check(Math.abs(mv[0] - mv[1]) < 0.5 && await hint() !== null, 'nothing below moves when it comes (filters at ' + Math.round(mv[0]) + ' px both times)');
   await p.setViewportSize({ width: 900, height: 700 }); await p.waitForTimeout(200);
   hb = await box('#qdHint span'); fb = await box('#view .filters');
   check(hb && hb.b <= fb.y && await sideways() <= 0, 'at 900 px wide too, and no sideways scroll');
@@ -140,6 +154,13 @@ const URL = (process.env.NLO_PAGE || 'http://127.0.0.1:8765/nlo-cases.html') + '
   await search('');
   check(await p.evaluate(() => !document.querySelector('.qdCard') && Array.from(document.querySelectorAll('#view .cardHd h3')).some(h => h.textContent.trim() === 'Coming up')), 'search cleared: Coming up is back');
 
+  console.log('\n# Clean up old cases (it ticks everything it lists) keeps to what the words find');
+  { const [, om, od] = plus(-150).split('-').map(Number); await search(om + '/' + od);
+    const cl = await p.evaluate(id => ({ inCard: !!document.querySelector('#cleanCard input[data-old="' + id + '"]'), inAppts: !!document.querySelector('.qdCard .row[data-id="' + id + '"]') }), ids.old);
+    check(cl.inAppts && !cl.inCard, 'her old appt day (' + om + '/' + od + '): Olive Oldcase is under Delivery appts, not in Clean up old cases');
+    await search('Olive'); check(await p.evaluate(id => !!document.querySelector('#cleanCard input[data-old="' + id + '"]'), ids.old), 'her name: she’s in Clean up old cases, as before');
+    await search(''); }
+
   console.log('\n# Board: only next week’s cards, each with its appt');
   await p.click('#nav-board'); await p.waitForSelector('.board'); await search('next week');
   const bd = await p.evaluate(() => ({ tabs: Array.from(document.querySelectorAll('.boardTabs .chip .c')).reduce((n, x) => n + Number(x.textContent), 0),
@@ -149,12 +170,19 @@ const URL = (process.env.NLO_PAGE || 'http://127.0.0.1:8765/nlo-cases.html') + '
   await p.screenshot({ path: OUT + '/v67-board.png' });
 
   console.log('\n# Completed: “last week” — delivered last week, in appointment order');
-  await p.click('#nav-done'); await p.waitForSelector('.doneTbl, #view .empty'); await p.waitForTimeout(300); await search('last week');
+  await p.click('#nav-done'); await p.waitForSelector('.doneTbl, #view .empty'); await p.waitForTimeout(300);
+  // an older completed case with only a due date (last week's Thursday): found by it, and the column shows it
+  const dueId = await p.evaluate(a => { const c = S.closed.find(x => x.deliveryDate && (x.closedAt || 0) >= Date.now() - 30 * 864e5); const x = { deliveryDate: '', deliveryTime: '', dueDate: a };
+    Object.assign(c, x); const d = DEMO.cases.get(c.id); if (d && d !== c) Object.assign(d, x); return c.id; }, plus(-wd - 4));
+  await search('last week');
   const closed = await p.evaluate(() => S.closed.filter(c => (c.closedAt || 0) >= Date.now() - 90 * 864e5).map(c => ({ id: c.id, patient: c.patient, d: c.deliveryDate || c.dueDate || '',
     text: [c.patient, c.chart, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName), c.labRef, c.tracking].map(x => String(x || '').toLowerCase()) })));
   const dexp = closed.filter(c => has(c, 'last week') || (c.d >= lastMon && c.d <= lastSun));
   const drows = await p.$$eval('.doneTbl tbody tr[data-id]', trs => trs.map(t => t.dataset.id));
   check(dexp.length >= 1 && drows.length === dexp.length && dexp.every(c => drows.includes(c.id)), 'the ' + dexp.length + ' completed case(s) with an appt ' + lastMon + '…' + lastSun);
+  const dueCell = await p.evaluate(id => { const tr = document.querySelector('.doneTbl tbody tr[data-id="' + id + '"]'); if (!tr) return null; const ths = Array.from(document.querySelectorAll('.doneTbl thead th')).map(t => t.textContent.replace(/[↑↓]/g, '').trim());
+    return tr.children[ths.indexOf('Delivery appt')].textContent.trim(); }, dueId);
+  check(dueCell === 'Due ' + at(plus(-wd - 4)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 'an older case found by its due date shows it in the Delivery appt column (“' + dueCell + '”)');
   const dd2 = drows.map(id => closed.find(c => c.id === id).d);
   check(dd2.every((d, i) => !i || dd2[i - 1] <= d) && await p.evaluate(() => Array.from(document.querySelectorAll('.doneTbl thead button')).some(b => b.textContent.trim() === 'Delivery appt ↑')), 'earliest appt first (Delivery appt ↑)');
   await search('');
@@ -164,6 +192,7 @@ const URL = (process.env.NLO_PAGE || 'http://127.0.0.1:8765/nlo-cases.html') + '
   await p.setViewportSize({ width: 390, height: 844 }); await p.click('#mnav-list'); await p.waitForSelector('#listBody'); await search('next week');
   hb = await box('#qdHint span'); ib = await box('#q'); fb = await box('#view .filters');
   check(hb && hb.y >= ib.b && hb.b <= fb.y && hb.r <= 390 && await sideways() <= 0, 'the line fits under the box, above the filters, with no sideways scroll');
+  mv = await moves(); check(Math.abs(mv[0] - mv[1]) < 0.5, 'and nothing below moves when it comes (filters at ' + Math.round(mv[0]) + ' px both times)');
   cs = await snap(); exp = want(cs, 'next week', nextMon, nextSun);
   check((await rows()).length === exp.length, 'the same ' + exp.length + ' cases');
   await p.screenshot({ path: OUT + '/v67-phone.png' });

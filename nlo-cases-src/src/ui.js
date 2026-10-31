@@ -400,8 +400,8 @@ function qDate() {
   if (QD.q !== S.q || QD.day !== day) { QD.q = S.q; QD.day = day; QD.v = S.q ? apptQuery(S.q, day) : null; }
   return QD.v;
 }
-/* the case's delivery appt (a case shipped to the patient: the expected delivery; an older case: its due date) is on those days */
-function qdHit(c, qd) { const x = apptOf(c), d = x && /^\d{4}-\d{2}-\d{2}/.test(x.d) ? x.d.slice(0, 10) : ''; return !!d && d >= qd.from && d <= qd.to; }
+/* the case's delivery appt (a case shipped to the patient: the expected delivery; an older case: its due date) is on one of those days */
+function qdHit(c, qd) { const x = apptOf(c), d = x && /^\d{4}-\d{2}-\d{2}/.test(x.d) ? x.d.slice(0, 10) : ''; return !!d && qd.spans.some(s => d >= s.from && d <= s.to); }
 /* what the line under the search box (and Today's card) says: "Delivery appts next week · Mon, Nov 2 – Sun, Nov 8",
    "“oliv” with a delivery appt next week · …" */
 function qdSays(qd) { return (qd.rest ? '“' + qd.rest + '” with a delivery appt ' : 'Delivery appts ') + apptQueryText(qd); }
@@ -528,7 +528,7 @@ function topBar(extra) {
   // a search that's an appointment day says how it was read on a line under the box ("Delivery appts next week · Mon, Nov 2 – Sun, Nov 8")
   const srch = ['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view), qd = srch && qDate();
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
-    (srch ? '<label class="searchBox' + (qd ? ' qdOn' : '') + '" title="Search a patient, chart #, type or stage — or an appointment day: today, Thursday, next week, 11/5">' + ic('search', 17) + '<span class="hidden">Search</span>' +
+    (srch ? '<label class="searchBox" title="Search a patient, chart #, type or stage — or an appointment day: today, Thursday, next week, 11/5">' + ic('search', 17) + '<span class="hidden">Search</span>' +
       '<input id="q" type="search" placeholder="Search patient, type, stage, appt day…" value="' + esc(S.q) + '" aria-label="Search cases"' + (qd ? ' aria-describedby="qdHint"' : '') + '>' +
       (qd ? '<span class="qdHint" id="qdHint">' + ic('cal', 13) + '<span title="' + esc(qdSays(qd)) + '">' + esc(qdSays(qd)) + '</span></span>' : '') + '</label>' : '<span style="flex:1"></span>') +
     (extra || '') + (srch ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New submission</button></div>'; // (it was New case — Amir, 29 Oct 2026)
@@ -1163,7 +1163,8 @@ function viewToday() {
     (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab date or delivery appt</button></div></div>' : '');
   const qk = openCases().filter(x => x.quick).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   const quickCard = qk.length ? '<div class="card quickCard"><div class="cardHd"><h3>Finish details</h3><span class="sub">' + qk.length + ' case' + (qk.length > 1 ? 's' : '') + ' added with Quick add — open one and tap Finish details</span></div><div class="cardBd">' + qk.map(x => row(x)).join('') + '</div></div>' : '';
-  return h + mailHealthHTML() + backupDueHTML() + quickCard + mailCardHTML() + labWaitHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+  // (Clean up old cases ticks everything it lists, so it keeps to what the words find on their own: a searched day's cases are for looking)
+  return h + mailHealthHTML() + backupDueHTML() + quickCard + mailCardHTML() + labWaitHTML() + cleanupCardHTML(qd ? openCases().filter(x => qText(x, S.q)) : all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
 }
 
 /* Today while the search is an appointment day: the open cases whose delivery appt falls then, by day — however far off (Coming up only
@@ -1537,7 +1538,7 @@ function doneSortNow() { return S.dsort || (qDate() ? { k: 'appt', dir: 1 } : DO
 function doneSort(list) {
   const { k, dir } = doneSortNow();
   const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'who' ? String(staffName(c.assignee, c.assigneeName) || '').toLowerCase()
-    : k === 'appt' ? (c.deliveryDate || '') : k === 'stage' ? (stageLabel(c) || '') : (c.closedAt || 0);
+    : k === 'appt' ? ((apptOf(c) || {}).d || '') : k === 'stage' ? (stageLabel(c) || '') : (c.closedAt || 0); // (an older case: its due date)
   const memo = new Map(), v = c => { if (!memo.has(c)) memo.set(c, val(c)); return memo.get(c); }, newest = (a, b) => (b.closedAt || 0) - (a.closedAt || 0);
   // (no one assigned, no delivery appt: last whichever way it's sorted; ties: the newest completed first)
   return list.slice().sort((a, b) => { const x = v(a), y = v(b); if (x === '' || y === '') return x === y ? newest(a, b) : x === '' ? 1 : -1;
@@ -1567,7 +1568,7 @@ function viewDone() {
     list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + dmChip(c) + '</div></div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('who') ? '<td class="hideM small">' + esc(staffName(c.assignee, c.assigneeName) || '—') + '</td>' : '') +
-      (on('appt') ? '<td class="hideM small">' + esc(c.deliveryDate ? fmtDate(c.deliveryDate) : '—') + '</td>' : '') +
+      (on('appt') ? '<td class="hideM small">' + esc(apptOf(c) ? (apptOf(c).k === 'due' ? 'Due ' : '') + fmtDate(apptOf(c).d) : '—') + '</td>' : '') +
       '<td class="small">' + esc(fmtWhen(c.closedAt)) + '</td>' + (on('stage') ? '<td class="hideM small">' + esc(stageLabel(c)) + '</td>' : '') + '</tr>').join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + (older ? ' · ' + older : '') + '</div>';
 }

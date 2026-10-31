@@ -447,7 +447,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
   .topBar{padding:12px 16px 10px;flex-wrap:wrap;position:static}
   .topBar h2{font-size:20px}
   .searchBox{order:3;max-width:none;flex-basis:100%;margin-left:0}
-  .searchBox.qdOn{margin-bottom:14px} .searchBox .qdHint{right:0}
+  .searchBox .qdHint{right:0;top:100%;font-size:11px;line-height:13px} /* (fits the 14 px under the box, so nothing moves while typing) */
   #view{padding:4px 16px 70px}
   .grid2,.grid3,.grid4{grid-template-columns:1fr}
   .cardHd{flex-wrap:wrap}

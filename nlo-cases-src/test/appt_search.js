@@ -36,8 +36,8 @@ is(D, 'sat', '2026-10-31'); is(D, 'sun', '2026-11-01'); is(D, 'sunday', '2026-11
 is(D, 'this week', '2026-10-26', '2026-11-01', 'this week'); is(D, 'next week', '2026-11-02', '2026-11-08', 'next week');
 is(D, 'Next Week', '2026-11-02', '2026-11-08'); is(D, 'next wk', '2026-11-02', '2026-11-08'); is(D, 'coming week', '2026-11-02', '2026-11-08');
 is(D, 'last week', '2026-10-19', '2026-10-25', 'last week'); is(D, 'the week after next', '2026-11-09', '2026-11-15', 'the week after next');
-is(D, 'in 2 weeks', '2026-11-09', '2026-11-15', 'in 2 weeks'); is(D, 'in two weeks', '2026-11-09', '2026-11-15'); is(D, 'in a week', '2026-11-02', '2026-11-08', 'in 1 week');
-is(D, 'in 3 days', '2026-11-02', null, 'in 3 days'); is(D, '3 days from now', '2026-11-02'); is(D, 'in one day', '2026-10-31', null, 'in 1 day');
+is(D, 'in 2 weeks', '2026-11-09', '2026-11-15', 'in 2 weeks'); is(D, 'in two weeks', '2026-11-09', '2026-11-15'); is(D, 'in a week', '2026-11-02', '2026-11-08', 'in a week');
+is(D, 'in 3 days', '2026-11-02', null, 'in 3 days'); is(D, '3 days from now', '2026-11-02'); is(D, 'in one day', '2026-10-31', null, 'in a day');
 is(D, 'next 10 days', '2026-10-30', '2026-11-08', 'in the next 10 days'); is(D, 'in the next 7 days', '2026-10-30', '2026-11-05');
 is(D, 'next two weeks', '2026-10-30', '2026-11-12', 'in the next 2 weeks'); is(D, 'within 10 days', '2026-10-30', '2026-11-08');
 is(D, 'last 7 days', '2026-10-24', '2026-10-30', 'in the last 7 days'); is(D, 'past 2 weeks', '2026-10-17', '2026-10-30');
@@ -82,8 +82,38 @@ isr(D, 'next week sarah', '2026-11-02', '2026-11-08', 'sarah'); isr(D, "Sarah's 
 isr(D, 'avery, thursday', '2026-11-05', null, 'avery'); isr(D, "O'Brien's Thursday", '2026-11-05', null, "O'Brien"); isr(D, 'T-1234 tomorrow', '2026-10-31', null, 'T-1234');
 isr(D, 'oliv monday to thursday', '2026-11-02', '2026-11-05', 'oliv'); isr(D, 'between nov 2 and nov 6 oliv', '2026-11-02', '2026-11-06', 'oliv'); isr(D, 'thursday 11/5 oliv', '2026-11-05', null, 'oliv');
 isr(D, 'Sun Lee', '2026-11-01', null, 'Lee'); isr(D, 'Jordan Sun', '2026-11-01', null, 'Jordan'); // (names: the words still find Sun Lee and Jordan Sunderland too — matchesQ)
-isr(D, 'thursday 2pm', '2026-11-05', null, '2pm'); isr(D, 'next week sometime', '2026-11-02', '2026-11-08', 'sometime'); isr(D, 'november 30-31', '2026-11-01', '2026-11-30', '30-31');
+isr(D, 'thursday 2pm', '2026-11-05', null, ''); isr(D, 'Thursday at 10:30', '2026-11-05', null, ''); // (a time narrows nothing: the list shows the times) isr(D, 'next week sometime', '2026-11-02', '2026-11-08', 'sometime'); isr(D, 'november 30-31', '2026-11-01', '2026-11-30', '30-31');
 check(T.apptQuery('next week', D).rest === '' && T.apptQuery('thursday', D).rest === '', 'a day on its own has no other words');
+
+console.log('  (everyday phrasings — from the independent review, 30 Oct 2026)');
+// sp: the days found, as from..to strings in date order (open ends as 0000-01-01 / 9999-12-31)
+const isS = (today, q, sp, rest) => {
+  const r = T.apptQuery(q, today), got = r ? r.spans.map(x => x.from + '..' + x.to) : null;
+  const ok = !!r && JSON.stringify(got) === JSON.stringify(sp) && (rest === undefined || r.rest === rest);
+  check(ok, '“' + q + '” → ' + sp.join(' + ') + (rest ? ' with “' + rest + '”' : '') + (ok ? '' : '   got ' + (got ? got.join(' + ') + ' with “' + r.rest + '”' : 'null')));
+};
+const d1 = x => [x + '..' + x];
+isS(D, 'this coming Thursday', d1('2026-11-05'), ''); isS(D, 'this coming week', ['2026-11-02..2026-11-08'], ''); isS(D, 'this past Monday', d1('2026-10-26'), '');
+isS(D, 'this past week', ['2026-10-19..2026-10-25'], ''); isS(D, 'in the next week', ['2026-10-30..2026-11-05'], ''); isS(D, 'within the next week', ['2026-10-30..2026-11-05'], '');
+isS(D, 'in the next month', ['2026-10-30..2026-11-28'], ''); isS(D, 'deliveries Thursday and Friday', ['2026-11-05..2026-11-05', '2026-11-06..2026-11-06'], '');
+isS(D, '11/5 Thursday', d1('2026-11-05'), ''); isS(D, 'Nov 5 Thursday', d1('2026-11-05'), ''); isS(D, "what's due Thursday", d1('2026-11-05'), '');
+isS(D, 'show me deliveries next week', ['2026-11-02..2026-11-08'], ''); isS(D, 'tomorrow morning', d1('2026-10-31'), ''); isS(D, 'Thursday afternoon', d1('2026-11-05'), '');
+isS(D, 'Thursday after next', d1('2026-11-12'), ''); isS(D, 'Thursday next', d1('2026-11-05'), ''); isS(D, 'the day before yesterday', d1('2026-10-28'), '');
+isS(D, 'next May', ['2027-05-01..2027-05-31']); isS(D, 'last November', ['2025-11-01..2025-11-30']); isS(D, 'this May', ['2026-05-01..2026-05-31']);
+isS(D, 'next November', ['2026-11-01..2026-11-30']); isS(D, 'next October', ['2027-10-01..2027-10-31']); isS(D, 'last October', ['2025-10-01..2025-10-31']);
+isS(D, 'week from today', ['2026-11-02..2026-11-08'], ''); isS(D, 'a week from today', ['2026-11-02..2026-11-08']); isS(D, 'week from tomorrow', d1('2026-11-07'));
+isS(D, 'a week from Thursday', d1('2026-11-12')); isS(D, '3 days from tomorrow', d1('2026-11-03')); isS('2026-11-01', 'week from today', ['2026-11-02..2026-11-08']);
+console.log('  (open at one end, lists, and the start of a weekday)');
+isS(D, 'before friday', ['0000-01-01..2026-10-29'], ''); isS(D, 'after thursday', ['2026-11-06..9999-12-31'], ''); isS(D, 'by friday', ['0000-01-01..2026-10-30'], '');
+isS(D, 'until Friday', ['0000-01-01..2026-10-30']); isS(D, 'before next week', ['0000-01-01..2026-11-01']); isS(D, 'oliv before friday', ['0000-01-01..2026-10-29'], 'oliv');
+isS(D, 'monday or wednesday', ['2026-11-02..2026-11-02', '2026-11-04..2026-11-04']); isS(D, 'mon & wed', ['2026-11-02..2026-11-02', '2026-11-04..2026-11-04']);
+isS(D, 'today and tomorrow', ['2026-10-30..2026-10-30', '2026-10-31..2026-10-31']); isS(D, 'thursday friday', ['2026-11-05..2026-11-05', '2026-11-06..2026-11-06'], '');
+isS(D, 'monday, wednesday and thursday', ['2026-11-02..2026-11-02', '2026-11-04..2026-11-04', '2026-11-05..2026-11-05']); isS(D, 'monday to wednesday and friday', ['2026-11-02..2026-11-04', '2026-11-06..2026-11-06']);
+isS(D, 'thursd', d1('2026-11-05')); isS(D, 'wednes', d1('2026-11-04')); isS(D, 'saturd', d1('2026-10-31')); isS(D, 'sunda', d1('2026-11-01')); isS(D, 'frida', d1('2026-10-30'));
+isS(D, 'deliveries from Oliv next week', ['2026-11-02..2026-11-08'], 'Oliv'); isS(D, 'Thursday at 2:30pm', d1('2026-11-05'), '');
+console.log('  (a day beside a word it can’t take in isn’t read as a day)');
+['friday until', 'next week except oliv', 'thursday not oliv', 'after', 'before', 'by', 'next week next week', 'since monday'].forEach(q => is(D, q, null));
+isS(D, 'thursday or', d1('2026-11-05'), ''); isS(D, 'monday wednesday thursday', ['2026-11-02..2026-11-02', '2026-11-04..2026-11-04', '2026-11-05..2026-11-05'], ''); // (a list as it's typed: Thursday holds)
 
 console.log('\n# Monday, Nov 2, 2026');
 D = '2026-11-02';
@@ -118,6 +148,10 @@ txt('next week', D, 'next week · Mon, Nov 2 – Sun, Nov 8'); txt('this week', 
 txt('november', D, 'in November'); txt('january', D, 'in January 2027'); txt('this month', D, 'this month · October'); txt('next 10 days', D, 'in the next 10 days · Fri, Oct 30 – Sun, Nov 8');
 txt('monday to thursday', D, 'Mon, Nov 2 – Thu, Nov 5'); txt('1/15', D, 'Fri, Jan 15, 2027'); txt('in 2 weeks', D, 'in 2 weeks · Mon, Nov 9 – Sun, Nov 15');
 txt('next week', '2026-12-31', 'next week · Mon, Jan 4, 2027 – Sun, Jan 10, 2027');
+txt('thursday and friday', D, 'Thu, Nov 5 and Fri, Nov 6'); txt('monday, wednesday and thursday', D, 'Mon, Nov 2, Wed, Nov 4 and Thu, Nov 5');
+txt('before friday', D, 'before Fri, Oct 30'); txt('after thursday', D, 'after Thu, Nov 5'); txt('by friday', D, 'by Fri, Oct 30');
+txt('in the next week', D, 'in the next 7 days · Fri, Oct 30 – Thu, Nov 5'); txt('week from today', D, 'in a week · Mon, Nov 2 – Sun, Nov 8');
+txt('Thursday after next', D, 'Thursday after next · Thu, Nov 12'); txt('next May', D, 'in May 2027');
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
