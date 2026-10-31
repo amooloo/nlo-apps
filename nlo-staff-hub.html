@@ -6069,7 +6069,7 @@ I received a copy of this letter. Signing means I received it, not that I agree 
           { k:'missed', l:'Scheduled days they missed without calling', t:'text', need:true },
           { k:'tried', l:'How the office tried to reach them', t:'area', hint:'Calls, texts, emails — with dates.' },
           { k:'by', l:'Contact the office by', t:'date' },
-          { k:'effective', l:'Employment ended effective', t:'date', hint:'For “Confirms their employment has ended”.' },
+          { k:'effective', l:'Employment ended effective', t:'date', hint:'For “Confirms their employment has ended” — usually the day after the missed days, not their last day worked.' },
           { k:'payday', l:'Final paycheck date', t:'date' } ],
     body:`{today}
 
@@ -6078,7 +6078,8 @@ Dear {first},
 You haven’t come to work or contacted the office since {since|__________}. You were scheduled to work on {missed|__________} and didn’t come in or call.
 ?tried We tried to reach you: {tried}
 ?mode=chance Please contact the office by {by|__________}. If we don’t hear from you by then, we’ll consider that you have resigned, and your employment will end on that date.
-?mode=final Because you missed scheduled work without contacting us, we consider that you have voluntarily resigned (job abandonment). Your employment with {practice} ended effective {effective|__________}.
+?mode=final Because you missed scheduled work without contacting us, we consider that you have voluntarily resigned (job abandonment).
+?mode=final ?effective Your employment with {practice} ended effective {effective}.
 ?payday Your final paycheck — all wages owed, plus any unused vacation our policy manual pays out — will be paid on {payday}.
 Please return your office key and anything else that belongs to the practice. If something serious kept you from contacting us, please call us at {contact} right away.
 
@@ -6112,7 +6113,7 @@ Sincerely,
 # Notes
 [[lines:2 =notes]]
 [[Employee signature *1.6]] [[Date]]
-[[Checked out by *1.6]] [[Date]]` },
+[[Checked out by — signature *1.6]] [[Date]]` },
 
   { id:'exit', group:'leaving', title:'Exit Interview', packet:false, rev:'2026-10', sum:['lastday'],
     desc:'Optional questions for someone who is leaving — what worked, what didn’t, and what would make the practice better.',
@@ -6166,7 +6167,7 @@ Sincerely,
 # I agree
 - I’ll keep everything I see or hear about patients private — names, faces, treatment, conversations and records — during my visit and after. Anything I write for my school or program will leave out anything that could identify a patient.
 - I won’t take photos, video or recordings in the office, and I won’t post about patients or the office on social media.
-- I’m here to observe. I won’t touch patients, instruments or records unless the person supervising me asks me to, and I’ll follow the office’s safety and infection-control rules.
+- I’m here to observe only. I won’t touch patients, instruments, equipment or records, or help with patient care, and I’ll follow the office’s safety and infection-control rules. (Hands-on training through a school needs a separate written agreement between the school and the office.)
 - My phone stays silenced and put away in patient areas.
 - I’m not an employee, and I won’t be paid for my time here.
 - If something seems wrong or unsafe, I’ll tell the person supervising me.
@@ -6827,8 +6828,10 @@ const NH_HELP_HTML = `<details class="nhHelp"><summary>How to format a form</sum
   <tr><td><code>===</code> &nbsp; <code>---</code></td><td>Page break · divider line</td></tr>
   <tr><td><code>{name} {first} {position} {start} {today} {practice}</code></td><td>Filled in from the new hire (blank line on blank copies)</td></tr>
   <tr><td><code>=email =cell =street =city =state =zip =dob =hours =wage</code></td><td>More details you can pre-fill into <code>[[fields]]</code> — also <code>=preferred =home_phone =scrubs =ec1_name =ec1_phone</code></td></tr>
-  <tr><td><code>?wage2 text</code></td><td>Line only prints when that detail is filled in</td></tr>
-  <tr><td><code>{lastday} [?level=final] text</code></td><td>Staff forms (During employment, Leaving) also print what was typed or chosen when one is filled out for someone: an answer, or a box ticked from it</td></tr>
+  <tr><td><code>?wage2 text</code></td><td>Line only prints when that detail is filled in (a line that is only <code>?wage2 {wage2}</code> is left off blank copies)</td></tr>
+  <tr><td><code>| {name} |</code></td><td>In a table, an empty detail leaves the cell blank to write in</td></tr>
+  <tr><td><code>[[lines:3 =key]]</code></td><td>Prints what was typed for that detail, or 3 lines to write on</td></tr>
+  <tr><td><code>?level=final text</code> · <code>[?level=final] text</code> · <code>{box:what=pay}</code></td><td>Staff forms (During employment, Leaving), filled out for someone: a line only for that answer (on a blank copy, a box to tick; several answers <code>=a|b</code>, several conditions <code>?level=final ?when text</code>), a box ticked from an answer</td></tr>
 </table></details>`;
 
 function nhEditModal(fid) {
@@ -7243,7 +7246,7 @@ H.nav = t => { if (t && t.dataset && t.dataset.id === 'newhire') route.nhHire = 
    incident write-up (Counseling record), the Form library (Fill out…),
    and a candidate card (Reference Check, Working Interview Agreement).
    ===================================================================== */
-const EF_TEXT_MAX = 300, EF_AREA_MAX = 4000;
+const EF_TEXT_MAX = 300, EF_AREA_MAX = 4000, EF_LETTER_MAX = 1200;   /* a letter's answers stay short enough to keep it on its page */
 const EF_YMD = /^\d{4}-\d{2}-\d{2}$/;
 const EF_SEP_FORMS = { resigned: ['resignok', 'resign'], terminated: ['term'], laidoff: ['term'], abandoned: ['abandon'] };
 const EF_SEP_ALL = ['checkout', 'exit', 'refauth'];
@@ -7267,7 +7270,8 @@ const efLastDay = (p, s) => (s && s.lastDay) || (p && p.status === 'former' && p
    typed fits on the first; otherwise the page breaks where it falls (no page left holding one box) */
 function efCounselPB(r) {
   const h = (k, n) => { const t = String(r[k] || ''); return t ? 16 + 18.5 * t.split('\n').reduce((a, ln) => a + Math.max(1, Math.ceil(ln.length / 100)), 0) : n * 29; };
-  return h('what', 5) + h('before', 3) + h('expect', 3) <= 345 ? { pb: '1' } : {};
+  const f = (k, w) => Math.max(0, Math.ceil(String(r[k] || '').length / w) - 1) * 17;   /* a long answer in a header field wraps */
+  return h('what', 5) + h('before', 3) + h('expect', 3) + f('when', 52) + f('by', 60) <= 345 ? { pb: '1' } : {};
 }
 /* the form as it was worded when this one was filled out (kept with it), with today's questions */
 function efFormFor(r) {
@@ -7337,7 +7341,8 @@ function efSigned(r) {
   const newest = L => L.sort((a, b) => (b.added || 0) - (a.added || 0))[0] || null;
   const linked = files.filter(f => f.ef === r.id);
   if (linked.length) return newest(linked);
-  return efList().filter(x => x.sid === r.sid && x.form === r.form).length === 1 ? newest(files.filter(f => !f.ef)) : null;
+  if (efList().filter(x => x.sid === r.sid && x.form === r.form).length !== 1) return null;
+  return newest(files.filter(f => !f.ef && f.kind !== 'multi' && (f.added || 0) >= (r.at || 0) - 60000));
 }
 function efPrintRec(r) {
   const f = efFormFor(r), p = staffById(r.sid);
@@ -7398,12 +7403,12 @@ function efWhoModal(fid) {
 
 /* ---------- filling one out ---------- */
 let efTok = 0;
-function efFieldHTML(a, v) {
-  const id = 'efq_' + a.k, val = v == null ? '' : v;
+function efFieldHTML(a, v, f) {
+  const id = 'efq_' + a.k, val = v == null ? '' : v, amax = f && f.letter ? EF_LETTER_MAX : EF_AREA_MAX;
   const half = a.half || a.t === 'date' || a.t === 'money' || a.t === 'num';
   let inp;
   switch (a.t) {
-    case 'area': inp = `<textarea id="${id}" data-ef="${a.k}" maxlength="${EF_AREA_MAX}" rows="3">${esc(val)}</textarea>`; break;
+    case 'area': inp = `<textarea id="${id}" data-ef="${a.k}" maxlength="${amax}" rows="3">${esc(val)}</textarea>`; break;
     case 'date': inp = `<input type="date" id="${id}" data-ef="${a.k}" value="${esc(EF_YMD.test(val) ? val : '')}">`; break;
     case 'money': inp = `<input type="text" id="${id}" data-ef="${a.k}" inputmode="decimal" maxlength="40" placeholder="$" value="${esc(val)}">`; break;
     case 'num': inp = `<input type="text" id="${id}" data-ef="${a.k}" inputmode="numeric" maxlength="12" value="${esc(val)}">`; break;
@@ -7415,13 +7420,13 @@ function efFieldHTML(a, v) {
   const lbl = esc(a.l) + (a.need ? ' *' : '');
   return `<div class="field efQ${half ? ' half' : ''}" data-q="${a.k}"><label${a.t === 'pick' || a.t === 'checks' ? '' : ` for="${id}"`}>${lbl}</label>${inp}${a.hint ? `<span class="tiny efHint">${esc(a.hint)}</span>` : ''}</div>`;
 }
-function efRead(box, A) {
-  const v = {};
+function efRead(box, A, f) {
+  const v = {}, amax = f && f.letter ? EF_LETTER_MAX : EF_AREA_MAX;
   A.forEach(a => {
     const el = box.querySelector('[data-ef="' + a.k + '"]'); if (!el) return;
     if (a.t === 'pick') { const on = el.querySelector('.chip.on'); if (on) v[a.k] = on.dataset.v; }
     else if (a.t === 'checks') { const L = Array.from(el.querySelectorAll('input:checked')).map(i => i.value); if (L.length) v[a.k] = L; }
-    else { const s = String(el.value || '').replace(/\r\n?/g, '\n').trim(); if (s) v[a.k] = s.slice(0, a.t === 'area' ? EF_AREA_MAX : EF_TEXT_MAX); }
+    else { const s = String(el.value || '').replace(/\r\n?/g, '\n').trim(); if (s) v[a.k] = s.slice(0, a.t === 'area' ? amax : EF_TEXT_MAX); }
   });
   return v;
 }
@@ -7444,7 +7449,7 @@ function efFillModal(sid, fid, rid, opt) {
       ${intro}
       <div class="efQs">
         <div class="field efQ half" data-q="_date"><label for="efDate">Date on the form *</label><input type="date" id="efDate" value="${esc(date0)}"></div>
-        ${A.map(a => efFieldHTML(a, v0[a.k])).join('')}
+        ${A.map(a => efFieldHTML(a, v0[a.k], f)).join('')}
       </div>
       ${A.length ? '' : `<p class="muted" style="font-size:13px">Nothing else to fill in — it prints with ${esc(first)}’s name and position, ready to sign.</p>`}
       <p class="tiny" style="margin-top:10px">Kept with ${esc(first)}’s paperwork in Staff Hub, locked with your password. Never goes to the AI.</p>
@@ -7457,7 +7462,7 @@ function efFillModal(sid, fid, rid, opt) {
   let tmr = null, upPages = null;
   const upd = async () => {
     if (tok !== efTok || !prev || !prev.isConnected) return;
-    const x = efX(f, efRead(box, A), $('#efDate').value);
+    const x = efX(f, efRead(box, A, f), $('#efDate').value);
     let parts = null;
     try {
       if (f.kind === 'upload') { if (!upPages) upPages = await nhSections(f, h, x); parts = upPages; }
@@ -7481,7 +7486,7 @@ function efFillModal(sid, fid, rid, opt) {
   upd(); nhLoadLogo().then(() => { if (tok === efTok) upd(); });
   const save = andPrint => {
     if (tok !== efTok) return;
-    const v = efRead(box, A), date = $('#efDate').value;
+    const v = efRead(box, A, f), date = $('#efDate').value;
     box.querySelectorAll('.efMiss').forEach(x => x.classList.remove('efMiss'));
     const miss = A.filter(a => a.need && !(a.t === 'checks' ? (v[a.k] || []).length : v[a.k]));
     if (!EF_YMD.test(date)) miss.unshift({ k: '_date', l: 'Date on the form' });
@@ -7499,7 +7504,7 @@ function efFillModal(sid, fid, rid, opt) {
     let v2 = v, date2 = date;
     const kept = [];
     if (cur) {
-      const norm = x => (x == null || x === '' || (Array.isArray(x) && !x.length)) ? '' : x, same = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+      const norm = x => (x == null || x === '' || (Array.isArray(x) && !x.length)) ? '' : Array.isArray(x) ? x.slice().sort() : x, same = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
       const theirs = (cur.v && typeof cur.v === 'object') ? cur.v : {};
       v2 = {};
       A.forEach(a => {
@@ -9106,7 +9111,7 @@ const PP_GUESS = [
   [/\bi ?9\b|eligibility/, 'i9'], [/\bw ?4\b|withholding/, 'w4'], [/\bvoid|bank letter/, 'bank'],
   [/direct ?dep|\bdeposit\b/, 'deposit'], [/pay ?stub|electronic pay/, 'paystub'], [/payroll/, 'payroll'],
   [/check ?list/, 'checklist'], [/\boffer/, 'offer'], [/applica/, 'application'], [/r[eé]sum[eé]|\bcv\b/, 'resume'],
-  [/polic.*update|updated? polic/, 'policyupd'], [/hand ?book|policy manual|\bmanual\b/, 'handbook'], [/job ?desc/, 'jobdesc'], [/hipaa|confidential/, 'hipaa'],
+  [/polic.*update|updated? polic/, 'policyupd'], [/hand ?book|policy manual|\bmanual\b/, 'handbook'], [/job ?desc/, 'jobdesc'], [/hipaa|confidential/, 'hipaa'], [/(photo|media) release/, 'photo'],
   [/social media|cell ?phone|technology/, 'tech'], [/\bsafe/, 'safety'], [/commitment/, 'commit'],
   [/\bhep ?b?\b|hepatitis|vaccin/, 'hepb'], [/favou?rite/, 'favorites'], [/get to know/, 'intro'], [/welcome/, 'welcome'],
   [/employee info|emergency/, 'info'], [/\bkeys?\b|\balarm/, 'keys'],
@@ -9116,7 +9121,7 @@ const PP_GUESS = [
   /* the staff forms (31 Oct 2026): after the older guesses, so a name those already knew still means what it did */
   [/counsel/, 'counsel'], [/exit ?interview/, 'exit'], [/check ?out/, 'checkout'], [/abandon/, 'abandon'],
   [/terminat|lay ?off|laid off/, 'term'], [/resignation (confirm|accept)/, 'resignok'], [/resign/, 'resign'],
-  [/(photo|media) release/, 'photo'], [/(health|insurance|benefit|coverage).*waiver|waiver.*(health|insurance|benefit|coverage)/, 'waiver'],
+  [/(health|insurance|benefit|coverage).*waiver|waiver.*(health|insurance|benefit|coverage)/, 'waiver'],
   [/accommodat/, 'accom'], [/leave of absence|\bloa\b/, 'loa'],
   [/(authoriz|release).*referenc|referenc.*(authoriz|release)/, 'refauth'], [/referenc/, 'reference'],
   [/working interview/, 'working'], [/treatment (agreement|benefit)|staff treatment/, 'treatment'],

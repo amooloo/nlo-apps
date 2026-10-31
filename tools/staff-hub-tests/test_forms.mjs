@@ -707,6 +707,49 @@ await page.evaluate(() => { delete nhS().forms.counsel; });
   ok(n === 0, 'rehired and leaving again: the earlier departure’s forms aren’t shown as done');
 }
 
+// second review pass
+{
+  const r = await page.evaluate(() => {
+    const now = Date.now(), tess = S.staff.find(p => p.name === 'Tess Abbott'), gwen = S.staff.find(p => p.name === 'Gwen Rodis');
+    const rec = S.nh.issued.find(x => x.sid === tess.id && x.form === 'counsel');
+    S.paper.push({ id: 'ppold1', sid: tess.id, hid: '', kind: 'counsel', name: 'old warning.pdf', mime: 'application/pdf', size: 10, n: 1, sha: 'x1', kid: '', added: now - 400 * 864e5, removed: 0, up: 0 });
+    const a = efSigned(rec);
+    const photo = { id: 'efphoto1', sid: gwen.id, form: 'photo', title: 'Photo & Social Media Release', date: todayYMD(), v: {}, at: now, up: now };
+    S.nh.issued.push(photo);
+    S.paper.push({ id: 'ppold2', sid: gwen.id, hid: '', kind: 'multi', kinds: ['photo', 'hipaa'], name: 'packet.pdf', mime: 'application/pdf', size: 10, n: 1, sha: 'x2', kid: '', added: now + 5000, removed: 0, up: 0 });
+    const b = efSigned(photo);
+    S.paper = S.paper.filter(f => f.id !== 'ppold1' && f.id !== 'ppold2'); S.nh.issued = S.nh.issued.filter(x => x.id !== 'efphoto1');
+    return { a: a && a.id, b: b && b.id };
+  });
+  ok(!r.a && !r.b, 'a signed copy is never an earlier, unrelated file of that form, nor a one-scan packet');
+  const g = await page.evaluate(() => ['Photo & Social Media Release.pdf', 'social media release.pdf', 'social media policy.pdf', 'hipaa photo release.pdf'].map(ppGuess).join(','));
+  ok(g === 'photo,photo,tech,hipaa', 'the photo release’s own name guesses the photo release (the policy and HIPAA names as before) (' + g + ')');
+  const t = await page.evaluate(() => { const d = document.createElement('div'); d.innerHTML = nhDocHTML(nhFormById('checkout'), nhCtx(null)); return { sig: d.querySelectorAll('.nhFields.sigrow').length, student: /observe only/.test(nhFormById('student').body) && !/unless the person supervising me asks/.test(nhFormById('student').body), help: /\[\[lines:3 =key\]\]/.test(NH_HELP_HTML) && /blank to write in/.test(NH_HELP_HTML) };
+  });
+  ok(t.sig === 2, 'the checkout’s office line is a signature line (kept with the employee’s)');
+  ok(t.student, 'students and observers: observe only');
+  ok(t.help, 'the form editor’s help explains the new markup');
+  const lens = await page.evaluate(id => { efFillModal(id, 'accom', null); const a = document.getElementById('efq_req').maxLength; efFillModal(id, 'counsel', null); const b = document.getElementById('efq_what').maxLength; closeModal(); return a + ',' + b; }, ids.g);
+  ok(lens === '1200,4000', 'a letter’s answers are kept short enough for its page; a write-up’s can be long (' + lens + ')');
+  const ab = await page.evaluate(id => {
+    const f = nhFormById('abandon'), p = staffById(id);
+    const d = x => { const e = document.createElement('div'); e.innerHTML = nhDocHTML(f, nhCtx(efHireOf(p), x)); return e.textContent; };
+    return [d(efX(f, { mode: 'final', since: '2026-10-27', missed: 'Oct 28 and 29' }, todayYMD())), d(efX(f, { mode: 'final', since: '2026-10-27', missed: 'Oct 28 and 29', effective: '2026-10-30' }, todayYMD()))];
+  }, ids.t);
+  ok(/voluntarily resigned/.test(ab[0]) && !/ended effective/.test(ab[0]) && /ended effective October 30, 2026/.test(ab[1]), 'job abandonment: no blank end date — the line prints once the date is filled in');
+}
+// ticked answers reordered by a merge still count as untouched
+{
+  const cid = await page.evaluate(() => { const r = S.nh.issued.find(x => x.form === 'change'); r.v = Object.assign({}, r.v, { what: ['title', 'pay'] }); return r.id; });
+  await page.evaluate(id => H.efOpen({ dataset: { id } }), cid);
+  await page.waitForSelector('#efQs');
+  await page.evaluate(id => { const r = S.nh.issued.find(x => x.id === id); r.v = Object.assign({}, r.v, { what: ['pay'] }); }, cid);
+  await page.fill('#efq_payto', '$20.50 an hour');
+  await page.click('#efSave');
+  await waitToast(page, /Saved/, 5000);
+  const v = await page.evaluate(id => ({ ...S.nh.issued.find(x => x.id === id).v }), cid);
+  ok(JSON.stringify(v.what) === '["pay"]' && v.payto === '$20.50 an hour', 'another device unticking an answer stands, even when a merge had reordered the ticks (' + JSON.stringify(v.what) + ')');
+}
 // ---------- done ----------
 console.log('\nerrors on the pages:', errors.length ? errors : 'none');
 ok(errors.length === 0, 'no page errors');
