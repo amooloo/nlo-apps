@@ -453,6 +453,8 @@ html.nlo-home-on .top-in{padding-left:max(16px,calc(var(--nlo-home-space) - max(
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="nlo-meeting-db.js"></script>
 <script>
 'use strict';
 /* =====================================================================
@@ -469,8 +471,15 @@ html.nlo-home-on .top-in{padding-left:max(16px,calc(var(--nlo-home-space) - max(
    (nlo/cadence/roster/people) — add or end staff in Staff Hub only.
    The curriculum is stored in the database (imported once from JSON),
    not in this file, because this file is public on GitHub.
+   3. (2.0, 31 Oct 2026) On the NLO Cases system, once Dr. A has moved it: everyone — on the office
+      computers and on their own phones — signs in with their NLO Cases username and password. No
+      picker, no PINs, no personal links; who's training is who's signed in, and a sign-off is made
+      by the signed-in trainer. The records live in the NLO Cases database (nlo-meeting-db.js maps
+      the old paths: people → onbPeople, roles/settings/catalog meta → onbState/…, catalog tracks and
+      modules → onbTracks / onbMods); Staff Hub's roster is read from hubRoster/live there. Until the
+      move nothing changes.
    ===================================================================== */
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '2.0.0';
 const FB_CONFIG = { apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4", authDomain: "nlo-inventory.firebaseapp.com", databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com", projectId: "nlo-inventory", storageBucket: "nlo-inventory.firebasestorage.app", messagingSenderId: "471691286148", appId: "1:471691286148:web:b362a98186f648bd4914d1" };
 const ROOT = 'nlo/onboarding';
 const ROSTER_PATH = 'nlo/cadence/roster/people';
@@ -482,6 +491,22 @@ const AISA_URL = 'https://aisa-worker.akhavan-ak.workers.dev';
 const QR_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
 const LS_DEVKEY = 'nloOnb.devKey';
 const SS_ACTOR = 'nloOnb.actor';
+/* the NLO Cases system (2.0) */
+const NLOO = window.NLOM ? NLOM.forApp({
+  key: 'nloOnb', name: 'Onboarding', root: 'nlo/onboarding', moved: 'onbMeta/moved', info: 'onbMeta/info', rulesMark: 'meta/rules_onb_1',
+  mounts: [
+    { path: 'nlo/onboarding/people', col: 'onbPeople' },
+    { path: 'nlo/onboarding/roles', doc: 'onbState/roles' },
+    { path: 'nlo/onboarding/settings', doc: 'onbState/settings' },
+    { path: 'nlo/onboarding/catalog/tracks', col: 'onbTracks' },
+    { path: 'nlo/onboarding/catalog/modules', col: 'onbMods' },
+    { path: 'nlo/onboarding/catalog/meta', doc: 'onbState/meta' },
+    /* Staff Hub's roster: copied in once by the move if Staff Hub hasn't put it there yet; Staff Hub keeps it up to date */
+    { path: 'nlo/cadence/roster', doc: 'hubRoster/live', ro: true, copy: 'ifMissing' }
+  ]
+}) : null;
+let MODE = '', MOVING = false, ncDb = null;
+const isFs = () => MODE === 'fs';
 /* set only by the automated test harness, and honored only on a local test server */
 const TEST = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && window.NLO_ONB_TEST) || null;
 const LS_PINLOCK = 'nloOnb.pinLock';
@@ -756,8 +781,8 @@ function mdPlain(src, n) { const t = String(src || '').replace(/[#>*`|_\[\]]/g, 
 const S = {
   boot: 'loading',          /* loading | signin | denied | choose | devmissing | ready | error */
   bootMsg: '',
-  mode: null,               /* 'staff' (office Google account) | 'device' (personal link) */
-  user: null, email: '',
+  mode: null,               /* 'staff' (office Google account) | 'device' (personal link) | 'nc' (NLO Cases login, 2.0) */
+  user: null, email: '', me: null, ncMsg: '',
   roster: null,             /* id -> roster person (from Staff Hub) */
   rosterErr: '',
   cat: { tracks: {}, modules: {}, meta: null }, catLoaded: false,
@@ -775,10 +800,11 @@ const S = {
 };
 let fbApp = null, fbAuth = null, fbDb = null;     /* office sign-in (default app, shared with the other NLO apps) */
 let dvApp = null, dvAuth = null, dvDb = null;     /* phone link (separate named app, never touches the Google session) */
-function dbx() { return S.mode === 'device' ? dvDb : fbDb; }
+function dbx() { return S.mode === 'nc' ? ncDb : S.mode === 'device' ? dvDb : fbDb; }
 
 function isStaffEmail(e) { e = String(e || '').toLowerCase(); return e === OWNER_EMAIL || e.endsWith('@' + STAFF_DOMAIN); }
-function isOwnerSession() { return S.mode === 'staff' && S.email === OWNER_EMAIL; }
+function isOwnerSession() { return S.mode === 'nc' ? !!(S.me && S.me.role === 'owner') : (S.mode === 'staff' && S.email === OWNER_EMAIL); }
+const onComputer = () => S.mode === 'staff' || S.mode === 'nc';   /* (not a phone link) */
 
 /* ---------------- roster & people ---------------- */
 function rosterActive(p) { return !!p && p.active !== false && !(p.end && p.end < today()); }
@@ -803,8 +829,8 @@ function activePlan(rid) { const p = planOf(rid); return p && (p.status || 'acti
 function isOwner(rid) { return rid === OWNER_RID; }
 function isManager(rid) { return !!rid && (isOwner(rid) || !!S.roles.managers[rid]); }
 function isTrainer(rid) { return !!rid && (isManager(rid) || !!S.roles.trainers[rid]); }
-function canManage() { return S.mode === 'staff' && (isOwnerSession() || isManager(S.actor)); }
-function canTrain() { return S.mode === 'staff' && (isOwnerSession() || isTrainer(S.actor)); }
+function canManage() { return onComputer() && (isOwnerSession() || isManager(S.actor)); }
+function canTrain() { return onComputer() && (isOwnerSession() || isTrainer(S.actor)); }
 function trainerIds() { return rosterList().filter(isTrainer); }
 
 /* ---------------- catalog ---------------- */
@@ -878,6 +904,19 @@ function setStoredKey(k) { try { if (k) localStorage.setItem(LS_DEVKEY, k); else
 
 async function boot() {
   if (typeof firebase === 'undefined' || !firebase.initializeApp) { S.boot = 'error'; S.bootMsg = 'Couldn’t load the sign-in library. Check the internet connection and reload.'; render(); return; }
+  /* which database: the NLO Cases system once Dr. A has moved Onboarding there */
+  let r = { mode: 'rtdb' };
+  try { if (NLOO && firebase.firestore) r = await NLOO.moved(); } catch (e) { r = { mode: 'rtdb' }; }
+  MODE = r.mode;
+  if (isFs()) {
+    S.urlKey = keyFromUrl();
+    S.ncMsg = NLOO.lockMsg();
+    S.boot = 'nc'; render();
+    window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });   /* back from the page cache: locked */
+    try { NLOO.followNew(() => MOVING); } catch (e) { }   /* Dr. A moving it back: this screen waits, then goes back to the office Google sign-in */
+    return;
+  }
+  try { if (NLOO && firebase.firestore) NLOO.followOld(() => MOVING); } catch (e) { }   /* Dr. A moved Onboarding: this screen switches over */
   initStaffApp();
   S.urlKey = keyFromUrl();
   let u = null;
@@ -931,6 +970,8 @@ async function signInGoogle() {
 function startStaff(u) {
   S.mode = 'staff'; S.user = u; S.email = String(u.email || '').toLowerCase();
   setStoredKey(null);
+  /* the old database's own move markers: frozen while Dr. A moves Onboarding, switched over after */
+  try { if (NLOO) NLOO.watchOldDb(fbDb, () => MOVING, () => { }, () => { }); } catch (e) { }
   const R = fbDb.ref(ROOT);
   const onErr = what => e => { console.warn(what, e); if (/permission/i.test(String(e && (e.code || e.message)))) { S.boot = 'error'; S.bootMsg = 'The database refused access to the onboarding data (' + what + '). The database rules for nlo/onboarding may not be published yet.'; render(); } };
   fbDb.ref(ROSTER_PATH).on('value', s => {
@@ -1014,8 +1055,64 @@ async function deviceSignOut() {
 
 /* ---------------- shared listeners ---------------- */
 function watchConnection(d) {
+  if (S.mode === 'nc') {
+    const upd = () => { const was = S.online; S.online = navigator.onLine !== false; if (was !== S.online) renderNet(); };
+    window.addEventListener('online', upd); window.addEventListener('offline', upd); upd();
+    return;
+  }
   d.ref('.info/connected').on('value', s => { const was = S.online; S.online = s.val() !== false; if (was !== S.online) renderNet(); });
 }
+
+/* ---------------- the NLO Cases login (2.0) ---------------- */
+async function ncSignIn(user, pw) {
+  const me = await NLOO.signIn(user, pw);
+  startNc(me);
+}
+/* who the signed-in person is in Staff Hub's roster (the ids the training records use) */
+function ncActor() { const p = NLOM.personOf(S.me, S.roster ? Object.values(S.roster) : [], OWNER_RID); return p ? p.id : null; }
+function startNc(me) {
+  S.mode = 'nc'; S.me = me; S.email = me.email; S.user = null;
+  ncDb = NLOO.db(NLOO.fs, () => (NLOO.me && NLOO.me.sid) || '', null);
+  NLOO.watch(() => NLOO.lock('Your access changed. Sign in again.'));
+  const R = ncDb.ref(ROOT);
+  const onErr = what => e => { console.warn(what, e); if (/permission/i.test(String(e && (e.code || e.message)))) { S.boot = 'error'; S.bootMsg = 'The database refused access to the onboarding data (' + what + '). The NLO Cases database rules may not have Onboarding’s part yet — ask Dr. Akhavan.'; render(); } };
+  /* the page starts once the roster (who the signed-in person is), the roles and the plans have answered — the first page
+     depends on all three (a trainer lands on Sign-offs, someone in training on their own training); 8 s at most */
+  let started = false; const got = {};
+  const begin = () => {
+    if (started) return; started = true;
+    S.actor = ncActor();
+    S.boot = 'ready';
+    const r = history.state && history.state.r;
+    S.route = r && r.v !== 'loading' && r.v !== 'picker' ? r : defaultRouteFor(S.actor);
+    history.replaceState({ r: S.route }, '', location.href);
+    render(true);
+  };
+  const have = k => { got[k] = true; if (!started && got.roster && got.roles && got.people) begin(); else if (started) scheduleRender(); };
+  setTimeout(() => { if (!started && S.mode === 'nc') begin(); }, 8000);
+  ncDb.ref(ROSTER_PATH).on('value', s => {
+    const v = s.val(); const r = {};
+    Object.keys(obj(v)).forEach(k => { const p = v[k]; if (p && typeof p === 'object' && p.name) r[String(p.id || k)] = Object.assign({}, p, { id: String(p.id || k) }); });
+    S.roster = Object.keys(r).length ? r : null; S.rosterErr = S.roster ? '' : 'The office roster is empty (open Staff Hub once to share it).';
+    if (S.me && started) { const a = ncActor(); if (a && a !== S.actor) { S.actor = a; if (S.route && S.route.rid && /^nc_/.test(S.route.rid)) S.route.rid = a; } }
+    have('roster');
+  }, e => { S.roster = null; S.rosterErr = 'Couldn’t read the office roster (' + ((e && e.code) || 'error') + ').'; have('roster'); });
+  R.child('people').on('value', s => { S.people = normPeople(s.val()); have('people'); }, e => { onErr('people')(e); have('people'); });
+  R.child('roles').on('value', s => { const v = obj(s.val()); S.roles = { trainers: obj(v.trainers), managers: obj(v.managers) }; have('roles'); }, e => { onErr('roles')(e); have('roles'); });
+  R.child('settings').on('value', s => { S.settings = Object.assign(clone(DEFAULT_SETTINGS), obj(s.val())); scheduleRender(); }, () => { });
+  watchCatalog(ncDb);
+  watchConnection(ncDb);
+  touchActor();
+}
+/* idle lock on the NLO Cases system: NLO Cases' idle minutes, with a minute's notice */
+let ncIdleWarned = false;
+setInterval(() => {
+  if (S.mode !== 'nc' || !NLOO || !NLOO.me) return;
+  const min = NLOO.idleMin(), idle = Date.now() - S.lastAct;
+  if (idle > min * 60000) NLOO.lock('Locked after ' + plural(min, 'minute') + ' without activity.');
+  else if (idle > min * 60000 - 60000) { if (!ncIdleWarned) { ncIdleWarned = true; toast('No activity for a while: Onboarding locks in about a minute.', '', 8000); } }
+  else ncIdleWarned = false;
+}, 15000);
 function watchCatalog(d) {
   d.ref(ROOT + '/catalog/meta').on('value', async s => {
     const meta = s.val();
@@ -1168,6 +1265,7 @@ function lessonSub(rid, m, l) {
    ===================================================================== */
 function defaultRouteFor(rid) {
   if (S.mode === 'device') return { v: 'home', rid };
+  if (S.mode === 'nc' && !rid) return { v: 'home' };
   if (activePlan(rid)) return { v: 'home', rid };
   if (isManager(rid) || isOwnerSession()) return { v: 'dash' };
   if (isTrainer(rid)) return { v: 'signoffs' };
@@ -1191,7 +1289,7 @@ function refreshTopBar() { const hd = $('#app > header.top'); if (hd) hd.outerHT
 function render(nav) {
   clearTimeout(_rt);
   const app = $('#app');
-  if (S.boot !== 'ready') { app.innerHTML = viewGate(); renderAisa(); return; }
+  if (S.boot !== 'ready') { app.innerHTML = viewGate(); wireNcForm(); renderAisa(); return; }
   const r = S.route || {};
   /* the editor keeps its own draft; background updates must not wipe what someone is typing */
   if (!nav && r.v === 'medit' && _lastRouteKey === routeKey(r)) { refreshTopBar(); return; }
@@ -1232,6 +1330,22 @@ function viewFor(r) {
 }
 function denied() { return `<div class="wrap narrow"><div class="card empty"><span class="ic">${ic('lock', 26)}</span><b>This page is for managers</b>Ask Dr. Akhavan if you need access.</div></div>`; }
 function renderNet() { const n = $('#netbar'); if (n) n.innerHTML = S.online ? '' : `<div class="netbar">You’re offline — your progress is saved on this device and will sync when you reconnect.</div>`; }
+/* the NLO Cases sign-in form (2.0) */
+function wireNcForm() {
+  const nf = $('#ncForm');
+  if (!nf || nf.dataset.wired) return;
+  nf.dataset.wired = '1';
+  nf.onsubmit = async e => {
+    e.preventDefault();
+    const btn = $('#ncGo'); if (btn.disabled) return;
+    const u = $('#ncUser').value.trim(), pw = $('#ncPw').value, err = $('#ncErr');
+    if (!u || !pw) return;
+    btn.disabled = true; btn.textContent = 'Signing in…'; err.style.display = 'none';
+    try { await ncSignIn(u, pw); }
+    catch (x) { err.textContent = NLOO.errText(x); err.style.display = ''; btn.disabled = false; btn.innerHTML = ic('user', 18) + 'Sign in'; $('#ncPw').value = ''; $('#ncPw').focus(); }
+  };
+  setTimeout(() => { const u = $('#ncUser'); if (u && !('ontouchstart' in window)) (u.value ? $('#ncPw') : u).focus(); }, 50);
+}
 function afterRender() {
   $$('[data-sopframe]').forEach(el => mountSop(el));
   $$('[data-qr]').forEach(el => mountQr(el));
@@ -1244,10 +1358,12 @@ function topBar() {
   let who = '';
   if (a) { const p = person(a); who = `<button class="who" data-act="menu" aria-haspopup="true">${avatar(p)}<span class="n">${esc(isOwner(a) ? 'Dr. Akhavan' : firstName(p))}</span>${ic('chevD', 14)}</button>`; }
   else if (S.mode === 'staff') who = `<button class="who" data-act="menu">${ic('user', 16)}<span class="n">Office</span>${ic('chevD', 14)}</button>`;
+  else if (S.mode === 'nc') who = `<button class="who" data-act="menu">${ic('user', 16)}<span class="n">${esc((S.me && (S.me.name || S.me.sid)) || 'Me')}</span>${ic('chevD', 14)}</button>`;
   const home = S.mode === 'staff' && !S.actor ? 'picker' : 'home';
+  const lockBtn = S.mode === 'nc' ? `<button class="who" data-act="ncLock" title="Lock (sign in again)" aria-label="Lock">${ic('lock', 16)}</button>` : '';
   return `<header class="top"><div class="top-in">
     <a class="brand" href="#" data-act="${home}"><img src="logo-white.png" alt="Next Level Orthodontics" onerror="this.style.display='none'"><span class="brand-t">Onboarding<small>NEXT LEVEL ORTHODONTICS</small></span></a>
-    <span class="top-sp"></span>${who}
+    <span class="top-sp"></span>${who}${lockBtn}
   </div>${S.ui.menu ? menuHtml() : ''}</header>`;
 }
 function menuHtml() {
@@ -1258,7 +1374,8 @@ function menuHtml() {
   if (canTrain()) items.push(`<button data-act="nav" data-v="signoffs">${ic('award')}Sign-offs${signoffQueue().length ? ` <span class="pill p-warn" style="margin-left:auto">${signoffQueue().length}</span>` : ''}</button>`);
   if (canManage()) items.push(`<button data-act="nav" data-v="access">${ic('key')}People & access</button>`, `<button data-act="nav" data-v="curriculum">${ic('book')}Curriculum</button>`, `<button data-act="nav" data-v="settings">${ic('gear')}Settings</button>`);
   items.push('<div class="sep"></div>');
-  if (S.mode === 'staff') {
+  if (S.mode === 'nc') items.push(`<button data-act="ncLock">${ic('lock')}Lock<span class="tiny" style="margin-left:auto">NLO Cases login</span></button>`);
+  else if (S.mode === 'staff') {
     if (!isOwnerSession()) items.push(`<button data-act="switchUser">${ic('users')}Switch person</button>`);
     items.push(`<button data-act="googleOut">${ic('logout')}Sign out of Google${S.email ? `<span class="tiny" style="margin-left:auto">${esc(S.email)}</span>` : ''}</button>`);
   } else items.push(`<button data-act="devOut">${ic('logout')}Sign out on this phone</button>`);
@@ -1428,6 +1545,18 @@ function viewGate() {
       <div class="err">This personal training link isn’t active any more. Ask Dr. Akhavan or your office manager for a new one.</div>
       <button class="btn btn-s btn-block" data-act="toSignin">I’m on an office computer</button></div></div>`;
   if (S.boot === 'error') return `<div class="gate"><div class="gate-card">${logo}<h1>Onboarding</h1><div class="err">${esc(S.bootMsg)}</div><button class="btn btn-p btn-block" data-act="reload">${ic('refresh', 16)}Try again</button></div></div>`;
+  if (S.boot === 'nc') return `<div class="gate"><div class="gate-card">${logo}<h1>Onboarding</h1>
+    <p>Your training at Next Level Orthodontics — on an office computer or your own phone. Sign in with your NLO Cases username and password.</p>
+    ${S.ncMsg ? `<div class="ok" style="background:var(--mint-100,#E2FBF4);color:var(--mint-700,#1F9E7E);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;margin:0 0 12px;text-align:left" role="status">${esc(S.ncMsg)}</div>` : ''}
+    ${S.urlKey ? `<div class="err">Personal links aren’t used any more — everyone signs in with their own NLO Cases login.</div>` : ''}
+    <form id="ncForm" autocomplete="on" style="text-align:left">
+      <div class="fld" style="margin-top:0"><label for="ncUser">Username</label><input class="in" id="ncUser" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(NLOO ? NLOO.lastLogin() : '')}" required></div>
+      <div class="fld"><label for="ncPw">Password</label><input class="in" id="ncPw" name="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn btn-p btn-block btn-lg" id="ncGo" type="submit" style="margin-top:14px">${ic('user', 18)}Sign in</button>
+    </form>
+    <div id="ncErr" class="err" role="alert" style="display:none;margin-top:12px"></div>
+    <p class="tiny" style="margin-top:14px">Same username and password as NLO Cases</p>
+  </div></div>`;
   /* signin / denied */
   return `<div class="gate"><div class="gate-card">${logo}<h1>Welcome to the team</h1>
     <p>Your training at Next Level Orthodontics — at your own pace, on an office computer or your phone.</p>
@@ -1579,7 +1708,7 @@ function viewHome(rid) {
       <div class="sub">${ps.day ? `Training day ${ps.day}` : `Starts ${fmtDate(plan.start, { weekday: 'long', month: 'long', day: 'numeric' })}`} · ${ps.done} of ${ps.total} steps done</div>
       <div class="meta"><span class="pill ${pc.cls}">${esc(pc.txt)}</span>${ps.ready ? `<span class="pill">${plural(ps.ready, 'skill')} awaiting sign-off</span>` : ''}${ps.quizAvg != null ? `<span class="pill">Quiz avg ${ps.quizAvg}%</span>` : ''}</div></div></div>
     ${next}
-    ${waiting.length && S.mode === 'staff' && canTrain() && viewing ? `<div class="card" style="margin-top:12px"><b>${plural(waiting.length, 'skill')} waiting for sign-off</b><div class="chips" style="margin-top:8px">${waiting.map(w => `<button class="chip" style="padding-left:12px" data-act="openLesson" data-rid="${esc(rid)}" data-mid="${esc(w.m.id)}" data-lid="${esc(w.l.id)}">${esc(w.l.title)}</button>`).join('')}</div></div>` : ''}
+    ${waiting.length && onComputer() && canTrain() && viewing ? `<div class="card" style="margin-top:12px"><b>${plural(waiting.length, 'skill')} waiting for sign-off</b><div class="chips" style="margin-top:8px">${waiting.map(w => `<button class="chip" style="padding-left:12px" data-act="openLesson" data-rid="${esc(rid)}" data-mid="${esc(w.m.id)}" data-lid="${esc(w.l.id)}">${esc(w.l.title)}</button>`).join('')}</div></div>` : ''}
     <div class="tabs">${tids.length > 1 ? `<button class="tab ${tab === 'all' ? 'on' : ''}" data-act="tab" data-t="all">All <span class="pct">${ps.pct}%</span></button>` : ''}${tids.map(t => { const tr = trackOf(t); const bt = ps.byTrack[t] || { pct: 0 }; return `<button class="tab tc-${esc(tr.color || 'navy')} ${tab === t || (tids.length === 1) ? 'on' : ''}" data-act="tab" data-t="${esc(t)}">${ic(tr.icon, 16)}${esc(tr.short || tr.name)} <span class="pct">${bt.pct}%</span></button>`; }).join('')}</div>
     <div class="tl">${list || '<div class="card empty">No modules in this track yet.</div>'}</div>
     <div class="row fw" style="margin-top:26px;gap:8px"><a class="btn btn-s btn-sm" href="${SOP_URL}" target="_blank" rel="noopener">${ic('clipboard', 15)}SOP manual</a>${S.mode === 'device' ? `<span class="tiny">Tip: bookmark this page or add it to your home screen.</span>` : ''}</div>
@@ -1620,7 +1749,7 @@ function viewModule(rid, mid) {
     <div class="row" style="margin-top:14px;gap:12px"><div class="grow"><div class="bar ${st.complete ? 'ok' : ''}"><i style="width:${st.pct}%"></i></div></div><b style="font-size:13px">${st.done}/${st.total}</b></div>
     ${nextL && !st.complete && rid === S.actor ? `<button class="btn btn-p btn-block btn-lg" style="margin-top:14px" data-act="openLesson" data-rid="${esc(rid)}" data-mid="${esc(m.id)}" data-lid="${esc(nextL.id)}">${st.done ? 'Continue' : 'Start'}: ${esc(nextL.title)} ${ic('chevR', 18)}</button>` : ''}
     <div class="llist">${ls.map((l, i) => { const s = lessonState(rid, m, l); return `<button class="litem" data-act="openLesson" data-rid="${esc(rid)}" data-mid="${esc(m.id)}" data-lid="${esc(l.id)}"><span class="k">${ic(KIND[l.kind] ? KIND[l.kind].icon : 'book', 18)}</span><span class="grow"><div class="t">${esc(l.title)}</div><div class="s">${esc(lessonSub(rid, m, l))}</div></span>${stateIcon(s, l)}</button>`; }).join('')}</div>
-    ${srcs.length && S.mode === 'staff' && canManage() ? `<details class="src"><summary>Sources for this module <span class="tiny">(managers only)</span></summary><ul>${srcs.map(s => `<li>${/^sop:/.test(s.url) ? `<a href="#" data-act="openSop" data-sop="${esc(s.url.slice(4))}">${esc(s.title || s.url)}</a>` : `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`}</li>`).join('')}</ul></details>` : ''}
+    ${srcs.length && onComputer() && canManage() ? `<details class="src"><summary>Sources for this module <span class="tiny">(managers only)</span></summary><ul>${srcs.map(s => `<li>${/^sop:/.test(s.url) ? `<a href="#" data-act="openSop" data-sop="${esc(s.url.slice(4))}">${esc(s.title || s.url)}</a>` : `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`}</li>`).join('')}</ul></details>` : ''}
     ${m.review && canManage() ? `<div class="review"><b>${ic('flag', 14)} Notes for Dr. Akhavan</b> <span class="tiny">(managers only)</span><div style="margin-top:6px">${esc(m.review)}</div></div>` : ''}
   </div>`;
 }
@@ -1752,10 +1881,11 @@ function skillHtml(c) {
     const btns = [];
     if (c.self && !p.ready) btns.push(`<button class="btn btn-s" data-act="skillReady">${ic('flag', 16)}I’ve practiced — ready for sign-off</button>`);
     if (c.self && p.ready) btns.push(`<span class="pill p-warn" style="padding:7px 12px">${ic('clock', 13)} Ready since ${esc(fmtTs(p.ready))}</span><button class="btn btn-g btn-sm" data-act="skillUnready">Not ready after all</button>`);
-    if (S.mode === 'staff') btns.push(`<button class="btn btn-ok" data-act="signoffStart">${ic('award', 16)}Trainer sign-off</button>`);
+    /* on the NLO Cases system the signer is the signed-in trainer, looking at someone else's skill */
+    if (S.mode === 'staff' || (S.mode === 'nc' && canTrain() && !c.self)) btns.push(`<button class="btn btn-ok" data-act="signoffStart">${ic('award', 16)}Trainer sign-off</button>`);
     html += `<div class="row fw" style="margin-top:16px;gap:10px">${btns.join('')}</div>`;
     if (S.mode === 'device') html += `<p class="tiny" style="margin-top:10px">Your trainer signs off at the office on an office computer — tap “ready” here so they know.</p>`;
-  } else if (S.mode === 'staff' && canTrain() && !c.self) {
+  } else if (onComputer() && canTrain() && !c.self) {
     html += `<div style="margin-top:12px"><button class="btn btn-g btn-sm" data-act="signoffUndo">Undo sign-off</button></div>`;
   }
   return html;
@@ -1869,7 +1999,7 @@ function viewPerson(rid) {
       <div class="sub">${esc(p.title || '')}${plan.start ? ' · started ' + fmtDate(plan.start, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''}${ps.day ? ' · training day ' + ps.day : ''}${lead ? ' · lead: ' + esc(lead) : ''}</div>
       <div class="row fw" style="gap:6px;margin-top:8px"><span class="pill ${pc.cls}">${esc(pc.txt)}</span><span class="pill p-grey">${ps.done}/${ps.total} steps</span>${ps.quizAvg != null ? `<span class="pill p-grey">quiz avg ${ps.quizAvg}%</span>` : ''}${hasKey ? `<span class="pill p-info">${ic('link', 12)} phone link</span>` : ''}</div></div>${ring(ps.pct, 76, 7)}</div>
       <div class="row fw noprint" style="gap:8px;margin-top:16px">
-        ${canManage() ? `<button class="btn btn-s btn-sm" data-act="assign" data-rid="${esc(rid)}">${ic('edit', 15)}Edit plan</button><button class="btn btn-s btn-sm" data-act="linkFor" data-rid="${esc(rid)}">${ic('qr', 15)}Phone link</button>` : ''}
+        ${canManage() ? `<button class="btn btn-s btn-sm" data-act="assign" data-rid="${esc(rid)}">${ic('edit', 15)}Edit plan</button>${S.mode === 'nc' ? '' : `<button class="btn btn-s btn-sm" data-act="linkFor" data-rid="${esc(rid)}">${ic('qr', 15)}Phone link</button>`}` : ''}
         <button class="btn btn-s btn-sm" data-act="viewAs" data-rid="${esc(rid)}">${ic('eye', 15)}See their view</button>
         <button class="btn btn-s btn-sm" data-act="printPerson" data-rid="${esc(rid)}">${ic('printer', 15)}Print record</button>
       </div></div>
@@ -1913,7 +2043,7 @@ function viewSignoffs() {
   const upcoming = [];
   planIds('active').forEach(rid => { const ps = planStats(rid); ps.mods.forEach(x => { if (x.st.complete) return; lessons(x.m).forEach(l => { if (l.kind === 'skill' && lessonState(rid, x.m, l) !== 'done' && lessonState(rid, x.m, l) !== 'ready' && x.m.day <= ps.day + 3) upcoming.push({ rid, m: x.m, l, due: x.due }); }); }); });
   const item = x => `<button class="prow" data-act="openLesson" data-rid="${esc(x.rid)}" data-mid="${esc(x.m.id)}" data-lid="${esc(x.l.id)}">${avatar(person(x.rid))}<div class="grow"><div class="nm">${esc(x.l.title)}</div><div class="mt">${esc(pname(x.rid))} · ${esc(x.m.title)}${x.at ? ' · ready ' + esc(ago(x.at)) : x.due ? ' · target ' + fmtDate(x.due) : ''}</div></div>${ic('chevR', 20)}</button>`;
-  return `<div class="wrap narrow"><div class="h1">Sign-offs</div><div class="sub">Hands-on skills trainees say they’re ready for. Watch them do it, check each item, then sign with your PIN.</div>
+  return `<div class="wrap narrow"><div class="h1">Sign-offs</div><div class="sub">Hands-on skills trainees say they’re ready for. Watch them do it, check each item, then ${S.mode === 'nc' ? 'sign off' : 'sign with your PIN'}.</div>
     <div class="h2">Ready now <span class="cnt">${q.length}</span></div>
     ${q.length ? q.map(item).join('') : `<div class="card empty"><span class="ic">${ic('award', 26)}</span><b>Nothing waiting</b>When a trainee taps “ready for sign-off”, it shows up here.</div>`}
     ${upcoming.length ? `<details style="margin-top:18px"><summary class="h2" style="cursor:pointer;margin:0">Coming up soon <span class="cnt">${upcoming.length}</span></summary><div style="margin-top:12px">${upcoming.map(item).join('')}</div></details>` : ''}
@@ -1925,6 +2055,7 @@ function signoffDialog(rid, mid, lid) {
   const m = mod(mid); const l = m && lessons(m).find(x => x.id === lid); if (!l) return;
   const trainers = trainerIds().filter(t => t !== rid);
   const me = S.actor && S.actor !== rid && isTrainer(S.actor) ? S.actor : (isOwnerSession() && rid !== OWNER_RID ? OWNER_RID : '');
+  if (S.mode === 'nc' && !me) { toast('Only a trainer or Dr. Akhavan can sign this off — have them sign in on this screen.', 'bad', 6000); return; }
   S.ui.so = { rid, mid, lid, by: me };
   const crit = arr(l.criteria);
   openModal('Sign off: ' + esc(l.title), `
@@ -1933,8 +2064,9 @@ function signoffDialog(rid, mid, lid) {
     <div style="margin-top:6px">${crit.map((c, i) => `<label class="chk" style="align-items:flex-start;font-weight:500"><input type="checkbox" class="soCrit" data-i="${i}" style="margin-top:2px"> <span>${esc(c)}</span></label>`).join('')}</div>
     ${l.timed ? `<div class="fld"><label>Their time (optional)</label><input class="in" id="soTime" placeholder="e.g. 4:30" style="max-width:160px"></div>` : ''}
     <div class="fld"><label>Note for the trainee (optional)</label><textarea class="in" id="soNote" maxlength="1000" placeholder="What went well, or what to practice"></textarea></div>
-    <div class="fld"><label>Trainer</label><select class="in" id="soBy">${me ? '' : '<option value="">Choose the trainer…</option>'}${trainers.map(t => `<option value="${esc(t)}" ${t === me ? 'selected' : ''}>${esc(pname(t))}</option>`).join('')}</select>
-      ${!trainers.length ? `<div class="hint" style="color:var(--coral-700)">No trainers are set up yet — a manager can pick trainers in People & access.</div>` : ''}</div>`,
+    ${S.mode === 'nc' ? `<div class="fld"><label>Trainer</label><div class="row">${avatar(person(me))}<b>${esc(pname(me))}</b> <span class="tiny">· signed in</span></div><input type="hidden" id="soBy" value="${esc(me)}"></div>`
+    : `<div class="fld"><label>Trainer</label><select class="in" id="soBy">${me ? '' : '<option value="">Choose the trainer…</option>'}${trainers.map(t => `<option value="${esc(t)}" ${t === me ? 'selected' : ''}>${esc(pname(t))}</option>`).join('')}</select>
+      ${!trainers.length ? `<div class="hint" style="color:var(--coral-700)">No trainers are set up yet — a manager can pick trainers in People & access.</div>` : ''}</div>`}`,
     `<button class="btn btn-d" data-act="soNotYet">Not yet</button><button class="btn btn-ok" data-act="soSign">${ic('award', 16)}Sign off</button>`);
 }
 async function soCommit(kind) {
@@ -1962,7 +2094,8 @@ async function soCommit(kind) {
     }
     S.ui.so = null; render(false);
   };
-  /* the trainer who is signed in to the app doesn't need to re-enter a PIN */
+  /* the trainer who is signed in to the app doesn't need to re-enter a PIN; on the NLO Cases system the signer is always the signed-in person */
+  if (S.mode === 'nc') { if (by !== S.actor) { toast('Only the signed-in trainer can sign off.', 'bad'); return; } closeModal(); return finish(); }
   if (by === S.actor || (by === OWNER_RID && isOwnerSession())) { closeModal(); return finish(); }
   const saved = { note, time, kind };
   closeModal();
@@ -2010,10 +2143,11 @@ async function assignSave() {
   await logEvent(rid, { t: 'assign', n: old ? 'updated' : 'assigned (' + Object.keys(tracks).map(t => trackOf(t).short || t).join(', ') + ')' });
   closeModal();
   toast(old ? 'Plan saved' : 'Training assigned to ' + pfirst(rid), 'ok');
-  if (!old) {
+  if (!old && S.mode !== 'nc') {
     const ask = await confirmBox('Give ' + pfirst(rid) + ' a phone link?', 'A personal link lets them train on their own phone — no password needed. You can also do this later from their page.', 'Create phone link');
     if (ask) return linkCreate(rid);
   }
+  if (!old && S.mode === 'nc') toast(pfirst(rid) + ' signs in here with their NLO Cases login — on an office computer or their own phone.', '', 6000);
   go({ v: 'person', rid });
 }
 async function assignRemove(rid) {
@@ -2074,16 +2208,16 @@ function viewAccess() {
     const p = person(rid); const hasPin = S.pins[rid] && S.pins[rid].h; const ks = keysOf(rid); const plan = planOf(rid);
     return `<tr><td><div class="row">${avatar(p)}<div><b>${esc(pname(rid))}</b><div class="tiny">${esc(p.title || '')}${S.roster && S.roster[rid] && !rosterActive(S.roster[rid]) ? ' · left' : ''}</div></div></div></td>
       <td>${plan ? `<a href="#" data-act="openPerson" data-rid="${esc(rid)}">${esc(paceOf(planStats(rid)).txt)}</a>` : isOwner(rid) ? '<span class="tiny">—</span>' : `<button class="btn btn-g btn-sm" data-act="assign" data-rid="${esc(rid)}">Assign</button>`}</td>
-      <td>${hasPin ? `<span class="pill p-ok">Set</span> <button class="btn btn-g btn-sm" data-act="pinReset" data-rid="${esc(rid)}">Reset</button>` : '<span class="pill p-grey">Not set</span>'}</td>
-      <td>${ks.length ? `<button class="btn btn-g btn-sm" data-act="linkFor" data-rid="${esc(rid)}">${ic('qr', 14)}Show</button>` : plan ? `<button class="btn btn-g btn-sm" data-act="linkFor" data-rid="${esc(rid)}">Create</button>` : '<span class="tiny">—</span>'}</td>
+      ${S.mode === 'nc' ? '' : `<td>${hasPin ? `<span class="pill p-ok">Set</span> <button class="btn btn-g btn-sm" data-act="pinReset" data-rid="${esc(rid)}">Reset</button>` : '<span class="pill p-grey">Not set</span>'}</td>
+      <td>${ks.length ? `<button class="btn btn-g btn-sm" data-act="linkFor" data-rid="${esc(rid)}">${ic('qr', 14)}Show</button>` : plan ? `<button class="btn btn-g btn-sm" data-act="linkFor" data-rid="${esc(rid)}">Create</button>` : '<span class="tiny">—</span>'}</td>`}
       <td>${isOwner(rid) ? '<span class="pill p-navy">Owner</span>' : `<button class="toggle ${S.roles.trainers[rid] || S.roles.managers[rid] ? 'on' : ''}" ${owner && !S.roles.managers[rid] ? '' : 'disabled'} data-act="roleToggle" data-role="trainers" data-rid="${esc(rid)}" aria-label="Trainer"></button>`}</td>
       <td>${isOwner(rid) ? '' : `<button class="toggle ${S.roles.managers[rid] ? 'on' : ''}" ${owner ? '' : 'disabled'} data-act="roleToggle" data-role="managers" data-rid="${esc(rid)}" aria-label="Manager"></button>`}</td></tr>`;
   };
   return `<div class="wrap"><div class="h1">People & access</div>
     <div class="sub">Trainers sign off hands-on skills. Managers also assign training, see everyone’s progress and edit the curriculum. ${owner ? '' : 'Only Dr. Akhavan can change roles.'}</div>
-    <div class="tblwrap" style="margin-top:16px"><table class="tbl"><thead><tr><th>Team member</th><th>Training</th><th>PIN</th><th>Phone link</th><th>Trainer</th><th>Manager</th></tr></thead>
+    <div class="tblwrap" style="margin-top:16px"><table class="tbl"><thead><tr><th>Team member</th><th>Training</th>${S.mode === 'nc' ? '' : '<th>PIN</th><th>Phone link</th>'}<th>Trainer</th><th>Manager</th></tr></thead>
     <tbody>${ids.map(row).join('')}${extra.map(row).join('')}</tbody></table></div>
-    <p class="tiny" style="margin-top:12px">Staff come from Staff Hub’s shared roster. When someone’s employment ends there, they drop off here and their phone link is turned off.</p></div>`;
+    <p class="tiny" style="margin-top:12px">${S.mode === 'nc' ? 'Staff come from Staff Hub’s shared roster. Everyone signs in with their own NLO Cases login (made in NLO Cases → Team & security), on an office computer or their own phone; when someone’s employment ends in Staff Hub they drop off here. A manager’s NLO Cases login must be linked to their Staff Hub person for the database to let them edit the curriculum.' : 'Staff come from Staff Hub’s shared roster. When someone’s employment ends there, they drop off here and their phone link is turned off.'}</p></div>`;
 }
 
 /* =====================================================================
@@ -2095,11 +2229,221 @@ function viewSettings() {
     <div class="card" style="margin-top:16px"><b>Office days</b><div class="tiny">Training days count only these days. Targets like “Day 12” skip the rest.</div>
       <div class="row fw" style="gap:6px;margin-top:10px">${WEEKDAYS.map((d, i) => `<label class="chk" style="padding:4px 10px;border:1.5px solid var(--g200);border-radius:10px"><input type="checkbox" class="setDay" value="${i}" ${od.indexOf(i) >= 0 ? 'checked' : ''}>${d}</label>`).join('')}</div>
       <div class="fld"><label>Quiz pass mark (%)</label><input type="number" class="in" id="setPass" min="50" max="100" value="${esc(st.pass || 80)}" style="max-width:120px"><div class="hint">Used when a quiz doesn’t set its own.</div></div>
-      <div class="fld"><label>Lock shared computers after (minutes idle)</label><input type="number" class="in" id="setIdle" min="2" max="120" value="${esc(st.idleMin || 10)}" style="max-width:120px"></div>
+      <div class="fld"><label>Lock shared computers after (minutes idle)</label><input type="number" class="in" id="setIdle" min="2" max="120" value="${esc(st.idleMin || 10)}" style="max-width:120px">${S.mode === 'nc' ? `<div class="hint">On the NLO Cases system the lock follows NLO Cases’ idle minutes (Team & security) instead — currently ${esc(NLOO ? NLOO.idleMin() : 10)}.</div>` : ''}</div>
       <label class="chk" style="margin-top:10px"><input type="checkbox" id="setAisa" ${st.aisa !== false ? 'checked' : ''}> Show “Ask AISA” in lessons</label>
       <button class="btn btn-p" style="margin-top:12px" data-act="saveSettings">Save settings</button></div>
-    <div class="card"><b>About</b><div class="tiny" style="margin-top:6px">NLO Onboarding ${APP_VERSION} · data at ${esc(ROOT)} · curriculum version ${esc(S.cat.meta ? S.cat.meta.version : 'none')} (${Object.keys(S.cat.modules || {}).length} modules)</div></div>
+    ${dataCardHtml()}
+    <div class="card"><b>About</b><div class="tiny" style="margin-top:6px">NLO Onboarding ${APP_VERSION} · data ${S.mode === 'nc' ? 'on the NLO Cases system' : 'at ' + esc(ROOT)} · curriculum version ${esc(S.cat.meta ? S.cat.meta.version : 'none')} (${Object.keys(S.cat.modules || {}).length} modules)</div></div>
   </div>`;
+}
+/* ---------------- Dr. A: moving Onboarding onto the NLO Cases system, and back ---------------- */
+function dataCardHtml() {
+  if (!NLOO || !isOwnerSession()) return '';
+  if (S.mode === 'nc') return `<div class="card"><b>Data</b><div class="tiny" style="margin-top:6px">On the NLO Cases system: everyone signs in with the NLO Cases login, and the database checks every read and write.</div><button class="btn btn-s btn-sm" style="margin-top:12px" data-act="moveBackOpen">Move back to the old database…</button></div>`;
+  if (S.mode !== 'staff') return '';
+  return `<div class="card" style="border-left:5px solid var(--coral)"><b>Move to the NLO Cases system</b><div class="tiny" style="margin-top:6px">Everyone — on office computers and their own phones — signs in with their NLO Cases username and password: no picker, no PINs, no phone links. Who’s training is who’s signed in; a sign-off is made by the signed-in trainer. The database checks every read and write, and Onboarding gets NLO Cases’ daily backups.</div><button class="btn btn-p btn-sm" style="margin-top:12px" data-act="moveOpen">Move to the NLO Cases system…</button></div>`;
+}
+function download(name, text) {
+  try { const u = URL.createObjectURL(new Blob([text], { type: 'application/json' })), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 1000); } catch (e) { }
+}
+async function copyText(t) { try { await navigator.clipboard.writeText(t); return true; } catch (e) { return false; } }
+const MOVE_LABELS = { people: 'People (plans, progress, sign-offs, activity)', roles: 'Trainers & managers', settings: 'Settings', 'catalog/tracks': 'Tracks', 'catalog/modules': 'Modules', 'catalog/meta': 'Curriculum version', 'nlo/cadence/roster': 'Staff Hub’s roster (a copy)' };
+function moveCounts(old) { const c = NLOO.counts(old); return Object.keys(c).filter(k => c[k]).map(k => '<li>' + esc(MOVE_LABELS[k] || k) + ': <b>' + c[k] + '</b></li>').join(''); }
+function moveGuard() {
+  const iv = setInterval(() => {
+    if (MOVING) return;
+    if (!$('#mvBody')) { clearInterval(iv); NLOO.signOut(); return; }
+    if (Date.now() - S.lastAct > NLOO.idleMin() * 60000) { clearInterval(iv); _modalClose = null; closeModal(); NLOO.signOut(); toast('The move page closed after ' + plural(NLOO.idleMin(), 'minute') + ' without activity.'); }
+  }, 5000);
+}
+function moveSheet() {
+  if (!NLOO || S.mode !== 'staff' || !isOwnerSession()) return;
+  openModal('Move to the NLO Cases system', '<div id="mvBody"></div>', '', { wide: true, onClose: () => { if (!MOVING) NLOO.signOut(); } });
+  const body = $('#mvBody');
+  moveGuard();
+  const msg = (t, bad) => `<p class="${bad ? 'err' : 'muted'}" style="margin:0 0 10px">${esc(t)}</p>`;
+  const movedAlready = async () => {
+    const st = await NLOO.moveState();
+    if (!st) return 'Can’t check with the NLO Cases database whether Onboarding has already moved. Try again in a minute.';
+    if (st.on) return 'Onboarding is already on the NLO Cases system' + (st.at ? ' (moved ' + new Date(st.at).toLocaleString() + ')' : '') + '. Reload this page.';
+    let mark = null; try { mark = (await fbDb.ref(ROOT + '/movedTo').once('value')).val(); } catch (x) { return 'Can’t read the old database: ' + (x.message || x); }
+    if (mark) return 'The old database is marked as moved' + (mark.at ? ' (' + new Date(mark.at).toLocaleString() + ')' : '') + ', but the NLO Cases database says it isn’t. Nothing was done — reload, and if this shows again, ask for help before moving.';
+    return '';
+  };
+  const step1 = err => {
+    body.innerHTML = `<p class="muted" style="margin:0 0 10px">First, your NLO Cases login (the one you use for Case Tracker).</p>${err ? msg(err, true) : ''}
+      <form id="mvForm"><div class="fld" style="margin-top:0"><label>Username</label><input class="in" id="mvUser" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(NLOO.lastLogin() || OWNER_EMAIL)}"></div>
+      <div class="fld"><label>Password</label><input class="in" id="mvPw" type="password" autocomplete="current-password"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn btn-p" id="mvGo" type="submit">Continue</button></div></form>`;
+    $('#mvForm').onsubmit = async e => {
+      e.preventDefault();
+      const b = $('#mvGo'); b.disabled = true; b.textContent = 'Signing in…';
+      try { const me = await NLOO.signIn($('#mvUser').value, $('#mvPw').value); if (me.role !== 'owner') { try { await NLOO.auth.signOut(); } catch (x) { } step1('Only Dr. A’s NLO Cases login can move Onboarding.'); return; } step2(); }
+      catch (x) { step1(NLOO.errText(x)); }
+    };
+    setTimeout(() => { const pw = $('#mvPw'); if (pw) pw.focus(); }, 60);
+  };
+  const step2 = async () => {
+    body.innerHTML = msg('Checking the NLO Cases database rules…');
+    let live = false;
+    try { live = await NLOO.rulesLive(); } catch (x) { body.innerHTML = msg('Can’t reach the NLO Cases database: ' + (x.message || x), true) + '<div class="row" style="justify-content:flex-end"><button class="btn btn-s" id="mvRetry">Try again</button></div>'; $('#mvRetry').onclick = step2; return; }
+    if (live) { step3(); return; }
+    body.innerHTML = `<p style="margin:0 0 8px"><b>One step first: publish the updated database rules</b> (they add Onboarding’s part; every other app’s part stays as it is).</p><ol style="margin:0 0 0 18px;line-height:1.7">
+      <li><button class="btn btn-s btn-sm" id="mvCopy">Copy the new rules</button> <span id="mvCopied" class="tiny"></span></li>
+      <li><a href="https://console.firebase.google.com/project/nlo-cases/firestore" target="_blank" rel="noopener">Open the Firebase console (nlo-cases)</a> → <b>Firestore Database</b> in the left menu → <b>Rules</b> tab</li>
+      <li>Select all, paste, <b>Publish</b></li></ol><div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn btn-p" id="mvCheck">Check again</button></div><p class="tiny" id="mvRulesMsg" style="margin-top:8px"></p>`;
+    $('#mvCopy').onclick = async () => {
+      const out = $('#mvCopied'); out.textContent = 'Getting the rules…';
+      try {
+        const r = await fetch('nlo-cases-src/firestore.rules?cb=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const text = (await r.text()).replace(/__OWNER_EMAIL__/g, OWNER_EMAIL);
+        if (text.indexOf('rules_onb_1') < 0) throw new Error('that file doesn’t have Onboarding’s part yet');
+        out.textContent = (await copyText(text)) ? 'Copied ✓ — now paste it in the console' : 'Couldn’t copy: select it from the box below';
+        if (!navigator.clipboard) { const ta = document.createElement('textarea'); ta.value = text; ta.className = 'in'; ta.rows = 6; ta.readOnly = true; out.after(ta); }
+      } catch (x) { out.textContent = 'Couldn’t get the rules: ' + (x.message || x); }
+    };
+    $('#mvCheck').onclick = async () => {
+      const m = $('#mvRulesMsg'); m.textContent = 'Checking…';
+      try { await NLOO.fs.disableNetwork(); await NLOO.fs.enableNetwork(); } catch (e) { }   /* (a fresh connection: one opened before Publish can keep the older rules for a few minutes) */
+      try { if (await NLOO.rulesLive()) step3(); else m.textContent = 'Not yet — the database still has the older rules (it can take a few minutes after Publish).'; } catch (x) { m.textContent = 'Can’t reach the database: ' + (x.message || x); }
+    };
+  };
+  let old = null, before = null;
+  /* a stop here: say why, with Try again (nothing has been written yet) */
+  const stop3 = t => { body.innerHTML = msg(t, true) + '<div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn btn-s" id="mvNot">Not now</button><button class="btn btn-p" id="mvAgain">Try again</button></div>'; $('#mvNot').onclick = () => { closeModal(); }; $('#mvAgain').onclick = () => step3(0); };
+  const step3 = async tries => {
+    tries = tries || 0;
+    body.innerHTML = msg('Reading Onboarding’s data in the old database…');
+    const no = await movedAlready(); if (no) { stop3(no); return; }
+    try { old = await NLOO.readOld(fbDb); } catch (x) { stop3('Couldn’t read the old database: ' + (x.message || x)); return; }
+    try { before = await NLOO.readNew(NLOO.fs); } catch (x) {
+      /* right after Publish, parts of the database can still have the older rules for a minute or two: wait and ask again */
+      if (/permission/i.test(String((x && (x.code || x.message)) || '')) && tries < 12) {
+        body.innerHTML = msg('The NLO Cases database is still taking in the new rules (this can take a few minutes after Publish). Trying again by itself…');
+        setTimeout(async () => {
+          if ($('#mvBody') !== body || MOVING) return;
+          try { await NLOO.fs.disableNetwork(); await NLOO.fs.enableNetwork(); } catch (e) { }
+          step3(tries + 1);
+        }, 10000);
+        return;
+      }
+      stop3('Couldn’t read the NLO Cases database: ' + (x.message || x)); return;
+    }
+    if (!Object.keys(before).some(k => before[k] != null)) before = null;
+    const recs = NLOO.recordsOf(old), bad = NLOO.badIds(recs);
+    if (bad.length) { body.innerHTML = msg('These records have ids the new database won’t take, so nothing was moved: ' + bad.slice(0, 8).join(', '), true); return; }
+    const big = NLOO.tooBig(recs);
+    if (big.length) { body.innerHTML = msg('These records are too big for one record in the new database (1 MB each), so nothing was moved: ' + big.slice(0, 8).join(', '), true); return; }
+    body.innerHTML = `<p style="margin:0 0 6px">What moves:</p><ul style="margin:0 0 0 18px;line-height:1.7">${moveCounts(old)}</ul>
+      <p class="muted" style="margin-top:12px">PINs, phone links and their devices stay behind: from now on everyone signs in with their NLO Cases login. Best when nobody is training. Screens open elsewhere pause while it moves and switch over by themselves (a screen opened before today’s update: reload it afterwards). A copy of everything goes to your Downloads first. The old database keeps its copy too.</p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn btn-s" id="mvNot">Not now</button><button class="btn btn-p" id="mvNow">Move it now</button></div>`;
+    $('#mvNot').onclick = () => { closeModal(); };
+    $('#mvNow').onclick = step4;
+  };
+  const step4 = async () => {
+    _modalClose = null;
+    $$('#modal [data-act="closeModal"], #modal [data-act="ovl"]').forEach(x => x.removeAttribute('data-act'));
+    const line = t => { body.insertAdjacentHTML('beforeend', `<p class="muted" style="margin:0 0 6px">${esc(t)}</p>`); };
+    body.innerHTML = '';
+    MOVING = true;
+    let claim = '';
+    try {
+      download('onboarding-before-move-' + today() + '.json', JSON.stringify(Object.assign({ app: 'onboarding', at: new Date().toISOString(), data: old }, before ? { nloCasesBefore: before } : {}), null, 1));
+      line('Copy saved to Downloads ✓');
+      const no = await movedAlready(); if (no) throw new Error(no);
+      claim = await NLOO.claimMove(fbDb, S.email);
+      line('Pausing Onboarding on other screens…');
+      await new Promise(r => setTimeout(r, 4000));
+      let cur = await NLOO.readOld(fbDb), res = null;
+      for (let k = 0; k < 3; k++) {
+        res = await NLOO.writeRecords(NLOO.fs, NLOO.me.sid, NLOO.recordsOf(cur), (n, all) => { NLOO.touchMove(fbDb, claim); let p = body.querySelector('.mvProg'); if (!p) { body.insertAdjacentHTML('beforeend', '<p class="mvProg muted" style="margin:0 0 6px"></p>'); p = body.querySelector('.mvProg'); } p.textContent = 'Writing… ' + n + ' of ' + all; });
+        if (res.missing.length || res.differ.length || res.left.length) throw new Error('the check after writing found ' + (res.missing.length + res.differ.length + res.left.length) + ' records not as written — nothing was switched over');
+        const again = await NLOO.readOld(fbDb);
+        if (NLOO.fpr(again) === NLOO.fpr(cur)) break;
+        if (k === 2) throw new Error('the old data kept changing while moving (someone is using Onboarding) — nothing was switched over; try again when it’s quiet');
+        cur = again; line('Something changed meanwhile — writing it too…');
+      }
+      line('Checked: ' + plural(res.written, 'record') + ' written and read back the same ✓');
+      const FV = firebase.firestore.FieldValue;
+      if (!(await NLOO.moveStillMine(fbDb, claim))) throw new Error('the pause on the other screens was interrupted (a connection dropped) — nothing was switched over; try again');
+      const no2 = await movedAlready(); if (no2) throw new Error(no2);
+      await NLOO.fs.doc('onbMeta/info').set({ counts: NLOO.counts(cur), by: OWNER_EMAIL, _up: FV.serverTimestamp(), _by: NLOO.me.sid });
+      await NLOO.fs.doc('onbMeta/moved').set({ on: true, at: FV.serverTimestamp() });
+      NLOO.rememberFs(true);
+      let marked = true;
+      try { await fbDb.ref(ROOT + '/movedTo').set({ at: Date.now(), by: S.email, to: 'nlo-cases' }); } catch (x) { marked = false; }
+      if (marked) await NLOO.releaseMove(fbDb, claim);
+      line('Switched over ✓ — Onboarding now opens with the NLO Cases login.');
+      setTimeout(() => location.reload(), 2500);
+    } catch (x) {
+      if (claim) await NLOO.releaseMove(fbDb, claim);
+      MOVING = false;
+      NLOO.signOut();
+      line('Stopped: ' + (x.message || x));
+      body.insertAdjacentHTML('beforeend', '<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-s" id="mvClose">Close</button></div>');
+      $('#mvClose').onclick = () => { _modalClose = null; closeModal(); };
+    }
+  };
+  step1('');
+}
+/* the way back (only if something's wrong): needs this computer's office Google sign-in for the old database */
+function moveBackSheet() {
+  if (!NLOO || S.mode !== 'nc' || !isOwnerSession()) return;
+  initStaffApp();
+  const rtExtra = () => { const u = fbAuth && fbAuth.currentUser; return u && isStaffEmail(u.email) ? fbDb : null; };
+  openModal('Move back to the old database', '<div id="mbBody"><p class="muted">One moment…</p></div>', '', { wide: true });
+  const body = $('#mbBody');
+  const draw = err => {
+    const g = rtExtra();
+    body.innerHTML = `<p class="muted" style="margin:0 0 10px">Only if something is wrong. Everything in Onboarding as it is now goes back to the old database (a copy goes to your Downloads first), and it goes back to the office Google sign-in with the name picker and PINs (the PINs and phone links from before the move are still there).</p>${err ? `<p class="err" style="margin:0 0 10px">${esc(err)}</p>` : ''}
+      ${g ? '' : `<p class="muted" style="margin:0 0 8px">This needs the office Google sign-in (Dr. A’s) on this computer.</p><button class="btn btn-s" id="mbG">Sign in with Google</button>`}
+      <label class="chk" style="margin-top:12px"><input type="checkbox" id="mbOk"> Yes, move it back</label>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn btn-s" data-act="closeModal">Cancel</button><button class="btn btn-d" id="mbGo" ${g ? '' : 'disabled'}>Move it back</button></div>`;
+    const gb = $('#mbG'); if (gb) gb.onclick = async () => { try { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); await fbAuth.signInWithPopup(p); draw(rtExtra() ? '' : 'That Google account can’t write the old database.'); } catch (x) { draw(x.message || 'Sign-in failed.'); } };
+    $('#mbGo').onclick = async () => {
+      if (!$('#mbOk').checked) { draw('Tick “Yes, move it back” first.'); return; }
+      const rt = rtExtra(); if (!rt) { draw('Sign in with Google first.'); return; }
+      _modalClose = null;
+      $$('#modal [data-act="closeModal"], #modal [data-act="ovl"]').forEach(x => x.removeAttribute('data-act'));
+      body.innerHTML = '<p class="muted">Moving back…</p>';
+      MOVING = true;
+      const FV = firebase.firestore.FieldValue;
+      let paused = false;
+      try {
+        const st = await NLOO.moveState();
+        if (!st || st.refused) throw new Error('can’t check with the NLO Cases database — try again in a minute');
+        if (!st.on) throw new Error('Onboarding is already back on the old database — reload this page');
+        await NLOO.fs.doc('onbMeta/moved').set({ on: true, pause: true, at: FV.serverTimestamp() });
+        paused = true;
+        body.innerHTML = '<p class="muted">Pausing Onboarding on other screens…</p>';
+        await new Promise(r => setTimeout(r, 4000));
+        body.innerHTML = '<p class="muted">Moving back…</p>';
+        let cur = await NLOO.readNew(NLOO.fs);
+        download('onboarding-before-move-back-' + today() + '.json', JSON.stringify({ app: 'onboarding', at: new Date().toISOString(), data: cur }, null, 1));
+        for (let k = 0; k < 3; k++) {
+          for (const m of NLOO.MOVED) await rt.ref(m.path).set(cur[m.path] == null ? null : JSON.parse(JSON.stringify(cur[m.path])));
+          const again = await NLOO.readNew(NLOO.fs);
+          if (NLOO.fpr(again) === NLOO.fpr(cur)) break;
+          if (k === 2) throw new Error('the data kept changing while moving back — nothing was switched back; try again when it’s quiet');
+          cur = again;
+        }
+        await rt.ref(ROOT + '/movedTo').remove();
+        try { await rt.ref(ROOT + '/moving').remove(); } catch (x) { }
+        await NLOO.fs.doc('onbMeta/moved').set({ on: false, at: FV.serverTimestamp() });
+        NLOO.rememberFs(false);
+        body.innerHTML = '<p class="muted">Moved back ✓ — Onboarding uses the office Google sign-in again.</p>';
+        setTimeout(() => location.reload(), 2500);
+      } catch (x) {
+        if (paused) { try { await NLOO.fs.doc('onbMeta/moved').set({ on: true, at: FV.serverTimestamp() }); } catch (y) { } }
+        MOVING = false;
+        body.innerHTML = `<p class="err">Stopped: ${esc(x.message || x)}</p><p class="muted">Nothing was switched back.</p><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-s" id="mbClose">Close</button></div>`;
+        $('#mbClose').onclick = () => { _modalClose = null; closeModal(); };
+      }
+    };
+  };
+  /* (the office Google sign-in this computer may still have comes back from storage a moment after the app is made) */
+  Promise.race([firstAuthState(fbAuth), new Promise(r => setTimeout(r, 4000))]).then(() => { if ($('#mbBody')) draw(''); });
 }
 async function saveSettings() {
   const days = $$('.setDay').filter(x => x.checked).map(x => +x.value);
@@ -2395,7 +2739,16 @@ async function importGo() {
   const replace = $('#impReplace') && $('#impReplace').checked;
   if (replace && !(await confirmBox('Replace the whole curriculum?', 'Modules not in this file will be removed. Trainee progress is kept.', 'Replace', true))) return;
   const meta = catMeta(); let ok;
-  if (replace) ok = await dbSet(ROOT + '/catalog', { tracks: data.tracks, modules: data.modules, meta });
+  if (replace && S.mode === 'nc') {
+    /* one record per track and module there: the ones not in the file are taken off */
+    const up = {};
+    Object.keys(S.cat.tracks || {}).forEach(id => { if (!data.tracks[id]) up[ROOT + '/catalog/tracks/' + id] = null; });
+    Object.keys(S.cat.modules || {}).forEach(id => { if (!data.modules[id]) up[ROOT + '/catalog/modules/' + id] = null; });
+    Object.keys(data.tracks).forEach(id => { up[ROOT + '/catalog/tracks/' + id] = data.tracks[id]; });
+    Object.keys(data.modules).forEach(id => { up[ROOT + '/catalog/modules/' + id] = data.modules[id]; });
+    up[ROOT + '/catalog/meta'] = meta;
+    ok = await dbMulti(up);
+  } else if (replace) ok = await dbSet(ROOT + '/catalog', { tracks: data.tracks, modules: data.modules, meta });
   else {
     const up = {};
     Object.keys(data.tracks).forEach(id => { up[ROOT + '/catalog/tracks/' + id] = data.tracks[id]; });
@@ -2514,6 +2867,9 @@ const ACT = {
   },
   devOut() { deviceSignOut(); },
   switchUser() { S.actor = null; try { sessionStorage.removeItem(SS_ACTOR); } catch (e) { } go({ v: 'picker' }, true); },
+  ncLock() { if (NLOO) NLOO.lock(); },
+  moveOpen() { moveSheet(); },
+  moveBackOpen() { moveBackSheet(); },
   pick(el) {
     const rid = el.dataset.rid;
     if (isOwnerSession() && rid === OWNER_RID) { S.actor = OWNER_RID; return go(defaultRouteFor(rid), true); }
@@ -2699,7 +3055,7 @@ document.addEventListener('keydown', e => {
 window.addEventListener('hashchange', () => { const k = keyFromUrl(); if (k && k !== S.urlKey && k !== S.devKey) location.reload(); });
 
 /* test handle (harmless in production) */
-window.NLO_ONB = { S, ACT, planStats, dayNumber, dateOfDay, md, lessonState, go, version: APP_VERSION };
+window.NLO_ONB = { S, ACT, planStats, dayNumber, dateOfDay, md, lessonState, go, version: APP_VERSION, get mode() { return MODE; }, nloo: NLOO };
 boot();
 </script>
 <script src="nlo-home.js" defer></script>

@@ -84,6 +84,8 @@ html:has(#app>[data-act^="close-"])>:is(nlo-home,nlo-aisa){display:none!importan
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="nlo-meeting-db.js"></script>
 <script>
 /* ================= CONFIG ================= */
 const firebaseConfig = {
@@ -96,7 +98,7 @@ const firebaseConfig = {
   appId: "1:471691286148:web:b362a98186f648bd4914d1"
 };
 firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+let db = firebase.database();   /* the old database until Dr. A moves the calendar; after that the NLO Cases records (NLOC.db) */
 const auth = firebase.auth();
 const CAL_ROOT = "nlo/calendar";
 
@@ -119,7 +121,38 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "1.8 (Oct 14, 2026)";
+const CAL_VERSION = "2.0 (Oct 31, 2026)";
+
+/* =====================================================================
+   On the NLO Cases system (2.0, 31 Oct 2026; nlo-meeting-db.js). Amir: the Office Calendar signs in like Case Tracker, with
+   no Google step ("Full move", as the Staff Meeting Hub), and Dr. A plus the people he picks can edit it. Until Dr. A
+   moves its data (Admin settings → Move to the NLO Cases system) everything stays as it was (the office Google account, the
+   old database, the admin PIN). Once moved (calMeta/moved): each person's NLO Cases username and password; the same calls,
+   on the NLO Cases records (events → calEvents, stickers → calStickers, staff / settings / admin days → calState/…); the
+   editors in calState/config; Staff Hub's roster from hubRoster/live (Staff Hub keeps it there); NLO Time Off's feed key
+   from Cadence's cadMirror/tofeed; Lock; NLO Cases' idle minutes; a login turned off is locked out at once.
+   ===================================================================== */
+const NLOC = window.NLOM ? NLOM.forApp({
+  key: 'nloCal', name: 'the Office Calendar', root: CAL_ROOT, moved: 'calMeta/moved', info: 'calMeta/info', rulesMark: 'meta/rules_cal_1',
+  mounts: [
+    { path: CAL_ROOT + '/events', col: 'calEvents' },
+    { path: CAL_ROOT + '/stickers', col: 'calStickers' },
+    { path: CAL_ROOT + '/staff', doc: 'calState/staff' },
+    { path: CAL_ROOT + '/settings', doc: 'calState/settings' },
+    { path: CAL_ROOT + '/adminDays', doc: 'calState/adminDays' },
+    { path: CAL_ROOT + '/config', doc: 'calState/config' },
+    /* Staff Hub's roster: copied in once by the move if Staff Hub hasn't put it there yet; Staff Hub keeps it up to date */
+    { path: 'nlo/cadence/roster', doc: 'hubRoster/live', ro: true, copy: 'ifMissing' },
+    /* NLO Time Off's feed key: Cadence's copy (Dr. A's Cadence screen or this page's Settings keep it); copied in once too */
+    { path: 'nlo/cadence/timeOffFeed', doc: 'cadMirror/tofeed', ro: true, copy: 'ifMissing', stamp: ['up', 'upBy'] }
+  ]
+}) : null;
+let MODE = '', MOVING = false, NCME = null;   /* NCME: the signed-in NLO Cases person { sid, role, name, email } */
+const isFs = () => MODE === 'fs';
+/* who may edit: Dr. A, and the staff ids in calState/config.editors */
+function calEditors(){ const c=S.data&&S.data.config; return c&&Array.isArray(c.editors)?c.editors.filter(x=>typeof x==="string"):[]; }
+function canEdit(){ return !!NCME&&(NCME.role==="owner"||calEditors().indexOf(NCME.sid)>=0); }
+function isOwnerNc(){ return !!NCME&&NCME.role==="owner"; }
 
 /* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings.
    Names only: birthdays and hire dates are kept in Firebase (Settings > Staff), never in this public file. */
@@ -275,6 +308,7 @@ async function syncTimeOff(){
     const key=await timeOffFeedKey();
     let j;
     if(key){ j=await readTimeOffFeed(key,opts); }
+    else if(isFs()){ throw new Error("NLO Time Off's key isn't saved yet (Admin settings → Time-Off app sync)"); }
     else {
       const sep=TIMEOFF_API.includes("?")?"&":"?";
       const res=await fetch(TIMEOFF_API+sep+"action=getchecklistsync",opts);
@@ -462,9 +496,34 @@ function hrSettingsHtml(){
 /* ================= DATA (Firebase RTDB) ================= */
 /* a refused write: one on-screen banner (however many writes failed) instead of a pop-up per write */
 function fbErr(e){ S.saveErr=(e&&e.message)||"write denied"; bgRender(); }
+/* the NLO Cases system: a write Cadence's rules stamp their way (the feed key lives in Cadence's cadMirror/tofeed; only Dr. A) */
+function cadMirrorSet(kind,val){
+  const FV=firebase.firestore.FieldValue;
+  return NLOC.fs.doc("cadMirror/"+kind).set(Object.assign({},val,{ up:FV.serverTimestamp(), upBy:(NCME&&NCME.sid)||"" }));
+}
 function fbSet(path,val){ db.ref(CAL_ROOT+"/"+path).set(val).catch(fbErr); }
 function fbRemove(path){ db.ref(CAL_ROOT+"/"+path).remove().catch(fbErr); }
 function startCalSync(){
+if(isFs()){
+  /* one listener per record (events, stickers, staff, settings, admin days, editors); the screen draws once all have answered */
+  const parts={}, got={}, KEYS=["events","stickers","staff","settings","adminDays","config"];
+  const apply=()=>{
+    if(KEYS.some(k=>!got[k])) return;
+    S.data={ events:parts.events||{}, staff:parts.staff||{}, settings:parts.settings||{ blackoutDates:{} }, adminDays:parts.adminDays||{}, stickers:parts.stickers||{}, config:parts.config||{} };
+    S.connected=true; S.dbError=null;
+    const was=S.admin; S.admin=canEdit();
+    if(was&&!S.admin) lockAdmin("You can no longer edit the calendar (Dr. A changed who can).");
+    else bgRender();
+  };
+  KEYS.forEach(k=>{
+    db.ref(CAL_ROOT+"/"+k).on("value",snap=>{ parts[k]=snap.val(); got[k]=true; apply(); },err=>{
+      S.connected=false;
+      S.data=S.data||{events:{},staff:{},settings:{blackoutDates:{}},adminDays:{},stickers:{},config:{}};
+      S.dbError=err&&err.message?err.message:"Database permission denied";
+      bgRender();
+    });
+  });
+} else
 db.ref(CAL_ROOT).on("value",(snap)=>{
   const v=snap.val()||{};
   S.data={
@@ -475,8 +534,8 @@ db.ref(CAL_ROOT).on("value",(snap)=>{
     stickers: v.stickers||{}
   };
   S.connected=true;
-  /* one-time seed: staff roster from Gusto + default PIN */
-  if(!S.seeded && (!v.staff || Object.keys(v.staff).length===0)){
+  /* one-time seed: staff roster from Gusto + default PIN (the old database only) */
+  if(!isFs() && !S.seeded && (!v.staff || Object.keys(v.staff).length===0)){
     S.seeded=true;
     fbSet("staff",SEED_STAFF);
     if(!v.settings) fbSet("settings",{ adminPin:"2468", blackoutDates:{} });
@@ -955,7 +1014,9 @@ function render(){
     if(S.admin){
       h+=`<button data-act="open-add" aria-label="Add entry" title="Add entry" class="hov-coral7" style="border:none;border-radius:999px;width:34px;height:34px;padding:0;background:var(--coral-500);color:#fff;font-size:21px;font-weight:600;line-height:1;flex:none;">+</button>
         <button data-act="open-settings" aria-label="Settings" title="Settings" class="hov-navy7" style="border:2px solid var(--navy-border);border-radius:999px;width:34px;height:34px;padding:0;background:transparent;color:#F2F3F4;font-size:15px;flex:none;">⚙</button>
-        <button data-act="lock-admin" aria-label="Exit admin mode" title="Exit admin mode" style="border:none;border-radius:999px;width:34px;height:34px;padding:0;background:var(--mint-500);color:var(--navy-900);font-size:14px;flex:none;">\u{1F513}</button>`;
+        <button data-act="lock-admin" aria-label="${isFs()?"Lock":"Exit admin mode"}" title="${isFs()?"Lock":"Exit admin mode"}" style="border:none;border-radius:999px;width:34px;height:34px;padding:0;background:var(--mint-500);color:var(--navy-900);font-size:14px;flex:none;">\u{1F513}</button>`;
+    } else if(isFs()){
+      h+=`<button data-act="lock-admin" aria-label="Lock" title="Lock (sign in again)" class="hov-staffpill" style="border:2px solid var(--navy-border);border-radius:999px;width:34px;height:34px;padding:0;background:transparent;color:#A7B2C2;font-size:14px;flex:none;">\u{1F512}</button>`;
     } else {
       h+=`<button data-act="open-pin" aria-label="Unlock admin mode" title="Unlock admin mode" class="hov-staffpill" style="border:2px solid var(--navy-border);border-radius:999px;width:34px;height:34px;padding:0;background:transparent;color:#A7B2C2;font-size:14px;flex:none;">\u{1F512}</button>`;
     }
@@ -981,8 +1042,10 @@ function render(){
       h+=`<div style="display:flex;align-items:center;gap:10px;">
       <button data-act="open-add" class="pill-btn hov-coral7" style="padding:10px 20px;font-size:14px;background:var(--coral-500);color:#fff;">+ Add entry</button>
       <button data-act="open-settings" class="pill-btn hov-navy7" style="border:2px solid var(--navy-border);padding:8px 16px;font-size:13px;background:transparent;color:#F2F3F4;">Settings</button>
-      <button data-act="lock-admin" title="Exit admin mode" style="border:none;border-radius:999px;padding:8px 14px;font-size:13px;background:var(--mint-500);color:var(--navy-900);font-weight:700;">\u{1F513} Admin</button>
+      <button data-act="lock-admin" title="${isFs()?"Lock (sign in again)":"Exit admin mode"}" style="border:none;border-radius:999px;padding:8px 14px;font-size:13px;background:var(--mint-500);color:var(--navy-900);font-weight:700;">\u{1F513} ${isFs()?(NCME&&NCME.role==="owner"?"Dr. A":"Editing"):"Admin"}</button>
     </div>`;
+    } else if(isFs()){
+      h+=`<button data-act="lock-admin" title="Lock (sign in again)" class="hov-staffpill" style="border:2px solid var(--navy-border);border-radius:999px;padding:8px 16px;font-size:13px;background:transparent;color:#A7B2C2;font-weight:600;">\u{1F512} ${esc(NCME&&NCME.name?NCME.name.split(" ")[0]:"Lock")}</button>`;
     } else {
       h+=`<button data-act="open-pin" title="Unlock admin mode" class="hov-staffpill" style="border:2px solid var(--navy-border);border-radius:999px;padding:8px 16px;font-size:13px;background:transparent;color:#A7B2C2;font-weight:600;">\u{1F512} Staff view</button>`;
     }
@@ -1487,7 +1550,7 @@ function renderSettings(){
     <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">Names and photos come from Staff Hub: add or end staff there and the calendar follows. Birthdays are kept here (hire dates too, for anyone Staff Hub has none for). Birthday 🎂 and work-anniversary 🎉 entries (with vacation-tier milestones at 2 and 5 years) appear on the calendar automatically. Removing someone here deletes all their calendar entries.</div>
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Time-Off app sync</div>
-    <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved time off and office holidays appear on the calendar automatically, from ${S.toFeed.key?"<b>NLO Time Off</b>":"the old Time-Off Request app"}.</div>
+    <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved time off and office holidays appear on the calendar automatically, from ${S.toFeed.key?"<b>NLO Time Off</b>":isFs()?"<b>NLO Time Off</b> (once its key is saved below)":"the old Time-Off Request app"}.</div>
     <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:12px;">${esc(syncNote)}</div>
     <button data-act="sync-now" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:14px;">Sync now</button>
     <div style="border:1px solid var(--grey-200);border-radius:10px;padding:12px;margin-bottom:24px;display:flex;flex-direction:column;gap:8px;">
@@ -1500,7 +1563,7 @@ function renderSettings(){
         <button data-act="to-feed-save" ${S.toFeed.saving?"disabled":""} class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;color:#fff;">${S.toFeed.saving?"Checking…":"Save"}</button>
       </div>
       ${S.toFeed.msg?`<div style="font-size:12.5px;font-weight:600;color:${S.toFeed.bad?"var(--coral-700)":"var(--mint-700)"};">${esc(S.toFeed.msg)}</div>`:""}
-      ${S.toFeed.key?`<button data-act="to-feed-clear" class="hov-grey" style="align-self:flex-start;border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--navy-800);">Go back to the old Time-Off app</button>`:""}
+      ${S.toFeed.key&&!isFs()?`<button data-act="to-feed-clear" class="hov-grey" style="align-self:flex-start;border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--navy-800);">Go back to the old Time-Off app</button>`:""}
     </div>
 
     ${hrSettingsHtml()}
@@ -1537,12 +1600,13 @@ function renderSettings(){
       <button data-act="blackout-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button>
     </div>
 
-    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Admin PIN</div>
+    ${isFs()?editorsSettingsHtml():`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Admin PIN</div>
     <div style="display:flex;gap:8px;align-items:center;">
       <input type="text" inputmode="numeric" id="pin-field" placeholder="New PIN (4–6 digits)" style="flex:1;padding:10px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);letter-spacing:.2em;">
       <button data-act="pin-save" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Save</button>
     </div>
-    ${S.pinSaved?`<div style="color:var(--mint-700);font-size:13.5px;font-weight:600;margin-top:8px;">PIN updated.</div>`:""}
+    ${S.pinSaved?`<div style="color:var(--mint-700);font-size:13.5px;font-weight:600;margin-top:8px;">PIN updated.</div>`:""}`}
+    ${dataSettingsHtml()}
     <div style="margin-top:22px;font-size:11.5px;color:var(--grey-400);text-align:right;">Office Calendar v${esc(CAL_VERSION)}</div>
   </div>`;
   return h;
@@ -1582,7 +1646,10 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "open-pin": S.pinOpen=true; S.pinValue=""; S.pinError=false; render(); break;
     case "close-pin": if(ev.target===el||el.tagName==="BUTTON"){ S.pinOpen=false; S.pinValue=""; S.pinError=false; render(); } break;
     case "submit-pin": trySubmitPin(); break;
-    case "lock-admin": S.admin=false; S.paintMode=false; render(); break;
+    case "lock-admin": if(isFs()){ NLOC.lock(); break; } S.admin=false; S.paintMode=false; render(); break;
+    case "move-open": moveSheet(); break;
+    case "move-back-open": moveBackSheet(); break;
+    case "editors-save": saveEditors(); break;
     case "open-add": S.form=blankForm(S.detailDate||today); S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
     case "add-for-day": S.form=blankForm(el.dataset.date); S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
     case "close-entry": if(ev.target===el||el.tagName==="BUTTON"){ S.entryOpen=false; S.form=null; S.blackoutWarn=false; S.formError=""; render(); } break;
@@ -1603,11 +1670,12 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "dismiss-save-err": S.saveErr=null; render(); break;
     case "dismiss-lock-note": S.lockNote=""; render(); break;
     case "adminday": setAdminDay(el.dataset.date, el.dataset.v||null); break;
-    case "open-settings": S.settingsOpen=true; S.pinSaved=false; render(); break;
+    case "open-settings": S.settingsOpen=true; S.pinSaved=false; S.edMsg=""; if(isFs()&&isOwnerNc()) loadNcRoster(); render(); break;
     case "close-settings": if(ev.target===el||el.tagName==="BUTTON"){ S.settingsOpen=false; render(); } break;
     case "sync-now": syncTimeOff(); break;
     case "to-feed-save": saveTimeOffFeedKey(); break;
     case "to-feed-clear": {
+      if(isFs()) break;
       if(!window.confirm("Go back to the old Time-Off app?\n\nThe calendar and the Checklist app (CADANCe) will show time off from the old app again.")) break;
       db.ref(TO_FEED_CFG).remove().then(()=>{ S.toFeed.key=""; S.toFeed.msg="Back to the old Time-Off app."; S.toFeed.bad=false; render(); syncTimeOff(); })
         .catch(e=>{ S.toFeed.msg="Couldn't change it: "+((e&&e.message)||e); S.toFeed.bad=true; render(); });
@@ -1730,7 +1798,16 @@ function lockAdmin(note){
   render();
   if(note) setTimeout(()=>{ if(S.lockNote===note){ S.lockNote=""; bgRender(); } },10000);
 }
+let ncIdleWarned=false;
 function adminIdleCheck(){
+  if(isFs()){
+    if(!NCME||!NLOC) return;
+    const min=NLOC.idleMin(), idle=Date.now()-adminSeen;
+    if(idle>min*60000) NLOC.lock("Locked after "+min+" minute"+(min===1?"":"s")+" without activity.");
+    else if(idle>min*60000-60000){ if(!ncIdleWarned){ ncIdleWarned=true; S.lockNote="No activity for a while: the calendar locks in about a minute."; bgRender(); setTimeout(()=>{ if(S.lockNote&&/locks in about a minute/.test(S.lockNote)){ S.lockNote=""; bgRender(); } },10000); } }
+    else ncIdleWarned=false;
+    return;
+  }
   if(S.admin&&S.data&&Date.now()-adminSeen>ADMIN_IDLE_MIN*60000) lockAdmin("Admin mode locked after "+ADMIN_IDLE_MIN+" minutes without use.");
 }
 setInterval(adminIdleCheck,15000);
@@ -1744,8 +1821,13 @@ async function saveTimeOffFeedKey(){
   S.toFeed.saving=true; S.toFeed.msg=""; render();
   try{
     const j=await readTimeOffFeed(key);
-    const me=(auth.currentUser&&auth.currentUser.email)||"";
-    await db.ref(TO_FEED_CFG).set({ key, at:firebase.database.ServerValue.TIMESTAMP, by:me });
+    if(isFs()){
+      if(!isOwnerNc()) throw new Error("only Dr. A can change the feed key here");
+      await cadMirrorSet("tofeed",{ key, at:Date.now(), by:(NCME&&NCME.email)||"" });
+    } else {
+      const me=(auth.currentUser&&auth.currentUser.email)||"";
+      await db.ref(TO_FEED_CFG).set({ key, at:firebase.database.ServerValue.TIMESTAMP, by:me });
+    }
     S.toFeed.key=key; S.toFeed.msg="Saved — "+j.timeOff.length+" approved request"+(j.timeOff.length===1?"":"s")+" in NLO Time Off's feed. The calendar and the Checklist app read it from now on.";
     S.toFeed.bad=false; clearInputs(["to-feed-key"]);
   }catch(e){ S.toFeed.msg="Not saved: "+((e&&e.message)||e); S.toFeed.bad=true; }
@@ -1754,6 +1836,7 @@ async function saveTimeOffFeedKey(){
 
 /* ================= AUTH GATE + BOOT ================= */
 let calBooted=false;
+function rtdbStart(){
 auth.onAuthStateChanged(user=>{
   const gate=document.getElementById("authGate");
   const appEl=document.getElementById("app");
@@ -1761,7 +1844,8 @@ auth.onAuthStateChanged(user=>{
   if(user && isAllowedEmail(email)){
     gate.style.display="none";
     appEl.style.display="";
-    if(!calBooted){ calBooted=true; startCalSync(); render(); syncTimeOff(); }
+    const go=()=>{ if(!calBooted){ calBooted=true; startCalSync(); render(); syncTimeOff(); } };
+    if(!oldWatchStart(go)) go();   /* (starts once the old database is known not to be moving or moved) */
   } else {
     if(user){ document.getElementById("authErr").textContent="Access denied for "+(email||"this account")+"."; auth.signOut(); }
     gate.style.display="flex";
@@ -1774,6 +1858,324 @@ document.getElementById("signInBtn").addEventListener("click",()=>{
   document.getElementById("authErr").textContent="";
   auth.signInWithPopup(provider).catch(e=>{ document.getElementById("authErr").textContent=e.message||"Sign-in failed."; });
 });
+}
+/* ---------- the NLO Cases system (2.0) ---------- */
+/* the office's Google sign-in, if this computer already has one (from before the move): only for moving back */
+function rtExtra(){ const u=auth.currentUser; return u&&isAllowedEmail(u.email)?firebase.database():null; }
+async function start(){
+  let r={mode:"rtdb"};
+  try{ if(NLOC&&firebase.firestore) r=await NLOC.moved(); }catch(e){ r={mode:"rtdb"}; }
+  MODE=r.mode;
+  if(isFs()){
+    auth.onAuthStateChanged(()=>{});   /* (lets an existing office Google sign-in come back, for moving back) */
+    fsGate(NLOC.lockMsg());
+    window.addEventListener("pageshow",e=>{ if(e.persisted) location.reload(); });   /* back from the page cache: locked */
+    try{ NLOC.followNew(()=>MOVING); }catch(e){}   /* Dr. A moving it back: this screen waits, then goes back to the office Google sign-in */
+  } else {
+    rtdbStart();
+    try{ if(NLOC&&firebase.firestore) NLOC.followOld(()=>MOVING); }catch(e){}   /* Dr. A moved the calendar: this screen switches over */
+  }
+}
+/* signed in on the old database: its own move markers (frozen while Dr. A moves it, switched after). The page starts (then)
+   only once they say it isn't moving or moved — or after 6 s if they can't be read, as before. */
+let oldWatching=false, oldClear=false, oldThen=null;
+function oldWatchStart(then){
+  if(isFs()||!NLOC) return false;
+  const run=()=>{ const f=oldThen; oldThen=null; if(f) f(); };
+  if(oldWatching){ oldThen=then; if(oldClear) run(); return true; }
+  oldWatching=true; oldThen=then;
+  try{ NLOC.watchOldDb(firebase.database(),()=>MOVING,()=>{ oldClear=true; run(); },()=>{ oldWatching=false; oldClear=false; }); }
+  catch(e){ oldWatching=false; oldThen=null; return false; }
+  setTimeout(()=>{ if(!oldClear&&!document.getElementById("nlomOverlay")) run(); },6000);
+  return true;
+}
+const NC_INP="width:100%;padding:11px 12px;border:2px solid var(--grey-300);border-radius:10px;font-size:15px;color:var(--navy-800);";
+function fsGate(okMsg){
+  const gate=document.getElementById("authGate"), appEl=document.getElementById("app");
+  gate.style.display="flex"; appEl.style.display="none";
+  const box=gate.firstElementChild;
+  box.innerHTML=`<div class="disp" style="font-size:22px;font-weight:700;color:var(--navy-800);letter-spacing:.04em;">NLO Office Calendar</div>
+    <p style="color:var(--grey-500);font-size:14px;line-height:1.5;margin:10px 0 18px;">Sign in with your NLO Cases username and password.</p>
+    ${okMsg?`<div role="status" style="background:var(--mint-100);color:var(--mint-700);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;margin-bottom:12px;text-align:left;">${esc(okMsg)}</div>`:""}
+    <form id="ncForm" autocomplete="on" style="text-align:left;display:flex;flex-direction:column;gap:10px;">
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Username<input id="ncUser" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(NLOC.lastLogin())}" required style="${NC_INP}margin-top:4px;"></label>
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Password<input id="ncPw" name="password" type="password" autocomplete="current-password" required style="${NC_INP}margin-top:4px;"></label>
+      <button id="ncGo" type="submit" class="pill-btn" style="background:var(--blue-600);color:#fff;padding:12px 22px;font-size:14px;width:100%;letter-spacing:.06em;margin-top:4px;">Sign in</button>
+    </form>
+    <div id="authErr" role="alert" style="color:var(--coral-700);font-size:13px;margin-top:14px;min-height:16px;"></div>
+    <div style="font-size:12px;color:var(--grey-400);">Same username and password as NLO Cases</div>`;
+  const f=document.getElementById("ncForm");
+  f.onsubmit=async e=>{
+    e.preventDefault();
+    const btn=document.getElementById("ncGo"); if(btn.disabled) return;
+    const u=document.getElementById("ncUser").value.trim(), pw=document.getElementById("ncPw").value;
+    if(!u||!pw) return;
+    btn.disabled=true; btn.textContent="Signing in…"; document.getElementById("authErr").textContent="";
+    try{ const me=await NLOC.signIn(u,pw); document.getElementById("ncPw").value=""; fsSignedIn(me); }
+    catch(x){ document.getElementById("authErr").textContent=NLOC.errText(x); btn.disabled=false; btn.textContent="Sign in"; document.getElementById("ncPw").value=""; document.getElementById("ncPw").focus(); }
+  };
+  setTimeout(()=>{ const u=document.getElementById("ncUser"); (u&&u.value?document.getElementById("ncPw"):u).focus(); },50);
+}
+function fsSignedIn(me){
+  NCME={ sid:me.sid, role:me.role, name:me.name, email:me.email };
+  db=NLOC.db(NLOC.fs,()=>(NLOC.me&&NLOC.me.sid)||"",rtExtra);
+  NLOC.watch(()=>NLOC.lock("Your access changed. Sign in again."));
+  adminSeen=Date.now();
+  const gate=document.getElementById("authGate"); gate.firstElementChild.innerHTML="";   /* nothing typed stays in the page */
+  gate.style.display="none"; document.getElementById("app").style.display="";
+  if(!calBooted){ calBooted=true; startCalSync(); render(); syncTimeOff(); }
+}
+/* ---------- who can edit (Dr. A, in Admin settings) ---------- */
+let ncRoster=null, ncRosterAt=0;
+async function loadNcRoster(){
+  if(!isFs()||!NLOC.fs||Date.now()-ncRosterAt<30000) return;
+  ncRosterAt=Date.now();
+  try{ const q=await NLOC.fs.collection("roster").get(); const out=[]; q.forEach(d=>{ const r=d.data()||{}; out.push({ sid:d.id, name:String(r.name||d.id), active:r.active!==false&&!r.left }); }); ncRoster=out.sort((a,b)=>a.name.localeCompare(b.name)); bgRender(); }
+  catch(e){ ncRoster=[]; }
+}
+function editorsSettingsHtml(){
+  if(!isOwnerNc()) return `<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Who can edit</div><div style="font-size:13px;color:var(--grey-500);margin-bottom:22px;">Dr. A picks who can add and edit entries. You're one of them.</div>`;
+  if(!ncRoster) loadNcRoster();
+  const eds=calEditors();
+  const rows=(ncRoster||[]).filter(p=>p.sid!==(NCME&&NCME.sid)).map(p=>`<label style="display:flex;align-items:center;gap:9px;font-size:14px;color:${p.active?"var(--navy-800)":"var(--grey-400)"};cursor:pointer;"><input type="checkbox" class="ed-pick" value="${esc(p.sid)}" ${eds.indexOf(p.sid)>=0?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;">${esc(p.name)}${p.active?"":" <span style=\"font-size:11px;text-transform:uppercase;font-weight:700;\">left</span>"}</label>`).join("");
+  return `<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Who can edit</div>
+    <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">You always can. Tick the staff who may add and edit entries, closures and stickers (everyone else sees the calendar). The database itself checks this.</div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:10px;">${ncRoster?(rows||`<span style="font-size:13px;color:var(--grey-500);">No other logins yet.</span>`):`<span style="font-size:13px;color:var(--grey-500);">Loading the team's logins…</span>`}</div>
+    <button data-act="editors-save" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:999px;padding:8px 18px;font-weight:700;font-size:13px;color:#fff;margin-bottom:${S.edMsg?"6px":"22px"};">Save who can edit</button>
+    ${S.edMsg?`<div style="font-size:12.5px;font-weight:600;color:var(--mint-700);margin-bottom:22px;">${esc(S.edMsg)}</div>`:""}`;
+}
+async function saveEditors(){
+  if(!isFs()||!isOwnerNc()) return;
+  const picks=Array.from(document.querySelectorAll(".ed-pick")).filter(x=>x.checked).map(x=>x.value);
+  try{ await db.ref(CAL_ROOT+"/config/editors").set(picks); S.edMsg="Saved — "+(picks.length?picks.length+" staff can edit":"only you can edit")+"."; }
+  catch(e){ S.edMsg="Couldn't save: "+((e&&e.message)||e); }
+  render(); setTimeout(()=>{ S.edMsg=""; bgRender(); },6000);
+}
+/* ---------- Dr. A: moving the calendar onto the NLO Cases system, and back ---------- */
+function dataSettingsHtml(){
+  if(!NLOC) return "";
+  if(isFs()){
+    if(!isOwnerNc()) return "";
+    return `<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin:22px 0 10px;">Data</div>
+      <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">On the NLO Cases system: the calendar signs in with the NLO Cases login, and the database checks every read and write.</div>
+      <button data-act="move-back-open" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--navy-800);">Move back to the old database…</button>`;
+  }
+  return `<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin:22px 0 10px;">Move to the NLO Cases system</div>
+    <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Everyone signs in with their NLO Cases username and password (no Google step and no admin PIN), you pick who can edit, and the database checks every read and write. Dr. A only.</div>
+    <button data-act="move-open" class="hov-coral7" style="border:none;background:var(--coral-500);border-radius:999px;padding:8px 18px;font-weight:700;font-size:13px;color:#fff;">Move to the NLO Cases system…</button>`;
+}
+function download(name,text){
+  try{ const u=URL.createObjectURL(new Blob([text],{type:"application/json"})), a=document.createElement("a"); a.href=u; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(u); a.remove(); },1000); }catch(e){}
+}
+async function copyText(t){ try{ await navigator.clipboard.writeText(t); return true; }catch(e){ return false; } }
+const SHEET_BTN="border:none;border-radius:999px;padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer;";
+function openSheet(title){
+  closeSheet();
+  const w=document.createElement("div"); w.id="calSheet";
+  w.innerHTML=`<div data-sheet-close style="position:fixed;inset:0;background:rgba(17,32,58,.6);z-index:80;"></div>
+    <div role="dialog" aria-modal="true" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:81;background:#fff;border-radius:16px;padding:24px;width:min(520px,94vw);max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(17,32,58,.35);font-size:14px;color:var(--grey-700);line-height:1.5;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><div class="disp" style="flex:1;font-weight:700;font-size:21px;color:var(--navy-800);">${esc(title)}</div><button data-sheet-close aria-label="Close" style="border:none;background:var(--grey-100);color:var(--navy-800);border-radius:999px;width:34px;height:34px;font-size:15px;">✕</button></div>
+      <div id="sheetBody"></div></div>`;
+  document.body.appendChild(w);
+  w.querySelectorAll("[data-sheet-close]").forEach(x=>x.addEventListener("click",()=>{ if(MOVING) return; closeSheet(); if(!isFs()) NLOC.signOut(); }));
+  return w.querySelector("#sheetBody");
+}
+function closeSheet(){ const w=document.getElementById("calSheet"); if(w) w.remove(); }
+const MOVE_LABELS={ events:"Entries", stickers:"Stickers", staff:"Staff list (birthdays, hire dates)", settings:"Settings (closures, blackout dates)", adminDays:"Admin days", config:"Editors", "nlo/cadence/roster":"Staff Hub's roster (a copy)", "nlo/cadence/timeOffFeed":"NLO Time Off's feed key (a copy)" };
+function moveCounts(old){ const c=NLOC.counts(old); return Object.keys(c).filter(k=>c[k]).map(k=>"<li>"+esc(MOVE_LABELS[k]||k)+": <b>"+c[k]+"</b></li>").join(""); }
+/* Dr. A's NLO Cases login on the move page (this screen is on the old database) is signed out when the sheet closes, when
+   the move stops, and after NLO Cases' idle minutes without activity */
+function moveGuard(){
+  const iv=setInterval(()=>{
+    if(MOVING) return;
+    if(!document.getElementById("sheetBody")){ clearInterval(iv); NLOC.signOut(); return; }
+    if(Date.now()-adminSeen>NLOC.idleMin()*60000){ clearInterval(iv); closeSheet(); NLOC.signOut(); S.lockNote="The move page closed after "+NLOC.idleMin()+" minutes without activity."; bgRender(); }
+  },5000);
+}
+function moveSheet(){
+  if(!S.admin||isFs()) return;
+  const body=openSheet("Move to the NLO Cases system");
+  moveGuard();
+  const msg=(t,bad)=>`<p style="margin:0 0 10px;${bad?"color:var(--coral-700);font-weight:700;":""}">${esc(t)}</p>`;
+  const movedAlready=async()=>{
+    const st=await NLOC.moveState();
+    if(!st) return "Can’t check with the NLO Cases database whether the calendar has already moved. Try again in a minute.";
+    if(st.on) return "The calendar is already on the NLO Cases system"+(st.at?" (moved "+new Date(st.at).toLocaleString()+")":"")+". Reload this page.";
+    let mark=null; try{ mark=(await db.ref(CAL_ROOT+"/movedTo").once("value")).val(); }catch(x){ return "Can’t read the old database: "+(x.message||x); }
+    if(mark) return "The old database is marked as moved"+(mark.at?" ("+new Date(mark.at).toLocaleString()+")":"")+", but the NLO Cases database says it isn’t. Nothing was done — reload, and if this shows again, ask for help before moving.";
+    return "";
+  };
+  const step1=err=>{
+    body.innerHTML=`<p style="margin:0 0 10px;">First, your NLO Cases login (the one you use for Case Tracker).</p>${err?msg(err,true):""}
+      <form id="mvForm" style="display:flex;flex-direction:column;gap:10px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Username<input id="mvUser" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(NLOC.lastLogin()||ALLOWED_EMAILS[0])}" style="${NC_INP}margin-top:4px;"></label>
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Password<input id="mvPw" type="password" autocomplete="current-password" style="${NC_INP}margin-top:4px;"></label>
+      <div style="display:flex;justify-content:flex-end;margin-top:6px;"><button id="mvGo" type="submit" class="hov-coral7" style="${SHEET_BTN}background:var(--coral-500);color:#fff;">Continue</button></div></form>`;
+    body.querySelector("#mvForm").onsubmit=async e=>{
+      e.preventDefault();
+      const b=body.querySelector("#mvGo"); b.disabled=true; b.textContent="Signing in…";
+      try{ const me=await NLOC.signIn(body.querySelector("#mvUser").value,body.querySelector("#mvPw").value); if(me.role!=="owner"){ try{ await NLOC.auth.signOut(); }catch(x){} step1("Only Dr. A’s NLO Cases login can move the calendar."); return; } step2(); }
+      catch(x){ step1(NLOC.errText(x)); }
+    };
+    setTimeout(()=>{ const pw=body.querySelector("#mvPw"); if(pw) pw.focus(); },60);
+  };
+  const step2=async()=>{
+    body.innerHTML=msg("Checking the NLO Cases database rules…");
+    let live=false;
+    try{ live=await NLOC.rulesLive(); }catch(x){ body.innerHTML=msg("Can’t reach the NLO Cases database: "+(x.message||x),true)+`<div style="display:flex;justify-content:flex-end;"><button id="mvRetry" class="hov-grey" style="${SHEET_BTN}border:1px solid var(--grey-300);background:#fff;color:var(--navy-800);">Try again</button></div>`; body.querySelector("#mvRetry").onclick=step2; return; }
+    if(live){ step3(); return; }
+    body.innerHTML=`<p style="margin:0 0 8px;"><b>One step first: publish the updated database rules</b> (they add the calendar’s part; every other app’s part stays as it is).</p><ol style="margin:0 0 0 18px;line-height:1.7;">
+      <li><button id="mvCopy" class="hov-grey" style="${SHEET_BTN}background:var(--mint-200);color:var(--navy-800);">Copy the new rules</button> <span id="mvCopied"></span></li>
+      <li><a href="https://console.firebase.google.com/project/nlo-cases/firestore" target="_blank" rel="noopener">Open the Firebase console (nlo-cases)</a> → <b>Firestore Database</b> in the left menu → <b>Rules</b> tab</li>
+      <li>Select all, paste, <b>Publish</b></li></ol><div style="display:flex;justify-content:flex-end;margin-top:14px;"><button id="mvCheck" class="hov-coral7" style="${SHEET_BTN}background:var(--coral-500);color:#fff;">Check again</button></div><p id="mvRulesMsg" style="margin:8px 0 0;"></p>`;
+    body.querySelector("#mvCopy").onclick=async()=>{
+      const out=body.querySelector("#mvCopied"); out.textContent="Getting the rules…";
+      try{
+        const r=await fetch("nlo-cases-src/firestore.rules?cb="+Date.now(),{cache:"no-store"});
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        const text=(await r.text()).replace(/__OWNER_EMAIL__/g,ALLOWED_EMAILS[0]);
+        if(text.indexOf("rules_cal_1")<0) throw new Error("that file doesn’t have the calendar’s part yet");
+        out.textContent=(await copyText(text))?"Copied ✓ — now paste it in the console":"Couldn’t copy: select it from the box below";
+        if(!navigator.clipboard){ const ta=document.createElement("textarea"); ta.value=text; ta.rows=6; ta.readOnly=true; ta.style.cssText="width:100%;margin-top:6px;"; out.after(ta); }
+      }catch(x){ out.textContent="Couldn’t get the rules: "+(x.message||x); }
+    };
+    body.querySelector("#mvCheck").onclick=async()=>{
+      const m=body.querySelector("#mvRulesMsg"); m.textContent="Checking…";
+      try{ await NLOC.fs.disableNetwork(); await NLOC.fs.enableNetwork(); }catch(e){}   /* (a fresh connection: one opened before Publish can keep the older rules for a few minutes) */
+      try{ if(await NLOC.rulesLive()) step3(); else m.textContent="Not yet — the database still has the older rules (it can take a few minutes after Publish)."; }catch(x){ m.textContent="Can’t reach the database: "+(x.message||x); }
+    };
+  };
+  let old=null, before=null;
+  /* a stop here: say why, with Try again (nothing has been written yet) */
+  const stop3=t=>{ body.innerHTML=msg(t,true)+`<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;"><button data-sheet-close class="hov-grey" style="${SHEET_BTN}border:1px solid var(--grey-300);background:#fff;color:var(--navy-800);">Not now</button><button id="mvAgain" class="hov-coral7" style="${SHEET_BTN}background:var(--coral-500);color:#fff;">Try again</button></div>`; body.querySelector("[data-sheet-close]").onclick=()=>{ closeSheet(); NLOC.signOut(); }; body.querySelector("#mvAgain").onclick=()=>step3(0); };
+  const step3=async tries=>{
+    tries=tries||0;
+    body.innerHTML=msg("Reading the calendar’s data in the old database…");
+    const no=await movedAlready(); if(no){ stop3(no); return; }
+    try{ old=await NLOC.readOld(db); }catch(x){ stop3("Couldn’t read the old database: "+(x.message||x)); return; }
+    try{ before=await NLOC.readNew(NLOC.fs); }catch(x){
+      /* right after Publish, parts of the database can still have the older rules for a minute or two: wait and ask again */
+      if(/permission/i.test(String((x&&(x.code||x.message))||""))&&tries<12){
+        body.innerHTML=msg("The NLO Cases database is still taking in the new rules (this can take a few minutes after Publish). Trying again by itself…");
+        setTimeout(async()=>{
+          if(document.getElementById("sheetBody")!==body||MOVING) return;
+          try{ await NLOC.fs.disableNetwork(); await NLOC.fs.enableNetwork(); }catch(e){}
+          step3(tries+1);
+        },10000);
+        return;
+      }
+      stop3("Couldn’t read the NLO Cases database: "+(x.message||x)); return;
+    }
+    if(!Object.keys(before).some(k=>before[k]!=null)) before=null;
+    const recs=NLOC.recordsOf(old), bad=NLOC.badIds(recs);
+    if(bad.length){ body.innerHTML=msg("These records have ids the new database won’t take, so nothing was moved: "+bad.slice(0,8).join(", "),true); return; }
+    const big=NLOC.tooBig(recs);
+    if(big.length){ body.innerHTML=msg("These records are too big for one record in the new database (1 MB each), so nothing was moved: "+big.slice(0,8).join(", "),true); return; }
+    body.innerHTML=`<p style="margin:0 0 6px;">What moves:</p><ul style="margin:0 0 0 18px;line-height:1.7;">${moveCounts(old)}</ul>
+      <p style="margin:12px 0 0;">Best when nobody is using the calendar. Screens open elsewhere pause while it moves and switch over by themselves (a screen opened before today’s update: reload it afterwards). A copy of everything goes to your Downloads first. The old database keeps its copy too. Afterwards only you can edit until you tick other editors in Admin settings.</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;"><button data-sheet-close class="hov-grey" style="${SHEET_BTN}border:1px solid var(--grey-300);background:#fff;color:var(--navy-800);">Not now</button><button id="mvNow" class="hov-coral7" style="${SHEET_BTN}background:var(--coral-500);color:#fff;">Move it now</button></div>`;
+    body.querySelector("[data-sheet-close]").onclick=()=>{ closeSheet(); NLOC.signOut(); };
+    body.querySelector("#mvNow").onclick=step4;
+  };
+  const step4=async()=>{
+    document.querySelectorAll("#calSheet [data-sheet-close]").forEach(x=>x.remove());
+    const line=t=>{ body.insertAdjacentHTML("beforeend",`<p style="margin:0 0 6px;">${esc(t)}</p>`); };
+    body.innerHTML="";
+    MOVING=true;
+    let claim="";
+    try{
+      download("office-calendar-before-move-"+todayStr()+".json",JSON.stringify(Object.assign({app:"office-calendar",at:new Date().toISOString(),data:old},before?{nloCasesBefore:before}:{}),null,1));
+      line("Copy saved to Downloads ✓");
+      const no=await movedAlready(); if(no) throw new Error(no);
+      claim=await NLOC.claimMove(db,ALLOWED_EMAILS[0]);
+      line("Pausing the calendar on other screens…");
+      await new Promise(r=>setTimeout(r,4000));
+      let cur=await NLOC.readOld(db), res=null;
+      for(let k=0;k<3;k++){
+        res=await NLOC.writeRecords(NLOC.fs,NLOC.me.sid,NLOC.recordsOf(cur),(n,all)=>{ NLOC.touchMove(db,claim); let p=body.querySelector(".mvProg"); if(!p){ body.insertAdjacentHTML("beforeend",'<p class="mvProg" style="margin:0 0 6px;"></p>'); p=body.querySelector(".mvProg"); } p.textContent="Writing… "+n+" of "+all; });
+        if(res.missing.length||res.differ.length||res.left.length) throw new Error("the check after writing found "+(res.missing.length+res.differ.length+res.left.length)+" records not as written — nothing was switched over");
+        const again=await NLOC.readOld(db);
+        if(NLOC.fpr(again)===NLOC.fpr(cur)) break;
+        if(k===2) throw new Error("the old data kept changing while moving (someone is using the calendar) — nothing was switched over; try again when it’s quiet");
+        cur=again; line("Something changed meanwhile — writing it too…");
+      }
+      line("Checked: "+res.written+" record"+(res.written===1?"":"s")+" written and read back the same ✓");
+      const FV=firebase.firestore.FieldValue;
+      if(!(await NLOC.moveStillMine(db,claim))) throw new Error("the pause on the other screens was interrupted (a connection dropped) — nothing was switched over; try again");
+      const no2=await movedAlready(); if(no2) throw new Error(no2);
+      await NLOC.fs.doc("calMeta/info").set({ counts:NLOC.counts(cur), by:ALLOWED_EMAILS[0], _up:FV.serverTimestamp(), _by:NLOC.me.sid });
+      await NLOC.fs.doc("calMeta/moved").set({ on:true, at:FV.serverTimestamp() });
+      NLOC.rememberFs(true);
+      let marked=true;
+      try{ await db.ref(CAL_ROOT+"/movedTo").set({ at:Date.now(), by:ALLOWED_EMAILS[0], to:"nlo-cases" }); }catch(x){ marked=false; }
+      if(marked) await NLOC.releaseMove(db,claim);
+      line("Switched over ✓ — the calendar now opens with the NLO Cases login.");
+      setTimeout(()=>location.reload(),2500);
+    }catch(x){
+      if(claim) await NLOC.releaseMove(db,claim);
+      MOVING=false;
+      NLOC.signOut();
+      line("Stopped: "+(x.message||x));
+      body.insertAdjacentHTML("beforeend",`<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button id="mvClose" class="hov-grey" style="${SHEET_BTN}border:1px solid var(--grey-300);background:#fff;color:var(--navy-800);">Close</button></div>`);
+      body.querySelector("#mvClose").onclick=closeSheet;
+    }
+  };
+  step1("");
+}
+/* the way back (only if something's wrong): needs this computer's office Google sign-in for the old database */
+function moveBackSheet(){
+  if(!isFs()||!isOwnerNc()) return;
+  const body=openSheet("Move back to the old database");
+  const draw=err=>{
+    const g=rtExtra();
+    body.innerHTML=`<p style="margin:0 0 10px;">Only if something is wrong. Everything in the calendar as it is now goes back to the old database (a copy goes to your Downloads first), and it goes back to the office Google sign-in and the admin PIN.</p>${err?`<p style="margin:0 0 10px;color:var(--coral-700);font-weight:700;">${esc(err)}</p>`:""}
+      ${g?"":`<p style="margin:0 0 8px;">This needs the office Google sign-in (Dr. A’s) on this computer.</p><button id="mbG" class="pill-btn" style="background:var(--blue-600);color:#fff;padding:10px 18px;font-size:13px;letter-spacing:.06em;">Sign in with Google</button>`}
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px;"><input type="checkbox" id="mbOk" style="width:18px;height:18px;"> <span>Yes, move it back</span></label>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;"><button data-sheet-close class="hov-grey" style="${SHEET_BTN}border:1px solid var(--grey-300);background:#fff;color:var(--navy-800);">Cancel</button><button id="mbGo" class="hov-coral7" style="${SHEET_BTN}background:var(--coral-500);color:#fff;" ${g?"":"disabled"}>Move it back</button></div>`;
+    body.querySelector("[data-sheet-close]").onclick=closeSheet;
+    const gb=body.querySelector("#mbG"); if(gb) gb.onclick=async()=>{ try{ const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account"}); await auth.signInWithPopup(p); draw(rtExtra()?"":"That Google account can’t write the old database."); }catch(x){ draw(x.message||"Sign-in failed."); } };
+    body.querySelector("#mbGo").onclick=async()=>{
+      if(!body.querySelector("#mbOk").checked){ draw("Tick “Yes, move it back” first."); return; }
+      const rt=rtExtra(); if(!rt){ draw("Sign in with Google first."); return; }
+      document.querySelectorAll("#calSheet [data-sheet-close]").forEach(x=>x.remove());
+      body.innerHTML="<p>Moving back…</p>";
+      MOVING=true;
+      const FV=firebase.firestore.FieldValue;
+      let paused=false;
+      try{
+        const st=await NLOC.moveState();
+        if(!st||st.refused) throw new Error("can’t check with the NLO Cases database — try again in a minute");
+        if(!st.on) throw new Error("the calendar is already back on the old database — reload this page");
+        await NLOC.fs.doc("calMeta/moved").set({ on:true, pause:true, at:FV.serverTimestamp() });
+        paused=true;
+        body.innerHTML="<p>Pausing the calendar on other screens…</p>";
+        await new Promise(r=>setTimeout(r,4000));
+        body.innerHTML="<p>Moving back…</p>";
+        let cur=await NLOC.readNew(NLOC.fs);
+        download("office-calendar-before-move-back-"+todayStr()+".json",JSON.stringify({app:"office-calendar",at:new Date().toISOString(),data:cur},null,1));
+        for(let k=0;k<3;k++){
+          for(const m of NLOC.MOVED) await rt.ref(m.path).set(cur[m.path]==null?null:JSON.parse(JSON.stringify(cur[m.path])));
+          const again=await NLOC.readNew(NLOC.fs);
+          if(NLOC.fpr(again)===NLOC.fpr(cur)) break;
+          if(k===2) throw new Error("the data kept changing while moving back — nothing was switched back; try again when it’s quiet");
+          cur=again;
+        }
+        await rt.ref(CAL_ROOT+"/movedTo").remove();
+        try{ await rt.ref(CAL_ROOT+"/moving").remove(); }catch(x){}
+        await NLOC.fs.doc("calMeta/moved").set({ on:false, at:FV.serverTimestamp() });
+        NLOC.rememberFs(false);
+        body.innerHTML="<p>Moved back ✓ — the calendar uses the office Google sign-in again.</p>";
+        setTimeout(()=>location.reload(),2500);
+      }catch(x){
+        if(paused){ try{ await NLOC.fs.doc("calMeta/moved").set({ on:true, at:FV.serverTimestamp() }); }catch(y){} }
+        MOVING=false;
+        body.innerHTML=`<p style="color:var(--coral-700);font-weight:700;">Stopped: ${esc(x.message||x)}</p><p>Nothing was switched back.</p><div style="display:flex;justify-content:flex-end;margin-top:10px;"><button id="mbClose" class="hov-grey" style="${SHEET_BTN}border:1px solid var(--grey-300);background:#fff;color:var(--navy-800);">Close</button></div>`;
+        body.querySelector("#mbClose").onclick=closeSheet;
+      }
+    };
+  };
+  draw("");
+}
+start();
 </script>
 <script src="nlo-home.js" defer></script>
 <script src="nlo-aisa.js" defer></script>

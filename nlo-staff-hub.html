@@ -1024,6 +1024,7 @@ function enterApp() {
   render();
   if (typeof renderSyncStatus === 'function') renderSyncStatus();
   if (typeof rosterInit === 'function') { try { rosterInit(); } catch (e) {} }
+  if (typeof rosterQueue === 'function') { rosterKnown = true; rosterQueue(800); }   /* the NLO Cases copy, through the login that opened Staff Hub */
   if (typeof ppAfterOpen === 'function') { try { ppAfterOpen(); } catch (e) {} }
 }
 /* (input: dictation and autofill type without key presses) */
@@ -5228,6 +5229,7 @@ function fbEnter() {
 /* lock: drop the key and sign out (NLO Cases at once; Staff Hub's own account once a save on its way has landed) */
 function fbLock(msg) {
   if (typeof ppWipe === 'function') ppWipe();   /* paperwork opened on screen or in memory */
+  rosterNcSent = ''; rosterNcErr = ''; rosterLoaded = false; clearTimeout(rosterTimer);
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
   if (typeof quizWatchStop === 'function') quizWatchStop();
   if (typeof appWatchStop === 'function') appWatchStop();
@@ -7867,6 +7869,12 @@ var ROSTER_LEGACY_GOESBY = { s_wila: 'Wila', s_eve: 'Eve', s_bri: 'Bri' };
 var ROSTER_CHAIR_LABEL = { s_angelika: 'Angie' };
 var rosterApp = null, rosterUser = null, rosterTimer = null, rosterSent = '', rosterPrev = null, rosterLoaded = false;
 var rosterStatus = 'off', rosterErr = '', rosterAt = 0, rosterKnown = false, rosterToldErr = '';
+/* Amir, 31 Oct 2026: "make the staff hub information as one source of truth for all the other apps in terms of the staff".
+   The same list also goes to the NLO Cases system (hubRoster/live), through Dr. A's NLO Cases login that Staff Hub already
+   holds — no Google step; the apps on that system (the Office Calendar, Onboarding, Cadence, the Staff Meeting Hub) read
+   it there. The old database's copy (nlo/cadence/roster) is still written when this computer is connected to it. */
+var rosterNcSent = '', rosterNcAt = 0, rosterNcErr = '', rosterNcTimer = null;
+function rosterNcReady() { return !!(S && NC && NC.db && NC.uid && NC.me && NC.me.role === 'owner'); }
 
 function rosterSlug(x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, ''); }
 function rosterNameParts(name) {
@@ -8005,30 +8013,51 @@ function rosterInit() {
   return rosterApp;
 }
 function rosterQueue(ms) {
-  if (!rosterUser) return;
+  if (!rosterUser && !rosterNcReady()) return;
   clearTimeout(rosterTimer);
   rosterTimer = setTimeout(rosterPublish, ms == null ? 1500 : ms);
 }
 async function rosterPublish() {
-  if (!rosterApp || !rosterUser || !S || !Array.isArray(S.staff) || !S.staff.length) return;
+  if (!S || !Array.isArray(S.staff) || !S.staff.length) return;
+  const toRt = !!(rosterApp && rosterUser), toNc = rosterNcReady();
+  if (!toRt && !toNc) return;
   try {
     if (!rosterLoaded) {
-      const snap = await rosterApp.database().ref(ROSTER_PATH + '/people').once('value');
-      rosterPrev = snap.val() || {}; rosterLoaded = true;
+      /* the list shared before (so someone deleted from Staff Hub stays listed as "left"): from the old database when this
+         computer is connected to it, else from the NLO Cases copy */
+      let prev = null;
+      if (toRt) prev = (await rosterApp.database().ref(ROSTER_PATH + '/people').once('value')).val();
+      else { const sn = await NC.db.doc('hubRoster/live').get(); prev = sn.exists ? (sn.data() || {}).people : null; }
+      rosterPrev = prev && typeof prev === 'object' ? prev : {}; rosterLoaded = true;
     }
     if (rosterMigrate() && typeof fbQueueWrite === 'function') fbQueueWrite();
     const people = rosterPeople();
     const dates = rosterDates();
     const json = JSON.stringify(people) + '|' + JSON.stringify(dates);
-    if (json === rosterSent) return;
-    rosterStatus = 'saving'; rosterPanelRefresh();
+    const needRt = toRt && json !== rosterSent, needNc = toNc && json !== rosterNcSent;
+    if (!needRt && !needNc) return;
     const rec = { v: 1, source: 'staff-hub', updatedAt: Date.now(), people: people };
     if (Object.keys(dates).length) rec.dates = dates;
-    await rosterApp.database().ref(ROSTER_PATH).set(rec);
-    rosterSent = json; rosterPrev = people; rosterAt = Date.now(); rosterStatus = 'ready'; rosterErr = '';
+    if (needNc) {
+      rosterNcErr = '';
+      try {
+        await NC.db.doc('hubRoster/live').set(Object.assign({}, rec, { _up: firebase.firestore.FieldValue.serverTimestamp() }));
+        rosterNcSent = json; rosterNcAt = Date.now();
+      } catch (e) {
+        rosterNcErr = /permission/i.test(ncCode(e)) ? 'The NLO Cases database rules don’t have the roster’s part yet (publish the newest rules from NLO Cases).' : 'Couldn’t share the team list on the NLO Cases system (' + (ncCode(e) || 'error') + ').';
+        if (!needRt) throw e;
+      }
+    }
+    if (needRt) {
+      rosterStatus = 'saving'; rosterPanelRefresh();
+      await rosterApp.database().ref(ROSTER_PATH).set(rec);
+      rosterSent = json; rosterAt = Date.now(); rosterStatus = 'ready'; rosterErr = '';
+    }
+    rosterPrev = people;
   } catch (e) {
-    rosterStatus = 'error'; rosterErr = rosterErrText(e);
-    if (rosterErr !== rosterToldErr) { rosterToldErr = rosterErr; toast(rosterErr, true); }
+    if (toRt) { rosterStatus = 'error'; rosterErr = rosterErrText(e); }
+    const msg = toRt ? rosterErr : rosterNcErr;
+    if (msg && msg !== rosterToldErr) { rosterToldErr = msg; toast(msg, true); }
   }
   rosterPanelRefresh();
 }
@@ -8038,7 +8067,10 @@ async function rosterPublish() {
 function rosterBannerHTML() {
   if (!rosterKnown || !S || !Array.isArray(S.staff)) return '';
   if (rosterStatus === 'error') return `<div id="rosterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--coral-100);color:var(--coral-700);font-size:13px;line-height:1.4">${ic('alert',16)}<span style="flex:1;min-width:200px"><b>Staff changes aren’t reaching the other apps.</b> ${esc(rosterErr)}</span><button class="btn btn-sec btn-sm" data-act="rosterNow">Try again</button></div>`;
-  if (!rosterUser) return `<div id="rosterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--amber-100);color:var(--amber-700);font-size:13px;line-height:1.4">${ic('alert',16)}<span style="flex:1;min-width:200px"><b>Staff changes made on this computer aren’t reaching the other apps.</b> Connect the office roster once (akhavan.ak@gmail.com); after that every save here goes out by itself.</span><button class="btn btn-pri btn-sm" data-act="rosterConnect">${ic('users',13)} Connect</button></div>`;
+  if (rosterNcErr && rosterNcReady()) return `<div id="rosterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--coral-100);color:var(--coral-700);font-size:13px;line-height:1.4">${ic('alert',16)}<span style="flex:1;min-width:200px"><b>Staff changes aren’t reaching the apps on the NLO Cases system.</b> ${esc(rosterNcErr)}</span><button class="btn btn-sec btn-sm" data-act="rosterNow">Try again</button></div>`;
+  /* (the NLO Cases copy goes out through Dr. A's login by itself; only the apps still on the old database need the Google
+     connection, and that's said in Settings → Office roster rather than on every page) */
+  if (!rosterUser && !rosterNcReady()) return `<div id="rosterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--amber-100);color:var(--amber-700);font-size:13px;line-height:1.4">${ic('alert',16)}<span style="flex:1;min-width:200px"><b>Staff changes made on this computer aren’t reaching the other apps.</b> Connect the office roster once (akhavan.ak@gmail.com); after that every save here goes out by itself.</span><button class="btn btn-pri btn-sm" data-act="rosterConnect">${ic('users',13)} Connect</button></div>`;
   return '';
 }
 function rosterBannerRefresh() {
@@ -8048,10 +8080,16 @@ function rosterBannerRefresh() {
 }
 /* "Shared with the office apps at 9:12 AM" for the Staff page */
 function rosterSharedText() {
-  if (!rosterKnown) return '';
-  if (rosterStatus === 'error' || !rosterUser) return 'not reaching the other apps from this computer';
+  if (!rosterKnown && !rosterNcReady()) return '';
+  const when = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (!rosterUser) {
+    if (!rosterNcReady()) return 'not reaching the other apps from this computer';
+    if (rosterNcErr) return 'not reaching the apps on the NLO Cases system';
+    return rosterNcAt ? 'shared with the office apps at ' + when(rosterNcAt) : 'shared with the office apps (NLO Cases system)';
+  }
+  if (rosterStatus === 'error') return 'not reaching the apps on the old database from this computer';
   if (rosterStatus === 'saving') return 'sharing with the office apps…';
-  return rosterAt ? 'shared with the office apps at ' + new Date(rosterAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'connected to the office apps';
+  return rosterAt ? 'shared with the office apps at ' + when(rosterAt) : 'connected to the office apps';
 }
 function rosterStatusLine(p) {
   if (p.status === 'former') return '<span class="badge b-gray">Left' + (rosterEnd(p) ? ' ' + esc(fmtD(rosterEnd(p))) : '') + '</span>';
@@ -8063,15 +8101,17 @@ function rosterPanelHTML() {
     .sort((a, b) => ((a.status === 'former') - (b.status === 'former')) || String(a.name).localeCompare(String(b.name)));
   const fbReady = typeof firebase !== 'undefined' && !!firebase.database;
   let head;
+  const ncLine = rosterNcReady() ? (rosterNcErr ? `<p class="muted" style="margin-bottom:10px;color:var(--coral-700)">NLO Cases system: ${esc(rosterNcErr)} <button class="btn btn-sec btn-sm" data-act="rosterNow">Try again</button></p>`
+    : `<p class="muted" style="margin-bottom:10px">Staff Hub is the one place staff are added or changed. The team list goes to the apps on the NLO Cases system (the Office Calendar, Onboarding, Cadence, the Staff Meeting Hub) through your NLO Cases login, by itself${rosterNcAt ? ' — last shared ' + esc(new Date(rosterNcAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) : ''}. Only name, role, “goes by”, chairside, start date, full- or part-time, last day and a small photo are shared (NLO Time Off counts vacation tiers from the start date), plus the calendar dates below if that box is ticked. Notes, review content, pay and personal details stay encrypted in Staff Hub.</p>`) : '';
   if (!fbReady) head = '<p class="muted">Needs an internet connection. Reload once you’re online.</p>';
-  else if (!rosterUser) head = `<p class="muted" style="margin-bottom:12px">Share a basic team list with Cadence, the calendar, the IPR tracker, staff meeting and inventory. Add a hire or end someone’s employment here and those apps follow. Only name, role, “goes by”, chairside, start date, full- or part-time and last day are shared (NLO Time Off counts vacation tiers from the start date), plus the calendar dates below if that box is ticked. Notes, review content, pay and personal details stay encrypted in Staff Hub.</p>
-      <button class="btn btn-pri btn-sm" data-act="rosterConnect">${ic('users',13)} Connect with Google</button>
-      <p class="tiny" style="margin-top:10px">One-time on this device, with akhavan.ak@gmail.com (the only account that can update the office roster).</p>`;
+  else if (!rosterUser) head = ncLine + `<p class="muted" style="margin-bottom:12px">${rosterNcReady() ? 'Apps still on the old database (an app that hasn’t moved to the NLO Cases system yet) get the list only while this computer is connected there:' : 'Share a basic team list with Cadence, the calendar, the IPR tracker, staff meeting and inventory. Add a hire or end someone’s employment here and those apps follow. Only name, role, “goes by”, chairside, start date, full- or part-time and last day are shared (NLO Time Off counts vacation tiers from the start date), plus the calendar dates below if that box is ticked. Notes, review content, pay and personal details stay encrypted in Staff Hub.'}</p>
+      <button class="btn btn-sec btn-sm" data-act="rosterConnect">${ic('users',13)} Connect the old database (Google)</button>
+      <p class="tiny" style="margin-top:10px">One-time on this device, with akhavan.ak@gmail.com (the only account that can update the old database's roster).</p>`;
   else {
     const when = rosterAt ? new Date(rosterAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
     const state = rosterStatus === 'error' ? `<span style="color:var(--coral-700)">${esc(rosterErr)}</span>`
       : rosterStatus === 'saving' ? 'Sharing…' : (when ? 'Shared at ' + esc(when) : 'Connected');
-    head = `<p class="muted" style="margin-bottom:10px">${state} · signed in as ${esc(rosterUser.email || '')}</p>
+    head = ncLine + `<p class="muted" style="margin-bottom:10px">Old database: ${state} · signed in as ${esc(rosterUser.email || '')}</p>
       <p class="tiny" style="margin:-4px 0 10px">Every save here goes out to the other apps within seconds; nothing to press. “Share now” only sends the list again.</p>
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-sec btn-sm" data-act="rosterNow">Share now</button><button class="btn btn-sec btn-sm" data-act="rosterPhotos">Add photos</button><button class="btn btn-sec btn-sm" data-act="rosterDisconnect">Disconnect</button></div>`;
   }
@@ -8096,7 +8136,7 @@ H.rosterConnect = () => {
     rosterStatus = 'error'; rosterErr = rosterErrText(e); rosterPanelRefresh(); toast(rosterErr, true);
   });
 };
-H.rosterNow = () => { rosterSent = ''; rosterQueue(0); };
+H.rosterNow = () => { rosterSent = ''; rosterNcSent = ''; rosterQueue(0); };
 H.rosterDatesToggle = t => {
   if (!S) return;
   if (!S.settings) S.settings = {};

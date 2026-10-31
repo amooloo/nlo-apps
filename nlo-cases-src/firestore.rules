@@ -1779,5 +1779,125 @@ service cloud.firestore {
     match /meta/rules_mtg_1 {
       allow get: if isMember();
     }
+
+    // =====================================================================
+    // ---------- Staff Hub's office roster on the NLO Cases system (31 Oct 2026) ----------
+    // Amir, 31 Oct 2026: "make the staff hub information as one source of truth for all the other apps in terms of the
+    // staff". Staff Hub (Dr. A's login) keeps its office roster here as well as in the old database (nlo/cadence/roster):
+    // the same list — names, titles, "goes by", chairside, active / last day, start dates, full- or part-time, small
+    // photos — plus the dates the office calendar shows. Everyone signed in reads it; only Dr. A writes it (Staff Hub,
+    // or a move copying the old list in once). Nothing here is patient data.
+    // =====================================================================
+    match /hubRoster/{id} {
+      allow read: if isMember();
+      allow create, update: if isOwner() && id == 'live'
+        && request.resource.data.keys().hasOnly(['v', 'source', 'updatedAt', 'people', 'dates', '_up', '_by'])
+        && request.resource.data.get('people', {}) is map && request.resource.data.get('people', {}).size() <= 200
+        && request.resource.data.get('dates', {}) is map && request.resource.data.get('dates', {}).size() <= 200;
+      allow delete: if false;
+    }
+
+    // =====================================================================
+    // ---------- the Office Calendar (same office, same logins; 31 Oct 2026) ----------
+    // Amir, 31 Oct 2026: move the Office Calendar onto the NLO Cases login too ("Full move", as the Staff Meeting Hub), with
+    // Dr. A plus the people he picks able to edit it. Everything under nlo/calendar in the old database:
+    //   events → calEvents, stickers → calStickers, staff / settings / adminDays → calState/{staff, settings, adminDays}.
+    // Everyone signed in reads the calendar. Entries, closures, blackout dates, stickers, the calendar's own staff list and
+    // the admin-day paint are changed by Dr. A and by the editors he names in calState/config (NLO Cases staff ids); only
+    // he changes that list. Every write is stamped `_by` (the staff id) and `_up` (the database's time). NLO Time Off's feed
+    // key is kept in Cadence's cadMirror/tofeed (its rules above). calMeta/moved says which database the calendar uses
+    // (readable before anyone signs in; it holds nothing else) and pauses screens while Dr. A moves the data back.
+    // =====================================================================
+    function calCfg() { return /databases/$(db)/documents/calState/config; }
+    function calEditor() { return isOwner() || (isMember() && exists(calCfg()) && mySid() in get(calCfg()).data.get('editors', [])); }
+    function calOk(d, n) { return mtgMember() && d.get('_up', null) == request.time && d.get('_by', '') == mySid() && d.size() <= n; }
+    match /calEvents/{id} {
+      allow read: if mtgMember();
+      allow create, update: if calEditor() && calOk(request.resource.data, 60) && mtgId(id);
+      allow delete: if calEditor();
+    }
+    match /calStickers/{id} {
+      allow read: if mtgMember();
+      allow create, update: if calEditor() && calOk(request.resource.data, 20) && mtgId(id);
+      allow delete: if calEditor();
+    }
+    match /calState/{id} {
+      allow read: if mtgMember();
+      allow create, update: if (id in ['staff', 'settings'] && calEditor() && calOk(request.resource.data, 300))
+        || (id == 'adminDays' && calEditor() && calOk(request.resource.data, 4000))
+        || (id == 'config' && isOwner() && calOk(request.resource.data, 20) && request.resource.data.get('editors', []) is list && request.resource.data.get('editors', []).size() <= 50);
+      allow delete: if false;
+    }
+    match /calMeta/moved {
+      allow get: if true;
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['on', 'pause', 'at'])
+        && request.resource.data.get('on', null) is bool && request.resource.data.get('pause', false) is bool
+        && request.resource.data.get('at', null) == request.time;
+      allow delete: if false;
+    }
+    match /calMeta/info {
+      allow get: if mtgMember();
+      allow create, update: if calOk(request.resource.data, 20) && isOwner();
+      allow delete: if false;
+    }
+    // which set of these rules is live (the Office Calendar reads this; older rules refuse it)
+    match /meta/rules_cal_1 {
+      allow get: if isMember();
+    }
+
+    // =====================================================================
+    // ---------- Onboarding (same office, same logins; 31 Oct 2026) ----------
+    // Amir, 31 Oct 2026: everyone signs in to Onboarding with their own NLO Cases login — on the office computers and on
+    // their phones — so the name picker, the PINs and the personal phone links go. Everything under nlo/onboarding in the
+    // old database that still matters: people/<roster id> → onbPeople (plan, progress, sign-offs, log), roles →
+    // onbState/roles, settings → onbState/settings, catalog/{tracks, modules, meta} → onbTracks, onbMods, onbState/meta.
+    // (pins, keys and devices are left behind.) A person is matched to their Staff Hub roster id through the NLO Cases
+    // roster (roster/<sid>.rid). Everyone signed in reads all of it and may save training records (who's training is who's
+    // signed in; a sign-off is made by the signed-in trainer — the page checks that, and every write is stamped `_by` =
+    // the staff id, `_up` = the database's time). The curriculum and the settings are changed by Dr. A and by the managers
+    // named in onbState/roles; only he changes the roles. onbMeta/moved says which database Onboarding uses (readable before
+    // anyone signs in; it holds nothing else) and pauses screens while Dr. A moves the data back.
+    // =====================================================================
+    function onbRid() { return get(/databases/$(db)/documents/roster/$(mySid())).data.get('rid', ''); }
+    function onbRoles() { return /databases/$(db)/documents/onbState/roles; }
+    function onbMgr() { return isOwner() || (isMember() && exists(onbRoles()) && get(onbRoles()).data.get('managers', {}).get(onbRid(), false) == true); }
+    match /onbPeople/{rid} {
+      allow read: if mtgMember();
+      allow create, update: if calOk(request.resource.data, 20) && mtgId(rid)
+        && request.resource.data.keys().hasOnly(['plan', 'progress', 'signoffs', 'log', '_up', '_by']);
+      allow delete: if onbMgr();
+    }
+    match /onbTracks/{id} {
+      allow read: if mtgMember();
+      allow create, update: if onbMgr() && calOk(request.resource.data, 30) && mtgId(id);
+      allow delete: if onbMgr();
+    }
+    match /onbMods/{id} {
+      allow read: if mtgMember();
+      allow create, update: if onbMgr() && calOk(request.resource.data, 40) && mtgId(id);
+      allow delete: if onbMgr();
+    }
+    match /onbState/{id} {
+      allow read: if mtgMember();
+      allow create, update: if (id in ['meta', 'settings'] && onbMgr() && calOk(request.resource.data, 20))
+        || (id == 'roles' && isOwner() && calOk(request.resource.data, 20) && request.resource.data.keys().hasOnly(['trainers', 'managers', '_up', '_by']));
+      allow delete: if false;
+    }
+    match /onbMeta/moved {
+      allow get: if true;
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['on', 'pause', 'at'])
+        && request.resource.data.get('on', null) is bool && request.resource.data.get('pause', false) is bool
+        && request.resource.data.get('at', null) == request.time;
+      allow delete: if false;
+    }
+    match /onbMeta/info {
+      allow get: if mtgMember();
+      allow create, update: if calOk(request.resource.data, 20) && isOwner();
+      allow delete: if false;
+    }
+    // which set of these rules is live (Onboarding reads this; older rules refuse it)
+    match /meta/rules_onb_1 {
+      allow get: if isMember();
+    }
   }
 }
