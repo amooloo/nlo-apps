@@ -129,7 +129,7 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "2.3 (Oct 31, 2026)";
+const CAL_VERSION = "2.4 (Oct 31, 2026)";
 
 /* =====================================================================
    On the NLO Cases system (2.0, 31 Oct 2026; nlo-meeting-db.js). Amir: the Office Calendar signs in like Case Tracker, with
@@ -1199,77 +1199,6 @@ function todayStripHtml(today,d1,lbl1,phone){
 }
 
 /* ---------- Settings: watch days, deadlines, school calendar ---------- */
-function extrasSettingsHtml(){
-  const st=S.data.settings||{}, off=st.watchOff||{}, custom=st.watchCustom||{};
-  const H=t=>`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">${t}</div>`;
-  const inp=`padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);`;
-  const pillX=(act,attr,label)=>`<span style="display:inline-flex;align-items:center;gap:8px;background:var(--navy-800);color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font-size:13.5px;font-weight:600;">${label}<button data-act="${act}" ${attr} aria-label="Remove" style="border:none;background:var(--navy-700);color:#fff;border-radius:999px;width:22px;height:22px;font-size:11px;line-height:1;">✕</button></span>`;
-  let h=H("Watch days (debond risk)")+`<div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Shaded amber on open days when broken brackets and emergency calls usually go up. ${esc(WATCH_NOTE)}</div><div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">`;
-  const y=new Date().getFullYear();
-  WATCH_RULES.forEach(r=>{
-    const days=[y,y+1].map(yy=>r.days(yy).filter(d=>!officeClosed(d))).find(a=>a.length&&a[a.length-1]>=todayStr())||[];
-    h+=`<label style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;cursor:pointer;">
-      <input type="checkbox" data-chg="watch-rule" data-k="${r.key}" ${off[r.key]?"":"checked"} style="width:18px;height:18px;accent-color:${WATCH_EDGE};flex:none;">
-      <span style="flex:1;min-width:0;font-size:14px;font-weight:600;color:var(--navy-800);">${esc(r.label)}</span>
-      <span style="font-size:12px;color:var(--grey-400);">${days.length?esc(prettyRange(days[0],days[days.length-1])):""}</span></label>`;
-  });
-  h+=`</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">`;
-  Object.keys(custom).sort().forEach(d=>{ const c=custom[d]||{}; h+=pillX("watch-remove",`data-date="${d}"`,"⚠ "+esc(c.label||"Watch")+" — "+esc(prettyRange(d,c.end||d))); });
-  h+=`</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-      <input type="date" id="new-watch-start" aria-label="From" style="${inp}"><input type="date" id="new-watch-end" aria-label="To (optional)" style="${inp}"></div>
-    <div style="display:flex;gap:8px;margin-bottom:24px;">
-      <input type="text" id="new-watch-label" placeholder="Label, e.g. Spring break" style="flex:1;min-width:0;${inp}">
-      <button data-act="watch-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button></div>`;
-
-  /* deadlines */
-  const ev=S.data.events||{};
-  const mine=Object.keys(ev).filter(id=>ev[id]&&ev[id].type==="task"&&catOf(ev[id])).sort((a,b)=>String(ev[a].cat).localeCompare(String(ev[b].cat))||String(ev[a].title).localeCompare(String(ev[b].title)));
-  h+=H("Deadlines")+`<div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Repeating tasks marked 🛡 Compliance or 💵 Payroll &amp; money. They show under “Coming up” ahead of time (the heads-up days) and stay there until someone ticks them done. Add or change one like any task (+ Add entry → Task → Category).</div>`;
-  if(mine.length){
-    h+=`<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">`;
-    mine.forEach(id=>{ const e=ev[id], c=catOf(e);
-      h+=`<button data-act="edit-entry" data-from="settings" data-id="${esc(id)}" class="hov-grey" style="text-align:left;border:1px solid var(--grey-200);background:#fff;border-radius:10px;padding:7px 12px;display:flex;align-items:center;gap:10px;">
-        <span style="flex:none;">${c.glyph}</span><span style="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--navy-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.title)}</span>
-        <span style="font-size:12px;color:var(--grey-400);flex:none;">${esc(e.recurrence?REC_LABEL[e.recurrence]||e.recurrence:prettyDate(e.startDate))} · ${leadOf(e)}d heads-up</span></button>`;
-    });
-    h+=`</div>`;
-  }
-  if(!S.presetOpen){
-    h+=`<button data-act="preset-open" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:24px;">+ Add standard deadlines…</button>`;
-  } else {
-    h+=`<div style="border:2px solid var(--blue-500);border-radius:12px;padding:12px;margin-bottom:24px;display:flex;flex-direction:column;gap:6px;">
-      <div style="font-size:13px;color:var(--grey-600);">Tick the ones that apply and check each first due date. Each becomes a repeating task you can edit or delete later.</div>`;
-    let lastCat="";
-    DEADLINE_PRESETS.forEach(p=>{
-      if(p.cat!==lastCat){ lastCat=p.cat; h+=`<div class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;color:var(--grey-600);margin-top:6px;">${CATS[p.cat].glyph} ${esc(CATS[p.cat].long)}</div>`; }
-      const added=presetAdded(p.key);
-      h+=`<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--grey-200);border-radius:10px;padding:6px 10px;${added?"opacity:.55;":""}">
-        <input type="checkbox" id="pre-chk-${p.key}" ${added?"disabled":(p.on?"checked":"")} style="width:17px;height:17px;accent-color:#1D3EA9;flex:none;">
-        <label for="pre-chk-${p.key}" style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--navy-800);cursor:pointer;">${esc(p.title)}<span style="display:block;font-size:11.5px;font-weight:500;color:var(--grey-400);">${esc(REC_LABEL[p.rec])}${added?" · already added":(p.after?" · leave blank: "+p.afterDays+" days after payroll":(p.need||!p.first()?" · pick the date":""))}</span></label>
-        ${added?"":`<input type="date" id="pre-date-${p.key}" value="${p.first()}" style="padding:6px;border:2px solid var(--grey-300);border-radius:8px;font-size:12.5px;color:var(--navy-800);flex:none;width:140px;">`}
-      </div>`;
-    });
-    if(S.presetMsg) h+=`<div style="font-size:13px;font-weight:600;color:var(--coral-700);">${esc(S.presetMsg)}</div>`;
-    h+=`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">
-        <button data-act="preset-close" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--navy-800);">Cancel</button>
-        <button data-act="preset-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:999px;padding:8px 18px;font-size:13px;font-weight:700;color:#fff;">Add selected</button></div></div>`;
-  }
-
-  /* school calendar */
-  const own=st.school||{};
-  h+=H("School calendar")+`<div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Alachua County Public Schools 2026–27 days off are built in and show as 🏫 on open days (the School button above the calendar hides them). Elementary schools also let out early every Wednesday. Add a day here, or ✕ one that's wrong.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">`;
-  const all={}; Object.keys(SCHOOL_BUILTIN).forEach(d=>all[d]=SCHOOL_BUILTIN[d]); Object.keys(own).forEach(d=>all[d]=own[d]);
-  const t=todayStr(), up=Object.keys(all).filter(d=>d>=t&&all[d]&&!isClosedDay(d)).sort();
-  /* consecutive days with the same label read as one range */
-  const groups=[]; up.forEach(d=>{ const g=groups[groups.length-1]; if(g&&g.label===all[d]&&addDays(g.end,1)<=d&&d<=addDays(g.end,4)) { g.end=d; g.days.push(d); } else groups.push({start:d,end:d,label:all[d],days:[d]}); });
-  if(!groups.length) h+=`<span style="font-size:14px;color:var(--grey-500);">None ahead.</span>`;
-  groups.slice(0,14).forEach(g=>{ h+=pillX("school-hide",`data-dates="${g.days.join(",")}"`,"🏫 "+esc(g.label)+" — "+esc(prettyRange(g.start,g.end))); });
-  h+=`</div><div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;">
-      <input type="date" id="new-school-date" style="${inp}">
-      <input type="text" id="new-school-label" placeholder="Label, e.g. Teacher workday" style="flex:1;min-width:150px;${inp}">
-      <button data-act="school-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button></div>`;
-  return h;
-}
 function addPresets(){
   const picked=DEADLINE_PRESETS.filter(p=>{ const c=document.getElementById("pre-chk-"+p.key); return c&&c.checked&&!presetAdded(p.key); });
   if(!picked.length){ S.presetMsg="Tick at least one."; return render(); }
@@ -1381,53 +1310,13 @@ async function feedPublish(){
     await NLOC.fs.doc("calFeed/"+id).set({ ics, _up:firebase.firestore.FieldValue.serverTimestamp(), _by:(NCME&&NCME.sid)||"" });
     feedLast=ics; feedAt=Date.now(); S.feedErr="";
   }catch(x){ S.feedErr=(x&&(x.code||x.message))||"couldn't save"; }
+  if(S.settingsOpen) bgRender();
 }
 let calRules2=null;   /* the database has the lab-date and phone-feed rules (meta/rules_cal_2) */
 async function checkRules2(){
   if(!isFs()||!NLOC||!NLOC.fs) return;
   try{ await NLOC.fs.doc("meta/rules_cal_2").get(); calRules2=true; }catch(_){ calRules2=false; }
   bgRender();
-}
-function phoneSettingsHtml(){
-  const H=t=>`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">${t}</div>`;
-  const inp=`padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:13.5px;color:var(--navy-800);`;
-  const btn=(act,label,dark)=>`<button data-act="${act}" class="${dark?"hov-navy9":"hov-grey"}" style="border:${dark?"none":"1px solid var(--grey-300)"};background:${dark?"var(--navy-800)":"#fff"};border-radius:999px;padding:8px 16px;font-weight:${dark?700:600};font-size:13px;color:${dark?"#fff":"var(--navy-800)"};">${label}</button>`;
-  let h=H("Phone sync and lab dates");
-  if(!isFs()) return h+`<div style="font-size:13px;color:var(--grey-500);margin-bottom:24px;">Both come once the calendar is on the NLO Cases system (Move to the NLO Cases system, below).</div>`;
-  if(calRules2===false){
-    return h+`<div style="font-size:13px;color:var(--grey-600);margin-bottom:8px;">One step first: publish the updated NLO Cases database rules (they add the lab-date counts and the phone feed; every other app's part stays as it is).</div>
-      <ol style="margin:0 0 10px 18px;padding:0;font-size:13px;line-height:1.7;color:var(--grey-600);"><li>${btn("rules2-copy","Copy the new rules",false)} <span style="font-weight:600;color:var(--mint-700);">${esc(S.rulesMsg||"")}</span></li>
-      <li><a href="https://console.firebase.google.com/project/nlo-cases/firestore/rules" target="_blank" rel="noopener">Open the Firebase console (nlo-cases) → Firestore → Rules</a></li><li>Select all, paste, <b>Publish</b>, then ${btn("rules2-check","Check again",true)}</li></ol><div style="margin-bottom:24px;"></div>`;
-  }
-  const labN=S.lab?Object.keys(S.lab).length:0;
-  h+=`<div style="font-size:13px;color:var(--grey-500);margin-bottom:12px;">🧪 Lab dates: ${S.lab?(labN?"showing — how many cases are due from the lab and how many deliveries each day (counts only, no patients). NLO Cases keeps them current whenever it's open.":"on; they appear once someone opens NLO Cases."):"waiting for the NLO Cases database…"}</div>`;
-  const id=feedId(), base=feedBase(), url=feedUrl(), owner=isOwnerNc();
-  h+=`<div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">📱 Phone sync puts the office calendar (who's out, events, visits, deadlines, closures, admin days, lab counts — never patients or review dates) into Google Calendar or the iPhone Calendar, read-only, updating on its own.</div>`;
-  if(!id){
-    h+=owner?`<div style="margin-bottom:24px;">${btn("feed-on","Turn on phone sync",true)}</div>`:`<div style="font-size:13px;color:var(--grey-500);margin-bottom:24px;">Dr. A turns it on.</div>`;
-    return h;
-  }
-  if(!base){
-    h+=`<div style="border:1px solid var(--grey-200);border-radius:10px;padding:12px;margin-bottom:24px;font-size:13px;color:var(--grey-600);line-height:1.55;">
-      <b>Set up the feed service (once, about 3 minutes):</b>
-      <ol style="margin:6px 0 10px 18px;padding:0;"><li>Sign in at <a href="https://dash.cloudflare.com" target="_blank" rel="noopener">dash.cloudflare.com</a> (the account AISA's worker is on).</li>
-      <li>Workers &amp; Pages → Create → Create Worker → name it <b>nlo-calendar-feed</b> → Deploy.</li>
-      <li>Edit code → replace everything with the code from ${btn("feed-code","Copy the feed service code",false)} <span style="font-weight:600;color:var(--mint-700);">${esc(S.feedCodeMsg||"")}</span> → Deploy.</li>
-      <li>Paste the worker's address (like https://nlo-calendar-feed.<i>yourname</i>.workers.dev) here:</li></ol>
-      <div style="display:flex;gap:8px;"><input type="url" id="feed-base" placeholder="https://nlo-calendar-feed….workers.dev" style="flex:1;min-width:0;${inp}">${btn("feed-base-save","Save",true)}</div></div>`;
-    return h;
-  }
-  const when=feedAt?"updated "+new Date(feedAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):(S.admin?"updates within a minute of any change while an editor has the calendar open":"");
-  h+=`<div style="border:1px solid var(--grey-200);border-radius:10px;padding:12px;margin-bottom:24px;display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--grey-600);line-height:1.5;">
-    <div style="font-weight:700;color:var(--navy-800);">The calendar's subscribe address</div>
-    <div style="display:flex;gap:8px;"><input type="text" readonly value="${esc(url)}" id="feed-url" style="flex:1;min-width:0;${inp}font-family:var(--font-mono);font-size:12px;">${btn("feed-copy","Copy",true)}</div>
-    ${S.feedMsg?`<div style="font-weight:600;color:var(--mint-700);">${esc(S.feedMsg)}</div>`:""}
-    ${S.feedErr?`<div style="font-weight:600;color:var(--coral-700);">Couldn't update the feed: ${esc(S.feedErr)}</div>`:`<div style="font-size:12px;color:var(--grey-400);">${esc(when)}</div>`}
-    <div><b>iPhone:</b> Settings → Calendar → Calendar Accounts → Add Account → Other → Add Subscribed Calendar → paste.<br><b>Google Calendar</b> (on a computer): calendar.google.com → Other calendars <b>+</b> → From URL → paste. It then shows on the phone's Google Calendar too (Google refreshes it every few hours).</div>
-    <div style="font-size:12px;color:var(--grey-400);">Anyone with this address can see the calendar, so share it only with staff. If it gets out, make a new one — the old address stops working.</div>
-    ${owner?`<div style="display:flex;gap:8px;flex-wrap:wrap;">${btn("feed-new","Make a new address",false)}${btn("feed-off","Turn off phone sync",false)}${btn("feed-base-clear","Change the feed service",false)}</div>`:""}
-  </div>`;
-  return h;
 }
 async function copyRulesText(){
   const r=await fetch("nlo-cases-src/firestore.rules?cb="+Date.now(),{cache:"no-store"});
@@ -2017,115 +1906,207 @@ function renderEntry(){
   return h;
 }
 
-function renderSettings(){
-  const data=S.data;
-  const blackoutList=Object.keys(data.settings.blackoutDates||{}).sort();
-  const syncNote=S.sync.at
-    ? "Last synced "+S.sync.at.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})+(S.sync.err?" · last attempt failed: "+S.sync.err:"")
-    : (S.sync.err?"Sync failed: "+S.sync.err:"Not synced yet.");
-  let h=`<div data-act="close-settings" style="position:fixed;inset:0;background:rgba(17,32,58,.5);z-index:70;"></div>
-  <div data-keep-scroll="settings" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:71;background:#fff;border-radius:16px;padding:26px;width:min(480px,94vw);max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(17,32,58,.35);">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
-      <div class="disp" style="flex:1;font-weight:700;font-size:24px;color:var(--navy-800);">Admin settings</div>
-      <button data-act="close-settings" aria-label="Close" style="border:none;background:var(--grey-100);color:var(--navy-800);border-radius:999px;width:34px;height:34px;font-size:15px;">✕</button>
-    </div>
-    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Staff</div>`;
-  /* read-only (Amir, 31 Oct 2026: Staff Hub is the source of truth): names, photos, who's working, start dates,
-     birthdays and work anniversaries all come from Staff Hub. Only people the calendar knew before Staff Hub and that
-     Staff Hub doesn't have can be removed here. */
+
+/* ================= SETTINGS (reorganized Oct 31, 2026) =================
+   Amir: "that whole setting for the calendar app is very, very confusing". Four tabs — Team, Days, Deadlines,
+   Connections — each a stack of cards with one title, one line saying what it does, and the controls. */
+const SET_TABS=[["team","Team"],["days","Days"],["deadlines","Deadlines"],["connect","Connections"]];
+const SET_INP=`padding:9px 10px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);background:#fff;`;
+function setBtn(act,label,kind,attrs){
+  const k=kind||"ghost";
+  const st=k==="dark"?"border:none;background:var(--navy-800);color:#fff;font-weight:700;"
+    :k==="coral"?"border:none;background:var(--coral-500);color:#fff;font-weight:700;"
+    :k==="danger"?"border:1px solid var(--coral-200);background:#fff;color:var(--coral-700);font-weight:600;"
+    :"border:1px solid var(--grey-300);background:#fff;color:var(--navy-800);font-weight:600;";
+  return `<button data-act="${act}" ${attrs||""} class="${k==="dark"?"hov-navy9":k==="coral"?"hov-coral7":"hov-grey"}" style="${st}border-radius:999px;padding:8px 16px;font-size:13px;white-space:nowrap;">${label}</button>`;
+}
+function setCard(title,desc,body,id){
+  return `<section ${id?`id="${id}"`:""} style="border:1px solid var(--grey-200);border-radius:14px;padding:16px 16px 14px;background:#fff;">
+    <div class="disp" style="font-weight:600;letter-spacing:.1em;font-size:14px;color:var(--navy-800);">${title}</div>
+    ${desc?`<div style="font-size:13px;color:var(--grey-500);margin:3px 0 12px;line-height:1.45;">${desc}</div>`:`<div style="height:10px;"></div>`}
+    ${body}
+  </section>`;
+}
+const setNote=(t,col)=>`<div style="font-size:12.5px;font-weight:600;color:${col||"var(--mint-700)"};margin-top:8px;">${esc(t)}</div>`;
+/* a date chip with a ✕ */
+const setChip=(label,act,attrs)=>`<span style="display:inline-flex;align-items:center;gap:8px;background:var(--grey-100);color:var(--navy-800);border-radius:999px;padding:5px 6px 5px 12px;font-size:13px;font-weight:600;">${label}<button data-act="${act}" ${attrs} aria-label="Remove" style="border:none;background:#fff;color:var(--grey-500);border-radius:999px;width:22px;height:22px;font-size:11px;line-height:1;">✕</button></span>`;
+const setChips=(list,empty)=>`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${list.length?list.join(""):`<span style="font-size:13px;color:var(--grey-400);">${empty||"None."}</span>`}</div>`;
+/* the old section builders draw their own heading first: the card has one now */
+const stripHead=html=>String(html||"").replace(/^\s*<div class="disp"[^>]*>[^<]*<\/div>/,"");
+
+/* ---------- Team ---------- */
+function setTeamTab(){
   const staffL=calStaff(), ids=Object.keys(staffL).filter(id=>staffL[id]&&typeof staffL[id]==="object");
   const hub=ids.filter(id=>staffL[id].rid&&!staffL[id].left).sort((x,y)=>String(staffL[x].name).localeCompare(String(staffL[y].name)));
   const orphans=ids.filter(id=>!staffL[id].rid);
-  h+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">`;
-  if(!hub.length) h+=`<div style="font-size:13px;color:var(--grey-500);">Staff Hub's team list isn't reachable on this computer yet.</div>`;
+  let list=`<div style="display:flex;flex-direction:column;gap:6px;">`;
+  if(!hub.length) list+=`<div style="font-size:13px;color:var(--grey-500);">Staff Hub's team list isn't reachable on this computer yet.</div>`;
   hub.forEach(id=>{
     const st=staffL[id], meta=[];
-    if(st.birthday) meta.push("🎂 "+prettyDate(st.birthday)+(st.bdayFromHub?"":" (kept here)"));
-    else meta.push("🎂 no birthday in Staff Hub");
-    if(st.hireDate){ const t=tierFor(fullYearsSince(st.hireDate,todayStr())); meta.push("🎉 started "+prettyDate(st.hireDate)+", "+parseD(st.hireDate).getFullYear()+" · Tier "+t.n); }
-    h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
-      ${calAvatar(st,34)}
-      <span style="min-width:0;flex:1;"><span style="display:block;font-size:15px;font-weight:600;color:#1B2F4C;">${esc(st.name)}</span>
-      <span style="display:block;font-size:12px;color:var(--grey-400);">${esc(meta.join("  ·  "))}</span></span>
-    </div>`;
+    meta.push(st.birthday?"🎂 "+prettyDate(st.birthday)+(st.bdayFromHub?"":" (kept here)"):"🎂 —");
+    if(st.hireDate){ const t=tierFor(fullYearsSince(st.hireDate,todayStr())); meta.push("🎉 "+prettyDate(st.hireDate)+", "+parseD(st.hireDate).getFullYear()+" · Tier "+t.n); }
+    list+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 4px;border-bottom:1px solid var(--grey-100);">
+      ${calAvatar(st,30)}<span style="min-width:0;flex:1;"><span style="display:block;font-size:14px;font-weight:600;color:#1B2F4C;">${esc(st.name)}</span>
+      <span style="display:block;font-size:12px;color:var(--grey-400);">${esc(meta.join("   "))}</span></span></div>`;
   });
-  h+=`</div>`;
+  list+=`</div>`;
   if(orphans.length){
-    h+=`<div style="font-size:12.5px;font-weight:700;color:var(--grey-600);margin:4px 0 6px;">Not in Staff Hub (from before)</div><div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">`;
-    orphans.forEach(id=>{
-      const st=staffL[id];
-      h+=`<div style="display:flex;align-items:center;gap:10px;border:1px dashed var(--grey-300);border-radius:10px;padding:8px 12px;">
-        <span style="flex:1;min-width:0;font-size:14px;font-weight:600;color:var(--grey-500);">${esc(st.name)}</span>
-        <button data-act="staff-remove" data-id="${id}" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--coral-700);flex:none;">Remove</button>
+    list+=`<div style="font-size:12.5px;font-weight:700;color:var(--grey-600);margin:12px 0 6px;">Not in Staff Hub (left over from before)</div>`;
+    orphans.forEach(id=>{ list+=`<div style="display:flex;align-items:center;gap:10px;padding:4px 4px;"><span style="flex:1;font-size:14px;color:var(--grey-500);">${esc(staffL[id].name)}</span>${setBtn("staff-remove","Remove","danger",`data-id="${id}"`)}</div>`; });
+  }
+  let h=setCard("Staff","From Staff Hub — names, photos, birthdays 🎂 and start dates 🎉 (work anniversaries). Change them in Staff Hub.",list);
+  h+=setCard(isFs()?"Who can edit":"Admin PIN",isFs()?"You always can. Tick who else may add and change entries.":"The PIN that unlocks editing on this calendar.",
+    isFs()?stripHead(editorsSettingsHtml()):`<div style="display:flex;gap:8px;"><input type="text" inputmode="numeric" id="pin-field" placeholder="New PIN (4–6 digits)" style="flex:1;min-width:0;${SET_INP}letter-spacing:.2em;">${setBtn("pin-save","Save","dark")}</div>${S.pinSaved?setNote("PIN updated."):""}`);
+  h+=setCard("Review and certification dates","Staff Hub's review dates and certification expiry dates show as ◆ entries.",stripHead(hrSettingsHtml()).replace(/^\s*<div style="font-size:14px;color:var\(--grey-600\);margin-bottom:4px;">[\s\S]*?<\/div>/,"").replace("margin-bottom:24px;",""));
+  return h;
+}
+
+/* ---------- Days ---------- */
+function setDaysTab(){
+  const st=S.data.settings||{};
+  const cl=st.closures||{}, bl=st.blackoutDates||{};
+  const yr=d=>prettyDate(d)+", "+parseD(d).getFullYear();
+  let h=setCard("Office closures","Extra days the office is closed (the handbook holidays are already in). Nobody shows as out on them.",
+    setChips(Object.keys(cl).sort().map(d=>setChip("★ "+esc(cl[d])+" · "+yr(d),"closure-remove",`data-date="${d}"`)),"None added.")+
+    `<div style="display:flex;gap:8px;flex-wrap:wrap;"><input type="date" id="new-closure-date" style="${SET_INP}"><input type="text" id="new-closure-label" placeholder="e.g. Winter Holidays" style="flex:1;min-width:150px;${SET_INP}">${setBtn("closure-add","Add","dark")}</div>`);
+  h+=setCard("No time off (blackout dates)","Days staff shouldn't take off. Adding time off on one asks first.",
+    setChips(Object.keys(bl).sort().map(d=>setChip(yr(d),"blackout-remove",`data-date="${d}"`)),"None added.")+
+    `<div style="display:flex;gap:8px;"><input type="date" id="new-blackout" style="flex:1;${SET_INP}">${setBtn("blackout-add","Add","dark")}</div>`);
+  /* watch days */
+  const off=st.watchOff||{}, custom=st.watchCustom||{}, y=new Date().getFullYear();
+  let w=`<div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">`;
+  WATCH_RULES.forEach(r=>{
+    const days=[y,y+1].map(yy=>r.days(yy).filter(d=>!officeClosed(d))).find(a=>a.length&&a[a.length-1]>=todayStr())||[];
+    w+=`<label style="display:flex;align-items:center;gap:10px;padding:6px 2px;cursor:pointer;"><input type="checkbox" data-chg="watch-rule" data-k="${r.key}" ${off[r.key]?"":"checked"} style="width:18px;height:18px;accent-color:${WATCH_EDGE};flex:none;">
+      <span style="flex:1;font-size:14px;font-weight:600;color:var(--navy-800);">${esc(r.label)}</span><span style="font-size:12px;color:var(--grey-400);">${days.length?esc(prettyRange(days[0],days[days.length-1])):""}</span></label>`;
+  });
+  w+=`</div>`+setChips(Object.keys(custom).sort().map(d=>{ const c=custom[d]||{}; return setChip("⚠ "+esc(c.label||"Watch")+" · "+esc(prettyRange(d,c.end||d)),"watch-remove",`data-date="${d}"`); }),"No extra ranges.")+
+    `<div style="display:flex;gap:8px;flex-wrap:wrap;"><input type="date" id="new-watch-start" aria-label="From" style="${SET_INP}"><input type="date" id="new-watch-end" aria-label="To" style="${SET_INP}"><input type="text" id="new-watch-label" placeholder="Label" style="flex:1;min-width:120px;${SET_INP}">${setBtn("watch-add","Add","dark")}</div>`;
+  h+=setCard("⚠ Watch days","Shaded amber when broken brackets and emergency calls usually go up. Untick any you don't want; add your own.",w);
+  /* school */
+  const own=st.school||{}, all={}; Object.keys(SCHOOL_BUILTIN).forEach(d=>all[d]=SCHOOL_BUILTIN[d]); Object.keys(own).forEach(d=>all[d]=own[d]);
+  const t=todayStr(), up=Object.keys(all).filter(d=>d>=t&&all[d]&&!isClosedDay(d)).sort();
+  const groups=[]; up.forEach(d=>{ const g=groups[groups.length-1]; if(g&&g.label===all[d]&&d<=addDays(g.end,4)){ g.end=d; g.days.push(d); } else groups.push({start:d,end:d,label:all[d],days:[d]}); });
+  h+=setCard("🏫 School days off","Alachua County Public Schools 2026–27 is built in. ✕ a day that's wrong or add one.",
+    setChips(groups.slice(0,16).map(g=>setChip(esc(g.label)+" · "+esc(prettyRange(g.start,g.end)),"school-hide",`data-dates="${g.days.join(",")}"`)),"None ahead.")+
+    `<div style="display:flex;gap:8px;flex-wrap:wrap;"><input type="date" id="new-school-date" style="${SET_INP}"><input type="text" id="new-school-label" placeholder="e.g. Teacher workday" style="flex:1;min-width:150px;${SET_INP}">${setBtn("school-add","Add","dark")}</div>`);
+  return h;
+}
+
+/* ---------- Deadlines ---------- */
+function setDeadlinesTab(){
+  const ev=S.data.events||{};
+  const mine=Object.keys(ev).filter(id=>ev[id]&&ev[id].type==="task"&&catOf(ev[id])).sort((a,b)=>String(ev[a].cat).localeCompare(String(ev[b].cat))||String(ev[a].title).localeCompare(String(ev[b].title)));
+  let list="";
+  if(mine.length){
+    list=`<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">`;
+    mine.forEach(id=>{ const e=ev[id], c=catOf(e);
+      list+=`<button data-act="edit-entry" data-from="settings" data-id="${esc(id)}" class="hov-grey" style="text-align:left;border:1px solid var(--grey-200);background:#fff;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;">
+        <span style="flex:none;">${c.glyph}</span><span style="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--navy-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.title)}</span>
+        <span style="font-size:12px;color:var(--grey-400);flex:none;">${esc(e.recurrence?REC_LABEL[e.recurrence]||e.recurrence:prettyDate(e.startDate))} · ${leadOf(e)}d notice</span></button>`; });
+    list+=`</div>`;
+  } else list=`<div style="font-size:13px;color:var(--grey-400);margin-bottom:12px;">None yet.</div>`;
+  let h;
+  if(!S.presetOpen) h=list+setBtn("preset-open","+ Add standard deadlines…","dark");
+  else {
+    h=list+`<div style="border:2px solid var(--blue-500);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;">
+      <div style="font-size:13px;color:var(--grey-600);">Tick the ones that apply and check each first due date.</div>`;
+    let lastCat="";
+    DEADLINE_PRESETS.forEach(p=>{
+      if(p.cat!==lastCat){ lastCat=p.cat; h+=`<div class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;color:var(--grey-600);margin-top:6px;">${CATS[p.cat].glyph} ${esc(CATS[p.cat].long)}</div>`; }
+      const added=presetAdded(p.key);
+      h+=`<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--grey-200);border-radius:10px;padding:6px 10px;${added?"opacity:.55;":""}">
+        <input type="checkbox" id="pre-chk-${p.key}" ${added?"disabled":(p.on?"checked":"")} style="width:17px;height:17px;accent-color:#1D3EA9;flex:none;">
+        <label for="pre-chk-${p.key}" style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--navy-800);cursor:pointer;">${esc(p.title)}<span style="display:block;font-size:11.5px;font-weight:500;color:var(--grey-400);">${esc(REC_LABEL[p.rec])}${added?" · already added":(p.after?" · blank = "+p.afterDays+" days after payroll":(p.need||!p.first()?" · pick the date":""))}</span></label>
+        ${added?"":`<input type="date" id="pre-date-${p.key}" value="${p.first()}" style="padding:6px;border:2px solid var(--grey-300);border-radius:8px;font-size:12.5px;color:var(--navy-800);flex:none;width:140px;">`}
       </div>`;
     });
-    h+=`</div>`;
+    if(S.presetMsg) h+=setNote(S.presetMsg,"var(--coral-700)");
+    h+=`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">${setBtn("preset-close","Cancel")}${setBtn("preset-add","Add selected","dark")}</div></div>`;
   }
-  h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">All from <b>Staff Hub</b>: add or end staff, and set birthdays and start dates there (the person → Birthday / Date of hire) and the calendar follows. Birthdays 🎂 (month and day only) and work anniversaries 🎉 (with the vacation-tier milestones at 2 and 5 years) show automatically. They need Staff Hub's “Show staff dates on the office calendar” on (Staff Hub → Settings → Office roster).</div>
+  return setCard("Deadlines","Repeating 🛡 compliance and 💵 payroll tasks. They show under “Coming up” ahead of time and stay until ticked done. Click one to change it.",h);
+}
 
-    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Time-Off app sync</div>
-    <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved time off and office holidays appear on the calendar automatically, from ${S.toFeed.key?"<b>NLO Time Off</b>":isFs()?"<b>NLO Time Off</b> (once its key is saved below)":"the old Time-Off Request app"}.</div>
-    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:12px;">${esc(syncNote)}</div>
-    <button data-act="sync-now" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:14px;">Sync now</button>
-    <div style="border:1px solid var(--grey-200);border-radius:10px;padding:12px;margin-bottom:24px;display:flex;flex-direction:column;gap:8px;">
-      <div style="font-size:13px;font-weight:700;color:var(--navy-800);">NLO Time Off feed key</div>
-      <div style="font-size:12.5px;color:var(--grey-500);">${S.toFeed.key
-        ?"Saved — the calendar and the Checklist app (CADANCe) read NLO Time Off. Paste a new key here only if one was made in NLO Time Off."
-        :"From NLO Time Off → Settings → CADANCe and the office calendar → Address and key. Saving it switches the calendar and the Checklist app (CADANCe) from the old Time-Off app to NLO Time Off."}</div>
-      <div style="display:flex;gap:8px;">
-        <input type="password" id="to-feed-key" autocomplete="off" spellcheck="false" placeholder="${S.toFeed.key?"••••••••  (saved)":"Paste the key"}" style="flex:1;min-width:0;padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:13px;color:var(--navy-800);">
-        <button data-act="to-feed-save" ${S.toFeed.saving?"disabled":""} class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;color:#fff;">${S.toFeed.saving?"Checking…":"Save"}</button>
-      </div>
-      ${S.toFeed.msg?`<div style="font-size:12.5px;font-weight:600;color:${S.toFeed.bad?"var(--coral-700)":"var(--mint-700)"};">${esc(S.toFeed.msg)}</div>`:""}
-      ${S.toFeed.key&&!isFs()?`<button data-act="to-feed-clear" class="hov-grey" style="align-self:flex-start;border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--navy-800);">Go back to the old Time-Off app</button>`:""}
-    </div>
-
-    ${hrSettingsHtml()}
-    ${extrasSettingsHtml()}
-    ${phoneSettingsHtml()}
-
-    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Office closures</div>
-    <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Office-specific closed days (beyond the handbook holidays) — shown as ★ holidays; nobody shows as out on them.</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">`;
-  const closures=data.settings.closures||{};
-  const clKeys=Object.keys(closures).sort();
-  if(!clKeys.length) h+=`<span style="font-size:14px;color:var(--grey-500);">None set.</span>`;
-  clKeys.forEach(ds=>{
-    h+=`<span style="display:inline-flex;align-items:center;gap:8px;background:var(--navy-800);color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font-size:13.5px;font-weight:600;">★ ${esc(closures[ds])} — ${prettyDate(ds)}, ${parseD(ds).getFullYear()}
-      <button data-act="closure-remove" data-date="${ds}" aria-label="Remove closure" style="border:none;background:var(--navy-700);color:#fff;border-radius:999px;width:22px;height:22px;font-size:11px;line-height:1;">✕</button>
-    </span>`;
-  });
-  h+=`</div>
-    <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;">
-      <input type="date" id="new-closure-date" style="padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">
-      <input type="text" id="new-closure-label" placeholder="Label, e.g. Winter Holidays" style="flex:1;min-width:160px;padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">
-      <button data-act="closure-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button>
-    </div>
-
-    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Blackout dates (no time off)</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">`;
-  if(!blackoutList.length) h+=`<span style="font-size:14px;color:var(--grey-500);">None set.</span>`;
-  blackoutList.forEach(ds=>{
-    h+=`<span style="display:inline-flex;align-items:center;gap:8px;background:var(--navy-800);color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font-size:13.5px;font-weight:600;">${prettyDate(ds)}, ${parseD(ds).getFullYear()}
-      <button data-act="blackout-remove" data-date="${ds}" aria-label="Remove blackout" style="border:none;background:var(--navy-700);color:#fff;border-radius:999px;width:22px;height:22px;font-size:11px;line-height:1;">✕</button>
-    </span>`;
-  });
-  h+=`</div>
-    <div style="display:flex;gap:8px;margin-bottom:24px;">
-      <input type="date" id="new-blackout" style="flex:1;padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">
-      <button data-act="blackout-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button>
-    </div>
-
-    ${isFs()?editorsSettingsHtml():`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Admin PIN</div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <input type="text" inputmode="numeric" id="pin-field" placeholder="New PIN (4–6 digits)" style="flex:1;padding:10px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);letter-spacing:.2em;">
-      <button data-act="pin-save" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Save</button>
-    </div>
-    ${S.pinSaved?`<div style="color:var(--mint-700);font-size:13.5px;font-weight:600;margin-top:8px;">PIN updated.</div>`:""}`}
-    ${dataSettingsHtml()}
-    <div style="margin-top:22px;font-size:11.5px;color:var(--grey-400);text-align:right;">Office Calendar v${esc(CAL_VERSION)}</div>
-  </div>`;
+/* ---------- Connections ---------- */
+function setConnectTab(){
+  let h="";
+  /* time off */
+  const at=S.sync.at?S.sync.at.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):"";
+  const stLine=S.sync.err?`<span style="color:var(--coral-700);font-weight:600;">Last try failed: ${esc(S.sync.err)}</span>`:(at?`<span style="color:var(--mint-700);font-weight:600;">✓ Synced ${esc(at)}</span>`:"Not synced yet");
+  let to=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><span style="font-size:13px;color:var(--grey-500);flex:1;">${stLine} · from ${S.toFeed.key?"NLO Time Off":"the old Time-Off app"}</span>${setBtn("sync-now","Sync now")}</div>`;
+  const keyBox=`<div style="display:flex;gap:8px;"><input type="password" id="to-feed-key" autocomplete="off" spellcheck="false" placeholder="${S.toFeed.key?"Paste a new key":"Paste the key"}" style="flex:1;min-width:0;${SET_INP}font-size:13px;">${setBtn("to-feed-save",S.toFeed.saving?"Checking…":"Save","dark",S.toFeed.saving?"disabled":"")}</div>
+    <div style="font-size:12px;color:var(--grey-400);margin-top:6px;">From NLO Time Off → Settings → CADANCe and the office calendar → Address and key.</div>
+    ${S.toFeed.msg?setNote(S.toFeed.msg,S.toFeed.bad?"var(--coral-700)":""):""}
+    ${S.toFeed.key&&!isFs()?`<div style="margin-top:8px;">${setBtn("to-feed-clear","Go back to the old Time-Off app")}</div>`:""}`;
+  to+=S.toFeed.key?`<details><summary style="font-size:12.5px;color:var(--grey-500);cursor:pointer;">Change the NLO Time Off key</summary><div style="margin-top:8px;">${keyBox}</div></details>`:keyBox;
+  h+=setCard("Time off","Approved time off and holidays come in from NLO Time Off on their own.",to);
+  /* phone sync + lab dates */
+  h+=setCard("📱 Phone sync and 🧪 lab dates","Put the office calendar on staff phones, and show how many lab cases are due each day (counts only, never patients).",phoneStepsHtml(),"set-phone");
+  /* data */
+  const data=dataSettingsHtml();
+  if(data) h+=setCard(isFs()?"Database":"Move to the NLO Cases system",isFs()?"":"Everyone signs in with their NLO Cases login, and phone sync and lab dates become available.",stripHead(data).replace(/margin:22px 0 10px;/,""));
   return h;
+}
+function phoneStepsHtml(){
+  if(!isFs()) return `<div style="font-size:13px;color:var(--grey-500);">Available once the calendar is on the NLO Cases system (Database, below).</div>`;
+  const owner=isOwnerNc(), id=feedId(), base=feedBase(), url=feedUrl();
+  const step=(n,done,title,body,open)=>`<div style="display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--grey-100);">
+      <span style="flex:none;width:26px;height:26px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;${done?"background:var(--mint-500);color:var(--navy-900);":open?"background:var(--navy-800);color:#fff;":"background:var(--grey-100);color:var(--grey-400);"}">${done?"✓":n}</span>
+      <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:${done||open?"var(--navy-800)":"var(--grey-400)"};margin-top:3px;">${title}</div>${open&&body?`<div style="margin-top:8px;font-size:13px;color:var(--grey-600);line-height:1.5;">${body}</div>`:""}</div></div>`;
+  const r1=calRules2===true;
+  let h="";
+  /* 1 · rules */
+  h+=step(1,r1,"Update the database rules",calRules2===null?`<div style="color:var(--grey-500);">Checking…</div>`:
+    `<ol style="margin:0 0 8px 18px;padding:0;"><li>${setBtn("rules2-copy","Copy the new rules","dark")} ${S.rulesMsg?`<span style="font-weight:600;color:var(--mint-700);">${esc(S.rulesMsg)}</span>`:""}</li>
+     <li style="margin-top:6px;"><a href="https://console.firebase.google.com/project/nlo-cases/firestore/rules" target="_blank" rel="noopener">Open the Firebase rules page</a>, select all, paste, <b>Publish</b>.</li>
+     <li style="margin-top:6px;">${setBtn("rules2-check","Check")}</li></ol>`,!r1);
+  /* lab dates ride on step 1 */
+  if(r1) h+=`<div style="font-size:12.5px;color:var(--grey-500);padding:0 0 8px 38px;">🧪 Lab dates: ${S.lab&&Object.keys(S.lab).length?"on the calendar.":"on — they show once someone opens NLO Cases."}</div>`;
+  /* 2 · the feed service */
+  const w2=r1&&!base;
+  h+=step(2,!!base,"Set up the feed service (Cloudflare, once)",owner?
+    `<ol style="margin:0 0 8px 18px;padding:0;"><li>At <a href="https://dash.cloudflare.com" target="_blank" rel="noopener">dash.cloudflare.com</a>: Workers &amp; Pages → <b>Create application</b> → <b>Start with Hello World</b> → name it <b>nlo-calendar-feed</b> → Deploy.</li>
+     <li style="margin-top:6px;"><b>Edit code</b> → delete everything → paste this → <b>Deploy</b>: ${setBtn("feed-code","Copy the code","dark")} ${S.feedCodeMsg?`<span style="font-weight:600;color:var(--mint-700);">${esc(S.feedCodeMsg)}</span>`:""}</li>
+     <li style="margin-top:6px;">Paste the worker's address (ends in .workers.dev):<div style="display:flex;gap:8px;margin-top:6px;"><input type="url" id="feed-base" placeholder="https://nlo-calendar-feed.….workers.dev" style="flex:1;min-width:0;${SET_INP}font-size:13px;">${setBtn("feed-base-save","Save","dark")}</div></li></ol>`
+    :`<div style="color:var(--grey-500);">Dr. A sets this up.</div>`,w2);
+  /* 3 · turn on and subscribe */
+  const w3=r1&&!!base;
+  let b3="";
+  if(w3&&!id) b3=owner?setBtn("feed-on","Turn on phone sync","coral"):`<div style="color:var(--grey-500);">Dr. A turns it on.</div>`;
+  else if(w3){
+    const when=S.feedErr?`<span style="color:var(--coral-700);font-weight:600;">Couldn't update the feed: ${esc(S.feedErr)}</span>`:(feedAt?`<span style="color:var(--mint-700);font-weight:600;">✓ Feed updated ${esc(new Date(feedAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}))}</span>`:`<span style="color:var(--grey-500);">Not sent from this screen yet</span>`);
+    b3=`<div style="display:flex;gap:8px;"><input type="text" readonly value="${esc(url)}" style="flex:1;min-width:0;${SET_INP}font-family:var(--font-mono);font-size:12px;">${setBtn("feed-copy","Copy","dark")}</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;">${when} ${S.admin?setBtn("feed-now","Update now"):""} ${setBtn("feed-test","Test the address")} ${S.feedMsg?`<span style="font-weight:600;color:${/✓/.test(S.feedMsg)?"var(--mint-700)":"var(--coral-700)"};">${esc(S.feedMsg)}</span>`:""}</div>
+      <div style="margin-top:10px;"><b>iPhone:</b> Settings → Apps → Calendar → Calendar Accounts → Add Account → Other → <b>Add Subscribed Calendar</b> → paste → Next → Save.<br>
+      <b>Google Calendar:</b> on a computer, calendar.google.com → Other calendars <b>+</b> → <b>From URL</b> → paste.</div>
+      <div style="font-size:12px;color:var(--grey-400);margin-top:6px;">Anyone with this address can see the calendar — share it with staff only.</div>
+      ${owner?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">${setBtn("feed-new","New address")}${setBtn("feed-base-clear","Change feed service")}${setBtn("feed-off","Turn off","danger")}</div>`:""}`;
+  }
+  h+=step(3,!!(w3&&id&&feedAt&&!S.feedErr),id?"Add it to your phone":"Turn on phone sync",b3,w3);
+  return h;
+}
+function renderSettings(){
+  const tab=S.setTab||"team";
+  let body="";
+  if(tab==="team") body=setTeamTab();
+  else if(tab==="days") body=setDaysTab();
+  else if(tab==="deadlines") body=setDeadlinesTab();
+  else body=setConnectTab();
+  const tabs=SET_TABS.map(([k,l])=>`<button data-act="set-tab" data-v="${k}" class="pill-btn" style="flex:1;padding:8px 6px;font-size:12.5px;background:${tab===k?"#1B2F4C":"transparent"};color:${tab===k?"#fff":"#4C5868"};">${l}</button>`).join("");
+  return `<div data-act="close-settings" style="position:fixed;inset:0;background:rgba(17,32,58,.5);z-index:70;"></div>
+  <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:71;background:var(--grey-50);border-radius:16px;width:min(620px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(17,32,58,.35);overflow:hidden;">
+    <div style="padding:18px 20px 12px;background:#fff;border-bottom:1px solid var(--grey-200);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <div class="disp" style="flex:1;font-weight:700;font-size:22px;color:var(--navy-800);">Settings</div>
+        <button data-act="close-settings" aria-label="Close" style="border:none;background:var(--grey-100);color:var(--navy-800);border-radius:999px;width:34px;height:34px;font-size:15px;">✕</button>
+      </div>
+      <div role="tablist" style="display:flex;gap:4px;background:var(--grey-100);border-radius:999px;padding:4px;">${tabs}</div>
+    </div>
+    <div data-keep-scroll="settings-${tab}" style="flex:1;overflow-y:auto;padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px;">
+      ${body}
+      <div style="font-size:11.5px;color:var(--grey-400);text-align:right;">Office Calendar v${esc(CAL_VERSION)}</div>
+    </div>
+  </div>`;
 }
 
 /* ================= EVENTS ================= */
@@ -2175,11 +2156,20 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "preset-open": S.presetOpen=true; S.presetMsg=""; render(); break;
     case "preset-close": S.presetOpen=false; S.presetMsg=""; render(); break;
     case "preset-add": addPresets(); break;
-    case "feed-on": if(isOwnerNc()) fbSet("settings/feedId",newFeedId()); break;
+    case "feed-on": if(isOwnerNc()){ fbSet("settings/feedId",newFeedId()); feedLast=""; setTimeout(feedPublish,2500); } break;
+    case "feed-now": feedLast=""; S.feedMsg=""; feedPublish(); break;
+    case "feed-test": {
+      const u=feedUrl(); if(!u) break;
+      S.feedMsg="Testing…"; bgRender();
+      fetch(u+"?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():Promise.reject(new Error(r.status===404?"not found — the feed hasn't been written yet (press Update now)":"HTTP "+r.status)))
+        .then(t=>{ S.feedMsg=/^BEGIN:VCALENDAR/.test(t)?"✓ Works — phones can subscribe":"The address answered, but not with a calendar: check the worker's code."; bgRender(); })
+        .catch(x=>{ S.feedMsg="Couldn't get the calendar: "+((x&&x.message)||x)+". If the worker's page shows Hello World, paste the code again and Deploy."; bgRender(); });
+      break;
+    }
     case "feed-new": {
       if(!isOwnerNc()||!window.confirm("Make a new subscribe address?\n\nThe current one stops working: everyone who added it adds the new one.")) break;
       const old=feedId(); if(old) NLOC.fs.doc("calFeed/"+old).delete().catch(()=>{});
-      feedLast=""; S.feedMsg=""; fbSet("settings/feedId",newFeedId()); break;
+      feedLast=""; S.feedMsg=""; fbSet("settings/feedId",newFeedId()); setTimeout(feedPublish,2500); break;
     }
     case "feed-off": {
       if(!isOwnerNc()||!window.confirm("Turn off phone sync?\n\nThe subscribe address stops working.")) break;
@@ -2232,7 +2222,8 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "dismiss-save-err": S.saveErr=null; render(); break;
     case "dismiss-lock-note": S.lockNote=""; render(); break;
     case "adminday": setAdminDay(el.dataset.date, el.dataset.v||null); break;
-    case "open-settings": S.settingsOpen=true; S.pinSaved=false; S.edMsg=""; if(isFs()&&isOwnerNc()) loadNcRoster(); render(); break;
+    case "set-tab": S.setTab=el.dataset.v; S.presetOpen=false; render(); break;
+    case "open-settings": if(isFs()&&calRules2!==true) checkRules2(); S.settingsOpen=true; S.pinSaved=false; S.edMsg=""; if(isFs()&&isOwnerNc()) loadNcRoster(); render(); break;
     case "close-settings": if(ev.target===el||el.tagName==="BUTTON"){ S.settingsOpen=false; render(); } break;
     case "sync-now": syncTimeOff(); break;
     case "to-feed-save": saveTimeOffFeedKey(); break;

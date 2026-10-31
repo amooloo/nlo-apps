@@ -5,25 +5,27 @@
      https://<this worker>/<id>.ics  →  the file
    It keeps nothing, needs no keys or settings, and reads nothing else. Deploy: Cloudflare → Workers & Pages → Create →
    Worker → paste this file → Deploy; then paste the worker's address into the calendar (Settings → Phone sync). */
+const CORS = { 'access-control-allow-origin': '*' };
 const DOC = id => 'https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/calFeed/' + id;
 
 export default {
   async fetch(request) {
     const url = new URL(request.url);
-    if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
+    if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: CORS });
     const m = /^\/([A-Za-z0-9]{32,64})\.ics$/.exec(url.pathname);
-    if (!m) return new Response('Not found', { status: 404 });
+    if (!m) return new Response('Not found', { status: 404, headers: CORS });
     const r = await fetch(DOC(m[1]), { cf: { cacheTtl: 300, cacheEverything: true } });
-    if (!r.ok) return new Response('Not found', { status: 404 });
+    if (!r.ok) return new Response('Not found', { status: 404, headers: CORS });
     const j = await r.json().catch(() => null);
     const ics = j && j.fields && j.fields.ics && j.fields.ics.stringValue;
-    if (!ics || !ics.startsWith('BEGIN:VCALENDAR')) return new Response('Not found', { status: 404 });
+    if (!ics || !ics.startsWith('BEGIN:VCALENDAR')) return new Response('Not found', { status: 404, headers: CORS });
     return new Response(request.method === 'HEAD' ? null : ics, {
       headers: {
         'content-type': 'text/calendar; charset=utf-8',
         'content-disposition': 'inline; filename="nlo-office.ics"',
         'cache-control': 'public, max-age=900',
-        'x-robots-tag': 'noindex'
+        'x-robots-tag': 'noindex',
+        'access-control-allow-origin': '*'   /* (so the calendar's "Test the address" button can read it) */
       }
     });
   }
