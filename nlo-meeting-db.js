@@ -477,10 +477,12 @@
     return d => {
       const at = msOf(d && d.at), k = d && d.pause === true ? String(at) : null;
       if (k === null) { key = null; return -1; }
-      if (at > 0 && Date.now() - at > STALE + 3600000) return 0;   /* long past by this computer's clock too: over */
+      if (at > 0 && Date.now() - at > STALE + 12 * 3600000) return 0;   /* long past even for a badly set clock: over */
       if (k !== key) {
         key = k; since = Date.now();
-        try { const v = JSON.parse(localStorage.getItem('nloMtg.pauseSeen') || 'null'); if (v && v.k === k && v.since > 0 && v.since <= since) since = v.since; else localStorage.setItem('nloMtg.pauseSeen', JSON.stringify({ k, since })); } catch (e) { }
+        let v = null; try { v = JSON.parse(localStorage.getItem('nloMtg.pauseSeen') || 'null'); } catch (e) { v = null; }
+        if (v && v.k === k && v.since > 0 && v.since <= since) since = v.since;
+        else { try { localStorage.setItem('nloMtg.pauseSeen', JSON.stringify({ k, since })); } catch (e) { } }
       }
       return STALE - (Date.now() - since);
     };

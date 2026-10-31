@@ -271,12 +271,12 @@ console.log('records');
     const seen = JSON.parse(localStorage.getItem('nloMtg.pauseSeen'));
     localStorage.setItem('nloMtg.pauseSeen', JSON.stringify({ k: seen.k, since: seen.since - 10 * 60000 }));   // first seen 10 min ago
     const b = NLOM.pauseClock()(d);   // a new page / sign-in
-    const old = NLOM.pauseClock()({ on: true, pause: true, at: Date.now() - 2 * 3600000 });
+    const old = NLOM.pauseClock()({ on: true, pause: true, at: Date.now() - 14 * 3600000 });   // (over 12 h past: over at once)
     const none = NLOM.pauseClock()({ on: true });
     return { a, b, old, none, S: NLOM.STALE };
   });
   ok(r.a > r.S - 2000 && r.b > 0 && r.b < r.S - 9 * 60000, 'a pause left behind: counted from when this computer first saw it, across new pages (' + Math.round(r.b / 60000) + ' min left, not ' + Math.round(r.S / 60000) + ')');
-  ok(r.old <= 0 && r.none < 0, '…and one from hours ago is over at once');
+  ok(r.old <= 0 && r.none < 0, '…and one from more than half a day ago is over at once');
 }
 
 /* ---------- a screen on the old database, during a move: paused; after a pause that ended without the old copy being

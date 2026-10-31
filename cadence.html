@@ -1547,7 +1547,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   function fmtDay(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); if (!m) return ''; return new Date(+m[1], +m[2] - 1, +m[3], 12).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
   /* the Hub on the NLO Cases system: its records through Cadence's own NLO Cases sign-in (never made here: Cadence makes it) */
   /* whether the Hub has moved is watched live: a Cadence screen left open all day follows the move (and a move back) at once */
-  var MTG = { uid: '', on: null, db: null, sid: '', unsub: null, busy: false, tryAt: 0, oldGone: false, oldOff: null, oldSt: null, oldAsk: false, oldAskAt: 0, paused: false, pauseLeft: null, pauseUntil: 0 };
+  var MTG = { uid: '', on: null, db: null, sid: '', unsub: null, busy: false, tryAt: 0, oldGone: false, oldOff: null, oldSt: null, oldFlags: -1, oldAsk: false, oldAskAt: 0, paused: false, pauseLeft: null, pauseUntil: 0 };
   function ncApp() { try { return window.firebase && firebase.app('nloCasesLogin'); } catch (e) { return null; } }
   function ncUser() { var a = ncApp(); try { return a ? a.auth().currentUser : null; } catch (e) { return null; } }
   function gUser() { try { return window.firebase && firebase.apps && firebase.apps.length ? firebase.auth().currentUser : null; } catch (e) { return null; } }
@@ -1562,7 +1562,8 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     if (want && !MTG.oldOff) {
       try {
         MTG.oldOff = NLOM.watchOld(firebase.database(), function (st) {
-          MTG.oldSt = st; MTG.oldAskAt = 0;
+          MTG.oldSt = st;
+          var fl = (st.moving ? 1 : 0) | (st.movedTo ? 2 : 0); if (fl !== MTG.oldFlags) { MTG.oldFlags = fl; MTG.oldAskAt = 0; }   /* (asked again at once when the markers change) */
           if (st.moving || st.movedTo) { if (!MTG.oldGone) { MTG.oldGone = true; detach(); render(); } return; }
           if (MTG.oldGone) oldAsk();
         }, function () { MTG.oldOff = null; });   /* (stopped by the old database: watched again at the next tick) */
@@ -1581,7 +1582,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
       if (!MTG.oldSt || MTG.oldSt.moving || MTG.oldSt.movedTo) return;
       /* moved: the button waits for its NLO Cases listener (asked again in 10 min, or when the old database's markers
          change); no answer: asked again in 30 s */
-      if (!ms || ms.on) { MTG.oldAskAt = Date.now() + (ms ? 600000 : 30000); return; }
+      if (!ms || ms.on) { MTG.oldAskAt = Date.now() + (!ms ? 30000 : ms.pause ? 5000 : 600000); return; }   /* (a move back under way: soon) */
       MTG.oldGone = false; attach(); render();
     });
   }
@@ -1608,6 +1609,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     MTG.pauseLeft = NLOM.pauseClock();
     MTG.unsub = NLOM.onMoved(function (on, d) {
       if (MTG.uid !== uid) return;
+      if (!on) MTG.oldAskAt = 0;   /* (not moved, or moved back: the old database may be fine again — ask at once) */
       var left = on ? MTG.pauseLeft(d) : -1, p = left > 0;   /* Dr. A moving it back: nothing saved meanwhile (an old pause: ignored) */
       MTG.pauseUntil = p ? Date.now() + left : 0;
       if (p !== MTG.paused) { MTG.paused = p; if (p) detach(); else attach(); render(); }
