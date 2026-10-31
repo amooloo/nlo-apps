@@ -425,6 +425,150 @@ function dayDiff(iso) { if (!iso) return null; const [y, m, d] = iso.split('-').
 function fmtDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); const opts = { month: 'short', day: 'numeric' }; if (y !== new Date().getFullYear()) opts.year = 'numeric'; return dt.toLocaleDateString(undefined, opts); }
 function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
 function fmtTime(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM'); }
+/* ---------- the search box read as an appointment day (Amir, 30 Oct 2026: "add to the search on the top to be able to search by
+   appointment day. so if I want to know cases needing delivery next week. I can do that or on thursday. etc.") ----------
+   apptQuery(text, today) → { from, to, what, rest }: the days (yyyy-mm-dd, both included), how they were read ("next week", "today";
+   '' when the days say it all) and the other words searched with them ('' when it's only a day), or null when there's no day in it.
+   today: yyyy-mm-dd (todayISO() when left out).
+   · today, tomorrow, yesterday, the day after tomorrow, in 3 days, 3 days from now
+   · a weekday (Mon, Thurs, Thursday): the next one, today included ("this Thursday" too); "next Thursday" is the one in next week,
+     "last Thursday" the one before today; "Thursday next week"
+   · this week, next week, last week, the week after next, in 2 weeks, the week of Nov 9: weeks run Monday to Sunday
+   · the next 10 days, the next 2 weeks (from today), the last 7 days (up to today)
+   · this month, next month, last month, a month by its full name (November, November 2026)
+   · 11/5, 11/5/26, 2026-11-05, Nov 5, November 5th, 5 Nov, the 5th, with or without the weekday in front; with no year, the nearest
+   · two of those as a stretch: Monday to Thursday, 11/2 - 11/6, between Nov 2 and Nov 6, Nov 2-6 (Thursday to Monday: the Monday after)
+   The words around them are left out (delivery, deliveries, appt(s), appointment(s), due, cases, needing, on, for, the, of, from…),
+   so "deliveries next week" and "appts on Thursday" read the same. A day at the start or the end can come with other words —
+   "oliv next week", "retainers Thursday", "Sarah tomorrow" — which then narrow it down (rest). Short ones that start names (Mon, Sat,
+   Sun…) count as days too: the search still finds the names as well (matchesQ in ui.js adds the cases on those days to what the
+   words find, never takes any away). */
+const QD_WD = { mon: 0, monday: 0, tue: 1, tues: 1, tuesday: 1, wed: 2, weds: 2, wednesday: 2, thu: 3, thur: 3, thurs: 3, thursday: 3, fri: 4, friday: 4, sat: 5, saturday: 5, sun: 6, sunday: 6 };
+const QD_WDN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const QD_MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const QD_MAB = { jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+const QD_NUM = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fourteen: 14, thirty: 30 };
+const QD_SKIP = new Set(['delivery', 'deliveries', 'deliver', 'delivering', 'delivered', 'appt', 'appts', 'apt', 'apts', 'appointment', 'appointments', 'due', 'case', 'cases',
+  'patient', 'patients', 'pt', 'pts', 'needing', 'need', 'needs', 'scheduled', 'on', 'for', 'the', 'of', 'at', 'from', 'all', 'any']);
+const qdGet = (o, k) => Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined; // (so "constructor" isn't a weekday)
+function qdAt(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
+function qdYmd(y, mo, d) { if (!(y >= 1900 && y <= 2200)) return null; const dt = new Date(y, mo - 1, d); return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d ? isoOf(dt) : null; }
+function qdWd(iso) { return (qdAt(iso).getDay() + 6) % 7; } // 0 = Monday … 6 = Sunday
+function qdMonth(w) { return QD_MONTHS.indexOf(w) + 1 || qdGet(QD_MAB, w) || 0; }
+function qdMonthSpan(y, mo, what) { const from = qdYmd(y, mo, 1); return from ? { from, to: isoOf(new Date(y, mo, 0)), what } : null; }
+function apptQuery(text, today) {
+  today = /^\d{4}-\d{2}-\d{2}$/.test(today || '') ? today : todayISO();
+  const str = String(text == null ? '' : text); if (str.length > 80) return null;
+  // each word as a day reads it (n: lower case, punctuation and 's off, wk = week) and as the rest of the search (r: as typed, only the
+  // punctuation around it and 's off, so O'Brien stays O'Brien); the words around a day (delivery, appts, on…) are left out of both
+  const toks = str.split(/\s+/).map(w => ({ n: w.toLowerCase().replace(/[.,!?;:()"“”]+$/, '').replace(/[’']s$/, '').replace(/[’'"“”.,!?;:()]+/g, '').replace(/^wks$/, 'weeks').replace(/^wk$/, 'week'),
+    r: w.replace(/^[.,!?;:()"“”]+|[.,!?;:()"“”]+$/g, '').replace(/[’']s$/i, '') })).filter(t => t.n && !QD_SKIP.has(t.n));
+  const read = a => qdPhrase(a.map(t => t.n).join(' '), today), n = toks.length;
+  let r = n ? read(toks) : null; if (r) return Object.assign(r, { rest: '' });
+  // a day at the end or the start, with other words ("oliv next week", "retainers thursday", "next week sarah"): the longest day that
+  // reads, at the end before at the start
+  for (let len = n - 1; len >= 1; len--) for (const [d, o] of [[toks.slice(n - len), toks.slice(0, n - len)], [toks.slice(0, len), toks.slice(len)]])
+    if ((r = read(d))) return Object.assign(r, { rest: o.map(t => t.r).filter(Boolean).join(' ') });
+  return null;
+}
+/* the day(s) in a search with nothing else in it (the words around it already left out) */
+function qdPhrase(s, today) {
+  if (!s) return null;
+  const m = /^between (.+) and (.+)$/.exec(s) || /^(.+?) (?:to|through|thru|until|till|-) (.+)$/.exec(s) || /^(.+?) ?[–—] ?(.+)$/.exec(s) ||
+    /^(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)-(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)$/.exec(s);
+  if (m) {
+    // a stretch of days: from the first one's start to the second one's end (not two days: read as one, e.g. "Nov 5 - 6")
+    const a = qdOne(m[1], today); let b = a && qdOne(m[2], today);
+    if (a && b && b.to < a.from) b = qdOne(m[2], a.from); // ("Thursday to Monday": the Monday after that Thursday)
+    if (a && b && b.to >= a.from) return { from: a.from, to: b.to, what: '' };
+  }
+  return qdOne(s, today);
+}
+function qdOne(t, today) {
+  const add = n => addDays(today, n), wd = qdWd(today), mon = add(-wd);
+  const day = (d, what) => d ? { from: d, to: d, what: what || '' } : null, span = (a, b, what) => ({ from: a, to: b, what: what || '' });
+  const num = x => /^\d{1,3}$/.test(x) ? +x : qdGet(QD_NUM, x) || 0, plural = (n, u) => n + ' ' + u + (n === 1 ? '' : 's');
+  const off = k => /^(this|current)$/.test(k) ? 0 : /^(last|past|previous)$/.test(k) ? -1 : 1; // this / last / next (coming, following…)
+  let m, n, w;
+  if (t === 'today' || t === 'tonight') return day(today, 'today');
+  if (/^(tomorrow|tmrw|tmr|tomorow|tommorow|tommorrow)$/.test(t)) return day(add(1), 'tomorrow');
+  if (t === 'yesterday') return day(add(-1), 'yesterday');
+  if (t === 'day after tomorrow') return day(add(2), 'the day after tomorrow');
+  // in 3 days, in two weeks, 3 days from now (a week: that whole week)
+  if ((m = /^in (\w+) (day|week)s?$/.exec(t) || /^(\w+) (day|week)s? (?:from )?(?:now|today)$/.exec(t))) { // ("from" is one of the words left out)
+    n = num(m[1]); if (!n || n > (m[2] === 'day' ? 366 : 52)) return null;
+    if (m[2] === 'day') return day(add(n), 'in ' + plural(n, 'day'));
+    w = addDays(mon, 7 * n); return span(w, addDays(w, 6), 'in ' + plural(n, 'week'));
+  }
+  // the next 10 days, the next 2 weeks, within 10 days (from today) · the last 7 days (up to today)
+  if ((m = /^(?:in |within )?(next|coming|upcoming|last|past|previous) (\w+) (day|week)s?$/.exec(t) || /^()within (\w+) (day|week)s?$/.exec(t))) {
+    n = num(m[2]); const len = n * (m[3] === 'week' ? 7 : 1); if (!n || len > 366) return null;
+    return off(m[1]) < 0 ? span(add(1 - len), today, 'in the last ' + plural(n, m[3])) : span(today, add(len - 1), 'in the next ' + plural(n, m[3]));
+  }
+  // this week, next week, last week, the week after next (Monday to Sunday); "Thursday next week", "next week Thursday"
+  if ((m = /^(this|current|next|coming|upcoming|following|last|past|previous) (?:week|wk)$/.exec(t))) {
+    const o = off(m[1]) * 7; return span(addDays(mon, o), addDays(mon, o + 6), o ? (o < 0 ? 'last week' : 'next week') : 'this week');
+  }
+  if (t === 'week after next') return span(addDays(mon, 14), addDays(mon, 20), 'the week after next');
+  // the week of Nov 9 (the of and the are left out): that day's week
+  if ((m = /^week (.+)$/.exec(t)) && (w = qdOne(m[1], today)) && w.from === w.to) { const a = addDays(w.from, -qdWd(w.from)); return span(a, addDays(a, 6)); }
+  if ((m = /^([a-z]+) (this|current|next|coming|following|last|past|previous) (?:week|wk)$/.exec(t) || /^(this|current|next|coming|following|last|past|previous) (?:week|wk) ([a-z]+)$/.exec(t))) {
+    const k = qdGet(QD_WD, m[1]) != null ? m[2] : m[1], wdn = qdGet(QD_WD, m[1]) != null ? m[1] : m[2], x = qdGet(QD_WD, wdn);
+    if (x != null) return day(addDays(mon, off(k) * 7 + x));
+  }
+  // this month, next month, last month; a month by its full name (abbreviated only with its year): the nearest one — up to six
+  // months ahead, else the one before
+  if ((m = /^(this|current|next|coming|upcoming|following|last|past|previous) month$/.exec(t))) {
+    const [y, mo] = today.split('-').map(Number), o = off(m[1]), d0 = new Date(y, mo - 1 + o, 1);
+    return qdMonthSpan(d0.getFullYear(), d0.getMonth() + 1, o ? (o < 0 ? 'last month' : 'next month') : 'this month');
+  }
+  if ((m = /^([a-z]+)(?: (\d{4}))?$/.exec(t)) && (n = QD_MONTHS.indexOf(m[1]) + 1 || (m[2] ? qdGet(QD_MAB, m[1]) || 0 : 0))) {
+    let y = +m[2] || 0;
+    if (!y) { const [ty, tm] = today.split('-').map(Number), ahead = (n - tm + 12) % 12; y = ahead <= 6 ? (n >= tm ? ty : ty + 1) : (n <= tm ? ty : ty - 1); }
+    return qdMonthSpan(y, n, '');
+  }
+  // a weekday: the next one (today included), next week's, or the one before today
+  if ((m = /^(?:(this|coming|upcoming|next|last|past|previous) )?([a-z]+)$/.exec(t)) && (w = qdGet(QD_WD, m[2])) != null) {
+    if (m[1] === 'next') return day(addDays(mon, 7 + w), 'next ' + QD_WDN[w]);
+    if (/^(last|past|previous)$/.test(m[1] || '')) return day(add(-((wd - w + 7) % 7 || 7)), 'last ' + QD_WDN[w]);
+    return day(add((w - wd + 7) % 7));
+  }
+  // a date; a weekday in front of it is only a reminder ("Thu 11/5", "Thursday, Nov 5th"): the date decides
+  const ws = t.split(' ');
+  return ws.length > 1 && qdGet(QD_WD, ws[0]) != null && qdDay(ws.slice(1).join(' '), today) || qdDay(t, today);
+}
+/* one date: 11/5, 11/5/26, 2026-11-05, Nov 5, November 5th, 5 Nov, 5th of November (2026), the 5th. With no year: the nearest */
+function qdDay(t, today) {
+  let m, y = 0, mo = 0, d = 0;
+  if ((m = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/.exec(t))) { mo = +m[1]; d = +m[2]; y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : 0; }
+  else if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t))) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+  else if ((m = /^([a-z]+) (\d{1,2})(?:st|nd|rd|th)?(?: (\d{4}))?$/.exec(t)) && qdMonth(m[1])) { mo = qdMonth(m[1]); d = +m[2]; y = +m[3] || 0; }
+  else if ((m = /^(\d{1,2})(?:st|nd|rd|th)? ([a-z]+)(?: (\d{4}))?$/.exec(t)) && qdMonth(m[2])) { mo = qdMonth(m[2]); d = +m[1]; y = +m[3] || 0; }
+  else if ((m = /^([a-z]+) (\d{1,2})(?:st|nd|rd|th)? ?[-–—] ?(\d{1,2})(?:st|nd|rd|th)?$/.exec(t)) && qdMonth(m[1])) {
+    // Nov 5-6: both days in that month (the nearest, as one date would be)
+    const a = qdDay(m[1] + ' ' + m[2], today), b = a && qdYmd(+a.from.slice(0, 4), qdMonth(m[1]), +m[3]);
+    return a && b && b >= a.from ? { from: a.from, to: b, what: '' } : null;
+  }
+  else if ((m = /^(\d{1,2})(?:st|nd|rd|th)$/.exec(t))) {
+    // the 5th: the next one, today included (a month without that day is passed over: the 31st)
+    const [ty, tm, td] = today.split('-').map(Number); d = +m[1];
+    for (let i = d >= td ? 0 : 1; i <= 12; i++) { const x = new Date(ty, tm - 1 + i, 1), iso = qdYmd(x.getFullYear(), x.getMonth() + 1, d); if (iso) return { from: iso, to: iso, what: '' }; }
+    return null;
+  }
+  else return null;
+  if (y) { const iso = qdYmd(y, mo, d); return iso ? { from: iso, to: iso, what: '' } : null; }
+  const ty = +today.slice(0, 4), t0 = qdAt(today); let best = null, bd = 0;
+  [ty - 1, ty, ty + 1].forEach(yy => { const iso = qdYmd(yy, mo, d); if (!iso) return; const dd = Math.abs(Math.round((qdAt(iso) - t0) / 864e5)); if (best === null || dd < bd || (dd === bd && iso > best)) { best = iso; bd = dd; } });
+  return best ? { from: best, to: best, what: '' } : null;
+}
+/* how a search was read, for the line under the search box: "next week · Mon, Nov 2 – Sun, Nov 8", "Thu, Nov 5", "in November" */
+function apptQueryText(qd, today) {
+  const ty = (today || todayISO()).slice(0, 4), yr = iso => iso.slice(0, 4) !== ty ? { year: 'numeric' } : {};
+  const day = iso => qdAt(iso).toLocaleDateString(undefined, Object.assign({ weekday: 'short', month: 'short', day: 'numeric' }, yr(iso)));
+  const month = qd.from !== qd.to && qd.from.slice(8) === '01' && qd.from.slice(0, 7) === qd.to.slice(0, 7) && addDays(qd.to, 1).slice(8) === '01';
+  const when = qd.from === qd.to ? day(qd.from) : month ? qdAt(qd.from).toLocaleDateString(undefined, Object.assign({ month: 'long' }, yr(qd.from))) : day(qd.from) + ' – ' + day(qd.to);
+  return qd.what ? qd.what + ' · ' + when : month ? 'in ' + when : when;
+}
 /* one-click tracking: the carrier's own page, from the number's shape (UPS 1Z…, USPS 20–22 digits starting
    with 9, FedEx 12/15/20/22 digits), else the carrier a lab email names */
 const TRACK_URL = { ups: 'https://www.ups.com/track?tracknum=', fedex: 'https://www.fedex.com/fedextrack/?trknbr=', usps: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=', dhl: 'https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id=' };
