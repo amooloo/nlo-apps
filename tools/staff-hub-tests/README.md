@@ -61,7 +61,7 @@ as `.png`, paperwork whose person is gone (listed in Settings, given back to som
 put back since stays put back, one deleted for good since is dropped, one stored but unlisted comes back) and a backup file
 (a newer file isn't lost), the Readable JSON leaving the files key out, a merge not bringing back a file deleted for good,
 Staff Hub's password changed by an older tab (files still open: their key is inside the record), and Erase all leaving no
-piece on the server. 111 checks (~2.5 min); screenshots `shots/pp-*.png`.
+piece on the server. 116 checks (~2.5 min); screenshots `shots/pp-*.png`.
 
 The page's Firebase SDK (gstatic 10.12.2) is served from `node_modules/firebase` (`FIREBASE_SDK_DIR` to change it) and every
 app it makes is pointed at the emulators by an init script; other outside requests are refused (except the PDF reader in

@@ -4262,6 +4262,9 @@ async function shSave(opts) {
         merged = true;
         if (!opts.always && next === shJ(theirs)) return { adopt: true, rev: d.rev || 0, wid: shWidOf(d), next: next, meta: shMetaOf(d) };
       }
+      if (opts.force && d && d.data && typeof ppKeepServer === 'function') {   /* a restore keeps paperwork the server knows about (keys, deletions, files) */
+        try { const theirs = shNorm(await shDecryptDoc(d, rKey, rSalt)), nx = JSON.parse(next); if (ppKeepServer(nx, theirs)) { next = shJ(shNorm(nx)); merged = true; } } catch (e) {}
+      }
       const meta = shUpgradeIn(tx, d, shMetaOf(d));
       const rev = (d ? (d.rev || 0) : 0) + 1, wid = shNewWid();
       const payload = await shPayload(JSON.parse(next), key, salt, rev, wid, meta);
@@ -5323,7 +5326,7 @@ H.restore = function () {
 };
 H.eraseAll = function () {
   openModal('<div class="mh"><h3>Erase all data</h3><button class="x" data-act="closeModal">✕</button></div>' +
-    '<div class="mb"><div class="dangerBox">This permanently deletes every staff profile, note, review, log, certificate file and paperwork file from your account and all synced devices. If there’s no backup, it’s gone.</div>' +
+    '<div class="mb"><div class="dangerBox">This permanently deletes every staff profile, note, review, log, certificate file and paperwork file from your account and all synced devices (copies of the record under Earlier versions are kept, without any files). If there’s no backup, it’s gone.</div>' +
     '<div class="field"><label>Type <b>ERASE</b> to confirm</label><input type="text" id="erConfirm" autocomplete="off"></div></div>' +
     '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-danger" id="erGo">Erase everything</button></div>');
   $('#erGo').onclick = async function () {
@@ -5331,7 +5334,7 @@ H.eraseAll = function () {
     var eb = $('#erGo'); if (eb) { eb.disabled = true; eb.textContent = 'Erasing…'; }
     if (typeof ppEraseAll === 'function' && !(await ppEraseAll())) {
       if (eb) { eb.disabled = false; eb.textContent = 'Erase everything'; }
-      toast('Couldn’t delete the paperwork files — check the connection and try again. Nothing was erased.', true, 9000); return;
+      toast('Couldn’t delete all the paperwork files — check the connection and run Erase all again. The record wasn’t erased; files already deleted are off its list.', true, 12000); return;
     }
     if (S && Array.isArray(S.certs)) await Promise.all(S.certs.filter(function (c) { return c && c.hasPhoto; }).map(function (c) { return deletePhotoDoc(c.id); }));
     try { if (fbDocRef) await fbDocRef.delete(); } catch (e) {}
@@ -8140,7 +8143,10 @@ H.rosterDisconnect = () => { if (rosterApp) rosterApp.auth().signOut(); };
    - The list (S.paper: type, file name, size, SHA-256 of the original, key id)
      is in the encrypted record. An entry is listed BEFORE its pieces are
      written (marked "up" while uploading), so an interrupted upload is always
-     known and cleaned up; opening a file checks every piece and the SHA-256.
+     known: one that failed here is erased; one still marked after a day is
+     checked — kept if every piece is there and it matches its SHA-256 (the
+     upload finished, only the "done" save was lost), erased if not. Opening a
+     file checks every piece and the SHA-256.
    - Removed files stay under "Removed" for 30 days, then are deleted for good;
      ids deleted for good are remembered (S.paperGone) so a merge with another
      device can't bring an entry back. Restoring an earlier version or a backup
@@ -8153,7 +8159,7 @@ ICONS.paperclip = '<path d="M20.5 11.5 12 20a5.3 5.3 0 0 1-7.5-7.5l8.8-8.8a3.5 3
 const PP_PIECE = 900 * 1024;              /* bytes of a file per Firestore doc: ciphertext + fields stay well under the 1 MiB cap */
 const PP_MAX = 25 * 1024 * 1024;          /* largest file */
 const PP_KEEP_DAYS = 30;                  /* a removed file can be put back for this long */
-const PP_UP_STALE = 60 * 60 * 1000;       /* an upload still marked unfinished after an hour was interrupted */
+const PP_UP_STALE = 24 * 3600 * 1000;     /* an upload still marked unfinished after a day: check whether it finished, else erase it */
 const PP_PIECE_WAIT = 90 * 1000;          /* give up on a piece the server hasn't taken in this long */
 const PP_CACHE_MAX = 6;                   /* opened files kept in memory (until Lock) */
 const PP_GONE_MAX = 500;
@@ -8383,13 +8389,34 @@ async function ppPut(f, buf, up, onPiece) {
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const ct = new Uint8Array(await crypto.subtle.encrypt({ name:'AES-GCM', iv, additionalData: ppAad(f.id, i, n) }, key, part));
       written.push(i);
-      await ppTimeout(col.doc(f.id + '_' + i).set({ app:'nlo-staff-hub', v:1, i, n, iv: b64(iv), ct: firebase.firestore.Blob.fromUint8Array(ct), at: Date.now() }), PP_PIECE_WAIT);
+      const put = ppTimeout(col.doc(f.id + '_' + i).set({ app:'nlo-staff-hub', v:1, i, n, iv: b64(iv), ct: firebase.firestore.Blob.fromUint8Array(ct), at: Date.now() }), PP_PIECE_WAIT);
+      const stop = up ? new Promise((_, rej) => { up.stopNow = () => rej(Object.assign(new Error('Stopped.'), { stopped: true })); }) : null;
+      try { await (stop ? Promise.race([put, stop]) : put); } finally { if (up) up.stopNow = null; }
       if (onPiece) onPiece(i + 1, n);
     }
   } catch (e) {
-    await Promise.all(written.map(i => col.doc(f.id + '_' + i).delete().catch(() => {})));
+    /* not waited for: offline, a delete waits for the connection; the entry stays marked and the clean-up repeats it */
+    written.forEach(i => { col.doc(f.id + '_' + i).delete().catch(() => {}); });
     throw e;
   }
+}
+/* is every piece of this file on the server, and does it decrypt and match its SHA-256? true / false;
+   throws when it can't tell (no connection, or the key isn't in this record) */
+async function ppCheck(f) {
+  const col = ppCol(), n = f.n | 0;
+  if (!col) throw new Error('locked');
+  const key = f.kid ? await ppKeyOf(f.kid) : cryptoKey;
+  if (!key) throw new Error('no key');
+  if (n < 1) return false;
+  const snaps = await Promise.all(Array.from({ length: n }, (_, i) => ppTimeout(col.doc(f.id + '_' + i).get(), PP_PIECE_WAIT)));
+  const parts = [];
+  for (let i = 0; i < n; i++) {
+    const d = snaps[i] && snaps[i].exists ? snaps[i].data() : null;
+    if (!d || !d.ct || typeof d.iv !== 'string') return false;
+    try { parts.push(new Uint8Array(await crypto.subtle.decrypt({ name:'AES-GCM', iv: unb64(d.iv), additionalData: ppAad(f.id, i, n) }, key, d.ct.toUint8Array()))); }
+    catch (e) { return false; }
+  }
+  return !f.sha || (await ppSha(await new Blob(parts).arrayBuffer())) === f.sha;
 }
 async function ppGet(f) {
   if (ppCache.has(f.id)) return ppCache.get(f.id);
@@ -8450,18 +8477,38 @@ function ppKeepOnRestore(next) {
   next.paperKeys = keys;
   next.paperGone = Array.from(gone).slice(-PP_GONE_MAX);
 }
+/* A forced save (a restore) still keeps what the server's record knows and this browser may not have seen yet:
+   files keys, deletions for good, and files (back to be checked). Called inside the save's transaction. */
+function ppKeepServer(nx, theirs) {
+  if (!nx || !theirs || typeof nx !== 'object' || typeof theirs !== 'object') return false;
+  const ok = f => f && typeof f === 'object' && typeof f.id === 'string';
+  let ch = false;
+  const keys = Array.isArray(nx.paperKeys) ? nx.paperKeys.filter(k => k && typeof k.id === 'string') : [], kids = new Set(keys.map(k => k.id));
+  (Array.isArray(theirs.paperKeys) ? theirs.paperKeys : []).forEach(k => { if (k && typeof k.id === 'string' && typeof k.k === 'string' && !kids.has(k.id)) { keys.push(k); kids.add(k.id); ch = true; } });
+  const mineGone = Array.isArray(nx.paperGone) ? nx.paperGone.filter(x => typeof x === 'string') : [];
+  const gone = new Set(mineGone.concat(Array.isArray(theirs.paperGone) ? theirs.paperGone.filter(x => typeof x === 'string') : []));
+  if (gone.size > new Set(mineGone).size) ch = true;
+  const mine = Array.isArray(nx.paper) ? nx.paper.filter(ok) : [], have = new Set(mine.map(f => f.id));
+  const extra = (Array.isArray(theirs.paper) ? theirs.paper.filter(ok) : []).filter(f => !have.has(f.id) && !gone.has(f.id));
+  if (extra.length) ch = true;
+  if (!ch) return false;
+  nx.paperKeys = keys;
+  nx.paperGone = Array.from(gone).slice(-PP_GONE_MAX);
+  nx.paper = mine.concat(extra.map(f => Object.assign({}, f, { chk: 1 })));
+  return true;
+}
 /* Erase all: every file's pieces (and anything else left in the folder), before the record goes */
 async function ppEraseAll() {
   const col = ppCol(); if (!col) return false;
   try {
-    for (const f of (S && Array.isArray(S.paper) ? S.paper.filter(x => x && typeof x.id === 'string') : [])) await ppErase(f);
+    for (const f of (S && Array.isArray(S.paper) ? S.paper.filter(x => x && typeof x.id === 'string') : [])) { await ppErase(f); ppDrop([f.id]); }
     for (let i = 0; i < 400; i++) {
       const q = await ppTimeout(col.limit(5).get(), PP_PIECE_WAIT);
       if (q.empty) break;
       await Promise.all(q.docs.map(d => ppTimeout(d.ref.delete(), PP_PIECE_WAIT)));
     }
     return true;
-  } catch (e) { return false; }
+  } catch (e) { if (S) persist(); return false; }   /* the files already erased are off the list */
 }
 function ppRevoke() { if (ppViewUrl) { try { URL.revokeObjectURL(ppViewUrl); } catch (e) {} ppViewUrl = null; } }
 function ppRevokeCert(all) {   /* the certificate viewer's unlocked copies */
@@ -8486,18 +8533,21 @@ async function ppSweep() {
   const gone = [], kept = [];
   try {
     for (const f of ppAll()) {
-      if (sess !== ppSess) break;
+      if (sess !== ppSess || !col) break;
       try {
-        if ((f.removed && f.removed < cut) || (f.up && now - f.up > PP_UP_STALE)) { await ppErase(f); gone.push(f.id); }
-        else if (f.chk && col) {
+        if (f.removed && f.removed < cut) { await ppErase(f); gone.push(f.id); }
+        else if (f.up === 1) { await ppErase(f); gone.push(f.id); }                 /* failed in this browser */
+        else if (f.up) {                                                            /* still uploading — or finished and the "done" save was lost */
+          if (now - f.up > PP_UP_STALE) { if (await ppCheck(f)) kept.push(f.id); else { await ppErase(f); gone.push(f.id); } }
+        } else if (f.chk) {                                                         /* back from a restore: still stored? */
           const s = await ppTimeout(col.doc(f.id + '_0').get(), PP_PIECE_WAIT);
-          if (s.exists) kept.push(f.id); else gone.push(f.id);
+          if (s.exists) kept.push(f.id); else { await ppErase(f); gone.push(f.id); }
         }
-      } catch (e) { break; }
+      } catch (e) { /* couldn't tell (connection, or no key here): leave it for next time */ }
     }
   } finally { ppSweeping = false; }
   if (sess !== ppSess || !S || (!gone.length && !kept.length)) return 0;
-  kept.forEach(id => { const f = ppById(id); if (f) delete f.chk; });
+  kept.forEach(id => { const f = ppById(id); if (f) { delete f.chk; if (f.up) f.up = 0; } });
   if (gone.length) { ppDrop(gone); act('Deleted ' + plural(gone.length, 'paperwork file') + ' for good (removed over ' + PP_KEEP_DAYS + ' days ago, an upload that didn’t finish, or no longer stored)'); }
   persist();
   if (route.page === 'staffDetail' || route.page === 'newhire' || route.page === 'settings') render();
@@ -8657,7 +8707,7 @@ H.ppMultiAll = t => {
 };
 H.ppDropItem = t => { if (!ppUp || ppUp.busy) return; ppNotesIn(); ppUp.items = ppUp.items.filter(it => it.key !== t.dataset.key); ppListRender(); };
 H.ppCancel = () => {
-  if (ppUp && ppUp.busy) { ppUp.stop = true; const el = $('#ppStat'); if (el) el.textContent = 'Stopping after this part…'; return; }
+  if (ppUp && ppUp.busy) { ppUp.stop = true; if (ppUp.stopNow) ppUp.stopNow(); const el = $('#ppStat'); if (el) el.textContent = 'Stopping…'; return; }
   ppUp = null; closeModal();
 };
 async function ppGo() {

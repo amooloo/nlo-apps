@@ -446,11 +446,18 @@ console.log('10. lock');
   ok((await page.evaluate(() => ppLive().length)) === before, '…no half-uploaded file on the list');
   const unf = await page.evaluate(() => ppAll().filter(f => f.up).map(f => f.id));
   ok(unf.length === 1, '…it is known as an unfinished upload (listed before its pieces were written)');
-  await page.evaluate(() => { ppAll().filter(f => f.up).forEach(f => { f.up = Date.now() - 2 * 3600e3; }); });
+  await page.evaluate(() => { ppAll().filter(f => f.up).forEach(f => { f.up = Date.now() - 25 * 3600e3; }); });
   await page.waitForFunction(() => !ppSweeping); await page.evaluate(() => ppSweep());
   await page.waitForFunction(id => !ppById(id), unf[0], { timeout: 15000 }).catch(() => {});
-  ok(!(await page.evaluate(id => !!ppById(id), unf[0])), 'an hour later the clean-up deletes it');
+  ok(!(await page.evaluate(id => !!ppById(id), unf[0])), 'a day later the clean-up finds it incomplete and deletes it');
   ok(!(await pieces(hubUid)).some(p => p.id.startsWith(unf[0] + '_')) && !(await page.evaluate(id => !!ppById(id), unf[0])), '…nothing of it left on the server or the list');
+  // an upload that finished, but whose "done" save never reached the server (the tab closed while offline)
+  const fin = meta.find(f => f.name === FILES.packet.name).id;
+  await page.evaluate(id => { ppById(id).up = Date.now() - 25 * 3600e3; }, fin);
+  ok(await page.evaluate(id => !ppLive().some(f => f.id === id), fin), 'a finished file still marked as uploading is hidden…');
+  await page.waitForFunction(() => !ppSweeping); await page.evaluate(() => ppSweep());
+  await page.waitForFunction(id => ppById(id) && !ppById(id).up, fin, { timeout: 20000 }).catch(() => {});
+  ok(await page.evaluate(id => !!ppById(id) && !ppById(id).up, fin) && (await pieces(hubUid)).some(p => p.id === fin + '_0'), '…and a day later the clean-up checks it, finds it whole, and lists it again (nothing erased)');
 }
 
 // ---------- 11. the hire record can't be deleted out from under its paperwork ----------
@@ -526,23 +533,42 @@ console.log('13. restores');
   const verId = await page.evaluate(async ([bid, ghost]) => {
     const st = JSON.parse(JSON.stringify(S));
     st.paper.find(f => f.id === bid).removed = Date.now() - 40 * 864e5;
-    st.paper.push({ id: ghost, sid: st.paper[0].sid, hid: '', kind: 'w4', name: 'gone.pdf', mime: 'application/pdf', size: 9, n: 1, sha: 'x', kid: st.paperKeys[0].id, added: 1, removed: 0 });
+    st.paper.push({ id: ghost, sid: st.paper[0].sid, hid: '', kind: 'w4', name: 'gone.pdf', mime: 'application/pdf', size: 9, n: 2, sha: 'x', kid: st.paperKeys[0].id, added: 1, removed: 0 });
     const payload = await shPayload(st, cryptoKey, keySalt, 1, shNewWid(), {});
     const vid = '2026-10-29T10-00-00Z-test';
     await shVerCol().doc(vid).set(shVer(payload, 'save'));
     return vid; }, [big.id, ghost]);
   await page.evaluate(d => { S.paper = S.paper.filter(x => x.id !== d); persist(); }, detached);
   ok(await synced(page), 'state before the restore saved');
+  await putPiece(hubUid, ghost + '_1', { app: { stringValue: 'nlo-staff-hub' }, v: { integerValue: '1' } });   /* a stray piece of the file deleted since */
+  // another computer saves just before the restore — a new files key and a new file this browser hasn't seen yet
+  const other = await page.evaluate(async () => {
+    if (fbUnsub) { fbUnsub(); fbUnsub = null; }   /* (this browser doesn't hear about it) */
+    const d = (await fbDocRef.get()).data(), theirs = shNorm(await decryptJSON(d.data, cryptoKey));
+    const kid = 'pk' + 'a'.repeat(16), id = 'pp' + 'e'.repeat(20);
+    theirs.paperKeys.push({ id: kid, k: b64(crypto.getRandomValues(new Uint8Array(32))), at: Date.now() });
+    theirs.paper.push({ id, sid: theirs.paper[0].sid, hid: '', kind: 'resume', name: 'from the other computer.pdf', mime: 'application/pdf', size: 9, n: 1, sha: '', kid, added: Date.now(), removed: 0 });
+    theirs.paperGone = (theirs.paperGone || []).concat(['pp' + 'd'.repeat(20)]);
+    await fbDocRef.set(await shPayload(theirs, cryptoKey, keySalt, (d.rev || 0) + 1, shNewWid(), shMetaOf(d)));
+    return { kid, id };
+  });
+  await putPiece(hubUid, other.id + '_0', { app: { stringValue: 'nlo-staff-hub' }, v: { integerValue: '1' } });
   await page.evaluate(id => H.shVerUse({ dataset: { id } }), verId);
   await page.waitForSelector('#cmYes');
   ok(/paperwork files stay as they are/.test(await page.textContent('.modal')), 'Restore an earlier version: it says paperwork files stay as they are');
   await page.click('#cmYes');
   await page.waitForFunction(() => /Restored/.test(document.getElementById('toasts').textContent), null, { timeout: 30000 });
   ok(await page.evaluate(id => ppById(id).removed === 0, big.id), 'the I-9 put back after that copy stays put back (no 30-day deletion from the old copy)');
+  ok(await page.evaluate(o => S.paperKeys.some(k => k.id === o.kid) && !!ppById(o.id) && S.paperGone.includes('pp' + 'd'.repeat(20)), other),
+    'a files key, a file and a deletion another computer saved just before the restore are all kept');
+  const srv = await page.evaluate(async o => { const d = (await fbDocRef.get()).data(), st = await decryptJSON(d.data, cryptoKey); return st.paperKeys.some(k => k.id === o.kid) && st.paper.some(f => f.id === o.id); }, other);
+  ok(srv, '…in the record on the server too');
+  await page.evaluate(() => { fbStartSnapshot(); });
   await page.waitForFunction(([g, d]) => !ppById(g) && ppById(d) && !ppById(d).chk, [ghost, detached], { timeout: 20000 });
   const live1 = await page.evaluate(() => ppLive().map(f => f.id).sort());
-  ok(JSON.stringify(live1) === JSON.stringify(live0), 'every file listed before the restore is listed after it (' + live1.length + ')');
+  ok(live0.every(id => live1.includes(id)) && live1.length === live0.length + 1, 'every file listed before the restore is listed after it, plus the other computer’s (' + live1.length + ')');
   ok(await page.evaluate(g => !ppById(g), ghost), 'a file only the old copy lists, deleted for good since, is dropped after a check');
+  ok(!(await pieces(hubUid)).some(p => p.id.startsWith(ghost + '_')), '…and any stray piece of it is erased');
   ok(await page.evaluate(d => !!ppById(d), detached), 'a file only the old copy lists, still stored, comes back');
   ok((await page.evaluate(async id => { ppCache.clear(); ppKeys.clear(); return (await ppGet(ppById(id))).size; }, big.id)) === FILES.big.buffer.length, 'files open after the restore');
   ok((await pieces(hubUid)).some(p => p.id.startsWith(big.id + '_')), '…and the sweep after it erased nothing in use');
@@ -582,9 +608,9 @@ console.log('14. keys');
     const A = JSON.parse(JSON.stringify(S)); A.paper = A.paper.filter(x => x.id !== f.id); A.paperGone = (A.paperGone || []).concat([f.id]);
     const B = JSON.parse(JSON.stringify(S)); B.paper.find(x => x.id === f.id).note = 'edited on the other computer';
     const m = shNorm(shMerge(base, B, A, true, ''));
-    const gone = new Set(m.paperGone); return { listed: m.paper.filter(x => !gone.has(x.id)).some(x => x.id === f.id), keys: m.paperKeys.length };
+    const gone = new Set(m.paperGone); return { listed: m.paper.filter(x => !gone.has(x.id)).some(x => x.id === f.id), keys: m.paperKeys.length === S.paperKeys.length };
   });
-  ok(!r.listed && r.keys === 1, 'a file deleted for good on one computer and edited on another stays deleted after the merge');
+  ok(!r.listed && r.keys, 'a file deleted for good on one computer and edited on another stays deleted after the merge');
   // an older Staff Hub tab changes Staff Hub's own password: the record is re-encrypted under a new key
   const big = meta.find(f => f.name === FILES.big.name);
   const rk = await page.evaluate(async id => {
@@ -595,7 +621,7 @@ console.log('14. keys');
   }, big.id);
   ok(rk.saved && rk.size === FILES.big.buffer.length, 'after Staff Hub’s password changes, the files still open (their key is inside the record): ' + JSON.stringify(rk));
   const rec2 = await hubRecord(hubUid, 'Staff-Hub-Pass-9');
-  ok(rec2 && rec2.st && rec2.st.paperKeys && rec2.st.paperKeys.length === 1, '…the record under the new password still holds the files key');
+  ok(rec2 && rec2.st && rec2.st.paperKeys && rec2.st.paperKeys.some(k => k.id === big.kid), '…the record under the new password still holds the files key');
 }
 
 // ---------- 15. Erase all erases the files ----------
