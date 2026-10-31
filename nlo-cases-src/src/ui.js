@@ -381,9 +381,37 @@ function staffName(sid, fallback) { const r = staff(sid); return r ? r.name : (f
 function activeRoster() { return S.roster.filter(r => r.active).sort((a, b) => (a.role === 'owner' ? -1 : 0) - (b.role === 'owner' ? -1 : 0) || a.name.localeCompare(b.name)); }
 function openCases() { return Array.from(S.cases.values()).filter(c => !c.locked); }
 function matchesQ(c) {
-  if (!S.q) return true; const q = S.q.toLowerCase();
+  if (!S.q) return true;
+  if (qText(c, S.q)) return true;
+  // an appointment day in the search (Amir, 30 Oct 2026: "search by appointment day … cases needing delivery next week … or on
+  // thursday"): the cases whose delivery appt falls then, as well — with the other words searched alongside it, if any ("oliv next
+  // week"), each found somewhere on the case ("Oliv and Angel next week": either). It only ever adds to what the words find on their
+  // own (apptQuery in core.js).
+  const qd = qDate(); return !!qd && qdHit(c, qd) && (!qd.restAny.length || qd.restAny.some(g => g.every(w => qText(c, w))));
+}
+/* the words of a search, found in the patient, chart #, what's being made, type, stage, who it's assigned to, lab case # or tracking # */
+function qText(c, q) {
+  q = String(q).toLowerCase();
   return [c.patient, c.chart, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName), c.labRef, c.tracking].some(x => String(x || '').toLowerCase().includes(q));
 }
+/* the search read as an appointment day — worked out once per search (and per day: the app can stay open past midnight), not per case */
+const QD = { q: null, day: '', v: null };
+function qDate() {
+  const day = todayISO();
+  if (QD.q !== S.q || QD.day !== day) { QD.q = S.q; QD.day = day; QD.v = S.q ? apptQuery(S.q, day) : null; }
+  return QD.v;
+}
+/* the case's delivery appt (a case shipped to the patient: the expected delivery; an older case: its due date) is on one of those days */
+function qdHit(c, qd) { const x = apptOf(c), d = x && /^\d{4}-\d{2}-\d{2}/.test(x.d) ? x.d.slice(0, 10) : ''; return !!d && qd.spans.some(s => d >= s.from && d <= s.to); }
+/* what the line under the search box (and Today's card) says: "Delivery appts next week · Mon, Nov 2 – Sun, Nov 8",
+   "“oliv” with a delivery appt next week · …" */
+function qdSays(qd) { return (qd.rest ? '“' + qd.rest + '” with a delivery appt ' : 'Delivery appts ') + apptQueryText(qd); }
+function byAppt(a, b) {
+  const x = apptKeyOf(a) || '9999', y = apptKeyOf(b) || '9999'; // the day, then its time (no time: after the timed ones that day)
+  return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
+}
+/* the date on board cards and Today's rows: the next date (lab, then delivery) — the delivery appt while the search is a day */
+function qChip(c) { return qDate() ? apptChip(c) : dueChip(c); }
 function dueBucket(c) {
   const d = dayDiff(dueDateOf(c)); if (d === null) return 'none';
   if (d < 0) return 'over'; if (d === 0) return 'today'; if (d <= 6) return 'week'; if (d <= 14) return '14'; return 'later';
@@ -404,8 +432,9 @@ function delMatch(c, f) {
   if (d === null) return false;
   return f.del === 'past' ? d < 0 : f.del === 'today' ? d === 0 : f.del === 'tomorrow' ? d === 1 : f.del === 'week' ? d >= 0 && d <= 6 : f.del === '14' ? d >= 0 && d <= 14 : true;
 }
-/* the date (and time) the lists show and sort by: the next date, or the delivery date while they're filtered by delivery */
-function listKey(c) { return (S.f.del ? dateKey(c.deliveryDate, c.deliveryTime) : dueKeyOf(c)) || ''; }
+/* the date (and time) the lists sort by: the next date, or the delivery date while they're filtered by delivery, or the delivery
+   appt while the search is a day */
+function listKey(c) { return (S.f.del ? dateKey(c.deliveryDate, c.deliveryTime) : qDate() ? apptKeyOf(c) : dueKeyOf(c)) || ''; }
 function byListDate(a, b) {
   const x = listKey(a) || '9999', y = listKey(b) || '9999';
   return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
@@ -497,9 +526,13 @@ function renderSync() {
 }
 const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', submit: 'To submit to labs', msgs: 'Messages', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
 function topBar(extra) {
+  // a search that's an appointment day says how it was read on a line under the box ("Delivery appts next week · Mon, Nov 2 – Sun, Nov 8")
+  const srch = ['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view), qd = srch && qDate();
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
-    (['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
-    (extra || '') + (['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view) ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New submission</button></div>'; // (it was New case — Amir, 29 Oct 2026)
+    (srch ? '<label class="searchBox" title="Search a patient, chart #, type or stage — or an appointment day: today, Thursday, next week, 11/5">' + ic('search', 17) + '<span class="hidden">Search</span>' +
+      '<input id="q" type="search" placeholder="Search patient, type, stage, appt day…" value="' + esc(S.q) + '" aria-label="Search cases"' + (qd ? ' aria-describedby="qdHint"' : '') + '>' +
+      (qd ? '<span class="qdHint" id="qdHint">' + ic('cal', 13) + '<span title="' + esc(qdSays(qd)) + '">' + esc(qdSays(qd)) + '</span></span>' : '') + '</label>' : '<span style="flex:1"></span>') +
+    (extra || '') + (srch ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New submission</button></div>'; // (it was New case — Amir, 29 Oct 2026)
 }
 function renderView() {
   // the search box keeps its cursor and selection through a redraw (it used to jump to the end, so a live update landing just
@@ -1103,7 +1136,7 @@ function asgKey(e) {
 function row(c, meta) {
   const sw = quickFlag(c) + shipWarnFlag(c) + dupFlag(c); // (Finish details, Not shipped, Possible duplicate: on their own line under the name, so a narrow column doesn't cut the name short)
   return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + ptAv(c, 36) +
-    '<span class="grow"><span class="pt">' + ptName(c.patient) + '</span>' + (sw ? '<span class="rFlag">' + sw + '</span>' : '') + '<span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
+    '<span class="grow"><span class="pt">' + ptName(c.patient) + '</span>' + (sw ? '<span class="rFlag">' + sw + '</span>' : '') + '<span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + qChip(c) + avatar(c) + '</button>';
 }
 
 /* ---------- Today ---------- */
@@ -1120,22 +1153,39 @@ function viewToday() {
     const key = d < 0 ? 'Late' : d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : fmtDay(dueDateOf(x));
     let g = groups.find(g => g.k === key); if (!g) { g = { k: key, red: d < 0, items: [] }; groups.push(g); } g.items.push(x);
   });
-  const left = '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Lab, delivery appt and Zoom dates: late and the next 14 days</span></div><div class="cardBd">' +
+  const qd = qDate();
+  const left = qd ? qdTodayHTML(all, qd) : '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Lab, delivery appt and Zoom dates: late and the next 14 days</span></div><div class="cardBd">' +
     (groups.length ? groups.map(g => '<div class="dueGrp"><h4 class="' + (g.red ? 'red' : '') + '">' + esc(g.k) + ' · ' + g.items.length + '</h4>' + g.items.map(x => row(x)).join('') + '</div>').join('') :
       '<div class="empty">No lab dates or delivery appts in the next two weeks.</div>') + '</div></div>';
-  const dr = all.filter(x => DR_STAGES.includes(x.stage)).sort(byDue);
+  const dr = all.filter(x => DR_STAGES.includes(x.stage)).sort(qd ? byAppt : byDue);
   const noDate = all.filter(x => !dueDateOf(x)).length;
   const right = '<div class="card"><div class="cardHd"><h3>Needs Dr. A</h3><span class="sub">' + dr.length + ' waiting</span></div><div class="cardBd">' +
     (dr.length ? dr.map(x => row(x)).join('') : '<div class="empty">Nothing waiting on Dr. A.</div>') + '</div></div>' +
     (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab date or delivery appt</button></div></div>' : '');
   const qk = openCases().filter(x => x.quick).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   const quickCard = qk.length ? '<div class="card quickCard"><div class="cardHd"><h3>Finish details</h3><span class="sub">' + qk.length + ' case' + (qk.length > 1 ? 's' : '') + ' added with Quick add — open one and tap Finish details</span></div><div class="cardBd">' + qk.map(x => row(x)).join('') + '</div></div>' : '';
-  return h + mailHealthHTML() + backupDueHTML() + quickCard + mailCardHTML() + labWaitHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+  // (Clean up old cases ticks everything it lists, so it keeps to what the words find on their own: a searched day's cases are for looking)
+  return h + mailHealthHTML() + backupDueHTML() + quickCard + mailCardHTML() + labWaitHTML() + cleanupCardHTML(qd ? openCases().filter(x => qText(x, S.q)) : all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+}
+
+/* Today while the search is an appointment day: the open cases whose delivery appt falls then, by day — however far off (Coming up only
+   looks two weeks ahead) — with how many; then whatever else the words found on their own */
+function qdTodayHTML(all, qd) {
+  const hit = all.filter(x => qdHit(x, qd)).sort(byAppt), other = all.filter(x => !qdHit(x, qd)).sort(byDue), groups = [];
+  hit.forEach(x => {
+    const iso = apptOf(x).d.slice(0, 10), d = dayDiff(iso), k = d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : d === -1 ? 'Yesterday' : fmtDay(iso);
+    let g = groups.find(g => g.k === k); if (!g) { g = { k, red: d < 0, items: [] }; groups.push(g); } g.items.push(x);
+  });
+  const sub = apptQueryText(qd) + (qd.rest ? ' · “' + qd.rest + '”' : '') + ' · ' + hit.length + ' case' + (hit.length === 1 ? '' : 's');
+  return '<div class="card qdCard"><div class="cardHd"><h3>Delivery appts</h3><span class="sub">' + esc(sub) + '</span></div><div class="cardBd">' +
+    (groups.length ? groups.map(g => '<div class="dueGrp"><h4 class="' + (g.red ? 'red' : '') + '">' + esc(g.k) + ' · ' + g.items.length + '</h4>' + g.items.map(x => row(x)).join('') + '</div>').join('')
+      : '<div class="empty">No open cases ' + (qd.rest ? 'matching “' + esc(qd.rest) + '” ' : '') + 'have a delivery appt then.</div>') +
+    (other.length ? '<div class="dueGrp"><h4>Also matching “' + esc(S.q.trim()) + '” · ' + other.length + '</h4>' + other.map(x => row(x)).join('') + '</div>' : '') + '</div></div>';
 }
 
 /* ---------- Board ---------- */
 function viewBoard() {
-  const open = openCases(), all = open.filter(matchesQ);
+  const open = openCases(), all = open.filter(matchesQ), by = qDate() ? byAppt : byDue; // (searched by a day: by the delivery appt, as the cards show)
   // retired types (Retreatment, older misc) get a tab only while one of their cases is still open
   const flowsUsed = Object.keys(FLOWS).filter(k => TYPES.some(t => t.flow === k && !t.legacy) || open.some(c => typeOf(c).flow === k));
   if (!flowsUsed.includes(S.boardFlow)) S.boardFlow = flowsUsed[0];
@@ -1152,7 +1202,7 @@ function viewBoard() {
     const g = stageGroup(flow, sk); if (!g) cols.push({ l: sl, keys: [sk] }); else if (g.stages[0] === sk) cols.push({ l: g.l, keys: g.stages, grp: true }); });
   h += '<div class="board">' + cols.map((col, i) => {
     const items = inFlow.filter(c => col.keys.includes(c.stage) || (i === 0 && !flow.stages.some(s => s[0] === c.stage)))
-      .sort((a, b) => col.grp ? (stageIndex(b) - stageIndex(a)) || byDue(a, b) : byDue(a, b));
+      .sort((a, b) => col.grp ? (stageIndex(b) - stageIndex(a)) || by(a, b) : by(a, b));
     return '<section class="col' + (col.grp ? ' grp' : '') + '" aria-label="' + esc(col.l) + '"><div class="colHd"><h4>' + esc(col.l) + '</h4><span class="c">' + items.length + '</span></div><div class="colBd">' +
       (items.map(c => kcard(c, atLastStage(c), col.grp ? col.keys : null)).join('') || '<div class="empty" style="padding:14px 4px">—</div>') + '</div></section>';
   }).join('') + '</div>';
@@ -1171,7 +1221,7 @@ function kcard(c, last, steps) {
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     labCardHTML(c) + // in-house: where the set is in the lab (Ortho Factory, from the lab PC), and its next step with one tap (lab.js)
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div>' + labStepIcon(c, 15, true) + '<b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
-    '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + asgBtnHTML(c, true) +
+    '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + qChip(c) + trackLinks(c) + asgBtnHTML(c, true) +
     '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
 
@@ -1205,8 +1255,8 @@ function sortList(list) {
     if (x === null || y === null) return x === y ? byListDate(a, b) : x === null ? 1 : -1;
     return (x < y ? -1 : x > y ? 1 : byListDate(a, b)) * dir; });
 }
-/* the column the list is sorted by: filtered by delivery appt, the default order is the delivery appt's (listKey) */
-function sortShown() { return S.sort.k === 'due' && S.f.del ? 'appt' : S.sort.k; }
+/* the column the list is sorted by: filtered by delivery appt (or searched by a day), the default order is the delivery appt's (listKey) */
+function sortShown() { return S.sort.k === 'due' && (S.f.del || qDate()) ? 'appt' : S.sort.k; }
 /* ---------- Today: clean up old cases in bulk (e.g. leftovers from the Asana import; Amir, 2 Oct 2026) ---------- */
 function ageOf(c) { return [c.deliveryDate, c.labDate, c.scanDate, c.dueDate].filter(Boolean).sort().pop() || ''; }
 function addMonthsISO(iso, n) { const [y, m, d] = iso.split('-').map(Number); return isoOf(new Date(y, m - 1 + n, d)); }
@@ -1484,10 +1534,12 @@ function doneWho(list) {
   const had = new Set(list.map(c => c.assignee).filter(Boolean));
   return (S.roster || []).filter(r => r && r.sid && (r.active || had.has(r.sid))).sort((a, b) => (b.role === 'owner') - (a.role === 'owner') || (b.active ? 1 : 0) - (a.active ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
 }
+/* the order: the heading picked, else newest completed first — or, while the search is an appointment day, by the delivery appt */
+function doneSortNow() { return S.dsort || (qDate() ? { k: 'appt', dir: 1 } : DONE_SORT0); }
 function doneSort(list) {
-  const { k, dir } = S.dsort || DONE_SORT0;
+  const { k, dir } = doneSortNow();
   const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'who' ? String(staffName(c.assignee, c.assigneeName) || '').toLowerCase()
-    : k === 'appt' ? (c.deliveryDate || '') : k === 'stage' ? (stageLabel(c) || '') : (c.closedAt || 0);
+    : k === 'appt' ? ((apptOf(c) || {}).d || '') : k === 'stage' ? (stageLabel(c) || '') : (c.closedAt || 0); // (an older case: its due date)
   const memo = new Map(), v = c => { if (!memo.has(c)) memo.set(c, val(c)); return memo.get(c); }, newest = (a, b) => (b.closedAt || 0) - (a.closedAt || 0);
   // (no one assigned, no delivery appt: last whichever way it's sorted; ties: the newest completed first)
   return list.slice().sort((a, b) => { const x = v(a), y = v(b); if (x === '' || y === '') return x === y ? newest(a, b) : x === '' ? 1 : -1;
@@ -1497,7 +1549,7 @@ function viewDone() {
   if (!S.closedLoaded) { loadClosed(); return '<div class="empty">Loading completed cases…</div>'; }
   // (S.closedDays: how far back the completed cases are loaded — it only grows, as Messages looks through them too; S.doneDays: the
   // time picked here, which may be shorter: what's shown is cut to it)
-  const df = S.df = S.df || doneFilters(), sort = S.dsort || DONE_SORT0, shown = S.doneDays || 90, from = shown >= DONE_ALL ? 0 : Date.now() - shown * 864e5;
+  const df = S.df = S.df || doneFilters(), sort = doneSortNow(), shown = S.doneDays || 90, from = shown >= DONE_ALL ? 0 : Date.now() - shown * 864e5;
   const all = S.closed.filter(c => (c.closedAt || 0) >= from);
   const list = doneSort(all.filter(c => matchesQ(c) && (!df.type || c.type === df.type) && (!df.who || (df.who === '_none' ? !(c.assignee || c.assigneeName) : c.assignee === df.who))));
   let h = '<div class="filters">' +
@@ -1517,7 +1569,7 @@ function viewDone() {
     list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + dmChip(c) + '</div></div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('who') ? '<td class="hideM small">' + esc(staffName(c.assignee, c.assigneeName) || '—') + '</td>' : '') +
-      (on('appt') ? '<td class="hideM small">' + esc(c.deliveryDate ? fmtDate(c.deliveryDate) : '—') + '</td>' : '') +
+      (on('appt') ? '<td class="hideM small">' + esc(apptOf(c) ? (apptOf(c).k === 'due' ? 'Due ' : '') + fmtDate(apptOf(c).d) : '—') + '</td>' : '') +
       '<td class="small">' + esc(fmtWhen(c.closedAt)) + '</td>' + (on('stage') ? '<td class="hideM small">' + esc(stageLabel(c)) + '</td>' : '') + '</tr>').join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + (older ? ' · ' + older : '') + '</div>';
 }
@@ -2380,7 +2432,7 @@ function onClick(e) {
       box.innerHTML = iprPreviewHTML(box._ipr, box.dataset.lay); break; }
     case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
     case 'markSubmitted': submitDone(id); break;
-    case 'dsort': { const k = t.dataset.k, cur = S.dsort || DONE_SORT0; S.dsort = { k, dir: cur.k === k ? -cur.dir : k === 'closed' ? -1 : 1 }; renderView(); break; }
+    case 'dsort': { const k = t.dataset.k, cur = doneSortNow(); S.dsort = { k, dir: cur.k === k ? -cur.dir : k === 'closed' ? -1 : 1 }; renderView(); break; }
     case 'doneClear': S.df = doneFilters(); renderView(); break;
     case 'doneAll': doneRange(DONE_ALL); break;
     case 'complete': completeCase(id); break;
