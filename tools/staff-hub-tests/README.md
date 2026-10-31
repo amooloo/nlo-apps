@@ -55,7 +55,13 @@ changed, swapped, missing or taken from another file, duplicates skipped, changi
 person onto the staff roster (Paperwork tab, "On file" chips), drag and drop (and a file let go elsewhere never opening in
 the tab), a phone, remove / put back / deleted for good after 30 days / Delete now (pieces gone from the server), nothing in
 the AI's notes or the office roster, Lock leaving no opened file, viewer or certificate copy in memory, Lock in the middle
-of an upload, and deleting onboarding records without stranding paperwork. 81 checks; screenshots `shots/pp-*.png`.
+of an upload, and deleting onboarding records without stranding paperwork. After the independent review: Cancel in the
+middle of an upload (nothing left behind), an unfinished upload cleaned up after an hour, a PNG named `.html` downloading
+as `.png`, paperwork whose person is gone (listed in Settings, given back to someone), restoring an earlier version (a file
+put back since stays put back, one deleted for good since is dropped, one stored but unlisted comes back) and a backup file
+(a newer file isn't lost), the Readable JSON leaving the files key out, a merge not bringing back a file deleted for good,
+Staff Hub's password changed by an older tab (files still open: their key is inside the record), and Erase all leaving no
+piece on the server. 111 checks (~2.5 min); screenshots `shots/pp-*.png`.
 
 The page's Firebase SDK (gstatic 10.12.2) is served from `node_modules/firebase` (`FIREBASE_SDK_DIR` to change it) and every
 app it makes is pointed at the emulators by an init script; other outside requests are refused (except the PDF reader in
