@@ -214,6 +214,9 @@
   .bk-meta.warn{color:var(--warn)}
   .bk-foot{position:sticky;bottom:-16px;margin:14px -16px -16px;padding:12px 16px 14px;background:var(--surface);border-top:1px solid var(--line)}
   .bk-foot .actions{margin-top:0}
+  #bulkAdd.stack{flex-direction:column;gap:1px;line-height:1.2;padding-top:6px;padding-bottom:6px}
+  #bulkAdd.stack .ba-dot{display:none}
+  #bulkAdd.stack .ba-sum{font-size:12.5px;opacity:.92}
   .zoom{position:fixed;inset:0;z-index:70;background:rgba(10,14,20,.88);overflow:auto;padding:16px;cursor:zoom-out}
   .zoom[hidden]{display:none}
   .zoom img{display:block;max-width:100%;margin:0 auto;background:#fff;border-radius:6px}
@@ -1414,8 +1417,8 @@
      and read by the same on-device reader as the camera button. Backs, blank pages and EOB
      pages are set aside; every check found is shown with its picture, amount and payer to
      confirm, then they all go in at once. Nothing is uploaded or kept: the pictures go when the
-     sheet closes, and a check's number stays only in this page, to catch one scanned (or
-     uploaded) twice. */
+     sheet closes, and a scan's fingerprint and the check's number stay only in this page, to
+     catch a scan read twice. */
   var PDFJS_ROOT = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/', PDFJS = PDFJS_ROOT + 'legacy/build/';
   var MAX_PAGES = 120;
   var pdfP = null, bulkSeq = 0, bulkRows = [], bulkInfo = null, bulkDocs = [], bulkQueue = [];
@@ -1434,38 +1437,56 @@
   function release(c){ if(c){ c.width = 0; c.height = 0; } }     /* frees a canvas's memory now (phones run short) */
 
   function isPdf(f){ return /pdf/i.test(f.type) || /\.pdf$/i.test(f.name); }
-  /* Every page of every file, each with a function that draws it when its turn comes and a label:
-     "Page 3" for one file, the file's name (and page) for several */
+  /* A fingerprint of a file's contents. The same scan picked or dropped twice (or copied under
+     another name) has the same one; two different scans never do, even two of the same check. */
+  function fingerprint(f, buf){
+    var plain = 'f:' + f.name + '|' + f.size + '|' + (f.lastModified || 0);
+    var sub = window.crypto && window.crypto.subtle;
+    if(!sub || !sub.digest) return Promise.resolve(plain);
+    return (buf ? Promise.resolve(buf) : f.arrayBuffer()).then(function(b){
+      return sub.digest('SHA-256', b);
+    }).then(function(h){
+      return Array.prototype.map.call(new Uint8Array(h, 0, 16), function(x){ return (x < 16 ? '0' : '') + x.toString(16); }).join('');
+    }, function(){ return plain; });
+  }
+  /* Every page of every file, each with a function that draws it when its turn comes, a label
+     ("Page 3" for one file, the file's name and page for several) and its scan's fingerprint */
   function pageList(files, named){
     var list = [], chain = Promise.resolve();
     files.forEach(function(f){                   /* in turn, so photos and PDFs keep the files' order */
       if(!isPdf(f)){
-        chain = chain.then(function(){ list.push({ load: photoPage(f), label: named ? f.name : 'Page 1' }); });
+        chain = chain.then(function(){ return fingerprint(f); }).then(function(key){
+          list.push({ load: photoPage(f), label: named ? f.name : 'Page 1', src: key });
+        });
         return;
       }
+      var key = '';
       chain = chain.then(function(){
         return loadPdfJs().then(null, function(){
           throw new Error("Couldn't load the PDF reader. Check the internet connection and try again.");
         });
       }).then(function(lib){
         return f.arrayBuffer().then(function(buf){
-          /* Scanners save black & white pages as CCITT or JBIG2 and some colour ones as JPEG 2000
-             (ScanSnap's B&W and high-compression settings): pdf.js decodes those with its wasm
-             files, and a page it can't decode comes out blank. So it gets them, with its colour
-             profiles, fonts and character maps (for a searchable PDF's hidden text). */
-          return lib.getDocument({
-            data: new Uint8Array(buf), isEvalSupported: false,
-            wasmUrl: PDFJS_ROOT + 'wasm/', iccUrl: PDFJS_ROOT + 'iccs/',
-            standardFontDataUrl: PDFJS_ROOT + 'standard_fonts/',
-            cMapUrl: PDFJS_ROOT + 'cmaps/', cMapPacked: true
-          }).promise;
+          return fingerprint(f, buf).then(function(k){  /* first: pdf.js takes the buffer away */
+            key = k;
+            /* Scanners save black & white pages as CCITT or JBIG2 and some colour ones as JPEG 2000
+               (ScanSnap's B&W and high-compression settings): pdf.js decodes those with its wasm
+               files, and a page it can't decode comes out blank. So it gets them, with its colour
+               profiles, fonts and character maps (for a searchable PDF's hidden text). */
+            return lib.getDocument({
+              data: new Uint8Array(buf), isEvalSupported: false,
+              wasmUrl: PDFJS_ROOT + 'wasm/', iccUrl: PDFJS_ROOT + 'iccs/',
+              standardFontDataUrl: PDFJS_ROOT + 'standard_fonts/',
+              cMapUrl: PDFJS_ROOT + 'cmaps/', cMapPacked: true
+            }).promise;
+          });
         }).then(null, function(){
           throw new Error('"' + f.name + "\" couldn't be opened as a PDF.");
         });
       }).then(function(doc){
         bulkDocs.push(doc);
         for(var n = 1; n <= doc.numPages; n++){
-          list.push({ load: pdfPage(doc, n), label: !named ? 'Page ' + n : f.name + (doc.numPages > 1 ? ' · page ' + n : '') });
+          list.push({ load: pdfPage(doc, n), label: !named ? 'Page ' + n : f.name + (doc.numPages > 1 ? ' · page ' + n : ''), src: key + '#' + n });
         }
       });
     });
@@ -1551,20 +1572,27 @@
     var d = s.split('').map(Number);
     return s !== '000000000' && (3 * (d[0] + d[3] + d[6]) + 7 * (d[1] + d[4] + d[7]) + d[2] + d[5] + d[8]) % 10 === 0;
   }
-  /* What only a check has: "pay to the order of", protector stars, "void after", a routing number,
-     a check number, the amount in words. An EOB page has to show two of them, not one. */
+  /* What only a check (or an insurer's draft) has: "pay to the order of", protector stars, "void
+     after", a routing number, a check or draft number, "payable through", the amount in words.
+     An EOB page has to show two of them, not one. */
   function checkMarks(text){
     var n = 0;
     if(/order\s*of|pay\s*to\s*the/i.test(text)) n++;
     if(/\*{2,}\s*\$?\s*\d|\$\s*\*+\s*\d/.test(text)) n++;
     if(/void\s*(after|if)|not\s*valid\s*after|valid\s*for\s*\d+\s*days/i.test(text)) n++;
     if((text.match(/\d+/g) || []).some(function(r){ return r.length === 9 && abaOk(r); })) n++;
-    if(/\bche?ck\s*(no|number|#)|\bchk\s*(no|#)/i.test(text)) n++;
+    if(/\bche?ck\s*(no|number|#)|\bchk\s*(no|#)|\bdraft\s*(no|number|#)/i.test(text)) n++;
+    if(/payable\s*through/i.test(text)) n++;
     if(/\d{1,2}\s*\/\s*100\b|\bdollars\b/i.test(text)) n++;
     return n;
   }
+  /* The number printed after "Draft No." (insurers pay with drafts) or "Check No." on the same
+     line: 4 to 12 digits standing alone, so not an amount ("125.00"), a date or the start of a
+     longer code ("000-4471023"). A draft number comes first when a page has both. */
+  var NUM_TAIL = '[ \\t]*(?:no(?![a-z])|number|num|#)\\.?[ \\t]*:?[ \\t]*#?[ \\t]*(\\d{4,12})(?![\\d,\\/-]|\\.\\d)';
+  var DRAFT_NO = new RegExp('\\b(?:draft|dft)' + NUM_TAIL, 'i'), CHECK_NO = new RegExp('\\b(?:che?ck|chk)' + NUM_TAIL, 'i');
   function checkNumber(text){
-    var m = /\bche?ck\s*(?:no|number|#)\.?\s*:?\s*#?\s*(\d{3,12})\b/i.exec(text);
+    var m = DRAFT_NO.exec(text) || CHECK_NO.exec(text);
     return m ? m[1].replace(/^0+(?=\d)/, '') : '';
   }
   /* Where the amount sits on the page (0 top, 1 bottom), so a tall page's picture can show the check */
@@ -1639,7 +1667,8 @@
     return { thumb: thumb, zoom: zoom };
   }
 
-  function takePage(res, page, label){
+  function takePage(res, page, item){
+    var label = item.label;
     bulkInfo.pages++;
     if(res.kind !== 'check' && res.kind !== 'maybe'){
       if(res.kind === 'back') bulkInfo.backs++; else bulkInfo.empty++;
@@ -1652,13 +1681,23 @@
       other: a && a.words && !a.sure && a.box !== null && a.box !== undefined ? a.box : null,
       from: res.payer && (res.kind === 'check' || res.payer.sure) ? res.payer.name : '',   /* no guess for an EOB page */
       surePayer: !!(res.payer && res.payer.sure),
-      no: res.no || '', many: res.many, thumb: pics.thumb, zoom: pics.zoom
+      no: res.no || '', src: item.src || '', many: res.many, thumb: pics.thumb, zoom: pics.zoom
     };
-    if(row.on && row.no){                        /* the same check twice: in these scans, or already in the deposit */
-      var twin = bulkRows.filter(function(r){ return r.on && r.no === row.no && r.amt === row.amt; })[0];
-      if(twin){ row.on = false; row.dup = 'Same check number and amount as ' + twin.label + '. Scanned twice?'; }
+    /* Only the same scan read twice is left out: picked or dropped again, or already added. An
+       insurer sends several checks for the same amount, so two different scans with the same
+       check number and amount are only flagged, never left out: a misread number mustn't drop one. */
+    var same = row.src ? bulkRows.filter(function(r){ return r.src === row.src; })[0] : null;
+    if(same){
+      row.on = false; row.repeat = 'scan';
+      row.dup = 'The same scan as ' + same.label + ', so it\'s left unticked.';
+    } else if(row.src && checks.some(function(c){ return c.src === row.src; })){
+      row.on = false; row.repeat = 'deposit';
+      row.dup = 'Already added to this deposit (the same scan), so it\'s left unticked.';
+    } else if(row.kind === 'check' && row.no){
+      var twin = bulkRows.filter(function(r){ return r.kind === 'check' && !r.repeat && r.no === row.no && r.amt === row.amt; })[0];
+      if(twin) row.twin = 'Same check number and amount as ' + twin.label + '. If it\'s the same check scanned twice, untick one.';
       else if(checks.some(function(c){ return c.no === row.no && c.amt === row.amt; })){
-        row.on = false; row.dup = 'Already in this deposit (same check number and amount).';
+        row.twin = 'Same check number and amount as a check already in this deposit. If it\'s that check again, untick it.';
       }
     }
     bulkRows.push(row);
@@ -1702,13 +1741,13 @@
     if(!row.surePayer) from.classList.add('verify');
     line.appendChild(tick); line.appendChild(amt); line.appendChild(from);
 
-    var say = row.dup ||
-      (row.kind === 'maybe' ? "Doesn't look like a check (an EOB page?). Tick it to add it anyway." : '') ||
+    var why = (row.kind === 'maybe' ? "Doesn't look like a check (an EOB page?). Tick it to add it anyway." : '') ||
       (row.many ? 'Looks like more than one check on this page; only this one was read. Add the others by hand.' : '') ||
       (row.other !== null ? 'The amount in words says ' + money(row.amt) + ', the box looked like ' + money(row.other) + '. Check it.' : '') ||
       (!row.sureAmt && !row.surePayer ? 'Check the amount and who it\'s from against the picture.'
         : !row.sureAmt ? 'Check the amount against the picture.'
         : !row.surePayer ? 'Check who it\'s from.' : '');
+    var say = row.dup || [row.twin, why].filter(Boolean).join(' ');
     var meta = document.createElement('div');
     meta.className = 'bk-meta' + (say ? ' warn' : '');
     meta.textContent = row.label + (say ? ' · ' + say : '');
@@ -1725,13 +1764,26 @@
     $('bulkList').appendChild(card);
   }
 
+  /* The button says when some of the checks found aren't going in: "Add 6 of 7 checks" */
   function paintBulk(){
     var take = bulkRows.filter(function(r){ return r.on && r.amt > 0; });
+    var found = bulkRows.filter(function(r){ return r.kind === 'check'; }).length, n = take.length;
     var sum = Math.round(take.reduce(function(s, r){ return s + r.amt; }, 0) * 100) / 100;
     var btn = $('bulkAdd');
-    btn.disabled = !(bulkInfo && bulkInfo.done) || !take.length;
-    btn.textContent = take.length ? 'Add ' + take.length + ' check' + (take.length === 1 ? '' : 's') + ' · ' + money(sum) : 'Add checks';
+    btn.disabled = !(bulkInfo && bulkInfo.done) || !n;
+    btn.textContent = n ? '' : 'Add checks';
+    btn.classList.remove('stack');
+    if(!n) return;
+    [['ba-n', 'Add ' + (n < found ? n + ' of ' + found : n) + ' check' + (Math.max(n, found) === 1 ? '' : 's')],
+     ['ba-dot', ' · '], ['ba-sum', money(sum)]].forEach(function(p){
+      var s = document.createElement('span');
+      s.className = p[0]; s.textContent = p[1];
+      btn.appendChild(s);
+    });
+    var bar = btn.parentNode;                    /* too long for one line on a phone: the total goes under it */
+    if(bar.scrollWidth > bar.clientWidth + 1) btn.classList.add('stack');
   }
+  window.addEventListener('resize', function(){ if($('bulk').classList.contains('open')) paintBulk(); });
   function bulkSay(msg, warn){ var el = $('bulkStatus'); el.textContent = msg || ''; el.classList.toggle('warn', !!warn); }
   function bulkBar(p){ $('bulkBar').style.width = Math.round(Math.max(0, Math.min(1, p || 0)) * 100) + '%'; }
 
@@ -1751,10 +1803,19 @@
     } else {
       bulkSay("Done. Untick anything that shouldn't go in, fix what's wrong, then add them." + more);
       parts.push('Found ' + found + ' check' + (found === 1 ? '' : 's') + where + '.');
+      var again = bulkRows.filter(function(r){ return r.repeat && r.kind === 'check'; }), twins = bulkRows.filter(function(r){ return r.twin && r.on; });
+      if(again.length){
+        var added = again.filter(function(r){ return r.repeat === 'deposit'; }).length, k = again.length;
+        parts.push(k + (k === 1 ? ' is' : ' are') + ' left unticked: ' +
+          (added === k ? (k === 1 ? "it's" : "they're") + ' already in this deposit.'
+            : !added ? 'the same scan was read twice.' : 'the same scan read twice, or already in this deposit.'));
+      }
+      if(twins.length) parts.push(twins.length + (twins.length === 1 ? ' has' : ' have') +
+        ' the same check number and amount as another check: if one was scanned twice, untick it.');
       if(skipped) parts.push('Skipped ' + skipped + ' page' + (skipped === 1 ? '' : 's') + ' with no check (backs, blank pages).');
       if(bulkRows.some(function(r){ return r.on && (!r.sureAmt || !r.surePayer); })) parts.push('Check the highlighted ones against their picture.');
       s.textContent = parts.join(' ');
-      s.classList.remove('warn');
+      s.classList.toggle('warn', !!(again.length || twins.length));
     }
     if(i.failed.length) s.textContent += " Couldn't open " + i.failed.join(', ') + '.';
     if(i.cut) s.textContent += ' Stopped at ' + MAX_PAGES + ' pages; ' + i.cut + ' more weren\'t read.';
@@ -1798,7 +1859,7 @@
           page = c;
           return readPage(worker, c, i, pages.length, seq);
         }).then(function(res){
-          if(seq === bulkSeq) takePage(res, page, item.label);
+          if(seq === bulkSeq) takePage(res, page, item);
         }, function(){
           if(seq === bulkSeq){ bulkInfo.pages++; bulkInfo.failed.push(item.label); }
         }).then(function(){ release(page); return next(); });
@@ -1914,15 +1975,17 @@
   window.addBulk = function(){
     var take = bulkRows.filter(function(r){ return r.on && r.amt > 0; });
     if(!take.length) return;
+    var left = bulkRows.filter(function(r){ return r.kind === 'check' && take.indexOf(r) < 0; }).length;
     var sum = 0;
     take.forEach(function(r){
       var amt = Math.round(r.amt * 100) / 100;
       sum += amt;
-      checks.push({ amt: amt, from: (r.from || '').trim(), no: r.no });
+      checks.push({ amt: amt, from: (r.from || '').trim(), no: r.no, src: r.src });   /* no and src stay in this page */
     });
     window.closeBulk();
     renderChecks(); paint();
-    toast('Added ' + take.length + ' check' + (take.length === 1 ? '' : 's') + ' · ' + money(Math.round(sum * 100) / 100));
+    toast('Added ' + take.length + ' check' + (take.length === 1 ? '' : 's') + ' · ' + money(Math.round(sum * 100) / 100) +
+      (left ? ' · ' + left + ' left out' : ''));
   };
 
   $('zoom').addEventListener('click', function(){ $('zoom').hidden = true; });
