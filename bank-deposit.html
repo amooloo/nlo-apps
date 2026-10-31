@@ -1169,11 +1169,12 @@
     [/change\s*healthcare/i,'Change Healthcare'],
     [/instamed/i,'InstaMed']
   ];
-  var NOT_PAYER = /next\s*level|akhavan|orthodont|\bpay\b|order\s*of|\bdate\b|\bvoid\b|dollars|\bmemo\b|check\s*(no|number|#)|amount|\bbank\b|\bn\.?\s?a\.?$|chase|wells\s*fargo|fifth\s*third|truist|citibank|pnc|u\.?s\.?\s*bank|jpmorgan|days|non.?negotiable|\bnw\b|gainesville|\bfl\b\s*\d|\d{5}/i;
+  var NOT_PAYER = /next\s*level|akhavan|orthodont|\bpay\b|order\s*of|\bdate\b|\bvoid\b|dollars|\bmemo\b|check\s*(no|number|#)|amount|\bbank\b|\bn\.?\s?a\.?$|chase|wells\s*fargo|fifth\s*third|truist|citibank|pnc|u\.?s\.?\s*bank|jpmorgan|days|non.?negotiable|\bnw\b|gainesville|\bfl\b\s*\d|\d{5}|security|purposes|this\s*document|microprint|background|clearing\s*house|payable\s*through|\bdraft\b|electronic\s*payment/i;
 
   function findAmount(text){
     var t = text
       .replace(/\bS(?=[*\d])/g, '$')                    /* "S412.00" -> "$412.00" */
+      .replace(/§(?=[*\d])/g, '$')                      /* "§412.50" -> "$412.50" (a $ read as §) */
       .replace(/(\d)[oO](?=\d|\.)/g, '$10')             /* O misread as 0 inside numbers */
       .replace(/(\d) ?\. ?(\d{2})(?![\d.\/])/g, '$1.$2')  /* "500 . 00" -> "500.00" (spaces read around the point) */
       .replace(/(\d),(\d{2})(?!\d)/g, '$1.$2')           /* "412,00" -> "412.00" */
@@ -1218,25 +1219,37 @@
     });
     return any ? total + cur : null;
   }
-  function wordsAmount(text){
-    var t = String(text).replace(/\*+/g, ' '), m;
+  /* The amount in words: { value, cut }. "cut" when the words start with a bare "Hundred" or
+     "Thousand": the first word was lost ("Four Hundred Twelve" read as "r Hundred Twelve" is
+     112, not 412), so the box is the better reading. A whole phrase beats a cut one. */
+  function wordsRead(text){
+    var t = String(text).replace(/\*+/g, ' ')
+      .replace(/\s(?:&|8)\s*(?=\d{1,2}\s*\/\s*100\b)/g, ' and '), m, cut = null;   /* "Twelve & 50/100" (an & can read as 8) */
     WORDS_RE.lastIndex = 0;
     while((m = WORDS_RE.exec(t))){
       var whole = numberWords(m[1]);
       if(whole === null) continue;
       var c = m[2] !== undefined ? m[2] : m[3], cents = /^\d/.test(c) ? Number(c) : 0;   /* "NO/100" is no cents */
       var v = Math.round((whole + cents / 100) * 100) / 100;
-      if(v > 0 && v <= 250000) return v;
+      if(!(v > 0 && v <= 250000)) continue;
+      if(!/^\s*(hundred|thousand|million)\b/i.test(m[1])) return { value: v, cut: false };
+      if(!cut) cut = { value: v, cut: true };
     }
-    return null;
+    return cut;
   }
-  /* The amount from the box, checked against the words when the check has them */
+  function wordsAmount(text){ var w = wordsRead(text); return w ? w.value : null; }
+  /* The amount from the box, checked against the words when the check has them. Words that lost
+     their first word still back the box when the rest matches ("…Twelve & 50/100" read as
+     112.50 fits a box of 412.50: the same dollars under 100 and cents): fit. */
   function bestAmount(text){
-    var box = findAmount(text), said = wordsAmount(text);
-    if(said === null) return box;
-    if(box && Math.abs(box.value - said) < 0.005) return { value: box.value, sure: true, words: true };
-    return { value: said, sure: false, words: true, box: box ? box.value : null };
+    var box = findAmount(text), w = wordsRead(text);
+    if(!w) return box;
+    if(box && Math.abs(box.value - w.value) < 0.005) return { value: box.value, sure: true, words: true };
+    if(w.cut) return box ? { value: box.value, sure: false, fit: Math.round((box.value - w.value) * 100) % 10000 === 0 }
+                         : { value: w.value, sure: false, cut: true };
+    return { value: w.value, sure: false, words: true, box: box ? box.value : null };
   }
+  function amtScore(a){ return !a ? -1 : a.sure ? 3 : a.fit ? 2 : a.cut ? 0 : 1; }   /* how well an amount is backed */
 
   function findPayer(text){
     for(var i = 0; i < PAYERS.length; i++){
@@ -1617,7 +1630,7 @@
              : amt && letters >= 40 ? 'maybe'
              : 'none';
     return {
-      kind: kind, amt: amt, payer: findPayer(text), conf: conf,
+      kind: kind, amt: amt, payer: findPayer(text), conf: conf, marks: marks,
       upright: conf >= 70 && letters >= 150,     /* plenty of clean text: the page is the right way up */
       many: (text.match(/order\s*of/gi) || []).length > 1,
       no: kind === 'check' ? checkNumber(text) : '',
@@ -1628,26 +1641,59 @@
     return { check: 4, back: 3, maybe: 2, none: 1, blank: 0 }[r.kind] + (r.amt && r.amt.sure ? 0.5 : 0) + (r.conf || 0) / 1000;
   }
 
-  /* Reads a page the right way up first, then turned (a check fed upside down or sideways) */
+  /* Only the print: everything lighter than cut goes white. An insurer's draft is printed on a
+     security background (fine dots, its name repeated all over) that can hide the amount and the
+     words from the reader; the print is much darker than the pattern, so this takes the pattern out. */
+  function inkOnly(c, cut){
+    var x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+    for(var i = 0; i < p.length; i += 4){ var v = p[i] < cut ? 0 : 255; p[i] = p[i + 1] = p[i + 2] = v; }
+    x.putImageData(d, 0, 0);
+  }
+  /* Reads a page the right way up first, then turned (a check fed upside down or sideways). Then,
+     for a check with no sure amount, or a page that shows check markings ("order of", "void
+     after"...) but no amount, the best way up is read again with only the print kept (inkOnly):
+     once for a check, at two cut-offs otherwise, and only a check is taken from those readings.
+     The best reading wins; a payer named for sure in any reading is kept. */
   function readPage(worker, page, n, total, seq){
-    var tries = page.height > page.width * 1.15 ? [0, 90, 270, 180] : [0, 180];
-    var best = null;
+    var tries = page.height > page.width * 1.15 ? [0, 90, 270, 180] : [0, 180], cuts = [140, 112];
+    var best = null, payer = null;
+    function read(c, rot, checkOnly){
+      ocrHooks = { bar: function(p){ bulkBar((n + (p || 0)) / total); }, say: bulkSay };
+      return worker.recognize(c).then(function(r){
+        var res = judge(r.data, c.height);
+        res.rot = rot;
+        release(c);
+        if(!payer && res.payer && res.payer.sure) payer = res.payer;
+        var take = !best || rank(res) > rank(best);
+        if(checkOnly) take = res.kind === 'check' && (best.kind !== 'check' || amtScore(res.amt) > amtScore(best.amt));
+        if(take) best = res;
+        return res;
+      });
+    }
     function run(k){
       if(k >= tries.length || seq !== bulkSeq) return null;
       var c = prepCanvas(page, tries[k]);
       clearStreaks(c);
       if(k === 0 && inkShare(c) < 0.002){ release(c); best = { kind: 'blank', conf: 0, rot: 0 }; return null; }
-      ocrHooks = { bar: function(p){ bulkBar((n + (p || 0)) / total); }, say: bulkSay };
-      return worker.recognize(c).then(function(r){
-        var res = judge(r.data, c.height);
-        res.rot = tries[k];
-        release(c);
-        if(!best || rank(res) > rank(best)) best = res;
+      return read(c, tries[k]).then(function(res){
         if((res.kind === 'check' && res.conf >= 50) || res.kind === 'back' || res.upright) return null;
         return run(k + 1);
       });
     }
-    return Promise.resolve(run(0)).then(function(){ return best || { kind: 'none', conf: 0, rot: 0 }; });
+    function clean(j){
+      if(j >= cuts.length || seq !== bulkSeq || !best) return null;
+      if(best.kind === 'check' ? (best.amt.sure || j > 0)
+        : !((best.kind === 'none' || best.kind === 'maybe') && best.marks > 0)) return null;
+      var c = prepCanvas(page, best.rot);
+      clearStreaks(c);
+      inkOnly(c, cuts[j]);
+      return read(c, best.rot, true).then(function(){ return clean(j + 1); });
+    }
+    return Promise.resolve(run(0)).then(function(){ return clean(0); }).then(function(){
+      if(!best) return { kind: 'none', conf: 0, rot: 0 };
+      if(payer && best.kind !== 'back' && !(best.payer && best.payer.sure)) best.payer = payer;
+      return best;
+    });
   }
 
   /* The page's pictures: the whole page to zoom into, and for a tall page (an EOB with the check
