@@ -84,8 +84,8 @@ function errText(e) {
 
 /* ---------- boot ---------- */
 /* a link can open one screen once, after signing in: nlo-timeoff.html#approvals (CADANCe's link), #new, #out, #mine */
-const START_VIEWS = { approvals: 'appr', appr: 'appr', new: 'new', out: 'out', mine: 'mine', team: 'team', benefits: 'ben', home: 'home' };
-window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
+const START_VIEWS = { approvals: 'appr', appr: 'appr', new: 'new', out: 'out', mine: 'mine', team: 'team', benefits: 'ben', forms: 'forms', home: 'home' };
+window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav', '#printDoc'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
 window.addEventListener('pageshow', e => { if (e.persisted && S.leftPage) location.reload(); });
 function boot() {
   if (!DEMO_ONLY && window.top !== window.self) { document.body.innerHTML = '<p style="font:15px sans-serif;padding:24px">NLO Time Off opens in its own tab. <a href="nlo-timeoff.html" target="_blank" rel="noopener">Open it</a>.</p>'; return; }
@@ -208,7 +208,7 @@ async function enterApp() {
   const sv = S.startView; S.startView = '';
   Object.assign(S, {
     inApp: true, st: 'opening', view: 'home', tab: {}, q: '', roster: [], team: [], people: new Map(), reqs: new Map(), perks: new Map(), board: [], mine: undefined, hrRecs: new Map(),
-    form: null, openId: '', openSid: '', month: todayISO().slice(0, 8) + '01', firstLoad: true, loadErr: '', lastAct: Date.now(), day: todayISO(), ver: S.ver + 1, gotReqs: false,
+    form: null, fm: null, openId: '', openSid: '', month: todayISO().slice(0, 8) + '01', firstLoad: true, loadErr: '', lastAct: Date.now(), day: todayISO(), ver: S.ver + 1, gotReqs: false,
     imp: null, polEd: null, hrP: null, desk: null, feedInfo: null, accessBusy: '', rotating: null, benAs: '', scrubsMail: null, gotRoster: false, gotHR: false
   });
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
@@ -223,6 +223,8 @@ async function enterApp() {
   let st;
   try { st = await B.toOpen(); } catch (e) { st = 'error'; S.loadErr = errText(e); }
   if (st === 'stale' && isOwner() && B.lastCode) { try { await B.hrRestore(B.lastCode); st = 'hr'; toast('HR key restored with your recovery code'); } catch (e) { } }
+  // a new password gave Dr. A's login a new key: the same recovery code opens his forms key again (forms only he reads)
+  if (isOwner() && B.lastCode && B.drRestore) { try { await B.drRestore(B.lastCode); } catch (e) { } }
   B.lastCode = '';
   if (!S.inApp) return;
   S.st = st;
@@ -260,7 +262,7 @@ async function lockOut(msg) {
   if (!S.inApp) return;
   S.inApp = false; clearInterval(S.idleTimer);
   closeModal(); closeDrawer(true); $('#toasts').innerHTML = '';
-  ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; });
+  ['#view', '#topSlot', '#side', '#mobTop', '#mobNav', '#printDoc'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; });
   document.title = APP_NAME;
   for (let i = 0; i < 30 && B.pending; i++) await new Promise(r => setTimeout(r, 100));
   await B.signOut();
@@ -310,7 +312,7 @@ function waitingForMe() { return isHR() ? pendingAll().filter(r => isOwner() || 
 /* scrubs requests (and any other benefit asked for) */
 function allPerks() { return Array.from((S.perks || new Map()).values()); }
 function perksOf(sid) { return allPerks().filter(x => x.sid === sid); }
-function perksWaitingForMe() { return isHR() ? allPerks().filter(x => x.status === 'pending' && (isOwner() || x.sid !== meSid())) : []; }
+function perksWaitingForMe() { return isHR() ? allPerks().filter(x => x.status === 'pending' && !x.back && (isOwner() || x.sid !== meSid())) : []; } // (a form sent back waits for its sender)
 function deptOf(sid) { const p = S.hrRecs.get(sid); return p && p.dept ? p.dept : ''; }
 
 /* ---------- owner (and approver) upkeep: keys, everyone's public key, copies sealed to people, the feed ---------- */
@@ -332,6 +334,8 @@ async function upkeep() {
 }
 async function ownerUpkeep() {
   if (!S.inApp || S.demo || !isOwner() || !isHR()) return;
+  // the key for forms only Dr. A reads: made by his first Time Off after the Forms update
+  if (B.drSetup && !B.drReady()) { try { await B.drSetup(); } catch (e) { toast('The key for forms only you read couldn’t be made: ' + errText(e), { bad: true, ms: 12000 }); } }
   // anything under an older HR key, sealed again
   if (allReqs().some(r => r.v < B.hr.curV) || Array.from(S.hrRecs.values()).some(x => x.v < B.hr.curV) || allPerks().some(x => x.v < B.hr.curV)) { try { await B.hrReseal(); } catch (e) { } }
   // the person's copy of a request, or of their HR record, sealed to the key their login holds now (never to a key that
@@ -405,7 +409,7 @@ function queueRender(kind) {
   });
 }
 function navList() {
-  const L = [['home', 'Home', 'home'], ['new', 'Request time off', 'plus'], ['mine', 'My time off', 'list'], ['out', 'Who’s out', 'cal'], ['ben', 'My benefits', 'heart']];
+  const L = [['home', 'Home', 'home'], ['new', 'Request time off', 'plus'], ['mine', 'My time off', 'list'], ['out', 'Who’s out', 'cal'], ['ben', 'My benefits', 'heart'], ['forms', 'Forms', 'note']];
   if (isHR()) L.splice(1, 0, ['appr', 'Approvals', 'check'], ['team', 'Team', 'people']);
   return L;
 }
@@ -430,8 +434,9 @@ function renderNav() {
   if (S.st === 'hr' || S.st === 'staff') {
     const w = waitingForMe().length + perksWaitingForMe().length; set('appr', w, w > 0);
     const mineWait = reqsOf(meSid()).filter(r => r.status === 'pending').length; set('mine', mineWait, false);
+    const back = formsBackToMe().length; set('forms', back, back > 0);
   }
-  $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
+  $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view || (S.view === 'fm' && b.dataset.v === 'forms')));
 }
 function updateTitle() { if (!S.inApp) return; const n = waitingForMe().length + perksWaitingForMe().length; document.title = (n ? '(' + n + ') ' : '') + APP_NAME; }
 function renderSync() {
@@ -441,11 +446,11 @@ function renderSync() {
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
 }
-const TITLES = { home: 'Home', new: 'Request time off', mine: 'My time off', out: 'Who’s out', ben: 'My benefits', appr: 'Approvals', team: 'Team', settings: 'Settings', account: 'My account', import: 'Move from the old app' };
+const TITLES = { home: 'Home', new: 'Request time off', mine: 'My time off', out: 'Who’s out', ben: 'My benefits', forms: 'Forms', fm: 'Forms', appr: 'Approvals', team: 'Team', settings: 'Settings', account: 'My account', import: 'Move from the old app' };
 function topBar() {
   const live = S.st === 'hr' || S.st === 'staff';
   return '<div class="topBar"><h2>' + esc(S.view === 'new' && S.form && S.form.editId ? 'Change a request' : TITLES[S.view] || 'Time Off') + '</h2><span style="flex:1"></span>' +
-    (live && S.view !== 'new' ? '<button class="btn btn-teal" data-act="nav" data-v="new">' + ic('plus', 16) + 'Request time off</button>' : '') + '</div>';
+    (live && S.view === 'fm' ? '<button class="btn btn-ghost" data-act="nav" data-v="forms">' + ic('prev', 15) + 'All forms</button>' : live && S.view !== 'new' ? '<button class="btn btn-teal" data-act="nav" data-v="new">' + ic('plus', 16) + 'Request time off</button>' : '') + '</div>';
 }
 function renderView() {
   const v = $('#view'); let h = '';
@@ -456,6 +461,8 @@ function renderView() {
   else if (S.view === 'mine') h = viewMine();
   else if (S.view === 'out') h = viewOut();
   else if (S.view === 'ben') h = viewBenefits();
+  else if (S.view === 'forms') h = viewForms();
+  else if (S.view === 'fm') h = viewFm();
   else if (S.view === 'appr') h = isHR() ? viewApprovals() : '';
   else if (S.view === 'team') h = isHR() ? viewTeam() : '';
   else if (S.view === 'settings') h = isOwner() && isHR() ? viewSettings() : '';
@@ -558,6 +565,8 @@ Object.assign(ACT, {
   async nav(t) {
     const v = t.dataset.v; if (!v) return;
     if (S.view === 'new' && v !== 'new' && formDirty() && !(await confirmBox('Leave without sending this request?', 'What you’ve filled in so far will be lost.', 'Leave', true))) return;
+    if (S.view === 'fm' && fmDirty() && !(await confirmBox('Leave this form?', 'What you’ve changed on it so far will be lost.', 'Leave', true))) return;
+    if (S.view === 'fm') S.fm = null;
     if (v === 'new' && (S.view !== 'new' || t.dataset.fresh)) S.form = null;
     S.view = v; if (t.dataset.tab) S.tab[v] = t.dataset.tab;
     closeDrawer(); renderNav(); renderView(); window.scrollTo(0, 0);
@@ -581,7 +590,11 @@ Object.assign(ACT, {
 document.addEventListener('submit', async e => {
   if (e.target.id !== 'hrRestoreForm') return; e.preventDefault();
   const btn = $('button[type=submit]', e.target); busyBtn(btn, true, 'Restoring…');
-  try { await B.hrRestore($('#hrCode').value); toast('HR key restored'); S.st = 'hr'; renderShell(); startLive(); } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
+  try {
+    const code = $('#hrCode').value; await B.hrRestore(code); toast('HR key restored');
+    if (B.drRestore) { try { await B.drRestore(code); } catch (x) { } } // and the key for forms only Dr. A reads
+    S.st = 'hr'; renderShell(); startLive();
+  } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
 });
 function onClick(e) {
   const t = e.target.closest('[data-act]'); if (!t) return;

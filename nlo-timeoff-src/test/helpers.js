@@ -20,5 +20,6 @@ function watch(page, errs, label) {
   page.on('pageerror', e => errs.push(label + ' pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(label + ' console: ' + m.text()); });
 }
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+// Playwright's Chromium (the folder's number changes with Playwright's version), or CHROME=… to choose
+const CHROME = process.env.CHROME || (() => { try { const base = '/opt/pw-browsers'; const d = fs.readdirSync(base).filter(n => /^chromium-\d+$/.test(n)).sort().reverse()[0]; for (const sub of ['chrome-linux/chrome', 'chrome-linux64/chrome']) { const f = d && path.join(base, d, sub); if (f && fs.existsSync(f)) return f; } } catch (e) { } return undefined; })();
 module.exports = { routes, watch, CHROME };

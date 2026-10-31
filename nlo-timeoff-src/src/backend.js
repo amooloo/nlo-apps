@@ -139,7 +139,7 @@ const FB = {
   },
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.hr = FB.hrPub = FB.feedKey = FB.h = null; FB.curV = FB.ringV = FB.hrV = 0; FB.lastCode = '';
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.hr = FB.hrPub = FB.feedKey = FB.h = FB.drPriv = null; FB.curV = FB.ringV = FB.hrV = 0; FB.lastCode = ''; FB.drState = ''; FB.drX = '';
     FB.people = new Map(); FB.queues = {}; FB.lockedRaw = new Map(); FB.keyChangedNames = []; FB.impKey = null; FB.settingsCache = null; FB.reqChain = Promise.resolve(); FB.perkRaw = new Map();
     try { await FB.auth.signOut(); } catch (e) { }
   },
@@ -162,6 +162,7 @@ const FB = {
     FB.openFeedKey().catch(() => { });
     if (!g.exists) return FB.isOwner() ? 'stale' : 'staff';
     try { await FB.hrLoad(g.data()); } catch (e) { return 'stale'; }
+    if (FB.isOwner()) await FB.drOpen().catch(() => { });
     return 'hr';
   },
   /* the HR key, opened — built whole and only then put in place, so nothing is ever opened against a half-loaded key
@@ -443,7 +444,10 @@ const FB = {
       if (!s.exists) return; const x = s.data(); FB.hrV = x.current; FB.hrPub = x.pub;
       if (FB.hr && !FB.hr.drop.has(x.current)) { try { await FB.hrReload(); await FB.reopenLocked(h); } catch (e) { } }
     }, () => { }));
-    FB.unsubs.push(FB.doc('meta/settings').onSnapshot(s => { FB.settingsCache = s.exists ? s.data() : {}; h.settings(FB.settingsCache); }, () => { }));
+    FB.unsubs.push(FB.doc('meta/settings').onSnapshot(s => {
+      FB.settingsCache = s.exists ? s.data() : {}; h.settings(FB.settingsCache);
+      const k = FB.drKey(); if (FB.isOwner() && k && (!FB.drPriv || FB.drX !== k.pub.x)) FB.drOpen().catch(() => { }); // made or restored on another of Dr. A's screens
+    }, () => { }));
     FB.unsubs.push(FB.doc('meta/toTeam').onSnapshot(s => h.team(s.exists ? (s.data().sids || []) : []), () => h.team([])));
     FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.roster(s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => h.error(e)));
     FB.unsubs.push(FB.db.collection('toPeople').onSnapshot(s => { FB.people = new Map(s.docs.map(d => [d.id, d.data()])); h.people(FB.people); }, () => { }));
@@ -507,14 +511,17 @@ const FB = {
   /* a scrubs request, opened like a time-off request: the HR copy for the people who approve, the person's own for them */
   async openPerk(id, d) {
     const base = { id, sid: d.sid, status: d.status, rev: d.rev, v: d.v, year: d.year, pubX: d.pub ? d.pub.x : '', by: d.bsid || '', updatedAt: FB.tsMs(d.updatedAt), createdAtSrv: FB.tsMs(d.createdAt), hasMe: !!d.me };
-    try {
-      let c;
-      if (FB.hr && FB.hr.drop.has(d.v)) c = await Crypto.openJSONFrom(FB.hr.drop.get(d.v), d.hr, 'toperk:' + id);
-      else if (d.me && d.sid === FB.me.staffId) c = await Crypto.openJSONFrom(FB.priv, d.me, 'toperkme:' + id);
-      else return Object.assign(base, { locked: true });
-      if (c.sid !== d.sid || !okPerk(c)) return Object.assign(base, { locked: true, odd: 'bad' });
-      return Object.assign({}, c, base);
-    } catch (e) { return Object.assign(base, { locked: true }); }
+    // the HR copy (sealed to the HR key, or — a form only Dr. A reads — to his forms key), else the person's own copy
+    const tries = [];
+    if (FB.hr && FB.hr.drop.has(d.v)) tries.push(['hr', () => Crypto.openJSONFrom(FB.hr.drop.get(d.v), d.hr, 'toperk:' + id)]);
+    if (FB.drPriv && d.hr) tries.push(['dr', () => Crypto.openJSONFrom(FB.drPriv, d.hr, 'toperkdr:' + id)]);
+    if (d.me && FB.me && d.sid === FB.me.staffId) tries.push(['me', () => Crypto.openJSONFrom(FB.priv, d.me, 'toperkme:' + id)]);
+    let c = null, via = '';
+    for (const [k, open] of tries) { try { c = await open(); via = k; break; } catch (e) { } }
+    if (!c) return Object.assign(base, { locked: true });
+    // a form for Dr. A alone opens with his forms key only, anything else with the HR key (the person's own copy either way)
+    if (c.sid !== d.sid || !okPerk(c) || (via === 'dr' && c.aud !== 'owner') || (via === 'hr' && c.aud === 'owner')) return Object.assign(base, { locked: true, odd: 'bad' });
+    return Object.assign({}, c, base);
   },
   newPerkId() { return 'p' + hexId(12); },
   /* saving a scrubs request: fn(content) changes the sealed content and may return { status }. opts: { create: { sid, year }, rev, a } */
@@ -544,10 +551,12 @@ const FB = {
         const content = FB.clean(cur || { sid: opts.create.sid, kind: 'scrubs', events: [] }); delete content.year;
         const prev = cur ? cur.status : null, r = fn(content, { mailed: !!note }) || {}, status = r.status || prev || 'pending';
         if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
-        if (!okPerk(content)) throw errCode('bad', 'Say how many pairs and why.');
+        if (!okPerk(content)) throw errCode('bad', content.kind === 'form' ? (formTooBig(content, content.sid === FB.me.staffId ? 'staff' : 'hr') || 'Something in this form doesn’t look right. Check it and try again.') : 'Say how many pairs and why.');
+        const toDr = content.kind === 'form' && content.aud === 'owner', drPub = toDr ? FB.drPub() : null;
+        if (toDr && !drPub) throw errCode('no-dr', 'Dr. A needs to open Time Off once before forms only he reads can be sent.');
         let mine = FB.trustedPub(content.sid);
         if (!mine && content.sid !== FB.me.staffId && !FB.people.has(content.sid)) { const pp = await tx.get(FB.doc('toPeople/' + content.sid)); if (pp.exists) mine = FB.trusted(pp.data()); }
-        const hrBox = await Crypto.sealJSONTo(hrPub, content, 'toperk:' + id), meBox = mine ? await Crypto.sealJSONTo(mine, content, 'toperkme:' + id) : null;
+        const hrBox = toDr ? await Crypto.sealJSONTo(drPub, content, 'toperkdr:' + id) : await Crypto.sealJSONTo(hrPub, content, 'toperk:' + id), meBox = mine ? await Crypto.sealJSONTo(mine, content, 'toperkme:' + id) : null;
         const doc = { sid: content.sid, status, rev, by: FB.uid, bsid: FB.me.staffId, v: hrV, pub: mine ? { kty: mine.kty, crv: mine.crv, x: mine.x, y: mine.y } : null, year: cur ? cur.year : opts.create.year, hr: hrBox, me: meBox, updatedAt: FB.ts() };
         if (s.exists) tx.update(ref, Object.assign(doc, { createdAt: s.data().createdAt })); else tx.set(ref, Object.assign(doc, { createdAt: FB.ts() }));
         if (note) tx.set(note.ref, note.data);
@@ -561,6 +570,56 @@ const FB = {
       throw e;
     }
     return { id, mailed: !!note };
+  },
+  /* ---------- Dr. A's forms key: forms only he reads (complaints, accommodation, money) are sealed to it ----------
+     A key pair of its own, kept in the office settings (meta/settings.to.drKey, which only Dr. A writes and everyone reads):
+     its public half for everyone to seal to, its private half sealed to his own login (me) and to the office recovery key
+     (rec) — so a new password, which gives his login a new key, never loses these forms: the recovery code opens rec once
+     and seals it to the new key. */
+  drPriv: null, drState: '',
+  drKey() { const t = FB.settingsCache && FB.settingsCache.to, k = t && t.drKey; return k && typeof k === 'object' && k.pub && typeof k.pub.x === 'string' && k.me && k.rec ? k : null; },
+  drPub() { const k = FB.drKey(); return k ? { kty: k.pub.kty, crv: k.pub.crv, x: k.pub.x, y: k.pub.y } : null; },
+  drReady() { return !!FB.drPub(); },
+  async drOpen() {
+    if (!FB.isOwner()) return 'no';
+    const k = FB.drKey(); if (!k) return (FB.drState = 'none');
+    if (FB.drPriv && FB.drX === k.pub.x) return (FB.drState = 'ok');
+    try { FB.drPriv = await Crypto.importPriv(await Crypto.openFrom(FB.priv, k.me, 'todrkey:me')); FB.drX = k.pub.x; FB.drState = 'ok'; }
+    catch (e) { FB.drPriv = null; FB.drState = 'stale'; }
+    if (FB.drState === 'ok' && FB.h) FB.inOrder(() => FB.emitPerks(FB.h)).catch(() => { });
+    return FB.drState;
+  },
+  /* made once, by Dr. A's first Time Off after this update; if another of his screens made one meanwhile, that one stays */
+  async drSetup() {
+    if (!FB.isOwner() || FB.drKey()) return false;
+    const r = await FB.doc('meta/recovery').get();
+    if (!r.exists || !r.data().pub) throw errCode('no-escrow', 'The office recovery key is missing, so the key for forms only you read isn’t made.');
+    const pair = await Crypto.newPair(), pub = await Crypto.pubJwk(pair), bytes = await Crypto.privBytes(pair), rpub = r.data().pub;
+    const k = { v: 1, pub, me: await Crypto.sealTo(FB.me.pub, bytes, 'todrkey:me'), meX: FB.me.pub.x, rec: await Crypto.sealTo(rpub, bytes, 'todrkey:rec'), recX: rpub.x, at: Date.now() };
+    const ref = FB.doc('meta/settings');
+    const made = await FB.track(FB.db.runTransaction(async tx => {
+      const s = await tx.get(ref), t = s.exists ? s.data().to : null;
+      if (t && t.drKey && t.drKey.pub) return false;
+      tx.set(ref, { to: { drKey: k } }, { merge: true }); return true;
+    }));
+    if (made) { FB.settingsCache = Object.assign({}, FB.settingsCache, { to: Object.assign({}, (FB.settingsCache || {}).to, { drKey: k }) }); FB.drPriv = await Crypto.importPriv(bytes); FB.drX = pub.x; FB.drState = 'ok'; }
+    else { const s = await ref.get(); FB.settingsCache = s.exists ? s.data() : {}; await FB.drOpen(); }
+    return made;
+  },
+  /* Dr. A, after a new password: the recovery code opens the forms key's recovery copy, which is sealed again to his new key */
+  async drRestore(code) {
+    const k = FB.drKey(); if (!k) return false;
+    if ((await FB.drOpen()) === 'ok') return true;
+    const r = await FB.doc('meta/recovery').get();
+    let bytes;
+    try { const rpriv = await Crypto.importPriv(await Crypto.pwOpen(recoveryCodeNorm(code), r.data().priv, 'recovery-priv')); bytes = await Crypto.openFrom(rpriv, k.rec, 'todrkey:rec'); }
+    catch (e) { throw errCode('bad-code'); }
+    const me = await Crypto.sealTo(FB.me.pub, bytes, 'todrkey:me');
+    await FB.track(FB.doc('meta/settings').set({ to: { drKey: { me, meX: FB.me.pub.x } } }, { merge: true }));
+    FB.settingsCache = Object.assign({}, FB.settingsCache, { to: Object.assign({}, (FB.settingsCache || {}).to, { drKey: Object.assign({}, k, { me, meX: FB.me.pub.x }) }) });
+    FB.drPriv = await Crypto.importPriv(bytes); FB.drX = k.pub.x; FB.drState = 'ok';
+    if (FB.h) FB.inOrder(() => FB.emitPerks(FB.h)).catch(() => { });
+    return true;
   },
   /* where scrubs orders go (meta/toMail, which only Dr. A writes and the email robot reads), and whether the robot can send
      them: it sends the front-desk notices; its script is new enough (v3) to send these to that address and nowhere else; it has

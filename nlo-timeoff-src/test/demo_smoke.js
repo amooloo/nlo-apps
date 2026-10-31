@@ -45,12 +45,13 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await clipOn(); await collect(); await shot('owner-home', true);
   ok(/4 requests waiting for you/.test(await page.textContent('.callout')), 'Home: “4 requests waiting for you”');
   ok(/2 scrubs requests waiting for you/.test(await page.textContent('#view')), 'Home: “2 scrubs requests waiting for you” too');
-  ok((await page.title()) === '(6) NLO Time Off', 'the tab counts them all: ' + await page.title());
-  ok((await page.textContent('#nav-appr .cnt')) === '6', 'Approvals shows 6');
+  ok(/3 forms waiting for you/.test(await page.textContent('#view')), '…and “3 forms waiting for you”');
+  ok((await page.title()) === '(9) NLO Time Off', 'the tab counts them all: ' + await page.title());
+  ok((await page.textContent('#nav-appr .cnt')) === '9', 'Approvals shows 9');
   ok(/No HR record for you/.test(await page.textContent('.balCard')), 'Dr. A has no HR record: no balances, a line saying so');
   // ---- approvals
   await nav('appr'); await shot('owner-approvals', true);
-  ok(await page.$$eval('.apCard', c => c.length) === 6 && await page.$$eval('.subH', h => h.some(x => x.textContent === 'Scrubs')), 'Approvals: 4 time-off requests and 2 for scrubs waiting');
+  ok(await page.$$eval('.apCard', c => c.length) === 9 && await page.$$eval('.subH', h => h.some(x => x.textContent === 'Scrubs') && h.some(x => x.textContent === 'Forms')), 'Approvals: 4 time-off requests, 2 for scrubs and 3 forms waiting');
   const rileyP = await reqOf('riley', 'pending'), morganP = await reqOf('morgan', 'pending'), jordanP = await reqOf('jordan', 'pending'), caseyP = await reqOf('casey', 'pending');
   const card = id => page.$eval('.apCard:has([data-id="' + id + '"])', e => e.textContent);
   const rc = await card(rileyP.id);
@@ -66,7 +67,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(rA.st === 'approved' && rA.d.by === 'amir' && rA.board, '…approved, decided by Dr. A, on Who’s out');
   const mail = await E(() => DEMO.outbox[DEMO.outbox.length - 1]);
   ok((await E(() => DEMO.outbox.length)) === out0 + 1 && /^Schedule block needed: Riley, /.test(mail.subject) && !/vacation|wedding|Denver/i.test(mail.subject + mail.text), 'the front desk is emailed to block the schedule — name and days only: ' + mail.subject);
-  ok((await page.title()) === '(5) NLO Time Off', 'the tab now counts 5 (3 time off, 2 scrubs)');
+  ok((await page.title()) === '(8) NLO Time Off', 'the tab now counts 8 (3 time off, 2 scrubs, 3 forms)');
   await page.click('[data-act=deny][data-id="' + morganP.id + '"]'); await page.waitForSelector('#nbYes');
   await page.click('#nbYes'); ok(await toastHas(/Add a short note first/), 'Not approved needs a note');
   await page.fill('#nbTxt', 'Part-time — could we make it unpaid?'); await page.click('#nbYes');
@@ -206,7 +207,8 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(await toastHas(/Approving turned off for Taylor/), 'turn Taylor off: a new HR key, everything sealed again');
   ok((await E(() => B.hr.curV)) === v0 + 1 && !(await E(() => S.team)).includes('taylor'), '…key #' + (v0 + 1));
   // a policy change from today: balances before it stay as they were
-  const cb0 = await bal('casey');
+  const balTo = (sid, d) => E(([sid, d]) => { const L = ledgerOf(sid, d); return L ? { vac: L.vac, sick: L.sick } : null; }, [sid, d]);
+  const yest = await E(() => addDays(todayISO(), -1)), cb0 = await balTo('casey', yest);
   await page.fill('[data-tier="0"][data-f=perMonth]', '3'); await page.click('[data-act=tierAdd]'); await page.waitForTimeout(150);
   ok(await page.$$eval('[data-tier][data-f=from]', e => e.length) === 6 && await page.$eval('[data-tier="0"][data-f=perMonth]', e => e.value) === '3', 'Add a tier keeps what was typed (Bronze, Silver, Gold, Platinum, Double Platinum + 1)');
   await page.click('.tierEd [data-act=tierRm][data-i="3"]'); await page.waitForTimeout(150);
@@ -214,7 +216,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await page.waitForTimeout(500);
   const pol = await E(() => ({ t0: S.pol.tiers[0].perMonth, from: S.pol.from, prev: S.pol.prev.length, until: S.pol.prev[0] && S.pol.prev[0].until }));
   ok(pol.t0 === 3 && pol.prev === 1 && pol.until === await E(() => addDays(todayISO(), -1)), 'Tier 1 is 3 h a month from today; the earlier policy is kept up to yesterday');
-  ok(JSON.stringify(await bal('casey')) === JSON.stringify(cb0), 'Casey (Tier 1): today’s balance hasn’t changed — earlier months stay as they were');
+  ok(JSON.stringify(await balTo('casey', yest)) === JSON.stringify(cb0), 'Casey (Tier 1): her balance up to yesterday hasn’t changed — earlier months stay as they were');
   ok(/3 h on /.test(await E(() => { const n = nextAccrual(S.hrRecs.get('casey'), S.pol, todayISO()); return hrs(n.vac) + ' h on '; })), '…her next month-end earns 3 h');
   await page.click('[data-act=handbookPolicy]'); await page.click('#cbYes'); ok(await toastHas(/Back to the handbook/), 'Back to the handbook');
   await page.waitForTimeout(500);
@@ -336,12 +338,12 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(moved === 'permission-denied' && undone === 'permission-denied', 'their own approved time off can’t be changed or taken back by them');
   // scrubs
   await nav('appr');
-  const tP = await E(() => allPerks().find(x => x.sid === 'taylor' && x.status === 'pending'));
+  const tP = await E(() => allPerks().find(x => x.sid === 'taylor' && x.kind === 'scrubs' && x.status === 'pending'));
   const tCard = await page.$eval('.apCard:has([data-act=approvePerk][data-id="' + tP.id + '"])', e => e.textContent);
   ok(/2 pairs/.test(tCard) && /Still wearing the one set/.test(tCard) && /2 of 2 pairs/.test(tCard), 'Taylor’s scrubs: 2 pairs, the reason, 2 of 2 this year with it');
   const ownCard = (await page.$$eval('.apCard', cs => cs.map(c => c.textContent))).find(x => /My top faded/.test(x)) || '';
   ok(/Your own request — Dr. A decides it/.test(ownCard), 'their own scrubs: “Dr. A decides it”');
-  const jP = await E(() => allPerks().find(x => x.sid === 'jordan' && x.status === 'pending'));
+  const jP = await E(() => allPerks().find(x => x.sid === 'jordan' && x.kind === 'scrubs' && x.status === 'pending'));
   ok((await E(id => B.savePerk(id, () => ({ status: 'approved' }), { a: 'approve' }).then(() => 'saved', e => e.code), jP.id)) === 'permission-denied', '…and approving it anyway is refused');
   ok(/Teal · top and bottom · S · petite/.test(tCard) && /Black · top and bottom · S · petite/.test(tCard), '…each pair: color, top and bottom, size, petite');
   const ob0 = await E(() => DEMO.outbox.length);
@@ -490,7 +492,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
 
   /* =================== Dr. A again: an order that can't be emailed =================== */
   console.log('# Dr. A again: an order that can’t be emailed');
-  const rP = await E(() => { const x = allPerks().find(p => p.sid === 'riley' && p.status === 'pending'); return x ? x.id : null; });
+  const rP = await E(() => { const x = allPerks().find(p => p.sid === 'riley' && p.kind === 'scrubs' && p.status === 'pending'); return x ? x.id : null; });
   await E(() => { DEMO.toMail = ''; });
   await nav('appr'); await page.waitForSelector('[data-act=approvePerk][data-id="' + rP + '"]');
   await page.click('[data-act=approvePerk][data-id="' + rP + '"]');
@@ -542,6 +544,101 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await page.click('[data-act=tab][data-t=people]'); await page.waitForTimeout(100);
   await lock();
 
+  /* =================== Forms (Dr. A, 31 Oct 2026) =================== */
+  console.log('# Forms');
+  await signIn('staff', page, true);
+  await nav('forms'); await shot('staff-forms', true);
+  const fv0 = await page.textContent('#view');
+  ok(['Report something', 'Ask or authorize', 'Print for a health care provider'].every(g => fv0.includes(g)) && (await page.$$eval('[data-act=fmNew]', b => b.length)) === 11, 'Riley’s Forms: 11 forms in three groups');
+  ok((await page.$$eval('[data-act=fmNew]', b => b.filter(x => /Dr\. A$/.test(x.textContent.trim())).map(x => x.dataset.f).sort().join())) === 'advance,deduct', '…the two only Dr. A reads are marked (a salary advance, a payroll deduction)');
+  const myCard = await page.$eval('#view .twoCol > div:last-child .card', e => e.textContent);
+  ok(/Accident report/.test(myCard) && /Waiting/.test(myCard) && !(await page.$('#view [data-act=fmTab]')), 'My forms: her accident report from yesterday, waiting (no “Sent in” list: she doesn’t approve)');
+  const t0 = await E(() => todayISO()), d14 = await E(() => addDays(todayISO(), 14)), d28 = await E(() => addDays(todayISO(), 28));
+  // an accident report, typed in
+  await page.click('[data-act=fmNew][data-f=accident]'); await page.waitForSelector('#fm_position'); await collect();
+  ok(/Dr\. A and \S+.* read it\./.test(await page.textContent('.fmHd')), 'a new accident report says who reads it: ' + (await page.textContent('.fmHd .small')).trim());
+  await page.click('[data-act=fmSend]'); ok(await toastHas(/Fill in “Your position” and 7 more/), 'Send with nothing filled in: “Fill in “Your position” and 7 more.”');
+  await page.fill('#fm_position', 'Clinical assistant'); await page.fill('#fm_day', t0); await page.fill('#fm_time', '11:05'); await page.fill('#fm_where', 'Lab, by the model trimmer');
+  await page.fill('#fm_how', 'A model slipped while I was trimming it and my knuckle touched the wheel.'); await page.fill('#fm_cause', 'Wet hands on the model'); await page.fill('#fm_injury', 'A scrape on the right knuckle');
+  ok(!(await page.$('#fm_treatedBy')), '“Treated by” isn’t asked…');
+  await page.click('[data-act=fmSet][data-k=treated][data-v=true]'); await page.waitForSelector('#fm_treatedBy');
+  ok((await page.inputValue('#fm_where')) === 'Lab, by the model trimmer', '…until “Yes, I got treatment” (and what was typed stays)');
+  await page.click('[data-act=fmSend]'); ok(await toastHas(/Fill in “Treated by”/), '…and then it’s needed');
+  await page.fill('#fm_treatedBy', 'The office first aid kit');
+  await page.click('[data-act=fmSend]'); ok(await toastHas(/Sent — Dr\. A and .+ can read it/), 'sent: “Sent — Dr. A and … can read it”'); await settle();
+  const acc2 = await E(() => { const x = allForms().find(x => x.sid === 'riley' && x.form === 'accident' && x.f.treatedBy); return x && { id: x.id, st: x.status, f: x.f, view: S.view }; });
+  ok(acc2 && acc2.st === 'pending' && acc2.f.treated === true && acc2.f.where === 'Lab, by the model trimmer' && acc2.view === 'forms', '…saved as typed and waiting; back on Forms');
+  // a harassment report: only Dr. A unless she chooses, and signed
+  await page.click('[data-act=fmNew][data-f=harass]'); await page.waitForSelector('#fm_complaint'); await collect();
+  ok((await page.$eval('[data-act=fmAud][data-v=owner]', b => b.getAttribute('aria-pressed'))) === 'true', 'a harassment report: “only Dr. A” is chosen to start with');
+  await page.fill('#fm_day', t0); await page.fill('#fm_position', 'Clinical assistant'); await page.fill('#fm_complaint', 'Unwelcome comments at the front desk.');
+  await page.fill('#fm_what', 'Three times this week the same remarks, at check-in.'); await page.fill('#fm_acted', 'I asked for it to stop and told the front desk.');
+  await page.click('[data-act=fmSend]'); ok(await toastHas(/Tick the box to sign it first/), 'it has to be signed: “Tick the box to sign it first.”');
+  await page.check('[data-chg=fmAgree]'); await page.click('[data-act=fmSend]'); ok(await toastHas(/Sent — only Dr\. A can read it/), 'signed and sent: “only Dr. A can read it”'); await settle();
+  const har = await E(() => { const x = allForms().find(x => x.sid === 'riley' && x.form === 'harass'); return x && { id: x.id, aud: x.aud, sig: !!(x.sign && x.sign.staff && x.sign.staff.n) }; });
+  ok(har && har.aud === 'owner' && har.sig, '…sealed for Dr. A alone, with her signature');
+  // a salary advance paid back in payments
+  await page.click('[data-act=fmNew][data-f=advance]'); await page.waitForSelector('#fm_amount');
+  await page.fill('#fm_amount', '300'); await page.click('[data-act=fmSet][data-k=repay][data-v=pay]'); await page.waitForSelector('[data-inp=fmPay]');
+  await page.click('[data-act=fmPayAdd]'); await collect();
+  const pd = await page.$$('[data-inp=fmPay][data-p=d]'), pa = await page.$$('[data-inp=fmPay][data-p=a]');
+  await pd[0].fill(d14); await pa[0].fill('150'); await pd[1].fill(d28); await pa[1].fill('100');
+  ok((await page.textContent('[data-left="0"]')) === '$150' && (await page.textContent('[data-left="1"]')) === '$50', 'a salary advance in payments: what’s still owed after each, as it’s typed');
+  await page.check('[data-chg=fmAgree]'); await page.click('[data-act=fmSend]'); ok(await toastHas(/The payments add up to \$250, not \$300/), '…the payments have to add up to the amount');
+  await pa[1].fill('150'); await page.click('[data-act=fmSend]'); ok(await toastHas(/Sent — only Dr\. A can read it/), '…they do: sent, for Dr. A alone'); await settle();
+  // a printout for a doctor: filled in on screen, never saved
+  await page.click('[data-act=fmNew][data-f=family]'); await page.waitForSelector('[data-act=fmPrint]'); await collect();
+  await E(() => { window.__printed = 0; window.print = () => { window.__printed++; window.__pd = document.querySelector('#printDoc').innerHTML; window.__pt = document.title; window.__pc = document.body.classList.contains('printing'); }; });
+  await page.click('[data-act=fmPrint]');
+  const pr = await E(() => ({ n: window.__printed, t: window.__pt, c: window.__pc, h: window.__pd }));
+  ok(pr.n === 1 && pr.c && /Section 1/.test(pr.h) && /Next Level Orthodontics/.test(pr.h) && /Genetic Information Nondiscrimination Act/.test(pr.h) && /^Family members medical condition providers certification - Riley.* - \d{4}-\d\d-\d\d$/.test(pr.t), 'a printout for the provider: the office part filled in, the GINA notice, named to save as a PDF (“' + pr.t + '”)');
+  await E(() => window.dispatchEvent(new Event('afterprint')));
+  ok(await E(t => document.querySelector('#printDoc').innerHTML === '' && !document.body.classList.contains('printing') && document.title !== t, pr.t) && await E(() => !allForms().some(x => x.form === 'family')), '…afterwards the page is as it was, and nothing was saved');
+  await lock();
+  // Jordan (approves): the forms for the office, not the ones only Dr. A reads
+  await signIn('approver', page, true); await nav('appr'); await collect();
+  ok(!!(await page.$('.apCard [data-act=fmOpen][data-id="' + acc2.id + '"]')) && !(await page.$('[data-id="' + har.id + '"]')), 'Jordan’s Approvals: Riley’s new accident report waits; her harassment report isn’t there');
+  ok((await E(id => B.savePerk(id, () => { }, { a: 'reseal' }).then(() => 'saved', e => e.code), har.id)) === 'locked', '…and saving to it anyway is refused (it’s sealed to Dr. A’s key)');
+  const hz = await E(() => (allForms().find(x => x.form === 'hazard') || {}).id);
+  const hzCard = await page.$eval('.apCard:has([data-id="' + hz + '"])', e => e.textContent);
+  ok(/Name left off/.test(hzCard) && !/Casey/.test(hzCard), 'Casey’s hazard report: “Name left off”, and no name on it');
+  await page.click('.apCard [data-act=fmOpen][data-id="' + hz + '"]'); await page.waitForSelector('#fm_disp'); await collect();
+  ok(!/Casey/.test(await page.textContent('#view')) && /The sender/.test(await page.textContent('#view')), '…opened: still no name (the history says “The sender”)');
+  await nav('forms'); await page.click('[data-act=fmTab][data-t=done]'); await collect();
+  const doneTxt = await page.$eval('#view .twoCol > div:first-child > .card:first-child', e => e.textContent);
+  ok(/Sent in/.test(doneTxt) && /Overtime request/.test(doneTxt) && !/Payroll deduction|Problem or concern/.test(doneTxt), 'Forms → Sent in → Done: Taylor’s overtime; not the ones only Dr. A reads');
+  await page.click('[data-act=fmTab][data-t=wait]');
+  await page.click('[data-act=fmOpen][data-id="' + acc2.id + '"]'); await page.waitForSelector('[data-act=fmBack]'); await collect();
+  ok(/Office use/.test(await page.textContent('#fmBody')), 'Jordan opens Riley’s report: the office part to fill in');
+  await page.click('[data-act=fmBack]'); await page.fill('#nbTxt', 'Which hand was it?'); await page.click('#nbYes');
+  ok(await toastHas(/Sent back to Riley/), 'sent back for a change, with a note'); await settle();
+  await lock();
+  // Riley: changes it and sends it again
+  await signIn('staff', page, true);
+  ok(/Your accident report was sent back for a change/.test(await page.textContent('#view')) && (await page.textContent('#nav-forms .cnt')) === '1', 'Riley’s Home: it was sent back; Forms counts 1');
+  await page.click('.callout[data-act=fmOpen]'); await page.waitForSelector('#fm_injury'); await collect();
+  ok(/Which hand was it\?/.test(await page.textContent('#view')), '…the note is on the form');
+  await page.fill('#fm_injury', 'A scrape on the right index knuckle'); await page.click('[data-act=fmSaveOwn]');
+  ok(await toastHas(/Sent again/), '…changed and sent again'); await settle();
+  ok(await E(id => { const x = S.perks.get(id); return x.status === 'pending' && !x.back && /index knuckle/.test(x.f.injury) && x.events.map(e => e.a).join() === 'send,back,resend'; }, acc2.id), '…waiting again; its history: sent, sent back, sent again');
+  await lock();
+  // Dr. A: signs the resolution of the harassment report, prints it, sees Riley's forms on Team
+  await signIn('', page, true); await nav('appr');
+  ok(/only you can read it/.test(await page.$eval('.apCard:has([data-id="' + har.id + '"])', e => e.textContent)), 'Dr. A’s Approvals: Riley’s harassment report — “only you can read it”');
+  await page.click('.apCard [data-act=fmOpen][data-id="' + har.id + '"]'); await page.waitForSelector('#fm_resolution'); await collect();
+  await page.click('[data-act=fmDecide]'); ok(await toastHas(/Fill in “How the complaint was resolved”/), '“Sign the resolution” needs the resolution');
+  await page.fill('#fm_resolution', 'Spoke with the family; the front desk now steps in at check-in.'); await page.click('[data-act=fmDecide]'); await page.waitForSelector('#nbYes'); await page.click('#nbYes');
+  ok(await toastHas(/Resolved — Riley sees it now/), 'signed: “Resolved — Riley sees it now”'); await settle();
+  ok(await E(id => { const x = S.perks.get(id); return x.status === 'approved' && x.sign.hr.by === 'amir' && /steps in/.test(x.f.resolution); }, har.id), '…resolved, signed by Dr. A');
+  await E(() => { window.print = () => { window.__pd = document.querySelector('#printDoc').innerHTML; }; });
+  await page.click('[data-act=fmPrint]'); const ph = await E(() => window.__pd); await E(() => window.dispatchEvent(new Event('afterprint')));
+  ok(/Harassment or discrimination report/i.test(ph) && (ph.match(/Signed electronically by/g) || []).length === 2 && /steps in at check-in/.test(ph) && /Date received/.test(ph), 'its printout: the report, the resolution, both signatures and the date received');
+  await nav('team'); await page.click('#view tr[data-sid=riley]'); await page.waitForSelector('#drawer');
+  const drF = await page.textContent('#drawer');
+  ok(/Harassment report/.test(drF) && /Accident report/.test(drF) && /Salary advance/.test(drF), 'Team → Riley: her forms are listed');
+  await page.keyboard.press('Escape');
+  await lock();
+
   /* =================== phone =================== */
   console.log('# Phone');
   const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, timezoneId: 'America/New_York' });
@@ -558,6 +655,18 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
     }
     ok(!wide.length, 'phone, ' + (as || 'Dr. A') + ': ' + views.length + ' screens, none wider than the screen' + (wide.length ? ' — ' + wide.join(', ') : ''));
   }
+  const wideF = [];
+  for (const id of await mp.evaluate(() => FORM_ORDER)) {
+    await mp.evaluate(id => { ACT.fmNew({ dataset: { f: id } }); if (id === 'advance') { S.fm.f.amount = 600; S.fm.f.repay = 'pay'; S.fm.f.pays = [1, 2, 3, 4, 5, 6].map(i => ({ d: addDays(todayISO(), 14 * i), a: 100 })); renderView(); } }, id); await mp.waitForTimeout(150);
+    const over = await mp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); if (over > 0) wideF.push(id + ' +' + over + 'px');
+    if (id === 'accident' || id === 'advance' || id === 'harass') await mp.screenshot({ path: path.join(SHOTS, 'phone-staff-form-' + id + '.png'), fullPage: true });
+  }
+  for (const x of await mp.evaluate(() => formsOf(meSid()).map(x => x.id))) {
+    await mp.evaluate(id => { ACT.fmOpen({ dataset: { id } }); }, x); await mp.waitForTimeout(150);
+    const over = await mp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); if (over > 0) wideF.push('sent ' + x + ' +' + over + 'px');
+  }
+  ok(!wideF.length, 'phone: every form, new or sent, fits the screen' + (wideF.length ? ' — ' + wideF.join(', ') : ''));
+  await mp.evaluate(() => { S.fm = null; S.view = 'home'; renderView(); });
   await mp.evaluate(() => { S.form = newForm({ type: 'medical', start: nextOfficeDay(addDays(todayISO(), 9), S.closed), end: nextOfficeDay(addDays(todayISO(), 9), S.closed), part: 'time', from: '14:00', to: '15:30' }); S.view = 'new'; renderNav(); renderView(); window.scrollTo(0, 0); }); await mp.waitForTimeout(200);
   const tg = await mp.evaluate(() => { const a = document.querySelector('#fFrom').getBoundingClientRect(), b = document.querySelector('#fTo').getBoundingClientRect(); return { below: b.top > a.bottom, over: document.documentElement.scrollWidth - window.innerWidth, w: Math.round(Math.min(a.width, b.width)) }; });
   ok(tg.below && tg.over <= 0 && tg.w >= 280, 'phone: From, then To under it, each the width of the form (“3:30 PM · 1.5 h” isn’t cut off), nothing wider than the screen (' + JSON.stringify(tg) + ')');

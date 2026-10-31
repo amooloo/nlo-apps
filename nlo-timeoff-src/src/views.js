@@ -12,10 +12,15 @@ function viewHome() {
     const w = waitingForMe();
     if (w.length) h += '<button class="callout amber" data-act="nav" data-v="appr">' + ic('check', 20) + '<span><b>' + plural(w.length, 'request') + ' waiting for you</b>' +
       esc(w.slice(0, 3).map(r => shortName(r.sid) + ' (' + fmtRange(r.start, r.end) + ')').join(', ') + (w.length > 3 ? ' and ' + (w.length - 3) + ' more' : '')) + '</span>' + ic('next') + '</button>';
-    const pw = perksWaitingForMe();
+    const pw = perksWaitingForMe().filter(x => x.kind !== 'form');
     if (pw.length) h += '<button class="callout amber" data-act="nav" data-v="appr">' + ic('check', 20) + '<span><b>' + plural(pw.length, 'scrubs request') + ' waiting for you</b>' +
       esc(pw.slice(0, 3).map(x => shortName(x.sid) + ' (' + plural(x.pairs, 'pair') + ')').join(', ') + (pw.length > 3 ? ' and ' + (pw.length - 3) + ' more' : '')) + '</span>' + ic('next') + '</button>';
+    const fw = formsWaitingForMe();
+    if (fw.length) h += '<button class="callout amber" data-act="nav" data-v="appr">' + ic('note', 20) + '<span><b>' + plural(fw.length, 'form') + ' waiting for you</b>' +
+      esc(fw.slice(0, 3).map(x => formShort(x.form) + ' (' + (formAnon(x) ? 'name left off' : shortName(x.sid)) + ')').join(', ') + (fw.length > 3 ? ' and ' + (fw.length - 3) + ' more' : '')) + '</span>' + ic('next') + '</button>';
   }
+  if (isOwner() && B.drState === 'stale') h += '<button class="callout amber" data-act="nav" data-v="forms">' + ic('key', 20) + '<span><b>Forms only you read can’t be opened on this login</b>Your login has a new key since your password was reset. Enter your recovery code once, under Forms.</span>' + ic('next') + '</button>';
+  formsBackToMe().forEach(x => { h += '<button class="callout amber" data-act="fmOpen" data-id="' + esc(x.id) + '">' + ic('undo', 20) + '<span><b>Your ' + esc(formShort(x.form).toLowerCase()) + ' was sent back for a change</b>' + esc(x.back.note ? '“' + clip(x.back.note, 120) + '”' : 'Open it to see what to change.') + '</span>' + ic('next') + '</button>'; });
   h += '<div class="balGrid">' + balCards(me, mine) + '</div>';
   const my = reqsOf(me), wait = my.filter(r => r.status === 'pending').sort(byStart), soon = my.filter(r => r.status === 'approved' && r.end >= t).sort(byStart);
   h += '<div class="twoCol"><div>';
@@ -432,20 +437,24 @@ function viewBenefits() {
     '<p><b>Vesting:</b> your own deferrals and the Safe Harbor match are always 100% vested; profit sharing vests 25% a year (100% at 4 years).</p>' +
     '<p><b>Loans, withdrawals and rollovers</b> follow the plan document. Plan trustee: Ascensus Trust Company · (701) 234-0207. Plan administrator: Amir Akhavan DMD, PLLC · (352) 332-7466.</p>' +
     '<p><b>To enroll:</b> talk to the Office Coordinator or Dr. Akhavan once you’re eligible.</p></div></details></div></div>';
+  if (own) h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Forms</h3><span class="sub">Sent and signed here</span></div><div class="cardBd">' +
+    '<p class="small">Report an accident or a safety hazard, ask to work overtime or for CE reimbursement, set up a payroll deduction, or raise a concern.</p>' +
+    '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="nav" data-v="forms">' + ic('note', 15) + 'Open Forms</button></div></div></div>';
   return bar + h + '</div></div>';
 }
 
 /* ---------- Approvals (the people who approve) ---------- */
 function viewApprovals() {
   const tab = S.tab.appr || 'wait';
-  const pk = allPerks().filter(x => x.status === 'pending').sort((a, b) => (a.at || 0) - (b.at || 0));
-  let h = '<div class="listHd"><div class="seg" role="tablist">' + [['wait', 'Waiting', pendingAll().length + pk.length], ['all', 'All requests', 0]].map(([k, l, n]) => '<button role="tab" data-act="tab" data-t="' + k + '" aria-pressed="' + (tab === k) + '">' + l + (n ? ' <span class="cntPill">' + n + '</span>' : '') + '</button>').join('') + '</div><span></span>' +
+  const pk = allPerks().filter(x => x.kind !== 'form' && x.status === 'pending').sort((a, b) => (a.at || 0) - (b.at || 0)), fw = formsWaitingForMe().sort((a, b) => (a.at || 0) - (b.at || 0));
+  let h = '<div class="listHd"><div class="seg" role="tablist">' + [['wait', 'Waiting', pendingAll().length + pk.length + fw.length], ['all', 'All requests', 0]].map(([k, l, n]) => '<button role="tab" data-act="tab" data-t="' + k + '" aria-pressed="' + (tab === k) + '">' + l + (n ? ' <span class="cntPill">' + n + '</span>' : '') + '</button>').join('') + '</div><span></span>' +
     '<button class="btn btn-sec btn-sm" data-act="recordFor">' + ic('plus', 15) + 'Record time off for someone</button></div>';
   if (tab === 'all') return h + allReqsHTML();
   h += unreadableHTML();
   const list = pendingAll().sort(byStart);
-  if (!list.length && !pk.length) return h + '<div class="card"><div class="cardBd"><div class="empty">' + ic('done', 22) + '<br>Nothing waiting.</div></div></div>';
-  return h + list.map(approvalCard).join('') + (pk.length ? '<div class="subH" style="margin-top:' + (list.length ? '22' : '0') + 'px">Scrubs</div>' + pk.map(perkCard).join('') : '');
+  if (!list.length && !pk.length && !fw.length) return h + '<div class="card"><div class="cardBd"><div class="empty">' + ic('done', 22) + '<br>Nothing waiting.</div></div></div>';
+  return h + list.map(approvalCard).join('') + (pk.length ? '<div class="subH" style="margin-top:' + (list.length ? '22' : '0') + 'px">Scrubs</div>' + pk.map(perkCard).join('') : '') +
+    (fw.length ? '<div class="subH" style="margin-top:' + (list.length || pk.length ? '22' : '0') + 'px">Forms</div>' + fw.map(fmCard).join('') : '');
 }
 /* ---------- scrubs: a yearly allowance, asked for with a reason and approved ---------- */
 function perkItemsHTML(x) { const L = x.items || []; return L.map((it, i) => '<div class="small">' + (L.length > 1 ? '<span class="muted">Pair ' + (i + 1) + ':</span> ' : '') + esc(scrubItemText(it)) + '</div>').join(''); }
@@ -737,11 +746,13 @@ function openPersonDrawer(sid, keep) {
     h += '<div class="sec"><h5>Benefits</h5><div class="kvRow"><span>Celebrate Primary Care</span><b>' + (ben.celebrate ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : 'Not enrolled') + '</b></div>' +
       '<div class="kvRow"><span>401(k)</span><b>' + (ben.k401 ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : k && k <= t ? 'Eligible — not enrolled' : k ? 'Eligible from ' + esc(fmtDate(k)) : '—') + '</b></div>' +
       '<div class="kvRow"><span>Scrubs in ' + y + '</span><b>' + scrubsUsed(allPerks(), sid, y) + ' of ' + plural(per, 'pair') + '</b></div>' +
-      perksOf(sid).filter(x => x.year === y).map(perkRow).join('') + '</div>';
+      perksOf(sid).filter(x => x.kind !== 'form' && x.year === y).map(perkRow).join('') + '</div>';
     if ((p.adj || []).length) h += '<div class="sec"><h5>Adjustments</h5>' + p.adj.slice().sort((a, b) => a.date < b.date ? 1 : -1).map(a => '<div class="hist"><time>' + esc(fmtDate(a.date)) + '</time><span><b>' + (a.h > 0 ? '+' : '−') + hrs(Math.abs(a.h)) + ' h ' + (a.b === 'sick' ? 'sick' : 'vacation') + '</b> — ' + esc(a.note || '') + (a.by ? ' <span class="muted">(' + esc(shortName(a.by)) + ')</span>' : '') + '</span>' + (owner ? '<button class="linkBtn small" style="margin-left:auto" data-act="rmAdj" data-sid="' + esc(sid) + '" data-id="' + esc(a.id || '') + '">Remove</button>' : '') + '</div>').join('') + '</div>';
     h += '<div class="sec">' + statementHTML(sid).replace('<div class="card">', '<div class="card flat">') + '</div>';
   } else if (owner) h += '<div class="empty">No hire date or balance yet.<br><button class="btn btn-teal btn-sm" style="margin-top:12px" data-act="editHR" data-sid="' + esc(sid) + '">Add the HR record</button></div>' + (shWhoHTML(sid) ? '<div class="sec">' + shWhoHTML(sid) + '</div>' : '');
   else h += '<div class="empty">Dr. A hasn’t added an HR record yet.</div>';
+  const fs = formsOf(sid).filter(x => !formAnon(x)).sort((a, b) => (b.at || 0) - (a.at || 0));
+  if (fs.length) h += '<div class="sec"><h5>Forms</h5>' + fs.slice(0, 30).map(x => fmRow(x, false)).join('') + '</div>';
   const rs = reqsOf(sid).sort(byStart).reverse();
   h += '<div class="sec"><h5>Requests</h5>' + (rs.length ? rs.slice(0, 40).map(r => reqRow(r)).join('') : '<div class="small muted">None yet.</div>') + '</div>';
   h += '</div>';

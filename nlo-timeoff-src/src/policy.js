@@ -394,8 +394,9 @@ function scrubsLeft(perYear, perks, sid, year) { return Math.max(0, (perYear || 
 function scrubLabel(list, k) { const x = list.find(p => p[0] === k); return x ? x[1] : k; }
 /* "Navy · top and bottom · M · petite" */
 function scrubItemText(it) { return [scrubLabel(SCRUB_COLORS, it.color), scrubLabel(SCRUB_PIECES, it.piece).toLowerCase(), it.size, it.petite ? 'petite' : ''].filter(Boolean).join(' · '); }
-/* a scrubs request's sealed content, checked before it's shown or saved */
-function okPerk(c) {
+/* a scrubs request's — or a form's (forms.js) — sealed content, checked before it's shown or saved */
+function okPerk(c) { return !!c && typeof c === 'object' && (c.kind === 'form' ? typeof okForm === 'function' && okForm(c) : okScrubs(c)); }
+function okScrubs(c) {
   return !!c && typeof c === 'object' && c.kind === 'scrubs' && Array.isArray(c.items) && c.items.length >= 1 && c.items.length <= 10 && c.pairs === c.items.length
     && c.items.every(it => it && typeof it === 'object' && SCRUB_COLORS.some(x => x[0] === it.color) && SCRUB_PIECES.some(x => x[0] === it.piece) && SCRUB_SIZES.includes(it.size) && typeof it.petite === 'boolean')
     && typeof c.reason === 'string' && c.reason.length <= 1000 && (c.events == null || Array.isArray(c.events));

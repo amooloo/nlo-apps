@@ -58,11 +58,19 @@ async function arm(p) {
       readMine: sid => FB.doc('toMine/' + sid).get(),
       outForPending: id => FB.doc('toOut/' + id).set({ v: FB.curV, iv: 'aXY=', ct: 'Y3Q=', at: FB.ts() }),
       putHR: sid => B.putHR(sid, d => { d.hire = '2000-01-01'; }, 'edit'),
-      approvePerk: id => B.savePerk(id, c => { c.decision = { s: 'approved', by: meSid(), at: Date.now(), note: '' }; return { status: 'approved' }; }, { a: 'approve' })
+      approvePerk: id => B.savePerk(id, c => { c.decision = { s: 'approved', by: meSid(), at: Date.now(), note: '' }; return { status: 'approved' }; }, { a: 'approve' }),
+      formEdit: id => B.savePerk(id, c => { c.f = Object.assign({}, c.f, { where: 'Changed afterwards' }); }, { a: 'edit' }),
+      formFile: id => B.savePerk(id, c => { c.decision = { s: 'approved', by: meSid(), at: Date.now(), note: '' }; return { status: 'approved' }; }, { a: 'file' })
     };
   });
 }
-const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO(), f), S.closed), from);
+// an office day some days from now whose next 3 days are clear of the blackout periods (Thanksgiving week, January), so a
+// vacation there can be asked for whatever day the test runs
+const nextOffice = (p, from) => p.evaluate(f => {
+  let d = nextOfficeDay(addDays(todayISO(), f), S.closed);
+  for (let i = 0; i < 120 && blackoutHits({ start: d, end: addDays(d, 2), type: 'vac' }, S.blackouts || BLACKOUTS).length; i++) d = nextOfficeDay(addDays(d, 1), S.closed);
+  return d;
+}, from);
 
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
@@ -82,6 +90,7 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   }
   if (!(await ownerC.$('#recShow'))) console.log('  (setup screen says: ' + (await ownerC.textContent('#lockCard').catch(() => '?')).replace(/\s+/g, ' ').slice(0, 300) + ')');
   await ownerC.waitForSelector('#recShow', { timeout: 30000 });
+  const RECOVERY = (await ownerC.textContent('#recShow')).trim(); // (Dr. A's recovery code, for the forms key's recovery below)
   await ownerC.check('#codeAck'); await ownerC.click('#codeDone'); await waitApp(ownerC);
   const sarahTemp = await addPerson(ownerC, 'Sarah Tester', 'sarah');
   const rileyTemp = await addPerson(ownerC, 'Riley Tester', 'riley');
@@ -318,6 +327,48 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   const fr = await (await fetch(FS + 'toFeed?pageSize=10')).json().catch(() => ({}));
   check(!fr.documents, 'listing the feed collection without signing in: refused');
 
+  console.log('\n# Forms: an accident report Dr. A and Sarah read, a complaint only Dr. A reads');
+  await owner.waitForFunction(() => B.drReady() && !!FB.drPriv, null, { timeout: 30000 });
+  const dk = (((await fsDoc('meta/settings')).fields.to || {}).mapValue.fields.drKey || {}).mapValue;
+  check(!!dk && !!dk.fields.pub && !!dk.fields.me && !!dk.fields.rec, 'Dr. A’s forms key: made by his Time Off; its public half in the office settings, its private half sealed to him and to the recovery key');
+  const perks0 = new Set((await fsDocs('toPerk')).map(idOf)), today = await riley.evaluate(() => todayISO());
+  await riley.click('#side [data-act=nav][data-v=forms]'); await riley.click('[data-act=fmNew][data-f=accident]'); await riley.waitForSelector('#fm_position');
+  await riley.fill('#fm_position', 'Clinical assistant'); await riley.fill('#fm_day', today); await riley.fill('#fm_time', '09:40');
+  await riley.fill('#fm_where', 'Sterilization'); await riley.fill('#fm_how', 'A chipped tray edge cut my finger'); await riley.fill('#fm_cause', 'A chipped tray'); await riley.fill('#fm_injury', 'Small cut, left index finger');
+  await riley.click('[data-act=fmSet][data-k=treated][data-v=false]');
+  await riley.click('[data-act=fmSend]'); check(await toast(riley, /^Sent/), 'Riley sends an accident report from Forms'); await saved(riley);
+  const fdoc = (await fsDocs('toPerk')).find(d => !perks0.has(idOf(d))), fid = fdoc && idOf(fdoc);
+  check(!!fdoc && Object.keys(fdoc.fields).sort().join() === 'bsid,by,createdAt,hr,me,pub,rev,sid,status,updatedAt,v,year', 'saved like a scrubs request: whose, status, revision, year and two sealed copies — nothing else');
+  check(!/accident|Sterilization|finger|tray/i.test(JSON.stringify(fdoc)), '…not even which form it is, in plain form');
+  await sarah.waitForFunction(id => S.perks.has(id) && S.perks.get(id).form === 'accident', fid, { timeout: 30000 });
+  await sarah.click('#side [data-act=nav][data-v=appr]'); await sarah.waitForSelector('[data-act=fmOpen][data-id="' + fid + '"]');
+  check(/Accident report/.test(await sarah.textContent('#view')), 'Sarah: it waits on Approvals (opened with the HR key)');
+  await sarah.click('[data-act=fmOpen][data-id="' + fid + '"]'); await sarah.waitForSelector('[data-act=fmDecide]');
+  await sarah.click('[data-act=fmSet][data-k=authorized][data-v=false]'); await sarah.click('[data-act=fmSet][data-k=leave][data-v=false]');
+  await sarah.fill('#fm_prevent', 'Chipped trays are thrown out at the end of each day.'); await sarah.click('[data-act=fmSet][data-k=unsafe][data-v=false]');
+  await sarah.click('[data-act=fmDecide]'); await sarah.click('#nbYes'); check(await toast(sarah, /^Filed/), 'Sarah fills in the office part, signs and files it'); await saved(sarah);
+  check((await fsDoc('toPerk/' + fid)).fields.status.stringValue === 'approved', '…filed (status approved in the database)');
+  await riley.waitForFunction(id => { const x = S.perks.get(id); return !!x && x.status === 'approved' && x.sign && x.sign.hr && x.sign.hr.n === 'Sarah Tester' && /Chipped trays/.test(x.f.prevent || ''); }, fid, { timeout: 30000 });
+  check(true, 'Riley sees it filed, with Sarah’s signature and the office part');
+  check(await tryIt(riley, 'formEdit', fid) === 'permission-denied', 'Riley changing it after it was filed: refused by the database');
+  // a complaint only Dr. A reads: sealed to his forms key
+  const hid = await riley.evaluate(async () => { const id = B.newPerkId(), now = Date.now(), y = Number(todayISO().slice(0, 4)); await B.savePerk(id, c => { Object.assign(c, { kind: 'form', form: 'harass', fv: 1, aud: 'owner', f: { day: todayISO(), position: 'Clinical assistant', complaint: 'Private complaint words', what: 'What happened, in private words', acted: 'Nothing yet' }, at: now, sign: { staff: { by: meSid(), at: now, n: 'Riley Tester' } }, events: [{ a: 'send', by: meSid(), at: now }] }); return { status: 'pending' }; }, { create: { sid: meSid(), year: y }, a: 'send' }); return id; });
+  check(!/Private|harass/i.test(JSON.stringify(await fsDoc('toPerk/' + hid))), 'Riley sends a harassment report only Dr. A reads (nothing readable in the database)');
+  await owner.waitForFunction(id => S.perks.has(id) && S.perks.get(id).f.complaint === 'Private complaint words', hid, { timeout: 30000 });
+  check(true, 'Dr. A opens it (his forms key)');
+  await sleep(1500);
+  const sarahSees = await sarah.evaluate(async id => { const d = (await FB.doc('toPerk/' + id).get()).data(); const o = await FB.openPerk(id, d); return { listed: S.perks.has(id), locked: !!o.locked, words: JSON.stringify(o).includes('Private') }; }, hid);
+  check(!sarahSees.listed && sarahSees.locked && !sarahSees.words, 'Sarah (who approves) can’t open it, and it isn’t listed for her');
+  check(await sarah.evaluate(id => B.savePerk(id, () => { }, { a: 'reseal' }).then(() => 'ok', e => e.code), hid) === 'locked', '…nor save anything to it');
+  await riley.waitForFunction(id => S.perks.has(id) && S.perks.get(id).f.complaint === 'Private complaint words', hid, { timeout: 30000 });
+  check(true, 'Riley still opens her own copy');
+  const sealedWrong = await riley.evaluate(async () => { const id = B.newPerkId(), now = Date.now(), y = Number(todayISO().slice(0, 4)); const c = { sid: meSid(), kind: 'form', form: 'harass', fv: 1, aud: 'owner', f: { day: todayISO(), position: 'x', complaint: 'Sealed to the wrong key', what: 'x', acted: 'x' }, at: now, sign: {}, events: [] }, pk = FB.me.pub; const hr = await Crypto.sealJSONTo(FB.hrPub, c, 'toperk:' + id), me = await Crypto.sealJSONTo(pk, c, 'toperkme:' + id); await FB.doc('toPerk/' + id).set({ sid: meSid(), status: 'pending', rev: 1, by: FB.uid, bsid: meSid(), v: FB.hrV, pub: { kty: pk.kty, crv: pk.crv, x: pk.x, y: pk.y }, year: y, hr, me, createdAt: FB.ts(), updatedAt: FB.ts() }); return id; });
+  await sleep(1500);
+  check(await owner.evaluate(id => !S.perks.has(id), sealedWrong) && await sarah.evaluate(id => !S.perks.has(id), sealedWrong), 'a form that says “only Dr. A” but was sealed to the HR key (by hand) opens for no one but its sender');
+  check(await tryIt(owner, 'formFile', hid) === 'ok', 'Dr. A answers it');
+  await riley.waitForFunction(id => S.perks.get(id) && S.perks.get(id).status === 'approved', hid, { timeout: 30000 });
+  check(true, 'Riley sees the answer');
+
   console.log('\n# Dr. A turns Sarah off: a new HR key');
   await owner.click('#side [data-act=nav][data-v=settings]'); await owner.waitForSelector('#apprBox .sw[data-uid="' + sarahUid + '"]');
   await owner.waitForFunction(u => S.hrP && S.hrP.grants && S.hrP.grants.some(g => g.uid === u), sarahUid);
@@ -326,7 +377,9 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   const k2 = await fsDoc('meta/toKeys'), reqs2 = await fsDocs('toReq'), hrs2 = await fsDocs('toHR');
   check(k2.fields.current.integerValue === '2' && !(await fsDoc('toAccess/' + sarahUid)), 'HR key #2; her copy is gone');
   check(reqs2.every(d => d.fields.v.integerValue === '2') && hrs2.every(d => d.fields.v.integerValue === '2'), 'every request and HR record sealed again under it (' + reqs2.length + ' + ' + hrs2.length + ')');
-  check((await fsDocs('toPerk')).every(d => d.fields.v.integerValue === '2'), '…and the scrubs requests');
+  check((await fsDocs('toPerk')).filter(d => idOf(d) !== sealedWrong).every(d => d.fields.v.integerValue === '2'), '…and the scrubs requests and forms (all but the one sealed wrong by hand, which only its sender opens)');
+  await owner.waitForFunction(id => S.perks.get(id) && S.perks.get(id).v === 2 && S.perks.get(id).f.complaint === 'Private complaint words', hid, { timeout: 30000 });
+  check(true, 'the complaint only Dr. A reads: sealed again under the new key, still to his forms key — he opens it');
   await sarah.waitForSelector('#lgUser', { timeout: 30000 });
   check(/approver access was turned off/i.test(await sarah.textContent('#lockCard')), 'Sarah’s open page locks: “Your approver access was turned off”');
   await signIn(sarah, TO, 'sarah', 'Sarah-Pass-2026'); await waitApp(sarah); await waitSt(sarah, 'staff');
@@ -529,6 +582,29 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   await riley.waitForFunction(() => S.mine && S.mine.type === 'SAL', null, { timeout: 30000 }).catch(() => { });
   await riley.evaluate(() => { S.view = 'home'; renderNav(); renderView(); }); await sleep(300);
   check(/On salary/.test(await riley.textContent('#view')), 'Riley’s own Home says she’s on salary (her copy follows)');
+
+  console.log('\n# Dr. A’s new password: the recovery code opens his forms key again');
+  // a new password (with the recovery code) gives his login a new key, so the forms key's copy for him can't be opened.
+  // The sign-in opens it again with the same code; if that didn't happen, Home and Forms ask for the code.
+  const rec = await owner.evaluate(async ([pw, code]) => {
+    await FB.recover(pw, code); FB.drPriv = null; FB.drX = '';
+    const before = await FB.drOpen(); await B.hrRestore(code); await FB.emitPerks(FB.h);
+    return { before };
+  }, [OWNER_PW, RECOVERY]).catch(e => ({ err: String(e && e.message) }));
+  await owner.waitForFunction(id => !S.perks.has(id), hid, { timeout: 30000 }).catch(() => { });
+  check(rec.before === 'stale' && await owner.evaluate(id => !S.perks.has(id), hid), 'his login’s new key can’t open the forms key: the complaint only he reads isn’t listed — ' + JSON.stringify(rec));
+  await owner.evaluate(() => { S.view = 'home'; renderNav(); renderView(); });
+  check(/Forms only you read can’t be opened on this login/.test(await owner.textContent('#view')), 'Home says so');
+  await owner.click('#side [data-act=nav][data-v=forms]'); await owner.waitForSelector('#drRestoreForm');
+  await owner.fill('#drCode', 'AAAA-BBBB-CCCC-DDDD-EEEE-FFFF'); await owner.click('#drRestoreForm button[type=submit]');
+  check(await toast(owner, /recovery code didn’t work/), 'Forms → a wrong recovery code: “That recovery code didn’t work”');
+  await owner.fill('#drCode', RECOVERY); await owner.click('#drRestoreForm button[type=submit]');
+  check(await toast(owner, /Forms only you read open again/), '…his recovery code: “Forms only you read open again”');
+  await owner.waitForFunction(id => S.perks.has(id) && S.perks.get(id).f.complaint === 'Private complaint words', hid, { timeout: 30000 });
+  check(!(await owner.$('#drRestoreForm')), '…the complaint is listed again, and the card is gone');
+  const dk2 = (await fsDoc('meta/settings')).fields.to.mapValue.fields.drKey.mapValue.fields, mem = await fsDoc('members/' + ownerUid);
+  check(dk2.meX.stringValue === mem.fields.pub.mapValue.fields.x.stringValue && dk2.pub.mapValue.fields.x.stringValue === dk.fields.pub.mapValue.fields.x.stringValue, '…the same forms key (forms sent before still open), now sealed to his new login’s key');
+  check(await owner.evaluate(async () => { FB.drPriv = null; FB.drX = ''; return FB.drOpen(); }) === 'ok', '…and it opens with his login from now on, no code needed');
 
   check(!errs.length, 'no page errors' + (errs.length ? ':\n    ' + errs.join('\n    ') : ''));
   await browser.close();

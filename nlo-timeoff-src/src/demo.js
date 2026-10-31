@@ -70,7 +70,8 @@ const DEMO = {
     const all = Array.from(DEMO.reqs.values()), me = DEMO.me.staffId, hr = DEMO.hrOn();
     h.board(all.filter(r => r.status === 'approved').map(r => Object.assign(outEntry(r), { id: r.id })));
     h.reqs((hr ? all : all.filter(r => r.sid === me)).map(DEMO.copy), []);
-    if (h.perks) h.perks(Array.from(DEMO.perks.values()).filter(x => hr || x.sid === me).map(DEMO.copy));
+    // forms only Dr. A reads are sealed to his forms key: the people who approve never see them (unless it's their own)
+    if (h.perks) h.perks(Array.from(DEMO.perks.values()).filter(x => x.sid === me || (hr && (x.aud !== 'owner' || DEMO.isOwner()))).map(DEMO.copy));
     const rec = DEMO.recs.get(me); h.mine(rec ? DEMO.mineOf(rec) : null);
     if (hr) h.hr(Array.from(DEMO.recs.values()).map(r => Object.assign(DEMO.copy(r), { rev: 1, v: DEMO.hr.curV })));
   },
@@ -101,19 +102,20 @@ const DEMO = {
     return id;
   },
   newReqId() { return 'q' + hexId(12); },
-  /* a scrubs request, saved inside the same limits as the database's rules */
+  /* a scrubs request or a form, saved inside the same limits as the database's rules */
   async savePerk(id, fn, opts) {
     opts = opts || {}; await DEMO.wait(160);
     const cur = DEMO.perks.get(id), me = DEMO.me.staffId, hr = DEMO.hrOn(), owner = DEMO.isOwner();
     if (!cur && !opts.create) throw errCode('gone');
     if (cur && opts.rev && cur.rev !== opts.rev) throw errCode('changed', 'This request was just changed — look at it again.');
     if (cur && !hr && cur.sid !== me) throw errCode('permission-denied');
+    if (cur && cur.aud === 'owner' && !owner && cur.sid !== me) throw errCode('locked', 'This request can’t be opened on this login.'); // sealed to Dr. A's forms key
     const content = DEMO.clean(DEMO.copy(cur || { sid: opts.create.sid, kind: 'scrubs', events: [] })); delete content.year;
     const mailed = !!(opts.mail && DEMO.toMail);
     const prev = cur ? cur.status : null, r = fn(content, { mailed }) || {}, status = r.status || prev || 'pending';
     if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
-    if (!okPerk(content)) throw errCode('bad', 'Say how many pairs and why.');
-    if (!cur && !scrubsOpen(todayISO(), scrubsOf(DEMO.settings).byDay)) throw errCode('bad', 'Scrubs for this year had to be asked for by December ' + scrubsOf(DEMO.settings).byDay + '.');
+    if (!okPerk(content)) throw errCode('bad', content.kind === 'form' ? (formTooBig(content, content.sid === me ? 'staff' : 'hr') || 'Something in this form doesn’t look right. Check it and try again.') : 'Say how many pairs and why.');
+    if (!cur && content.kind === 'scrubs' && !scrubsOpen(todayISO(), scrubsOf(DEMO.settings).byDay)) throw errCode('bad', 'Scrubs for this year had to be asked for by December ' + scrubsOf(DEMO.settings).byDay + '.');
     const okCreate = status === 'pending' && content.sid === me;
     const okUpdate = !!cur && ((hr && (owner || cur.sid !== me)) || (cur.sid === me && prev === 'pending' && ['pending', 'cancelled'].includes(status)));
     if (cur ? !okUpdate : !okCreate) throw errCode('permission-denied', 'Not allowed.');
@@ -123,6 +125,8 @@ const DEMO = {
     return { id, mailed };
   },
   toMail: SCRUBS.to,
+  /* Dr. A's forms key: nothing to seal in the demo */
+  drReady() { return true; }, async drOpen() { return 'ok'; }, async drSetup() { return false; }, async drRestore() { return true; },
   async scrubsMailState() { await DEMO.wait(80); return { to: DEMO.toMail, on: true, ver: 3, fresh: true, keyOk: true, ok: !!DEMO.toMail }; },
   async setScrubsMail(to) { await DEMO.wait(120); if (!DEMO.isOwner()) throw errCode('permission-denied'); DEMO.toMail = to; },
   newPerkId() { return 'p' + hexId(12); },
@@ -251,6 +255,29 @@ const DEMO = {
     perk('riley', [it('navy', 'set', 'M')], 'The knee tore on my navy pair', { status: 'approved', by: 'jordan', asked: at(addDays(t, -60), 9) });
     perk('taylor', [it('teal', 'set', 'S', true), it('black', 'set', 'S', true)], 'Still wearing the one set I started with', { asked: at(addDays(t, -1), 16) });
     perk('jordan', [it('gray', 'top', 'L')], 'My top faded in the wash', { asked: at(addDays(t, -3), 11) });
+    // forms: Riley's accident report waits; Casey's hazard report (name left off) waits; Jordan's own CE request waits for Dr. A;
+    // Taylor's overtime was approved; Morgan's payroll deduction (only Dr. A reads it) is set up; Taylor's concern (only Dr. A) was answered
+    const name = sid => (DEMO.roster.find(r => r.sid === sid) || {}).name || sid;
+    const form = (sid, fid, aud, f, o) => {
+      o = o || {}; const id = 'p' + hexId(12), D = FORMS[fid], status = o.status || 'pending', sent = o.at || at(addDays(t, -1), 10), ev = [{ a: 'send', by: sid, at: sent }];
+      const c = { sid, kind: 'form', form: fid, fv: 1, aud, f, at: sent, sign: D.sign.staff ? { staff: { by: sid, at: sent, n: name(sid) } } : {}, events: ev };
+      if (o.by) {
+        const when = Math.min(now - 1800000, sent + 86400000);
+        if (D.sign.hr) c.sign.hr = { by: o.by, at: when, n: name(o.by) };
+        c.decision = { s: status, by: o.by, at: when, note: o.note || '' };
+        ev.push({ a: D.decide === 'approve' ? 'approve' : 'file', by: o.by, at: when, note: o.note || '' });
+        Object.assign(c.f, o.hr || {});
+      }
+      DEMO.perks.set(id, Object.assign(c, { id, status, rev: ev.length, v: 1, year: y, pubX: 'demo', by: ev[ev.length - 1].by, updatedAt: ev[ev.length - 1].at, createdAtSrv: sent, hasMe: true }));
+    };
+    const yday = office(addDays(t, -1), -1), lastWk = office(addDays(t, -6), -1);
+    form('riley', 'accident', 'hr', { position: 'Clinical assistant', day: yday, time: '15:20', where: 'Sterilization, by the ultrasonic cleaner', how: 'I was taking the basket out of the ultrasonic and a loose bur in it went through my glove into my thumb.', cause: 'A bur was left loose in the basket instead of the bur block.', injury: 'Small puncture on the left thumb', treated: false }, { at: at(t, 9) - 86400000 + 3600000 * 6 });
+    form('casey', 'hazard', 'hr', { anon: true, type: ['cond'], time: '07:45', place: 'Back hallway by the lab', desc: 'The floor mat by the lab door curls up at the corner and catches feet when carrying trays.', rec: 'Replace the mat or tape the corner down.' }, { at: at(addDays(t, -2), 8) });
+    form('jordan', 'ce', 'hr', { course: 'Orthodontic assisting update (online)', from: office(addDays(t, 20), 1), where: 'Online', items: ['tuition'], cost: 295 }, { at: at(addDays(t, -1), 14) });
+    form('taylor', 'overtime', 'hr', { days: [lastWk], why: 'Two debond patients moved to the end of the day, and inventory had to be done before the order.', overWeek: 2, total: 2 }, { status: 'approved', by: 'jordan', at: at(addDays(t, -9), 11) });
+    form('morgan', 'deduct', 'owner', { self: true, selfAmt: 32.5, selfPer: 'month', selfCov: ['medical'] }, { status: 'approved', by: 'amir', at: at(addDays(t, -24), 10) });
+    form('taylor', 'concern', 'owner', { position: 'Clinical assistant', reason: 'Lunch breaks keep getting cut short on Thursdays because the afternoon starts early.', fix: 'Start Thursday afternoons 15 minutes later, or rotate who takes the early lunch.' },
+      { status: 'approved', by: 'amir', at: at(addDays(t, -14), 9), hr: { action: 'Thursday afternoons now start at 1:15. Lunches rotate on a posted schedule.' }, note: 'Thank you for raising it.' });
   }
 };
 

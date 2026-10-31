@@ -477,6 +477,100 @@ section('Staff Hub’s roster: the move uses its dates');
 }
 
 section('The old Sheet: the downloaded files');
+section('Staff forms (Dr. A, 31 Oct 2026): what each one takes, and what a saved one must look like');
+{
+  const F = load(['core.js', 'policy.js', 'forms.js']);
+  const today = F.todayISO(), tomorrow = F.addDays(today, 1);
+  const TYPES = ['text', 'area', 'date', 'time', 'num', 'money', 'yesno', 'pick', 'checks', 'check', 'dates', 'pay', 'say', 'aud'];
+  ok(F.FORM_ORDER.every(id => F.formDef(id) && F.formDef(id).id === id) && Object.keys(F.FORMS).sort().join() === F.FORM_ORDER.slice().sort().join(), 'every form is listed once, under its own id');
+  eq(F.FORM_GROUPS.map(g => g[1]).reduce((a, b) => a.concat(b), []).sort(), F.FORM_ORDER.slice().sort(), 'the Forms screen shows every form once');
+  ok(F.formDef('toString') === null && F.formDef('constructor') === null && F.formDef('nope') === null, 'a name that isn’t a form is no form (not even one from Object’s prototype)');
+  const probs = [];
+  for (const id of F.FORM_ORDER) {
+    const D = F.formDef(id), fds = F.formFields(D), keys = fds.map(fd => fd.k);
+    if (new Set(keys).size !== keys.length) probs.push(id + ': a key twice');
+    D.parts.forEach(p => p.fields.forEach(fd => {
+      const nm = id + '.' + (fd.k || fd.t);
+      if (!TYPES.includes(fd.t)) probs.push(nm + ': type ' + fd.t);
+      if (fd.t !== 'say' && fd.t !== 'aud' && (!fd.k || !fd.l)) probs.push(nm + ': no key or label');
+      if ((fd.t === 'pick' || fd.t === 'checks') && !(fd.opts && fd.opts.length)) probs.push(nm + ': no options');
+      if (fd.if && !keys.includes(typeof fd.if === 'string' ? fd.if : fd.if[0])) probs.push(nm + ': shown if ' + fd.if);
+      if (fd.t === 'aud' && !F.audPick(D)) probs.push(nm + ': a choice of who reads it, but it’s fixed');
+      if (fd.from) { const src = F.formField(D, fd.from); if (!src || JSON.stringify(src.opts) !== JSON.stringify(fd.opts)) probs.push(nm + ': from ' + fd.from); }
+      if ((fd.t === 'text' || fd.t === 'area') && !(fd.max > 0)) probs.push(nm + ': no length limit');
+    }));
+    if (D.kind === 'send') {
+      if (!D.sign || !['file', 'approve'].includes(D.decide) || !D.act || !D.done || !D.parts.some(p => p.by === 'staff') || typeof D.sum !== 'function') probs.push(id + ': not complete');
+      if (!(D.aud === 'hr' || D.aud === 'owner' || F.audPick(D))) probs.push(id + ': who reads it');
+      if (F.audPick(D) && !D.parts.some(p => p.fields.some(fd => fd.t === 'aud'))) probs.push(id + ': a choice of who reads it, but nowhere to choose');
+    } else if (D.kind !== 'print' || D.aud) probs.push(id + ': kind');
+  }
+  eq(probs, [], 'each form: keys once, known kinds of fields with labels, options and limits, “shown if” answers that exist, how it’s decided');
+  eq(F.FORM_ORDER.filter(id => F.formDef(id).kind === 'send').map(id => [id, F.audDefault(F.formDef(id)), F.audPick(F.formDef(id))]),
+    [['accident', 'hr', false], ['hazard', 'hr', false], ['overtime', 'hr', false], ['ce', 'hr', false], ['deduct', 'owner', false], ['advance', 'owner', false], ['concern', 'owner', true], ['harass', 'owner', true], ['religious', 'owner', true]],
+    'who reads each: Dr. A and the people who approve time off; only Dr. A for money, complaints and accommodation (for those three the person may choose)');
+  const acc = F.formDef('accident'), harass = F.formDef('harass'), ded = F.formDef('deduct'), adv = F.formDef('advance'), ce = F.formDef('ce'), ot = F.formDef('overtime');
+  eq([F.audOk(acc, 'hr'), F.audOk(acc, 'owner'), F.audOk(harass, 'hr'), F.audOk(harass, 'owner'), F.audOk(harass, 'everyone'), F.audOk(ded, 'hr'), F.audOk(ded, 'owner')], [true, false, true, true, false, false, true], '…and nothing else: a fixed audience can’t be changed, a choice is one of the two');
+
+  const fAcc = k => F.formField(acc, k);
+  eq([F.fieldShown(fAcc('treatedBy'), {}), F.fieldShown(fAcc('treatedBy'), { treated: false }), F.fieldShown(fAcc('treatedBy'), { treated: true }), F.fieldShown(fAcc('where'), {})], [false, false, true, true], '“Treated by” shows only after “Yes”');
+  eq([F.fieldShown(F.formField(ce, 'itemsOther'), { items: ['air'] }), F.fieldShown(F.formField(ce, 'itemsOther'), { items: ['air', 'other'] }), F.fieldShown(F.formField(ce, 'itemsOther'), {})], [false, true, false], '“Other cost” shows when Other is ticked');
+  eq([F.fieldShown(F.formField(adv, 'pays'), { repay: 'pto' }), F.fieldShown(F.formField(adv, 'pays'), { repay: 'pay' }), F.fieldShown(F.formField(adv, 'pays'), {})], [false, true, false], 'the payments table: for separate payments only');
+
+  const V = (t, v, o) => F.okValue(Object.assign({ k: 'x', t }, o || {}), v), AB = { opts: [['a', 'A'], ['b', 'B']] };
+  eq([V('text', 'a', { max: 80 }), V('text', 'x'.repeat(81), { max: 80 }), V('text', 5), V('area', 'x'.repeat(1001)), V('date', '2026-02-30'), V('date', '2026-02-28'), V('time', '24:00'), V('time', '09:40'), V('time', '9:40')],
+    [true, false, false, false, false, true, false, true, false], 'values: text within its limit; real dates; times as HH:MM');
+  eq([V('num', -1), V('num', 0.5, { min: 0.25, max: 100 }), V('num', 0.1, { min: 0.25 }), V('num', Infinity), V('money', 12.345), V('money', 12.34), V('money', -1), V('money', '12')],
+    [false, true, false, false, false, true, false, false], '…numbers within their range; money in dollars and cents, never less than zero');
+  eq([V('yesno', 'yes'), V('yesno', false), V('pick', 'a', AB), V('pick', 'c', AB), V('checks', ['a', 'a'], AB), V('checks', ['a', 'b'], AB), V('checks', 'a', AB), V('check', 1)],
+    [false, true, true, false, false, true, false, false], '…yes/no; a listed option; ticks from the list, each once');
+  eq([V('dates', ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05'], { max: 3 }), V('dates', ['2026-11-02', '2026-11-02']), V('dates', ['2026-11-02']), V('pay', [{ d: '2026-11-15', a: 50 }]), V('pay', [{ d: '2026-11-15', a: 0 }]), V('pay', [{ d: 'soon', a: 5 }]), V('text', ''), V('text', null), V('mystery', 'x')],
+    [false, false, true, true, false, false, true, true, false], '…at most 3 different days; payments with a date and an amount; blank is fine (whether it’s needed is checked separately); an unknown kind isn’t');
+
+  const accStaff = { position: 'Clinical assistant', day: today, time: '09:40', where: 'Sterilization', how: 'A chipped tray edge', cause: 'A chipped tray', injury: 'A small cut', treated: false };
+  eq(F.formMissing(acc, accStaff, 'staff'), [], 'an accident report with everything it needs');
+  eq(F.formMissing(acc, {}, 'staff').map(m => m.k), ['position', 'day', 'time', 'where', 'how', 'cause', 'injury', 'treated'], '…an empty one: what’s needed, in the form’s order');
+  eq(F.formMissing(acc, Object.assign({}, accStaff, { treated: true }), 'staff').map(m => m.k), ['treatedBy'], '…treated: then who treated you is needed too');
+  eq(F.formMissing(acc, Object.assign({}, accStaff, { day: tomorrow }), 'staff').map(m => m.msg), ['Date of the accident can’t be in the future.'], '…and it can’t have happened tomorrow');
+  eq(F.formMissing(acc, Object.assign({}, accStaff, { time: '25:00' }), 'staff').map(m => m.msg), ['Time doesn’t look right.'], '…a time that isn’t one');
+  eq(F.formMissing(acc, accStaff, 'hr').map(m => m.k), ['authorized', 'leave', 'prevent', 'unsafe'], 'the office part: what’s needed to sign and file it (the workers’ comp date is optional)');
+  eq(F.formMissing(adv, { amount: 500, repay: 'pay', pays: [{ d: '2026-11-15', a: 200 }, { d: '2026-11-30', a: 200 }] }, 'staff').map(m => m.msg), ['The payments add up to $400, not $500.'], 'a salary advance: the payments have to add up to the amount');
+  eq([F.formMissing(adv, { amount: 500, repay: 'pay', pays: [{ d: '2026-11-15', a: 166.67 }, { d: '2026-11-30', a: 166.67 }, { d: '2026-12-15', a: 166.66 }] }, 'staff'), F.formMissing(adv, { amount: 500, repay: 'pto' }, 'staff'), F.formMissing(adv, { amount: 500, repay: 'pay' }, 'staff').map(m => m.k)],
+    [[], [], ['pays']], '…to the cent; paid back with time off, no table; separate payments need one');
+  eq(F.formMissing(ded, {}, 'staff').map(m => m.msg), ['Tick employee only, employee plus family, or both.'], 'payroll deduction: one of the two premiums has to be ticked');
+  eq([F.formMissing(ded, { self: true }, 'staff').map(m => m.k), F.formMissing(ded, { fam: true, famAmt: 120.5, famPer: 'month', famCov: ['medical', 'dental'] }, 'staff')], [['selfAmt', 'selfPer', 'selfCov'], []], '…ticked: its amount, how often and what it covers');
+  eq([F.formMissing(ot, { days: [today], why: 'Two extra patients', total: 2 }, 'staff'), F.formMissing(ot, { days: [], why: 'x', total: 2 }, 'staff').map(m => m.k)], [[], ['days']], 'overtime: the day(s), why, and the total hours');
+  eq(F.formMissing(ce, { course: 'Radiology course', from: today, items: ['air', 'other'] }, 'staff').map(m => m.k), ['itemsOther'], 'CE: “Other” ticked needs to say what');
+
+  const now = Date.now(), base = o => Object.assign({ sid: 'riley', kind: 'form', form: 'accident', fv: 1, aud: 'hr', f: accStaff, at: now, sign: {}, events: [{ a: 'send', by: 'riley', at: now }] }, o || {});
+  eq([F.okForm(base()), F.okForm(base({ aud: 'owner' })), F.okForm(base({ form: 'pregnancy' })), F.okForm(base({ form: 'nope' })), F.okForm(base({ kind: 'scrubs' })), F.okForm(base({ f: [] })), F.okForm(base({ f: Object.assign({}, accStaff, { time: '9:40pm' }) }))],
+    [true, false, false, false, false, false, false], 'a saved form: a form to send, with the audience it allows and each value the right kind (a printout is never saved)');
+  eq([F.okForm(base({ at: 'today' })), F.okForm(base({ sign: { hr: { by: 'sarah' } } })), F.okForm(base({ sign: { hr: { by: 'sarah', at: now, n: 'Sarah' } } })), F.okForm(base({ back: { by: 'sarah', at: now, note: 'x'.repeat(601) } })), F.okForm(base({ decision: { s: 'approved', by: 'sarah', at: now, note: 'Filed' } })), F.okForm(base({ events: Array.from({ length: 81 }, () => ({ a: 'edit', by: 'riley', at: now })) }))],
+    [false, false, true, false, true, false], '…signatures, a send-back and a decision say who and when; notes and history have limits');
+  eq([F.okForm(base({ f: Object.assign({}, accStaff, { newer: 'A field from a newer Time Off' }) })), F.okForm(base({ f: Object.assign({}, accStaff, { newer: { x: 1 } }) }))], [true, false], '…a field from a newer copy of Time Off is kept if it’s plain (text, a number, yes/no)');
+  ok(F.okPerk(base()) && !F.okPerk(base({ aud: 'owner' })) && !A.okPerk(base()), 'requests: a form is checked as a form (a copy of Time Off without forms opens none)');
+  eq([F.formTooBig(base()), F.okForm(base({ f: Object.assign({}, accStaff, { how: 'x'.repeat(1200), cause: 'x'.repeat(600), injury: 'x'.repeat(400), doctor: 'x'.repeat(300), prevent: 'x'.repeat(800) }), decision: { s: 'approved', by: 'sarah', at: now, note: 'n'.repeat(500) } }))], ['', true], 'an ordinary form isn’t too long; nor is one with long answers in every box');
+  const huge = base({ form: 'harass', aud: 'owner', f: { day: today, position: 'x', complaint: 'c'.repeat(600), what: 'w'.repeat(1400), acted: 'a'.repeat(1000), resolution: 'r'.repeat(900) }, events: Array.from({ length: 6 }, (_, i) => ({ a: 'back', by: 'amir', at: now + i, note: 'n'.repeat(500 - i) })) });
+  ok(!F.okForm(huge) && /^This form is longer than it can hold — shorten “What happened” by about \d+0 characters\.$/.test(F.formTooBig(huge)), 'too long to seal: the sender is told which box to shorten, and by about how much — ' + F.formTooBig(huge));
+  ok(/— shorten “How the complaint was resolved” by about/.test(F.formTooBig(huge, 'hr')), '…the office, its own part — ' + F.formTooBig(huge, 'hr'));
+  const huge2 = Object.assign({}, huge, { f: Object.assign({}, huge.f, { resolution: 'r' }) });
+  ok(/— shorten your note by about/.test(F.formTooBig(huge2, 'hr')), '…or the note just written, when that’s the longer — ' + F.formTooBig(huge2, 'hr'));
+  ok(F.FORM_MAX <= 5984 - 16 && Math.ceil((F.FORM_MAX + 16) / 3) * 4 <= 8000, 'the limit fits the database’s: base64 of the form and the seal’s 16 bytes, at most 8,000 characters');
+
+  const e0 = [{ a: 'send', by: 'riley', at: 1000 }];
+  const e1 = F.formEvent(e0, { a: 'edit', by: 'riley', at: 2000 }), e2 = F.formEvent(e1, { a: 'edit', by: 'riley', at: 3000 }), e3 = F.formEvent(e2, { a: 'edit', by: 'riley', at: 3000 + 31 * 60000 }), e4 = F.formEvent(e3, { a: 'edit', by: 'sarah', at: 3000 + 32 * 60000 }), e5 = F.formEvent(e4, { a: 'save', by: 'sarah', at: 3000 + 33 * 60000 });
+  eq([e1.length, e2.length, e2[1].at, e3.length, e4.length, e5.length, e0.length], [2, 2, 3000, 3, 4, 5, 1], 'history: changes by the same person within half an hour count once (at the latest time); later, or by someone else, they count again; the old list isn’t changed');
+  let long = e0; for (let i = 0; i < 60; i++) long = F.formEvent(long, { a: i % 2 ? 'back' : 'resend', by: i % 2 ? 'sarah' : 'riley', at: 5000 + i });
+  ok(long.length === F.FORM_EVENTS && long[0].a === 'send' && long[long.length - 1].at === 5059 && long[1].at === 5000 + 60 - F.FORM_EVENTS + 1, 'a long history keeps the first line (sent) and the latest ' + (F.FORM_EVENTS - 1));
+
+  eq([['accident', 'pending'], ['accident', 'pending', { back: { by: 'sarah' } }], ['accident', 'approved'], ['deduct', 'approved'], ['concern', 'approved'], ['overtime', 'denied'], ['ce', 'cancelled', { sid: 'riley', decision: { by: 'riley' } }], ['ce', 'cancelled', { sid: 'riley', decision: { by: 'amir' } }]].map(([form, status, o]) => F.formStatus(Object.assign({ form, status }, o || {}))[0]),
+    ['Waiting', 'Sent back', 'Filed', 'Set up', 'Answered', 'Not approved', 'Taken back', 'Cancelled'], 'where a form stands, in its own words');
+  eq([F.formSay('I, {name}, authorize {employer} to take', { name: 'Riley Example' }), F.formSay('I, {name}, authorize {employer} to take')], ['I, Riley Example, authorize Next Level Orthodontics to take', 'I, ________, authorize Next Level Orthodontics to take'], 'a form’s sentences, with the person’s name and the office’s');
+  ok(F.FORM_ORDER.filter(id => F.formDef(id).sum).every(id => typeof F.formDef(id).sum({}) === 'string'), 'each form’s one-line summary works on an empty form');
+  eq([F.formDef('accident').sum(accStaff).split(' · ')[1], F.formDef('deduct').sum({ self: true, selfAmt: 42.5, selfPer: 'period' }), F.formDef('advance').sum({ amount: 300, repay: 'pay', pays: [{}, {}] })], ['Sterilization', '$42.50 per pay period, employee only', '$300 · 2 payments'], '…and says what it’s about');
+  eq([F.clip('  a   b  ', 10), F.clip('abcdefghijk', 5), F.optLabel([['a', 'Apple']], 'a'), F.optLabel([['a', 'Apple']], 'z'), F.optLabel(null, null)], ['a b', 'abcd…', 'Apple', 'z', ''], 'small helpers: a shortened line; an option’s words');
+}
+
 (async () => {
   const fs = require('fs'), path = require('path'), FX = path.join(__dirname, 'fixtures');
   const file = n => { const b = fs.readFileSync(path.join(FX, n)); return { name: n, size: b.length, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) }; };

@@ -644,3 +644,95 @@ label.chk input{width:17px;height:17px;accent-color:var(--navy)}
 .skItem:first-child{border-top:0;padding-top:0;margin-top:0}
 .field .chkList label{display:flex;align-items:center;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:13.5px;font-weight:600;color:var(--grey-700);margin:0;padding:8px 8px}
 .seg [aria-pressed="true"] .swatch{box-shadow:0 0 0 2px #fff}
+
+/* =====================================================================
+   Forms (formsui.js)
+   ===================================================================== */
+.fmTiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-bottom:4px}
+.fmTile{display:flex;align-items:flex-start;gap:10px;border:1.5px solid var(--grey-200);border-radius:12px;padding:11px 12px;text-align:left;background:#fff;min-height:72px;min-width:0}
+.fmTile:hover{border-color:var(--navy-500);box-shadow:var(--sh-sm)}
+.fmTile>.i{color:var(--navy-600);margin-top:1px}
+.fmTile b{display:block;color:var(--navy);font-size:13.5px;line-height:1.3}
+.fmTile small{display:block;font-size:11.5px;color:var(--grey-500);line-height:1.35;margin-top:3px}
+.fmTile .sug{flex:none}
+.fmWrap{max-width:840px}
+.fmHd{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 12px}
+.fmHd>.i{color:var(--navy-600);margin-top:3px}
+.fmHd h3{font-family:var(--fd);font-weight:600;font-size:18px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy);line-height:1.25}
+.fmPart{font-family:var(--fd);font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:18px 0 12px;padding-top:14px;border-top:1px solid var(--grey-100)}
+.fmPart:first-child{margin-top:0;padding-top:0;border-top:0}
+.fmPart.office{color:var(--blue-700)}
+.fmPart .opt{font-size:11.5px}
+.fmSay{font-size:13px;color:var(--grey-700);background:var(--grey-50);border-radius:10px;padding:9px 12px;margin:0 0 14px;line-height:1.5}
+label.chk.fmAgree{display:flex;align-items:flex-start;gap:9px;margin:12px 0 4px;padding:10px 12px;border-radius:10px;background:var(--mint-100);font-weight:600;line-height:1.4}
+label.chk.fmAgree input{margin-top:1px;flex:none}
+.fmSig{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:10px;color:var(--mint-700)}
+.fmSig .i{margin-top:2px}
+.fmSig b{color:var(--navy)}
+.fmFt{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 20px 16px;border-top:1px solid var(--grey-100)}
+.fmVal{margin-bottom:12px;min-width:0}
+.fmV{font-weight:600;color:var(--navy);overflow-wrap:anywhere}
+.inMoney{display:flex;align-items:center;gap:6px}
+.inMoney>span{font-weight:700;color:var(--grey-500)}
+.inMoney input{flex:1;min-width:0}
+.fmDates{display:flex;flex-direction:column;gap:6px;max-width:320px;align-items:flex-start}
+.fmDates .inRow{width:100%}
+.tbl.fmPay td,.tbl.fmPay th{padding:6px 8px}
+.tbl.fmPay input{min-height:36px;padding:6px 8px}
+.tbl.fmPay .iconBtn,.fmDates .iconBtn{width:34px;height:34px}
+.field label.chk{display:flex;align-items:flex-start;gap:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:13.5px;font-weight:600;color:var(--navy)}
+.field label.chk input{margin-top:2px;flex:none}
+@media (max-width:860px){ .fmTiles{grid-template-columns:minmax(0,1fr)} .fmHd{padding:16px 16px 10px} .fmFt{padding:12px 16px 16px} }
+/* the payments table on a phone: each payment on one line, what's still owed after it underneath */
+@media (max-width:560px){
+  .tbl.fmPay thead{display:none}
+  .tbl.fmPay,.tbl.fmPay tbody{display:block}
+  .tbl.fmPay tr{display:grid;grid-template-columns:18px minmax(0,1fr) 100px 36px;gap:4px 8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--grey-100)}
+  .tbl.fmPay td{padding:0;border:0;min-width:0}
+  .tbl.fmPay td:nth-child(1){grid-column:1;grid-row:1}
+  .tbl.fmPay td:nth-child(2){grid-column:2;grid-row:1}
+  .tbl.fmPay td:nth-child(3){grid-column:3;grid-row:1}
+  .tbl.fmPay td[data-left]{grid-column:2/4;grid-row:2;text-align:left;font-size:12px;color:var(--grey-500)}
+  .tbl.fmPay td[data-left]::before{content:'Still owed after it: '}
+  .tbl.fmPay td:nth-child(5){grid-column:4;grid-row:1}
+  .tbl.fmPay input{width:100%}
+}
+
+/* ---------- the printout (Print → Save as PDF) ---------- */
+#printDoc{display:none}
+@media print{
+  @page{size:letter;margin:.55in .6in}
+  body.printing{background:#fff}
+  body.printing>*:not(#printDoc){display:none !important}
+  body.printing #printDoc{display:block}
+}
+.pDoc{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:10.5pt;line-height:1.38}
+.pTop{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:14px}
+.pTop b{display:block;font-size:11pt;letter-spacing:.06em}
+.pTop span{font-size:8.5pt}
+.pRef{font-size:8.5pt;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+.pTitle{text-align:center;font-size:14pt;font-weight:700;margin:6px 0 16px;letter-spacing:.02em}
+.pRow{display:flex;gap:18px}
+.pF{display:flex;align-items:flex-end;gap:6px;margin:0 0 10px;flex:1 1 0;min-width:0}
+.pF.w{flex:2 1 0}
+.pL{white-space:nowrap}
+.pV{flex:1;min-width:0;border-bottom:1px solid #000;min-height:1.35em;padding:0 4px 1px;font-weight:600;overflow-wrap:anywhere}
+.pSec{font-weight:700;font-size:11pt;margin:16px 0 8px;padding-top:6px;border-top:1.5px solid #000}
+.pArea{margin:0 0 12px}
+.pText{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #000;min-height:4em;padding:4px 6px;margin-top:3px;font-weight:600}
+.pChk{margin:0 0 10px}
+.pOpt{display:inline-block;margin-right:14px;white-space:nowrap}
+.pOptL{margin:4px 0 4px 6px}
+.pBox{display:inline-block;width:11px;height:11px;border:1px solid #000;text-align:center;line-height:10px;font-size:9pt;font-weight:700;vertical-align:-1px}
+.pSay{margin:0 0 10px}
+.pSig{display:flex;gap:18px;margin-top:20px}
+.pCc{font-size:9pt;font-style:italic;margin-top:6px}
+.pFoot{margin-top:22px;padding-top:6px;border-top:1px solid #000;font-size:8pt;color:#333}
+.pBlank{border-bottom:1px solid #000;height:1.5em}
+.pItem{margin:0 0 12px;break-inside:avoid}
+.pNote{border:1px solid #000;padding:6px 8px;font-size:9.5pt;margin:0 0 10px}
+.pList{margin:0 0 10px 18px} .pList li{margin:0 0 8px}
+.pBreak{break-before:page;page-break-before:always}
+.pDoc .tblWrap{overflow:visible}
+.pDoc .tbl{font-size:9.5pt;margin-top:4px}
+.pDoc .tbl th,.pDoc .tbl td{border:1px solid #000;padding:3px 6px;color:#000;font-family:inherit;letter-spacing:0;text-transform:none;font-size:9.5pt}

@@ -33,12 +33,40 @@ office, on the NLO Cases platform: the same Firebase project (`nlo-cases`), logi
   apply, and they're off the payroll and year-end lists. Their time off is still asked for and shows on Who's out. Team
   lists them under the table. Dr. A isn't on Staff Hub's staff list, so his own record's Employment is set in the HR
   editor (Salary is a choice there for records Staff Hub doesn't supply).
+- Forms (Amir, 31 Oct 2026: "create a section under benefit tracker … that would have other forms for the staff to
+  submit"): `forms.js` (each form as data — parts, fields, who reads it, how it's decided — and the checks every copy goes
+  through) and `formsui.js` (the Forms screen, filling one out, the office part, signing, the printout). Nine forms to send
+  (accident, safety/health hazard, overtime, CE reimbursement, payroll deduction, salary advance, problem/concern,
+  harassment/discrimination, religious accommodation) and two to print for a health care provider (pregnancy leave,
+  family member's condition — filled in on screen, never saved). They follow the order and fields of the Bent Ericksen
+  forms Dr. A uses, in the office's own words; Bent Ericksen's text isn't copied into this public code (the GINA notice on
+  the family printout is the government's model wording).
+  - A sent form is a `toPerk` doc like a scrubs request (`kind: 'form'` inside the sealed content), so the rules didn't
+    change; in the clear only whose it is, status, revision and year — never which form. Statuses: pending (Waiting /
+    Sent back), approved (the form's own word: Filed, Approved, Set up, Answered, Resolved, Received), denied, cancelled.
+  - Who reads it (`aud`): `'hr'` → sealed to the HR key (Dr. A and the people who approve time off); `'owner'` → sealed to
+    **Dr. A's forms key**, which only he holds (payroll deduction, salary advance; complaints, harassment and religious
+    accommodation start as his alone and the person may include the approvers). The sender always keeps a copy sealed to
+    them. The forms key is a key pair in `meta/settings.to.drKey` = `{ v, pub, me, meX, rec, recX, at }`: made once by Dr.
+    A's Time Off (`drSetup`, in his upkeep), its private half sealed to his login (`me`, info `todrkey:me`) and to the
+    office recovery key (`rec`, `todrkey:rec`). A new password through the recovery code gives his login a new key; the
+    sign-in then opens `rec` with the same code and seals it to the new key (`drRestore`). A password change keeps the
+    key. Copies: `toperk:<id>` (HR key), `toperkdr:<id>` (forms key), `toperkme:<id>` (the person); `openPerk` opens an
+    owner-only form only with the forms key and any other only with the HR key, so a mislabelled copy opens for nobody but
+    its sender.
+  - A hazard report may leave the name off (`f.anon`): no name on it anywhere the office sees it, or on the printout (the
+    database still records which login sent it, and the form says so).
+  - Limits: each sealed copy is at most 8,000 base64 characters in the rules, so a form's JSON is at most `FORM_MAX`
+    (5,950 bytes); every box has a length limit and all forms fit with every box full; `formTooBig` names the box to
+    shorten (the sender's part, or the office's part or note). History keeps at most 40 lines (the first and the latest).
+  - Printing: Print fills `#printDoc` and prints only it (print CSS), titled "Form - Name - date" so Save as PDF names
+    the file; nothing is printed through a new window (the CSP allows none).
 - Approved scrubs orders are emailed by NLO Cases' email robot (`../nlo-cases-src/mail/script.js`, v3 or later) to the
   address in `meta/toMail`. After changing `mail/script.js`, run `node tools/build-mail.js` in `nlo-cases-src` (it needs
   esbuild, aes-js, elliptic and hash.js) and publish `mail/nlo-cases-mail.gs` as `../nlo-cases-mail.gs`.
 
 ## Tests (made-up people only)
-- `node test/unit.test.js` — the policy and the old Sheet's arithmetic.
+- `node test/unit.test.js` — the policy, the old Sheet's arithmetic and the forms' checks.
 - `node test/demo_smoke.js` — clicks through `?demo` on desktop and phone (needs a static server on :8770 serving `dist/`).
 - In the Firebase emulators (`NO_PROXY=localhost,127.0.0.1 npx firebase emulators:exec --only firestore,auth,database --project demo-nlo-cases "<cmd>"`):
   `node test/rules.test.mjs` (the rules) and `node test/e2e.js` (the real NLO Cases and Time Off pages, and a made-up Staff
