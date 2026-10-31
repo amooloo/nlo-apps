@@ -104,6 +104,8 @@ const URL = (process.env.NLO_PAGE || 'http://127.0.0.1:8765/nlo-cases.html') + '
   exp = want(cs, 'oliv next week', nextMon, nextSun, 'oliv').sort(byKey); await search('oliv next week'); got = await rows();
   check(exp.length >= 1 && exp.every(c => c.type === 'oliv') && exp.some(c => c.id === ids.tue) && JSON.stringify(got) === JSON.stringify(exp.map(c => c.id)), 'Oliv cases next week: ' + exp.length + ' (no other kind)');
   check(await hint() === '“oliv” with a delivery appt next week · ' + dayTxt(nextMon) + ' – ' + dayTxt(nextSun), 'the line reads “' + await hint() + '”');
+  exp = cs.filter(c => has(c, 'oliv and angel next week') || (c.d >= nextMon && c.d <= nextSun && (has(c, 'oliv') || has(c, 'angel')))).sort(byKey); await search('Oliv and Angel next week'); got = await rows();
+  check(exp.some(c => c.type === 'oliv') && exp.some(c => c.type === 'angel') && JSON.stringify(got) === JSON.stringify(exp.map(c => c.id)) && /^“Oliv or Angel” with a delivery appt next week/.test(await hint()), '“Oliv and Angel next week”: either kind (' + exp.length + '), “' + await hint() + '”');
   const asg = await p.evaluate(id => staffName(findCase(id).assignee, ''), ids.thuB), first = asg.split(' ')[0]; // (Gwen)
   exp = want(cs, first + ' next week', nextMon, nextSun, first.toLowerCase()).sort(byKey); await search(first + ' next week');
   check(exp.some(c => c.id === ids.thuB) && JSON.stringify(await rows()) === JSON.stringify(exp.map(c => c.id)), '“' + first + ' next week”: the cases assigned to ' + first + ' next week (' + exp.length + ')');

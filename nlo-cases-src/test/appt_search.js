@@ -82,7 +82,9 @@ isr(D, 'next week sarah', '2026-11-02', '2026-11-08', 'sarah'); isr(D, "Sarah's 
 isr(D, 'avery, thursday', '2026-11-05', null, 'avery'); isr(D, "O'Brien's Thursday", '2026-11-05', null, "O'Brien"); isr(D, 'T-1234 tomorrow', '2026-10-31', null, 'T-1234');
 isr(D, 'oliv monday to thursday', '2026-11-02', '2026-11-05', 'oliv'); isr(D, 'between nov 2 and nov 6 oliv', '2026-11-02', '2026-11-06', 'oliv'); isr(D, 'thursday 11/5 oliv', '2026-11-05', null, 'oliv');
 isr(D, 'Sun Lee', '2026-11-01', null, 'Lee'); isr(D, 'Jordan Sun', '2026-11-01', null, 'Jordan'); // (names: the words still find Sun Lee and Jordan Sunderland too — matchesQ)
-isr(D, 'thursday 2pm', '2026-11-05', null, ''); isr(D, 'Thursday at 10:30', '2026-11-05', null, ''); // (a time narrows nothing: the list shows the times) isr(D, 'next week sometime', '2026-11-02', '2026-11-08', 'sometime'); isr(D, 'november 30-31', '2026-11-01', '2026-11-30', '30-31');
+// (a time narrows nothing: the list shows the times; sometime, end of… narrow nothing either)
+isr(D, 'thursday 2pm', '2026-11-05', null, ''); isr(D, 'Thursday at 10:30', '2026-11-05', null, '');
+isr(D, 'next week sometime', '2026-11-02', '2026-11-08', ''); isr(D, 'november 30-31', '2026-11-01', '2026-11-30', '30-31');
 check(T.apptQuery('next week', D).rest === '' && T.apptQuery('thursday', D).rest === '', 'a day on its own has no other words');
 
 console.log('  (everyday phrasings — from the independent review, 30 Oct 2026)');
@@ -115,6 +117,33 @@ console.log('  (a day beside a word it can’t take in isn’t read as a day)');
 ['friday until', 'next week except oliv', 'thursday not oliv', 'after', 'before', 'by', 'next week next week', 'since monday'].forEach(q => is(D, q, null));
 isS(D, 'thursday or', d1('2026-11-05'), ''); isS(D, 'monday wednesday thursday', ['2026-11-02..2026-11-02', '2026-11-04..2026-11-04', '2026-11-05..2026-11-05'], ''); // (a list as it's typed: Thursday holds)
 
+console.log('  (the second review, 30 Oct 2026)');
+// a modifier on the last or first weekday of a list goes with each (on Monday, Nov 2)
+const M2 = '2026-11-02';
+isS(M2, 'Thursday and Friday next week', ['2026-11-12..2026-11-12', '2026-11-13..2026-11-13'], ''); isS(M2, 'Mon and Tue next week', ['2026-11-09..2026-11-09', '2026-11-10..2026-11-10']);
+isS(M2, 'Thursday and Friday after next', ['2026-11-12..2026-11-12', '2026-11-13..2026-11-13']); isS(M2, 'next week Thursday and Friday', ['2026-11-12..2026-11-12', '2026-11-13..2026-11-13']);
+isS(M2, 'last Thursday and Friday', ['2026-10-29..2026-10-29', '2026-10-30..2026-10-30']);
+// more days of the month after a date; spoken times
+isS(D, 'Nov 5 and 6', ['2026-11-05..2026-11-05', '2026-11-06..2026-11-06'], ''); isS(D, '11/5 & 6', ['2026-11-05..2026-11-05', '2026-11-06..2026-11-06'], '');
+isS(D, 'Nov 5, 6', ['2026-11-05..2026-11-05', '2026-11-06..2026-11-06'], ''); isS(D, 'the 5th and 6th', ['2026-11-05..2026-11-05', '2026-11-06..2026-11-06'], '');
+isS(D, 'Thursday at 2 p.m.', d1('2026-11-05'), ''); isS(D, 'tomorrow at 10', d1('2026-10-31'), ''); isS(D, '11/5 at 10:30', d1('2026-11-05'), '');
+// a day beside a day open at one end isn't guessed at
+['Monday after next week', 'Thursday by next week', 'Monday before Thursday'].forEach(q => is(D, q, null));
+// names: a non-standard start of a weekday is a name beside other words; a short weekday beside another day is a name
+isS(M2, 'Frida Thursday', d1('2026-11-05'), 'Frida'); isS(M2, 'Frida 11/5', d1('2026-11-05'), 'Frida'); isS(M2, 'Frida next week', ['2026-11-09..2026-11-15'], 'Frida');
+isS(M2, 'Sun tomorrow', d1('2026-11-03'), 'Sun'); isS(M2, 'tomorrow Sun', d1('2026-11-03'), 'Sun'); isS(M2, 'frida', d1('2026-11-06'), ''); isS(M2, 'next frid', d1('2026-11-13'), '');
+isS(M2, 'monday to thursd', ['2026-11-02..2026-11-05'], ''); isS(M2, 'thu fri', ['2026-11-05..2026-11-05', '2026-11-06..2026-11-06'], '');
+// words that narrow nothing; the rest of a week or month; a couple / a few; either of two words
+isS(D, 'sometime next week', ['2026-11-02..2026-11-08'], ''); isS(D, 'end of next week', ['2026-11-02..2026-11-08'], ''); isS(D, 'throughout next week', ['2026-11-02..2026-11-08'], '');
+isS(D, 'rest of this week', ['2026-10-30..2026-11-01'], ''); isS(D, 'rest of the month', ['2026-10-30..2026-10-31'], ''); isS(D, 'a couple of weeks from now', ['2026-11-09..2026-11-15'], '');
+isS(D, 'in a couple of weeks', ['2026-11-09..2026-11-15'], ''); isS(D, 'next few days', ['2026-10-30..2026-11-01'], '');
+{ const r = T.apptQuery('Oliv and Angel next week', D); check(!!r && JSON.stringify(r.restAny) === '[["Oliv"],["Angel"]]' && r.rest === 'Oliv or Angel', '“Oliv and Angel next week”: either word (' + (r && r.rest) + ')'); }
+{ const r = T.apptQuery('Avery Sample tomorrow', D); check(!!r && JSON.stringify(r.restAny) === '[["Avery","Sample"]]', '“Avery Sample tomorrow”: both words of the name'); }
+// the coming week is this one on a Monday; the past week this one on a Sunday; in the past week = the last 7 days
+isS('2026-11-01', 'this past week', ['2026-10-26..2026-11-01'], ''); isS(M2, 'this coming week', ['2026-11-02..2026-11-08'], ''); isS(D, 'in the past week', ['2026-10-24..2026-10-30'], '');
+isS('2026-11-01', 'last week', ['2026-10-19..2026-10-25']);
+// list order: a later month is read on from the one before; the 1st isn't
+isS(D, 'Thursday and the 1st', ['2026-11-01..2026-11-01', '2026-11-05..2026-11-05'], ''); isS('2026-06-15', 'December and January', ['2026-12-01..2026-12-31', '2027-01-01..2027-01-31'], '');
 console.log('\n# Monday, Nov 2, 2026');
 D = '2026-11-02';
 is(D, 'monday', '2026-11-02'); is(D, 'thursday', '2026-11-05'); is(D, 'next thursday', '2026-11-12'); is(D, 'last thursday', '2026-10-29');

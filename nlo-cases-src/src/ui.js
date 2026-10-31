@@ -385,8 +385,9 @@ function matchesQ(c) {
   if (qText(c, S.q)) return true;
   // an appointment day in the search (Amir, 30 Oct 2026: "search by appointment day … cases needing delivery next week … or on
   // thursday"): the cases whose delivery appt falls then, as well — with the other words searched alongside it, if any ("oliv next
-  // week"), each found somewhere on the case. It only ever adds to what the words find on their own (apptQuery in core.js).
-  const qd = qDate(); return !!qd && qdHit(c, qd) && (!qd.rest || qd.rest.split(' ').every(w => qText(c, w)));
+  // week"), each found somewhere on the case ("Oliv and Angel next week": either). It only ever adds to what the words find on their
+  // own (apptQuery in core.js).
+  const qd = qDate(); return !!qd && qdHit(c, qd) && (!qd.restAny.length || qd.restAny.some(g => g.every(w => qText(c, w))));
 }
 /* the words of a search, found in the patient, chart #, what's being made, type, stage, who it's assigned to, lab case # or tracking # */
 function qText(c, q) {
