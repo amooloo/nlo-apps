@@ -71,6 +71,7 @@ await E.loadRules();          // NLO Cases rules with the Hub's block; Staff Hub
 await E.seedOffice();
 await E.loadRtdbRules();
 await E.seedHub();
+await E.loadOlderCasesRules();   // the NLO Cases rules as live today (without the Hub's part) until Dr. A publishes them in the move
 
 // ---------- 1. before the move ----------
 console.log('1. before the move');
@@ -116,7 +117,6 @@ ok(!(await fabShown(pc)), 'Cadence (NLO Cases login, no Google): no “Staff mee
 
 // ---------- 2. the move ----------
 console.log('2. the move');
-await E.loadOlderCasesRules();
 await pa.evaluate(() => { settingsSheet(); });
 await pa.click('#mvOpen');
 await pa.waitForSelector('#mvForm');
@@ -160,7 +160,9 @@ await pa.waitForSelector('#ncForm', { timeout: 20000 });
 ok(/NLO Cases username and password/.test(await pa.textContent('#gate')) && !(await pa.isVisible('#gate .gbtn[data-act="sign-in"]')), 'Dr. A’s computer: the NLO Cases sign-in, no Google button');
 await pb.waitForSelector('#ncForm', { timeout: 20000 }).catch(() => { });
 ok(await pb.isVisible('#ncForm'), 'the other computer switched over by itself (NLO Cases sign-in)');
-await pc.waitForFunction(() => { const f = document.querySelector('.nlo-mtg-fab'); return f && f.classList.contains('show'); }, null, { timeout: 20000 }).catch(() => { });
+// (it was refused before the rules were published, so it listens again 30 s later, then 60 s… — up to 10 min on a screen
+// that's been open for hours; signing in on Cadence again also does it)
+await pc.waitForFunction(() => { const f = document.querySelector('.nlo-mtg-fab'); return f && f.classList.contains('show'); }, null, { timeout: 100000 }).catch(() => { });
 ok(await fabShown(pc) && /Staff meeting\s*1/.test(await pc.textContent('.nlo-mtg-fab')), 'the Cadence screen left open gets its “Staff meeting” button by itself (Gwen’s 1 to-do)');
 ok((await fsSignIn(pb, 'gone', E.PW)) !== 'app' && /turned off/.test(await pb.textContent('#gateErr')), 'a turned-off login is refused');
 ok((await fsSignIn(pb, 'newbie', E.PW)) !== 'app' && /Finish setting up/.test(await pb.textContent('#gateErr')), 'a login still on its temporary password: finish in NLO Cases first');
