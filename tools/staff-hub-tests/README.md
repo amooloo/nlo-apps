@@ -63,6 +63,26 @@ put back since stays put back, one deleted for good since is dropped, one stored
 Staff Hub's password changed by an older tab (files still open: their key is inside the record), and Erase all leaving no
 piece on the server. 118 checks (~2.5 min); screenshots `shots/pp-*.png`.
 
+## Staff forms (31 Oct 2026)
+
+`test_forms.mjs` checks the employer's forms filled out for someone on staff (Amir: "All" of the seven additions recommended
+from the Bent Ericksen / Shimmin comparison — write-ups, pay/status changes, leave and accommodation letters, the leaving
+paperwork, the hiring and new-hire additions): the Form library's new During employment and Leaving groups (Fill out… on
+each), every form in the library printing no markup blank or filled in, a blank Termination letter (its alternatives as boxes
+to tick) and a blank Counseling Record (two pages); a write-up from a person's Paperwork tab (the form picker, the usual
+answers, required parts named and marked, the preview ticking boxes and printing what was typed, Save & print with the file
+name, the list on the Paperwork tab with what was chosen, kept inside the encrypted record and nothing of it readable on the
+server or in the AI's notes, opened and changed in place, the signed copy uploaded with its type already chosen and then
+opened from the form's row); a pay change (only the rows that change); an incident write-up turned into a Counseling Record
+(and the incident then opening it); End employment offering the leaving paperwork for how they left (filled in from the
+record: dates, reason, the offboarding checklist as the Checkout Record's boxes; the letter in the name they go by; a line
+with nothing to say left out), and switching to Terminated; Fill out… from the library for someone; the letters' wording
+said to the employee, not the office's labels; where signed copies file (leave and accommodation letters with the medical
+records); upload types and guesses from file names; a new hire's packet (the photo release in it, the waiver printed with the
+benefit); a candidate card printing the Reference Check / Working Interview Agreement with their name and position;
+deleting; two devices merging; a phone; no page errors. 93 checks (~1 min); screenshots `shots/ef-*.png`. With this change
+`test_paperwork.mjs`'s one-scan packet covers 14 forms (the photo release joined the packet).
+
 The page's Firebase SDK (gstatic 10.12.2) is served from `node_modules/firebase` (`FIREBASE_SDK_DIR` to change it) and every
 app it makes is pointed at the emulators by an init script; other outside requests are refused (except the PDF reader in
 check 25, served from `node_modules/pdfjs-dist`, the same file as cdnjs'). `CHROME` = a Chromium to use

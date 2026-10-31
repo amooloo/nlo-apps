@@ -630,6 +630,39 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .sepPDet .ln{border-bottom:.6pt solid #969FAB;height:.3in}
 .nhBox.on{position:relative}
 .nhBox.on::after{content:"";position:absolute;left:.036in;top:.004in;width:.034in;height:.07in;border:solid #1B2F4C;border-width:0 1.4pt 1.4pt 0;transform:rotate(45deg)}
+/* staff forms: an answer typed when the form was filled out for someone, printed in place of writing lines */
+.nhTyped{border:.75pt solid #C3C9D0;border-radius:2.5pt;padding:.06in .1in;margin-top:.03in;font-size:9.5pt;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:#11203A}
+.nhLetter .nhTyped{border:0;border-left:1.6pt solid #C3C9D0;border-radius:0;padding:.01in 0 .01in .14in;margin:.02in 0 .02in;font-size:inherit}
+/* staff forms: the Paperwork tab, choosing a form, filling one out */
+.ppBarB{display:flex;gap:8px;flex-wrap:wrap}
+.efPanel{margin-bottom:16px}
+.efRow .nhRowT .muted{font-weight:500}
+.efGrp + .efGrp{margin-top:18px}
+.efGrpHd{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12px;color:var(--grey-500);margin:0 0 8px}
+.efGrpHd b{font-family:var(--fd);font-weight:600;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--navy)}
+.efGrpHd svg{color:var(--navy)}
+.efGrpL{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.efPickRow{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:10px 12px;border:1.5px solid var(--grey-200);border-radius:10px;background:#fff;cursor:pointer;font:inherit;color:var(--navy);transition:border-color var(--fast) var(--ease),background var(--fast) var(--ease)}
+.efPickRow:hover,.efPickRow:focus-visible{border-color:var(--blue);background:var(--grey-50)}
+.efPickRow b{font-size:13.5px;font-weight:700}
+.efPickRow span{font-size:12px;line-height:1.4;color:var(--grey-600)}
+.efQs{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.efQs .efQ{grid-column:1 / -1;min-width:0}
+.efQs .efQ.half{grid-column:auto}
+.efQs textarea{min-height:64px}
+.efHint{display:block;margin-top:4px}
+.efChips{flex-wrap:wrap}
+.efCks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:0 14px}
+.efCks .nhCkRow{display:flex;align-items:flex-start;margin:4px 0;font-family:var(--fb);font-weight:500;font-size:13.5px;letter-spacing:0;text-transform:none;color:var(--grey-700);line-height:1.4}
+.efCks .nhCkRow input{flex:none;margin-top:1px}
+.efQ.efMiss > label{color:var(--coral-700)}
+.efQ.efMiss input,.efQ.efMiss textarea,.efQ.efMiss .efChips,.efQ.efMiss .efCks{box-shadow:0 0 0 2px var(--coral-200);border-radius:10px}
+.efSep{padding:0 20px 18px}
+.efSepBtns{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 8px}
+.efDone{color:var(--mint-700) !important}
+.efCand{display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap;margin:12px 0 0}
+@media (min-width:921px){ .efEd .nhEdL{max-height:74vh;overflow:auto;padding-right:6px} }
+@media (max-width:560px){ .efQs{grid-template-columns:1fr} .efSep{padding:0 14px 14px} }
 </style>
 <style id="nlo-ai-panel">
 /* ===== AI assistant + reports module =====
@@ -1578,7 +1611,7 @@ H.viewIncident = t => {
     ${i.action ? `<div class="field"><label>Action taken / plan</label><p style="white-space:pre-wrap">${esc(i.action)}</p></div>` : ''}
     <label style="display:flex;align-items:center;gap:9px;font-size:13.5px;margin-top:8px;background:var(--grey-100);padding:12px 14px;border-radius:10px"><input type="checkbox" id="inAck" ${i.acknowledged ? 'checked' : ''} style="width:17px;height:17px;accent-color:var(--blue)"> Employee has been shown this write-up and acknowledged it</label>
   </div>
-  <div class="mf"><button class="btn btn-sec" data-act="printIncident" data-id="${i.id}">${ic('printer',14)} Print for signature</button><button class="btn btn-pri" id="inAckSave">Save</button></div>`);
+  <div class="mf" style="flex-wrap:wrap"><button class="btn btn-sec" data-act="printIncident" data-id="${i.id}">${ic('printer',14)} Print for signature</button>${efIncBtnHTML(i)}<button class="btn btn-pri" id="inAckSave">Save</button></div>`);
   $('#inAckSave').onclick = () => {
     const was = i.acknowledged;
     i.acknowledged = $('#inAck').checked;
@@ -5707,7 +5740,419 @@ I understand that due to my occupational exposure to blood or other potentially 
 | NLO uniforms (qty) | | | | |
 | | | | | |
 [[Employee signature *1.6]] [[Date]]
-[[Issued by (office manager) *1.6]] [[Date]]` }
+[[Issued by (office manager) *1.6]] [[Date]]` },
+
+  /* ---------- employer forms (31 Oct 2026, Amir: "All" of the forms recommended from the Bent Ericksen / Shimmin
+     comparison — project doc claude/hr-forms-comparison.md). The office's own wording following standard practice;
+     Bent Ericksen's text isn't copied into this public file (Edit saves any wording he pastes inside the encrypted data).
+     ask: what's asked when one is filled out for someone (their Paperwork tab → Fill out a form; kept in S.nh.issued):
+       { k, l (label), t: text|area|date|money|num|pick|checks, opts: [[value, label on screen, words printed]],
+         def(p, sep) -> starting value, need (required), hint }
+     sum: the answers shown on their list of forms. In the text, {box:key=value} and [?key=value] tick a box from an
+     answer, ?key=value prints a line only for that answer (on a blank copy: a box to tick), [[lines:N =key]] prints the
+     typed answer (or N lines to write on). ---------- */
+  { id:'reference', group:'hiring', title:'Reference Check', packet:false, office:true,
+    desc:'Notes from a call with one of a candidate’s references — print one sheet per reference.',
+    body:`> Call notes, one sheet per reference. Ask only about the work — never about health, family, age, religion or anything else personal.
+[[Candidate =name *1.6]] [[Position applied for =position *1.4]]
+[[Reference — name *1.3]] [[Company · their title *1.5]] [[Phone *0.9]]
+[[Dates employed *1.2]] [[Job title *1.4]] [[Full / part time *0.8]]
+[ ] Their company only confirms dates and title — nothing more to ask
+# Questions
+**1.** What were the candidate’s main duties?
+[[lines:2]]
+**2.** How were their attendance and punctuality?
+[[lines:1]]
+**3.** How did they work with patients or customers?
+[[lines:1]]
+**4.** How did they work with coworkers, and how did they take direction?
+[[lines:2]]
+**5.** What were their strengths? Where could they improve?
+[[lines:2]]
+**6.** Why did they leave? ___________________________________________________________
+**7.** Would you hire them again?   [ ] Yes   [ ] No   [ ] Can’t say
+**8.** Anything else we should know? _________________________________________________
+[[Called by *1.6]] [[Date called]]` },
+
+  { id:'working', group:'hiring', title:'Working Interview Agreement', packet:false,
+    desc:'For a paid working interview: the hours, the pay, and what the candidate agrees to (confidentiality, safety, no promise of a job).',
+    body:`{practice} invites {name|the candidate} to a working interview for the position of {position|________}: a paid tryout working alongside our team, so we can each see whether the job is a good fit.
+[[Candidate =name *1.6]] [[Position =position *1.4]]
+[[Date(s) *1.4]] [[Hours (start – finish) *1.2]] [[Hourly pay *0.8]]
+# What I understand
+- I’ll be paid for every hour I work, at the hourly rate above, through payroll with the usual withholding. Before I start I’ll fill out a W-4 and an I-9.
+- This is temporary work for the working interview only. It isn’t an offer of employment, and either of us can end it at any time.
+- I’ll follow the office’s directions and its safety and infection-control rules, and I won’t do anything I’m not trained or licensed to do.
+- Everything I see or hear about patients is confidential under HIPAA. I won’t share it, photograph it or post about it — during the working interview or after.
+[[Candidate signature *1.6]] [[Date]]
+[[For {practice} *1.6]] [[Date]]` },
+
+  { id:'photo', group:'packet', title:'Photo & Social Media Release', packet:true,
+    desc:'Permission to show the employee in the practice’s photos, videos and social media — or to leave them out. It’s their choice.',
+    body:`I give {practice} permission to take photos, video and audio recordings of me at work and at office events, and to use them with my first name in the practice’s marketing: its website, social media, emails and texts to patients, printed materials and displays in the office.
+- I won’t be paid for this, and I don’t need to approve each photo or post.
+- The practice won’t publish my last name, address, phone number or other personal details, and won’t use my image in a way that’s embarrassing or misleading.
+- This permission continues after my employment ends, until I take it back. I can take it back at any time by telling the office in writing: from then on nothing new of me is posted, and the practice removes what it reasonably can from its own website and accounts. (It can’t recall printed pieces or posts others have shared.)
+- Signing is my choice. It isn’t a condition of my job.
+[ ] Yes — I agree to the above
+[ ] No — please leave me out of photos and videos the practice shares
+[[Employee =name *1.6]] [[Position =position *1.4]]
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'waiver', group:'packet', title:'Health Benefit Waiver', packet:false, sum:['benefit'],
+    desc:'Optional: when someone turns down a health benefit the practice offers, so the file shows it was offered and declined.',
+    ask:[ { k:'benefit', l:'Benefit offered', t:'text', need:true, def: () => 'Celebrate Primary Care membership' },
+          { k:'offered', l:'Date offered', t:'date', def: () => todayYMD() },
+          { k:'why', l:'Reason (optional)', t:'pick', opts:[['other', 'They have other coverage'], ['want', 'They don’t want the coverage'], ['else', 'Another reason']] } ],
+    body:`{practice} offered me the health benefit below. I’ve decided not to enroll at this time.
+[[Benefit offered =benefit *2.4]] [[Date offered =offered *0.9]]
+[?why=other] I have other coverage (spouse, parent or another plan)
+[?why=want] I don’t want the coverage
+[?why=else] Another reason: ______________________
+- If I change my mind, I understand I may have to wait for the next enrollment period, unless the plan lets me join sooner (for example, after marriage, a new child or losing other coverage). I’ll tell the office if my situation changes.
+- Turning this down doesn’t change my other benefits.
+[[Employee =name *1.6]] [[Position =position *1.4]]
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'counsel', group:'employ', title:'Employee Counseling Record', packet:false,
+    desc:'A write-up: coaching, a verbal or written warning, or a final warning — the facts, what has to change, and signatures.',
+    ask:[ { k:'level', l:'Level', t:'pick', need:true, def: () => 'verbal', opts:[['coaching', 'Coaching (a documented conversation)'], ['verbal', 'Verbal warning'], ['written', 'Written warning'], ['final', 'Final written warning']] },
+          { k:'about', l:'About', t:'checks', opts:[['attendance', 'Attendance or punctuality'], ['performance', 'Job performance'], ['conduct', 'Conduct or teamwork'], ['policy', 'Policy or safety rules'], ['other', 'Other']] },
+          { k:'when', l:'Date(s) of what happened', t:'text', def: () => nhLong(todayYMD()) },
+          { k:'what', l:'What happened', t:'area', need:true, hint:'Facts only: dates, times, what was seen or said, who was there.' },
+          { k:'before', l:'Earlier conversations or warnings about this', t:'area', hint:'Dates and what was said. Leave blank if this is the first time.' },
+          { k:'expect', l:'What needs to change, and by when', t:'area', need:true },
+          { k:'help', l:'Support the office will give', t:'area', hint:'Training, a checklist, more time with their lead…' },
+          { k:'next', l:'If it doesn’t improve', t:'area', def: () => 'Further corrective action, up to and including termination of employment.' },
+          { k:'followup', l:'Follow-up meeting', t:'date' },
+          { k:'by', l:'Meeting held by', t:'text', def: () => nhLH().signer } ],
+    body:`> Confidential — personnel file. This record documents a conversation about a concern with the employee’s work. Signing it means the employee received it, not that they agree with it.
+[[Employee =name *1.6]] [[Position =position *1.4]] [[Date =today *1]]
+[[Meeting held by =by *1.6]] [[Date(s) of what happened =when *1.4]]
+## Level
+[?level=coaching] Coaching (a documented conversation)
+[?level=verbal] Verbal warning
+[?level=written] Written warning
+[?level=final] Final written warning
+## About
+[?about=attendance] Attendance or punctuality
+[?about=performance] Job performance
+[?about=conduct] Conduct or teamwork
+[?about=policy] Policy or safety rules
+[?about=other] Other
+# What happened
+[[lines:5 =what]]
+# Earlier conversations about this
+[[lines:3 =before]]
+# What needs to change, and by when
+[[lines:3 =expect]]
+===
+# Support from the office
+[[lines:2 =help]]
+# If it doesn’t improve
+[[lines:2 =next]]
+[[Follow-up meeting =followup *1]] [[- *1.6]]
+# Employee’s comments
+> The employee may write their side here, or attach a page.
+[[lines:5]]
+[[Employee signature *1.6]] [[Date]]
+[[Supervisor signature *1.6]] [[Date]]
+[[Witness signature (if the employee declines to sign) *1.6]] [[Date]]` },
+
+  { id:'change', group:'employ', title:'Change of Status or Pay', packet:false,
+    desc:'A raise, a new position, full-/part-time or salary, a new schedule or benefits — what changes and from when, signed by the employee.',
+    ask:[ { k:'eff', l:'Effective date', t:'date', need:true, def: () => todayYMD() },
+          { k:'what', l:'What’s changing', t:'checks', need:true, opts:[['pay', 'Pay'], ['title', 'Position'], ['status', 'Full-time / part-time / salary'], ['sched', 'Schedule'], ['ben', 'Benefits'], ['other', 'Other']] },
+          { k:'payfrom', l:'Pay — from', t:'text', half:true, hint:'e.g. $18.50 an hour' },
+          { k:'payto', l:'Pay — to', t:'text', half:true },
+          { k:'titlefrom', l:'Position — from', t:'text', half:true, def: p => p.role || '' },
+          { k:'titleto', l:'Position — to', t:'text', half:true },
+          { k:'statusfrom', l:'Status — from', t:'text', half:true, def: p => p.employment || '' },
+          { k:'statusto', l:'Status — to', t:'text', half:true },
+          { k:'schedfrom', l:'Schedule — from', t:'text', half:true },
+          { k:'schedto', l:'Schedule — to', t:'text', half:true },
+          { k:'bennote', l:'Benefits change', t:'text' },
+          { k:'why', l:'Reason', t:'pick', opts:[['review', 'Performance review'], ['promo', 'Promotion or new role'], ['request', 'The employee asked'], ['business', 'Needs of the practice'], ['fix', 'A correction'], ['other', 'Other']] },
+          { k:'notes', l:'Notes', t:'area' } ],
+    body:`[[Employee =name *1.6]] [[Effective date =eff *1]] [[Date of this notice =today *1]]
+# What’s changing
+| Change *1.3 | From *1.5 | To *1.5 |
+?what=pay | {box:what=pay} Pay | {payfrom} | {payto} |
+?what=title | {box:what=title} Position | {titlefrom} | {titleto} |
+?what=status | {box:what=status} Full-time / part-time / salary | {statusfrom} | {statusto} |
+?what=sched | {box:what=sched} Schedule | {schedfrom} | {schedto} |
+?what=ben | {box:what=ben} Benefits | | {bennote} |
+?what=other | {box:what=other} Other | | |
+## Reason
+[?why=review] Performance review
+[?why=promo] Promotion or new role
+[?why=request] The employee asked
+[?why=business] Needs of the practice
+[?why=fix] A correction
+[?why=other] Other
+# Notes
+[[lines:2 =notes]]
+Employment with {practice} remains at-will; this notice doesn’t change that.
+[[Approved by =doctor *1.6]] [[Signature *1.4]] [[Date]]
+I’ve been told about this change.
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'policyupd', group:'employ', title:'Policy Manual Update — Acknowledgment', packet:false, sum:['version'],
+    desc:'When the personnel policy manual changes: each person signs that they received the update.',
+    ask:[ { k:'version', l:'Date of the updated manual', t:'date', need:true, def: () => (/^\d{4}-\d{2}-\d{2}$/.test(nhLH().policy) ? nhLH().policy : todayYMD()) },
+          { k:'changes', l:'What changed', t:'area', hint:'A short summary, or “the whole manual”.' } ],
+    body:`I received a copy of {practice}’s updated Personnel Policy Manual, dated {version|__________}, or the update described below.
+# What changed
+[[lines:4 =changes]]
+- I’ll read the update, and I’ll ask Dr. Akhavan about anything that isn’t clear.
+- I understand the newest version of the manual replaces earlier ones, and that the manual can change again.
+- Nothing in the manual is a contract or a promise of employment for any length of time. My employment remains at-will.
+[[Employee =name *1.6]] [[Position =position *1.4]]
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'treatment', group:'employ', title:'Staff Treatment Agreement', packet:false, sum:['patient', 'tx'],
+    desc:'Orthodontic treatment for an employee or their family at a staff courtesy — and what’s owed if employment ends before treatment is done.',
+    ask:[ { k:'patient', l:'Patient', t:'text', need:true, def: p => p.name || '' },
+          { k:'rel', l:'Relationship to the employee', t:'text', def: () => 'Self' },
+          { k:'tx', l:'Treatment', t:'text', need:true, hint:'e.g. Invisalign, braces, retainers' },
+          { k:'months', l:'Estimated treatment length (months)', t:'num', need:true },
+          { k:'fee', l:'Usual fee', t:'money' },
+          { k:'courtesy', l:'Staff courtesy', t:'money', need:true },
+          { k:'pays', l:'Employee pays', t:'money' },
+          { k:'how', l:'How the employee pays', t:'text', hint:'e.g. payroll deduction of $50 a paycheck' },
+          { k:'due', l:'If employment ends, the unearned courtesy is due', t:'text', def: () => 'within 30 days of my last day of work' } ],
+    body:`{practice} is glad to offer its staff and their immediate family a courtesy on orthodontic treatment. This agreement records the treatment, the courtesy and what happens if employment ends before treatment is finished.
+[[Employee =name *1.6]] [[Position =position *1.4]]
+[[Patient =patient *1.6]] [[Relationship =rel *1]]
+[[Treatment =tx *2.2]] [[Estimated length (months) =months *1]]
+| Usual fee | Staff courtesy | Employee pays |
+| {fee} | {courtesy} | {pays} |
+[[How the employee pays =how *2.4]]
+# If employment ends before treatment is finished
+- The courtesy is earned month by month over the estimated length of treatment.
+- If my employment ends for any reason before treatment is finished, I’ll pay the part of the courtesy not yet earned: the courtesy × the months of treatment left ÷ the estimated months.
+- That amount is due {due|within 30 days of my last day of work}, unless we agree on a payment plan in writing. With my written permission, it may be taken from my final paycheck as the law allows.
+- Treatment continues as planned either way.
+[[Employee signature *1.6]] [[Date]]
+[[For {practice} *1.6]] [[Date]]` },
+
+  { id:'loa', group:'employ', title:'Leave of Absence Confirmation', packet:false, letter:true, sum:['leavetype', 'from'],
+    desc:'A letter confirming someone’s leave: the dates, how it’s paid, benefits, and what’s needed to come back.',
+    ask:[ { k:'leavetype', l:'Type of leave', t:'pick', need:true, opts:[['medical', 'Medical (their own health)', 'Medical leave'], ['pregnancy', 'Pregnancy or childbirth', 'Pregnancy and childbirth leave'], ['family', 'Caring for a family member', 'Leave to care for a family member'], ['military', 'Military service', 'Military leave'], ['personal', 'Personal', 'Personal leave']] },
+          { k:'from', l:'Leave starts', t:'date', need:true },
+          { k:'to', l:'Expected return', t:'date', need:true },
+          { k:'paid', l:'Pay during the leave', t:'pick', def: () => 'first', opts:[['unpaid', 'Unpaid', 'Your leave is unpaid'], ['first', 'Vacation and sick time first, then unpaid', 'You’ll use your available vacation and sick time first; the rest of your leave is unpaid'], ['paid', 'Paid', 'Your leave is paid']] },
+          { k:'benefits', l:'Benefits during the leave', t:'area', hint:'e.g. what continues, and who pays for it' },
+          { k:'held', l:'Their position', t:'pick', opts:[['held', 'Held until the expected return date', 'We’ll hold your position for you until your expected return date'], ['talk', 'We’ll talk as the date gets closer', 'As your return date gets closer, we’ll talk with you about your schedule and position']] },
+          { k:'needs', l:'Needed before they return', t:'area', def: () => 'a note from your health care provider saying you can return to work, with any limits' },
+          { k:'contact', l:'Who to keep in touch with', t:'text', def: () => nhLH().contact || nhLH().phone } ],
+    body:`{today}
+
+Dear {first},
+
+This letter confirms your leave of absence from {practice}.
+| Type of leave *1.6 | Starts | Expected return |
+| {leavetype} | {from} | {to} |
+?paid {paid}.
+?benefits {benefits}
+?held {held}.
+?needs Before you return, please give us {needs}.
+If you need more time, or want to come back sooner, please tell us as soon as you can. While you’re away, keep in touch with us at {contact}.
+
+Wishing you well,
+[[{doctor} ~sig]] [[- *0.8]]` },
+
+  { id:'accom', group:'employ', title:'Response to an Accommodation Request', packet:false, letter:true, sum:['decision'],
+    desc:'A letter answering a request for an accommodation (a disability, pregnancy or a religious practice): granted, an alternative, more information needed, or not granted.',
+    ask:[ { k:'reqdate', l:'Date of the request', t:'date', need:true },
+          { k:'basis', l:'Because of', t:'pick', need:true, opts:[['health', 'A disability or medical condition', 'a disability or medical condition'], ['pregnancy', 'Pregnancy or a related condition', 'pregnancy, childbirth or a related condition'], ['religion', 'A religious belief or practice', 'a religious belief or practice'], ['other', 'Something else', 'your needs at work']] },
+          { k:'req', l:'What was asked for', t:'area', need:true },
+          { k:'decision', l:'Decision', t:'pick', need:true, opts:[['granted', 'Granted'], ['alt', 'An alternative accommodation'], ['more', 'More information needed'], ['denied', 'Not granted']] },
+          { k:'what', l:'The accommodation (what, from when, for how long)', t:'area' },
+          { k:'why', l:'Why (for an alternative, or not granted)', t:'area' },
+          { k:'more', l:'Information needed', t:'area' },
+          { k:'review', l:'Check-in date', t:'date' } ],
+    body:`{today}
+
+Dear {first},
+
+Thank you for your request of {reqdate|__________} for an accommodation related to {basis|__________}. You asked for:
+[[lines:2 =req]]
+?decision=granted We’re glad to grant your request:
+?decision=alt We can’t provide exactly what you asked for, but we’d like to offer an accommodation we believe will meet your needs:
+?decision=more To decide, we need a little more information:
+?decision=denied After careful thought, we aren’t able to grant this request.
+?what [[lines:2 =what]]
+?more [[lines:2 =more]]
+?why [[lines:2 =why]]
+?review We’ll check in with you on {review} to see how it’s working.
+If your needs change, or this isn’t working, please tell us — we’d like to keep talking. Information about your request is kept confidential and separate from your personnel file.
+
+Sincerely,
+[[{doctor} ~sig]] [[- *0.8]]` },
+
+  { id:'resign', group:'leaving', title:'Notice of Resignation', packet:false, sum:['lastday'],
+    desc:'For an employee who is resigning to sign: their last day, an optional reason, and where to send the final pay stub and W-2.',
+    ask:[ { k:'noticedate', l:'Date of this notice', t:'date', def: (p, s) => (s && s.notice) || todayYMD() },
+          { k:'lastday', l:'Last day of work', t:'date', need:true, def: (p, s) => (s && s.lastDay) || '' },
+          { k:'reason', l:'Reason (optional)', t:'area', def: (p, s) => (s && s.type === 'resigned' && s.reason && s.reason !== 'Didn’t say' && s.reason !== 'Other') ? s.reason : '' } ],
+    body:`I’m resigning from my position as {position|________} at {practice}.
+[[Employee =name *1.6]] [[Date of this notice =noticedate *1]]
+[[My last day of work will be =lastday *1.6]] [[- *1]]
+# Reason (optional)
+[[lines:2 =reason]]
+# Where to send my final pay stub and W-2
+[[Mailing address *2.6]]
+[[Personal email *1.6]] [[Phone *1]]
+- I’ll return my office key, anything else that belongs to the practice, and anything with patient information by my last day.
+- I understand my final paycheck comes on the regular payday after my last day.
+[[Employee signature *1.6]] [[Date]]
+[[Received by (for the office) *1.6]] [[Date]]` },
+
+  { id:'resignok', group:'leaving', title:'Resignation Confirmation', packet:false, letter:true, sum:['lastday'],
+    desc:'A letter confirming a resignation: the last day, the final paycheck, benefits and what to bring back.',
+    ask:[ { k:'noticedate', l:'Resignation received on', t:'date', need:true, def: (p, s) => (s && s.notice) || todayYMD() },
+          { k:'lastday', l:'Last day of work', t:'date', need:true, def: (p, s) => (s && s.lastDay) || '' },
+          { k:'payday', l:'Final paycheck date', t:'date' },
+          { k:'benefits', l:'Benefits', t:'area', hint:'e.g. when coverage ends, and any continuation notice to expect' },
+          { k:'items', l:'Please return', t:'text', def: () => 'your office key and anything else that belongs to the practice' },
+          { k:'thanks', l:'A personal note (optional)', t:'area' } ],
+    body:`{today}
+
+Dear {first},
+
+We received your resignation on {noticedate|__________}, and we confirm that your last day of work will be {lastday|__________}.
+?payday Your final paycheck, with any pay owed to you under our policy manual, will be paid on {payday}.
+?benefits {benefits}
+Before your last day, please return {items|your office key and anything else that belongs to the practice}. We’ll mail your W-2 to the address we have on file — let us know if it changes.
+When someone asks us for a reference, we confirm your dates of employment and your position. If you’d like us to share more, ask us for an Authorization to Release References.
+?thanks {thanks}
+Thank you for your work at {practice}. We wish you all the best.
+
+Sincerely,
+[[{doctor} ~sig]] [[- *0.8]]` },
+
+  { id:'term', group:'leaving', title:'Termination of Employment', packet:false, letter:true, sum:['kind', 'lastday'],
+    desc:'A letter ending someone’s employment (or a layoff): the effective date, final pay, benefits and property — with a line for them to sign that they received it.',
+    ask:[ { k:'kind', l:'Type', t:'pick', need:true, def: (p, s) => (s && s.type === 'laidoff') ? 'layoff' : 'term', opts:[['term', 'Termination'], ['layoff', 'Layoff (the position or hours are no longer needed)']] },
+          { k:'lastday', l:'Effective date (last day)', t:'date', need:true, def: (p, s) => (s && s.lastDay) || todayYMD() },
+          { k:'reason', l:'Reason (optional)', t:'area', def: (p, s) => (s && (s.type === 'terminated' || s.type === 'laidoff') && s.reason && s.reason !== 'Other') ? s.reason : '', hint:'Florida employment is at-will; a short, factual reason is fine, or leave it out.' },
+          { k:'payday', l:'Final paycheck date', t:'date' },
+          { k:'benefits', l:'Benefits', t:'area' },
+          { k:'items', l:'Please return', t:'text', def: () => 'your office key and anything else that belongs to the practice' },
+          { k:'returnby', l:'Return by', t:'date', def: (p, s) => (s && s.lastDay) || todayYMD() } ],
+    body:`{today}
+
+Dear {first},
+
+?kind=term This letter confirms that your employment with {practice} ends effective {lastday|__________}.
+?kind=layoff We’re sorry to tell you that, because the practice no longer needs your position or hours, your employment with {practice} ends effective {lastday|__________}. This is a layoff, not a reflection on your conduct.
+?reason Reason: {reason}
+?payday Your final paycheck, with any pay owed to you under our policy manual, will be paid on {payday}.
+?benefits {benefits}
+Please return {items|your office key and anything else that belongs to the practice} by {returnby|your last day}. We’ll mail your W-2 to the address we have on file — let us know if it changes. Information about Florida’s Reemployment Assistance program is available from FloridaCommerce.
+
+Sincerely,
+[[{doctor} ~sig]] [[- *0.8]]
+# Received
+I received a copy of this letter. Signing means I received it, not that I agree with it.
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'abandon', group:'leaving', title:'Job Abandonment Letter', packet:false, letter:true, sum:['mode'],
+    desc:'For an employee who stopped coming to work without calling: either a last chance to contact the office by a date, or confirmation that employment ended.',
+    ask:[ { k:'mode', l:'This letter', t:'pick', need:true, def: () => 'chance', opts:[['chance', 'Asks them to contact the office by a date'], ['final', 'Confirms their employment has ended']] },
+          { k:'since', l:'Last day they worked', t:'date', need:true },
+          { k:'missed', l:'Scheduled days they missed without calling', t:'text', need:true },
+          { k:'tried', l:'How the office tried to reach them', t:'area', hint:'Calls, texts, emails — with dates.' },
+          { k:'by', l:'Contact the office by', t:'date' },
+          { k:'effective', l:'Employment ended effective', t:'date', def: (p, s) => (s && s.type === 'abandoned' && s.lastDay) || '' },
+          { k:'payday', l:'Final paycheck date', t:'date' } ],
+    body:`{today}
+
+Dear {first},
+
+You haven’t come to work or contacted the office since {since|__________}. You were scheduled to work on {missed|__________} and didn’t come in or call.
+?tried We tried to reach you: {tried}
+?mode=chance Please contact the office by {by|__________}. If we don’t hear from you by then, we’ll consider that you have resigned, and your employment will end on that date.
+?mode=final Because you missed scheduled work without contacting us, we consider that you have voluntarily resigned (job abandonment). Your employment with {practice} ended effective {effective|__________}.
+?payday Your final paycheck, with any pay owed to you under our policy manual, will be paid on {payday}.
+Please return your office key and anything else that belongs to the practice. If something serious kept you from contacting us, please call us at {contact} right away.
+
+Sincerely,
+[[{doctor} ~sig]] [[- *0.8]]` },
+
+  { id:'checkout', group:'leaving', title:'Employee Checkout Record', packet:false, office:true, sum:['lastday'],
+    desc:'Office copy for the personnel file — property returned, logins turned off, final pay and benefits. Ticked from the offboarding checklist.',
+    ask:[ { k:'lastday', l:'Last day', t:'date', need:true, def: (p, s) => (s && s.lastDay) || '' },
+          { k:'done', l:'Done', t:'checks', def: (p, s) => efSepDone(s), opts:[['keys', 'Office key returned'], ['alarm', 'Alarm code changed'], ['property', 'Scrubs, badge and other office property returned'], ['edge', 'Ortho2 Edge login turned off and taken off the schedule template'], ['access', 'Weave, email and computer logins turned off'], ['cases', 'NLO Cases login turned off'], ['pay', 'Final paycheck processed and taken off payroll'], ['benefits', 'Health insurance and 401(k) providers told'], ['w2', 'Forwarding address for the W-2']] },
+          { k:'notes', l:'Notes', t:'area' } ],
+    body:`> Office use — keep with the personnel file. Never write passwords or alarm codes on this sheet.
+[[Employee =name *1.6]] [[Position =position *1.4]] [[Last day =lastday *1]]
+# Returned
+[?done=keys] Office key
+[?done=property] Scrubs, badge and other office property
+[ ] Anything with patient information (notes, printouts, files)
+| Other item *2.2 | Returned (date) | Checked by |
+| | | |
+| | | |
+# Turned off
+[?done=alarm] Alarm code changed
+[?done=edge] Ortho2 Edge login — and taken off the schedule template
+[?done=access] Weave, email and computer logins
+[?done=cases] NLO Cases login (it also opens Time Off and the time clock)
+# Pay and benefits
+[?done=pay] Final paycheck processed and taken off payroll
+[?done=benefits] Health insurance and 401(k) providers told
+[?done=w2] Forwarding address for the W-2
+[[Forwarding address *2.6]]
+# Notes
+[[lines:2 =notes]]
+[[Employee signature *1.6]] [[Date]]
+[[Checked out by *1.6]] [[Date]]` },
+
+  { id:'exit', group:'leaving', title:'Exit Interview', packet:false, sum:['lastday'],
+    desc:'Optional questions for someone who is leaving — what worked, what didn’t, and what would make the practice better.',
+    ask:[ { k:'lastday', l:'Last day', t:'date', def: (p, s) => (s && s.lastDay) || '' },
+          { k:'by', l:'Interview by', t:'text', def: () => nhLH().signer } ],
+    body:`> Optional and confidential. Your answers help us make {practice} a better place to work. They won’t affect your final pay or any reference.
+[[Employee =name *1.6]] [[Position =position *1.4]] [[Last day =lastday *1]]
+[[Interview by =by *1.6]] [[Date =today *1]]
+**1.** What made you decide to leave?
+[[lines:2]]
+**2.** What did you like most about working here?
+[[lines:2]]
+**3.** What would you change?
+[[lines:2]]
+**4.** Did you have what you needed to do your job well — training, tools, help?
+[[lines:2]]
+**5.** How well did your lead and Dr. Akhavan support you?
+[[lines:2]]
+**6.** How do you feel about the pay and benefits?
+[[lines:2]]
+===
+**7.** Did you feel part of the team? What would have helped?
+[[lines:2]]
+**8.** Would you recommend {practice} as a place to work?   [ ] Yes   [ ] Maybe   [ ] No
+**9.** Would you consider coming back someday?   [ ] Yes   [ ] Maybe   [ ] No
+**10.** Anything else you’d like us to know?
+[[lines:3]]
+[[Employee signature (optional) *1.6]] [[Date]]` },
+
+  { id:'refauth', group:'leaving', title:'Authorization to Release References', packet:false, sum:['share'],
+    desc:'The employee’s permission for the practice to share more than dates and position when a future employer calls.',
+    ask:[ { k:'share', l:'What may be shared', t:'checks', def: () => ['dates'], opts:[['dates', 'Dates of employment and position'], ['pay', 'Rate of pay'], ['perf', 'Job performance, attendance and eligibility for rehire'], ['why', 'The reason employment ended']] },
+          { k:'lastday', l:'Last day', t:'date', def: (p, s) => (s && s.lastDay) || '' },
+          { k:'until', l:'Good until', t:'date', def: (p, s) => addMonthsYMD((s && s.lastDay) || todayYMD(), 24) } ],
+    body:`I give {practice} permission to answer reference requests about my employment from prospective employers, landlords and others I’ve applied to.
+# What may be shared
+[?share=dates] Dates of employment and position
+[?share=pay] Rate of pay
+[?share=perf] Job performance, attendance and eligibility for rehire
+[?share=why] The reason my employment ended
+- I release {practice}, Dr. Akhavan and the staff from any claims about information shared in good faith under this authorization.
+- This authorization lasts until {until|__________}, unless I take it back in writing before then.
+[[Employee =name *1.6]] [[Last day =lastday *1]]
+[[Employee signature *1.6]] [[Date]]` }
 ];
 
 const NH_OFFICIAL = [
@@ -5737,7 +6182,9 @@ const NH_GROUPS = [
   { id:'hiring',   label:'Before day one',             icon:'briefcase', sub:'Offer letter & application' },
   { id:'packet',   label:'New-hire packet',            icon:'clipboard', sub:'Printed together for day one' },
   { id:'official', label:'Official government forms',  icon:'shield',    sub:'Always print the current version from the source' },
-  { id:'later',    label:'After the 90-day review',    icon:'key',       sub:'' }
+  { id:'later',    label:'After the 90-day review',    icon:'key',       sub:'' },
+  { id:'employ',   label:'During employment',          icon:'note',      sub:'Fill one out for someone: Fill out… here, or their Paperwork tab' },
+  { id:'leaving',  label:'Leaving',                    icon:'door',      sub:'Also offered on their End employment record' }
 ];
 const NH_TASKS = [
   { sec:'Setup', items:[['payroll','Added to payroll'],['staffhub','Staff Hub profile + 90-day review date'],['edge','Ortho2 Edge login (clinical: template column)'],['weave','Weave access'],['clock','Time clock procedure reviewed'],['timeoff','Time-off request process reviewed'],['hepb','Hep B vaccine offered within 10 working days','clin'],['training','Training schedule set with their lead']] },
@@ -5762,6 +6209,7 @@ function nhS() {
   if (!Array.isArray(n.hidden)) n.hidden = [];
   if (!Array.isArray(n.cands)) n.cands = [];
   if (!n.lh || typeof n.lh !== 'object' || Array.isArray(n.lh)) n.lh = {};
+  if (!Array.isArray(n.issued)) n.issued = [];   /* forms filled out for someone on staff (efFillModal) */
   return n;
 }
 function nhLH() {
@@ -5828,10 +6276,17 @@ function nhVals(h) {
     ec1_name: t(h.ec1Name), ec1_rel: t(h.ec1Rel), ec1_phone: t(h.ec1Phone), ec2_name: t(h.ec2Name), ec2_rel: t(h.ec2Rel), ec2_phone: t(h.ec2Phone)
   });
 }
-function nhCtx(h) {
+/* x: the answers to a form's own questions (f.ask) — { vals: printed words, raw: as entered } — from efX() */
+function nhCtx(h, x) {
   const vals = nhVals(h);
   const formList = nhPacketForms(h).filter(f => !f.office).map(f => f.title).concat(NH_OFFICIAL.map(o => o.short));
-  return { vals, blank: !h, lh: nhLH(), logo: nhLogoUrl, practice: vals.practice, formList, title: '' };
+  if (x && x.vals) Object.assign(vals, x.vals);
+  return { vals, raw: (x && x.raw) || {}, keys: null, blank: !h, lh: nhLH(), logo: nhLogoUrl, practice: vals.practice, formList, title: '' };
+}
+/* an answer chosen when the form was filled out: a pick equal to v, or a set of checks holding v */
+function nhRawHas(ctx, k, v) {
+  const r = ctx && ctx.raw ? ctx.raw[String(k).toLowerCase()] : undefined;
+  return Array.isArray(r) ? r.indexOf(v) >= 0 : r === v;
 }
 
 /* ---------- letterhead logo: the app's own white logo, recolored navy ---------- */
@@ -5870,13 +6325,14 @@ function nhInline(text, ctx) {
   s = s.replace(/\[ \]/g, '<span class="nhBox"></span>');
   s = s.replace(/_{3,}/g, m => '<span class="nhBlank" style="min-width:' + Math.max(0.45, Math.min(5.5, m.length * 0.085)).toFixed(2) + 'in"></span>');
   s = s.replace(/ {3,}/g, '<span class="nhGap"></span>');
+  s = s.replace(/\{box:([a-z0-9_]+)=([a-z0-9_-]+)\}/gi, (m, k, v) => `<span class="nhBox${!ctx.blank && nhRawHas(ctx, k, v) ? ' on' : ''}"></span>`);
   s = s.replace(/\{\s*([a-z0-9_]+)\s*(?:\|([^{}]*))?\}/gi, (m, k, fb) => {
     k = k.toLowerCase();
-    if (!NH_KEYS.has(k)) return m;
+    if (!NH_KEYS.has(k) && !(ctx.keys && ctx.keys.has(k))) return m;
     const v = ctx.vals[k];
     if (v) return esc(v);
     if (fb) return fb;
-    return '<span class="nhBlank"></span>';
+    return ctx.cell ? '' : '<span class="nhBlank"></span>';   /* in a table cell the cell itself is the space to write in */
   });
   return s;
 }
@@ -5903,8 +6359,9 @@ function nhFieldRow(line, ctx) {
   return `<div class="nhFields${sig ? ' sigrow' : ''}">${inners.map(t => nhField(t, ctx, sig)).join('')}</div>`;
 }
 function nhChecks(items, ctx) {
-  const two = items.length >= 4 && items.every(t => t.length <= 52);
-  return `<div class="nhCks${two ? ' two' : ''}">${items.map(t => `<div class="nhCk"><span class="nhBox"></span><span>${nhInline(t, ctx)}</span></div>`).join('')}</div>`;
+  const L = items.map(t => typeof t === 'string' ? { t, on: false } : t);   /* { t, on }: a box ticked from an answer */
+  const two = L.length >= 4 && L.every(x => x.t.length <= 52);
+  return `<div class="nhCks${two ? ' two' : ''}">${L.map(x => `<div class="nhCk"><span class="nhBox${x.on ? ' on' : ''}"></span><span>${nhInline(x.t, ctx)}</span></div>`).join('')}</div>`;
 }
 function nhTable(rows, ctx) {
   const cells = r => r.trim().replace(/^\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim());
@@ -5914,13 +6371,14 @@ function nhTable(rows, ctx) {
   const widths = head.map(h => { const m = h.match(/\s\*(\d+(?:\.\d+)?)$/); return m ? Math.max(0.2, parseFloat(m[1])) : 1; });
   const heads = head.map(h => h.replace(/\s\*(\d+(?:\.\d+)?)$/, ''));
   const tot = widths.reduce((a, b) => a + b, 0) || 1;
+  const cctx = Object.assign({}, ctx, { cell: true });
   let html = '<table class="nhTbl"><colgroup>' + widths.map(w => `<col style="width:${(w / tot * 100).toFixed(2)}%">`).join('') + '</colgroup><tr>' + heads.map(h => `<th>${nhInline(h, ctx)}</th>`).join('') + '</tr>';
   body.slice(1).forEach(r => {
     let hx = '';
     const hm = r.match(/\|\s*:(\d+(?:\.\d+)?)\s*$/);
     if (hm) { r = r.slice(0, hm.index + 1); hx = ` style="height:${(0.33 * Math.max(1, Math.min(6, parseFloat(hm[1])))).toFixed(3)}in"`; }
     const c = cells(r);
-    html += `<tr${hx}>` + heads.map((_, i) => `<td>${nhInline(c[i] || '', ctx)}</td>`).join('') + '</tr>';
+    html += `<tr${hx}>` + heads.map((_, i) => `<td>${nhInline(c[i] || '', cctx)}</td>`).join('') + '</tr>';
   });
   return html + '</table>';
 }
@@ -5931,10 +6389,18 @@ function nhBlocks(body, ctx) {
   const lines = [];
   String(body || '').replace(/\r\n?/g, '\n').split('\n').forEach(raw => {
     let line = raw.trim();
-    const m = line.match(/^\?([a-z0-9_]+)\s+([\s\S]*)$/i);
+    const m = line.match(/^\?([a-z0-9_]+)(?:=([a-z0-9_-]+))?\s+([\s\S]*)$/i);
     if (m) {
-      if (!ctx.blank && !ctx.vals[m[1].toLowerCase()]) return;   // conditional line, value missing -> skip
-      line = m[2].trim();
+      const k = m[1].toLowerCase(), rest = m[3].trim();
+      if (m[2]) {   // ?key=value: printed only for that answer; on a blank copy it's a box to tick
+        if (ctx.blank) line = /^(\[\[|#|- |\||>|\[[ ?])/.test(rest) || rest === '===' || rest === '---' ? rest : '[ ] ' + rest;
+        else if (!nhRawHas(ctx, k, m[2])) return;
+        else line = rest;
+      } else {
+        if (!ctx.blank && !ctx.vals[k]) return;   // conditional line, value missing -> skip
+        if (ctx.blank && new RegExp('^\\{\\s*' + k + '\\s*\\}\\.?$', 'i').test(rest)) return;   // only the answer itself: nothing to show on a blank copy
+        line = rest;
+      }
     }
     lines.push(line);
   });
@@ -5950,7 +6416,12 @@ function nhBlocks(body, ctx) {
     const take = re => { const got = []; while (i < lines.length && re.test(lines[i])) got.push(lines[i++]); return got; };
     if (/^> /.test(line) || line === '>') { out += `<div class="nhNote">${take(/^>( |$)/).map(l => `<p>${nhInline(l.replace(/^> ?/, ''), ctx)}</p>`).join('')}</div>`; continue; }
     if (/^- /.test(line)) { out += `<ul>${take(/^- /).map(l => `<li>${nhInline(l.slice(2), ctx)}</li>`).join('')}</ul>`; continue; }
-    if (/^\[ \]\s/.test(line)) { out += nhChecks(take(/^\[ \]\s/).map(l => l.replace(/^\[ \]\s+/, '')), ctx); continue; }
+    const CK = /^\[(?: |\?([a-z0-9_]+)=([a-z0-9_-]+))\]\s/i;   // [ ] a box · [?key=value] a box ticked from an answer
+    if (CK.test(line)) {
+      out += nhChecks(take(CK).map(l => { const c = l.match(/^\[(?: |\?([a-z0-9_]+)=([a-z0-9_-]+))\]\s+/i);
+        return { t: l.slice(c[0].length), on: !!c[1] && !ctx.blank && nhRawHas(ctx, c[1], c[2]) }; }), ctx);
+      continue;
+    }
     if (/^\|/.test(line)) { out += nhTable(take(/^\|/), ctx); continue; }
     if (FIELDS.test(line)) {
       const lm = line.match(/^\[\[\s*lines\s*:\s*(\d+)\s*([^\]]*)\]\]$/i);
@@ -5960,7 +6431,10 @@ function nhBlocks(body, ctx) {
         out += `<div class="nhDigits"><div class="l">${nhInline(bm[2].trim(), ctx) || '&nbsp;'}</div><div class="bx">${'<span></span>'.repeat(nB)}</div></div>`;
       } else if (lm) {
         const nL = Math.max(1, Math.min(20, parseInt(lm[1], 10) || 1));
-        out += `<div class="nhLines">${lm[2].trim() ? `<div class="l">${nhInline(lm[2].trim(), ctx)}</div>` : ''}${'<div class="ln"></div>'.repeat(nL)}</div>`;
+        let key = null;
+        const lab = lm[2].replace(/(^|\s)=([a-z0-9_]+)(?=\s|$)/i, (m0, sp, k) => { key = k.toLowerCase(); return sp; }).trim();
+        const typed = key ? String(ctx.vals[key] || '') : '';   // [[lines:3 =key]]: the typed answer, or lines to write on
+        out += `<div class="nhLines">${lab ? `<div class="l">${nhInline(lab, ctx)}</div>` : ''}${typed ? `<div class="nhTyped">${esc(typed)}</div>` : '<div class="ln"></div>'.repeat(nL)}</div>`;
       } else if (/^\[\[\s*forms\s*\]\]$/i.test(line)) {
         out += nhChecks(ctx.formList || [], ctx);
       } else out += nhFieldRow(line, ctx);
@@ -5980,7 +6454,8 @@ function nhLetterheadHTML(ctx) {
 function nhDocHTML(f, ctx) {
   const title = f.title || 'Untitled form';
   ctx.title = title;
-  return `<section class="nhDoc">${nhLetterheadHTML(ctx)}<div class="nhTitleRow"><h1 class="nhTitle">${esc(title)}</h1>${f.letter ? '' : `<span class="nhRev">Rev. ${esc(nhRevLabel(f))}</span>`}</div>` +
+  ctx.keys = new Set((Array.isArray(f.ask) ? f.ask : []).map(a => String(a.k).toLowerCase()));   /* the form's own {placeholders} */
+  return `<section class="nhDoc${f.letter ? ' nhLetter' : ''}">${nhLetterheadHTML(ctx)}<div class="nhTitleRow"><h1 class="nhTitle">${esc(title)}</h1>${f.letter ? '' : `<span class="nhRev">Rev. ${esc(nhRevLabel(f))}</span>`}</div>` +
     `<div class="nhBody">${nhBlocks(f.body, ctx)}</div></section>`;
 }
 function nhUploadPageHTML(f, pg, src, i, ctx) {
@@ -5990,8 +6465,10 @@ function nhUploadPageHTML(f, pg, src, i, ctx) {
   return `<section class="nhDoc nhUp">${i === 0 ? nhLetterheadHTML(ctx) : nhSlimHTML(ctx, f.title + ' — page ' + (i + 1))}` +
     `<div class="nhUpImg"><img src="${src}" alt="" style="width:${(w * k).toFixed(3)}in;height:${(h * k).toFixed(3)}in"></div></section>`;
 }
-async function nhSections(f, h) {
-  const ctx = nhCtx(h);
+async function nhSections(f, h, x) {
+  /* a form with its own questions, printed for a new hire: their usual answers (e.g. the benefit a waiver is for) */
+  if (!x && h && Array.isArray(f.ask) && f.ask.length) x = efX(f, efDefaults(f, efStaffOfHire(h), null), null);
+  const ctx = nhCtx(h, x);
   if (f.kind === 'upload') {
     const pages = Array.isArray(f.pages) ? f.pages : [];
     if (!pages.length) throw new Error('“' + f.title + '” has no saved pages.');
@@ -6013,7 +6490,7 @@ async function nhPrint(items, title) {
   try {
     await nhLoadLogo();
     const parts = [];
-    for (const it of items) (await nhSections(it.f, it.h)).forEach(p => parts.push(p));
+    for (const it of items) (await nhSections(it.f, it.h, it.x)).forEach(p => parts.push(p));
     await nhDoPrint(parts.join(''), title);
   } catch (e) { toast((e && e.message) || 'Couldn’t prepare the forms for printing', true); }
 }
@@ -6118,6 +6595,7 @@ function nhLibraryHTML() {
     ].filter(Boolean).join(' ');
     const icon = f.thumb ? `<img src="${f.thumb}" alt="">` : ic('fileText', 18);
     const acts = [
+      f.group === 'employ' || f.group === 'leaving' ? `<button class="btn-ghost btn-sm" data-act="efWho" data-f="${f.id}" title="Fill it out for someone on staff — kept on their Paperwork tab">${ic('users', 13)} Fill out…</button>` : '',
       `<button class="btn-ghost btn-sm" data-act="nhPreview" data-id="${f.id}">${ic('eye', 13)} Preview</button>`,
       `<button class="btn-ghost btn-sm" data-act="nhPrintOne" data-id="${f.id}">${ic('printer', 13)} Print</button>`,
       `<button class="btn-ghost btn-sm" data-act="nhEditForm" data-id="${f.id}">${ic('edit', 13)} ${f.kind === 'upload' ? 'Details' : 'Edit'}</button>`,
@@ -6327,6 +6805,7 @@ const NH_HELP_HTML = `<details class="nhHelp"><summary>How to format a form</sum
   <tr><td><code>{name} {first} {position} {start} {today} {practice}</code></td><td>Filled in from the new hire (blank line on blank copies)</td></tr>
   <tr><td><code>=email =cell =street =city =state =zip =dob =hours =wage</code></td><td>More details you can pre-fill into <code>[[fields]]</code> — also <code>=preferred =home_phone =scrubs =ec1_name =ec1_phone</code></td></tr>
   <tr><td><code>?wage2 text</code></td><td>Line only prints when that detail is filled in</td></tr>
+  <tr><td><code>{lastday} [?level=final] text</code></td><td>Staff forms (During employment, Leaving) also print what was typed or chosen when one is filled out for someone: an answer, or a box ticked from it</td></tr>
 </table></details>`;
 
 function nhEditModal(fid) {
@@ -6724,6 +7203,324 @@ const nhNavOrig = H.nav;
 H.nav = t => { if (t && t.dataset && t.dataset.id === 'newhire') route.nhHire = null; nhNavOrig(t); };
 
 /* =====================================================================
+   STAFF FORMS — the employer's forms filled out for someone on staff
+   (31 Oct 2026, Amir: "All" of the forms recommended from the Bent
+   Ericksen / Shimmin comparison, project doc claude/hr-forms-comparison.md).
+   The forms are NH_FORMS in the 'employ' and 'leaving' groups, though any
+   form in the library can be filled out for someone (an updated HIPAA
+   agreement, a photo release for someone already on staff…).
+   Each one filled out is kept in S.nh.issued — { id, sid, form, title,
+   date (the date on the form), v (the answers to f.ask, as entered), at,
+   up, inc (the incident write-up it came from) } — inside the encrypted
+   record like everything else; never sent to the AI. Printing is the
+   new-hire pipeline (nhPrint), with the person's name, position and start
+   date from their staff profile and the form's own answers (efX).
+   Where it's offered: the Paperwork tab (Fill out a form, and the list of
+   forms filled out), the End employment record (Leaving paperwork), an
+   incident write-up (Counseling record), the Form library (Fill out…),
+   and a candidate card (Reference Check, Working Interview Agreement).
+   ===================================================================== */
+const EF_TEXT_MAX = 300, EF_AREA_MAX = 4000;
+const EF_YMD = /^\d{4}-\d{2}-\d{2}$/;
+const EF_SEP_FORMS = { resigned: ['resignok', 'resign'], terminated: ['term'], laidoff: ['term'], abandoned: ['abandon'] };
+const EF_SEP_ALL = ['checkout', 'exit', 'refauth'];
+const EF_INC_LEVEL = { minor: 'coaching', moderate: 'verbal', serious: 'written' };
+
+const efList = () => nhS().issued.filter(r => r && typeof r === 'object' && typeof r.id === 'string');
+const efRec = id => efList().find(r => r.id === id) || null;
+const efFor = sid => efList().filter(r => r.sid === sid)
+  .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || (b.at || 0) - (a.at || 0));
+const efAsk = f => (f && Array.isArray(f.ask)) ? f.ask : [];
+const efFirst = p => String((p && p.nick) || '').trim() || String((p && p.name) || '').trim().split(/\s+/)[0] || 'them';
+/* a staff profile as the details the forms print (the new-hire record's names for them), and back */
+function efHireOf(p) {
+  return { name: p.name || '', preferred: String(p.nick || '').trim(), position: p.role || '', employment: p.employment || '',
+    start: p.hireDate || '', cell: p.phone || '', email: p.email || '' };
+}
+const efStaffOfHire = h => ({ name: h.name || '', nick: h.preferred || '', role: h.position || '', employment: h.employment || '', hireDate: h.start || '' });
+/* the End employment record's offboarding checklist, as the Checkout Record's boxes */
+function efSepDone(s) {
+  const C = (s && s.checks && typeof s.checks === 'object') ? s.checks : {}, out = [];
+  if (C.keys) out.push('keys', 'alarm');
+  ['property', 'edge', 'access', 'pay', 'benefits'].forEach(k => { if (C[k]) out.push(k); });
+  return out;
+}
+/* a new one's starting answers: each question's usual answer for this person (and their End employment record) */
+function efDefaults(f, p, sep) {
+  const v = {};
+  efAsk(f).forEach(a => {
+    let d;
+    try { d = typeof a.def === 'function' ? a.def(p || {}, sep || null) : undefined; } catch (e) { d = undefined; }
+    if (a.t === 'checks') { if (Array.isArray(d) && d.length) v[a.k] = d.filter(x => typeof x === 'string'); }
+    else if (d != null && String(d) !== '') v[a.k] = String(d);
+  });
+  return v;
+}
+const efOpt = (a, k, onScreen) => { const o = (a.opts || []).find(x => x[0] === k); return o ? (onScreen ? o[1] : (o[2] || o[1])) : ''; };
+function efFmt(a, v, onScreen) {
+  if (v == null || v === '') return '';
+  switch (a.t) {
+    case 'date': return EF_YMD.test(v) ? (onScreen ? fmtD(v) : nhLong(v)) : '';
+    case 'money': return nhMoney(v);
+    case 'pick': return efOpt(a, v, onScreen);
+    case 'checks': return (Array.isArray(v) ? v : []).map(k => efOpt(a, k, onScreen)).filter(Boolean).join(', ');
+    default: return String(v).trim();
+  }
+}
+/* the answers as nhCtx takes them: the words printed, and the answers as chosen (which boxes are ticked) */
+function efX(f, raw, date) {
+  const vals = {}, r = {};
+  efAsk(f).forEach(a => {
+    const v = raw ? raw[a.k] : undefined;
+    if (a.t === 'checks') r[a.k] = Array.isArray(v) ? v.filter(x => typeof x === 'string') : [];
+    else if (v != null && v !== '') r[a.k] = String(v);
+    const s = efFmt(a, r[a.k], false); if (s) vals[a.k] = s;
+  });
+  if (date && EF_YMD.test(date)) vals.today = nhLong(date);
+  return { vals, raw: r };
+}
+function efSummary(r, f) {
+  if (!f) return '';
+  const A = efAsk(f);
+  const L = Array.isArray(f.sum) ? f.sum.map(k => A.find(a => a.k === k)).filter(Boolean) : A.filter(a => a.t === 'pick' || a.t === 'checks').slice(0, 1);
+  return L.map(a => efFmt(a, r.v ? r.v[a.k] : undefined, true)).filter(Boolean).join(' · ');
+}
+/* its signed copy: a file of that form on their Paperwork tab, added after this one was filled out (and before the next) */
+function efSigned(r) {
+  const p = staffById(r.sid); if (!p) return null;
+  let files = [];
+  try { files = ppFilesFor(ppCtxStaff(p), false).filter(f => ppKinds(f).indexOf(r.form) >= 0); } catch (e) { return null; }
+  if (!files.length) return null;
+  const same = efList().filter(x => x.sid === r.sid && x.form === r.form).sort((a, b) => (a.at || 0) - (b.at || 0));
+  const next = same[same.findIndex(x => x.id === r.id) + 1];
+  const from = (r.at || 0) - 60000, to = next ? (next.at || 0) - 60000 : Infinity;
+  return files.filter(f => (f.added || 0) >= from && (f.added || 0) < to).sort((a, b) => (b.added || 0) - (a.added || 0))[0] || null;
+}
+function efPrintRec(r) {
+  const f = nhFormById(r.form), p = staffById(r.sid);
+  if (!f || !p) { toast('That form or person isn’t in Staff Hub any more', true); return; }
+  nhPrint([{ f, h: efHireOf(p), x: efX(f, r.v, r.date) }], f.title + ' - ' + p.name);
+}
+
+/* ---------- the Paperwork tab: forms filled out for them ---------- */
+function efRowHTML(r, p) {
+  const f = nhFormById(r.form), title = (f && f.title) || r.title || 'A form no longer in the library';
+  const sum = efSummary(r, f), signed = f ? efSigned(r) : null;
+  const del = `<button class="btn-ghost btn-sm" data-act="efDel" data-id="${esc(r.id)}" title="Delete">${ic('trash', 13)}</button>`;
+  const acts = f ? `<button class="btn-ghost btn-sm" data-act="efPrint" data-id="${esc(r.id)}">${ic('printer', 13)} Print</button>` +
+    (signed ? `<button class="btn-ghost btn-sm ppOn" data-act="ppOpen" data-id="${esc(signed.id)}" title="Open the signed copy">${ic('paperclip', 13)} Signed copy</button>`
+            : `<button class="btn-ghost btn-sm" data-act="ppAdd" data-sid="${esc(p.id)}" data-k="${esc(r.form)}" title="Upload the signed copy — locked with your password">${ic('paperclip', 13)} Attach signed</button>`) +
+    `<button class="btn-ghost btn-sm" data-act="efOpen" data-id="${esc(r.id)}" title="See or change what was filled in">${ic('edit', 13)}</button>` + del : del;
+  return `<div class="nhRow efRow"><div class="nhRowIc sm">${ic('fileText', 15)}</div>
+    <div class="nhRowT"><b${f ? ` class="nhLink" data-act="efOpen" data-id="${esc(r.id)}"` : ''}>${esc(title)}</b>${sum ? ` <span class="muted">— ${esc(sum)}</span>` : ''}<span class="tiny">Dated ${esc(fmtD(r.date))}${r.inc ? ' · from an incident write-up' : ''}</span></div>
+    <div class="nhRowA">${acts}</div></div>`;
+}
+function efPanelHTML(p) {
+  const L = efFor(p.id);
+  if (!L.length) return '';
+  return `<div class="efPanel">${panelHTML('Forms filled out', L.length, L.map(r => efRowHTML(r, p)).join(''), '', 'fileText')}</div>`;
+}
+
+/* ---------- choosing a form ---------- */
+function efPickModal(sid) {
+  const p = staffById(sid); if (!p) return;
+  const forms = nhVisibleForms().filter(f => f.group !== 'official');
+  const order = (p.sep ? ['leaving', 'employ'] : ['employ', 'leaving']).concat(['packet', 'hiring', 'later']);
+  forms.forEach(f => { if (order.indexOf(f.group) < 0) order.push(f.group); });
+  const note = { packet: 'for someone already on staff, e.g. a policy they haven’t signed yet' };
+  const html = order.map(g => {
+    const L = forms.filter(f => f.group === g); if (!L.length) return '';
+    const G = NH_GROUPS.find(x => x.id === g) || { label: 'Other forms', icon: 'fileText' };
+    return `<div class="efGrp"><div class="efGrpHd">${ic(G.icon || 'fileText', 15)}<b>${esc(G.label)}</b>${note[g] ? `<span>· ${esc(note[g])}</span>` : ''}</div>
+      <div class="efGrpL">${L.map(f => `<button type="button" class="efPickRow" data-act="efFill" data-sid="${esc(p.id)}" data-f="${esc(f.id)}"><b>${esc(f.title)}</b>${f.desc ? `<span>${esc(f.desc)}</span>` : ''}</button>`).join('')}</div></div>`;
+  }).join('');
+  openModal(`<div class="mh"><h3>Fill out a form — ${esc(p.name)}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">${html || emptyHTML('fileText', 'No forms in the library.')}</div>
+  <div class="mf" style="flex-wrap:wrap"><span class="tiny">Add or change the forms in New Hire Paperwork → Form library.</span><div class="sp"></div><button class="btn btn-sec" data-act="closeModal">Cancel</button></div>`, true);
+}
+/* from the Form library: who it's for */
+function efWhoModal(fid) {
+  const f = nhFormById(fid); if (!f) return;
+  const now = activeStaff().slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const past = S.staff.filter(p => p && p.status === 'former').sort((a, b) => String(b.endDate || '').localeCompare(String(a.endDate || '')));
+  const opt = p => `<option value="${esc(p.id)}">${esc(p.name)}${p.role ? ' — ' + esc(p.role) : ''}${p.sep && p.status !== 'former' ? ' (leaving)' : ''}</option>`;
+  openModal(`<div class="mh"><h3>${esc(f.title)}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <div class="field"><label for="efWho">Fill it out for</label><select id="efWho"><option value="">Choose someone…</option>${now.length ? `<optgroup label="Staff">${now.map(opt).join('')}</optgroup>` : ''}${past.length ? `<optgroup label="Former staff">${past.map(opt).join('')}</optgroup>` : ''}</select></div>
+    <p class="tiny">It’s filled in with their details and kept on their Paperwork tab. For a blank copy to fill in by hand, use Print instead.</p>
+  </div>
+  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="efWhoGo">Next</button></div>`);
+  $('#efWhoGo').onclick = () => { const id = $('#efWho').value; if (!id) { toast('Choose who it’s for', true); return; } efFillModal(id, f.id, null); };
+}
+
+/* ---------- filling one out ---------- */
+let efTok = 0;
+function efFieldHTML(a, v) {
+  const id = 'efq_' + a.k, val = v == null ? '' : v;
+  const half = a.half || a.t === 'date' || a.t === 'money' || a.t === 'num';
+  let inp;
+  switch (a.t) {
+    case 'area': inp = `<textarea id="${id}" data-ef="${a.k}" maxlength="${EF_AREA_MAX}" rows="3">${esc(val)}</textarea>`; break;
+    case 'date': inp = `<input type="date" id="${id}" data-ef="${a.k}" value="${esc(EF_YMD.test(val) ? val : '')}">`; break;
+    case 'money': inp = `<input type="text" id="${id}" data-ef="${a.k}" inputmode="decimal" maxlength="40" placeholder="$" value="${esc(val)}">`; break;
+    case 'num': inp = `<input type="text" id="${id}" data-ef="${a.k}" inputmode="numeric" maxlength="12" value="${esc(val)}">`; break;
+    case 'pick': inp = `<div class="chips efChips" data-ef="${a.k}"${a.need ? ' data-need="1"' : ''}>${(a.opts || []).map(o => `<button type="button" class="chip${val === o[0] ? ' on' : ''}" data-v="${esc(o[0])}">${esc(o[1])}</button>`).join('')}</div>`; break;
+    case 'checks': { const on = Array.isArray(v) ? v : [];
+      inp = `<div class="efCks" data-ef="${a.k}">${(a.opts || []).map(o => `<label class="nhCkRow"><input type="checkbox" value="${esc(o[0])}"${on.indexOf(o[0]) >= 0 ? ' checked' : ''}> ${esc(o[1])}</label>`).join('')}</div>`; break; }
+    default: inp = `<input type="text" id="${id}" data-ef="${a.k}" maxlength="${EF_TEXT_MAX}" value="${esc(val)}">`;
+  }
+  const lbl = esc(a.l) + (a.need ? ' *' : '');
+  return `<div class="field efQ${half ? ' half' : ''}" data-q="${a.k}"><label${a.t === 'pick' || a.t === 'checks' ? '' : ` for="${id}"`}>${lbl}</label>${inp}${a.hint ? `<span class="tiny efHint">${esc(a.hint)}</span>` : ''}</div>`;
+}
+function efRead(box, A) {
+  const v = {};
+  A.forEach(a => {
+    const el = box.querySelector('[data-ef="' + a.k + '"]'); if (!el) return;
+    if (a.t === 'pick') { const on = el.querySelector('.chip.on'); if (on) v[a.k] = on.dataset.v; }
+    else if (a.t === 'checks') { const L = Array.from(el.querySelectorAll('input:checked')).map(i => i.value); if (L.length) v[a.k] = L; }
+    else { const s = String(el.value || '').replace(/\r\n?/g, '\n').trim(); if (s) v[a.k] = s.slice(0, a.t === 'area' ? EF_AREA_MAX : EF_TEXT_MAX); }
+  });
+  return v;
+}
+/* opt: { pre: starting answers, inc: the incident write-up it comes from } */
+function efFillModal(sid, fid, rid, opt) {
+  opt = opt || {};
+  const r0 = rid ? efRec(rid) : null;
+  if (rid && !r0) { toast('That form was deleted', true); render(); return; }
+  const p = staffById(r0 ? r0.sid : sid); if (!p) { toast('That person isn’t in Staff Hub any more', true); return; }
+  const f = nhFormById(r0 ? r0.form : fid); if (!f) { toast('That form isn’t in the library any more', true); return; }
+  const A = efAsk(f), first = efFirst(p), h = efHireOf(p), tok = ++efTok;
+  const v0 = r0 ? JSON.parse(JSON.stringify(r0.v || {})) : Object.assign(efDefaults(f, p, p.sep), opt.pre || {});
+  const date0 = r0 && EF_YMD.test(r0.date || '') ? r0.date : todayYMD();
+  const inc = !r0 && opt.inc ? (S.incidents || []).find(x => x.id === opt.inc) || null : null;
+  const intro = r0 ? `<div class="infoBox">Filled out for ${esc(first)}${r0.at ? ' on ' + esc(ppWhen(r0.at)) : ''}. Changing it here changes the copy you print next — a signed copy stays as it was.</div>`
+    : inc ? `<div class="infoBox">Filled in from the incident write-up of ${esc(fmtD(inc.date))}${inc.action ? ` — its action taken / plan: “${esc(inc.action)}”` : ''}. Check each part before you print it.</div>` : '';
+  openModal(`<div class="mh"><h3>${esc(f.title)} — ${esc(p.name)}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb"><div class="nhEd efEd">
+    <div class="nhEdL" id="efQs">
+      ${intro}
+      <div class="efQs">
+        <div class="field efQ half" data-q="_date"><label for="efDate">Date on the form *</label><input type="date" id="efDate" value="${esc(date0)}"></div>
+        ${A.map(a => efFieldHTML(a, v0[a.k])).join('')}
+      </div>
+      ${A.length ? '' : `<p class="muted" style="font-size:13px">Nothing else to fill in — it prints with ${esc(first)}’s name and position, ready to sign.</p>`}
+      <p class="tiny" style="margin-top:10px">Kept with ${esc(first)}’s paperwork in Staff Hub, locked with your password. Never goes to the AI.</p>
+    </div>
+    <div class="nhEdR"><div class="nhEdLbl">Preview · what prints</div><div class="nhPrev" id="efPrev"></div></div>
+  </div></div>
+  <div class="mf" style="flex-wrap:wrap">${r0 ? `<button class="btn-ghost btn-sm" data-act="efDel" data-id="${esc(r0.id)}">${ic('trash', 13)} Delete</button>` : ''}<div class="sp"></div><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-sec" id="efSave">Save</button><button class="btn btn-pri" id="efSavePrint">${ic('printer', 14)} Save &amp; print</button></div>`, true);
+  const modal = $('#modalWrap .modal'); if (modal) modal.classList.add('xwide');
+  const box = $('#efQs'), prev = $('#efPrev');
+  let tmr = null, upPages = null;
+  const upd = async () => {
+    if (tok !== efTok || !prev || !prev.isConnected) return;
+    const x = efX(f, efRead(box, A), $('#efDate').value);
+    let parts = null;
+    try {
+      if (f.kind === 'upload') { if (!upPages) upPages = await nhSections(f, h, x); parts = upPages; }
+      else parts = [nhDocHTML(f, nhCtx(h, x))];
+    } catch (e) { parts = null; }
+    if (tok !== efTok || !prev.isConnected) return;
+    prev.innerHTML = parts ? parts.map(s => `<div class="nhPaper">${s}</div>`).join('') : '<div class="dangerBox">Couldn’t show this form — check your connection and try again.</div>';
+    nhFitPapers(prev);
+  };
+  const deb = () => { clearTimeout(tmr); tmr = setTimeout(upd, 180); };
+  box.addEventListener('input', e => { const q = e.target.closest('.efQ'); if (q) q.classList.remove('efMiss'); deb(); });
+  box.addEventListener('change', e => { const q = e.target.closest('.efQ'); if (q) q.classList.remove('efMiss'); deb(); });
+  box.addEventListener('click', e => {
+    const c = e.target.closest('.efChips .chip'); if (!c) return;
+    const wrap = c.parentElement, was = c.classList.contains('on');
+    wrap.querySelectorAll('.chip').forEach(x => x.classList.remove('on'));
+    if (!was || wrap.dataset.need) c.classList.add('on');   /* a choice that isn't required can be cleared again */
+    const q = c.closest('.efQ'); if (q) q.classList.remove('efMiss');
+    deb();
+  });
+  upd(); nhLoadLogo().then(() => { if (tok === efTok) upd(); });
+  const save = andPrint => {
+    if (tok !== efTok) return;
+    const v = efRead(box, A), date = $('#efDate').value;
+    box.querySelectorAll('.efMiss').forEach(x => x.classList.remove('efMiss'));
+    const miss = A.filter(a => a.need && !(a.t === 'checks' ? (v[a.k] || []).length : v[a.k]));
+    if (!EF_YMD.test(date)) miss.unshift({ k: '_date', l: 'Date on the form' });
+    if (miss.length) {
+      miss.forEach(a => { const q = box.querySelector('[data-q="' + a.k + '"]'); if (q) q.classList.add('efMiss'); });
+      const q = box.querySelector('.efMiss'); if (q && q.scrollIntoView) q.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      toast('Fill in: ' + miss.map(a => a.l).join(', '), true);
+      return;
+    }
+    const cur = r0 ? efRec(r0.id) : null;
+    if (r0 && !cur) { toast('This form was deleted on another device', true); closeModal(); render(); return; }
+    const who = staffById(p.id); if (!who) { toast('That person isn’t in Staff Hub any more', true); closeModal(); render(); return; }
+    if (!ppRoomFor(JSON.stringify(v).length + 600)) { toast('Staff Hub’s storage is nearly full — delete old forms or files first', true); return; }
+    const rec = cur || { id: uid(), sid: who.id, form: f.id, at: Date.now() };
+    Object.assign(rec, { title: f.title, date, v, up: Date.now() });
+    if (!cur && inc) rec.inc = inc.id;
+    if (!cur) nhS().issued.push(rec);
+    act((cur ? 'Changed “' : 'Filled out “') + f.title + '” for ' + who.name);
+    persist(); closeModal(); render();
+    toast(cur ? 'Saved' : '“' + f.title + '” saved with ' + efFirst(who) + '’s paperwork');
+    if (andPrint) efPrintRec(rec);
+  };
+  $('#efSave').onclick = () => save(false);
+  $('#efSavePrint').onclick = () => save(true);
+}
+
+/* ---------- the End employment record: its paperwork ---------- */
+function efSepHTML(p) {
+  const s = p.sep; if (!s) return '';
+  const vis = new Set(nhVisibleForms().map(f => f.id));
+  const ids = (EF_SEP_FORMS[s.type] || []).concat(EF_SEP_ALL).filter(id => vis.has(id));
+  if (!ids.length) return '';
+  const mine = efFor(p.id);
+  const btns = ids.map(id => {
+    const f = nhFormById(id), r = mine.find(x => x.form === id);
+    return r ? `<button class="btn btn-sec btn-sm efDone" data-act="efOpen" data-id="${esc(r.id)}" title="Filled out — dated ${esc(fmtD(r.date))}. Open it to see, change or print it.">${ic('check', 13)} ${esc(f.title)}</button>`
+             : `<button class="btn btn-sec btn-sm" data-act="efFill" data-sid="${esc(p.id)}" data-f="${esc(id)}" title="Fill it out from this record">${ic('fileText', 13)} ${esc(f.title)}</button>`;
+  }).join('');
+  return `<div class="efSep"><div class="sepCkHd">Leaving paperwork</div><div class="efSepBtns">${btns}</div><div class="tiny">Filled in from this record, to print and sign. Each one you fill out is kept on the Paperwork tab.</div></div>`;
+}
+
+/* ---------- an incident write-up → an Employee Counseling Record ---------- */
+function efIncBtnHTML(i) {
+  if (!nhVisibleForms().some(f => f.id === 'counsel')) return '';
+  const r = efList().find(x => x.inc === i.id);
+  return r ? `<button class="btn btn-sec" data-act="efOpen" data-id="${esc(r.id)}" title="Filled out — dated ${esc(fmtD(r.date))}">${ic('check', 14)} Counseling record</button>`
+           : `<button class="btn btn-sec" data-act="efFromInc" data-id="${esc(i.id)}" title="Fill out an Employee Counseling Record from this write-up, to print and sign">${ic('fileText', 14)} Counseling record…</button>`;
+}
+
+/* ---------- a candidate card: the hiring forms, with their name and position ---------- */
+function efCandHTML(c) {
+  if (!c || c.status === 'passed') return '';
+  const vis = new Set(nhVisibleForms().map(f => f.id)), ids = ['reference', 'working'].filter(id => vis.has(id));
+  if (!ids.length) return '';
+  return `<div class="efCand"><span class="tiny">Print for ${esc(quizFirst(c))}:</span>${ids.map(id => `<button class="btn-ghost btn-sm" data-act="efCandPrint" data-id="${esc(c.id)}" data-f="${id}" type="button">${ic('printer', 13)} ${esc(nhFormById(id).title)}</button>`).join('')}</div>`;
+}
+
+/* ---------- actions ---------- */
+H.efPick = t => efPickModal(t.dataset.id);
+H.efFill = t => efFillModal(t.dataset.sid, t.dataset.f, null);
+H.efOpen = t => efFillModal(null, null, t.dataset.id);
+H.efPrint = t => { const r = efRec(t.dataset.id); if (r) efPrintRec(r); };
+H.efWho = t => efWhoModal(t.dataset.f);
+H.efDel = t => {
+  const r = efRec(t.dataset.id); if (!r) return;
+  const f = nhFormById(r.form), p = staffById(r.sid), title = (f && f.title) || r.title || 'form';
+  confirmModal('Delete this “' + title + '”?', 'It comes off ' + (p ? efFirst(p) + '’s' : 'their') + ' list of forms. A signed copy you attached stays with their paperwork.', () => {
+    const n = nhS(); n.issued = n.issued.filter(x => !x || x.id !== r.id);
+    act('Deleted “' + title + '” for ' + (p ? p.name : 'someone')); persist(); render(); toast('Deleted');
+  });
+};
+H.efFromInc = t => {
+  const i = (S.incidents || []).find(x => x.id === t.dataset.id); if (!i) return;
+  const what = [i.title, i.description].filter(Boolean).join('\n\n').slice(0, EF_AREA_MAX);
+  efFillModal(i.staffId, 'counsel', null, { inc: i.id, pre: { level: EF_INC_LEVEL[i.severity] || 'verbal', when: i.date ? nhLong(i.date) : '', what } });
+};
+H.efCandPrint = t => {
+  const c = candById(t.dataset.id), f = nhFormById(t.dataset.f); if (!c || !f) return;
+  nhPrint([{ f, h: { name: c.name || '', position: c.position || '' } }], f.title + ' - ' + c.name);
+};
+
+/* =====================================================================
    CANDIDATES — people being interviewed, before they're hired (the
    "Candidates" tab of New Hire Paperwork). Mainly so a candidate can take
    the color quiz by link, exactly like staff (see COLOR QUIZ BY LINK).
@@ -6937,6 +7734,7 @@ function candModal(id) {
     ${statusLine}
     ${open ? candPlanHTML(c) : ''}
     <div class="candSec" data-candapp="${esc(c.id)}">${candAppBoxHTML(c)}</div>
+    ${efCandHTML(c)}
     <div data-candcolor="${esc(c.id)}">${candColorBoxHTML(c)}</div>
     <div class="field" style="margin:16px 0 0"><label>Notes</label><textarea class="nhNotes" data-chg="candNote" data-id="${c.id}" placeholder="Interview notes, availability, references…">${esc(c.notes || '')}</textarea></div>
   </div>
@@ -7701,8 +8499,8 @@ function sepPanelHTML(p) {
     (s.details ? `<div class="sepDet">${esc(s.details)}</div>` : '') +
     `<div class="sepChecks"><div class="sepCkHd">Offboarding checklist <span>${done} of ${SEP_CHECKS.length}</span></div><div class="sepCkGrid">` +
     SEP_CHECKS.map(([k, l]) => `<label class="sepCk ${C[k] ? 'done' : ''}"><input type="checkbox" data-chg="sepCheck" data-id="${p.id}" data-k="${k}" ${C[k] ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('') +
-    '</div></div>';
-  const head = `<button class="btn btn-sec btn-sm" data-act="sepPrint" data-id="${p.id}">${ic('printer', 13)} Print</button>` +
+    '</div></div>' + efSepHTML(p);
+  const head =`<button class="btn btn-sec btn-sm" data-act="sepPrint" data-id="${p.id}">${ic('printer', 13)} Print</button>` +
     `<button class="btn btn-sec btn-sm" data-act="sepEdit" data-id="${p.id}">${ic('edit', 13)} Edit</button>` +
     (pending ? `<button class="btn btn-sec btn-sm" data-act="sepCancel" data-id="${p.id}">${ic('undo', 13)} Cancel departure</button>` : '');
   return `<div class="sepPanel">${panelHTML((pending ? 'Leaving — ' : 'Separation — ') + esc(T.label), null, body, head, 'door')}</div>`;
@@ -8220,8 +9018,8 @@ const PP_EXT = { 'application/pdf':'.pdf', 'image/jpeg':'.jpg', 'image/png':'.pn
 const PP_OFF_TITLES = { w4:'Form W-4', i9:'Form I-9' };
 const PP_EXTRA = {
   resume:  { title:'Résumé', grp:'Hiring', sec:'hire' },
-  review:  { title:'Signed review', grp:'Later', sec:'hire' },
-  writeup: { title:'Signed write-up or warning', grp:'Later', sec:'hire' },
+  review:  { title:'Signed review', grp:'During employment', sec:'hire' },
+  writeup: { title:'Signed write-up or warning', grp:'During employment', sec:'hire' },
   bank:    { title:'Voided check or bank letter', grp:'Copies & records', sec:'pay' },
   idcopy:  { title:'ID / Social Security card copies', grp:'Copies & records', sec:'i9' },
   medical: { title:'Other medical record', grp:'Copies & records', sec:'med' },
@@ -8234,11 +9032,19 @@ const PP_SECS = [
   { id:'med',   label:'Medical', sub:'confidential, listed apart from the personnel forms' },
   { id:'other', label:'Other' }
 ];
-const PP_SEC_OF = { w4:'pay', deposit:'pay', paystub:'pay', payroll:'pay', bank:'pay', i9:'i9', idcopy:'i9', hepb:'med', medical:'med', other:'other' };
+const PP_SEC_OF = { w4:'pay', deposit:'pay', paystub:'pay', payroll:'pay', bank:'pay', i9:'i9', idcopy:'i9', hepb:'med', medical:'med', other:'other',
+  accom:'med', loa:'med' };   /* accommodation and leave letters can say why: kept with the medical records, apart from the personnel forms */
 const PP_ESSENTIALS = ['w4', 'i9', 'deposit', 'handbook', 'hipaa', 'hepb'];
 const PP_ESS_LABEL = { w4:'W-4', i9:'I-9', deposit:'Direct deposit', handbook:'Policy manual', hipaa:'HIPAA agreement', hepb:'Hep B record' };
 /* a first guess from the file name (Brandi W4.pdf, I-9.pdf, direct deposit.jpg, packet.pdf …); he can change it */
 const PP_GUESS = [
+  /* the staff forms (31 Oct 2026) first: their names are the more specific */
+  [/counsel/, 'counsel'], [/exit ?interview/, 'exit'], [/check ?out/, 'checkout'], [/abandon/, 'abandon'],
+  [/terminat|lay ?off|laid off/, 'term'], [/resignation (confirm|accept)/, 'resignok'], [/resign/, 'resign'],
+  [/(photo|media) release/, 'photo'], [/waiver/, 'waiver'], [/accommodat/, 'accom'], [/leave of absence|\bloa\b/, 'loa'],
+  [/(authoriz|release).*referenc|referenc.*(authoriz|release)/, 'refauth'], [/referenc/, 'reference'],
+  [/working interview/, 'working'], [/treatment (agreement|benefit)|staff treatment/, 'treatment'],
+  [/change of (status|pay)|(pay|status) change|\braise\b/, 'change'], [/polic.*update|updated? polic/, 'policyupd'],
   [/\bi ?9\b|eligibility/, 'i9'], [/\bw ?4\b|withholding/, 'w4'], [/\bvoid|bank letter/, 'bank'],
   [/direct ?dep|\bdeposit\b/, 'deposit'], [/pay ?stub|electronic pay/, 'paystub'], [/payroll/, 'payroll'],
   [/check ?list/, 'checklist'], [/\boffer/, 'offer'], [/applica/, 'application'], [/r[eé]sum[eé]|\bcv\b/, 'resume'],
@@ -8337,8 +9143,10 @@ function ppTypeList() {
   forms.filter(f => f.group === 'hiring').forEach(f => add(f.id, f.title, 'Hiring'));
   add('resume', PP_EXTRA.resume.title, 'Hiring');
   forms.filter(f => f.group === 'later').forEach(f => add(f.id, f.title, 'Later'));
+  forms.filter(f => f.group === 'employ').forEach(f => add(f.id, f.title, 'During employment'));
+  forms.filter(f => f.group === 'leaving').forEach(f => add(f.id, f.title, 'Leaving'));
   ['review', 'writeup', 'bank', 'idcopy', 'medical', 'other'].forEach(k => add(k, PP_EXTRA[k].title, PP_EXTRA[k].grp));
-  forms.filter(f => ['packet', 'hiring', 'later'].indexOf(f.group) < 0).forEach(f => add(f.id, f.title, 'Other'));
+  forms.filter(f => ['packet', 'hiring', 'later', 'employ', 'leaving'].indexOf(f.group) < 0).forEach(f => add(f.id, f.title, 'Other'));
   return L;
 }
 const ppTypeOk = k => k === 'multi' || ppTypeList().some(t => t.id === k);
@@ -8668,9 +9476,11 @@ function subPaper(p) {
   return `
   <div class="tlAdd ppBar">
     <div class="ppBarT">${ic('lock', 18)}<span><b>Locked with your password.</b> Each file is encrypted on this computer before it’s uploaded, so Google only ever stores scrambled data. Paperwork never goes to the AI or to the other office apps.${files.length ? ` <span class="muted">${plural(files.length, 'file')} · ${fmtBytes(total)}</span>` : ''}</span></div>
-    <button class="btn btn-pri btn-sm" data-act="ppAdd" data-sid="${p.id}">${ic('upload', 13)} Add paperwork</button>
+    <div class="ppBarB"><button class="btn btn-sec btn-sm" data-act="efPick" data-id="${p.id}" title="A write-up, a pay or status change, a leave letter, the leaving paperwork… filled in with their details, to print and sign">${ic('edit', 13)} Fill out a form</button>
+    <button class="btn btn-pri btn-sm" data-act="ppAdd" data-sid="${p.id}">${ic('upload', 13)} Add paperwork</button></div>
   </div>
   ${ppEssHTML(ctx)}
+  ${efPanelHTML(p)}
   <div class="panel" data-ppzone="1" data-sid="${p.id}">${files.length ? `<div class="pb flush">${ppListHTML(files)}</div>` : `<div class="pb">${ppDropHTML(ctx, true)}</div>`}</div>
   ${gone ? `<div class="panel" style="margin-top:16px"><div class="pb">${gone}</div></div>` : ''}`;
 }

@@ -260,7 +260,8 @@ console.log('3. on the server');
 console.log('4. the new-hire page');
 {
   const t = await page.textContent('#main');
-  ok(/4 files/.test(t) && /Form I-9/.test(t) && /Signed packet \(one scan\)/.test(t) && /Covers 13 forms: .* and 10 more/.test(t), 'Signed paperwork lists the 4 files (I-9, the packet with what it covers …)');
+  /* 14 since 31 Oct 2026: the Photo & Social Media Release joined the new-hire packet (test_forms.mjs) */
+  ok(/4 files/.test(t) && /Form I-9/.test(t) && /Signed packet \(one scan\)/.test(t) && /Covers 14 forms: .* and 11 more/.test(t), 'Signed paperwork lists the 4 files (I-9, the packet with what it covers …)');
   const secs = await page.$$eval('[data-ppzone][data-hid] .nhSubHd', els => els.map(e => e.textContent));
   ok(secs.some(s => /Payroll & tax/.test(s)) && secs.some(s => /I-9 & ID copies/.test(s) && /listed apart/.test(s)) && secs.some(s => /Medical|Hiring/.test(s)), 'grouped: Hiring & personnel / Payroll & tax / I-9 & ID copies (listed apart) …: ' + secs.join(' | '));
   const on = await page.$$eval('.ppOn', els => els.length), att = await page.$$eval('[data-act=ppAdd][data-k]', els => els.map(e => e.dataset.k));
