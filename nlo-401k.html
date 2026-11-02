@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#1B2F4C" />
+<meta name="robots" content="noindex" />
+<title>NLO 401(k) — Plan Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1B2F4C; --navy2:#2a3f5c; --blue:#1D3EA9; --coral:#FA624D; --mint:#64F4C9; --gold:#F6AF24;
+  --page:#F2F3F4; --card:#fff; --ink:#1B2F4C; --muted:#5d6b7e; --line:#e3e7ec; --soft:#f6f8fa;
+  --ok:#1f9d6a; --okbg:#e3f7ee; --warn:#b7791f; --warnbg:#fff4d9; --bad:#d6382a; --badbg:#ffe8e5; --info:#1D3EA9; --infobg:#e7ecfb;
+  --r:14px; --shadow:0 2px 10px rgba(27,47,76,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--page);color:var(--ink);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--blue)}
+h1,h2,h3,h4{line-height:1.2}
+.hidden{display:none!important}
+.sr{position:absolute;left:-9999px}
+
+/* ---------- lock screen ---------- */
+#lock{min-height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 600px at 20% -10%,#2a3f5c 0,var(--navy) 55%,#13223a 100%);padding:24px}
+.lock-card{background:#fff;border-radius:22px;padding:34px 34px 28px;width:min(440px,100%);box-shadow:0 30px 60px rgba(0,0,0,.35)}
+.lock-card .brand{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.lock-card .brand .mark{width:46px;height:46px;border-radius:12px;background:var(--navy);display:grid;place-items:center;color:var(--mint);font-weight:800;font-size:13px;letter-spacing:.5px}
+.lock-card h1{font-size:22px;font-weight:800;color:var(--navy)}
+.lock-card .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+.lock-card label{display:block;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.lock-card input{width:100%;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;font-size:16px;background:#fff}
+.lock-card input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,62,169,.15)}
+.lock-card .btn{width:100%;margin-top:18px;padding:14px;font-size:16px}
+.lock-msg{margin-top:14px;font-size:13.5px;border-radius:10px;padding:10px 12px;display:none;line-height:1.4}
+.lock-msg.bad{display:block;background:var(--badbg);color:#8d1f14}
+.lock-msg.info{display:block;background:var(--infobg);color:#15307f}
+.lock-msg.ok{display:block;background:var(--okbg);color:#0e5c3b}
+.lock-foot{margin-top:16px;font-size:12px;color:var(--muted);line-height:1.5}
+.lock-alt{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.lock-alt button{flex:1}
+
+/* ---------- app frame ---------- */
+#app{display:none;min-height:100%}
+.topbar{background:var(--navy);color:#fff;padding:14px 20px 14px 150px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:20}
+.topbar .title{font-weight:800;font-size:18px;letter-spacing:.2px}
+.topbar .title small{display:block;font-weight:500;font-size:11.5px;opacity:.7;letter-spacing:1.6px;text-transform:uppercase}
+.topbar .spacer{flex:1}
+.sync{font-size:12px;display:flex;align-items:center;gap:7px;opacity:.9;white-space:nowrap}
+.sync .dot{width:9px;height:9px;border-radius:50%;background:var(--mint)}
+.sync.off .dot{background:var(--gold)} .sync.err .dot{background:var(--coral)} .sync.busy .dot{background:#fff;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.topbar .btn-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.25)}
+.topbar .btn-ghost:hover{background:rgba(255,255,255,.18)}
+.layout{display:grid;grid-template-columns:230px 1fr;min-height:calc(100% - 62px)}
+nav.side{background:#fff;border-right:1px solid var(--line);padding:16px 12px;position:sticky;top:62px;height:calc(100vh - 62px);overflow:auto}
+nav.side button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;border:0;background:transparent;border-radius:10px;font-weight:600;font-size:14px;color:var(--navy);cursor:pointer;margin-bottom:2px}
+nav.side button svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.75;flex:none}
+nav.side button:hover{background:var(--soft)}
+nav.side button.on{background:var(--navy);color:#fff}
+nav.side button .cnt{margin-left:auto;background:var(--coral);color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:1px 7px}
+nav.side button.on .cnt{background:var(--mint);color:var(--navy)}
+nav.side .grp{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);font-weight:700;padding:14px 12px 6px}
+main.content{padding:22px 26px 60px;max-width:1240px;width:100%}
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr}
+  nav.side{position:static;height:auto;display:flex;overflow-x:auto;gap:4px;padding:8px;border-right:0;border-bottom:1px solid var(--line)}
+  nav.side .grp{display:none}
+  nav.side button{width:auto;white-space:nowrap;padding:8px 12px;font-size:13px}
+  main.content{padding:16px 14px 60px}
+  .topbar{padding:10px 12px 10px 96px;gap:10px}
+  .topbar .title{font-size:15px;white-space:nowrap}
+  .topbar .title small{display:none}
+  .sync #syncTxt{display:none}
+}
+.card{overflow-x:auto}
+
+/* ---------- components ---------- */
+.page-h{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.page-h h2{font-size:24px;font-weight:800}
+.page-h p{color:var(--muted);font-size:13.5px;margin-top:4px;max-width:720px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+.card h3{font-size:15px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.card h3 .chip{font-weight:700}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))} .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1000px){.g3,.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.stat{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;cursor:pointer;border-left:6px solid var(--line);transition:transform .12s}
+.stat:hover{transform:translateY(-2px)}
+.stat .n{font-size:34px;font-weight:800;line-height:1}
+.stat .l{font-size:12.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.stat .s{font-size:12.5px;color:var(--muted);margin-top:6px}
+.stat.bad{border-color:var(--coral)} .stat.warn{border-color:var(--gold)} .stat.ok{border-color:var(--mint)} .stat.info{border-color:var(--blue)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:11px;border:0;background:var(--navy);color:#fff;font-weight:700;font-size:14px;cursor:pointer;transition:background .12s,transform .08s}
+.btn:hover{background:var(--navy2)} .btn:active{transform:scale(.98)}
+.btn.sec{background:#fff;color:var(--navy);border:1.5px solid var(--line)} .btn.sec:hover{background:var(--soft)}
+.btn.mint{background:var(--mint);color:var(--navy)} .btn.mint:hover{background:#4fe0b6}
+.btn.coral{background:var(--coral);color:#fff} .btn.coral:hover{background:#e45039}
+.btn.sm{padding:7px 11px;font-size:12.5px;border-radius:9px}
+.btn.xs{padding:4px 9px;font-size:12px;border-radius:8px}
+.btn[disabled]{opacity:.5;cursor:default}
+.btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.chip.you{background:#e7ecfb;color:#15307f} .chip.tpa{background:#efe6fb;color:#5b2e9e} .chip.rk{background:#e3f7ee;color:#0e5c3b} .chip.payroll{background:#fff4d9;color:#7a4e00} .chip.ee{background:#ffe8e5;color:#8d1f14}
+.chip.notice{background:#ffe8e5;color:#8d1f14} .chip.filing{background:#e7ecfb;color:#15307f} .chip.deposit{background:#e3f7ee;color:#0e5c3b} .chip.test{background:#efe6fb;color:#5b2e9e} .chip.doc{background:#fff4d9;color:#7a4e00} .chip.review{background:var(--soft);color:var(--muted)}
+.chip.ok{background:var(--okbg);color:#0e5c3b} .chip.bad{background:var(--badbg);color:#8d1f14} .chip.warn{background:var(--warnbg);color:#7a4e00} .chip.info{background:var(--infobg);color:#15307f}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl tr:hover td{background:#fafbfc}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl input,.tbl select{padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:13px;width:100%}
+.tbl input[type=date]{width:150px}
+.tbl input[type=number]{width:110px}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:14px;background:var(--soft);border-radius:12px}
+.form{display:grid;gap:12px}
+.form .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.form label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.form input,.form select,.form textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;font-size:14px}
+.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,62,169,.12)}
+.form textarea{min-height:76px;resize:vertical}
+.form .help{font-size:12px;color:var(--muted);margin-top:4px}
+.form .check{display:flex;align-items:center;gap:8px;font-size:14px;text-transform:none;letter-spacing:0;font-weight:600;color:var(--ink);margin:0}
+.form .check input{width:auto}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+
+/* calendar items */
+.item{display:grid;grid-template-columns:74px 1fr auto;gap:14px;padding:14px 16px;background:#fff;border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:10px;border-left:6px solid var(--line);align-items:start}
+.item.overdue{border-color:var(--coral)} .item.soon{border-color:var(--gold)} .item.done{border-color:var(--mint);opacity:.75} .item.na{opacity:.5} .item.waiting{border-color:#a883e0}
+.item .date{text-align:center;background:var(--soft);border-radius:10px;padding:8px 4px}
+.item .date .m{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:700}
+.item .date .d{font-size:24px;font-weight:800;line-height:1.1}
+.item .date .y{font-size:11px;color:var(--muted)}
+.item .t{font-weight:700;font-size:15px}
+.item .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.item .why{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5;display:none}
+.item .why b{color:var(--ink)}
+.item.open .why{display:block}
+.item .ctl{display:flex;flex-direction:column;gap:6px;align-items:flex-end;min-width:150px}
+.item .ctl select{padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:13px;font-weight:600}
+.item .ctl input{padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px;width:100%}
+.item .linkish{background:none;border:0;color:var(--blue);font-weight:700;font-size:12.5px;cursor:pointer;padding:0}
+.month-h{font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);font-weight:800;margin:20px 0 8px}
+.month-h:first-child{margin-top:4px}
+@media(max-width:620px){.item{grid-template-columns:64px 1fr}.item .ctl{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center}}
+
+/* guide */
+.guide h3{font-size:16px;margin:18px 0 8px}
+.guide h3:first-child{margin-top:0}
+.guide p,.guide li{font-size:14px;line-height:1.6}
+.guide ul,.guide ol{padding-left:22px;margin:6px 0 10px}
+.guide li{margin-bottom:4px}
+.guide .term{font-weight:800;color:var(--navy)}
+.guide dl{display:grid;grid-template-columns:170px 1fr;gap:8px 14px;font-size:14px}
+.guide dt{font-weight:800} .guide dd{color:var(--ink);line-height:1.5}
+@media(max-width:620px){.guide dl{grid-template-columns:1fr}.guide dd{margin-bottom:8px}}
+.callout{border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.55;margin:10px 0}
+.callout.warn{background:var(--warnbg);color:#5e3b00} .callout.bad{background:var(--badbg);color:#7d1a10} .callout.info{background:var(--infobg);color:#15307f} .callout.ok{background:var(--okbg);color:#0e5c3b}
+.callout b{font-weight:800}
+
+/* modal + toast */
+.modal-bg{position:fixed;inset:0;background:rgba(10,20,35,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-bg.on{display:flex}
+.modal{background:#fff;border-radius:18px;width:min(640px,100%);max-height:92vh;overflow:auto;padding:22px 24px;box-shadow:0 30px 60px rgba(0,0,0,.4)}
+.modal h3{font-size:18px;font-weight:800;margin-bottom:12px}
+#toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--navy);color:#fff;padding:10px 16px;border-radius:14px;font-size:13.5px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:min(90vw,520px);text-align:center;line-height:1.4}
+.toast.bad{background:var(--coral)} .toast.ok{background:#146e4a}
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.search{padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;min-width:200px}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:13.5px}
+.kv dt{color:var(--muted);font-weight:600} .kv dd{font-weight:600}
+.limits td:first-child{font-weight:600}
+.bar{height:10px;border-radius:999px;background:var(--soft);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.who{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.who .w{background:var(--soft);border-radius:12px;padding:12px 14px}
+.who .w b{display:block;font-size:14px;margin-bottom:4px}
+.who .w p{font-size:13px;color:var(--muted);line-height:1.5}
+details.acc{border:1.5px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px;background:#fff}
+details.acc summary{font-weight:700;cursor:pointer;font-size:14.5px}
+details.acc[open] summary{margin-bottom:8px}
+.badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.small{font-size:12.5px;color:var(--muted)}
+.right{text-align:right}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--soft);padding:10px 12px;border-radius:10px;white-space:pre-wrap;word-break:break-word}
+
+@media print{
+  .topbar,nav.side,#toasts,.noprint,.btn{display:none!important}
+  body{background:#fff}
+  .layout{grid-template-columns:1fr}
+  main.content{padding:0;max-width:none}
+  .card,.item,.stat{box-shadow:none;border:1px solid #ccc}
+  .item .why{display:block}
+}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" onerror="window.__fbLoadErr=true"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" onerror="window.__fbLoadErr=true"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" onerror="window.__fbLoadErr=true"></script>
+</head>
+<body>
+
+<!-- ===================== LOCK SCREEN ===================== -->
+<div id="lock">
+  <form class="lock-card" id="lockForm" autocomplete="on">
+    <div class="brand"><div class="mark">401k</div><div><h1>NLO 401(k)</h1><div class="sub">Plan administration — Dr. A only</div></div></div>
+    <p class="small" style="margin-top:4px">Everything here is encrypted with your password before it is saved. Same email and password as Staff Hub.</p>
+    <label for="lkEmail">Email</label>
+    <input id="lkEmail" type="email" autocomplete="username" required placeholder="you@…">
+    <label for="lkPw">Password</label>
+    <input id="lkPw" type="password" autocomplete="current-password" required placeholder="••••••••••••">
+    <button class="btn" id="lkBtn" type="submit">Open</button>
+    <div class="lock-alt hidden" id="lkAlt"></div>
+    <div class="lock-msg" id="lkMsg"></div>
+    <div class="lock-foot">Never store Social Security numbers here — the TPA's secure portal is where the census with SSNs goes. This app keeps what you need to <em>run</em> the plan: deadlines, notices, deposits, eligibility, corrections and the fiduciary file.</div>
+  </form>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <div class="topbar">
+    <div class="title">NLO 401(k)<small>Plan admin · <span id="tbPlan">—</span></small></div>
+    <div class="spacer"></div>
+    <div class="sync off" id="syncPill"><span class="dot"></span><span id="syncTxt">Saved on this computer</span></div>
+    <button class="btn btn-ghost sm" id="btnLock" type="button">Lock</button>
+  </div>
+  <div class="layout">
+    <nav class="side" id="nav"></nav>
+    <main class="content" id="main"></main>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<div id="toasts"></div>
+
+<script>
+/* =========================================================================================
+   NLO 401(k) — Plan Admin
+   One file. Vanilla JS. Data is encrypted in the browser (PBKDF2-SHA256 600k -> AES-256-GCM)
+   with the sign-in password, mirrored to localStorage and (when the rules allow it) to
+   Firestore plan401k/{uid} in the nlo-staff-hub project, same account as Staff Hub.
+   ========================================================================================= */
+'use strict';
+
+/* ---------- Firebase (same project + login as Staff Hub) ---------- */
+const FB_CONFIG = {
+  apiKey: "AIzaSyBhS4WoMSx78fNdObvPBmvft8zq5CiMw9M",
+  authDomain: "nlo-staff-hub.firebaseapp.com",
+  projectId: "nlo-staff-hub",
+  storageBucket: "nlo-staff-hub.firebasestorage.app",
+  messagingSenderId: "29097520373",
+  appId: "1:29097520373:web:8d585efe0a168a84a429bc"
+};
+const FB_COLLECTION = 'plan401k';
+const STORE_KEY = 'nlo401k.v1';
+const KDF_ITER = 600000;
+const APP_VER = '1.0';
+
+let fbOK = false, fbAuth = null, fbDB = null, fbUser = null, cloud = 'off'; /* off | on | denied | offline */
+try {
+  if (!window.__fbLoadErr && window.firebase && firebase.initializeApp) {
+    firebase.initializeApp(FB_CONFIG);
+    fbAuth = firebase.auth(); fbDB = firebase.firestore();
+    try { fbAuth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) {}
+    try { fbDB.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
+    fbOK = true;
+  }
+} catch (e) { fbOK = false; }
+
+/* ---------- small helpers ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const b64 = buf => { const u = new Uint8Array(buf), CH = 0x8000; let s = ''; for (let i = 0; i < u.length; i += CH) s += String.fromCharCode.apply(null, u.subarray(i, i + CH)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const money = n => (n == null || n === '' || isNaN(n)) ? '—' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const pct = n => (n == null || n === '' || isNaN(n)) ? '—' : Number(n) + '%';
+function toast(msg, kind, ms) { const t = document.createElement('div'); t.className = 'toast' + (kind ? ' ' + kind : ''); t.textContent = msg; $('#toasts').appendChild(t); setTimeout(() => t.remove(), ms || 3500); }
+
+/* ---------- dates (all ISO yyyy-mm-dd, local) ---------- */
+const pad = n => String(n).padStart(2, '0');
+function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function parse(s) { if (!s) return null; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
+function today() { return iso(new Date()); }
+function addDays(s, n) { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); }
+function addMonths(s, n) { const d = parse(s); const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); d.setDate(Math.min(day, last)); return iso(d); }
+function daysBetween(a, b) { return Math.round((parse(b) - parse(a)) / 86400000); }
+function fmt(s, opt) { const d = parse(s); if (!d) return '—'; return d.toLocaleDateString('en-US', opt || { month: 'short', day: 'numeric', year: 'numeric' }); }
+function fmtShort(s) { return fmt(s, { month: 'short', day: 'numeric' }); }
+function yearOf(s) { return s ? +s.slice(0, 4) : new Date().getFullYear(); }
+function nthWeekday(y, m, wd, n) { /* m 0-11, wd 0-6, n 1.. or -1 last */ if (n > 0) { const d = new Date(y, m, 1); const off = (wd - d.getDay() + 7) % 7; return new Date(y, m, 1 + off + (n - 1) * 7); } const d = new Date(y, m + 1, 0); const off = (d.getDay() - wd + 7) % 7; return new Date(y, m, d.getDate() - off); }
+function observed(d) { const wd = d.getDay(); if (wd === 6) d.setDate(d.getDate() - 1); else if (wd === 0) d.setDate(d.getDate() + 1); return d; }
+const HOL = {};
+function holidays(y) {
+  if (HOL[y]) return HOL[y];
+  const set = new Set();
+  const add = d => set.add(iso(d));
+  add(observed(new Date(y, 0, 1)));           // New Year's Day
+  add(nthWeekday(y, 0, 1, 3));                // MLK
+  add(nthWeekday(y, 1, 1, 3));                // Presidents
+  add(nthWeekday(y, 4, 1, -1));               // Memorial
+  add(observed(new Date(y, 5, 19)));          // Juneteenth
+  add(observed(new Date(y, 6, 4)));           // Independence
+  add(nthWeekday(y, 8, 1, 1));                // Labor
+  add(nthWeekday(y, 9, 1, 2));                // Columbus
+  add(observed(new Date(y, 10, 11)));         // Veterans
+  add(nthWeekday(y, 10, 4, 4));               // Thanksgiving
+  add(observed(new Date(y, 11, 25)));         // Christmas
+  if (observed(new Date(y + 1, 0, 1)).getFullYear() === y) add(observed(new Date(y + 1, 0, 1))); // Jan 1 observed on Dec 31
+  HOL[y] = set; return set;
+}
+function isBiz(s) { const d = parse(s); const wd = d.getDay(); if (wd === 0 || wd === 6) return false; return !holidays(d.getFullYear()).has(s); }
+function addBiz(s, n) { let d = s, k = 0; while (k < n) { d = addDays(d, 1); if (isBiz(d)) k++; } return d; }
+function bizBetween(a, b) { /* business days strictly after a, up to and including b */ if (!a || !b) return null; if (b < a) return -bizBetween(b, a); let d = a, k = 0; while (d < b) { d = addDays(d, 1); if (isBiz(d)) k++; } return k; }
+function age(dob, on) { const b = parse(dob), d = parse(on || today()); if (!b) return null; let a = d.getFullYear() - b.getFullYear(); const m = d.getMonth() - b.getMonth(); if (m < 0 || (m === 0 && d.getDate() < b.getDate())) a--; return a; }
+
+/* ---------- IRS limits ---------- */
+const LIMITS = {
+  2025: { deferral: 23500, catchup: 7500, super: 11250, annual: 70000, comp: 350000, hce: 160000, key: 230000, rothCatch: 145000 },
+  2026: { deferral: 24500, catchup: 8000, super: 11250, annual: 72000, comp: 360000, hce: 160000, key: 235000, rothCatch: 150000 }
+};
+const LIMIT_LABELS = [
+  ['deferral', 'Employee deferral limit (402(g))', 'What each employee can put in from their own pay (pre-tax + Roth combined).'],
+  ['catchup', 'Catch-up, age 50+', 'Extra deferral allowed in the year they turn 50 or older.'],
+  ['super', 'Catch-up, ages 60–63', 'Higher catch-up for the years they are 60, 61, 62 or 63 (SECURE 2.0).'],
+  ['annual', 'Total annual additions (415(c))', 'Deferrals + match + any profit sharing, per person.'],
+  ['comp', 'Compensation cap (401(a)(17))', 'Pay above this is ignored for the match.'],
+  ['hce', 'Highly compensated employee', 'Prior-year pay above this (or >5% owner) = HCE for testing.'],
+  ['key', 'Key employee (officer)', 'Officers over this, >5% owners, and >1% owners over $150k are "key" for top-heavy.'],
+  ['rothCatch', 'Roth catch-up wage threshold', 'Anyone 50+ with prior-year FICA wages above this may only make catch-ups as Roth (from 2026).']
+];
+function limitsFor(y) { return LIMITS[y] || LIMITS[Math.max.apply(null, Object.keys(LIMITS).map(Number))]; }
+
+/* ---------- owner labels ---------- */
+const OWNER = { you: 'You (plan administrator)', tpa: 'TPA', rk: 'Recordkeeper', payroll: 'Payroll', ee: 'Employee' };
+function tpaName(y) { const P = S.plan; return (y >= 2027 && P.tpaFrom2027) ? P.tpaFrom2027 : (P.tpa || 'TPA'); }
+
+/* =========================================================================================
+   COMPLIANCE CALENDAR LIBRARY (calendar-year plan, under 100 participants, safe harbor)
+   each item: id, title, cat, owner, due(y) -> ISO, start(y)? -> ISO (window opens),
+   when: 'annual' | 'once' (years: [..]) | conditional fn(plan) -> bool, why, how
+   ========================================================================================= */
+const CAT = { notice: 'Notice', filing: 'Filing', deposit: 'Deposit', test: 'Testing', doc: 'Documents', review: 'Review' };
+function taxDue(y, ext) { const t = (S.plan.entityTax || 's-corp'); const early = (t === 's-corp' || t === 'partnership'); if (!ext) return early ? `${y}-03-15` : `${y}-04-15`; return early ? `${y}-09-15` : `${y}-10-15`; }
+const ITEMS = [
+  { id: 'limits', cat: 'review', owner: 'you', due: y => `${y}-01-15`, title: y => `Load the ${y} limits into payroll and tell the team`,
+    why: 'Payroll must stop deferrals at the new 402(g) limit and apply the right catch-up. From 2026, anyone 50+ whose prior-year FICA wages were over the Roth-catch-up threshold may only make catch-up contributions as Roth — payroll has to know that.',
+    how: y => { const L = limitsFor(y); return `Deferral ${money(L.deferral)}, catch-up ${money(L.catchup)} (ages 60–63: ${money(L.super)}), Roth-catch-up threshold ${money(L.rothCatch)} of prior-year FICA wages. Check Paychex's 401(k) deduction caps and send staff a one-paragraph note (also a good moment to invite anyone not deferring).`; } },
+  { id: 'bond', cat: 'review', owner: 'you', due: y => `${y}-01-31`, title: () => 'Check the ERISA fidelity bond amount and renewal',
+    why: 'ERISA §412 requires a fidelity bond covering everyone who handles plan money (that includes you) for at least 10% of plan assets as of the start of the year — minimum $1,000, maximum $500,000. The Form 5500-SF asks for the amount; "none" is an audit flag.',
+    how: () => `Bond on file: ${esc(S.plan.bondAmount ? money(S.plan.bondAmount) : 'not entered')}${S.plan.bondExpires ? ', expires ' + fmt(S.plan.bondExpires) : ''}. Compare with 10% of the Vanguard plan balance on Jan 1 (plus future growth). If short, raise it with the carrier — it is cheap. Record the carrier, amount and term in Settings.` },
+  { id: 'census', cat: 'test', owner: 'you', due: y => `${y}-01-31`, title: y => `Send the ${y - 1} census to ${tpaName(y)}`,
+    why: 'Everything the TPA does for the year — eligibility, testing, top-heavy, the match true-up, the Form 5500-SF — comes from the census. A late or wrong census is the #1 cause of plan errors in small offices.',
+    how: y => `Pull from Paychex for every person paid in ${y - 1}: name, DOB, hire date, termination date, hours, gross pay, deferrals (pre-tax and Roth), match. Include anyone who terminated during the year. Send it through ${tpaName(y)}'s secure portal (SSNs go there, never in this app). Then check "People" here for anyone whose hire date or status is out of date.` },
+  { id: 'w2', cat: 'filing', owner: 'payroll', due: y => `${y}-01-31`, title: y => `W-2 check: Box 12 (D/AA) totals match ${y - 1} deferrals; Box 13 "Retirement plan" ticked`,
+    why: 'The IRS matches W-2 deferrals to the plan. A mismatch between payroll and what reached Vanguard is how late or missing deposits get noticed.',
+    how: () => 'Compare the Box 12 D (pre-tax) + AA (Roth) totals per person against the recordkeeper\'s year-end contribution report. Everyone who deferred or got a match needs Box 13 checked.' },
+  { id: '1099r', cat: 'filing', owner: 'rk', due: y => `${y}-01-31`, title: y => `Forms 1099-R and 945 for any ${y - 1} distributions (recordkeeper)`,
+    why: 'Anyone who took money out (rollover, cash-out, RMD, hardship) gets a 1099-R; federal tax withheld is reported on Form 945. Vanguard RPA normally handles both as the trustee/payer.',
+    how: () => 'Confirm with the recordkeeper that 1099-Rs went out (and the 945 was filed if anything was withheld). If nobody took a distribution, mark N/A.' },
+  { id: 'hce', cat: 'test', owner: 'tpa', due: y => `${y}-02-28`, title: y => `Confirm HCE and key-employee list for ${y - 1}`,
+    why: 'Who counts as "highly compensated" (prior-year pay over the HCE threshold, or >5% owner) and "key" (officers over the key threshold, >5% owners) drives the top-heavy test. In a practice this size the HCEs/keys are usually just the owner and family.',
+    how: () => 'The TPA derives this from the census; review the list they send back. Family members of a >5% owner are treated as HCEs too (attribution).' },
+  { id: 'testing', cat: 'test', owner: 'tpa', due: y => `${y}-03-15`, title: y => `Review ${y - 1} compliance testing results from ${tpaName(y)}`,
+    why: 'A safe harbor plan skips ADP/ACP testing, but the TPA still checks the 402(g) limit, the 415(c) limit, top-heavy status (automatically satisfied only if the safe harbor contribution is the ONLY employer money) and coverage. Failures found by March 15 can be fixed cheaply; later they cost more.',
+    how: () => 'Read the testing letter. Make sure it says the plan relied on the safe harbor match and that no corrective distributions are needed. If any profit-sharing was made, confirm the top-heavy minimum (3% of pay to non-key employees) was met.' },
+  { id: 'q4match', cat: 'deposit', owner: 'you', due: y => `${y}-03-31`, title: y => `Deposit any outstanding safe harbor match for Q4 ${y - 1}`,
+    why: 'When the plan computes the match per payroll, the IRS wants it in the plan by the end of the quarter after the quarter it was earned. Q4 match is therefore due by March 31.',
+    how: () => 'Compare Paychex match totals for Oct–Dec against the recordkeeper\'s deposits. Most offices deposit the match with each payroll, so this is usually a reconciliation, not a deposit.' },
+  { id: 'q1match', cat: 'deposit', owner: 'you', due: y => `${y}-06-30`, title: y => `Safe harbor match for Q1 ${y} fully deposited`, why: 'Per-payroll safe harbor match is due by the end of the following quarter.', how: () => 'Reconcile Jan–Mar payroll match to deposits.' },
+  { id: 'q2match', cat: 'deposit', owner: 'you', due: y => `${y}-09-30`, title: y => `Safe harbor match for Q2 ${y} fully deposited`, why: 'Per-payroll safe harbor match is due by the end of the following quarter.', how: () => 'Reconcile Apr–Jun payroll match to deposits.' },
+  { id: 'q3match', cat: 'deposit', owner: 'you', due: y => `${y}-12-31`, title: y => `Safe harbor match for Q3 ${y} fully deposited`, why: 'Per-payroll safe harbor match is due by the end of the following quarter.', how: () => 'Reconcile Jul–Sep payroll match to deposits.' },
+  { id: 'recon1', cat: 'deposit', owner: 'you', due: y => `${y}-04-15`, title: y => `Q1 reconciliation: payroll deferrals = Vanguard deposits`, why: 'Catching a missed or short deposit within the quarter keeps the correction small (lost earnings on a few weeks, not a year).', how: () => 'Total the 401(k) deductions on each pay run (Jan–Mar) and tick them off against the recordkeeper\'s contribution history. Log every pay date in the Deposits tab.' },
+  { id: 'recon2', cat: 'deposit', owner: 'you', due: y => `${y}-07-15`, title: y => `Q2 reconciliation: payroll deferrals = Vanguard deposits`, why: 'Quarterly reconciliation keeps any correction small.', how: () => 'Same as Q1, for Apr–Jun.' },
+  { id: 'recon3', cat: 'deposit', owner: 'you', due: y => `${y}-10-15`, title: y => `Q3 reconciliation: payroll deferrals = Vanguard deposits`, why: 'Quarterly reconciliation keeps any correction small.', how: () => 'Same, for Jul–Sep.' },
+  { id: 'recon4', cat: 'deposit', owner: 'you', due: y => `${y + 1}-01-15`, title: y => `Q4 / year-end reconciliation: ${y} payroll deferrals = Vanguard deposits`, why: 'This is the one the Form 5500-SF question about late deposits is answered from.', how: () => 'Same, for Oct–Dec, and total the year. Any pay date deposited after 7 business days must be reported on the 5500-SF and corrected (see Deposits tab).' },
+  { id: '402g', cat: 'test', owner: 'tpa', due: y => `${y}-04-15`, title: y => `Refund any ${y - 1} excess deferrals over the 402(g) limit`,
+    why: 'If someone deferred more than the annual limit (usually from two jobs in one year), the excess plus earnings must be paid back by April 15 or it is taxed twice.',
+    how: () => 'The TPA flags this from the census. Usually N/A.' },
+  { id: 'ercontrib', cat: 'deposit', owner: 'you', due: y => taxDue(y, false), start: y => `${y}-01-01`, title: y => `Deposit any remaining ${y - 1} employer contributions by the tax-return due date`,
+    why: 'Employer contributions (match true-up, any profit sharing) are deductible for the prior year only if deposited by the business tax return due date, including extensions.',
+    how: y => `Based on the entity type in Settings, the return is due ${fmt(taxDue(y, false))} (extended: ${fmt(taxDue(y, true))}). Ask the CPA which applies before relying on the extension.` },
+  { id: 'fidreview', cat: 'review', owner: 'you', due: y => `${y}-06-30`, title: y => `Annual fiduciary review: funds, fees, QDIA — and write it down`,
+    why: 'As plan fiduciary you must monitor the investment lineup and the reasonableness of fees. The protection is not having perfect funds; it is having a documented process (a short memo or minutes).',
+    how: () => 'Open the Vanguard plan review / fund performance report, the 408(b)(2) fee disclosures and the QDIA. Note what you looked at, whether any fund is on watch, and that fees are reasonable for a plan this size. Save the note in the fiduciary file.' },
+  { id: '5500', cat: 'filing', owner: 'tpa', due: y => `${y}-07-31`, start: y => `${y}-05-01`, title: y => `Form 5500-SF for ${y - 1} filed (TPA prepares, you sign in EFAST2)`,
+    why: 'The annual return of the plan, filed electronically with the DOL. Late filing penalties accrue daily; the DFVCP program caps them for small plans only if you file before the DOL writes to you.',
+    how: () => 'The TPA prepares it. You need your own DOL EFAST2 signer credentials (keep them in Vault). Review: participant counts, assets, the late-deposit question, the fidelity bond amount. If the TPA files a Form 5558 extension, the new deadline is October 15 and the SAR moves to December 15.' },
+  { id: '8955', cat: 'filing', owner: 'tpa', due: y => `${y}-07-31`, title: y => `Form 8955-SSA for ${y - 1} (only if a terminated employee left a balance)`,
+    why: 'Reports former employees who still have a vested balance so Social Security can remind them at retirement.',
+    how: () => 'The TPA files it with the 5500-SF. Mark N/A if nobody terminated with a balance.' },
+  { id: 'smm', cat: 'notice', owner: 'you', due: y => `${y}-07-29`, title: y => `Summary of Material Modifications for any amendment adopted in ${y - 1}`,
+    why: 'Participants must be told about plan changes within 210 days after the end of the plan year in which the amendment was adopted (or get a new SPD).',
+    how: () => 'If nothing was amended last year, mark N/A. Otherwise the TPA/document provider supplies the SMM; distribute it like the other notices and log it under Notices.' },
+  { id: 'sar', cat: 'notice', owner: 'you', due: y => `${y}-09-30`, title: y => `Summary Annual Report for ${y - 1} to all participants (Dec 15 if the 5500 was extended)`,
+    why: 'A one-page summary of the Form 5500-SF, due 2 months after the 5500 deadline. Goes to every participant, including former employees with a balance.',
+    how: () => 'The TPA produces it with the 5500-SF. Hand or email it to everyone on the recipient list (see Notices → SAR) and log the date, method and recipients.' },
+  { id: '408b2', cat: 'review', owner: 'you', due: y => `${y}-11-30`, title: y => `Review the service providers' fee disclosures (408(b)(2)) and benchmark`,
+    why: 'Each covered service provider (recordkeeper, TPA, advisor) must disclose its fees to you; you must decide they are reasonable. Keep the disclosures.',
+    how: () => 'Collect the current fee schedules from Vanguard RPA, Ascensus/FuturePlan and any advisor. For a plan this size compare against a published small-plan benchmark or a second quote every couple of years. Note your conclusion in the fiduciary file.' },
+  { id: 'shnotice', cat: 'notice', owner: 'you', due: y => `${y}-12-01`, start: y => `${y}-10-03`, title: y => `Safe harbor notice for ${y + 1} to every eligible employee`,
+    why: 'The plan keeps its safe harbor status (and skips ADP/ACP testing) only if each eligible employee gets the safe harbor notice 30–90 days before the plan year starts. For a calendar-year plan that is October 3 – December 1. Missing it can cost the safe harbor for the year.',
+    how: y => `${esc(S.plan.rk || 'The recordkeeper')} or the TPA usually drafts it. Confirm who sends it this year; if it is you, email or hand it to everyone eligible on Jan 1 (see the recipient list under Notices) and log it. The notice must describe the match formula exactly as the plan document says (${esc(S.plan.matchFormula || 'match formula')}).` },
+  { id: 'qdia', cat: 'notice', owner: 'you', due: y => `${y}-12-01`, start: y => `${y}-10-03`, cond: P => P.qdia !== false, title: y => `QDIA (default investment) notice for ${y + 1}`,
+    why: 'If anyone\'s money can be defaulted into a target-date or balanced fund, participants get the QDIA notice annually, 30–90 days before the plan year. It is usually combined with the safe harbor notice.',
+    how: () => 'Often one combined document with the safe harbor notice. Confirm it was included and log it.' },
+  { id: 'aca', cat: 'notice', owner: 'you', due: y => `${y}-12-01`, start: y => `${y}-10-03`, cond: P => !!P.autoEnroll, title: y => `Automatic enrollment notice for ${y + 1}`,
+    why: 'Plans that auto-enroll must send the ACA/EACA/QACA notice 30–90 days before the plan year.', how: () => 'Usually combined with the safe harbor notice.' },
+  { id: 'feedisc', cat: 'notice', owner: 'rk', due: y => `${y}-12-01`, title: y => `Annual participant fee disclosure (404a-5) sent — within 14 months of the last one`,
+    why: 'Participants who direct their own investments must get the plan and investment fee disclosure at least once every 14 months. The recordkeeper normally sends it; you are responsible that it happened.',
+    how: () => 'Confirm the date Vanguard RPA sent it (statement insert or email) and log it under Notices. Quarterly statements must also show the fees actually charged.' },
+  { id: 'enrolldrive', cat: 'review', owner: 'you', due: y => `${y}-12-01`, title: y => `Open-enrollment reminder: new ${y + 1} elections, beneficiaries, Roth option`,
+    why: 'Not a legal deadline, but the moment the limits change is the best time to get elections updated and beneficiary forms on file. Missing beneficiary forms cause real pain for families later.',
+    how: () => 'Send a short note with next year\'s limits and a link to the Vanguard participant site; ask everyone to confirm their deferral % and beneficiary.' },
+  { id: 'rmd', cat: 'deposit', owner: 'rk', due: y => `${y}-12-31`, title: y => `Required minimum distributions for anyone 73+ (5% owners even if still working)`,
+    why: 'A >5% owner must take RMDs from age 73 even while working; employees who are not owners can wait until they retire. Missing one is a 25% excise tax (10% if fixed quickly).',
+    how: () => 'The recordkeeper calculates it; make sure they know each participant\'s DOB and ownership. Usually N/A for years.' },
+  { id: 'ltpt', cat: 'test', owner: 'you', due: y => `${y}-12-31`, title: y => `Long-term part-time check: anyone with 500+ hours in each of the last 2 years must be allowed to defer in ${y + 1}`,
+    why: 'SECURE 2.0: from 2025 plan years, an employee who worked at least 500 hours in two consecutive years (and is 21) must be let in for deferrals, even if the plan\'s normal eligibility is 1,000 hours. Match can still follow the plan\'s normal rules.',
+    how: () => 'Review hours for every part-time person in Paychex. Anyone who qualifies gets the safe harbor notice and an enrollment form before January 1.' },
+  { id: 'forfeit', cat: 'review', owner: 'tpa', due: y => `${y}-12-31`, title: y => `Use any forfeitures by year-end (per the plan document)`,
+    why: 'Unvested money left by terminated employees must be used (for fees, to reduce contributions or reallocated) within the time the plan document says — not left to sit. Safe harbor match is 100% vested, so this is usually tiny or N/A.',
+    how: () => 'Ask the TPA whether there is a forfeiture balance and how the plan says to use it.' },
+  { id: 'amend', cat: 'doc', owner: 'tpa', due: y => `${y}-12-31`, title: y => `Adopt any discretionary amendments for ${y} (signed by you, before year-end)`,
+    why: 'A plan may only be run the way the document says. Any design change you put into operation during the year must be in a signed amendment by December 31 of that year.',
+    how: () => 'If nothing changed, mark N/A. Keep the signed amendment in the fiduciary file and distribute an SMM next year.' },
+  { id: 'secure2', cat: 'doc', owner: 'tpa', once: [2026], due: y => `${y}-12-31`, start: y => `${y}-06-01`, title: () => 'SECURE / SECURE 2.0 / CARES plan amendment adopted and signed (one-time deadline)',
+    why: 'The IRS deadline for most calendar-year plans to adopt the written amendments for the SECURE Act, CARES Act and SECURE 2.0 provisions the plan has been operating under (discretionary provisions especially) is December 31, 2026. Required provisions still awaiting final regulations (e.g. Roth catch-up) have later deadlines.',
+    how: () => 'Ascensus/FuturePlan (the document provider) sends the amendment; you review the elections (super catch-up, Roth employer contributions, emergency withdrawals, etc.), sign, date and keep it. If you have not seen it by October, ask.' },
+  { id: 'handoff', cat: 'review', owner: 'you', once: [2026], due: y => `${y}-12-15`, start: y => `${y}-10-01`, title: () => 'FuturePlan takes over administration 1/1/2027 — hand-off checklist',
+    why: 'A TPA change is where notices get missed. Both firms assume the other one is sending the December notices and filing the 5500.',
+    how: () => 'Confirm in writing: (1) who sends the Dec 1, 2026 safe harbor + QDIA notices, (2) who files the 2026 Form 5500-SF next July, (3) who holds the current signed plan document, adoption agreement and all amendments, (4) that the SECURE 2.0 amendment is signed before the switch, (5) the new fee schedule (408(b)(2)) for the file, (6) their census deadline and portal for the 2026 census, (7) who is correcting the match-formula error and how it will be documented.' },
+  { id: 'restate', cat: 'doc', owner: 'tpa', cond: P => !!P.restateDue, due: () => S.plan.restateDue, title: () => 'Pre-approved plan document restatement (every ~6 years)',
+    why: 'Pre-approved plans must be rewritten onto the IRS\'s latest approved document on a 6-year cycle; miss the window and the plan loses reliance on its approval letter.',
+    how: () => 'The TPA/document provider sends the restatement; sign it and keep the new IRS opinion letter. Ask them for the current cycle\'s window.' }
+];
+/* ---------- fiduciary file ---------- */
+const DOCS = [
+  ['plandoc', 'Plan document + adoption agreement (current, signed)', 'The rules you must run the plan by. Everything else refers back to this.'],
+  ['opinion', 'IRS opinion/approval letter for the pre-approved document', 'Proves the document is IRS-approved.'],
+  ['amend', 'All amendments, signed and dated (incl. SECURE 2.0)', 'Each one changes the rules; an unsigned amendment does not count.'],
+  ['spd', 'Summary Plan Description (current) + proof of distribution', 'The plain-language version for employees; every new participant gets it within 90 days.'],
+  ['smm', 'Summaries of Material Modifications', 'Change notices for amendments.'],
+  ['trust', 'Trust / custodial agreement (Vanguard RPA)', 'Who holds the money and on what terms.'],
+  ['bond', 'ERISA fidelity bond (current certificate)', 'Required by ERISA §412; asked about on the 5500-SF.'],
+  ['svc', 'Service agreements: recordkeeper, TPA, advisor', 'What each provider has promised to do — and what they have not.'],
+  ['fees', '408(b)(2) fee disclosures from each provider + your reasonableness note', 'Your fiduciary defence on fees.'],
+  ['ips', 'Investment policy statement (if you have one) + fund lineup / QDIA designation', 'Not required, but strongly recommended; shows a process.'],
+  ['minutes', 'Fiduciary review notes / minutes (annual)', 'Evidence you monitored the plan.'],
+  ['notices', 'Annual notices (safe harbor, QDIA, fee disclosure) + distribution records', 'Logged under Notices here; keep copies of the notices themselves.'],
+  ['sar', 'Summary Annual Reports + distribution records', 'One per year.'],
+  ['5500', 'Form 5500-SF filings and EFAST2 confirmations (every year)', 'Keep at least 6 years (ERISA §107); keeping forever is easier.'],
+  ['testing', 'Annual testing results and census submissions', 'Shows the plan passed each year.'],
+  ['deposits', 'Payroll deferral reports + deposit confirmations', 'The Deposits tab here plus the recordkeeper confirmations.'],
+  ['elections', 'Employee deferral elections, waivers and beneficiary designations', 'Usually in the Vanguard participant portal; make sure paper ones are scanned.'],
+  ['dist', 'Distribution, loan, hardship and rollover paperwork', 'Each one is a plan decision you approved.'],
+  ['corr', 'Correction files (SCP memos, VFCP/VCP filings, Form 5330)', 'If something went wrong, this is how you show it was fixed properly.'],
+  ['gov', 'DOL / IRS correspondence', 'Anything received or sent.'],
+  ['efast', 'EFAST2 signer credentials (keep in NLO Vault, not here)', 'Needed every July.']
+];
+/* ---------- notice types ---------- */
+const NOTICES = [
+  { id: 'sh', name: 'Safe harbor notice', when: 'Every year, Oct 3 – Dec 1 (30–90 days before Jan 1); and to each newly eligible employee before their entry date', who: 'eligible', why: 'Keeps the safe harbor status; describes the match, eligibility and how to make or change an election.' },
+  { id: 'qdia', name: 'QDIA notice', when: 'Every year, Oct 3 – Dec 1; and ≥30 days before a new participant\'s first default investment', who: 'eligible', why: 'Required when money can be defaulted into a target-date/balanced fund.' },
+  { id: 'fee', name: 'Participant fee disclosure (404a-5)', when: 'At least once in any 14-month period; before a new participant can direct investments', who: 'participants', why: 'Plan-level and fund-level fees. Recordkeeper normally sends.' },
+  { id: 'sar', name: 'Summary Annual Report', when: 'Sept 30 (or Dec 15 if the 5500 was extended)', who: 'participants', why: 'Summary of the Form 5500-SF.' },
+  { id: 'spd', name: 'Summary Plan Description', when: 'Within 90 days of becoming a participant; restated every 5 years if amended (10 if not)', who: 'new', why: 'The plain-language plan description.' },
+  { id: 'smm', name: 'Summary of Material Modifications', when: 'Within 210 days after the end of the plan year an amendment was adopted', who: 'participants', why: 'Describes a plan change.' },
+  { id: 'aca', name: 'Automatic enrollment notice', when: 'Only if the plan auto-enrolls: Oct 3 – Dec 1', who: 'eligible', why: 'Explains the default deferral and how to opt out.' },
+  { id: 'blackout', name: 'Blackout notice', when: '30–60 days before any period participants cannot change investments (e.g. a recordkeeper change)', who: 'participants', why: 'Required by Sarbanes-Oxley §101 when accounts are frozen.' },
+  { id: 'other', name: 'Other', when: '', who: 'all', why: '' }
+];
+
+/* =========================================================================================
+   STATE
+   ========================================================================================= */
+let S = null, cryptoKey = null, keySalt = null, cloudRev = 0, saveTimer = null, idleTimer = null, lastAct = Date.now(), dirty = false;
+let route = { page: 'dash', year: new Date().getFullYear(), q: '', showDone: true, cat: 'all', people: 'active' };
+
+function freshState() {
+  const y = new Date().getFullYear();
+  return {
+    v: 1, created: today(),
+    plan: {
+      name: 'Amir Akhavan DMD, PLLC 401(k) Plan', planId: '265395', sponsor: 'Amir Akhavan DMD, PLLC', ein: '', planYearEnd: '12-31',
+      entityTax: 's-corp', rk: 'Vanguard Retirement Plan Access', tpa: 'Ascensus', tpaFrom2027: 'FuturePlan (Ascensus)', advisor: '',
+      shType: 'match', matchFormula: '100% of deferrals up to 4% of pay', matchTiers: [{ pct: 100, upto: 4 }],
+      eligMonths: 12, eligAge: 21, eligHours: 1000, entry: 'monthly', autoEnroll: false, qdia: true, rothAllowed: true, loans: false,
+      payFreq: 'biweekly', firstPay: '', bondAmount: '', bondCarrier: '', bondExpires: '', restateDue: '', planEffective: '',
+      feesPaidBy: 'employer'
+    },
+    contacts: [
+      { id: uid(), name: 'Angela Deery', org: 'FuturePlan (Ascensus affiliate)', role: 'Regional VP — TPA from 1/1/2027', email: 'angela.deery@futureplan.com', phone: '813-727-5500', notes: 'Colleague: Kevin More' },
+      { id: uid(), name: '', org: 'Vanguard Retirement Plan Access', role: 'Recordkeeper / plan sponsor site', email: '', phone: '', notes: 'Plan ID 265395' },
+      { id: uid(), name: '', org: 'Ascensus', role: 'TPA / administrative services through 12/31/2026', email: '', phone: '', notes: '' }
+    ],
+    years: {}, custom: [], notices: [], deposits: [], people: [],
+    corrections: [
+      { id: uid(), title: 'Safe harbor match paid at 100% up to 3% instead of 100% up to 4% (plan document)', found: '2026-09-01', period: '2022 – 2026', type: 'SCP (self-correction) via TPA', status: 'open', owner: 'tpa', lost: '', notes: 'Correction back to 2022 in process with Ascensus/FuturePlan (seeded from what you told Claude — edit as needed). Needs: corrective match deposit per person per year + lost earnings, a correction memo for the file, and confirmation the match formula in payroll now reads 4%.', closedOn: '' }
+    ],
+    docs: {}, settings: { autoLockMin: 15, lookahead: 60 }, log: []
+  };
+}
+function act(text) { S.log.unshift({ ts: Date.now(), text }); if (S.log.length > 300) S.log.length = 300; }
+
+/* =========================================================================================
+   CRYPTO + STORAGE
+   ========================================================================================= */
+async function deriveKey(pass, salt, iter) {
+  const mat = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, mat, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function encryptJSON(obj, key) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj))); return { iv: b64(iv), ct: b64(ct) }; }
+async function decryptJSON(data, key) { const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(data.iv) }, key, unb64(data.ct)); return JSON.parse(new TextDecoder().decode(pt)); }
+function localBlob() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; } }
+function setLocal(b) { try { localStorage.setItem(STORE_KEY, JSON.stringify(b)); } catch (e) { toast('Could not save on this computer (storage full?)', 'bad'); } }
+let session = { email: '', uidv: '' };
+
+function setSync(state, txt) { const p = $('#syncPill'); p.className = 'sync ' + state; $('#syncTxt').textContent = txt; }
+function syncLabel() {
+  if (cloud === 'on') return ['', 'Saved · cloud synced'];
+  if (cloud === 'denied') return ['off', 'Saved here only · cloud rules not added yet'];
+  if (cloud === 'offline') return ['off', 'Saved here only · offline'];
+  return ['off', 'Saved on this computer'];
+}
+function save() { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 700); }
+async function saveNow() {
+  if (!S || !cryptoKey) return;
+  dirty = false;
+  let data;
+  try { data = await encryptJSON(S, cryptoKey); }
+  catch (e) { toast('Encryption failed — nothing was saved. ' + (e && e.message || ''), 'bad', 6000); return; }
+  const blob = { v: 1, email: session.email, uid: session.uidv, rev: cloudRev, kdf: { salt: b64(keySalt), iter: KDF_ITER }, data, savedAt: Date.now() };
+  setLocal(blob);
+  if (cloud === 'on' && fbUser) {
+    setSync('busy', 'Saving to cloud…');
+    try {
+      const ref = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
+      let stale = null;
+      await fbDB.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        const cur = snap.exists ? (snap.data().rev || 0) : 0;
+        if (snap.exists && cur !== cloudRev) { stale = snap.data(); return; }
+        tx.set(ref, { v: 1, rev: cur + 1, kdf: { salt: b64(keySalt), iter: KDF_ITER }, data, at: firebase.firestore.FieldValue.serverTimestamp() });
+        cloudRev = cur + 1;
+      });
+      if (stale) {
+        try { const srv = await decryptJSON(stale.data, cryptoKey); S = migrate(srv); cloudRev = stale.rev || 0; blob.rev = cloudRev; blob.data = stale.data; setLocal(blob); render(); toast('A newer copy was saved from another device — it has been loaded. Please redo your last change.', 'bad', 8000); }
+        catch (e) { toast('Cloud has a newer copy that this password cannot open. Saved here only.', 'bad', 8000); cloud = 'denied'; }
+      } else { blob.rev = cloudRev; setLocal(blob); }
+    } catch (e) {
+      const code = (e && e.code) || '';
+      if (code === 'permission-denied') { cloud = 'denied'; toast('Cloud save refused: add the plan401k rule in Firebase (Settings → Cloud). Saved here only.', 'bad', 7000); }
+      else { cloud = 'offline'; toast('Cloud unreachable — saved on this computer; will retry next save.', 'bad', 5000); }
+    }
+  }
+  const [k, t] = syncLabel(); setSync(k, t);
+}
+function migrate(o) { const f = freshState(); if (!o || typeof o !== 'object') return f; for (const k of Object.keys(f)) if (o[k] == null) o[k] = f[k]; for (const k of Object.keys(f.plan)) if (o.plan[k] == null) o.plan[k] = f.plan[k]; if (!o.settings) o.settings = f.settings; return o; }
+
+/* ---------- lock / sign-in ---------- */
+function lkMsg(kind, html) { const m = $('#lkMsg'); m.className = 'lock-msg ' + (kind || ''); m.innerHTML = html || ''; }
+function lkAlt(buttons) { const a = $('#lkAlt'); a.innerHTML = ''; if (!buttons || !buttons.length) { a.classList.add('hidden'); return; } a.classList.remove('hidden'); buttons.forEach(b => { const el = document.createElement('button'); el.type = 'button'; el.className = 'btn sec sm'; el.textContent = b[0]; el.onclick = b[1]; a.appendChild(el); }); }
+function badLogin(e) { const c = (e && e.code) || ''; return /wrong-password|invalid-credential|invalid-login-credentials|invalid-email|user-not-found|user-disabled/.test(c); }
+function netErr(e) { const c = (e && e.code) || ''; return /network-request-failed|unavailable|deadline-exceeded|internal|timeout/.test(c) || !c; }
+function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), ms))]); }
+
+async function openLocal(email, pw, blob, note) {
+  keySalt = unb64(blob.kdf.salt);
+  const key = await deriveKey(pw, keySalt, blob.kdf.iter || KDF_ITER);
+  const data = await decryptJSON(blob.data, key);
+  cryptoKey = key; S = migrate(data); cloudRev = blob.rev || 0; session = { email, uidv: blob.uid || '' };
+  enter(note);
+}
+async function startFresh(email, pw, uidv) {
+  keySalt = crypto.getRandomValues(new Uint8Array(16));
+  cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
+  S = freshState(); cloudRev = 0; session = { email, uidv: uidv || '' };
+  act('Started the 401(k) plan admin file');
+  enter();
+  await saveNow();
+}
+async function signIn(e) {
+  e.preventDefault();
+  const email = $('#lkEmail').value.trim().toLowerCase(), pw = $('#lkPw').value;
+  if (!email || !pw) return;
+  const btn = $('#lkBtn'); btn.disabled = true; lkAlt([]); lkMsg('info', 'Checking…');
+  const local = localBlob();
+  const localMatches = local && local.email === email;
+  try {
+    if (!fbOK) { cloud = 'offline'; return await offlinePath(email, pw, local, localMatches, 'The cloud library did not load — working on this computer only.'); }
+    let user = null;
+    try { user = (await withTimeout(fbAuth.signInWithEmailAndPassword(email, pw), 12000)).user; }
+    catch (err) {
+      if (badLogin(err)) {
+        const code = (err && err.code) || '';
+        if (/user-not-found/.test(code)) {
+          lkMsg('bad', 'No account with that email. If you have used Staff Hub, use that email. Or create a login for this app with the password you just typed.');
+          lkAlt([['Create a login with this email', () => createAccount(email, pw)]]);
+        } else {
+          lkMsg('bad', 'That email and password don’t sign in. Use your Staff Hub email and password.');
+          if (localMatches) lkAlt([['Open the copy on this computer with this password', () => offlinePath(email, pw, local, true, 'Opened the copy on this computer (not signed in to the cloud).')]]);
+        }
+        return;
+      }
+      cloud = 'offline';
+      return await offlinePath(email, pw, local, localMatches, 'No connection to the cloud right now — working on this computer only.');
+    }
+    fbUser = user;
+    const ref = fbDB.collection(FB_COLLECTION).doc(user.uid);
+    let snap;
+    try { snap = await withTimeout(ref.get({ source: 'server' }), 12000); }
+    catch (err) {
+      if ((err && err.code) === 'permission-denied') { cloud = 'denied'; return await offlinePath(email, pw, local, localMatches, 'Signed in, but the cloud rules for this app are not added yet (Settings → Cloud shows the one-time step). Working on this computer only.', user.uid); }
+      cloud = 'offline'; return await offlinePath(email, pw, local, localMatches, 'Signed in, but the cloud database did not answer — working on this computer only.', user.uid);
+    }
+    cloud = 'on';
+    const d = snap.exists ? snap.data() : null;
+    if (d && d.data && d.kdf && d.kdf.salt) {
+      keySalt = unb64(d.kdf.salt);
+      let key, data;
+      try { key = await deriveKey(pw, keySalt, d.kdf.iter || KDF_ITER); data = await decryptJSON(d.data, key); }
+      catch (err) {
+        lkMsg('bad', 'That password signs in, but it doesn’t open the saved data (the data was encrypted with a different password). If you changed your Staff Hub password, enter the old one once here to re-key.');
+        if (localMatches) lkAlt([['Open the copy on this computer instead', () => offlinePath(email, pw, local, true, 'Opened the copy on this computer.', user.uid)]]);
+        return;
+      }
+      cryptoKey = key; S = migrate(data); cloudRev = d.rev || 0; session = { email, uidv: user.uid };
+      setLocal({ v: 1, email, uid: user.uid, rev: cloudRev, kdf: d.kdf, data: d.data, savedAt: Date.now() });
+      enter();
+    } else if (localMatches) {
+      await openLocal(email, pw, local, 'Your data from this computer is now being saved to the cloud too.');
+      session.uidv = user.uid; cloudRev = 0; await saveNow();
+    } else {
+      await startFresh(email, pw, user.uid);
+    }
+  } catch (err) {
+    console.error(err);
+    lkMsg('bad', 'Something went wrong: ' + esc(err && (err.message || err.code) || err));
+  } finally { btn.disabled = false; }
+}
+async function offlinePath(email, pw, local, localMatches, note, uidv) {
+  if (localMatches) {
+    try { await openLocal(email, pw, local, note); if (uidv) session.uidv = uidv; }
+    catch (e) { lkMsg('bad', 'That password doesn’t open the copy saved on this computer.'); }
+    return;
+  }
+  if (local && local.email && local.email !== email) {
+    lkMsg('bad', `The copy on this computer belongs to ${esc(local.email)}. Sign in with that email, or start a new file for ${esc(email)} (the other copy will be replaced on this computer).`);
+    lkAlt([['Start a new file for ' + email, () => startFresh(email, pw, uidv)]]);
+    return;
+  }
+  lkMsg('info', (note ? esc(note) + ' ' : '') + 'Nothing is saved yet. Start the plan file now? Everything is encrypted with this password — don’t lose it.');
+  lkAlt([['Start the plan file', () => startFresh(email, pw, uidv)]]);
+}
+async function createAccount(email, pw) {
+  if (pw.length < 12) { lkMsg('bad', 'Use at least 12 characters for the password.'); return; }
+  lkMsg('info', 'Creating the login…'); lkAlt([]);
+  try { const user = (await withTimeout(fbAuth.createUserWithEmailAndPassword(email, pw), 12000)).user; fbUser = user; cloud = 'on'; await startFresh(email, pw, user.uid); }
+  catch (e) { lkMsg('bad', 'Could not create the login: ' + esc(e && (e.message || e.code))); }
+}
+function enter(note) {
+  $('#lock').style.display = 'none'; $('#app').style.display = 'block';
+  $('#lkPw').value = '';
+  $('#tbPlan').textContent = S.plan.name || 'Plan';
+  const [k, t] = syncLabel(); setSync(k, t);
+  render();
+  if (note) toast(note, '', 7000);
+  resetIdle();
+}
+function lock() { try { if (fbAuth && fbAuth.currentUser) fbAuth.signOut(); } catch (e) {} location.reload(); }
+function resetIdle() { lastAct = Date.now(); clearTimeout(idleTimer); const m = (S && S.settings && S.settings.autoLockMin) || 15; idleTimer = setTimeout(() => { if (dirty) saveNow().then(lock); else lock(); }, m * 60000); }
+['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(ev => document.addEventListener(ev, () => { if (S && Date.now() - lastAct > 5000) resetIdle(); }, { passive: true }));
+window.addEventListener('beforeunload', e => { if (dirty) { saveNow(); } });
+
+/* =========================================================================================
+   DERIVED DATA
+   ========================================================================================= */
+function yearItems(y) {
+  const P = S.plan, out = [];
+  for (const it of ITEMS) {
+    if (it.once && !it.once.includes(y)) continue;
+    if (it.cond && !it.cond(P)) continue;
+    let due; try { due = it.due(y); } catch (e) { due = null; }
+    if (!due) continue;
+    const st = ((S.years[y] || {}).items || {})[it.id] || {};
+    out.push({ id: it.id, y, title: it.title(y), cat: it.cat, owner: it.owner, due, start: it.start ? it.start(y) : null, why: it.why, how: typeof it.how === 'function' ? it.how(y) : it.how, status: st.status || 'todo', doneOn: st.doneOn || '', evidence: st.evidence || '', notes: st.notes || '' });
+  }
+  for (const c of S.custom) {
+    if (c.recurring) { const due = `${y}-${c.md}`; const st = ((S.years[y] || {}).items || {})[c.id] || {}; out.push({ id: c.id, y, title: c.title, cat: c.cat || 'review', owner: c.owner || 'you', due, custom: true, why: c.why || '', how: c.how || '', status: st.status || 'todo', doneOn: st.doneOn || '', evidence: st.evidence || '', notes: st.notes || '' }); }
+    else if (yearOf(c.due) === y) { const st = ((S.years[y] || {}).items || {})[c.id] || {}; out.push({ id: c.id, y, title: c.title, cat: c.cat || 'review', owner: c.owner || 'you', due: c.due, custom: true, why: c.why || '', how: c.how || '', status: st.status || 'todo', doneOn: st.doneOn || '', evidence: st.evidence || '', notes: st.notes || '' }); }
+  }
+  out.sort((a, b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
+  return out;
+}
+function setItem(y, id, patch) { S.years[y] = S.years[y] || { items: {} }; S.years[y].items = S.years[y].items || {}; const cur = S.years[y].items[id] || {}; S.years[y].items[id] = Object.assign(cur, patch); save(); }
+function entryDateFor(p) {
+  const P = S.plan; if (!p.hired) return null;
+  let d = addMonths(p.hired, +P.eligMonths || 0);
+  if (p.dob && +P.eligAge) { const b = parse(p.dob); const bd = iso(new Date(b.getFullYear() + (+P.eligAge), b.getMonth(), b.getDate())); if (bd > d) d = bd; }
+  const dt = parse(d), y = dt.getFullYear(), m = dt.getMonth(), day = dt.getDate();
+  switch (P.entry) {
+    case 'immediate': return d;
+    case 'monthly': return (day === 1) ? d : iso(new Date(y, m + 1, 1));
+    case 'quarterly': { const q = [0, 3, 6, 9]; for (const qm of q) { const c = new Date(y, qm, 1); if (iso(c) >= d) return iso(c); } return iso(new Date(y + 1, 0, 1)); }
+    case 'semi': { for (const sm of [0, 6]) { const c = new Date(y, sm, 1); if (iso(c) >= d) return iso(c); } return iso(new Date(y + 1, 0, 1)); }
+    case 'annual': { const c = new Date(y, 0, 1); return iso(c) >= d ? iso(c) : iso(new Date(y + 1, 0, 1)); }
+    default: return d;
+  }
+}
+function personStatus(p, on) {
+  on = on || today();
+  if (p.termed && p.termed <= on) return { k: 'termed', label: 'Terminated' + (p.balance ? ' · has balance' : ''), cls: p.balance ? 'warn' : '' };
+  const ed = entryDateFor(p);
+  if (!ed) return { k: 'unknown', label: 'Need hire date', cls: 'bad' };
+  if (ed > on) return { k: 'pending', label: 'Eligible ' + fmtShort(ed) + (daysBetween(on, ed) <= 60 ? ' · notice + enrollment due' : ''), cls: daysBetween(on, ed) <= 60 ? 'warn' : 'info', entry: ed };
+  if (p.waived) return { k: 'waived', label: 'Eligible · waived (0%)', cls: '', entry: ed };
+  if (p.deferral == null || p.deferral === '') return { k: 'noelection', label: 'Eligible · no election on file', cls: 'bad', entry: ed };
+  return { k: 'active', label: `Participating · ${p.deferral}% ${p.deferralType === 'roth' ? 'Roth' : p.deferralType === 'mixed' ? 'pre-tax + Roth' : 'pre-tax'}`, cls: 'ok', entry: ed };
+}
+function matchFor(defPct) { const tiers = S.plan.matchTiers || [{ pct: 100, upto: 4 }]; let m = 0, prev = 0; for (const t of tiers) { const slice = Math.max(0, Math.min(+defPct || 0, +t.upto) - prev); m += slice * (+t.pct / 100); prev = +t.upto; } return +m.toFixed(2); }
+function depositRows() {
+  const rows = S.deposits.slice().sort((a, b) => a.payDate < b.payDate ? 1 : -1);
+  return rows.map(d => {
+    const due = addBiz(d.payDate, 7);
+    let st, cls, days = null;
+    if (d.depositedOn) { days = bizBetween(d.payDate, d.depositedOn); if (d.depositedOn <= due) { st = 'On time'; cls = 'ok'; } else { st = 'LATE'; cls = 'bad'; } }
+    else if (today() > due) { st = 'Overdue — not logged'; cls = 'bad'; }
+    else { st = 'Pending · due ' + fmtShort(due); cls = 'warn'; }
+    return Object.assign({ due, st, cls, days }, d);
+  });
+}
+function nextPayDates(n) { const P = S.plan; if (!P.firstPay) return []; const step = P.payFreq === 'weekly' ? 7 : P.payFreq === 'biweekly' ? 14 : 0; const out = []; let d = P.firstPay; const lim = addDays(today(), 400); if (step) { while (d <= lim) { if (d >= addDays(today(), -120)) out.push(d); d = addDays(d, step); } } else { /* semi-monthly / monthly: 1st & 15th or firstPay's day */ const anchor = parse(P.firstPay); let cur = new Date(anchor.getFullYear(), anchor.getMonth(), 1); for (let i = 0; i < 18; i++) { if (P.payFreq === 'semimonthly') { out.push(iso(new Date(cur.getFullYear(), cur.getMonth(), 15))); out.push(iso(new Date(cur.getFullYear(), cur.getMonth() + 1, 0))); } else out.push(iso(new Date(cur.getFullYear(), cur.getMonth(), Math.min(anchor.getDate(), new Date(cur.getFullYear(), cur.getMonth() + 1, 0).getDate())))); cur.setMonth(cur.getMonth() + 1); } }
+  const have = new Set(S.deposits.map(x => x.payDate)); return out.filter(x => !have.has(x) && x >= addDays(today(), -120) && x <= lim).slice(0, n || 30); }
+
+function alerts() {
+  const t = today(), look = (S.settings.lookahead || 60);
+  const y = yearOf(t), items = yearItems(y).concat(yearItems(y + 1));
+  const start = S.created || t;
+  const open = items.filter(i => i.status === 'todo' || i.status === 'waiting');
+  const backlog = open.filter(i => i.due < start && i.due < t);          /* due before this file was started: review once, not "overdue" */
+  const overdue = open.filter(i => i.due < t && i.due >= start);
+  const soon = open.filter(i => i.due >= t && daysBetween(t, i.due) <= look);
+  const deps = depositRows(); const lateDeps = deps.filter(d => d.cls === 'bad');
+  const people = S.people.filter(p => !(p.termed && p.termed <= t));
+  const noElection = people.filter(p => personStatus(p).k === 'noelection');
+  const upcoming = people.filter(p => personStatus(p).k === 'pending' && daysBetween(t, entryDateFor(p)) <= 60);
+  const corr = S.corrections.filter(c => c.status !== 'closed');
+  return { overdue, soon, backlog, lateDeps, noElection, upcoming, corr, items };
+}
+
+/* =========================================================================================
+   RENDER
+   ========================================================================================= */
+const NAV = [
+  ['dash', 'Dashboard', '<path d="M3 12 12 3l9 9"/><path d="M5 10v10h14V10"/>'],
+  ['cal', 'Compliance calendar', '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/>'],
+  ['deposits', 'Deposits', '<path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v3h16v-3"/>'],
+  ['people', 'People & eligibility', '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.8 3.4-6 6.5-6s5.9 2.2 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M21.5 19c-.4-2.6-2.1-4.3-4.5-4.6"/>'],
+  ['notices', 'Notices log', '<path d="M4 4h16v12H8l-4 4z"/><path d="M8 8h8M8 12h5"/>'],
+  ['corr', 'Corrections', '<path d="M12 3 2.5 20h19z"/><path d="M12 10v4m0 3h.01"/>'],
+  ['docs', 'Fiduciary file', '<path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/>'],
+  ['limits', 'Limits & plan facts', '<path d="M4 20V10m8 10V4m8 16v-7"/>'],
+  ['guide', 'Guide — how this works', '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7M12 17h.01"/>'],
+  ['settings', 'Settings & cloud', '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>']
+];
+function render() {
+  if (!S) return;
+  const A = alerts();
+  const counts = { cal: A.overdue.length, deposits: A.lateDeps.length, people: A.noElection.length + A.upcoming.length, corr: A.corr.length };
+  $('#nav').innerHTML = NAV.map(([k, l, ic]) => `<button data-p="${k}" class="${route.page === k ? 'on' : ''}"><svg viewBox="0 0 24 24">${ic}</svg><span>${l}</span>${counts[k] ? `<span class="cnt">${counts[k]}</span>` : ''}</button>`).join('');
+  $$('#nav button').forEach(b => b.onclick = () => { route.page = b.dataset.p; render(); window.scrollTo(0, 0); });
+  const m = $('#main');
+  const pages = { dash: rDash, cal: rCal, deposits: rDeposits, people: rPeople, notices: rNotices, corr: rCorr, docs: rDocs, limits: rLimits, guide: rGuide, settings: rSettings };
+  m.innerHTML = (pages[route.page] || rDash)(A);
+  wire(m);
+}
+function chipOwner(o) { return `<span class="chip ${o}">${esc(OWNER[o] || o)}</span>`; }
+function chipCat(c) { return `<span class="chip ${c}">${esc(CAT[c] || c)}</span>`; }
+function itemHTML(i, opts) {
+  const t = today(); let cls = i.status === 'done' ? 'done' : i.status === 'na' ? 'na' : i.status === 'waiting' ? 'waiting' : i.due < t ? 'overdue' : daysBetween(t, i.due) <= 30 ? 'soon' : '';
+  const d = parse(i.due);
+  const openWin = i.start && i.status === 'todo' && t >= i.start && t <= i.due ? `<span class="chip ok">Window open since ${fmtShort(i.start)}</span>` : '';
+  const backlog = i.due < (S.created || t) && i.due < t && (i.status === 'todo' || i.status === 'waiting');
+  const dueTxt = i.status === 'done' ? `<span class="chip ok">Done ${i.doneOn ? fmtShort(i.doneOn) : ''}</span>` : i.status === 'na' ? `<span class="chip">N/A this year</span>` : i.status === 'waiting' ? `<span class="chip info">Waiting on ${esc(OWNER[i.owner] || '')}</span>` : backlog ? `<span class="chip warn">Before this file started — confirm it happened</span>` : i.due < t ? `<span class="chip bad">${Math.abs(daysBetween(t, i.due))} days overdue</span>` : `<span class="chip ${daysBetween(t, i.due) <= 30 ? 'warn' : ''}">in ${daysBetween(t, i.due)} days</span>`;
+  if (backlog) cls = 'soon';
+  return `<div class="item ${cls}" data-y="${i.y}" data-id="${esc(i.id)}">
+    <div class="date"><div class="m">${d.toLocaleDateString('en-US', { month: 'short' })}</div><div class="d">${d.getDate()}</div><div class="y">${d.getFullYear()}</div></div>
+    <div>
+      <div class="t">${esc(i.title)}</div>
+      <div class="meta">${chipOwner(i.owner)} ${chipCat(i.cat)} ${dueTxt} ${openWin} <button class="linkish" data-act="why">Why / how ▾</button>${i.custom ? ' <button class="linkish" data-act="delcustom" style="color:var(--coral)">Remove</button>' : ''}</div>
+      <div class="why">${i.why ? `<b>Why it matters.</b> ${esc(i.why)}<br><br>` : ''}${i.how ? `<b>What to do at NLO.</b> ${i.how}` : ''}${i.notes ? `<br><br><b>Your notes.</b> ${esc(i.notes)}` : ''}</div>
+    </div>
+    <div class="ctl">
+      <select data-act="status"><option value="todo" ${i.status === 'todo' ? 'selected' : ''}>To do</option><option value="waiting" ${i.status === 'waiting' ? 'selected' : ''}>Waiting on someone</option><option value="done" ${i.status === 'done' ? 'selected' : ''}>Done</option><option value="na" ${i.status === 'na' ? 'selected' : ''}>N/A this year</option></select>
+      <input type="date" data-act="doneOn" value="${esc(i.doneOn)}" title="Date done" class="${i.status === 'done' ? '' : 'hidden'}">
+      <input type="text" data-act="evidence" value="${esc(i.evidence)}" placeholder="Evidence (file name, who sent it…)" class="${i.status === 'done' ? '' : 'hidden'}">
+      <input type="text" data-act="notes" value="${esc(i.notes)}" placeholder="Note…">
+    </div></div>`;
+}
+function wireItems(root) {
+  $$('.item', root).forEach(el => {
+    const y = +el.dataset.y, id = el.dataset.id;
+    $('[data-act=why]', el).onclick = () => el.classList.toggle('open');
+    const sel = $('[data-act=status]', el);
+    sel.onchange = () => { const st = sel.value; const patch = { status: st }; if (st === 'done' && !$('[data-act=doneOn]', el).value) patch.doneOn = today(); setItem(y, id, patch); act(`${st === 'done' ? 'Done' : st === 'na' ? 'N/A' : st === 'waiting' ? 'Waiting' : 'Reopened'}: ${$('.t', el).textContent}`); render(); };
+    $('[data-act=doneOn]', el).onchange = e => setItem(y, id, { doneOn: e.target.value });
+    $('[data-act=evidence]', el).onchange = e => setItem(y, id, { evidence: e.target.value });
+    $('[data-act=notes]', el).onchange = e => setItem(y, id, { notes: e.target.value });
+    const del = $('[data-act=delcustom]', el); if (del) del.onclick = () => { if (!confirm('Remove this custom item?')) return; S.custom = S.custom.filter(c => c.id !== id); save(); render(); };
+  });
+}
+
+/* ---------- Dashboard ---------- */
+function rDash(A) {
+  const y = new Date().getFullYear(), L = limitsFor(y), P = S.plan;
+  const now = A.overdue.concat(A.soon).slice(0, 12);
+  const deps = depositRows().slice(0, 10).reverse();
+  return `<div class="page-h"><div><h2>Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, Dr. A</h2><p>${fmt(today(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} · ${esc(P.name)} · plan year ends Dec 31 · TPA now: <b>${esc(P.tpa)}</b>${P.tpaFrom2027 ? ` → <b>${esc(P.tpaFrom2027)}</b> from 1/1/2027` : ''}</p></div><div class="pill-row noprint"><button class="btn sec sm" data-go="cal">Open the calendar</button><button class="btn mint sm" data-go="guide">How this works</button></div></div>
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="stat ${A.overdue.length ? 'bad' : 'ok'}" data-go="cal"><div class="n">${A.overdue.length}</div><div class="l">Overdue</div><div class="s">${A.overdue.length ? 'Needs attention now' : A.backlog.length ? A.backlog.length + ' earlier items to confirm (below)' : 'Nothing overdue'}</div></div>
+    <div class="stat ${A.soon.length ? 'warn' : 'ok'}" data-go="cal"><div class="n">${A.soon.length}</div><div class="l">Due in ${S.settings.lookahead || 60} days</div><div class="s">Calendar items coming up</div></div>
+    <div class="stat ${A.lateDeps.length ? 'bad' : (S.deposits.length ? 'ok' : 'info')}" data-go="deposits"><div class="n">${A.lateDeps.length}</div><div class="l">Late deposits</div><div class="s">${S.deposits.length ? S.deposits.length + ' pay dates logged' : 'Start logging pay dates'}</div></div>
+    <div class="stat ${A.noElection.length || A.upcoming.length ? 'warn' : 'ok'}" data-go="people"><div class="n">${A.noElection.length + A.upcoming.length}</div><div class="l">People to enroll</div><div class="s">${A.noElection.length} no election · ${A.upcoming.length} newly eligible soon</div></div>
+  </div>
+  <div class="grid g2">
+    <div>
+      <div class="card"><h3>Right now <span class="chip">${now.length}</span></h3>
+        ${now.length ? now.map(i => itemHTML(i)).join('') : '<div class="empty">Nothing due in the next ' + (S.settings.lookahead || 60) + ' days. Enjoy it.</div>'}
+      </div>
+      ${A.backlog.length ? `<div class="card"><h3>One-time catch-up review <span class="chip warn">${A.backlog.length}</span></h3><p class="small" style="margin-bottom:10px">These ${y} items were due before you started this file on ${fmt(S.created)} (earlier years are in the calendar). They are not counted as overdue — but go through them once (ideally on a call with the TPA) and mark each <b>Done</b>, <b>N/A</b> or <b>Waiting</b>. Anything that turns out to have been missed becomes a Correction.</p><div class="actions"><button class="btn sm" data-go="cal">Review them in the calendar</button><button class="btn sec sm" data-act="backlogdone">Mark all as done (I know they happened)</button></div></div>` : ''}
+      ${A.corr.length ? `<div class="card"><h3>Open corrections <span class="chip bad">${A.corr.length}</span></h3>${A.corr.map(c => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(c.title)}</b><div class="small">${esc(c.period)} · ${esc(c.type)} · ${esc(OWNER[c.owner] || c.owner)} · ${esc(c.status)}</div></div>`).join('')}<div class="actions"><button class="btn sec sm" data-go="corr">Open corrections</button></div></div>` : ''}
+      ${(A.noElection.length || A.upcoming.length) ? `<div class="card"><h3>Enrollment to-dos</h3>${A.upcoming.map(p => `<div style="padding:7px 0;border-bottom:1px solid var(--line)"><b>${esc(p.first)} ${esc(p.last)}</b> becomes eligible <b>${fmt(entryDateFor(p))}</b> — give the safe harbor notice + SPD + enrollment form before then.</div>`).join('')}${A.noElection.map(p => `<div style="padding:7px 0;border-bottom:1px solid var(--line)"><b>${esc(p.first)} ${esc(p.last)}</b> is eligible but has <b>no deferral election or waiver on file</b>. Get one (a signed 0% waiver counts) — otherwise it looks like a missed deferral opportunity.</div>`).join('')}<div class="actions"><button class="btn sec sm" data-go="people">Open people</button></div></div>` : ''}
+    </div>
+    <div>
+      <div class="card"><h3>Plan at a glance</h3>
+        <dl class="kv"><dt>Plan</dt><dd>${esc(P.name)}${P.planId ? ` · ID ${esc(P.planId)}` : ''}</dd>
+        <dt>Design</dt><dd>Safe harbor ${P.shType === 'nonelective' ? 'non-elective (3%)' : 'match'}: ${esc(P.matchFormula)}</dd>
+        <dt>Eligibility</dt><dd>Age ${esc(P.eligAge)}, ${esc(P.eligMonths)} months of service${P.eligHours ? ` (${esc(P.eligHours)} hrs)` : ''}; entry ${esc(P.entry)}</dd>
+        <dt>Recordkeeper</dt><dd>${esc(P.rk)}</dd><dt>TPA</dt><dd>${esc(P.tpa)}${P.tpaFrom2027 ? `; ${esc(P.tpaFrom2027)} from 2027` : ''}</dd>
+        <dt>Plan expenses</dt><dd>${P.feesPaidBy === 'employer' ? 'Paid by the practice' : 'Charged to participant accounts'}</dd>
+        <dt>Fidelity bond</dt><dd>${P.bondAmount ? money(P.bondAmount) + (P.bondExpires ? ' · exp. ' + fmt(P.bondExpires) : '') : '<span class="chip bad">not entered</span>'}</dd>
+        <dt>Pay dates</dt><dd>${esc(P.payFreq)}${P.firstPay ? ', anchored ' + fmt(P.firstPay) : ' <span class="chip warn">set first pay date in Settings</span>'}</dd></dl>
+        <div class="actions"><button class="btn sec sm" data-go="settings">Edit plan facts</button></div>
+      </div>
+      <div class="card"><h3>${y} limits</h3>
+        <dl class="kv"><dt>Deferral</dt><dd>${money(L.deferral)}</dd><dt>Catch-up 50+</dt><dd>${money(L.catchup)} (60–63: ${money(L.super)})</dd><dt>Total additions</dt><dd>${money(L.annual)}</dd><dt>Comp cap</dt><dd>${money(L.comp)}</dd><dt>Roth catch-up if prior FICA wages ></dt><dd>${money(L.rothCatch)}</dd></dl>
+        <div class="actions"><button class="btn sec sm" data-go="limits">All limits</button></div>
+      </div>
+      <div class="card"><h3>Deposit health <span class="small">last ${deps.length} pay dates</span></h3>
+        ${deps.length ? `<div class="bar">${deps.map(d => `<i title="${fmt(d.payDate)}: ${esc(d.st)}" style="flex:1;margin-right:2px;background:${d.cls === 'ok' ? 'var(--mint)' : d.cls === 'bad' ? 'var(--coral)' : 'var(--gold)'}"></i>`).join('')}</div><div class="small" style="margin-top:8px">Mint = within 7 business days · Coral = late or not logged · Gold = pending</div>` : '<div class="empty">No pay dates logged yet. The Deposits tab generates them from your pay schedule.</div>'}
+        <div class="actions"><button class="btn sec sm" data-go="deposits">Open deposits</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- Calendar ---------- */
+function rCal() {
+  const y = route.year; const all = yearItems(y);
+  const items = all.filter(i => (route.showDone || (i.status !== 'done' && i.status !== 'na')) && (route.cat === 'all' || i.cat === route.cat) && (!route.q || (i.title + ' ' + i.why + ' ' + i.notes).toLowerCase().includes(route.q.toLowerCase())));
+  const done = all.filter(i => i.status === 'done' || i.status === 'na').length;
+  let html = `<div class="page-h"><div><h2>Compliance calendar ${y}</h2><p>Every recurring deadline for a calendar-year safe harbor 401(k) with fewer than 100 participants, with who normally does it at NLO. ${done}/${all.length} handled this year.</p></div>
+    <div class="pill-row noprint"><button class="btn sec sm" data-act="yprev">‹ ${y - 1}</button><button class="btn sec sm" data-act="ynext">${y + 1} ›</button><button class="btn sec sm" data-act="addcustom">+ Custom item</button><button class="btn sec sm" onclick="window.print()">Print</button></div></div>
+    <div class="card noprint" style="padding:12px 16px"><div class="pill-row">
+      <input class="search" placeholder="Search…" id="calQ" value="${esc(route.q)}">
+      <select id="calCat" class="search" style="min-width:150px"><option value="all">All categories</option>${Object.keys(CAT).map(k => `<option value="${k}" ${route.cat === k ? 'selected' : ''}>${CAT[k]}</option>`).join('')}</select>
+      <label class="chip" style="cursor:pointer"><input type="checkbox" id="calDone" ${route.showDone ? 'checked' : ''}> show done / N/A</label>
+      <span class="small">Owners: ${chipOwner('you')} ${chipOwner('tpa')} ${chipOwner('rk')} ${chipOwner('payroll')}</span>
+    </div></div>`;
+  let lastM = '';
+  for (const i of items) { const m = parse(i.due).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); if (m !== lastM) { html += `<div class="month-h">${m}</div>`; lastM = m; } html += itemHTML(i); }
+  if (!items.length) html += '<div class="empty">Nothing matches.</div>';
+  return html;
+}
+
+/* ---------- Deposits ---------- */
+function rDeposits() {
+  const rows = depositRows(); const onTime = rows.filter(r => r.cls === 'ok').length, late = rows.filter(r => r.cls === 'bad').length;
+  const next = nextPayDates(40);
+  return `<div class="page-h"><div><h2>Deferral deposits</h2><p>Small-plan safe harbor: deferrals and loan repayments withheld on a pay date must reach Vanguard within <b>7 business days</b> (federal holidays excluded). Log every pay date — this list is what answers the "late deposits" question on the Form 5500-SF.</p></div>
+    <div class="pill-row noprint">${next.length ? `<button class="btn sec sm" data-act="genpay">Add next ${Math.min(next.length, 12)} pay dates</button>` : `<button class="btn sec sm" data-go="settings">Set pay schedule in Settings</button>`}<button class="btn sm" data-act="adddep">+ Pay date</button></div></div>
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="stat ok"><div class="n">${onTime}</div><div class="l">On time</div></div>
+    <div class="stat ${late ? 'bad' : 'ok'}"><div class="n">${late}</div><div class="l">Late / not logged</div></div>
+    <div class="stat warn"><div class="n">${rows.filter(r => r.cls === 'warn').length}</div><div class="l">Pending</div></div>
+    <div class="stat info"><div class="n">${rows.length ? Math.round(onTime / Math.max(1, rows.filter(r => r.cls !== 'warn').length) * 100) + '%' : '—'}</div><div class="l">On-time rate</div></div>
+  </div>
+  ${late ? `<div class="callout bad"><b>You have late deposits.</b> A late deposit is treated as a loan of plan money to the practice. Fix it: (1) deposit the amount if not yet done, (2) calculate lost earnings with the DOL's VFCP Online Calculator and deposit them, (3) file Form 5330 and pay the 15% excise tax on the lost earnings (or use the DOL VFCP self-correction component if total lost earnings are ≤ $1,000 and it is corrected within 180 days — then no 5330 is needed), (4) report the late amount on the 5500-SF, (5) write a one-page memo of what happened and what changed. Log it under Corrections. <button class="btn coral xs" data-act="latecorr">Create a correction entry</button></div>` : ''}
+  <div class="card"><table class="tbl"><thead><tr><th>Pay date</th><th class="num">Deferrals + loan pmts withheld</th><th>Deposited (reached Vanguard)</th><th>Business days</th><th>Deadline</th><th>Status</th><th>Match deposited</th><th>Note</th><th></th></tr></thead><tbody>
+    ${rows.length ? rows.map(r => `<tr data-id="${r.id}"><td><b>${fmt(r.payDate)}</b></td><td class="num"><input type="number" step="0.01" data-f="amount" value="${esc(r.amount || '')}" placeholder="$"></td><td><input type="date" data-f="depositedOn" value="${esc(r.depositedOn || '')}"></td><td class="num">${r.days == null ? '—' : r.days}</td><td>${fmtShort(r.due)}</td><td><span class="chip ${r.cls}">${esc(r.st)}</span></td><td><input type="date" data-f="matchOn" value="${esc(r.matchOn || '')}"></td><td><input type="text" data-f="notes" value="${esc(r.notes || '')}" placeholder="…"></td><td><button class="btn xs sec" data-act="deldep">✕</button></td></tr>`).join('') : `<tr><td colspan="9"><div class="empty">No pay dates yet. ${next.length ? 'Click "Add next pay dates" to create them from your schedule, then fill in the date each deposit reached Vanguard.' : 'Set your pay frequency and a recent pay date in Settings first.'}</div></td></tr>`}
+  </tbody></table></div>
+  <div class="card guide"><h3>How to log a deposit</h3><p>Use the date the money actually <b>arrived in the plan's trust</b> at Vanguard (the recordkeeper's confirmation), not the day Paychex took it out. If payroll is set to send contributions automatically, that date is in the recordkeeper's contribution history. The "7 business days" count starts the day after the pay date and skips weekends and federal holidays. A deposit on the 8th business day is not "one day late" in the DOL's eyes — it is judged against the earliest date you could have sent it, which for an office using an automated payroll feed is usually 2–3 days.</p></div>`;
+}
+
+/* ---------- People ---------- */
+function rPeople() {
+  const t = today(); const y = yearOf(t); const L = limitsFor(y);
+  let list = S.people.slice().sort((a, b) => (a.last + a.first).localeCompare(b.last + b.first));
+  if (route.people === 'active') list = list.filter(p => !(p.termed && p.termed <= t));
+  const P = S.plan;
+  return `<div class="page-h"><div><h2>People & eligibility</h2><p>Who is eligible, who is in, who still needs an election. Eligibility is computed from the plan rules in Settings (age ${esc(P.eligAge)}, ${esc(P.eligMonths)} months, ${esc(P.entry)} entry). No SSNs, no account balances — just what you need to run enrollment.</p></div>
+    <div class="pill-row noprint"><select id="pplFilter" class="search" style="min-width:140px"><option value="active" ${route.people === 'active' ? 'selected' : ''}>Current staff</option><option value="all" ${route.people === 'all' ? 'selected' : ''}>Everyone incl. terminated</option></select><button class="btn sm" data-act="addperson">+ Person</button></div></div>
+  <div class="card"><table class="tbl"><thead><tr><th>Name</th><th>Hired</th><th>Age</th><th>Entry date</th><th>Status</th><th>Deferral</th><th>Match earned</th><th>Flags</th><th></th></tr></thead><tbody>
+  ${list.length ? list.map(p => { const st = personStatus(p); const a = age(p.dob); const flags = [];
+    if (a != null && a >= 50 && a <= 63 && st.k === 'active') flags.push(`<span class="chip info">catch-up ${a >= 60 && a <= 63 ? money(L.super) : money(L.catchup)}</span>`);
+    if (p.comp && +p.comp > L.rothCatch && a != null && a >= 49) flags.push('<span class="chip warn">Roth-only catch-up</span>');
+    if (p.comp && +p.comp > L.hce) flags.push('<span class="chip">HCE</span>');
+    if (p.owner) flags.push('<span class="chip">owner · key</span>');
+    if (p.parttime) flags.push('<span class="chip warn">part-time · check 500-hr rule</span>');
+    if (st.k === 'pending' && daysBetween(t, st.entry) <= 60) flags.push('<span class="chip bad">notice + SPD + election before entry</span>');
+    const m = st.k === 'active' ? matchFor(p.deferral) : null;
+    return `<tr data-id="${p.id}"><td><b>${esc(p.first)} ${esc(p.last)}</b>${p.role ? `<div class="small">${esc(p.role)}</div>` : ''}</td><td>${fmt(p.hired)}${p.termed ? `<div class="small">term. ${fmt(p.termed)}</div>` : ''}</td><td>${a == null ? '—' : a}</td><td>${entryDateFor(p) ? fmt(entryDateFor(p)) : '—'}</td><td><span class="chip ${st.cls}">${esc(st.label)}</span></td><td>${st.k === 'active' ? pct(p.deferral) : st.k === 'waived' ? '0% (waived)' : '—'}</td><td>${m == null ? '—' : pct(m) + ' of pay'}</td><td><div class="badge-row">${flags.join('')}</div></td><td><button class="btn xs sec" data-act="editperson">Edit</button></td></tr>`; }).join('') : `<tr><td colspan="9"><div class="empty">Add your staff (name, hire date, DOB) and their current deferral election. ~8 people takes two minutes.</div></td></tr>`}
+  </tbody></table></div>
+  <div class="card guide"><h3>Match calculator</h3><p>${esc(P.matchFormula)}. For someone earning $1,000 per pay period: deferring 2% → match ${money(10 * matchFor(2))}; 4% → ${money(10 * matchFor(4))}; 6% → ${money(10 * matchFor(6))} (capped). Anyone deferring less than ${esc((P.matchTiers || [{ upto: 4 }]).slice(-1)[0].upto)}% is leaving match on the table — worth a nudge at open enrollment.</p></div>`;
+}
+
+/* ---------- Notices ---------- */
+function rNotices() {
+  const t = today(), y = yearOf(t);
+  const recip = { eligible: S.people.filter(p => !(p.termed && p.termed <= t) && entryDateFor(p) && entryDateFor(p) <= `${y + 1}-01-01`), participants: S.people.filter(p => (personStatus(p).k === 'active' || personStatus(p).k === 'waived' || (p.termed && p.balance))), all: S.people };
+  const log = S.notices.slice().sort((a, b) => a.sentOn < b.sentOn ? 1 : -1);
+  return `<div class="page-h"><div><h2>Notices</h2><p>What must go to employees, when, and a log that proves it went out. The log is your evidence — keep the notice copy itself in the fiduciary file.</p></div><div class="pill-row noprint"><button class="btn sm" data-act="lognotice">+ Log a distribution</button></div></div>
+  <div class="card"><h3>Required notices</h3><table class="tbl"><thead><tr><th>Notice</th><th>When</th><th>To whom</th><th>Last logged</th></tr></thead><tbody>
+  ${NOTICES.filter(n => n.id !== 'other' && (n.id !== 'aca' || S.plan.autoEnroll)).map(n => { const last = log.find(l => l.type === n.id); return `<tr><td><b>${esc(n.name)}</b><div class="small">${esc(n.why)}</div></td><td>${esc(n.when)}</td><td>${n.who === 'eligible' ? 'All eligible employees (' + recip.eligible.length + ' now)' : n.who === 'participants' ? 'All participants incl. former employees with a balance (' + recip.participants.length + ')' : n.who === 'new' ? 'Each new participant' : 'Everyone'}</td><td>${last ? `<span class="chip ok">${fmt(last.sentOn)}</span><div class="small">${esc(last.method)} · ${last.recipients === 'all' ? 'all' : (last.recipients || []).length + ' people'}</div>` : '<span class="chip warn">not logged</span>'}</td></tr>`; }).join('')}
+  </tbody></table></div>
+  <div class="card"><h3>Distribution log</h3>${log.length ? `<table class="tbl"><thead><tr><th>Date</th><th>Notice</th><th>Plan year</th><th>Method</th><th>Recipients</th><th>Note</th><th></th></tr></thead><tbody>${log.map(l => { const n = NOTICES.find(x => x.id === l.type) || { name: l.type }; const names = l.recipients === 'all' ? 'All' : (l.recipients || []).map(id => { const p = S.people.find(x => x.id === id); return p ? p.first + ' ' + p.last : '?'; }).join(', '); return `<tr data-id="${l.id}"><td><b>${fmt(l.sentOn)}</b></td><td>${esc(n.name)}${l.title ? ': ' + esc(l.title) : ''}</td><td>${esc(l.planYear || '')}</td><td>${esc(l.method)}</td><td class="small">${esc(names)}</td><td class="small">${esc(l.notes || '')}</td><td><button class="btn xs sec" data-act="printnotice">Print record</button> <button class="btn xs sec" data-act="delnotice">✕</button></td></tr>`; }).join('')}</tbody></table>` : '<div class="empty">Nothing logged yet. When the December notices go out, log them here with the date, method and names.</div>'}</div>`;
+}
+
+/* ---------- Corrections ---------- */
+function rCorr() {
+  const list = S.corrections.slice().sort((a, b) => (a.status === 'closed') - (b.status === 'closed'));
+  return `<div class="page-h"><div><h2>Corrections</h2><p>Every plan has mistakes; what matters is finding them, fixing them the right way, and writing it down. The IRS (EPCRS: self-correction, VCP) and DOL (VFCP) programs reward plans that self-correct.</p></div><div class="pill-row noprint"><button class="btn sm" data-act="addcorr">+ Correction</button></div></div>
+  ${list.length ? list.map(c => `<div class="card" data-id="${c.id}"><h3>${esc(c.title)} <span class="chip ${c.status === 'closed' ? 'ok' : c.status === 'open' ? 'bad' : 'warn'}">${esc(c.status)}</span></h3>
+    <dl class="kv"><dt>Period affected</dt><dd>${esc(c.period || '—')}</dd><dt>Found</dt><dd>${fmt(c.found)}</dd><dt>Method</dt><dd>${esc(c.type || '—')}</dd><dt>Handling</dt><dd>${esc(OWNER[c.owner] || c.owner || '—')}</dd><dt>Lost earnings / cost</dt><dd>${c.lost ? money(c.lost) : '—'}</dd>${c.closedOn ? `<dt>Closed</dt><dd>${fmt(c.closedOn)}</dd>` : ''}</dl>
+    ${c.notes ? `<p class="small" style="margin-top:8px;white-space:pre-wrap">${esc(c.notes)}</p>` : ''}
+    <div class="actions"><button class="btn xs sec" data-act="editcorr">Edit</button></div></div>`).join('') : '<div class="empty">No corrections logged.</div>'}
+  <div class="card guide"><h3>Which program?</h3><ul><li><span class="term">SCP (self-correction)</span> — IRS. Operational mistakes (wrong match, missed deferrals, late deposits as an operational failure) fixed by you and the TPA with no filing, as long as the plan has good procedures and the fix follows the EPCRS formulas. Keep a memo. Since SECURE 2.0, most "eligible inadvertent failures" can be self-corrected at any time if corrected within a reasonable period after discovery.</li><li><span class="term">VCP</span> — IRS. A filing with a fee when self-correction is not available or you want a letter. Rare for a plan this size.</li><li><span class="term">VFCP</span> — DOL. For late deposits and other fiduciary breaches. The self-correction component covers late deposits with ≤ $1,000 of lost earnings corrected within 180 days (no fee, an online notice); larger ones need a full application. Either way lost earnings are computed with the DOL online calculator, and Form 5330 (15% excise tax on the lost earnings) is filed unless the SCC applies.</li></ul></div>`;
+}
+
+/* ---------- Fiduciary file ---------- */
+function rDocs() {
+  const have = DOCS.filter(d => (S.docs[d[0]] || {}).have).length;
+  return `<div class="page-h"><div><h2>Fiduciary file</h2><p>The folder (paper or digital) a DOL or IRS examiner asks for first. Tick what you have and note where it lives. ${have}/${DOCS.length} located.</p></div></div>
+  <div class="card"><table class="tbl"><thead><tr><th></th><th>Document</th><th>Where it is (folder, Vault, portal…)</th><th>Dated / version</th></tr></thead><tbody>
+  ${DOCS.map(d => { const r = S.docs[d[0]] || {}; return `<tr data-id="${d[0]}"><td><input type="checkbox" data-f="have" ${r.have ? 'checked' : ''}></td><td><b>${esc(d[1])}</b><div class="small">${esc(d[2])}</div></td><td><input type="text" data-f="where" value="${esc(r.where || '')}" placeholder="…"></td><td><input type="text" data-f="dated" value="${esc(r.dated || '')}" placeholder="…"></td></tr>`; }).join('')}
+  </tbody></table></div>`;
+}
+
+/* ---------- Limits ---------- */
+function rLimits() {
+  const ys = Object.keys(LIMITS).map(Number).sort();
+  return `<div class="page-h"><div><h2>Limits & plan facts</h2><p>IRS cost-of-living limits (Notice 2025-67 for 2026). New limits are announced each November; Claude can add the next year when they come out.</p></div></div>
+  <div class="card"><table class="tbl limits"><thead><tr><th>Limit</th>${ys.map(y => `<th class="num">${y}</th>`).join('')}<th>Plain English</th></tr></thead><tbody>
+  ${LIMIT_LABELS.map(([k, l, d]) => `<tr><td>${esc(l)}</td>${ys.map(y => `<td class="num">${money(LIMITS[y][k])}</td>`).join('')}<td class="small">${esc(d)}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="card guide"><h3>Rules that are fixed (not indexed)</h3><ul><li><b>Deposit timing:</b> small plans — within 7 business days of the pay date (safe harbor); never later than the 15th business day of the following month (and that is not a safe harbor).</li><li><b>Fidelity bond:</b> ≥ 10% of plan assets at the start of the year; min $1,000, max $500,000.</li><li><b>Safe harbor notice:</b> 30–90 days before the plan year (Oct 3 – Dec 1 for calendar-year plans).</li><li><b>Form 5500-SF:</b> last day of the 7th month after plan year end (July 31); extension to October 15 with Form 5558.</li><li><b>SAR:</b> 2 months after the 5500 deadline (Sept 30, or Dec 15 if extended).</li><li><b>SPD:</b> to new participants within 90 days; restated every 5 years if amended, 10 if not. <b>SMM:</b> within 210 days after the plan year of the amendment.</li><li><b>Fee disclosure (404a-5):</b> at least once every 14 months.</li><li><b>RMD age:</b> 73 (75 from 2033). >5% owners cannot delay past 73 even while working.</li><li><b>Long-term part-time:</b> 500+ hours in 2 consecutive years (plan years after 2024) → must be allowed to defer.</li><li><b>Record retention:</b> ERISA §107 — 6 years from the 5500 filing date for anything used to prepare it; plan documents and participant records effectively forever.</li></ul></div>`;
+}
+
+/* ---------- Guide ---------- */
+function rGuide() {
+  const P = S.plan;
+  return `<div class="page-h"><div><h2>How this works — your plain-English TPA brief</h2><p>What a plan administrator actually has to do for a small safe harbor 401(k), who does which part at NLO, and the words everyone keeps using.</p></div></div>
+  <div class="card guide">
+    <h3>Who does what</h3>
+    <div class="who">
+      <div class="w"><b>You — plan sponsor + plan administrator + fiduciary</b><p>You are the one legally responsible that everything below happens — even the parts others do for you. In practice that means: get the census out, make sure deposits are fast, make sure the December notices go out, sign the 5500-SF, review fees and funds once a year, enroll new people on time, and keep the file. Nobody else is on the hook with the DOL; they are hired by you.</p></div>
+      <div class="w"><b>TPA — ${esc(P.tpa)} now, ${esc(P.tpaFrom2027 || '—')} from 2027</b><p>The compliance brain. Takes your census, runs the tests, computes true-ups, prepares the Form 5500-SF and the notices, keeps the plan document up to date and drafts amendments, and walks you through corrections. They do not deposit money, do not send notices unless you have agreed they will, and do not know about a new hire until you tell them.</p></div>
+      <div class="w"><b>Recordkeeper — ${esc(P.rk)}</b><p>Holds the money and the participant accounts: enrollment website, investment elections, statements, quarterly fee disclosures, 1099-Rs, distributions and loans. Often also sends the annual fee disclosure and QDIA notice. Ascensus provides the administration behind Vanguard RPA, which is why the two names overlap.</p></div>
+      <div class="w"><b>Payroll — Paychex</b><p>Withholds the deferrals and computes the match each pay period. Payroll is where the limit caps live and where most formula errors start (the 3% vs 4% match is a payroll setting). Confirm every January that the caps and the match formula match the plan document.</p></div>
+    </div>
+    <h3>The year in one paragraph</h3>
+    <p><b>January:</b> new limits into payroll, census to the TPA, bond check. <b>March:</b> testing results back, any Q4 match true-up in. <b>Every pay date all year:</b> deferrals to Vanguard within 7 business days, reconciled quarterly. <b>June:</b> look at the funds and fees once, write a note. <b>July:</b> sign the 5500-SF in EFAST2. <b>September:</b> hand out the SAR. <b>October–December 1:</b> safe harbor + QDIA notices to every eligible employee, fee disclosure confirmed, elections and beneficiaries refreshed. <b>December 31:</b> any amendment signed, forfeitures used, RMDs done. <b>Any time someone is hired:</b> their entry date goes on the calendar; before it they get the safe harbor notice, the SPD and an enrollment form (or a signed waiver).</p>
+    <h3>The mistakes that actually get small plans in trouble</h3>
+    <ol>
+      <li><b>Late deposits.</b> By far the most common DOL finding. Automate the payroll-to-Vanguard feed and log each pay date here.</li>
+      <li><b>Running the plan differently from the document.</b> Wrong match formula, wrong eligibility, wrong definition of pay (bonuses!). Read the adoption agreement once a year with the TPA.</li>
+      <li><b>Missing the safe harbor notice.</b> Loses the testing exemption for the year.</li>
+      <li><b>Not enrolling someone on time</b> (missed deferral opportunity). The fix is a QNEC from the practice plus match plus earnings. Entry dates on a calendar prevent it.</li>
+      <li><b>Forgetting part-timers</b> (the 500-hour rule) and family members (attribution).</li>
+      <li><b>No bond, or too small a bond.</b></li>
+      <li><b>No fiduciary file.</b> When asked "how did you decide these fees were reasonable?" the answer has to be on paper.</li>
+      <li><b>Assuming the other vendor did it</b> — especially in a TPA transition year like this one.</li>
+    </ol>
+    <h3>Glossary</h3>
+    <dl>
+      <dt>Plan sponsor</dt><dd>The employer (Amir Akhavan DMD, PLLC). Adopts the plan.</dd>
+      <dt>Plan administrator</dt><dd>The person/entity named in the document as responsible for running it. Here, you. Signs the 5500-SF, is the DOL's contact.</dd>
+      <dt>Fiduciary</dt><dd>Anyone with discretion over plan assets or administration. Must act solely in participants' interest, prudently, and follow the document. Personal liability — which is why the file and the bond matter.</dd>
+      <dt>TPA</dt><dd>Third-party administrator — compliance, testing, document, 5500 preparation. Ascensus now, FuturePlan from 2027.</dd>
+      <dt>Recordkeeper</dt><dd>Keeps the accounts and the website. Vanguard Retirement Plan Access.</dd>
+      <dt>Safe harbor 401(k)</dt><dd>A design where the employer commits to a fixed, fully vested contribution (your match: ${esc(P.matchFormula)}) in exchange for skipping the ADP/ACP tests — which otherwise limit how much the owner can defer when staff defer little. The price: the match is mandatory and the annual notice is mandatory.</dd>
+      <dt>ADP / ACP tests</dt><dd>Compare what highly-compensated employees defer/receive with everyone else. Safe harbor plans are deemed to pass.</dd>
+      <dt>Top-heavy</dt><dd>When key employees (owners/officers) hold over 60% of plan assets — common in a practice. A safe harbor plan whose only employer money is the safe harbor contribution is deemed not top-heavy; add profit sharing and the 3% minimum for everyone can kick in.</dd>
+      <dt>HCE / key employee</dt><dd>Highly compensated (prior-year pay over the threshold, or >5% owner) / key (officer over the threshold, >5% owner). Family of a >5% owner counts too.</dd>
+      <dt>Census</dt><dd>The yearly spreadsheet of every employee's dates, hours, pay and contributions. Everything the TPA does flows from it.</dd>
+      <dt>QDIA</dt><dd>Qualified default investment alternative — the fund money goes into when someone never picks (usually a target-date fund). Gives you fiduciary protection only if the annual notice went out.</dd>
+      <dt>SPD / SMM / SAR</dt><dd>Summary Plan Description (plain-language plan), Summary of Material Modifications (plain-language change), Summary Annual Report (one-page 5500 summary).</dd>
+      <dt>Form 5500-SF</dt><dd>The plan's annual return to the DOL/IRS, short form for under-100-participant plans. Filed electronically in EFAST2 with your own signer ID.</dd>
+      <dt>402(g) / 415(c) / 401(a)(17)</dt><dd>The deferral limit / the total-additions limit / the pay cap. See Limits.</dd>
+      <dt>Lost earnings</dt><dd>What late money would have earned; computed with the DOL's online calculator and deposited to the affected accounts.</dd>
+      <dt>EPCRS (SCP / VCP) and VFCP</dt><dd>The IRS and DOL correction programs. See Corrections.</dd>
+      <dt>QNEC</dt><dd>Qualified non-elective contribution — the employer-funded fix for a missed deferral, 100% vested.</dd>
+      <dt>Form 5330</dt><dd>IRS excise-tax return filed when there is a prohibited transaction such as a late deposit (15% of the lost earnings).</dd>
+      <dt>Form 5558</dt><dd>The 2½-month extension request for the 5500-SF.</dd>
+      <dt>408(b)(2) / 404a-5</dt><dd>The fee disclosures providers must give you / you must give participants.</dd>
+      <dt>LTPT</dt><dd>Long-term part-time employee — 500+ hours in two consecutive years → must be allowed to defer.</dd>
+      <dt>Vesting</dt><dd>How much of the employer money an employee keeps when they leave. Safe harbor match is always 100%.</dd>
+    </dl>
+    <h3>Questions to settle with FuturePlan before January 1, 2027</h3>
+    <ol>
+      <li>Who sends the December 1, 2026 safe harbor + QDIA notices — Ascensus, FuturePlan, Vanguard, or you? Get it in writing.</li>
+      <li>Who prepares and who signs the 2026 Form 5500-SF next July? Do your EFAST2 credentials still work?</li>
+      <li>Is the SECURE 2.0 amendment signed and in the file before the switch? Which optional provisions did it elect?</li>
+      <li>How is the 2022–2026 match correction being documented (per-person amounts, lost earnings, memo), and who deposits the corrective contributions?</li>
+      <li>What is their census deadline and portal, and what exact fields do they want?</li>
+      <li>Their 408(b)(2) fee schedule and service agreement — what is included (notices? SPD? amendments? corrections?) and what costs extra.</li>
+      <li>Does the plan document's definition of compensation match what Paychex uses for the match (bonuses, overtime)?</li>
+      <li>Is the plan's eligibility (${esc(P.eligMonths)} months / age ${esc(P.eligAge)} / ${esc(P.entry)} entry) what the adoption agreement says, and are part-timers handled under the 500-hour rule?</li>
+    </ol>
+    <div class="callout info"><b>Claude as your TPA sidekick.</b> This app holds the facts; bring anything from it into a chat and ask: "FuturePlan says X — is that right?", "Draft the safe harbor notice cover email", "Walk me through the lost-earnings calculation for this late deposit." The app will not give legal or tax advice, and neither will Claude — for anything with money at stake, confirm with the TPA or the CPA. The point is that you will know what to ask.</div>
+  </div>`;
+}
+
+/* ---------- Settings ---------- */
+function rSettings() {
+  const P = S.plan, tiers = P.matchTiers || [{ pct: 100, upto: 4 }];
+  const rules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // NLO 401(k) plan admin: one encrypted record per signed-in owner
+    match /plan401k/{uid} {
+      allow read, create, delete: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.v == 1
+        && request.resource.data.rev is int
+        && request.resource.data.rev == resource.data.rev + 1;
+    }
+    // …keep the existing staffhub rules below this block…
+  }
+}`;
+  return `<div class="page-h"><div><h2>Settings</h2><p>Plan facts drive the calendar and eligibility. Change them here when the plan document or vendors change.</p></div></div>
+  <div class="grid g2">
+  <div>
+  <div class="card"><h3>Plan facts</h3><div class="form" id="planForm">
+    <div class="row"><div><label>Plan name</label><input data-k="name" value="${esc(P.name)}"></div><div><label>Plan ID</label><input data-k="planId" value="${esc(P.planId)}"></div></div>
+    <div class="row"><div><label>Sponsor</label><input data-k="sponsor" value="${esc(P.sponsor)}"></div><div><label>Business taxed as</label><select data-k="entityTax"><option value="s-corp" ${P.entityTax === 's-corp' ? 'selected' : ''}>S-corporation (return due Mar 15)</option><option value="partnership" ${P.entityTax === 'partnership' ? 'selected' : ''}>Partnership (Mar 15)</option><option value="c-corp" ${P.entityTax === 'c-corp' ? 'selected' : ''}>C-corporation (Apr 15)</option><option value="sole" ${P.entityTax === 'sole' ? 'selected' : ''}>Sole proprietor / disregarded (Apr 15)</option></select><div class="help">Sets the employer-contribution deductibility deadline. Ask the CPA if unsure.</div></div></div>
+    <div class="row"><div><label>Recordkeeper</label><input data-k="rk" value="${esc(P.rk)}"></div><div><label>TPA (current)</label><input data-k="tpa" value="${esc(P.tpa)}"></div><div><label>TPA from 1/1/2027</label><input data-k="tpaFrom2027" value="${esc(P.tpaFrom2027)}"></div></div>
+    <div class="row"><div><label>Safe harbor type</label><select data-k="shType"><option value="match" ${P.shType === 'match' ? 'selected' : ''}>Matching contribution</option><option value="nonelective" ${P.shType === 'nonelective' ? 'selected' : ''}>Non-elective (3% to everyone)</option></select></div><div><label>Match formula (as the document says)</label><input data-k="matchFormula" value="${esc(P.matchFormula)}"></div></div>
+    <div class="row"><div><label>Tier 1: match %</label><input type="number" data-t="0.pct" value="${esc(tiers[0] ? tiers[0].pct : 100)}"></div><div><label>…of deferrals up to % of pay</label><input type="number" step="0.5" data-t="0.upto" value="${esc(tiers[0] ? tiers[0].upto : 4)}"></div><div><label>Tier 2: match % (optional)</label><input type="number" data-t="1.pct" value="${esc(tiers[1] ? tiers[1].pct : '')}"></div><div><label>…up to % of pay</label><input type="number" step="0.5" data-t="1.upto" value="${esc(tiers[1] ? tiers[1].upto : '')}"></div></div>
+    <div class="row"><div><label>Eligibility: months of service</label><input type="number" data-k="eligMonths" value="${esc(P.eligMonths)}"></div><div><label>Minimum age</label><input type="number" data-k="eligAge" value="${esc(P.eligAge)}"></div><div><label>Hours required (if any)</label><input type="number" data-k="eligHours" value="${esc(P.eligHours)}"></div><div><label>Entry dates</label><select data-k="entry"><option value="immediate" ${P.entry === 'immediate' ? 'selected' : ''}>Immediately on meeting it</option><option value="monthly" ${P.entry === 'monthly' ? 'selected' : ''}>First of next month</option><option value="quarterly" ${P.entry === 'quarterly' ? 'selected' : ''}>Quarterly (Jan/Apr/Jul/Oct 1)</option><option value="semi" ${P.entry === 'semi' ? 'selected' : ''}>Semi-annual (Jan 1 / Jul 1)</option><option value="annual" ${P.entry === 'annual' ? 'selected' : ''}>Annual (Jan 1)</option></select></div></div>
+    <div class="row"><label class="check"><input type="checkbox" data-k="qdia" ${P.qdia !== false ? 'checked' : ''}> Plan has a default investment (QDIA notice applies)</label><label class="check"><input type="checkbox" data-k="autoEnroll" ${P.autoEnroll ? 'checked' : ''}> Plan auto-enrolls new employees</label><label class="check"><input type="checkbox" data-k="rothAllowed" ${P.rothAllowed !== false ? 'checked' : ''}> Roth deferrals allowed</label><label class="check"><input type="checkbox" data-k="loans" ${P.loans ? 'checked' : ''}> Loans allowed</label></div>
+    <div class="row"><div><label>Plan expenses paid by</label><select data-k="feesPaidBy"><option value="employer" ${P.feesPaidBy === 'employer' ? 'selected' : ''}>The practice</option><option value="plan" ${P.feesPaidBy === 'plan' ? 'selected' : ''}>Participant accounts</option></select></div><div><label>Plan effective date</label><input type="date" data-k="planEffective" value="${esc(P.planEffective)}"></div><div><label>Next restatement due (ask TPA)</label><input type="date" data-k="restateDue" value="${esc(P.restateDue)}"></div></div>
+    <div class="row"><div><label>Pay frequency</label><select data-k="payFreq"><option value="biweekly" ${P.payFreq === 'biweekly' ? 'selected' : ''}>Every other week</option><option value="weekly" ${P.payFreq === 'weekly' ? 'selected' : ''}>Weekly</option><option value="semimonthly" ${P.payFreq === 'semimonthly' ? 'selected' : ''}>15th and last day</option><option value="monthly" ${P.payFreq === 'monthly' ? 'selected' : ''}>Monthly</option></select></div><div><label>A recent pay date (anchor)</label><input type="date" data-k="firstPay" value="${esc(P.firstPay)}"><div class="help">The Deposits tab generates pay dates from this.</div></div></div>
+    <div class="row"><div><label>Fidelity bond amount</label><input type="number" data-k="bondAmount" value="${esc(P.bondAmount)}"></div><div><label>Carrier</label><input data-k="bondCarrier" value="${esc(P.bondCarrier)}"></div><div><label>Bond expires</label><input type="date" data-k="bondExpires" value="${esc(P.bondExpires)}"></div></div>
+    <div class="actions"><button class="btn" data-act="saveplan">Save plan facts</button></div>
+  </div></div>
+  <div class="card"><h3>Contacts</h3><table class="tbl"><thead><tr><th>Name</th><th>Organization / role</th><th>Email · phone</th><th>Notes</th><th></th></tr></thead><tbody>${S.contacts.map(c => `<tr data-id="${c.id}"><td><b>${esc(c.name || '—')}</b></td><td>${esc(c.org)}<div class="small">${esc(c.role)}</div></td><td class="small">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : ''}${c.phone ? '<br>' + esc(c.phone) : ''}</td><td class="small">${esc(c.notes)}</td><td><button class="btn xs sec" data-act="editcontact">Edit</button></td></tr>`).join('')}</tbody></table><div class="actions"><button class="btn sec sm" data-act="addcontact">+ Contact</button></div></div>
+  </div>
+  <div>
+  <div class="card"><h3>Cloud sync <span class="chip ${cloud === 'on' ? 'ok' : 'warn'}">${cloud === 'on' ? 'on' : cloud === 'denied' ? 'rules not added' : cloud === 'offline' ? 'offline' : 'off'}</span></h3>
+    <p class="small">Signed in as <b>${esc(session.email || '—')}</b>. Data is encrypted in this browser and saved to <code>plan401k/your-uid</code> in the <b>nlo-staff-hub</b> Firebase project — Google only ever sees ciphertext. The same login opens it on your Mac and the office PC.</p>
+    ${cloud !== 'on' ? `<div class="callout warn"><b>One-time step to turn cloud sync on:</b> Firebase console → project <b>nlo-staff-hub</b> → Firestore Database → Rules → paste this block inside the <code>match /databases/{database}/documents { … }</code> braces, above the existing staffhub rules → Publish. Then lock and sign in again.</div><div class="mono">${esc(rules)}</div>` : '<div class="callout ok">Cloud sync is working. Lock when you are done; the app also locks itself after ' + esc(S.settings.autoLockMin || 15) + ' minutes.</div>'}
+  </div>
+  <div class="card"><h3>Backup & restore</h3><p class="small">An encrypted backup (.nlo401k.json) opens only with the password it was saved with. Keep one in NLO Vault or a private drive after big updates.</p>
+    <div class="actions"><button class="btn sec sm" data-act="export">Download encrypted backup</button><button class="btn sec sm" data-act="import">Restore from backup…</button><button class="btn sec sm" data-act="exportcsv">Export calendar + deposits as CSV (readable)</button></div>
+    <input type="file" id="importFile" class="hidden" accept=".json,application/json">
+  </div>
+  <div class="card"><h3>Behaviour</h3><div class="form"><div class="row"><div><label>Auto-lock after (minutes)</label><input type="number" id="setLock" value="${esc(S.settings.autoLockMin || 15)}" min="2" max="120"></div><div><label>"Due soon" window (days)</label><input type="number" id="setLook" value="${esc(S.settings.lookahead || 60)}" min="14" max="180"></div></div><div class="actions"><button class="btn sec sm" data-act="savebeh">Save</button></div></div></div>
+  <div class="card"><h3>Activity</h3><div style="max-height:260px;overflow:auto">${S.log.length ? S.log.slice(0, 60).map(l => `<div class="small" style="padding:4px 0;border-bottom:1px solid var(--line)">${new Date(l.ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${esc(l.text)}</div>`).join('') : '<div class="small">—</div>'}</div></div>
+  <div class="card"><h3>About</h3><p class="small">NLO 401(k) v${APP_VER}. Deadlines reflect calendar-year plan rules for plans with fewer than 100 participants as of Nov 2026 (IRS Notice 2025-67 limits; DOL 7-business-day deposit safe harbor; IRS Notice 2024-2 SECURE 2.0 amendment deadline). It is a checklist, not legal or tax advice — confirm anything with money at stake with the TPA or CPA.</p></div>
+  </div></div>`;
+}
+
+/* =========================================================================================
+   WIRING (page-level actions)
+   ========================================================================================= */
+function wire(m) {
+  wireItems(m);
+  $$('[data-go]', m).forEach(b => b.onclick = e => { e.preventDefault(); route.page = b.dataset.go; render(); window.scrollTo(0, 0); });
+  const on = (sel, fn) => $$(sel, m).forEach(el => el.onclick = fn);
+  on('[data-act=yprev]', () => { route.year--; render(); });
+  on('[data-act=ynext]', () => { route.year++; render(); });
+  const q = $('#calQ', m); if (q) q.oninput = () => { route.q = q.value; renderKeepFocus(); };
+  const cc = $('#calCat', m); if (cc) cc.onchange = () => { route.cat = cc.value; render(); };
+  const cd = $('#calDone', m); if (cd) cd.onchange = () => { route.showDone = cd.checked; render(); };
+  on('[data-act=addcustom]', () => modalCustom());
+  on('[data-act=backlogdone]', () => { const A = alerts(); if (!confirm(`Mark all ${A.backlog.length} earlier items as done? Only do this if you know they happened.`)) return; A.backlog.forEach(i => setItem(i.y, i.id, { status: 'done', doneOn: i.due, evidence: 'Marked at catch-up review ' + today() })); act('Catch-up review: marked ' + A.backlog.length + ' earlier items done'); render(); });
+  /* deposits */
+  on('[data-act=adddep]', () => modalDeposit());
+  on('[data-act=genpay]', () => { const n = nextPayDates(12); n.forEach(d => S.deposits.push({ id: uid(), payDate: d })); act('Added ' + n.length + ' pay dates'); save(); render(); });
+  on('[data-act=latecorr]', () => { const late = depositRows().filter(r => r.cls === 'bad').map(r => fmt(r.payDate)).join(', '); S.corrections.push({ id: uid(), title: 'Late deferral deposit(s)', found: today(), period: late, type: 'VFCP (self-correction component if lost earnings ≤ $1,000 and fixed within 180 days)', status: 'open', owner: 'you', lost: '', notes: 'Pay dates: ' + late + '\n1. Deposit the deferrals if not done.\n2. DOL VFCP Online Calculator → lost earnings → deposit to each affected account.\n3. Form 5330 + 15% excise tax on lost earnings (not needed if using the VFCP self-correction component).\n4. Report on the Form 5500-SF late-deposit line.\n5. Memo to the file: what happened, what changed.', closedOn: '' }); act('Correction opened: late deposits'); save(); route.page = 'corr'; render(); });
+  $$('tr[data-id]', m).forEach(tr => {
+    $$('input[data-f],select[data-f]', tr).forEach(inp => inp.onchange = () => {
+      const id = tr.dataset.id; const f = inp.dataset.f; const v = inp.type === 'checkbox' ? inp.checked : inp.value;
+      if (route.page === 'deposits') { const d = S.deposits.find(x => x.id === id); if (d) { d[f] = v; save(); render(); } }
+      else if (route.page === 'docs') { S.docs[id] = S.docs[id] || {}; S.docs[id][f] = v; save(); if (f === 'have') render(); }
+    });
+  });
+  on('[data-act=deldep]', e => { const id = e.target.closest('tr').dataset.id; if (!confirm('Remove this pay date?')) return; S.deposits = S.deposits.filter(x => x.id !== id); save(); render(); });
+  /* people */
+  const pf = $('#pplFilter', m); if (pf) pf.onchange = () => { route.people = pf.value; render(); };
+  on('[data-act=addperson]', () => modalPerson());
+  on('[data-act=editperson]', e => modalPerson(S.people.find(p => p.id === e.target.closest('tr').dataset.id)));
+  /* notices */
+  on('[data-act=lognotice]', () => modalNotice());
+  on('[data-act=delnotice]', e => { const id = e.target.closest('tr').dataset.id; if (!confirm('Delete this log entry?')) return; S.notices = S.notices.filter(x => x.id !== id); save(); render(); });
+  on('[data-act=printnotice]', e => printNotice(S.notices.find(x => x.id === e.target.closest('tr').dataset.id)));
+  /* corrections */
+  on('[data-act=addcorr]', () => modalCorr());
+  on('[data-act=editcorr]', e => modalCorr(S.corrections.find(c => c.id === e.target.closest('.card').dataset.id)));
+  /* settings */
+  on('[data-act=saveplan]', () => { const f = $('#planForm', m); $$('[data-k]', f).forEach(inp => { S.plan[inp.dataset.k] = inp.type === 'checkbox' ? inp.checked : inp.value; }); const tiers = []; for (const i of [0, 1]) { const p = $(`[data-t="${i}.pct"]`, f).value, u = $(`[data-t="${i}.upto"]`, f).value; if (p !== '' && u !== '') tiers.push({ pct: +p, upto: +u }); } if (tiers.length) S.plan.matchTiers = tiers; act('Plan facts updated'); save(); $('#tbPlan').textContent = S.plan.name; toast('Plan facts saved', 'ok'); render(); });
+  on('[data-act=addcontact]', () => modalContact());
+  on('[data-act=editcontact]', e => modalContact(S.contacts.find(c => c.id === e.target.closest('tr').dataset.id)));
+  on('[data-act=savebeh]', () => { S.settings.autoLockMin = Math.max(2, +$('#setLock', m).value || 15); S.settings.lookahead = Math.max(14, +$('#setLook', m).value || 60); save(); toast('Saved', 'ok'); render(); });
+  on('[data-act=export]', exportBackup);
+  on('[data-act=exportcsv]', exportCSV);
+  on('[data-act=import]', () => { const f = $('#importFile', m); f.value = ''; f.onchange = () => importBackup(f.files[0]); f.click(); });
+}
+function renderKeepFocus() { const pos = $('#calQ').selectionStart; render(); const q = $('#calQ'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
+
+/* =========================================================================================
+   MODALS
+   ========================================================================================= */
+function openModal(html) { $('#modal').innerHTML = html; $('#modalBg').classList.add('on'); const f = $('#modal input,#modal select,#modal textarea'); if (f) setTimeout(() => f.focus(), 30); }
+function closeModal() { $('#modalBg').classList.remove('on'); $('#modal').innerHTML = ''; }
+$('#modalBg').addEventListener('click', e => { if (e.target === $('#modalBg')) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modalBg').classList.contains('on')) closeModal(); });
+function fld(label, inner, help) { return `<div><label>${label}</label>${inner}${help ? `<div class="help">${help}</div>` : ''}</div>`; }
+function ownerSel(name, v) { return `<select name="${name}">${Object.keys(OWNER).map(k => `<option value="${k}" ${v === k ? 'selected' : ''}>${OWNER[k]}</option>`).join('')}</select>`; }
+function formData(root) { const o = {}; $$('[name]', root).forEach(el => { o[el.name] = el.type === 'checkbox' ? el.checked : el.value; }); return o; }
+
+function modalPerson(p) {
+  p = p || {}; const edit = !!p.id;
+  openModal(`<h3>${edit ? 'Edit' : 'Add'} person</h3><form class="form" id="mf">
+    <div class="row">${fld('First name', `<input name="first" value="${esc(p.first || '')}" required>`)}${fld('Last name', `<input name="last" value="${esc(p.last || '')}" required>`)}${fld('Role (optional)', `<input name="role" value="${esc(p.role || '')}">`)}</div>
+    <div class="row">${fld('Hire date', `<input type="date" name="hired" value="${esc(p.hired || '')}" required>`)}${fld('Date of birth', `<input type="date" name="dob" value="${esc(p.dob || '')}">`, 'For the age-21 rule, catch-up at 50 and RMDs.')}${fld('Termination date', `<input type="date" name="termed" value="${esc(p.termed || '')}">`)}</div>
+    <div class="row">${fld('Deferral election (% of pay)', `<input type="number" step="0.5" name="deferral" value="${esc(p.deferral == null ? '' : p.deferral)}">`, 'Leave blank if none on file; tick "waived" if they signed a 0% election.')}${fld('Type', `<select name="deferralType"><option value="pre" ${p.deferralType === 'pre' || !p.deferralType ? 'selected' : ''}>Pre-tax</option><option value="roth" ${p.deferralType === 'roth' ? 'selected' : ''}>Roth</option><option value="mixed" ${p.deferralType === 'mixed' ? 'selected' : ''}>Both</option></select>`)}${fld('Election dated', `<input type="date" name="electionDate" value="${esc(p.electionDate || '')}">`)}</div>
+    <div class="row">${fld('Prior-year FICA wages (optional)', `<input type="number" name="comp" value="${esc(p.comp || '')}">`, 'Only used to flag HCE status and the Roth-only catch-up rule.')}</div>
+    <div class="row"><label class="check"><input type="checkbox" name="waived" ${p.waived ? 'checked' : ''}> Signed a waiver / 0% election</label><label class="check"><input type="checkbox" name="parttime" ${p.parttime ? 'checked' : ''}> Part-time (check the 500-hour rule yearly)</label><label class="check"><input type="checkbox" name="owner" ${p.owner ? 'checked' : ''}> Owner / officer (key employee)</label><label class="check"><input type="checkbox" name="balance" ${p.balance ? 'checked' : ''}> Still has a plan balance (if terminated)</label></div>
+    ${fld('Notes', `<textarea name="notes">${esc(p.notes || '')}</textarea>`)}
+    <div class="actions"><button class="btn" type="submit">Save</button><button class="btn sec" type="button" data-x="cancel">Cancel</button>${edit ? '<button class="btn sec" type="button" data-x="del" style="margin-left:auto;color:var(--coral)">Delete</button>' : ''}</div></form>`);
+  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const d = formData(f); if (d.deferral === '') d.deferral = null; else d.deferral = +d.deferral; if (edit) Object.assign(p, d); else S.people.push(Object.assign({ id: uid() }, d)); act((edit ? 'Updated ' : 'Added ') + d.first + ' ' + d.last); save(); closeModal(); render(); };
+  $('[data-x=cancel]', f).onclick = closeModal; const del = $('[data-x=del]', f); if (del) del.onclick = () => { if (!confirm('Delete this person?')) return; S.people = S.people.filter(x => x.id !== p.id); save(); closeModal(); render(); };
+}
+function modalDeposit(d) {
+  openModal(`<h3>Log a pay date</h3><form class="form" id="mf"><div class="row">${fld('Pay date', `<input type="date" name="payDate" required value="${esc(today())}">`)}${fld('Deferrals + loan payments withheld ($)', `<input type="number" step="0.01" name="amount">`)}${fld('Date deposited at Vanguard', `<input type="date" name="depositedOn">`)}</div>${fld('Note', `<input name="notes">`)}<div class="actions"><button class="btn" type="submit">Save</button><button class="btn sec" type="button" data-x="cancel">Cancel</button></div></form>`);
+  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const o = formData(f); if (S.deposits.some(x => x.payDate === o.payDate)) { toast('That pay date is already logged', 'bad'); return; } S.deposits.push(Object.assign({ id: uid() }, o)); act('Logged pay date ' + fmt(o.payDate)); save(); closeModal(); render(); };
+  $('[data-x=cancel]', f).onclick = closeModal;
+}
+function modalNotice() {
+  const t = today(), y = yearOf(t);
+  const people = S.people.filter(p => !(p.termed && p.termed <= t) || p.balance).sort((a, b) => (a.last + a.first).localeCompare(b.last + b.first));
+  openModal(`<h3>Log a notice distribution</h3><form class="form" id="mf">
+    <div class="row">${fld('Notice', `<select name="type">${NOTICES.map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join('')}</select>`)}${fld('For plan year', `<input type="number" name="planYear" value="${y + 1}">`)}${fld('Date sent', `<input type="date" name="sentOn" value="${t}" required>`)}</div>
+    <div class="row">${fld('Method', `<select name="method"><option>Email</option><option>Handed out at the office</option><option>Mailed</option><option>Posted in the Vanguard participant portal</option><option>Sent by the recordkeeper</option><option>Sent by the TPA</option></select>`)}${fld('Title / file name (optional)', `<input name="title" placeholder="e.g. 2027 Safe Harbor Notice.pdf">`)}</div>
+    ${fld('Recipients', `<label class="check"><input type="checkbox" name="allr" checked> Everyone on the list below</label><div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px">${people.map(p => `<label class="check" style="font-weight:500"><input type="checkbox" name="r_${p.id}" checked> ${esc(p.first)} ${esc(p.last)}</label>`).join('') || '<span class="small">No people added yet — add them under People to record names.</span>'}</div>`)}
+    ${fld('Notes', `<textarea name="notes" placeholder="e.g. combined safe harbor + QDIA notice; copy saved in Drive › 401k › 2027"></textarea>`)}
+    <div class="actions"><button class="btn" type="submit">Log it</button><button class="btn sec" type="button" data-x="cancel">Cancel</button></div></form>`);
+  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const o = formData(f); const rec = people.filter(p => o['r_' + p.id]).map(p => p.id); const entry = { id: uid(), type: o.type, planYear: o.planYear, sentOn: o.sentOn, method: o.method, title: o.title, notes: o.notes, recipients: rec.length === people.length && people.length ? rec : rec, loggedAt: Date.now() }; S.notices.push(entry); act('Logged notice: ' + (NOTICES.find(n => n.id === o.type) || {}).name);
+    /* auto-tick the matching calendar item */
+    const map = { sh: 'shnotice', qdia: 'qdia', aca: 'aca', fee: 'feedisc', sar: 'sar', smm: 'smm' }; const cy = +o.planYear - (['sh', 'qdia', 'aca', 'fee'].includes(o.type) ? 1 : 0); if (map[o.type]) setItem(cy, map[o.type], { status: 'done', doneOn: o.sentOn, evidence: 'Logged under Notices' });
+    save(); closeModal(); render(); };
+  $('[data-x=cancel]', f).onclick = closeModal;
+}
+function modalCorr(c) {
+  c = c || {}; const edit = !!c.id;
+  openModal(`<h3>${edit ? 'Edit' : 'New'} correction</h3><form class="form" id="mf">
+    ${fld('What went wrong', `<input name="title" value="${esc(c.title || '')}" required>`)}
+    <div class="row">${fld('Period affected', `<input name="period" value="${esc(c.period || '')}" placeholder="e.g. 2022 – 2026">`)}${fld('Found on', `<input type="date" name="found" value="${esc(c.found || today())}">`)}${fld('Status', `<select name="status"><option value="open" ${c.status === 'open' ? 'selected' : ''}>Open</option><option value="in progress" ${c.status === 'in progress' ? 'selected' : ''}>In progress</option><option value="closed" ${c.status === 'closed' ? 'selected' : ''}>Closed</option></select>`)}</div>
+    <div class="row">${fld('Correction method', `<input name="type" value="${esc(c.type || '')}" placeholder="SCP / VCP / VFCP / late deposit">`)}${fld('Who is handling it', ownerSel('owner', c.owner || 'tpa'))}${fld('Lost earnings / cost ($)', `<input type="number" step="0.01" name="lost" value="${esc(c.lost || '')}">`)}${fld('Closed on', `<input type="date" name="closedOn" value="${esc(c.closedOn || '')}">`)}</div>
+    ${fld('Notes / steps', `<textarea name="notes" style="min-height:140px">${esc(c.notes || '')}</textarea>`)}
+    <div class="actions"><button class="btn" type="submit">Save</button><button class="btn sec" type="button" data-x="cancel">Cancel</button>${edit ? '<button class="btn sec" type="button" data-x="del" style="margin-left:auto;color:var(--coral)">Delete</button>' : ''}</div></form>`);
+  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const d = formData(f); if (edit) Object.assign(c, d); else S.corrections.push(Object.assign({ id: uid() }, d)); act((edit ? 'Updated' : 'Opened') + ' correction: ' + d.title); save(); closeModal(); render(); };
+  $('[data-x=cancel]', f).onclick = closeModal; const del = $('[data-x=del]', f); if (del) del.onclick = () => { if (!confirm('Delete this correction?')) return; S.corrections = S.corrections.filter(x => x.id !== c.id); save(); closeModal(); render(); };
+}
+function modalContact(c) {
+  c = c || {}; const edit = !!c.id;
+  openModal(`<h3>${edit ? 'Edit' : 'Add'} contact</h3><form class="form" id="mf"><div class="row">${fld('Name', `<input name="name" value="${esc(c.name || '')}">`)}${fld('Organization', `<input name="org" value="${esc(c.org || '')}">`)}${fld('Role', `<input name="role" value="${esc(c.role || '')}">`)}</div><div class="row">${fld('Email', `<input type="email" name="email" value="${esc(c.email || '')}">`)}${fld('Phone', `<input name="phone" value="${esc(c.phone || '')}">`)}</div>${fld('Notes', `<textarea name="notes">${esc(c.notes || '')}</textarea>`)}<div class="actions"><button class="btn" type="submit">Save</button><button class="btn sec" type="button" data-x="cancel">Cancel</button>${edit ? '<button class="btn sec" type="button" data-x="del" style="margin-left:auto;color:var(--coral)">Delete</button>' : ''}</div></form>`);
+  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const d = formData(f); if (edit) Object.assign(c, d); else S.contacts.push(Object.assign({ id: uid() }, d)); save(); closeModal(); render(); };
+  $('[data-x=cancel]', f).onclick = closeModal; const del = $('[data-x=del]', f); if (del) del.onclick = () => { S.contacts = S.contacts.filter(x => x.id !== c.id); save(); closeModal(); render(); };
+}
+function modalCustom() {
+  openModal(`<h3>Custom calendar item</h3><form class="form" id="mf">${fld('Title', `<input name="title" required>`)}<div class="row">${fld('Due date', `<input type="date" name="due" value="${esc(today())}" required>`)}${fld('Repeats every year on this date?', `<select name="recurring"><option value="yes">Yes, every year</option><option value="no">No, once</option></select>`)}${fld('Owner', ownerSel('owner', 'you'))}${fld('Category', `<select name="cat">${Object.keys(CAT).map(k => `<option value="${k}">${CAT[k]}</option>`).join('')}</select>`)}</div>${fld('Why it matters', `<textarea name="why"></textarea>`)}${fld('What to do', `<textarea name="how"></textarea>`)}<div class="actions"><button class="btn" type="submit">Add</button><button class="btn sec" type="button" data-x="cancel">Cancel</button></div></form>`);
+  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const d = formData(f); const c = { id: 'c_' + uid(), title: d.title, owner: d.owner, cat: d.cat, why: d.why, how: esc(d.how), recurring: d.recurring === 'yes', due: d.due, md: d.due.slice(5) }; S.custom.push(c); act('Custom item added: ' + d.title); save(); closeModal(); route.year = yearOf(d.due); render(); };
+  $('[data-x=cancel]', f).onclick = closeModal;
+}
+
+/* ---------- printable distribution record ---------- */
+function printNotice(l) {
+  if (!l) return; const n = NOTICES.find(x => x.id === l.type) || { name: l.type };
+  const names = l.recipients === 'all' ? ['All eligible employees'] : (l.recipients || []).map(id => { const p = S.people.find(x => x.id === id); return p ? p.first + ' ' + p.last : '?'; });
+  const w = window.open('', '_blank'); if (!w) { toast('Pop-up blocked — allow pop-ups to print', 'bad'); return; }
+  w.document.write(`<!doctype html><title>Notice distribution record</title><style>body{font-family:Montserrat,Arial,sans-serif;padding:40px;color:#1B2F4C;max-width:720px}h1{font-size:20px}td{padding:6px 10px;vertical-align:top}table{border-collapse:collapse}td:first-child{font-weight:700;width:170px}ul{margin:4px 0 0 18px}.sig{margin-top:50px;border-top:1px solid #1B2F4C;width:300px;padding-top:6px;font-size:12px}</style>
+  <h1>Record of participant notice distribution</h1><p>${esc(S.plan.name)}${S.plan.planId ? ' · Plan ID ' + esc(S.plan.planId) : ''}</p>
+  <table><tr><td>Notice</td><td>${esc(n.name)}${l.title ? ' — ' + esc(l.title) : ''}</td></tr><tr><td>Plan year</td><td>${esc(l.planYear || '')}</td></tr><tr><td>Date distributed</td><td>${fmt(l.sentOn)}</td></tr><tr><td>Method</td><td>${esc(l.method)}</td></tr><tr><td>Recipients</td><td><ul>${names.map(x => `<li>${esc(x)}</li>`).join('')}</ul></td></tr>${l.notes ? `<tr><td>Notes</td><td>${esc(l.notes)}</td></tr>` : ''}</table>
+  <p style="margin-top:24px;font-size:13px">I certify that the notice above was furnished to the individuals listed on the date and by the method shown.</p><div class="sig">Amir Akhavan, DMD — Plan Administrator · date ____________</div>
+  <script>setTimeout(()=>print(),300)<\/script>`); w.document.close();
+}
+
+/* ---------- backup / restore / csv ---------- */
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: type || 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+async function exportBackup() { try { const data = await encryptJSON(S, cryptoKey); download(`nlo-401k-backup-${today()}.nlo401k.json`, JSON.stringify({ app: 'nlo-401k', v: 1, email: session.email, kdf: { salt: b64(keySalt), iter: KDF_ITER }, data, exportedAt: new Date().toISOString() }, null, 0)); act('Backup downloaded'); toast('Encrypted backup downloaded', 'ok'); } catch (e) { toast('Backup failed: ' + e.message, 'bad'); } }
+function importBackup(file) {
+  if (!file) return; const r = new FileReader();
+  r.onload = async () => {
+    let j; try { j = JSON.parse(r.result); } catch (e) { toast('Not a backup file', 'bad'); return; }
+    if (!j || j.app !== 'nlo-401k' || !j.data || !j.kdf) { toast('Not an NLO 401(k) backup', 'bad'); return; }
+    const pw = prompt('Password the backup was saved with:'); if (pw == null) return;
+    try { const key = await deriveKey(pw, unb64(j.kdf.salt), j.kdf.iter || KDF_ITER); const data = await decryptJSON(j.data, key); if (!confirm('Replace everything in the app with this backup from ' + (j.exportedAt || '').slice(0, 10) + '?')) return; S = migrate(data); act('Restored from backup'); save(); render(); toast('Backup restored', 'ok'); }
+    catch (e) { toast('That password does not open this backup', 'bad'); }
+  };
+  r.readAsText(file);
+}
+function csv(rows) { return rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\n'); }
+function exportCSV() {
+  const ys = [route.year - 1, route.year, route.year + 1]; const rows = [['Plan year', 'Due', 'Item', 'Category', 'Owner', 'Status', 'Done on', 'Evidence', 'Notes']];
+  ys.forEach(y => yearItems(y).forEach(i => rows.push([y, i.due, i.title, CAT[i.cat], OWNER[i.owner], i.status, i.doneOn, i.evidence, i.notes])));
+  const dep = [['Pay date', 'Amount withheld', 'Deposited on', 'Business days', 'Deadline', 'Status', 'Match deposited', 'Notes']];
+  depositRows().forEach(r => dep.push([r.payDate, r.amount || '', r.depositedOn || '', r.days == null ? '' : r.days, r.due, r.st, r.matchOn || '', r.notes || '']));
+  download(`nlo-401k-calendar-${today()}.csv`, csv(rows) + '\n\n' + csv(dep), 'text/csv'); act('Readable CSV exported');
+}
+
+/* ---------- boot ---------- */
+$('#lockForm').addEventListener('submit', signIn);
+$('#btnLock').onclick = () => { if (dirty) saveNow().then(lock); else lock(); };
+(function boot() {
+  const b = localBlob(); if (b && b.email) $('#lkEmail').value = b.email;
+  if (!window.isSecureContext || !window.crypto || !crypto.subtle) { lkMsg('bad', 'This browser can’t run the encryption (needs https or a modern browser).'); $('#lkBtn').disabled = true; }
+  if (!fbOK) lkMsg('info', 'Cloud library not available right now — you can still open or start the copy on this computer.');
+})();
+</script>
+<script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
+</body>
+</html>
