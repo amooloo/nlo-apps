@@ -2,6 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // NLO 401(k) plan admin: one encrypted record per signed-in owner (same account as Staff Hub).
+    // A save may only replace the record with the very next version, so an older copy can't overwrite newer work.
+    match /plan401k/{uid} {
+      allow read, create, delete: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.v == 1
+        && request.resource.data.rev is int
+        && request.resource.data.rev == resource.data.rev + 1;
+    }
+
     // NLO Staff Hub: your encrypted record and everything stored under it
     // (certificate files, new-hire form pages, earlier versions, color quiz and application links). Only you, signed in.
     match /staffhub/{uid} {
