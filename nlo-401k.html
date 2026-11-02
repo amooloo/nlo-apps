@@ -521,6 +521,7 @@ async function decryptJSON(data, key) { const pt = await crypto.subtle.decrypt({
 function localBlob() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; } }
 function setLocal(b) { try { localStorage.setItem(STORE_KEY, JSON.stringify(b)); } catch (e) { toast('Could not save on this computer (storage full?)', 'bad'); } }
 let session = { email: '', uidv: '' };
+let sessionPw = '';   /* kept in memory only while unlocked: opens the Staff Hub record for the staff import; gone on lock/reload */
 
 function setSync(state, txt) { const p = $('#syncPill'); p.className = 'sync ' + state; $('#syncTxt').textContent = txt; }
 function syncLabel() {
@@ -590,6 +591,7 @@ async function signIn(e) {
   e.preventDefault();
   const email = $('#lkEmail').value.trim().toLowerCase(), pw = $('#lkPw').value;
   if (!email || !pw) return;
+  sessionPw = pw;
   const btn = $('#lkBtn'); btn.disabled = true; lkAlt([]); lkMsg('info', 'Checking…');
   const local = localBlob();
   const localMatches = local && local.email === email;
@@ -674,7 +676,7 @@ function enter(note) {
   if (note) toast(note, '', 7000);
   resetIdle();
 }
-function lock() { try { if (fbAuth && fbAuth.currentUser) fbAuth.signOut(); } catch (e) {} location.reload(); }
+function lock() { sessionPw = ''; try { if (fbAuth && fbAuth.currentUser) fbAuth.signOut(); } catch (e) {} location.reload(); }
 function resetIdle() { lastAct = Date.now(); clearTimeout(idleTimer); const m = (S && S.settings && S.settings.autoLockMin) || 15; idleTimer = setTimeout(() => { if (dirty) saveNow().then(lock); else lock(); }, m * 60000); }
 ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(ev => document.addEventListener(ev, () => { if (S && Date.now() - lastAct > 5000) resetIdle(); }, { passive: true }));
 window.addEventListener('beforeunload', e => { if (dirty) { saveNow(); } });
@@ -714,9 +716,10 @@ function entryDateFor(p) {
     default: return d;
   }
 }
+function gone(p, on) { on = on || today(); return (p.termed && p.termed <= on) || (!!p.termedUnknown && !p.termed); }
 function personStatus(p, on) {
   on = on || today();
-  if (p.termed && p.termed <= on) return { k: 'termed', label: 'Terminated' + (p.balance ? ' · has balance' : ''), cls: p.balance ? 'warn' : '' };
+  if (gone(p, on)) return { k: 'termed', label: (p.termed ? 'Terminated' : 'Former · end date unknown') + (p.balance ? ' · has balance' : ''), cls: p.balance ? 'warn' : '' };
   const ed = entryDateFor(p);
   if (!ed) return { k: 'unknown', label: 'Need hire date', cls: 'bad' };
   if (ed > on) return { k: 'pending', label: 'Eligible ' + fmtShort(ed) + (daysBetween(on, ed) <= 60 ? ' · notice + enrollment due' : ''), cls: daysBetween(on, ed) <= 60 ? 'warn' : 'info', entry: ed };
@@ -748,7 +751,7 @@ function alerts() {
   const overdue = open.filter(i => i.due < t && i.due >= start);
   const soon = open.filter(i => i.due >= t && daysBetween(t, i.due) <= look);
   const deps = depositRows(); const lateDeps = deps.filter(d => d.cls === 'bad');
-  const people = S.people.filter(p => !(p.termed && p.termed <= t));
+  const people = S.people.filter(p => !gone(p, t));
   const noElection = people.filter(p => personStatus(p).k === 'noelection');
   const upcoming = people.filter(p => personStatus(p).k === 'pending' && daysBetween(t, entryDateFor(p)) <= 60);
   const corr = S.corrections.filter(c => c.status !== 'closed');
@@ -903,10 +906,10 @@ function rDeposits() {
 function rPeople() {
   const t = today(); const y = yearOf(t); const L = limitsFor(y);
   let list = S.people.slice().sort((a, b) => (a.last + a.first).localeCompare(b.last + b.first));
-  if (route.people === 'active') list = list.filter(p => !(p.termed && p.termed <= t));
+  if (route.people === 'active') list = list.filter(p => !gone(p, t));
   const P = S.plan;
   return `<div class="page-h"><div><h2>People & eligibility</h2><p>Who is eligible, who is in, who still needs an election. Eligibility is computed from the plan rules in Settings (age ${esc(P.eligAge)}, ${esc(P.eligMonths)} months, ${esc(P.entry)} entry). No SSNs, no account balances — just what you need to run enrollment.</p></div>
-    <div class="pill-row noprint"><select id="pplFilter" class="search" style="min-width:140px"><option value="active" ${route.people === 'active' ? 'selected' : ''}>Current staff</option><option value="all" ${route.people === 'all' ? 'selected' : ''}>Everyone incl. terminated</option></select><button class="btn sm" data-act="addperson">+ Person</button></div></div>
+    <div class="pill-row noprint"><select id="pplFilter" class="search" style="min-width:140px"><option value="active" ${route.people === 'active' ? 'selected' : ''}>Current staff</option><option value="all" ${route.people === 'all' ? 'selected' : ''}>Everyone incl. terminated</option></select><button class="btn mint sm" data-act="importsh">Import from Staff Hub</button><button class="btn sm" data-act="addperson">+ Person</button></div></div>
   <div class="card"><table class="tbl"><thead><tr><th>Name</th><th>Hired</th><th>Age</th><th>Entry date</th><th>Status</th><th>Deferral</th><th>Match earned</th><th>Flags</th><th></th></tr></thead><tbody>
   ${list.length ? list.map(p => { const st = personStatus(p); const a = age(p.dob); const flags = [];
     if (a != null && a >= 50 && a <= 63 && st.k === 'active') flags.push(`<span class="chip info">catch-up ${a >= 60 && a <= 63 ? money(L.super) : money(L.catchup)}</span>`);
@@ -916,7 +919,7 @@ function rPeople() {
     if (p.parttime) flags.push('<span class="chip warn">part-time · check 500-hr rule</span>');
     if (st.k === 'pending' && daysBetween(t, st.entry) <= 60) flags.push('<span class="chip bad">notice + SPD + election before entry</span>');
     const m = st.k === 'active' ? matchFor(p.deferral) : null;
-    return `<tr data-id="${p.id}"><td><b>${esc(p.first)} ${esc(p.last)}</b>${p.role ? `<div class="small">${esc(p.role)}</div>` : ''}</td><td>${fmt(p.hired)}${p.termed ? `<div class="small">term. ${fmt(p.termed)}</div>` : ''}</td><td>${a == null ? '—' : a}</td><td>${entryDateFor(p) ? fmt(entryDateFor(p)) : '—'}</td><td><span class="chip ${st.cls}">${esc(st.label)}</span></td><td>${st.k === 'active' ? pct(p.deferral) : st.k === 'waived' ? '0% (waived)' : '—'}</td><td>${m == null ? '—' : pct(m) + ' of pay'}</td><td><div class="badge-row">${flags.join('')}</div></td><td><button class="btn xs sec" data-act="editperson">Edit</button></td></tr>`; }).join('') : `<tr><td colspan="9"><div class="empty">Add your staff (name, hire date, DOB) and their current deferral election. ~8 people takes two minutes.</div></td></tr>`}
+    return `<tr data-id="${p.id}"><td><b>${esc(p.first)} ${esc(p.last)}</b>${p.role ? `<div class="small">${esc(p.role)}</div>` : ''}</td><td>${fmt(p.hired)}${p.termed ? `<div class="small">term. ${fmt(p.termed)}</div>` : ''}</td><td>${a == null ? '—' : a}</td><td>${entryDateFor(p) ? fmt(entryDateFor(p)) : '—'}</td><td><span class="chip ${st.cls}">${esc(st.label)}</span></td><td>${st.k === 'active' ? pct(p.deferral) : st.k === 'waived' ? '0% (waived)' : '—'}</td><td>${m == null ? '—' : pct(m) + ' of pay'}</td><td><div class="badge-row">${flags.join('')}</div></td><td><button class="btn xs sec" data-act="editperson">Edit</button></td></tr>`; }).join('') : `<tr><td colspan="9"><div class="empty"><b>Import from Staff Hub</b> brings in everyone's name, role, hire date and birthday in one click (same account, same password). Then add each person's deferral % from Paychex → Deductions.</div></td></tr>`}
   </tbody></table></div>
   <div class="card guide"><h3>Match calculator</h3><p>${esc(P.matchFormula)}. For someone earning $1,000 per pay period: deferring 2% → match ${money(10 * matchFor(2))}; 4% → ${money(10 * matchFor(4))}; 6% → ${money(10 * matchFor(6))} (capped). Anyone deferring less than ${esc((P.matchTiers || [{ upto: 4 }]).slice(-1)[0].upto)}% is leaving match on the table — worth a nudge at open enrollment.</p></div>`;
 }
@@ -924,7 +927,7 @@ function rPeople() {
 /* ---------- Notices ---------- */
 function rNotices() {
   const t = today(), y = yearOf(t);
-  const recip = { eligible: S.people.filter(p => !(p.termed && p.termed <= t) && entryDateFor(p) && entryDateFor(p) <= `${y + 1}-01-01`), participants: S.people.filter(p => (personStatus(p).k === 'active' || personStatus(p).k === 'waived' || (p.termed && p.balance))), all: S.people };
+  const recip = { eligible: S.people.filter(p => !gone(p, t) && entryDateFor(p) && entryDateFor(p) <= `${y + 1}-01-01`), participants: S.people.filter(p => (personStatus(p).k === 'active' || personStatus(p).k === 'waived' || (p.termed && p.balance))), all: S.people };
   const log = S.notices.slice().sort((a, b) => a.sentOn < b.sentOn ? 1 : -1);
   return `<div class="page-h"><div><h2>Notices</h2><p>What must go to employees, when, and a log that proves it went out. The log is your evidence — keep the notice copy itself in the fiduciary file.</p></div><div class="pill-row noprint"><button class="btn sm" data-act="lognotice">+ Log a distribution</button></div></div>
   <div class="card"><h3>Required notices</h3><table class="tbl"><thead><tr><th>Notice</th><th>When</th><th>To whom</th><th>Last logged</th></tr></thead><tbody>
@@ -1107,6 +1110,7 @@ function wire(m) {
   /* people */
   const pf = $('#pplFilter', m); if (pf) pf.onchange = () => { route.people = pf.value; render(); };
   on('[data-act=addperson]', () => modalPerson());
+  on('[data-act=importsh]', importStaffHub);
   on('[data-act=editperson]', e => modalPerson(S.people.find(p => p.id === e.target.closest('tr').dataset.id)));
   /* notices */
   on('[data-act=lognotice]', () => modalNotice());
@@ -1157,7 +1161,7 @@ function modalDeposit(d) {
 }
 function modalNotice() {
   const t = today(), y = yearOf(t);
-  const people = S.people.filter(p => !(p.termed && p.termed <= t) || p.balance).sort((a, b) => (a.last + a.first).localeCompare(b.last + b.first));
+  const people = S.people.filter(p => !gone(p, t) || p.balance).sort((a, b) => (a.last + a.first).localeCompare(b.last + b.first));
   openModal(`<h3>Log a notice distribution</h3><form class="form" id="mf">
     <div class="row">${fld('Notice', `<select name="type">${NOTICES.map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join('')}</select>`)}${fld('For plan year', `<input type="number" name="planYear" value="${y + 1}">`)}${fld('Date sent', `<input type="date" name="sentOn" value="${t}" required>`)}</div>
     <div class="row">${fld('Method', `<select name="method"><option>Email</option><option>Handed out at the office</option><option>Mailed</option><option>Posted in the Vanguard participant portal</option><option>Sent by the recordkeeper</option><option>Sent by the TPA</option></select>`)}${fld('Title / file name (optional)', `<input name="title" placeholder="e.g. 2027 Safe Harbor Notice.pdf">`)}</div>
@@ -1190,6 +1194,61 @@ function modalContact(c) {
 function modalCustom() {
   openModal(`<h3>Custom calendar item</h3><form class="form" id="mf">${fld('Title', `<input name="title" required>`)}<div class="row">${fld('Due date', `<input type="date" name="due" value="${esc(today())}" required>`)}${fld('Repeats every year on this date?', `<select name="recurring"><option value="yes">Yes, every year</option><option value="no">No, once</option></select>`)}${fld('Owner', ownerSel('owner', 'you'))}${fld('Category', `<select name="cat">${Object.keys(CAT).map(k => `<option value="${k}">${CAT[k]}</option>`).join('')}</select>`)}</div>${fld('Why it matters', `<textarea name="why"></textarea>`)}${fld('What to do', `<textarea name="how"></textarea>`)}<div class="actions"><button class="btn" type="submit">Add</button><button class="btn sec" type="button" data-x="cancel">Cancel</button></div></form>`);
   const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const d = formData(f); const c = { id: 'c_' + uid(), title: d.title, owner: d.owner, cat: d.cat, why: d.why, how: esc(d.how), recurring: d.recurring === 'yes', due: d.due, md: d.due.slice(5) }; S.custom.push(c); act('Custom item added: ' + d.title); save(); closeModal(); route.year = yearOf(d.due); render(); };
+  $('[data-x=cancel]', f).onclick = closeModal;
+}
+
+/* ---------- import staff from Staff Hub (same account: staffhub/{uid}, encrypted with the same password) ---------- */
+const SH_COLLECTION = 'staffhub';
+function shSplitName(n) { const parts = String(n || '').trim().split(/\s+/); return { first: parts.shift() || '', last: parts.join(' ') }; }
+function shBirthdayOK(b) { const d = parse(b); if (!d) return false; const y = d.getFullYear(), now = new Date().getFullYear(); return y >= 1930 && y <= now - 14; }
+function shNormName(s) { return String(s || '').toLowerCase().replace(/[^a-z]/g, ''); }
+/* map Staff Hub staff rows to this app's people, matched against what is already here */
+function shToPeople(staff) {
+  const out = [];
+  for (const p of (Array.isArray(staff) ? staff : [])) {
+    if (!p || !p.name) continue;
+    const nm = shSplitName(p.name);
+    const existing = S.people.find(x => (p.id && x.shId === p.id) || shNormName(x.first + x.last) === shNormName(p.name));
+    const former = p.status === 'former';
+    const row = { shId: p.id || '', first: nm.first, last: nm.last, role: p.role || '', hired: p.hireDate || '', dob: shBirthdayOK(p.birthday) ? p.birthday : '', parttime: /part/i.test(p.employment || ''), termed: former ? (p.endDate || '') : '', formerNoDate: former && !p.endDate, bdayNoYear: !!p.birthday && !shBirthdayOK(p.birthday), existing: existing ? existing.id : null };
+    out.push(row);
+  }
+  out.sort((a, b) => (a.termed ? 1 : 0) - (b.termed ? 1 : 0) || (a.last + a.first).localeCompare(b.last + b.first));
+  return out;
+}
+function shApply(rows) {
+  let added = 0, updated = 0;
+  for (const r of rows) {
+    const base = { shId: r.shId, first: r.first, last: r.last, role: r.role, hired: r.hired, parttime: r.parttime };
+    if (r.dob) base.dob = r.dob;
+    if (r.termed) base.termed = r.termed; else if (r.formerNoDate) base.termedUnknown = true;
+    if (r.existing) { const p = S.people.find(x => x.id === r.existing); if (p) { Object.assign(p, base); updated++; } }
+    else { S.people.push(Object.assign({ id: uid(), deferral: null, deferralType: 'pre', notes: r.bdayNoYear ? 'Birthday in Staff Hub has no real year — add the date of birth.' : '' }, base)); added++; }
+  }
+  return { added, updated };
+}
+async function importStaffHub() {
+  if (!fbOK || !fbUser) { toast('Sign in while online to import from Staff Hub.', 'bad', 6000); return; }
+  if (!sessionPw) { toast('Lock and sign in again, then import (the password is needed to open the Staff Hub record).', 'bad', 7000); return; }
+  toast('Opening your Staff Hub record…');
+  let d;
+  try { const snap = await withTimeout(fbDB.collection(SH_COLLECTION).doc(fbUser.uid).get({ source: 'server' }), 15000); d = snap.exists ? snap.data() : null; }
+  catch (e) { toast('Could not read Staff Hub: ' + esc(e && (e.code || e.message)), 'bad', 7000); return; }
+  if (!d || !d.data || !d.kdf || !d.kdf.salt) { toast('No Staff Hub record under this account.', 'bad', 6000); return; }
+  let staff;
+  try { const key = await deriveKey(sessionPw, unb64(d.kdf.salt), d.kdf.iter || KDF_ITER); const data = await decryptJSON(d.data, key); staff = data.staff; }
+  catch (e) { toast('Your password opens this app but not the Staff Hub record — the two must use the same password to import.', 'bad', 8000); return; }
+  const rows = shToPeople(staff);
+  if (!rows.length) { toast('Staff Hub has no staff profiles yet.', 'bad'); return; }
+  showImportPreview(rows);
+}
+function showImportPreview(rows) {
+  openModal(`<h3>Import from Staff Hub</h3><p class="small" style="margin-bottom:10px">Tick who to bring in. Names, roles, hire dates and birthdays come from Staff Hub; deferral elections don't live there, so add those from Paychex afterwards. Re-importing later updates dates without duplicating anyone.</p>
+    <form id="mf"><table class="tbl"><thead><tr><th></th><th>Name</th><th>Role</th><th>Hired</th><th>Birthday</th><th>Status</th></tr></thead><tbody>
+    ${rows.map((r, i) => `<tr><td><input type="checkbox" name="r${i}" ${r.termed || r.formerNoDate ? '' : 'checked'}></td><td><b>${esc(r.first)} ${esc(r.last)}</b>${r.existing ? '<div class="small">already here — will update</div>' : ''}</td><td class="small">${esc(r.role)}${r.parttime ? ' · part-time' : ''}</td><td>${r.hired ? fmt(r.hired) : '<span class="chip warn">missing</span>'}</td><td>${r.dob ? fmt(r.dob) : r.bdayNoYear ? '<span class="chip warn">no year</span>' : '—'}</td><td>${r.termed ? '<span class="chip">former · left ' + fmtShort(r.termed) + '</span>' : r.formerNoDate ? '<span class="chip">former · no end date</span>' : '<span class="chip ok">active</span>'}</td></tr>`).join('')}
+    </tbody></table><div class="actions" style="margin-top:12px"><button class="btn" type="submit">Import selected</button><button class="btn sec" type="button" data-x="cancel">Cancel</button></div></form>`);
+  const f = $('#mf');
+  f.onsubmit = e => { e.preventDefault(); const picked = rows.filter((r, i) => f['r' + i] && f['r' + i].checked); if (!picked.length) { closeModal(); return; } const res = shApply(picked); act(`Imported from Staff Hub: ${res.added} added, ${res.updated} updated`); save(); closeModal(); render(); toast(`${res.added} added, ${res.updated} updated. Now add each person's deferral % from Paychex.`, 'ok', 7000); };
   $('[data-x=cancel]', f).onclick = closeModal;
 }
 
