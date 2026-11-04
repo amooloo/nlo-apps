@@ -95,13 +95,59 @@ def drop_ghosts(V, labels, info, c, lingual_mm=3.0, low_mm=2.0, short_mm=3.5):
     return labels, new, dropped
 
 
+GAP_TOOTH_MM = 4.5      # a space this wide or more between two teeth behind the 2 is a tooth already gone (an E, a D)
+TOOTH_WIDTH_MM = 7.0    # ... and one position per this much space (edentulous_gaps' width)
+
+
+def tooth_gaps(V, labels, seq, min_vertices=30):
+    """The space between each pair of consecutive teeth in `seq` (labels in arch order), mm seen from above - the
+    nearest two crown points in plan view, as edentulous_gaps measures it; 0 where a label is too small to tell."""
+    from scipy.spatial import cKDTree
+    V = np.asarray(V); labels = np.asarray(labels)
+    out = []
+    for a, b in zip(seq, seq[1:]):
+        ma, mb = labels == a, labels == b
+        if ma.sum() < min_vertices or mb.sum() < min_vertices:
+            out.append(0.0)
+            continue
+        out.append(float(cKDTree(V[ma][:, :2]).query(V[mb][:, :2])[0].min()))
+    return out
+
+
+def count_from_six(V, labels, seq, six_k, gap_tooth_mm=GAP_TOOTH_MM, tooth_width=TOOTH_WIDTH_MM):
+    """A side's positions counted from its first molar: `seq` is the side's tooth labels in arch order from the
+    midline, seq[six_k] the 6. Behind it 7, 8; in front of it one less per tooth - and one more per tooth's width of
+    space between two teeth, because a space of `gap_tooth_mm` or more behind the 2 is a tooth already gone (an E
+    exfoliated with the 5 on its way, a D): the tooth in front of the 6 is the 5 only when it stands against the 6.
+    Counted that way, "the one in front of the 6 is the E" had made the D the 5 across a 6 mm space where the E had
+    been, and the retainer was drawn round the D as the E/6 segment (an upper, 11/4/2026). The 1 and the 2 keep their
+    count from the midline, and no tooth is pushed below its place in the count from the front (a tooth between the 2
+    and the 6 is the 3 at least). Returns ({label: position}, the gaps in mm between consecutive teeth)."""
+    gaps = tooth_gaps(V, labels, seq)
+    new = {}
+    for k in range(six_k, len(seq)):
+        new[seq[k]] = 6 + (k - six_k)
+    pos = 6
+    for k in range(six_k - 1, -1, -1):
+        g = gaps[k]
+        miss = max(1, int(round(g / tooth_width))) if g >= gap_tooth_mm else 0
+        pos = max(pos - 1 - miss, k + 1)
+        if k < 2:
+            pos = k + 1
+        new[seq[k]] = pos
+    return new, gaps
+
+
 def anchor_six(V, labels, info, contact, arch="lower", seven_arc_mm=None, tip_share=0.45, molar_mm2=50.0, log=None):
     """Phase I: the count on each side is anchored on the first molar, not only on the midline. Counted from the
     midline with every space of 2.5 mm or more taken for a tooth already gone, a 3.9 mm space behind a lateral made
     the first molar a "7" - and the retainer stopped at the E and left the 6 bare (Josiah's lower, 10/27/2026). In
     the mixed dentition a side holds at most six teeth in front of the 12-year molar (1, 2, C, D, E, 6), so:
-      * a side with six real teeth or fewer: the last tooth is the 6, the one in front of it the 5 (the E), and the
-        teeth between the 2 and the E take 3 and 4 from the front; the 1 and 2 keep their count from the midline;
+      * a side with six real teeth or fewer: the last tooth is the 6, the one in front of it the 5 (the E) when it
+        stands against the 6, and the teeth between the 2 and the E take 3 and 4 from the front; the 1 and 2 keep
+        their count from the midline. A space of GAP_TOOTH_MM or more between two teeth behind the 2 is a tooth
+        already gone (the E out, the 5 on its way): the teeth in front of it are counted past it (count_from_six) -
+        with "the one in front of the 6 is the E" a D standing 6 mm from the 6 was made the 5 (11/4/2026);
       * a side with seven: the last is a 7 only when it is a small tip behind a full molar (its footprint under
         `tip_share` of the tooth in front - a 7 just breaking through) or the arch is long enough for one (the last
         tooth's centre more than `seven_arc_mm` of arch from the midline: 48 mm on a lower, 49 on an upper - a child's
@@ -156,19 +202,29 @@ def anchor_six(V, labels, info, contact, arch="lower", seven_arc_mm=None, tip_sh
                 notes.append(f"{patient_side(side, arch)}: seven teeth counted in front of a molar only {arc[-1]:.0f} mm of arch from the midline - the smallest "
                              f"between the 2 and the E ({area[ghost]:.0f} mm2 seen from above) is gum, not a tooth")
         six_k = n - 2 if last_is_7 else n - 1          # index of the 6 in seq
-        new = {}
-        for k, t in enumerate(seq):
-            if k >= six_k:
-                new[t] = 6 + (k - six_k)
-            elif k == six_k - 1:
-                new[t] = 5
-            else:
-                new[t] = k + 1                           # 1, 2, then 3 and 4 from the front
-        # one tooth between the 2 and the E: the C (3) unless a space in front of it was counted as a tooth gone
-        # (edentulous_gaps left its position at 4 or more) - then it is the D and the C's place stays empty
-        between = seq[2:six_k - 1]
-        if len(between) == 1 and info[between[0]][1] >= 4:
-            new[between[0]] = 4
+        gaps = tooth_gaps(V, labels, seq)
+        spaced = [k for k in range(2, six_k) if gaps[k] >= GAP_TOOTH_MM]      # a space behind the C or further back
+        if spaced:
+            # a tooth already gone behind the 2: counted from the 6 past the space (the D is the 4 across the space
+            # the E has left, not the 5)
+            new, _ = count_from_six(V, labels, seq, six_k)
+            for k in spaced:
+                notes.append(f"{patient_side(side, arch)}: a space of {gaps[k]:.0f} mm between the {new[seq[k]]} and the {new[seq[k + 1]]} - "
+                             f"{'a tooth' if new[seq[k + 1]] - new[seq[k]] == 2 else str(new[seq[k + 1]] - new[seq[k]] - 1) + ' teeth'} already gone there")
+        else:
+            new = {}
+            for k, t in enumerate(seq):
+                if k >= six_k:
+                    new[t] = 6 + (k - six_k)
+                elif k == six_k - 1:
+                    new[t] = 5
+                else:
+                    new[t] = k + 1                           # 1, 2, then 3 and 4 from the front
+            # one tooth between the 2 and the E: the C (3) unless a space in front of it was counted as a tooth gone
+            # (edentulous_gaps left its position at 4 or more) - then it is the D and the C's place stays empty
+            between = seq[2:six_k - 1]
+            if len(between) == 1 and info[between[0]][1] >= 4:
+                new[between[0]] = 4
         moved = [(info[t][1], new[t]) for t in seq if info[t][1] != new[t]]
         for t in seq:
             info[t] = (side, int(new[t]))
@@ -395,8 +451,12 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     labels = np.asarray(labels)
     c = np.asarray(ring_center, float)[:2]
     res = dict(method=method, arch=arch)
-    # the doctor's "6 is here" dot (the Phase I tab, 10/21/2026): the tooth under it is the 6 on its side and the side's
-    # count moves with it - a diastema counted as a tooth already gone had made the 6 a "7" and the retainer cut it off
+    # the doctor's "6 is here" dot (the Phase I tab, 10/21/2026): the tooth under it is the 6 on its side and the side is
+    # counted from it (count_from_six: 7, 8 behind it; in front of it one less per tooth and one more per tooth's width
+    # of space, the 1 and 2 from the midline) - a diastema counted as a tooth already gone had made the 6 a "7" and the
+    # retainer cut it off. (Until 11/4/2026 the whole side was shifted by the same amount: a dot on a tooth the app
+    # already had as the 6 changed nothing, so the D the count had made the "5" across the E's space stayed the 5; and
+    # a shift could push the front teeth to 0.)
     info = {int(t): (int(s_), int(p_)) for t, (s_, p_) in info.items()}
     six = np.asarray(six_idx if six_idx is not None else [], dtype=int)
     six = six[(six >= 0) & (six < len(V))]
@@ -412,12 +472,14 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                 res.setdefault("warnings", []).append("a '6 is here' dot is not on a tooth - ignored")
                 continue
             sd, p = info[t]
-            shift = 6 - p
-            if shift:
-                for u, (s_, p_) in list(info.items()):
-                    if s_ == sd:
-                        info[u] = (s_, p_ + shift)
-                res.setdefault("renumbered_by_dot", []).append(f"{patient_side(sd, arch)}: the tooth the app had as {p} is the 6")
+            seq = [u for p_, u in sorted((p_, u) for u, (s_, p_) in info.items() if s_ == sd)]
+            new, _ = count_from_six(V, labels, seq, seq.index(t))
+            moved = [(info[u][1], new[u]) for u in seq if info[u][1] != new[u]]
+            for u in seq:
+                info[u] = (sd, int(new[u]))
+            if moved:
+                res.setdefault("renumbered_by_dot", []).append(
+                    f"{patient_side(sd, arch)}: counted from your dot - " + ", ".join(f"the {a} is the {b}" for a, b in moved))
         res["positions"] = {int(t): [int(s_), int(p_)] for t, (s_, p_) in info.items()}
     # the chosen teeth's labels run a few mm onto the gum on these scans (a C's label was 12 mm across): for the line
     # their crown is the tooth (crown_of) and the spill is gum - the gum line then hugs the real cervical, where the
@@ -660,10 +722,17 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         ys = []
         for side in (-1, 1):
             d_, e_ = by.get((side, 4)), by.get((side, 5))
+            c_, m_ = by.get((side, 3)), by.get((side, 6))
             if d_ is not None and e_ is not None:
                 ys.append(0.5 * (cent[d_][1] + cent[e_][1]))
             elif d_ is not None:
                 ys.append(cent[d_][1] - 4.0)
+            elif e_ is not None:
+                ys.append(cent[e_][1] + 4.0)
+            elif c_ is not None and m_ is not None:
+                # the D and the E both gone (the premolars on their way): the D/E contact level is about two fifths of
+                # the way from the C's centre to the 6's
+                ys.append(cent[c_][1] + 0.4 * (cent[m_][1] - cent[c_][1]))
         if not ys:
             return margin_f, margin_f, dict(error="the C/D/E teeth could not be found - check the tooth split"), mesh_f
         y_apex = float(np.mean(ys)) + float(apex_shift_mm)
@@ -703,7 +772,16 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         in_w_all = np.zeros(len(V), bool)
         for Wp in windows:
             in_w_all |= shapely.contains_xy(Wp, V[:, 0], V[:, 1])
-        covered |= lin_v & (in_lin | (dist <= buccal_mm) | in_w_all) & ~in_open
+        # ... and the bridge of plate beside each window, bridge_mm wide on the tongue side, whether or not the
+        # first-trim line's palatal pass runs out that far: across a space in the window's stretch (the E gone, the 5
+        # on its way) that line swings 2-4 mm into the palate off the ridge, so the bridge - built only inside it -
+        # thinned to a thread of about 1 mm on its way to the molar behind, the no-slivers rule cut the thread, and the
+        # 6 was left out of the retainer as an island of its own (an upper, 11/4/2026: "the tray maker keeps missing
+        # the 6"). The bridge runs along the window's edge to the next tooth's gum band, bridge_mm wide
+        in_bridge = np.zeros(len(V), bool)
+        for Wp in windows:
+            in_bridge |= shapely.contains_xy(Wp.buffer(bridge_mm, join_style=1), V[:, 0], V[:, 1])
+        covered |= lin_v & (in_lin | (dist <= buccal_mm) | in_w_all | in_bridge) & ~in_open
         res["plate"] = dict(plate_mm=round(plate_eff, 1), palate_width_mm=round(width, 1), u_apex_y=round(y_apex, 1), opening_mm2=round(float(opening.area), 0))
         if opening.is_empty:
             res.setdefault("warnings", []).append("no room for an opening behind the plate - the palate is covered: check the line")
@@ -762,6 +840,7 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     # (its region closed 2 mm, which bridged the gap) went round the stray part too, 12 mm off the model in the air
     # (10/21/2026). Whatever is not joined to the main part is left out of both lines, and the case says so.
     from .mesh_utils import connected_components
+    tooth_name = lambda t: f"{patient_side(info[int(t)][0], arch)}{info[int(t)][1]}"
     comp = connected_components(covered, A)
     if comp.max() > 0:
         sizes = np.bincount(comp[comp >= 0])
@@ -769,11 +848,18 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         stray = covered & (comp != main)
         if stray.any():
             n_big = int((sizes >= 0.05 * sizes[main]).sum()) - 1
+            # a stray piece with a tooth of the retainer's on it is never a stray: say which tooth is cut off
+            lost = sorted({tooth_name(t) for t in np.unique(labels[stray & tooth]) if int(t) in info and int(t) not in seven and (labels == t).sum() >= 30})
             covered = covered & ~stray
-            if n_big:
+            if lost:
+                res.setdefault("warnings", []).append(
+                    f"the outline came out in pieces and {', '.join(lost)} {'is' if len(lost) == 1 else 'are'} cut off from the rest - left out of the retainer: check the tooth split and the line")
+            elif n_big:
                 res.setdefault("warnings", []).append(
                     f"the outline came out in {n_big + 1} pieces - the {'smaller one is' if n_big == 1 else 'smaller ones are'} left out of the retainer: check the scan")
             res["outline_pieces_dropped"] = int(stray.sum())
+            if lost:
+                res["teeth_cut_off"] = lost
     body = covered.copy()
     cut = body.copy()
     # the 12-year molars and their gum (all of it: cheek side, tongue side, the pad behind) come out of the line, right
@@ -910,10 +996,35 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     # height after the scoop) sat part-way down the wall and the line dived 5 mm into the trough and back (the hairpin
     # at the E's cut edge, 10/21/2026); the nearest point of the scooped surface to the contour on the scan is the rim
     lines = {}
+    keep_cent = {int(t): V[labels == int(t)][:, :2].mean(0) for t in info if int(t) not in seven and (labels == int(t)).sum() >= 30}
     for nm, region in (("body", body), ("cut", cut)):
         loops = _loop(mesh_f, A, region)
         if not loops:
             return margin_f, margin_f, dict(error=f"the {nm} outline did not close"), mesh_f
+        if len(loops) > 1 and keep_cent:
+            # only the first loop is the line: a later loop that runs round one of the retainer's teeth (its crown's
+            # centre inside the loop, seen from above) means that tooth is an island the line leaves out - never quietly
+            # (the cut line's second loop round a 6 was 411 points to the main loop's 1732, under the quarter that used
+            # to warn, 11/4/2026). A hole in the plate encloses no tooth
+            lost = set()
+            for extra in loops[1:]:
+                if len(extra) < 20:
+                    continue
+                try:
+                    poly = Polygon(np.asarray(extra, float)[:, :2])
+                    if not poly.is_valid:
+                        poly = poly.buffer(0)
+                    if poly.is_empty or poly.area < 10.0:
+                        continue
+                    lost |= {tooth_name(t) for t, cxy in keep_cent.items() if shapely.contains_xy(poly, float(cxy[0]), float(cxy[1]))}
+                except Exception:  # noqa
+                    continue
+            if lost:
+                lost = sorted(lost)
+                res.setdefault("warnings", []).append(
+                    f"the {nm} line leaves {', '.join(lost)} out (the outline came out in {len(loops)} loops) - the retainer does not reach "
+                    f"{'that tooth' if len(lost) == 1 else 'those teeth'}: check the tooth split, the dots and the line")
+                res.setdefault("teeth_left_out", {})[nm] = lost
         if len(loops) > 1 and len(loops[1]) > 0.25 * len(loops[0]):
             if nm == "cut":
                 # the windows cut the retainer apart (too little plate / flange between them and the scan's edge): one

@@ -78,8 +78,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    and shows pale once applied; Clear on the tab takes the applied ones away too) - **Cutout span** - Shift-click the near and the
    far end of the cutout on a side and it runs between the two dots, mesio-distal, whatever stands there - and
    **Ends here** - one dot per side where the retainer stops, nothing covered behind it - and **6 is here** - Shift-click
-   the first molar when the app has it as a 7 (a space between the front teeth counted as a tooth gone shifts the
-   count) and the side is counted from it; **Teeth** shows every tooth's number on a badge at the end of a leader
+   the first molar when the app has it wrong (a space between the front teeth counted as a tooth gone shifts the
+   count) and the side is counted from it - 7 behind it, and in front of it one less per tooth, a space of 4.5 mm or
+   more between two teeth counting as a tooth gone (the D across the E's space is the 4); **Teeth** shows every tooth's number on a badge at the end of a leader
    line (the doctor, 10/21/2026, after a clip of another program: "a line drawn from every tooth with a drop-down
    where you can pick primary and adult tooth"): click a badge, pick **Perm** 1-8 or **Primary** A-E, and the rest
    of that side is counted from it (one more going back, one less going forward); **× not a tooth** makes a label gum
@@ -698,7 +699,8 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   what stays; on block-out the block stands over the span, as below. One dot alone is not enough
   and the case says so. An **Ends here** dot on a side leaves everything behind it out (the teeth behind it count
   as uncovered, like the 7s) and ends the flange there. A **6 is here** dot names the first molar on a side: the
-  side's count moves so that tooth is the 6 (the one in front the E, anything behind a 7) - on one upper a space
+  side is counted from that tooth (anything behind a 7; in front of it one less per tooth and one more per tooth's
+  width of space - `count_from_six`, the same count anchor_six makes, 11/4/2026) - on one upper a space
   between the 2 and the C counted as a tooth already gone, the 6 became a "7" and the retainer cut it off
   (10/21/2026). The dots are vertex numbers of the scan file, kept with the case like the painted areas (`p1span`,
   `p1end`, `p1six`; `/api/jobs/{id}/p1dots`), re-indexed through a cut. **The
@@ -787,6 +789,27 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   a child's 6 sits at 41-45, a 7 at 52-56), otherwise the smallest extra label between the 2 and the E is a bump of gum
   taken for a tooth and is made gum again. Nothing moves on a side with fewer than four teeth, eight or more, or whose
   last tooth is no molar (a partial scan) - the case says so; a "6 is here" dot and the Teeth tab still have the last word.
+  **A space behind the C counts** (`count_from_six`, 11/4/2026): "the one in front of the 6 is the E" had made a D the
+  "5" across a 6 mm space where the E had been (the 5 on its way; an upper's right side), and the retainer was drawn
+  round the D as the E/6 segment until the doctor renumbered it by hand. Now a space of 4.5 mm or more between two teeth
+  behind the 2 is a tooth already gone (one position per 7 mm of space), and the teeth in front of it are counted past
+  it from the 6 - the D is the 4 across the E's space, the C the 3 across a D's and an E's. A space in front of the C
+  (the canine's, a diastema) does not count this way: the 1 and 2 keep their count from the midline, and no tooth is
+  pushed below its place from the front. The case says "a space of 6 mm between the 4 and the 6 - a tooth already gone
+  there". The **"6 is here" dot** counts the side the same way from the dotted tooth (7, 8 behind it) instead of
+  shifting the whole side by one number, so it also fixes the teeth in front when the 6 was already right - and no
+  longer pushes the front teeth to 0.
+- **The bridge to the molar behind a space** (11/4/2026; the doctor: "the tray maker keeps missing the 6 even though I
+  clearly marked it"). On an upper the plate beside each window is `in_lin & ~in_open`: the palate inside the
+  first-trim line's palatal pass, less the opening, which keeps clear of the window by `bridge_mm` (5). Across a space
+  in the window's stretch (the E gone) that line runs 2-4 mm into the palate off the ridge, so the bridge built only
+  inside it thinned to a thread of about 1 mm on its way to the 6, the no-slivers rule cut the thread, and the 6's band
+  was an island the line-maker dropped quietly (its loop was 411 points to the main loop's 1732 - under the quarter
+  that warned). The bridge is now also the window's polygon grown by `bridge_mm` on the tongue side (`in_bridge`),
+  whatever the first-trim line did there, so it runs along the window's edge to the molar's gum band 5 mm wide; on
+  an arch with the E in place nothing changes (the left side of the same case moved by 0.3 mm). And no island goes
+  quietly any more: a stray piece of the region with one of the retainer's teeth on it, or a second loop of either
+  line round one, names the tooth in a red warning ("the cut line leaves R6 out ...").
 - **The traced outline** (the Phase I tab's *Cutout outline*, `path_idx`): an ordered run of dots per side. Its first
   and last dots are the cutout's walls, as a span's are; the run between them is the edge on the tongue side, taken as a
   radius from the arch centre by arch angle (where the run doubles back the innermost wins) - the window is everything
