@@ -187,6 +187,15 @@ details.acc summary{font-weight:700;cursor:pointer;font-size:14.5px}
 details.acc[open] summary{margin-bottom:8px}
 .badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .small{font-size:12.5px;color:var(--muted)}
+.av{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;font-weight:800;font-size:13px;overflow:hidden;flex:none;vertical-align:middle}
+.av img{width:100%;height:100%;object-fit:cover;display:block}
+.av.sm{width:28px;height:28px;font-size:11px}
+.av.gone{filter:grayscale(1);opacity:.7}
+.namecell{display:flex;align-items:center;gap:10px}
+.links{display:flex;flex-wrap:wrap;gap:8px}
+.links a{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;background:var(--soft);color:var(--navy);font-weight:700;font-size:13px;text-decoration:none;border:1.5px solid var(--line)}
+.links a:hover{background:#e9edf2}
+.links a svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;opacity:.6}
 .right{text-align:right}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--soft);padding:10px 12px;border-radius:10px;white-space:pre-wrap;word-break:break-word}
 
@@ -259,7 +268,7 @@ const FB_CONFIG = {
 const FB_COLLECTION = 'plan401k';
 const STORE_KEY = 'nlo401k.v1';
 const KDF_ITER = 600000;
-const APP_VER = '1.0';
+const APP_VER = '1.1';
 
 let fbOK = false, fbAuth = null, fbDB = null, fbUser = null, cloud = 'off'; /* off | on | denied | offline */
 try {
@@ -493,7 +502,9 @@ function freshState() {
       shType: 'match', matchFormula: '100% of deferrals up to 4% of pay', matchTiers: [{ pct: 100, upto: 4 }],
       eligMonths: 12, eligAge: 21, eligHours: 1000, entry: 'monthly', autoEnroll: false, qdia: true, rothAllowed: true, loans: false,
       payFreq: 'biweekly', firstPay: '', bondAmount: '', bondCarrier: '', bondExpires: '', restateDue: '', planEffective: '',
-      feesPaidBy: 'employer'
+      feesPaidBy: 'employer',
+      rkSponsorUrl: 'https://my.vanguardplan.com/login/sponsor', rkParticipantUrl: 'https://my.vanguardplan.com/login/participant',
+      payrollUrl: 'https://myapps.paychex.com/', efastUrl: 'https://www.efast.dol.gov/', vfcpCalcUrl: 'https://www.askebsa.dol.gov/VFCPCalculator/WebCalculator.aspx', tpaUrl: ''
     },
     contacts: [
       { id: uid(), name: 'Angela Deery', org: 'FuturePlan (Ascensus affiliate)', role: 'Regional VP — TPA from 1/1/2027', email: 'angela.deery@futureplan.com', phone: '813-727-5500', notes: 'Colleague: Kevin More' },
@@ -784,6 +795,9 @@ function render() {
   m.innerHTML = (pages[route.page] || rDash)(A);
   wire(m);
 }
+function photoOK(p) { return !!p && typeof p.photo === 'string' && p.photo.indexOf('data:image/jpeg;base64,') === 0 && p.photo.length < 30000; }
+function avatar(p, cls) { const ini = ((p.first || '')[0] || '') + ((p.last || '')[0] || ''); return `<span class="av ${cls || ''}${gone(p) ? ' gone' : ''}">${photoOK(p) ? '<img src="' + p.photo + '" alt="">' : esc(ini.toUpperCase() || '?')}</span>`; }
+function extLink(url, label) { if (!url) return ''; return `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a>`; }
 function chipOwner(o) { return `<span class="chip ${o}">${esc(OWNER[o] || o)}</span>`; }
 function chipCat(c) { return `<span class="chip ${c}">${esc(CAT[c] || c)}</span>`; }
 function itemHTML(i, opts) {
@@ -839,9 +853,10 @@ function rDash(A) {
       </div>
       ${A.backlog.length ? `<div class="card"><h3>One-time catch-up review <span class="chip warn">${A.backlog.length}</span></h3><p class="small" style="margin-bottom:10px">These ${y} items were due before you started this file on ${fmt(S.created)} (earlier years are in the calendar). They are not counted as overdue — but go through them once (ideally on a call with the TPA) and mark each <b>Done</b>, <b>N/A</b> or <b>Waiting</b>. Anything that turns out to have been missed becomes a Correction.</p><div class="actions"><button class="btn sm" data-go="cal">Review them in the calendar</button><button class="btn sec sm" data-act="backlogdone">Mark all as done (I know they happened)</button></div></div>` : ''}
       ${A.corr.length ? `<div class="card"><h3>Open corrections <span class="chip bad">${A.corr.length}</span></h3>${A.corr.map(c => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(c.title)}</b><div class="small">${esc(c.period)} · ${esc(c.type)} · ${esc(OWNER[c.owner] || c.owner)} · ${esc(c.status)}</div></div>`).join('')}<div class="actions"><button class="btn sec sm" data-go="corr">Open corrections</button></div></div>` : ''}
-      ${(A.noElection.length || A.upcoming.length) ? `<div class="card"><h3>Enrollment to-dos</h3>${A.upcoming.map(p => `<div style="padding:7px 0;border-bottom:1px solid var(--line)"><b>${esc(p.first)} ${esc(p.last)}</b> becomes eligible <b>${fmt(entryDateFor(p))}</b> — give the safe harbor notice + SPD + enrollment form before then.</div>`).join('')}${A.noElection.map(p => `<div style="padding:7px 0;border-bottom:1px solid var(--line)"><b>${esc(p.first)} ${esc(p.last)}</b> is eligible but has <b>no deferral election or waiver on file</b>. Get one (a signed 0% waiver counts) — otherwise it looks like a missed deferral opportunity.</div>`).join('')}<div class="actions"><button class="btn sec sm" data-go="people">Open people</button></div></div>` : ''}
+      ${(A.noElection.length || A.upcoming.length) ? `<div class="card"><h3>Enrollment to-dos</h3>${A.upcoming.map(p => `<div class="namecell" style="padding:7px 0;border-bottom:1px solid var(--line)">${avatar(p, 'sm')}<div><b>${esc(p.first)} ${esc(p.last)}</b> becomes eligible <b>${fmt(entryDateFor(p))}</b> — give the safe harbor notice + SPD + enrollment form before then.</div></div>`).join('')}${A.noElection.map(p => `<div class="namecell" style="padding:7px 0;border-bottom:1px solid var(--line)">${avatar(p, 'sm')}<div><b>${esc(p.first)} ${esc(p.last)}</b> is eligible but has <b>no deferral election or waiver on file</b>. Get one (a signed 0% waiver counts) — otherwise it looks like a missed deferral opportunity.</div></div>`).join('')}<div class="actions"><button class="btn sec sm" data-go="people">Open people</button></div></div>` : ''}
     </div>
     <div>
+      <div class="card"><h3>Quick links</h3><div class="links">${extLink(P.rkSponsorUrl, 'Vanguard — plan sponsor site')}${extLink(P.rkParticipantUrl, 'Vanguard — participant site (staff)')}${extLink(P.payrollUrl, 'Paychex Flex')}${extLink(P.tpaUrl, 'TPA portal')}${extLink(P.efastUrl, 'EFAST2 (Form 5500 filing)')}${extLink(P.vfcpCalcUrl, 'DOL lost-earnings calculator')}</div><div class="small" style="margin-top:8px">Logins live in NLO Vault, not here. Edit links in Settings.</div></div>
       <div class="card"><h3>Plan at a glance</h3>
         <dl class="kv"><dt>Plan</dt><dd>${esc(P.name)}${P.planId ? ` · ID ${esc(P.planId)}` : ''}</dd>
         <dt>Design</dt><dd>Safe harbor ${P.shType === 'nonelective' ? 'non-elective (3%)' : 'match'}: ${esc(P.matchFormula)}</dd>
@@ -919,7 +934,7 @@ function rPeople() {
     if (p.parttime) flags.push('<span class="chip warn">part-time · check 500-hr rule</span>');
     if (st.k === 'pending' && daysBetween(t, st.entry) <= 60) flags.push('<span class="chip bad">notice + SPD + election before entry</span>');
     const m = st.k === 'active' ? matchFor(p.deferral) : null;
-    return `<tr data-id="${p.id}"><td><b>${esc(p.first)} ${esc(p.last)}</b>${p.role ? `<div class="small">${esc(p.role)}</div>` : ''}</td><td>${fmt(p.hired)}${p.termed ? `<div class="small">term. ${fmt(p.termed)}</div>` : ''}</td><td>${a == null ? '—' : a}</td><td>${entryDateFor(p) ? fmt(entryDateFor(p)) : '—'}</td><td><span class="chip ${st.cls}">${esc(st.label)}</span></td><td>${st.k === 'active' ? pct(p.deferral) : st.k === 'waived' ? '0% (waived)' : '—'}</td><td>${m == null ? '—' : pct(m) + ' of pay'}</td><td><div class="badge-row">${flags.join('')}</div></td><td><button class="btn xs sec" data-act="editperson">Edit</button></td></tr>`; }).join('') : `<tr><td colspan="9"><div class="empty"><b>Import from Staff Hub</b> brings in everyone's name, role, hire date and birthday in one click (same account, same password). Then add each person's deferral % from Paychex → Deductions.</div></td></tr>`}
+    return `<tr data-id="${p.id}"><td><div class="namecell">${avatar(p)}<div><b>${esc(p.first)} ${esc(p.last)}</b>${p.role ? `<div class="small">${esc(p.role)}</div>` : ''}</div></div></td><td>${fmt(p.hired)}${p.termed ? `<div class="small">term. ${fmt(p.termed)}</div>` : ''}</td><td>${a == null ? '—' : a}</td><td>${entryDateFor(p) ? fmt(entryDateFor(p)) : '—'}</td><td><span class="chip ${st.cls}">${esc(st.label)}</span></td><td>${st.k === 'active' ? pct(p.deferral) : st.k === 'waived' ? '0% (waived)' : '—'}</td><td>${m == null ? '—' : pct(m) + ' of pay'}</td><td><div class="badge-row">${flags.join('')}</div></td><td><button class="btn xs sec" data-act="editperson">Edit</button></td></tr>`; }).join('') : `<tr><td colspan="9"><div class="empty"><b>Import from Staff Hub</b> brings in everyone's name, photo, role, hire date and birthday in one click (same account, same password). Then add each person's deferral % from Paychex → Deductions.</div></td></tr>`}
   </tbody></table></div>
   <div class="card guide"><h3>Match calculator</h3><p>${esc(P.matchFormula)}. For someone earning $1,000 per pay period: deferring 2% → match ${money(10 * matchFor(2))}; 4% → ${money(10 * matchFor(4))}; 6% → ${money(10 * matchFor(6))} (capped). Anyone deferring less than ${esc((P.matchTiers || [{ upto: 4 }]).slice(-1)[0].upto)}% is leaving match on the table — worth a nudge at open enrollment.</p></div>`;
 }
@@ -975,7 +990,7 @@ function rGuide() {
     <div class="who">
       <div class="w"><b>You — plan sponsor + plan administrator + fiduciary</b><p>You are the one legally responsible that everything below happens — even the parts others do for you. In practice that means: get the census out, make sure deposits are fast, make sure the December notices go out, sign the 5500-SF, review fees and funds once a year, enroll new people on time, and keep the file. Nobody else is on the hook with the DOL; they are hired by you.</p></div>
       <div class="w"><b>TPA — ${esc(P.tpa)} now, ${esc(P.tpaFrom2027 || '—')} from 2027</b><p>The compliance brain. Takes your census, runs the tests, computes true-ups, prepares the Form 5500-SF and the notices, keeps the plan document up to date and drafts amendments, and walks you through corrections. They do not deposit money, do not send notices unless you have agreed they will, and do not know about a new hire until you tell them.</p></div>
-      <div class="w"><b>Recordkeeper — ${esc(P.rk)}</b><p>Holds the money and the participant accounts: enrollment website, investment elections, statements, quarterly fee disclosures, 1099-Rs, distributions and loans. Often also sends the annual fee disclosure and QDIA notice. Ascensus provides the administration behind Vanguard RPA, which is why the two names overlap.</p></div>
+      <div class="w"><b>Recordkeeper — ${esc(P.rk)}</b><p>Holds the money and the participant accounts: enrollment website, investment elections, statements, quarterly fee disclosures, 1099-Rs, distributions and loans. Often also sends the annual fee disclosure and QDIA notice. Ascensus provides the administration behind Vanguard RPA, which is why the two names overlap.</p><div class="links" style="margin-top:8px">${extLink(P.rkSponsorUrl, 'Sponsor site')}${extLink(P.rkParticipantUrl, 'Participant site')}</div></div>
       <div class="w"><b>Payroll — Paychex</b><p>Withholds the deferrals and computes the match each pay period. Payroll is where the limit caps live and where most formula errors start (the 3% vs 4% match is a payroll setting). Confirm every January that the caps and the match formula match the plan document.</p></div>
     </div>
     <h3>The year in one paragraph</h3>
@@ -1061,6 +1076,8 @@ service cloud.firestore {
     <div class="row"><label class="check"><input type="checkbox" data-k="qdia" ${P.qdia !== false ? 'checked' : ''}> Plan has a default investment (QDIA notice applies)</label><label class="check"><input type="checkbox" data-k="autoEnroll" ${P.autoEnroll ? 'checked' : ''}> Plan auto-enrolls new employees</label><label class="check"><input type="checkbox" data-k="rothAllowed" ${P.rothAllowed !== false ? 'checked' : ''}> Roth deferrals allowed</label><label class="check"><input type="checkbox" data-k="loans" ${P.loans ? 'checked' : ''}> Loans allowed</label></div>
     <div class="row"><div><label>Plan expenses paid by</label><select data-k="feesPaidBy"><option value="employer" ${P.feesPaidBy === 'employer' ? 'selected' : ''}>The practice</option><option value="plan" ${P.feesPaidBy === 'plan' ? 'selected' : ''}>Participant accounts</option></select></div><div><label>Plan effective date</label><input type="date" data-k="planEffective" value="${esc(P.planEffective)}"></div><div><label>Next restatement due (ask TPA)</label><input type="date" data-k="restateDue" value="${esc(P.restateDue)}"></div></div>
     <div class="row"><div><label>Pay frequency</label><select data-k="payFreq"><option value="biweekly" ${P.payFreq === 'biweekly' ? 'selected' : ''}>Every other week</option><option value="weekly" ${P.payFreq === 'weekly' ? 'selected' : ''}>Weekly</option><option value="semimonthly" ${P.payFreq === 'semimonthly' ? 'selected' : ''}>15th and last day</option><option value="monthly" ${P.payFreq === 'monthly' ? 'selected' : ''}>Monthly</option></select></div><div><label>A recent pay date (anchor)</label><input type="date" data-k="firstPay" value="${esc(P.firstPay)}"><div class="help">The Deposits tab generates pay dates from this.</div></div></div>
+    <div class="row"><div><label>Recordkeeper sponsor site (you)</label><input data-k="rkSponsorUrl" value="${esc(P.rkSponsorUrl || '')}"></div><div><label>Recordkeeper participant site (staff)</label><input data-k="rkParticipantUrl" value="${esc(P.rkParticipantUrl || '')}"></div><div><label>TPA portal</label><input data-k="tpaUrl" value="${esc(P.tpaUrl || '')}" placeholder="FuturePlan / Ascensus sponsor portal"></div></div>
+    <div class="row"><div><label>Payroll</label><input data-k="payrollUrl" value="${esc(P.payrollUrl || '')}"></div><div><label>EFAST2</label><input data-k="efastUrl" value="${esc(P.efastUrl || '')}"></div><div><label>DOL VFCP calculator</label><input data-k="vfcpCalcUrl" value="${esc(P.vfcpCalcUrl || '')}"></div></div>
     <div class="row"><div><label>Fidelity bond amount</label><input type="number" data-k="bondAmount" value="${esc(P.bondAmount)}"></div><div><label>Carrier</label><input data-k="bondCarrier" value="${esc(P.bondCarrier)}"></div><div><label>Bond expires</label><input type="date" data-k="bondExpires" value="${esc(P.bondExpires)}"></div></div>
     <div class="actions"><button class="btn" data-act="saveplan">Save plan facts</button></div>
   </div></div>
@@ -1210,7 +1227,7 @@ function shToPeople(staff) {
     const nm = shSplitName(p.name);
     const existing = S.people.find(x => (p.id && x.shId === p.id) || shNormName(x.first + x.last) === shNormName(p.name));
     const former = p.status === 'former';
-    const row = { shId: p.id || '', first: nm.first, last: nm.last, role: p.role || '', hired: p.hireDate || '', dob: shBirthdayOK(p.birthday) ? p.birthday : '', parttime: /part/i.test(p.employment || ''), termed: former ? (p.endDate || '') : '', formerNoDate: former && !p.endDate, bdayNoYear: !!p.birthday && !shBirthdayOK(p.birthday), existing: existing ? existing.id : null };
+    const row = { shId: p.id || '', first: nm.first, last: nm.last, role: p.role || '', photo: photoOK(p) ? p.photo : '', hired: p.hireDate || '', dob: shBirthdayOK(p.birthday) ? p.birthday : '', parttime: /part/i.test(p.employment || ''), termed: former ? (p.endDate || '') : '', formerNoDate: former && !p.endDate, bdayNoYear: !!p.birthday && !shBirthdayOK(p.birthday), existing: existing ? existing.id : null };
     out.push(row);
   }
   out.sort((a, b) => (a.termed ? 1 : 0) - (b.termed ? 1 : 0) || (a.last + a.first).localeCompare(b.last + b.first));
@@ -1220,6 +1237,7 @@ function shApply(rows) {
   let added = 0, updated = 0;
   for (const r of rows) {
     const base = { shId: r.shId, first: r.first, last: r.last, role: r.role, hired: r.hired, parttime: r.parttime };
+    if (r.photo) base.photo = r.photo;
     if (r.dob) base.dob = r.dob;
     if (r.termed) base.termed = r.termed; else if (r.formerNoDate) base.termedUnknown = true;
     if (r.existing) { const p = S.people.find(x => x.id === r.existing); if (p) { Object.assign(p, base); updated++; } }
@@ -1243,9 +1261,9 @@ async function importStaffHub() {
   showImportPreview(rows);
 }
 function showImportPreview(rows) {
-  openModal(`<h3>Import from Staff Hub</h3><p class="small" style="margin-bottom:10px">Tick who to bring in. Names, roles, hire dates and birthdays come from Staff Hub; deferral elections don't live there, so add those from Paychex afterwards. Re-importing later updates dates without duplicating anyone.</p>
+  openModal(`<h3>Import from Staff Hub</h3><p class="small" style="margin-bottom:10px">Tick who to bring in. Names, photos, roles, hire dates and birthdays come from Staff Hub; deferral elections don't live there, so add those from Paychex afterwards. Re-importing later updates dates without duplicating anyone.</p>
     <form id="mf"><table class="tbl"><thead><tr><th></th><th>Name</th><th>Role</th><th>Hired</th><th>Birthday</th><th>Status</th></tr></thead><tbody>
-    ${rows.map((r, i) => `<tr><td><input type="checkbox" name="r${i}" ${r.termed || r.formerNoDate ? '' : 'checked'}></td><td><b>${esc(r.first)} ${esc(r.last)}</b>${r.existing ? '<div class="small">already here — will update</div>' : ''}</td><td class="small">${esc(r.role)}${r.parttime ? ' · part-time' : ''}</td><td>${r.hired ? fmt(r.hired) : '<span class="chip warn">missing</span>'}</td><td>${r.dob ? fmt(r.dob) : r.bdayNoYear ? '<span class="chip warn">no year</span>' : '—'}</td><td>${r.termed ? '<span class="chip">former · left ' + fmtShort(r.termed) + '</span>' : r.formerNoDate ? '<span class="chip">former · no end date</span>' : '<span class="chip ok">active</span>'}</td></tr>`).join('')}
+    ${rows.map((r, i) => `<tr><td><input type="checkbox" name="r${i}" ${r.termed || r.formerNoDate ? '' : 'checked'}></td><td><div class="namecell">${avatar({ first: r.first, last: r.last, photo: r.photo }, 'sm')}<div><b>${esc(r.first)} ${esc(r.last)}</b>${r.existing ? '<div class="small">already here — will update</div>' : ''}</div></div></td><td class="small">${esc(r.role)}${r.parttime ? ' · part-time' : ''}</td><td>${r.hired ? fmt(r.hired) : '<span class="chip warn">missing</span>'}</td><td>${r.dob ? fmt(r.dob) : r.bdayNoYear ? '<span class="chip warn">no year</span>' : '—'}</td><td>${r.termed ? '<span class="chip">former · left ' + fmtShort(r.termed) + '</span>' : r.formerNoDate ? '<span class="chip">former · no end date</span>' : '<span class="chip ok">active</span>'}</td></tr>`).join('')}
     </tbody></table><div class="actions" style="margin-top:12px"><button class="btn" type="submit">Import selected</button><button class="btn sec" type="button" data-x="cancel">Cancel</button></div></form>`);
   const f = $('#mf');
   f.onsubmit = e => { e.preventDefault(); const picked = rows.filter((r, i) => f['r' + i] && f['r' + i].checked); if (!picked.length) { closeModal(); return; } const res = shApply(picked); act(`Imported from Staff Hub: ${res.added} added, ${res.updated} updated`); save(); closeModal(); render(); toast(`${res.added} added, ${res.updated} updated. Now add each person's deferral % from Paychex.`, 'ok', 7000); };
