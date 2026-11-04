@@ -357,7 +357,7 @@ const FB_CONFIG = {
 const FB_COLLECTION = 'plan401k';
 const STORE_KEY = 'nlo401k.v1';
 const KDF_ITER = 600000;
-const APP_VER = '1.4';
+const APP_VER = '1.4.1';
 
 let fbOK = false, fbAuth = null, fbDB = null, fbUser = null, cloud = 'off'; /* off | on | denied | offline */
 try {
@@ -673,7 +673,10 @@ function syncLabel() {
   return ['off', 'Saved on this computer'];
 }
 function save() { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 700); }
-async function saveNow() {
+/* saves never overlap: a second call waits for the first (two concurrent transactions used to make one look "stale") */
+let saveChain = Promise.resolve();
+function saveNow() { const p = saveChain.then(saveNowInner); saveChain = p.catch(() => {}); return p; }
+async function saveNowInner() {
   if (!S || !cryptoKey) return;
   dirty = false;
   let data;
@@ -685,14 +688,16 @@ async function saveNow() {
     setSync('busy', 'Saving to cloud…');
     try {
       const ref = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
-      let stale = null;
+      let stale = null, newRev = cloudRev;
       await fbDB.runTransaction(async tx => {
         const snap = await tx.get(ref);
         const cur = snap.exists ? (snap.data().rev || 0) : 0;
+        stale = null;
         if (snap.exists && cur !== cloudRev) { stale = snap.data(); return; }
         tx.set(ref, { v: 1, rev: cur + 1, kdf: { salt: b64(keySalt), iter: KDF_ITER }, data, at: firebase.firestore.FieldValue.serverTimestamp() });
-        cloudRev = cur + 1;
+        newRev = cur + 1;   /* committed only when the transaction resolves — set cloudRev after, never inside */
       });
+      if (!stale) cloudRev = newRev;
       if (stale) {
         try { const srv = await decryptJSON(stale.data, cryptoKey); S = migrate(srv); cloudRev = stale.rev || 0; blob.rev = cloudRev; blob.data = stale.data; setLocal(blob); render(); toast('A newer copy was saved from another device — it has been loaded. Please redo your last change.', 'bad', 8000); }
         catch (e) { toast('Cloud has a newer copy that this password cannot open. Saved here only.', 'bad', 8000); cloud = 'denied'; }
