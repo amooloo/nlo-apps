@@ -357,7 +357,7 @@ const FB_CONFIG = {
 const FB_COLLECTION = 'plan401k';
 const STORE_KEY = 'nlo401k.v1';
 const KDF_ITER = 600000;
-const APP_VER = '1.3';
+const APP_VER = '1.4';
 
 let fbOK = false, fbAuth = null, fbDB = null, fbUser = null, cloud = 'off'; /* off | on | denied | offline */
 try {
@@ -632,7 +632,7 @@ function freshState() {
       entityTax: 's-corp', rk: 'Vanguard Retirement Plan Access', tpa: 'Ascensus', tpaFrom2027: 'FuturePlan (Ascensus)', advisor: '',
       shType: 'match', matchFormula: '100% of deferrals up to 4% of pay', matchTiers: [{ pct: 100, upto: 4 }],
       eligMonths: 12, eligAge: 21, eligHours: 1000, entry: 'monthly', autoEnroll: false, qdia: true, rothAllowed: true, loans: false,
-      payFreq: 'biweekly', firstPay: '', bondAmount: '', bondCarrier: '', bondExpires: '', restateDue: '', planEffective: '',
+      payFreq: 'biweekly', firstPay: '', autoDeposit: false, bondAmount: '', bondCarrier: '', bondExpires: '', restateDue: '', planEffective: '',
       feesPaidBy: 'employer',
       rkSponsorUrl: 'https://my.vanguardplan.com/login/sponsor', rkParticipantUrl: 'https://my.vanguardplan.com/login/participant',
       payrollUrl: 'https://myapps.paychex.com/', efastUrl: 'https://www.efast.dol.gov/', vfcpCalcUrl: 'https://www.askebsa.dol.gov/VFCPCalculator/WebCalculator.aspx', tpaUrl: ''
@@ -642,7 +642,7 @@ function freshState() {
       { id: uid(), name: '', org: 'Vanguard Retirement Plan Access', role: 'Recordkeeper / plan sponsor site', email: '', phone: '', notes: 'Plan ID 265395' },
       { id: uid(), name: '', org: 'Ascensus', role: 'TPA / administrative services through 12/31/2026', email: '', phone: '', notes: '' }
     ],
-    years: {}, custom: [], notices: [], deposits: [], people: [],
+    years: {}, custom: [], notices: [], deposits: [], recon: {}, people: [],
     corrections: [
       { id: uid(), kind: 'match', steps: {}, title: 'Safe harbor match paid at 100% up to 3% instead of 100% up to 4% (plan document)', found: '2026-09-01', period: '2022 – 2026', type: 'SCP (self-correction) via TPA', status: 'open', owner: 'tpa', lost: '', notes: 'Correction back to 2022 in process with Ascensus/FuturePlan (seeded from what you told Claude — edit as needed). Needs: corrective match deposit per person per year + lost earnings, a correction memo for the file, and confirmation the match formula in payroll now reads 4%.', closedOn: '' }
     ],
@@ -884,6 +884,11 @@ function depositRows() {
 function nextPayDates(n) { const P = S.plan; if (!P.firstPay) return []; const step = P.payFreq === 'weekly' ? 7 : P.payFreq === 'biweekly' ? 14 : 0; const out = []; let d = P.firstPay; const lim = addDays(today(), 400); if (step) { while (d <= lim) { if (d >= addDays(today(), -120)) out.push(d); d = addDays(d, step); } } else { /* semi-monthly / monthly: 1st & 15th or firstPay's day */ const anchor = parse(P.firstPay); let cur = new Date(anchor.getFullYear(), anchor.getMonth(), 1); for (let i = 0; i < 18; i++) { if (P.payFreq === 'semimonthly') { out.push(iso(new Date(cur.getFullYear(), cur.getMonth(), 15))); out.push(iso(new Date(cur.getFullYear(), cur.getMonth() + 1, 0))); } else out.push(iso(new Date(cur.getFullYear(), cur.getMonth(), Math.min(anchor.getDate(), new Date(cur.getFullYear(), cur.getMonth() + 1, 0).getDate())))); cur.setMonth(cur.getMonth() + 1); } }
   const have = new Set(S.deposits.map(x => x.payDate)); return out.filter(x => !have.has(x) && x >= addDays(today(), -120) && x <= lim).slice(0, n || 30); }
 
+function qOf(d) { return d.slice(0, 4) + '-Q' + (Math.floor((+d.slice(5, 7) - 1) / 3) + 1); }
+function qRange(qk) { const y = +qk.slice(0, 4), q = +qk.slice(6); return [iso(new Date(y, (q - 1) * 3, 1)), iso(new Date(y, q * 3, 0))]; }
+function qLabel(qk) { return 'Q' + qk.slice(6) + ' ' + qk.slice(0, 4); }
+function quartersToShow() { const t = today(); const out = []; let d = t; for (let i = 0; i < 5; i++) { const k = qOf(d); if (!out.includes(k)) out.unshift(k); d = addMonths(d, -3); } return out; }
+function reconItemFor(qk) { const y = +qk.slice(0, 4), q = +qk.slice(6); return { y, id: 'recon' + q }; }
 function alerts() {
   const t = today(), look = (S.settings.lookahead || 60);
   const y = yearOf(t), items = yearItems(y).concat(yearItems(y + 1));
@@ -892,7 +897,7 @@ function alerts() {
   const backlog = open.filter(i => i.due < start && i.due < t);          /* due before this file was started: review once, not "overdue" */
   const overdue = open.filter(i => i.due < t && i.due >= start);
   const soon = open.filter(i => i.due >= t && daysBetween(t, i.due) <= look);
-  const deps = depositRows(); const lateDeps = deps.filter(d => d.cls === 'bad');
+  const deps = depositRows(); const lateDeps = deps.filter(d => S.plan.autoDeposit ? (d.depositedOn && d.cls === 'bad') : d.cls === 'bad');
   const people = S.people.filter(p => !gone(p, t));
   const noElection = people.filter(p => personStatus(p).k === 'noelection');
   const upcoming = people.filter(p => personStatus(p).k === 'pending' && daysBetween(t, entryDateFor(p)) <= 60);
@@ -974,7 +979,7 @@ function rDash(A) {
   <div class="grid g4" style="margin-bottom:16px">
     <div class="stat ${A.overdue.length ? 'bad' : 'ok'}" data-go="cal"><div class="n">${A.overdue.length}</div><div class="l">Overdue</div><div class="s">${A.overdue.length ? 'Needs attention now' : A.backlog.length ? A.backlog.length + ' earlier items to confirm (below)' : 'Nothing overdue'}</div></div>
     <div class="stat ${A.soon.length ? 'warn' : 'ok'}" data-go="cal"><div class="n">${A.soon.length}</div><div class="l">Due in ${S.settings.lookahead || 60} days</div><div class="s">Calendar items coming up</div></div>
-    <div class="stat ${A.lateDeps.length ? 'bad' : (S.deposits.length ? 'ok' : 'info')}" data-go="deposits"><div class="n">${A.lateDeps.length}</div><div class="l">Late deposits</div><div class="s">${S.deposits.length ? S.deposits.length + ' pay dates logged' : 'Start logging pay dates'}</div></div>
+    <div class="stat ${A.lateDeps.length ? 'bad' : (S.deposits.length ? 'ok' : 'info')}" data-go="deposits"><div class="n">${A.lateDeps.length}</div><div class="l">Late deposits</div><div class="s">${S.plan.autoDeposit ? (quartersToShow().filter(q => qRange(q)[1] < today() && !(S.recon[q] || {}).ok).length ? quartersToShow().filter(q => qRange(q)[1] < today() && !(S.recon[q] || {}).ok).length + ' quarter(s) to check' : 'Quarterly checks up to date') : S.deposits.length ? S.deposits.length + ' pay dates logged' : 'Start logging pay dates'}</div></div>
     <div class="stat ${A.noElection.length || A.upcoming.length ? 'warn' : 'ok'}" data-go="people"><div class="n">${A.noElection.length + A.upcoming.length}</div><div class="l">People to enroll</div><div class="s">${A.noElection.length} no election · ${A.upcoming.length} newly eligible soon</div></div>
   </div>
   <div class="grid g2">
@@ -1002,8 +1007,8 @@ function rDash(A) {
         <dl class="kv"><dt>Deferral</dt><dd>${money(L.deferral)}</dd><dt>Catch-up 50+</dt><dd>${money(L.catchup)} (60–63: ${money(L.super)})</dd><dt>Total additions</dt><dd>${money(L.annual)}</dd><dt>Comp cap</dt><dd>${money(L.comp)}</dd><dt>Roth catch-up if prior FICA wages ></dt><dd>${money(L.rothCatch)}</dd></dl>
         <div class="actions"><button class="btn sec sm" data-go="limits">All limits</button></div>
       </div>
-      <div class="card"><h3>Deposit health <span class="small">last ${deps.length} pay dates</span></h3>
-        ${deps.length ? `<div class="bar">${deps.map(d => `<i title="${fmt(d.payDate)}: ${esc(d.st)}" style="flex:1;margin-right:2px;background:${d.cls === 'ok' ? 'var(--mint)' : d.cls === 'bad' ? 'var(--coral)' : 'var(--gold)'}"></i>`).join('')}</div><div class="small" style="margin-top:8px">Mint = within 7 business days · Coral = late or not logged · Gold = pending</div>` : '<div class="empty">No pay dates logged yet. The Deposits tab generates them from your pay schedule.</div>'}
+      <div class="card"><h3>Deposit health <span class="small">${S.plan.autoDeposit ? 'quarterly check' : 'last ' + deps.length + ' pay dates'}</span></h3>
+        ${S.plan.autoDeposit ? `<div class="pill-row">${quartersToShow().map(qk => { const r = S.recon[qk] || {}; const over = qRange(qk)[1] < today(); return `<span class="chip ${r.ok ? 'ok' : over ? 'warn' : ''}">${qLabel(qk)}${r.ok ? ' ✓' : over ? ' · check' : ''}</span>`; }).join('')}</div><div class="small" style="margin-top:8px">Paychex → Vanguard is automated; confirm each quarter against Vanguard's contribution history.</div>` : deps.length ? `<div class="bar">${deps.map(d => `<i title="${fmt(d.payDate)}: ${esc(d.st)}" style="flex:1;margin-right:2px;background:${d.cls === 'ok' ? 'var(--mint)' : d.cls === 'bad' ? 'var(--coral)' : 'var(--gold)'}"></i>`).join('')}</div><div class="small" style="margin-top:8px">Mint = within 7 business days · Coral = late or not logged · Gold = pending</div>` : '<div class="empty">No pay dates logged yet. The Deposits tab generates them from your pay schedule.</div>'}
         <div class="actions"><button class="btn sec sm" data-go="deposits">Open deposits</button></div>
       </div>
     </div>
@@ -1067,11 +1072,29 @@ function openItemModal(y, id) {
 }
 
 /* ---------- Deposits ---------- */
+function rDepositsAuto() {
+  const rows = depositRows(); const t = today();
+  const qs = quartersToShow();
+  const cards = qs.map(qk => {
+    const [a, b] = qRange(qk); const r = S.recon[qk] || {}; const inQ = rows.filter(x => x.payDate >= a && x.payDate <= b).sort((x, y) => x.payDate < y.payDate ? -1 : 1);
+    const late = inQ.filter(x => x.depositedOn && x.cls === 'bad'); const over = b < t;
+    const status = r.ok ? `<span class="chip ok">Checked ${fmtShort(r.on)} · all on time</span>` : late.length ? `<span class="chip bad">${late.length} late logged</span>` : over ? `<span class="chip warn">Quarter over — check it</span>` : `<span class="chip">In progress</span>`;
+    return `<div class="card" data-q="${qk}"><h3>${qLabel(qk)} ${status}</h3>
+      <div class="small" style="margin-bottom:8px">${inQ.length ? 'Pay dates: ' + inQ.map(x => `<span class="chip ${x.depositedOn ? (x.cls === 'bad' ? 'bad' : 'ok') : ''}" title="${esc(x.st)}">${fmtShort(x.payDate)}${x.depositedOn ? ' → ' + fmtShort(x.depositedOn) : ''}</span>`).join(' ') : 'No pay dates in this quarter yet.'}</div>
+      ${r.ok ? `<p class="small">${esc(r.note || '')} <button class="linkish" data-act="unrecon">undo</button></p>` : `<div class="actions"><button class="btn mint sm" data-act="recon" ${inQ.length ? '' : 'disabled title="Generate pay dates first"'}>Checked against Vanguard — all landed within 7 business days</button><button class="btn sec sm" data-act="exception" data-qdef="${esc(b < t ? b : t)}">Log an exception</button></div>`}
+    </div>`; }).join('');
+  const next = nextPayDates(40);
+  return `<div class="page-h"><div><h2>Deposits</h2><p>Paychex sends deferrals to Vanguard automatically, so this tab is a <b>quarterly check</b>, not a log: open Vanguard's contribution history, confirm every pay date landed within 7 business days, press the button. That answers the "late deposits" question on the Form 5500-SF and ticks the quarter's reconciliation item on the calendar. Log an exception only when something did arrive late.</p></div>
+    <div class="pill-row noprint">${next.length ? `<button class="btn sec sm" data-act="genpay">Add next ${Math.min(next.length, 12)} pay dates</button>` : ''}<button class="btn sec sm" data-act="depmode">Switch to per-payday logging</button></div></div>
+  ${cards}
+  <div class="card guide"><h3>What "landed" means</h3><p>The date the money reached the plan's trust at Vanguard (their contribution history shows it), not the day Paychex took it out. Count business days from the pay date, skipping weekends and federal holidays; the app's Ask panel can tell you the deadline for any pay date. Automated feeds mostly fail in three ways: a new hire not added to the feed, a rejected transfer, and a payroll run in a holiday week — those are what you're looking for.</p></div>`;
+}
 function rDeposits() {
+  if (S.plan.autoDeposit) return rDepositsAuto();
   const rows = depositRows(); const onTime = rows.filter(r => r.cls === 'ok').length, late = rows.filter(r => r.cls === 'bad').length;
   const next = nextPayDates(40);
   return `<div class="page-h"><div><h2>Deferral deposits</h2><p>Small-plan safe harbor: deferrals and loan repayments withheld on a pay date must reach Vanguard within <b>7 business days</b> (federal holidays excluded). Log every pay date — this list is what answers the "late deposits" question on the Form 5500-SF.</p></div>
-    <div class="pill-row noprint">${next.length ? `<button class="btn sec sm" data-act="genpay">Add next ${Math.min(next.length, 12)} pay dates</button>` : `<button class="btn sec sm" data-go="settings">Set pay schedule in Settings</button>`}<button class="btn sm" data-act="adddep">+ Pay date</button></div></div>
+    <div class="pill-row noprint">${next.length ? `<button class="btn sec sm" data-act="genpay">Add next ${Math.min(next.length, 12)} pay dates</button>` : `<button class="btn sec sm" data-go="settings">Set pay schedule in Settings</button>`}<button class="btn sm" data-act="adddep">+ Pay date</button><button class="btn sec sm" data-act="depmode">Deposits are automated — switch to quarterly check</button></div></div>
   <div class="grid g4" style="margin-bottom:16px">
     <div class="stat ok"><div class="n">${onTime}</div><div class="l">On time</div></div>
     <div class="stat ${late ? 'bad' : 'ok'}"><div class="n">${late}</div><div class="l">Late / not logged</div></div>
@@ -1301,7 +1324,7 @@ service cloud.firestore {
     <div class="row"><div><label>Safe harbor type</label><select data-k="shType"><option value="match" ${P.shType === 'match' ? 'selected' : ''}>Matching contribution</option><option value="nonelective" ${P.shType === 'nonelective' ? 'selected' : ''}>Non-elective (3% to everyone)</option></select></div><div><label>Match formula (as the document says)</label><input data-k="matchFormula" value="${esc(P.matchFormula)}"></div></div>
     <div class="row"><div><label>Tier 1: match %</label><input type="number" data-t="0.pct" value="${esc(tiers[0] ? tiers[0].pct : 100)}"></div><div><label>…of deferrals up to % of pay</label><input type="number" step="0.5" data-t="0.upto" value="${esc(tiers[0] ? tiers[0].upto : 4)}"></div><div><label>Tier 2: match % (optional)</label><input type="number" data-t="1.pct" value="${esc(tiers[1] ? tiers[1].pct : '')}"></div><div><label>…up to % of pay</label><input type="number" step="0.5" data-t="1.upto" value="${esc(tiers[1] ? tiers[1].upto : '')}"></div></div>
     <div class="row"><div><label>Eligibility: months of service</label><input type="number" data-k="eligMonths" value="${esc(P.eligMonths)}"></div><div><label>Minimum age</label><input type="number" data-k="eligAge" value="${esc(P.eligAge)}"></div><div><label>Hours required (if any)</label><input type="number" data-k="eligHours" value="${esc(P.eligHours)}"></div><div><label>Entry dates</label><select data-k="entry"><option value="immediate" ${P.entry === 'immediate' ? 'selected' : ''}>Immediately on meeting it</option><option value="monthly" ${P.entry === 'monthly' ? 'selected' : ''}>First of next month</option><option value="quarterly" ${P.entry === 'quarterly' ? 'selected' : ''}>Quarterly (Jan/Apr/Jul/Oct 1)</option><option value="semi" ${P.entry === 'semi' ? 'selected' : ''}>Semi-annual (Jan 1 / Jul 1)</option><option value="annual" ${P.entry === 'annual' ? 'selected' : ''}>Annual (Jan 1)</option></select></div></div>
-    <div class="row"><label class="check"><input type="checkbox" data-k="qdia" ${P.qdia !== false ? 'checked' : ''}> Plan has a default investment (QDIA notice applies)</label><label class="check"><input type="checkbox" data-k="autoEnroll" ${P.autoEnroll ? 'checked' : ''}> Plan auto-enrolls new employees</label><label class="check"><input type="checkbox" data-k="rothAllowed" ${P.rothAllowed !== false ? 'checked' : ''}> Roth deferrals allowed</label><label class="check"><input type="checkbox" data-k="loans" ${P.loans ? 'checked' : ''}> Loans allowed</label></div>
+    <div class="row"><label class="check"><input type="checkbox" data-k="autoDeposit" ${P.autoDeposit ? 'checked' : ''}> Deposits are automated (payroll feed to the recordkeeper) — Deposits tab becomes a quarterly check</label><label class="check"><input type="checkbox" data-k="qdia" ${P.qdia !== false ? 'checked' : ''}> Plan has a default investment (QDIA notice applies)</label><label class="check"><input type="checkbox" data-k="autoEnroll" ${P.autoEnroll ? 'checked' : ''}> Plan auto-enrolls new employees</label><label class="check"><input type="checkbox" data-k="rothAllowed" ${P.rothAllowed !== false ? 'checked' : ''}> Roth deferrals allowed</label><label class="check"><input type="checkbox" data-k="loans" ${P.loans ? 'checked' : ''}> Loans allowed</label></div>
     <div class="row"><div><label>Plan expenses paid by</label><select data-k="feesPaidBy"><option value="employer" ${P.feesPaidBy === 'employer' ? 'selected' : ''}>The practice</option><option value="plan" ${P.feesPaidBy === 'plan' ? 'selected' : ''}>Participant accounts</option></select></div><div><label>Plan effective date</label><input type="date" data-k="planEffective" value="${esc(P.planEffective)}"></div><div><label>Next restatement due (ask TPA)</label><input type="date" data-k="restateDue" value="${esc(P.restateDue)}"></div></div>
     <div class="row"><div><label>Pay frequency</label><select data-k="payFreq"><option value="biweekly" ${P.payFreq === 'biweekly' ? 'selected' : ''}>Every other week</option><option value="weekly" ${P.payFreq === 'weekly' ? 'selected' : ''}>Weekly</option><option value="semimonthly" ${P.payFreq === 'semimonthly' ? 'selected' : ''}>15th and last day</option><option value="monthly" ${P.payFreq === 'monthly' ? 'selected' : ''}>Monthly</option></select></div><div><label>A recent pay date (anchor)</label><input type="date" data-k="firstPay" value="${esc(P.firstPay)}"><div class="help">The Deposits tab generates pay dates from this.</div></div></div>
     <div class="row"><div><label>Recordkeeper sponsor site (you)</label><input data-k="rkSponsorUrl" value="${esc(P.rkSponsorUrl || '')}"></div><div><label>Recordkeeper participant site (staff)</label><input data-k="rkParticipantUrl" value="${esc(P.rkParticipantUrl || '')}"></div><div><label>TPA portal</label><input data-k="tpaUrl" value="${esc(P.tpaUrl || '')}" placeholder="FuturePlan / Ascensus sponsor portal"></div></div>
@@ -1355,6 +1378,10 @@ function wire(m) {
   on('[data-act=backlogdone]', () => { const A = alerts(); if (!confirm(`Mark all ${A.backlog.length} earlier items as done? Only do this if you know they happened.`)) return; A.backlog.forEach(i => setItem(i.y, i.id, { status: 'done', doneOn: i.due, evidence: 'Marked at catch-up review ' + today() })); act('Catch-up review: marked ' + A.backlog.length + ' earlier items done'); render(); });
   /* deposits */
   on('[data-act=adddep]', () => modalDeposit());
+  on('[data-act=depmode]', () => { S.plan.autoDeposit = !S.plan.autoDeposit; act('Deposits mode: ' + (S.plan.autoDeposit ? 'automated / quarterly check' : 'per-payday log')); save(); render(); });
+  on('[data-act=recon]', e => { const qk = e.target.closest('.card').dataset.q; const note = prompt('Optional note (e.g. "Vanguard contribution history, all 6 pay dates within 2–3 days")') ; if (note === null) return; S.recon[qk] = { ok: true, on: today(), note }; const ri = reconItemFor(qk); setItem(ri.y, ri.id, { status: 'done', doneOn: today(), evidence: 'Deposits tab: ' + qLabel(qk) + ' checked' }); act('Deposits checked for ' + qLabel(qk)); save(); render(); });
+  on('[data-act=unrecon]', e => { const qk = e.target.closest('.card').dataset.q; delete S.recon[qk]; const ri = reconItemFor(qk); setItem(ri.y, ri.id, { status: 'todo', doneOn: '', evidence: '' }); save(); render(); });
+  on('[data-act=exception]', e => modalDeposit({ payDate: e.target.dataset.qdef }));
   on('[data-act=genpay]', () => { const n = nextPayDates(12); n.forEach(d => S.deposits.push({ id: uid(), payDate: d })); act('Added ' + n.length + ' pay dates'); save(); render(); });
   on('[data-act=latecorr]', () => { const late = depositRows().filter(r => r.cls === 'bad').map(r => fmt(r.payDate)).join(', '); S.corrections.push({ id: uid(), kind: 'late', steps: {}, title: 'Late deferral deposit(s)', found: today(), period: late, type: 'VFCP (self-correction component if lost earnings ≤ $1,000 and fixed within 180 days)', status: 'open', owner: 'you', lost: '', notes: 'Pay dates: ' + late + '\n1. Deposit the deferrals if not done.\n2. DOL VFCP Online Calculator → lost earnings → deposit to each affected account.\n3. Form 5330 + 15% excise tax on lost earnings (not needed if using the VFCP self-correction component).\n4. Report on the Form 5500-SF late-deposit line.\n5. Memo to the file: what happened, what changed.', closedOn: '' }); act('Correction opened: late deposits'); save(); route.page = 'corr'; render(); });
   $$('tr[data-id]', m).forEach(tr => {
@@ -1420,8 +1447,9 @@ function modalPerson(p) {
   $('[data-x=cancel]', f).onclick = closeModal; const del = $('[data-x=del]', f); if (del) del.onclick = () => { if (!confirm('Delete this person?')) return; S.people = S.people.filter(x => x.id !== p.id); save(); closeModal(); render(); };
 }
 function modalDeposit(d) {
-  openModal(`<h3>Log a pay date</h3><form class="form" id="mf"><div class="row">${fld('Pay date', `<input type="date" name="payDate" required value="${esc(today())}">`)}${fld('Deferrals + loan payments withheld ($)', `<input type="number" step="0.01" name="amount">`)}${fld('Date deposited at Vanguard', `<input type="date" name="depositedOn">`)}</div>${fld('Note', `<input name="notes">`)}<div class="actions"><button class="btn" type="submit">Save</button><button class="btn sec" type="button" data-x="cancel">Cancel</button></div></form>`);
-  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const o = formData(f); if (S.deposits.some(x => x.payDate === o.payDate)) { toast('That pay date is already logged', 'bad'); return; } S.deposits.push(Object.assign({ id: uid() }, o)); act('Logged pay date ' + fmt(o.payDate)); save(); closeModal(); render(); };
+  d = d || {};
+  openModal(`<h3>${S.plan.autoDeposit ? 'Log a deposit exception' : 'Log a pay date'}</h3>${S.plan.autoDeposit ? '<p class="small" style="margin-bottom:8px">A pay date whose deferrals reached Vanguard late. Fill in both dates; the app flags it and the Corrections tab shows the fix.</p>' : ''}<form class="form" id="mf"><div class="row">${fld('Pay date', `<input type="date" name="payDate" required value="${esc(d.payDate || today())}">`)}${fld('Deferrals + loan payments withheld ($)', `<input type="number" step="0.01" name="amount">`)}${fld('Date deposited at Vanguard', `<input type="date" name="depositedOn">`)}</div>${fld('Note', `<input name="notes">`)}<div class="actions"><button class="btn" type="submit">Save</button><button class="btn sec" type="button" data-x="cancel">Cancel</button></div></form>`);
+  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const o = formData(f); const ex = S.deposits.find(x => x.payDate === o.payDate); if (ex) { Object.assign(ex, o); } else S.deposits.push(Object.assign({ id: uid() }, o)); act('Logged pay date ' + fmt(o.payDate)); save(); closeModal(); render(); };
   $('[data-x=cancel]', f).onclick = closeModal;
 }
 function modalNotice() {
@@ -1590,8 +1618,9 @@ function localAnswer(qRaw) {
   }
   /* deposits */
   if (has(q, 'deposit', 'pay date', 'payday', 'pay day', 'payroll date', '7 business', 'seven business')) {
-    const rows = depositRows(); const late = rows.filter(r => r.cls === 'bad'), pend = rows.filter(r => r.cls === 'warn'); const cand = rows.filter(r => r.payDate >= t).map(r => r.payDate).concat(nextPayDates(1)).filter(Boolean).sort(); const nextPay = cand[0];
-    return { html: `<p>${rows.length} pay dates logged · <b>${rows.filter(r => r.cls === 'ok').length}</b> on time · <b>${late.length}</b> late/unlogged · ${pend.length} pending.</p>${late.length ? `<ul>${late.map(r => `<li><b>${fmt(r.payDate)}</b> — ${esc(r.st)}${r.depositedOn ? ' (deposited ' + fmtShort(r.depositedOn) + ', ' + r.days + ' business days)' : ''}</li>`).join('')}</ul>` : ''}${nextPay ? `<p>Next pay date ${fmt(nextPay)} → deferrals due at Vanguard by <b>${fmt(addBiz(nextPay, 7))}</b>.</p>` : ''}<p class="small">Rule: within 7 business days of the pay date (small-plan safe harbor), federal holidays excluded.</p><div class="go">${goBtn('deposits', 'Open Deposits')}</div>` };
+    const rows = depositRows(); const late = rows.filter(r => S.plan.autoDeposit ? (r.depositedOn && r.cls === 'bad') : r.cls === 'bad'), pend = rows.filter(r => r.cls === 'warn'); const cand = rows.filter(r => r.payDate >= t).map(r => r.payDate).concat(nextPayDates(1)).filter(Boolean).sort(); const nextPay = cand[0];
+    const unchecked = S.plan.autoDeposit ? quartersToShow().filter(qk => qRange(qk)[1] < t && !(S.recon[qk] || {}).ok) : [];
+    return { html: `<p>${S.plan.autoDeposit ? `Deposits are automated (Paychex → Vanguard). ${unchecked.length ? 'Quarters still to check: <b>' + unchecked.map(qLabel).join(', ') + '</b>.' : 'All past quarters checked.'} ${late.length ? '<b>' + late.length + ' late deposit' + (late.length > 1 ? 's' : '') + ' logged.</b>' : 'No late deposits logged.'}` : `${rows.length} pay dates logged · <b>${rows.filter(r => r.cls === 'ok').length}</b> on time · <b>${late.length}</b> late/unlogged · ${pend.length} pending.`}</p>${late.length ? `<ul>${late.map(r => `<li><b>${fmt(r.payDate)}</b> — ${esc(r.st)}${r.depositedOn ? ' (deposited ' + fmtShort(r.depositedOn) + ', ' + r.days + ' business days)' : ''}</li>`).join('')}</ul>` : ''}${nextPay ? `<p>Next pay date ${fmt(nextPay)} → deferrals due at Vanguard by <b>${fmt(addBiz(nextPay, 7))}</b>.</p>` : ''}<p class="small">Rule: within 7 business days of the pay date (small-plan safe harbor), federal holidays excluded.</p><div class="go">${goBtn('deposits', 'Open Deposits')}</div>` };
   }
   /* limits */
   if (has(q, 'limit', 'maximum', 'max ', 'how much can', 'contribute', 'catch-up', 'catch up', 'catchup', '402', '415', 'compensation cap', 'hce threshold', 'key employee threshold')) {
@@ -1642,7 +1671,7 @@ function aiSnapshot() {
   for (const i of yearItems(y).concat(yearItems(y + 1))) lines.push(`  ${i.due} | ${i.title} | ${OWNER[i.owner] || i.owner} | ${i.status}${i.doneOn ? ' ' + i.doneOn : ''}`);
   lines.push('PEOPLE (redacted — first name + last initial; ages, no birthdays):');
   for (const p of S.people) { const st = personStatus(p), a = age(p.dob), ed = entryDateFor(p); lines.push(`  ${p.first} ${(p.last || '')[0] || ''}. | ${p.role || ''} | hired ${p.hired || '?'} | entry ${ed || '?'} | age ${a == null ? '?' : a} | ${st.label} | ${p.owner ? 'owner/key' : ''}${p.parttime ? ' part-time' : ''}${gone(p) ? ' LEFT' + (p.termed ? ' ' + p.termed : '') + (p.balance ? ' has balance' : '') : ''}`); }
-  const rows = depositRows(); lines.push(`DEPOSITS: ${rows.length} pay dates logged; ${rows.filter(r => r.cls === 'ok').length} on time; ${rows.filter(r => r.cls === 'bad').length} late/unlogged; ${rows.filter(r => r.cls === 'warn').length} pending.` + (rows.filter(r => r.cls === 'bad').length ? ' Late: ' + rows.filter(r => r.cls === 'bad').map(r => r.payDate + (r.depositedOn ? ' (deposited ' + r.depositedOn + ')' : ' (not logged)')).join(', ') : ''));
+  const rows = depositRows(); lines.push(`DEPOSITS: ${S.plan.autoDeposit ? 'automated payroll feed; quarterly checks: ' + quartersToShow().map(q => qLabel(q) + (S.recon[q] && S.recon[q].ok ? ' ok' : qRange(q)[1] < t ? ' UNCHECKED' : ' in progress')).join(', ') + '; ' : ''}${rows.length} pay dates logged; ${rows.filter(r => r.cls === 'ok').length} on time; ${rows.filter(r => r.cls === 'bad').length} late/unlogged; ${rows.filter(r => r.cls === 'warn').length} pending.` + (rows.filter(r => r.cls === 'bad').length ? ' Late: ' + rows.filter(r => r.cls === 'bad').map(r => r.payDate + (r.depositedOn ? ' (deposited ' + r.depositedOn + ')' : ' (not logged)')).join(', ') : ''));
   lines.push('CORRECTIONS: ' + (S.corrections.map(c => `${c.title} [${c.period || ''}; ${c.type || ''}; ${c.status}]`).join(' || ') || 'none'));
   lines.push('NOTICE LOG: ' + (S.notices.map(l => `${l.sentOn} ${(NOTICES.find(x => x.id === l.type) || {}).name || l.type} for ${l.planYear || ''} via ${l.method}`).join('; ') || 'none logged'));
   lines.push('FIDUCIARY FILE located: ' + (DOCS.filter(d => (S.docs[d[0]] || {}).have).map(d => d[1]).join('; ') || 'nothing ticked yet'));
