@@ -199,8 +199,89 @@ details.acc[open] summary{margin-bottom:8px}
 .right{text-align:right}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--soft);padding:10px 12px;border-radius:10px;white-space:pre-wrap;word-break:break-word}
 
+/* month view */
+.cal-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.cal-head h3{font-size:18px;font-weight:800;margin:0 6px}
+.seg{display:inline-flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.seg button{border:0;background:transparent;padding:7px 12px;font-weight:700;font-size:13px;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--navy);color:#fff}
+.mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;background:#fff;border-radius:var(--r);box-shadow:var(--shadow);padding:10px}
+.mgrid .dow{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:800;text-align:center;padding:4px 0 6px}
+.mday{min-height:92px;border:1px solid var(--line);border-radius:9px;padding:5px 5px 4px;background:#fff;display:flex;flex-direction:column;gap:3px}
+.mday.out{background:var(--soft);opacity:.55}
+.mday.today{border-color:var(--blue);box-shadow:inset 0 0 0 1.5px var(--blue)}
+.mday.wknd{background:#fafbfc}
+.mday .dn{font-size:12px;font-weight:800;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.mday.today .dn{color:var(--blue)}
+.mday .dn .pay{font-size:9.5px;font-weight:800;background:var(--okbg);color:#0e5c3b;border-radius:999px;padding:1px 5px}
+.mday .dn .pay.late{background:var(--badbg);color:#8d1f14}
+.mchip{display:block;width:100%;text-align:left;border:0;border-radius:6px;padding:3px 6px;font-size:11.5px;font-weight:700;line-height:1.25;cursor:pointer;background:var(--soft);color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--line)}
+.mchip.overdue{background:var(--badbg);color:#8d1f14;border-left-color:var(--coral)}
+.mchip.soon{background:var(--warnbg);color:#5e3b00;border-left-color:var(--gold)}
+.mchip.done{background:var(--okbg);color:#0e5c3b;border-left-color:var(--mint);text-decoration:line-through;opacity:.8}
+.mchip.na{opacity:.45;text-decoration:line-through}
+.mchip.waiting{background:#efe6fb;color:#5b2e9e;border-left-color:#a883e0}
+.mchip.person{background:var(--infobg);color:#15307f;border-left-color:var(--blue)}
+.mchip:hover{filter:brightness(.96)}
+.mlegend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+.mlegend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+@media(max-width:760px){.mday{min-height:64px;padding:3px}.mchip{font-size:10px;padding:2px 4px}.mgrid{padding:6px;gap:2px}}
+/* correction playbooks */
+.steps{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.step{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:9px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fff;align-items:start}
+.step.done{background:var(--okbg);border-color:#bfe9d4}
+.step input[type=checkbox]{width:18px;height:18px;margin-top:2px}
+.step .st{font-weight:700;font-size:14px}
+.step .sh{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+.step .sh b{color:var(--ink)}
+.step .sm{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.step .sm input{padding:5px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px}
+.step .sm input[type=date]{width:140px}
+.step .sm input[type=text]{flex:1;min-width:160px}
+.prog{height:8px;border-radius:999px;background:var(--soft);overflow:hidden;margin:8px 0 2px}
+.prog i{display:block;height:100%;background:var(--mint)}
+.calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.calc label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.calc input{width:100%;padding:8px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:14px}
+.calc-out{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.calc-out .o{background:var(--soft);border-radius:10px;padding:10px 12px}
+.calc-out .o b{display:block;font-size:20px}
+.calc-out .o span{font-size:11.5px;color:var(--muted);font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.kindrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.kindrow button{text-align:left;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:13px;color:var(--navy)}
+.kindrow button:hover{background:var(--soft)}
+.kindrow button small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:2px}
+/* ask panel */
+.ask-btn{display:inline-flex;align-items:center;gap:7px}
+#askPanel{position:fixed;top:0;right:0;height:100%;width:min(420px,100%);background:#fff;box-shadow:-12px 0 40px rgba(27,47,76,.25);transform:translateX(105%);transition:transform .22s ease;z-index:40;display:flex;flex-direction:column}
+#askPanel.open{transform:none}
+#askPanel .ah{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--navy);color:#fff}
+#askPanel .ah b{font-size:15px}
+#askPanel .ah .mode{font-size:11px;opacity:.8;margin-left:auto;white-space:nowrap}
+#askPanel .ah button{background:rgba(255,255,255,.12);border:0;color:#fff;border-radius:8px;padding:6px 9px;cursor:pointer;font-weight:700}
+#askLog{flex:1;overflow:auto;padding:14px 14px 6px;display:flex;flex-direction:column;gap:10px;background:var(--page)}
+.msg{max-width:92%;border-radius:14px;padding:10px 13px;font-size:14px;line-height:1.5}
+.msg.me{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px}
+.msg.bot{align-self:flex-start;background:#fff;box-shadow:var(--shadow);border-bottom-left-radius:4px}
+.msg.bot .src{display:block;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:5px}
+.msg.bot .src.ai{color:#5b2e9e}
+.msg.bot ul{padding-left:18px;margin:4px 0}
+.msg.bot li{margin:2px 0}
+.msg.bot .go{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.msg.bot .go button{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;color:var(--navy)}
+.msg.bot .go button:hover{background:var(--soft)}
+.msg.bot p{margin:0 0 6px}
+.msg.bot p:last-child{margin-bottom:0}
+.msg.think{color:var(--muted);font-style:italic}
+#askForm{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);background:#fff}
+#askForm input{flex:1;padding:11px 12px;border:1.5px solid var(--line);border-radius:11px;font-size:14px}
+#askForm input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,62,169,.12)}
+.ask-sugg{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 10px;background:#fff}
+.ask-sugg button{border:1.5px solid var(--line);background:var(--soft);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--navy)}
+.ask-foot{font-size:11px;color:var(--muted);padding:0 14px 10px;background:#fff;line-height:1.4}
+html:has(#askPanel.open) > nlo-aisa{display:none!important}
 @media print{
-  .topbar,nav.side,#toasts,.noprint,.btn{display:none!important}
+  .topbar,nav.side,#toasts,.noprint,.btn,#askPanel{display:none!important}
   body{background:#fff}
   .layout{grid-template-columns:1fr}
   main.content{padding:0;max-width:none}
@@ -236,6 +317,7 @@ details.acc[open] summary{margin-bottom:8px}
     <div class="title">NLO 401(k)<small>Plan admin · <span id="tbPlan">—</span></small></div>
     <div class="spacer"></div>
     <div class="sync off" id="syncPill"><span class="dot"></span><span id="syncTxt">Saved on this computer</span></div>
+    <button class="btn mint sm ask-btn" id="btnAsk" type="button"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg>Ask</button>
     <button class="btn btn-ghost sm" id="btnLock" type="button">Lock</button>
   </div>
   <div class="layout">
@@ -244,6 +326,13 @@ details.acc[open] summary{margin-bottom:8px}
   </div>
 </div>
 
+<aside id="askPanel" aria-label="Ask about this plan">
+  <div class="ah"><b>Ask about this plan</b><span class="mode" id="askMode">answers from the app</span><button type="button" id="askNew" title="Start over">New</button><button type="button" id="askClose" aria-label="Close">✕</button></div>
+  <div id="askLog"></div>
+  <div class="ask-sugg" id="askSugg"></div>
+  <form id="askForm"><input id="askIn" placeholder="e.g. what's due this month? who hasn't enrolled?" autocomplete="off"><button class="btn" type="submit">Ask</button></form>
+  <div class="ask-foot" id="askFoot"></div>
+</aside>
 <div class="modal-bg" id="modalBg"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
 <div id="toasts"></div>
 
@@ -268,7 +357,7 @@ const FB_CONFIG = {
 const FB_COLLECTION = 'plan401k';
 const STORE_KEY = 'nlo401k.v1';
 const KDF_ITER = 600000;
-const APP_VER = '1.1';
+const APP_VER = '1.3';
 
 let fbOK = false, fbAuth = null, fbDB = null, fbUser = null, cloud = 'off'; /* off | on | denied | offline */
 try {
@@ -449,6 +538,48 @@ const ITEMS = [
     why: 'Pre-approved plans must be rewritten onto the IRS\'s latest approved document on a 6-year cycle; miss the window and the plan loses reliance on its approval letter.',
     how: () => 'The TPA/document provider sends the restatement; sign it and keep the new IRS opinion letter. Ask them for the current cycle\'s window.' }
 ];
+/* ---------- glossary + how-tos (shared by the Guide and the Ask panel) ---------- */
+const GLOSS = [
+  ['Plan sponsor', ['sponsor'], () => 'The employer (' + esc(S.plan.sponsor) + '). Adopts the plan.'],
+  ['Plan administrator', ['plan administrator', 'administrator'], () => 'The person/entity named in the document as responsible for running it. Here, you. Signs the 5500-SF, is the DOL\'s contact.'],
+  ['Fiduciary', ['fiduciary'], () => 'Anyone with discretion over plan assets or administration. Must act solely in participants\' interest, prudently, and follow the document. Personal liability — which is why the file and the bond matter.'],
+  ['TPA', ['tpa', 'third party administrator', 'third-party administrator'], () => 'Third-party administrator — compliance, testing, document, 5500 preparation. ' + esc(S.plan.tpa) + ' now' + (S.plan.tpaFrom2027 ? ', ' + esc(S.plan.tpaFrom2027) + ' from 2027' : '') + '.'],
+  ['Recordkeeper', ['recordkeeper', 'record keeper'], () => 'Keeps the accounts and the website. ' + esc(S.plan.rk) + '.'],
+  ['Safe harbor 401(k)', ['safe harbor'], () => 'A design where the employer commits to a fixed, fully vested contribution (your match: ' + esc(S.plan.matchFormula) + ') in exchange for skipping the ADP/ACP tests — which otherwise limit how much the owner can defer when staff defer little. The price: the match is mandatory and the annual notice is mandatory.'],
+  ['ADP / ACP tests', ['adp', 'acp', 'nondiscrimination'], () => 'Compare what highly-compensated employees defer/receive with everyone else. Safe harbor plans are deemed to pass.'],
+  ['Top-heavy', ['top heavy', 'top-heavy'], () => 'When key employees (owners/officers) hold over 60% of plan assets — common in a practice. A safe harbor plan whose only employer money is the safe harbor contribution is deemed not top-heavy; add profit sharing and the 3% minimum for everyone can kick in.'],
+  ['HCE / key employee', ['hce', 'highly compensated', 'key employee'], () => 'Highly compensated (prior-year pay over the threshold, or >5% owner) / key (officer over the threshold, >5% owner). Family of a >5% owner counts too.'],
+  ['Census', ['census'], () => 'The yearly spreadsheet of every employee\'s dates, hours, pay and contributions. Everything the TPA does flows from it.'],
+  ['QDIA', ['qdia', 'default investment'], () => 'Qualified default investment alternative — the fund money goes into when someone never picks (usually a target-date fund). Gives you fiduciary protection only if the annual notice went out.'],
+  ['SPD / SMM / SAR', ['spd', 'smm', 'sar', 'summary plan description', 'summary annual report', 'material modification'], () => 'Summary Plan Description (plain-language plan), Summary of Material Modifications (plain-language change), Summary Annual Report (one-page 5500 summary).'],
+  ['Form 5500-SF', ['5500', 'annual return', 'efast'], () => 'The plan\'s annual return to the DOL/IRS, short form for under-100-participant plans. Filed electronically in EFAST2 with your own signer ID.'],
+  ['402(g) / 415(c) / 401(a)(17)', ['402(g)', '402g', '415(c)', '415c', '401(a)(17)', 'compensation cap', 'comp cap'], () => 'The deferral limit / the total-additions limit / the pay cap. See Limits.'],
+  ['Lost earnings', ['lost earnings'], () => 'What late money would have earned; computed with the DOL\'s online calculator and deposited to the affected accounts.'],
+  ['EPCRS (SCP / VCP) and VFCP', ['epcrs', 'scp', 'vcp', 'vfcp', 'self-correction', 'self correction'], () => 'The IRS and DOL correction programs. See Corrections.'],
+  ['QNEC', ['qnec'], () => 'Qualified non-elective contribution — the employer-funded fix for a missed deferral, 100% vested.'],
+  ['Form 5330', ['5330', 'excise tax'], () => 'IRS excise-tax return filed when there is a prohibited transaction such as a late deposit (15% of the lost earnings).'],
+  ['Form 5558', ['5558', 'extension'], () => 'The 2½-month extension request for the 5500-SF.'],
+  ['408(b)(2) / 404a-5', ['408(b)(2)', '408b2', '404a-5', '404a5', 'fee disclosure'], () => 'The fee disclosures providers must give you / you must give participants.'],
+  ['LTPT', ['ltpt', 'long-term part-time', 'long term part time', '500 hours', '500-hour'], () => 'Long-term part-time employee — 500+ hours in two consecutive years → must be allowed to defer.'],
+  ['Vesting', ['vesting', 'vested'], () => 'How much of the employer money an employee keeps when they leave. Safe harbor match is always 100%.'],
+  ['Catch-up contribution', ['catch-up', 'catch up', 'catchup'], () => { const L = limitsFor(new Date().getFullYear()); return 'Extra deferral allowed from the year someone turns 50: ' + money(L.catchup) + '; ages 60–63: ' + money(L.super) + '. From 2026, anyone whose prior-year FICA wages were over ' + money(L.rothCatch) + ' may only make catch-ups as Roth.'; }],
+  ['Roth 401(k)', ['roth'], () => 'After-tax deferrals: no deduction now, tax-free withdrawals later. Your plan ' + (S.plan.rothAllowed === false ? 'does not allow' : 'allows') + ' Roth deferrals. The match is always pre-tax unless the plan elected Roth employer contributions.'],
+  ['Required minimum distribution (RMD)', ['rmd', 'required minimum', 'minimum distribution'], () => 'Money that must be taken out each year from age 73. A >5% owner must start at 73 even while working; other employees can wait until they retire.'],
+  ['Fidelity bond', ['bond'], () => 'ERISA §412 insurance covering everyone who handles plan money: at least 10% of plan assets at the start of the year (min $1,000, max $500,000). ' + (S.plan.bondAmount ? 'Yours: ' + money(S.plan.bondAmount) + (S.plan.bondExpires ? ', expires ' + fmt(S.plan.bondExpires) : '') + '.' : 'Not entered yet — add it in Settings.')]
+];
+const FAQ = [
+  { k: ['change', 'deferral'], alt: ['increase', 'decrease', 'stop contributing', 'change their contribution', 'change my contribution', 'change election'], t: 'An employee wants to change their deferral', a: () => `<p><b>The employee</b> makes the election — on ${extLink(S.plan.rkParticipantUrl, 'the participant site') || 'the recordkeeper site'} or a signed deferral form. That is the legal record.</p><p><b>You</b> then change the 401(k) deduction in payroll (${extLink(S.plan.payrollUrl, 'Paychex') || 'Paychex'} → the person → Deductions) before the next payroll cutoff.</p><p>Never change payroll without an election to back it up, and never let an election sit without updating payroll. Note the date in the person's "Election dated" field here.</p>` },
+  { k: ['new hire', 'enroll'], alt: ['newly eligible', 'just hired', 'onboard', 'enrollment'], t: 'Enrolling a new employee', a: () => `<p>Add them under People with hire date and DOB — the app computes the entry date (${esc(S.plan.eligMonths)} months, age ${esc(S.plan.eligAge)}, ${esc(S.plan.entry)} entry).</p><ul><li>Before the entry date: give the safe harbor notice, the SPD and an enrollment/deferral form (or the participant-site link).</li><li>Tell the recordkeeper so the account exists.</li><li>Get a signed election — even 0% — and set the deduction in payroll from the first pay date after entry.</li><li>Log the notice under Notices.</li></ul><p>Missing the entry date is a "missed deferral opportunity" and costs the practice a QNEC.</p>` },
+  { k: ['late', 'deposit'], alt: ['missed deposit', 'deposited late', 'late deferral'], t: 'A deposit was late', a: () => `<p>Treated as a loan of plan money to the practice. Fix it:</p><ol><li>Deposit the deferrals if not done.</li><li>${extLink(S.plan.vfcpCalcUrl, 'DOL VFCP calculator') || 'DOL VFCP calculator'} → lost earnings → deposit to each affected account.</li><li>Form 5330 + 15% excise tax on the lost earnings — not needed if you use the VFCP self-correction component (lost earnings ≤ $1,000, fixed within 180 days).</li><li>Report it on the Form 5500-SF.</li><li>Memo to the file; log it under Corrections.</li></ol>` },
+  { k: ['terminat'], alt: ['left the practice', 'quit', 'fired', 'resign', 'leaves', 'left with a balance', 'former employee'], t: 'Someone leaves', a: () => `<p>Tell the recordkeeper and TPA the termination date. Safe harbor match is 100% vested, so they keep everything. They can leave the money, roll it over, or cash out (small balances under the plan's cash-out limit can be forced out). Any outstanding loan is due per the plan — unpaid, it becomes a loan offset and a 1099-R.</p><p>In the app: set their termination date and tick "has a balance" — they stay on the SAR/notice list until the balance is gone.</p>` },
+  { k: ['loan'], alt: ['borrow'], t: '401(k) loans', a: () => `<p>Your plan ${S.plan.loans ? 'allows' : 'is marked as not allowing'} loans (Settings). Loan repayments are withheld in payroll and must reach the plan on the same 7-business-day timetable as deferrals. If someone leaves with a loan, see "someone leaves".</p>` },
+  { k: ['hardship'], alt: ['withdraw', 'withdrawal', 'take money out', 'distribution'], t: 'Withdrawals', a: () => `<p>Distributions, hardship withdrawals and rollovers are processed by the recordkeeper; you (as plan administrator) approve them. Keep the paperwork in the fiduciary file. Anyone who takes money out gets a 1099-R in January (recordkeeper sends it).</p>` },
+  { k: ['notice', 'send'], alt: ['who sends', 'december notice', 'annual notice'], t: 'Annual notices', a: () => `<p>Safe harbor + QDIA notices go to every eligible employee between Oct 3 and Dec 1 each year (30–90 days before the plan year). The recordkeeper or TPA usually drafts them; confirm who sends. Log each distribution under Notices — that log is your proof.</p>` },
+  { k: ['match'], alt: ['employer contribution', 'matching'], t: 'The match', a: () => `<p>${esc(S.plan.matchFormula)}. Computed each payroll by Paychex and deposited with the deferrals. Per-payroll safe harbor match must be in the plan by the end of the following quarter. For someone deferring 2%: match ${pct(matchFor(2))} of pay; 4%: ${pct(matchFor(4))}; 6%: ${pct(matchFor(6))}.</p>` },
+  { k: ['audit'], alt: ['dol letter', 'irs letter', 'examination'], t: 'If the DOL or IRS writes', a: () => `<p>Don't reply alone: call the TPA the same day. They'll want the fiduciary file (see that tab), the deposit history, notice logs and testing results. Most small-plan inquiries are about late deposits or a missing 5500 — both answered from this app.</p>` }
+];
+function glossHTML() { return GLOSS.map(g => `<dt>${esc(g[0])}</dt><dd>${g[2]()}</dd>`).join(''); }
+
 /* ---------- fiduciary file ---------- */
 const DOCS = [
   ['plandoc', 'Plan document + adoption agreement (current, signed)', 'The rules you must run the plan by. Everything else refers back to this.'],
@@ -490,7 +621,7 @@ const NOTICES = [
    STATE
    ========================================================================================= */
 let S = null, cryptoKey = null, keySalt = null, cloudRev = 0, saveTimer = null, idleTimer = null, lastAct = Date.now(), dirty = false;
-let route = { page: 'dash', year: new Date().getFullYear(), q: '', showDone: true, cat: 'all', people: 'active' };
+let route = { page: 'dash', year: new Date().getFullYear(), q: '', showDone: true, cat: 'all', people: 'active', calView: 'list', month: today().slice(0, 7) };
 
 function freshState() {
   const y = new Date().getFullYear();
@@ -513,9 +644,9 @@ function freshState() {
     ],
     years: {}, custom: [], notices: [], deposits: [], people: [],
     corrections: [
-      { id: uid(), title: 'Safe harbor match paid at 100% up to 3% instead of 100% up to 4% (plan document)', found: '2026-09-01', period: '2022 – 2026', type: 'SCP (self-correction) via TPA', status: 'open', owner: 'tpa', lost: '', notes: 'Correction back to 2022 in process with Ascensus/FuturePlan (seeded from what you told Claude — edit as needed). Needs: corrective match deposit per person per year + lost earnings, a correction memo for the file, and confirmation the match formula in payroll now reads 4%.', closedOn: '' }
+      { id: uid(), kind: 'match', steps: {}, title: 'Safe harbor match paid at 100% up to 3% instead of 100% up to 4% (plan document)', found: '2026-09-01', period: '2022 – 2026', type: 'SCP (self-correction) via TPA', status: 'open', owner: 'tpa', lost: '', notes: 'Correction back to 2022 in process with Ascensus/FuturePlan (seeded from what you told Claude — edit as needed). Needs: corrective match deposit per person per year + lost earnings, a correction memo for the file, and confirmation the match formula in payroll now reads 4%.', closedOn: '' }
     ],
-    docs: {}, settings: { autoLockMin: 15, lookahead: 60 }, log: []
+    docs: {}, settings: { autoLockMin: 15, lookahead: 60, ai: { on: false, provider: 'gemini', key: '', modelG: 'gemini-2.5-flash', modelC: 'claude-sonnet-4-5' } }, log: []
   };
 }
 function act(text) { S.log.unshift({ ts: Date.now(), text }); if (S.log.length > 300) S.log.length = 300; }
@@ -574,7 +705,7 @@ async function saveNow() {
   }
   const [k, t] = syncLabel(); setSync(k, t);
 }
-function migrate(o) { const f = freshState(); if (!o || typeof o !== 'object') return f; for (const k of Object.keys(f)) if (o[k] == null) o[k] = f[k]; for (const k of Object.keys(f.plan)) if (o.plan[k] == null) o.plan[k] = f.plan[k]; if (!o.settings) o.settings = f.settings; return o; }
+function migrate(o) { const f = freshState(); if (!o || typeof o !== 'object') return f; for (const k of Object.keys(f)) if (o[k] == null) o[k] = f[k]; for (const k of Object.keys(f.plan)) if (o.plan[k] == null) o.plan[k] = f.plan[k]; if (!o.settings) o.settings = f.settings; if (!o.settings.ai) o.settings.ai = f.settings.ai; for (const c of (o.corrections || [])) { if (!c.kind) c.kind = /match/i.test(c.title) ? 'match' : /late deposit|late deferral/i.test(c.title) ? 'late' : /missed deferral|not enrolled/i.test(c.title) ? 'missed' : /notice/i.test(c.title) ? 'notice' : /5500/i.test(c.title) ? '5500' : 'other'; if (!c.steps) c.steps = {}; } return o; }
 
 /* ---------- lock / sign-in ---------- */
 function lkMsg(kind, html) { const m = $('#lkMsg'); m.className = 'lock-msg ' + (kind || ''); m.innerHTML = html || ''; }
@@ -687,7 +818,7 @@ function enter(note) {
   if (note) toast(note, '', 7000);
   resetIdle();
 }
-function lock() { sessionPw = ''; try { if (fbAuth && fbAuth.currentUser) fbAuth.signOut(); } catch (e) {} location.reload(); }
+function lock() { sessionPw = ''; askHist = []; try { if (fbAuth && fbAuth.currentUser) fbAuth.signOut(); } catch (e) {} location.reload(); }
 function resetIdle() { lastAct = Date.now(); clearTimeout(idleTimer); const m = (S && S.settings && S.settings.autoLockMin) || 15; idleTimer = setTimeout(() => { if (dirty) saveNow().then(lock); else lock(); }, m * 60000); }
 ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(ev => document.addEventListener(ev, () => { if (S && Date.now() - lastAct > 5000) resetIdle(); }, { passive: true }));
 window.addEventListener('beforeunload', e => { if (dirty) { saveNow(); } });
@@ -884,8 +1015,9 @@ function rCal() {
   const y = route.year; const all = yearItems(y);
   const items = all.filter(i => (route.showDone || (i.status !== 'done' && i.status !== 'na')) && (route.cat === 'all' || i.cat === route.cat) && (!route.q || (i.title + ' ' + i.why + ' ' + i.notes).toLowerCase().includes(route.q.toLowerCase())));
   const done = all.filter(i => i.status === 'done' || i.status === 'na').length;
+  if (route.calView === 'month') return rMonth();
   let html = `<div class="page-h"><div><h2>Compliance calendar ${y}</h2><p>Every recurring deadline for a calendar-year safe harbor 401(k) with fewer than 100 participants, with who normally does it at NLO. ${done}/${all.length} handled this year.</p></div>
-    <div class="pill-row noprint"><button class="btn sec sm" data-act="yprev">‹ ${y - 1}</button><button class="btn sec sm" data-act="ynext">${y + 1} ›</button><button class="btn sec sm" data-act="addcustom">+ Custom item</button><button class="btn sec sm" onclick="window.print()">Print</button></div></div>
+    <div class="pill-row noprint"><span class="seg"><button class="on" data-act="viewlist">List</button><button data-act="viewmonth">Month</button></span><button class="btn sec sm" data-act="yprev">‹ ${y - 1}</button><button class="btn sec sm" data-act="ynext">${y + 1} ›</button><button class="btn sec sm" data-act="addcustom">+ Custom item</button><button class="btn sec sm" onclick="window.print()">Print</button></div></div>
     <div class="card noprint" style="padding:12px 16px"><div class="pill-row">
       <input class="search" placeholder="Search…" id="calQ" value="${esc(route.q)}">
       <select id="calCat" class="search" style="min-width:150px"><option value="all">All categories</option>${Object.keys(CAT).map(k => `<option value="${k}" ${route.cat === k ? 'selected' : ''}>${CAT[k]}</option>`).join('')}</select>
@@ -896,6 +1028,42 @@ function rCal() {
   for (const i of items) { const m = parse(i.due).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); if (m !== lastM) { html += `<div class="month-h">${m}</div>`; lastM = m; } html += itemHTML(i); }
   if (!items.length) html += '<div class="empty">Nothing matches.</div>';
   return html;
+}
+
+function rMonth() {
+  const [yy, mm] = route.month.split('-').map(Number); const y = yy, m = mm - 1;
+  const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+  const items = yearItems(y).concat(m === 11 ? yearItems(y + 1) : []).concat(m === 0 ? yearItems(y - 1) : []);
+  const byDay = {}; const t = today();
+  for (const i of items) { if (i.due.slice(0, 7) !== route.month) continue; (byDay[i.due] = byDay[i.due] || []).push(i); }
+  const deps = {}; for (const d of depositRows()) { if (d.payDate.slice(0, 7) === route.month) deps[d.payDate] = d; }
+  const entries = {}; for (const p of S.people) { if (gone(p)) continue; const e = entryDateFor(p); if (e && e.slice(0, 7) === route.month) (entries[e] = entries[e] || []).push(p); }
+  const title = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  let cells = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div class="dow">${d}</div>`).join('');
+  const startOff = first.getDay(); const total = Math.ceil((startOff + last.getDate()) / 7) * 7;
+  for (let k = 0; k < total; k++) {
+    const dn = k - startOff + 1; const inM = dn >= 1 && dn <= last.getDate();
+    const d = new Date(y, m, dn); const ds = iso(d); const wk = d.getDay() === 0 || d.getDay() === 6;
+    const its = inM ? (byDay[ds] || []) : [];
+    const dep = inM ? deps[ds] : null;
+    const ppl = inM ? (entries[ds] || []) : [];
+    const chips = its.map(i => { const cls = i.status === 'done' ? 'done' : i.status === 'na' ? 'na' : i.status === 'waiting' ? 'waiting' : i.due < t ? (i.due < (S.created || t) ? 'soon' : 'overdue') : daysBetween(t, i.due) <= 30 ? 'soon' : ''; return `<button class="mchip ${cls}" data-mi="${esc(i.id)}" data-my="${i.y}" title="${esc(i.title)}">${esc(i.title)}</button>`; }).join('')
+      + ppl.map(p => `<button class="mchip person" data-mp="${p.id}" title="${esc(p.first + ' ' + p.last)} becomes eligible">Entry: ${esc(p.first)}</button>`).join('');
+    cells += `<div class="mday ${inM ? '' : 'out'} ${ds === t ? 'today' : ''} ${wk ? 'wknd' : ''}"><div class="dn"><span>${inM ? dn : ''}</span>${dep ? `<span class="pay ${dep.cls === 'bad' ? 'late' : ''}" title="Pay date · ${esc(dep.st)}">PAY</span>` : ''}</div>${chips}</div>`;
+  }
+  const count = Object.values(byDay).reduce((a, b) => a + b.length, 0);
+  return `<div class="page-h"><div><h2>Compliance calendar</h2><p>${count} deadline${count === 1 ? '' : 's'} in ${title}. Click any item to update it. PAY = a pay date (deferrals due 7 business days later); "Entry" = someone becomes eligible.</p></div>
+    <div class="pill-row noprint"><span class="seg"><button data-act="viewlist">List</button><button class="on" data-act="viewmonth">Month</button></span><button class="btn sec sm" data-act="addcustom">+ Custom item</button><button class="btn sec sm" onclick="window.print()">Print</button></div></div>
+    <div class="cal-head noprint"><button class="btn sec sm" data-act="mprev">‹</button><h3>${title}</h3><button class="btn sec sm" data-act="mnext">›</button><button class="btn sec sm" data-act="mtoday">Today</button></div>
+    <div class="mgrid">${cells}</div>
+    <div class="mlegend"><span><i style="background:var(--coral)"></i>overdue</span><span><i style="background:var(--gold)"></i>due within 30 days / to confirm</span><span><i style="background:#a883e0"></i>waiting on someone</span><span><i style="background:var(--mint)"></i>done</span><span><i style="background:var(--blue)"></i>someone becomes eligible</span><span><i style="background:var(--okbg);border:1px solid #9fd9bf"></i>PAY = pay date</span></div>`;
+}
+function openItemModal(y, id) {
+  const i = yearItems(y).find(x => x.id === id); if (!i) return;
+  openModal(`<h3>${esc(i.title)}</h3><div id="mItem">${itemHTML(i)}</div><div class="actions"><button class="btn sec" type="button" data-x="cancel">Close</button></div>`);
+  const root = $('#mItem'); $('.item', root).classList.add('open'); wireItems(root);
+  $$('[data-act=status],[data-act=doneOn],[data-act=evidence],[data-act=notes]', root).forEach(el => el.addEventListener('change', () => setTimeout(() => { closeModal(); render(); }, 50)));
+  $('[data-x=cancel]', $('#modal')).onclick = () => { closeModal(); render(); };
 }
 
 /* ---------- Deposits ---------- */
@@ -951,15 +1119,97 @@ function rNotices() {
   <div class="card"><h3>Distribution log</h3>${log.length ? `<table class="tbl"><thead><tr><th>Date</th><th>Notice</th><th>Plan year</th><th>Method</th><th>Recipients</th><th>Note</th><th></th></tr></thead><tbody>${log.map(l => { const n = NOTICES.find(x => x.id === l.type) || { name: l.type }; const names = l.recipients === 'all' ? 'All' : (l.recipients || []).map(id => { const p = S.people.find(x => x.id === id); return p ? p.first + ' ' + p.last : '?'; }).join(', '); return `<tr data-id="${l.id}"><td><b>${fmt(l.sentOn)}</b></td><td>${esc(n.name)}${l.title ? ': ' + esc(l.title) : ''}</td><td>${esc(l.planYear || '')}</td><td>${esc(l.method)}</td><td class="small">${esc(names)}</td><td class="small">${esc(l.notes || '')}</td><td><button class="btn xs sec" data-act="printnotice">Print record</button> <button class="btn xs sec" data-act="delnotice">✕</button></td></tr>`; }).join('')}</tbody></table>` : '<div class="empty">Nothing logged yet. When the December notices go out, log them here with the date, method and names.</div>'}</div>`;
 }
 
+/* ---------- correction playbooks, lost-earnings estimate, memo ---------- */
+const UNDERPAY = { 2023: 7, 2024: 8, 2025: 7, 2026: 7 };   /* IRC 6621(a)(2) federal underpayment rate, % — 2026: 7% all four quarters (IRS, Aug 2026) */
+function underpayRate(y) { return UNDERPAY[y] != null ? UNDERPAY[y] : UNDERPAY[Math.max.apply(null, Object.keys(UNDERPAY).map(Number))]; }
+/* Estimate of lost earnings the way the DOL online calculator works: the IRC 6621(a)(2) underpayment rate for each period,
+   simple interest within a quarter, compounded at quarter ends, from the loss date to the recovery date. An estimate: the
+   official figure comes from the DOL VFCP Online Calculator (link on the page). */
+function lostEarnings(principal, lossDate, recoveryDate) {
+  let amt = +principal || 0; if (!amt || !lossDate || !recoveryDate || recoveryDate <= lossDate) return { earnings: 0, days: 0 };
+  let cur = lossDate; let bal = amt; const days = daysBetween(lossDate, recoveryDate);
+  while (cur < recoveryDate) {
+    const d = parse(cur); const qEnd = iso(new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3 + 3, 0)); const stop = qEnd < recoveryDate ? qEnd : recoveryDate;
+    const n = daysBetween(cur, stop) + (stop === qEnd && qEnd < recoveryDate ? 1 : 0);
+    bal = bal * (1 + underpayRate(d.getFullYear()) / 100 * n / 365);
+    cur = addDays(stop, stop === qEnd ? 1 : 0); if (stop === recoveryDate) break;
+  }
+  return { earnings: +(bal - amt).toFixed(2), days };
+}
+const KINDS = { match: 'Wrong match / contribution formula', late: 'Late deposit of deferrals', missed: 'Employee not enrolled on time', notice: 'Missed or late annual notice', '5500': 'Late or missing Form 5500', other: 'Other' };
+const PLAYBOOKS = {
+  match: { program: 'IRS self-correction (SCP) — an operational failure: the plan was not run the way the document says.', steps: [
+    ['stop', 'Stop the bleeding: fix the formula in payroll', () => `In ${extLink(S.plan.payrollUrl, 'Paychex') || 'Paychex'} set the 401k ER contribution to the formula in the plan document (<b>${esc(S.plan.matchFormula)}</b>) before the next payroll. Write down the first correct check date — the correction period ends the payroll before it.`],
+    ['confirm', 'Confirm the right formula with the TPA', () => 'Send the TPA the adoption agreement page with the match, and the payroll setting. Confirm which one is right, and the exact period affected (first wrong payroll → last wrong payroll).'],
+    ['compute', 'TPA computes the shortfall per person per year', () => 'For each affected person and each plan year: match they should have received − match they got. Pay above the compensation cap and people below the match threshold usually come out to zero.'],
+    ['earnings', 'Add lost earnings', () => 'Earnings on each shortfall from when it should have been deposited to when it is. The TPA normally uses the plan\'s actual rate of return (EPCRS lets small amounts use the DOL calculator rate). The estimator below gives a sanity check.'],
+    ['deposit', 'Deposit the corrective contributions', () => 'The practice deposits shortfall + earnings to each person\'s account (including former employees — they get a contribution too, even if they have to be found). Record the date and total here.'],
+    ['memo', 'Write the correction memo for the file', () => 'What happened, how it was found, the period, how it was calculated, who got what, and what changed so it cannot recur. Print the memo from the button on this card and keep it in the fiduciary file with the TPA\'s calculation.'],
+    ['prevent', 'Prevent a repeat', () => 'Every January, compare the payroll 401(k) settings (caps, match formula, definition of pay) against the plan document — the "Load the limits into payroll" item on the calendar now covers this.'] ] },
+  late: { program: 'DOL VFCP — late deposits are a prohibited transaction (a loan of plan money to the practice). Small ones can be self-corrected.', steps: [
+    ['deposit', 'Deposit the deferrals (and loan repayments) if not already done', () => 'Record the date they actually reached the plan — that is the "recovery date".'],
+    ['calc', 'Calculate lost earnings', () => `Use the ${extLink(S.plan.vfcpCalcUrl, 'DOL VFCP Online Calculator') || 'DOL VFCP Online Calculator'} with the pay date (loss date), the amount, and the recovery date. The estimator below gives the same kind of number for a sanity check.`],
+    ['earnings', 'Deposit the lost earnings to each affected account', () => 'Allocated to each person in proportion to their late deferral. Record the date.'],
+    ['program', 'Pick the route: self-correction component, full VFCP application, or excise tax only', () => 'If total lost earnings are <b>≤ $1,000</b> and everything is corrected within <b>180 days</b> of the pay date, use the VFCP <b>Self-Correction Component</b>: file the short online notice with EBSA and keep the record — no Form 5330, no excise tax. Otherwise either file a full VFCP application (no-action letter, no excise tax) or skip VFCP and file Form 5330 with the 15% excise tax on the lost earnings. Ask the TPA which; for one late payroll of a few hundred dollars it is almost always the self-correction component.'],
+    ['5330', 'Form 5330 (only if not using VFCP / SCC)', () => '15% excise tax on the lost earnings (not on the deposit). Due by the last day of the 7th month after the end of the tax year the transaction happened in. Keep a copy.'],
+    ['5500', 'Report it on the Form 5500-SF', () => 'The "late deposits" question must say yes for the year, with the amount. Tell the TPA so it is on the return.'],
+    ['memo', 'Memo to the file + fix the cause', () => 'One page: pay date, amount, when deposited, why (holiday, person out, feed failed), lost earnings paid and when, program used, and what changed (e.g. a second person who can run the deposit). Print from this card.'] ] },
+  missed: { program: 'IRS self-correction (SCP) — a "missed deferral opportunity". The practice makes the employee whole with a QNEC.', steps: [
+    ['enroll', 'Enroll them now', () => 'Get their election (or 0% waiver), start the deduction on the next payroll, make sure the recordkeeper has the account. Record the date deferrals actually began.'],
+    ['qnec', 'TPA computes the make-up (QNEC + match + earnings)', () => 'The missed deferral is what they would have deferred (their election, or the plan\'s average if none). The practice contributes a QNEC of <b>0%</b> of it if deferrals start within 3 months of the failure (safe-harbor-plan rule) — otherwise <b>25%</b> if corrected within the SCP window and the employee is notified within 45 days of deferrals starting, otherwise <b>50%</b>. Plus <b>100% of the missed match</b>, plus earnings on both. Ask the TPA to run the numbers.'],
+    ['notice', 'Notify the employee within 45 days', () => 'A short letter: the error, when deferrals started, that a corrective contribution is being made, and that they can change their election. The 45-day notice is what earns the reduced QNEC.'],
+    ['deposit', 'Deposit the corrective contributions', () => 'QNEC + match + earnings to their account. Record the date and amount.'],
+    ['memo', 'Memo to the file + prevention', () => 'Why they were missed (no entry-date tracking, new-hire checklist gap) and what changed. The People tab now shows every entry date 60 days out.'] ] },
+  notice: { program: 'Late or missed safe harbor / QDIA / fee notice. Usually fixed by sending it immediately and documenting; the TPA decides whether a VCP filing is needed.', steps: [
+    ['send', 'Send the notice now', () => 'To everyone who should have had it. Log it under Notices with the date and method.'],
+    ['tpa', 'Tell the TPA', () => 'For the safe harbor notice they will assess whether the plan can still rely on the safe harbor for the year (a late notice for an existing plan is usually treated as an operational failure fixed by sending it; the Rev. Proc. rules changed in 2019/2022 — let them call it).'],
+    ['memo', 'Memo + prevention', () => 'Why it was missed and who sends it from now on, in writing. The calendar shows the Oct 3 – Dec 1 window every year.'] ] },
+  '5500': { program: 'DOL Delinquent Filer Voluntary Compliance Program (DFVCP) — file late with a capped penalty, before the DOL writes to you.', steps: [
+    ['prepare', 'TPA prepares the missing return(s)', () => 'One Form 5500-SF per plan year, all schedules.'],
+    ['file', 'File each year in EFAST2 with the DFVC box checked', () => `${extLink(S.plan.efastUrl, 'EFAST2') || 'EFAST2'}. Small plans: $750 per late year, capped at $1,500 for all years together — paid online after filing.`],
+    ['8955', 'Form 8955-SSA on paper to the IRS, if any year needed it', () => 'EFAST2 does not forward it. Needed only if a terminated employee left a balance in that year.'],
+    ['memo', 'Memo + prevention', () => 'Who files it each July, and that your EFAST2 credentials are in Vault and working.'] ] },
+  other: { program: 'Describe it, call the TPA, and use the steps below as a frame.', steps: [
+    ['facts', 'Write down the facts', () => 'What happened, when, who is affected, how it was found.'],
+    ['tpa', 'TPA names the program and the fix', () => 'SCP (no filing), VCP (IRS filing + fee) or VFCP (DOL). Get it in writing.'],
+    ['fix', 'Make the correction', () => 'Contributions, distributions, lost earnings — record dates and amounts.'],
+    ['memo', 'Memo + prevention', () => 'Print the memo from this card for the fiduciary file.'] ] }
+};
+function corrProgress(c) { const pb = PLAYBOOKS[c.kind] || PLAYBOOKS.other; const done = pb.steps.filter(st => (c.steps || {})[st[0]] && c.steps[st[0]].done).length; return { done, total: pb.steps.length }; }
+function printMemo(c) {
+  const pb = PLAYBOOKS[c.kind] || PLAYBOOKS.other; const w = window.open('', '_blank'); if (!w) { toast('Pop-up blocked — allow pop-ups to print', 'bad'); return; }
+  const steps = pb.steps.map(st => { const r = (c.steps || {})[st[0]] || {}; return `<tr><td>${r.done ? '☑' : '☐'}</td><td>${esc(st[1])}</td><td>${r.date ? fmt(r.date) : ''}</td><td>${esc(r.note || '')}</td></tr>`; }).join('');
+  w.document.write(`<!doctype html><title>Correction memo</title><style>body{font-family:Montserrat,Arial,sans-serif;padding:40px;color:#1B2F4C;max-width:760px;font-size:13.5px;line-height:1.5}h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;margin:18px 0 6px;letter-spacing:1px;text-transform:uppercase;color:#5d6b7e}table{border-collapse:collapse;width:100%}td{padding:6px 8px;vertical-align:top;border-bottom:1px solid #e3e7ec}td:first-child{width:24px}.sig{margin-top:50px;border-top:1px solid #1B2F4C;width:320px;padding-top:6px;font-size:12px}pre{white-space:pre-wrap;font:inherit}</style>
+  <h1>Plan correction memorandum</h1><div>${esc(S.plan.name)}${S.plan.planId ? ' · Plan ID ' + esc(S.plan.planId) : ''} · prepared ${fmt(today())}</div>
+  <h2>Failure</h2><div><b>${esc(c.title)}</b><br>Type: ${esc(KINDS[c.kind] || c.kind)} · Period affected: ${esc(c.period || '—')} · Discovered: ${c.found ? fmt(c.found) : '—'} · Status: ${esc(c.status)}${c.closedOn ? ' (closed ' + fmt(c.closedOn) + ')' : ''}</div>
+  <h2>Correction program</h2><div>${esc(c.type || '')}${c.type ? ' — ' : ''}${pb.program}</div>
+  <h2>Facts, cause and calculation</h2><pre>${esc(c.notes || '')}</pre>
+  ${c.lost ? `<h2>Amounts</h2><div>Lost earnings / corrective amount: ${money(c.lost)}</div>` : ''}
+  <h2>Steps taken</h2><table>${steps}</table>
+  <h2>Responsible</h2><div>${esc(OWNER[c.owner] || c.owner || '')}</div>
+  <div class="sig">Amir Akhavan, DMD — Plan Administrator · date ____________</div>
+  <script>setTimeout(()=>print(),300)<\/script>`); w.document.close();
+}
+
 /* ---------- Corrections ---------- */
 function rCorr() {
   const list = S.corrections.slice().sort((a, b) => (a.status === 'closed') - (b.status === 'closed'));
-  return `<div class="page-h"><div><h2>Corrections</h2><p>Every plan has mistakes; what matters is finding them, fixing them the right way, and writing it down. The IRS (EPCRS: self-correction, VCP) and DOL (VFCP) programs reward plans that self-correct.</p></div><div class="pill-row noprint"><button class="btn sm" data-act="addcorr">+ Correction</button></div></div>
-  ${list.length ? list.map(c => `<div class="card" data-id="${c.id}"><h3>${esc(c.title)} <span class="chip ${c.status === 'closed' ? 'ok' : c.status === 'open' ? 'bad' : 'warn'}">${esc(c.status)}</span></h3>
-    <dl class="kv"><dt>Period affected</dt><dd>${esc(c.period || '—')}</dd><dt>Found</dt><dd>${fmt(c.found)}</dd><dt>Method</dt><dd>${esc(c.type || '—')}</dd><dt>Handling</dt><dd>${esc(OWNER[c.owner] || c.owner || '—')}</dd><dt>Lost earnings / cost</dt><dd>${c.lost ? money(c.lost) : '—'}</dd>${c.closedOn ? `<dt>Closed</dt><dd>${fmt(c.closedOn)}</dd>` : ''}</dl>
+  const calc = (route.calc || {});
+  const le = lostEarnings(calc.amt, calc.loss, calc.rec);
+  const scc = le.earnings > 0 && le.earnings <= 1000 && calc.loss && daysBetween(calc.loss, today()) <= 180;
+  return `<div class="page-h"><div><h2>Corrections</h2><p>Every plan has mistakes; what matters is finding them, fixing them the right way, and writing it down. Each correction below has its steps — tick them off, note dates, and print the memo for the file.</p></div><div class="pill-row noprint"><button class="btn sm" data-act="addcorr">+ Correction</button></div></div>
+  <div class="card noprint"><h3>Something went wrong? Start here</h3><div class="kindrow">${Object.keys(KINDS).map(k => `<button data-act="newkind" data-kind="${k}">${esc(KINDS[k])}<small>${esc((PLAYBOOKS[k] || PLAYBOOKS.other).program.split(' — ')[0])}</small></button>`).join('')}</div></div>
+  ${list.length ? list.map(c => { const pb = PLAYBOOKS[c.kind] || PLAYBOOKS.other; const pr = corrProgress(c); return `<div class="card" data-id="${c.id}"><h3>${esc(c.title)} <span class="chip ${c.status === 'closed' ? 'ok' : c.status === 'open' ? 'bad' : 'warn'}">${esc(c.status)}</span> <span class="chip">${esc(KINDS[c.kind] || 'Other')}</span></h3>
+    <dl class="kv"><dt>Period affected</dt><dd>${esc(c.period || '—')}</dd><dt>Found</dt><dd>${fmt(c.found)}</dd><dt>Program</dt><dd>${esc(c.type || '')}${c.type ? ' — ' : ''}<span class="small">${pb.program}</span></dd><dt>Handling</dt><dd>${esc(OWNER[c.owner] || c.owner || '—')}</dd><dt>Lost earnings / cost</dt><dd>${c.lost ? money(c.lost) : '—'}</dd>${c.closedOn ? `<dt>Closed</dt><dd>${fmt(c.closedOn)}</dd>` : ''}</dl>
     ${c.notes ? `<p class="small" style="margin-top:8px;white-space:pre-wrap">${esc(c.notes)}</p>` : ''}
-    <div class="actions"><button class="btn xs sec" data-act="editcorr">Edit</button></div></div>`).join('') : '<div class="empty">No corrections logged.</div>'}
-  <div class="card guide"><h3>Which program?</h3><ul><li><span class="term">SCP (self-correction)</span> — IRS. Operational mistakes (wrong match, missed deferrals, late deposits as an operational failure) fixed by you and the TPA with no filing, as long as the plan has good procedures and the fix follows the EPCRS formulas. Keep a memo. Since SECURE 2.0, most "eligible inadvertent failures" can be self-corrected at any time if corrected within a reasonable period after discovery.</li><li><span class="term">VCP</span> — IRS. A filing with a fee when self-correction is not available or you want a letter. Rare for a plan this size.</li><li><span class="term">VFCP</span> — DOL. For late deposits and other fiduciary breaches. The self-correction component covers late deposits with ≤ $1,000 of lost earnings corrected within 180 days (no fee, an online notice); larger ones need a full application. Either way lost earnings are computed with the DOL online calculator, and Form 5330 (15% excise tax on the lost earnings) is filed unless the SCC applies.</li></ul></div>`;
+    <div class="prog"><i style="width:${Math.round(pr.done / pr.total * 100)}%"></i></div><div class="small">${pr.done}/${pr.total} steps done</div>
+    <div class="steps">${pb.steps.map(st => { const r = (c.steps || {})[st[0]] || {}; return `<div class="step ${r.done ? 'done' : ''}" data-step="${st[0]}"><input type="checkbox" data-f="done" ${r.done ? 'checked' : ''}><div><div class="st">${esc(st[1])}</div><div class="sh">${st[2]()}</div><div class="sm"><input type="date" data-f="date" value="${esc(r.date || '')}" title="Date done"><input type="text" data-f="note" value="${esc(r.note || '')}" placeholder="Note (amount, who, file name…)"></div></div></div>`; }).join('')}</div>
+    <div class="actions"><button class="btn xs sec" data-act="editcorr">Edit</button><button class="btn xs sec" data-act="memo">Print correction memo</button>${pr.done === pr.total && c.status !== 'closed' ? '<button class="btn xs mint" data-act="closecorr">All steps done — close it</button>' : ''}</div></div>`; }).join('') : '<div class="empty">No corrections logged.</div>'}
+  <div class="card"><h3>Lost-earnings estimator</h3><p class="small" style="margin-bottom:10px">Same method as the DOL calculator (federal underpayment rate — 7% through 2026 — compounded quarterly). An estimate for sanity checks; the official number comes from the ${extLink(S.plan.vfcpCalcUrl, 'DOL VFCP Online Calculator') || 'DOL VFCP Online Calculator'} (enter the same three things there).</p>
+    <div class="calc"><div><label>Amount deposited late ($)</label><input type="number" step="0.01" id="leAmt" value="${esc(calc.amt || '')}"></div><div><label>Pay date (loss date)</label><input type="date" id="leLoss" value="${esc(calc.loss || '')}"></div><div><label>Date it reached the plan</label><input type="date" id="leRec" value="${esc(calc.rec || '')}"></div><div><button class="btn sm" data-act="lecalc">Estimate</button></div></div>
+    ${le.earnings ? `<div class="calc-out"><div class="o"><span>Lost earnings</span><b>${money(le.earnings)}</b>${le.days} days late</div><div class="o"><span>15% excise (Form 5330)</span><b>${money(+(le.earnings * 0.15).toFixed(2))}</b>only if not using VFCP</div><div class="o"><span>Self-correction component?</span><b>${scc ? 'Likely yes' : 'No'}</b>${scc ? '≤ $1,000 and within 180 days' : le.earnings > 1000 ? 'lost earnings over $1,000' : 'more than 180 days since the pay date'}</div></div>` : ''}
+  </div>
+  <div class="card guide"><h3>Which program?</h3><ul><li><span class="term">SCP (self-correction)</span> — IRS. Operational mistakes (wrong match, missed deferrals) fixed by you and the TPA with no filing, as long as the plan has good procedures and the fix follows the EPCRS formulas. Keep a memo. Since SECURE 2.0, most "eligible inadvertent failures" can be self-corrected at any time if corrected within a reasonable period after discovery.</li><li><span class="term">VCP</span> — IRS. A filing with a fee when self-correction is not available or you want a letter. Rare for a plan this size.</li><li><span class="term">VFCP</span> — DOL. For late deposits and other fiduciary breaches. The self-correction component covers late deposits with ≤ $1,000 of lost earnings corrected within 180 days (no fee, an online notice); larger ones need a full application. Either way lost earnings are computed with the DOL online calculator, and Form 5330 (15% excise tax on the lost earnings) is filed unless VFCP is used.</li><li><span class="term">DFVCP</span> — DOL. Late Form 5500s, capped penalty if you file before they write to you.</li></ul></div>`;
 }
 
 /* ---------- Fiduciary file ---------- */
@@ -1007,29 +1257,7 @@ function rGuide() {
       <li><b>Assuming the other vendor did it</b> — especially in a TPA transition year like this one.</li>
     </ol>
     <h3>Glossary</h3>
-    <dl>
-      <dt>Plan sponsor</dt><dd>The employer (Amir Akhavan DMD, PLLC). Adopts the plan.</dd>
-      <dt>Plan administrator</dt><dd>The person/entity named in the document as responsible for running it. Here, you. Signs the 5500-SF, is the DOL's contact.</dd>
-      <dt>Fiduciary</dt><dd>Anyone with discretion over plan assets or administration. Must act solely in participants' interest, prudently, and follow the document. Personal liability — which is why the file and the bond matter.</dd>
-      <dt>TPA</dt><dd>Third-party administrator — compliance, testing, document, 5500 preparation. Ascensus now, FuturePlan from 2027.</dd>
-      <dt>Recordkeeper</dt><dd>Keeps the accounts and the website. Vanguard Retirement Plan Access.</dd>
-      <dt>Safe harbor 401(k)</dt><dd>A design where the employer commits to a fixed, fully vested contribution (your match: ${esc(P.matchFormula)}) in exchange for skipping the ADP/ACP tests — which otherwise limit how much the owner can defer when staff defer little. The price: the match is mandatory and the annual notice is mandatory.</dd>
-      <dt>ADP / ACP tests</dt><dd>Compare what highly-compensated employees defer/receive with everyone else. Safe harbor plans are deemed to pass.</dd>
-      <dt>Top-heavy</dt><dd>When key employees (owners/officers) hold over 60% of plan assets — common in a practice. A safe harbor plan whose only employer money is the safe harbor contribution is deemed not top-heavy; add profit sharing and the 3% minimum for everyone can kick in.</dd>
-      <dt>HCE / key employee</dt><dd>Highly compensated (prior-year pay over the threshold, or >5% owner) / key (officer over the threshold, >5% owner). Family of a >5% owner counts too.</dd>
-      <dt>Census</dt><dd>The yearly spreadsheet of every employee's dates, hours, pay and contributions. Everything the TPA does flows from it.</dd>
-      <dt>QDIA</dt><dd>Qualified default investment alternative — the fund money goes into when someone never picks (usually a target-date fund). Gives you fiduciary protection only if the annual notice went out.</dd>
-      <dt>SPD / SMM / SAR</dt><dd>Summary Plan Description (plain-language plan), Summary of Material Modifications (plain-language change), Summary Annual Report (one-page 5500 summary).</dd>
-      <dt>Form 5500-SF</dt><dd>The plan's annual return to the DOL/IRS, short form for under-100-participant plans. Filed electronically in EFAST2 with your own signer ID.</dd>
-      <dt>402(g) / 415(c) / 401(a)(17)</dt><dd>The deferral limit / the total-additions limit / the pay cap. See Limits.</dd>
-      <dt>Lost earnings</dt><dd>What late money would have earned; computed with the DOL's online calculator and deposited to the affected accounts.</dd>
-      <dt>EPCRS (SCP / VCP) and VFCP</dt><dd>The IRS and DOL correction programs. See Corrections.</dd>
-      <dt>QNEC</dt><dd>Qualified non-elective contribution — the employer-funded fix for a missed deferral, 100% vested.</dd>
-      <dt>Form 5330</dt><dd>IRS excise-tax return filed when there is a prohibited transaction such as a late deposit (15% of the lost earnings).</dd>
-      <dt>Form 5558</dt><dd>The 2½-month extension request for the 5500-SF.</dd>
-      <dt>408(b)(2) / 404a-5</dt><dd>The fee disclosures providers must give you / you must give participants.</dd>
-      <dt>LTPT</dt><dd>Long-term part-time employee — 500+ hours in two consecutive years → must be allowed to defer.</dd>
-      <dt>Vesting</dt><dd>How much of the employer money an employee keeps when they leave. Safe harbor match is always 100%.</dd>
+    <dl>${glossHTML()}
     </dl>
     <h3>Questions to settle with FuturePlan before January 1, 2027</h3>
     <ol>
@@ -1092,6 +1320,12 @@ service cloud.firestore {
     <div class="actions"><button class="btn sec sm" data-act="export">Download encrypted backup</button><button class="btn sec sm" data-act="import">Restore from backup…</button><button class="btn sec sm" data-act="exportcsv">Export calendar + deposits as CSV (readable)</button></div>
     <input type="file" id="importFile" class="hidden" accept=".json,application/json">
   </div>
+  <div class="card"><h3>Ask: AI answers <span class="chip ${(S.settings.ai && S.settings.ai.on && S.settings.ai.key) ? 'ok' : ''}">${(S.settings.ai && S.settings.ai.on && S.settings.ai.key) ? 'on' : 'off'}</span></h3>
+    <p class="small">The Ask button answers from the app itself, in this browser — nothing leaves. Turn this on for open-ended questions: your question plus a <b>redacted snapshot</b> (first name + last initial, age not birthday, no notes, no photos, no contact details) goes straight from this browser to the provider with your own key, over HTTPS. Not stored by the app beyond this session's chat. The key is saved encrypted with everything else.</p>
+    <div class="form"><div class="row"><div><label>Provider</label><select id="aiProv"><option value="gemini" ${(S.settings.ai || {}).provider === 'claude' ? '' : 'selected'}>Google Gemini</option><option value="claude" ${(S.settings.ai || {}).provider === 'claude' ? 'selected' : ''}>Anthropic Claude</option></select></div><div><label>API key</label><input id="aiKey" type="password" value="${esc((S.settings.ai || {}).key || '')}" placeholder="paste key" autocomplete="off"></div><div><label>Model (optional)</label><input id="aiModel" value="${esc((S.settings.ai || {}).provider === 'claude' ? ((S.settings.ai || {}).modelC || '') : ((S.settings.ai || {}).modelG || ''))}" placeholder="${(S.settings.ai || {}).provider === 'claude' ? 'claude-sonnet-4-5' : 'gemini-2.5-flash'}"></div></div>
+    <div class="row"><label class="check"><input type="checkbox" id="aiOn" ${(S.settings.ai || {}).on ? 'checked' : ''}> Use AI for questions the app can't answer itself</label></div>
+    <div class="actions"><button class="btn sec sm" data-act="saveai">Save</button><button class="btn sec sm" data-act="aipreview">Show exactly what would be sent</button></div></div>
+  </div>
   <div class="card"><h3>Behaviour</h3><div class="form"><div class="row"><div><label>Auto-lock after (minutes)</label><input type="number" id="setLock" value="${esc(S.settings.autoLockMin || 15)}" min="2" max="120"></div><div><label>"Due soon" window (days)</label><input type="number" id="setLook" value="${esc(S.settings.lookahead || 60)}" min="14" max="180"></div></div><div class="actions"><button class="btn sec sm" data-act="savebeh">Save</button></div></div></div>
   <div class="card"><h3>Activity</h3><div style="max-height:260px;overflow:auto">${S.log.length ? S.log.slice(0, 60).map(l => `<div class="small" style="padding:4px 0;border-bottom:1px solid var(--line)">${new Date(l.ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${esc(l.text)}</div>`).join('') : '<div class="small">—</div>'}</div></div>
   <div class="card"><h3>About</h3><p class="small">NLO 401(k) v${APP_VER}. Deadlines reflect calendar-year plan rules for plans with fewer than 100 participants as of Nov 2026 (IRS Notice 2025-67 limits; DOL 7-business-day deposit safe harbor; IRS Notice 2024-2 SECURE 2.0 amendment deadline). It is a checklist, not legal or tax advice — confirm anything with money at stake with the TPA or CPA.</p></div>
@@ -1105,6 +1339,13 @@ function wire(m) {
   wireItems(m);
   $$('[data-go]', m).forEach(b => b.onclick = e => { e.preventDefault(); route.page = b.dataset.go; render(); window.scrollTo(0, 0); });
   const on = (sel, fn) => $$(sel, m).forEach(el => el.onclick = fn);
+  on('[data-act=viewlist]', () => { route.calView = 'list'; render(); });
+  on('[data-act=viewmonth]', () => { route.calView = 'month'; render(); });
+  on('[data-act=mprev]', () => { route.month = addMonths(route.month + '-01', -1).slice(0, 7); render(); });
+  on('[data-act=mnext]', () => { route.month = addMonths(route.month + '-01', 1).slice(0, 7); render(); });
+  on('[data-act=mtoday]', () => { route.month = today().slice(0, 7); render(); });
+  on('[data-mi]', e => { const el = e.currentTarget; openItemModal(+el.dataset.my, el.dataset.mi); });
+  on('[data-mp]', e => { const p = S.people.find(x => x.id === e.currentTarget.dataset.mp); if (p) modalPerson(p); });
   on('[data-act=yprev]', () => { route.year--; render(); });
   on('[data-act=ynext]', () => { route.year++; render(); });
   const q = $('#calQ', m); if (q) q.oninput = () => { route.q = q.value; renderKeepFocus(); };
@@ -1115,7 +1356,7 @@ function wire(m) {
   /* deposits */
   on('[data-act=adddep]', () => modalDeposit());
   on('[data-act=genpay]', () => { const n = nextPayDates(12); n.forEach(d => S.deposits.push({ id: uid(), payDate: d })); act('Added ' + n.length + ' pay dates'); save(); render(); });
-  on('[data-act=latecorr]', () => { const late = depositRows().filter(r => r.cls === 'bad').map(r => fmt(r.payDate)).join(', '); S.corrections.push({ id: uid(), title: 'Late deferral deposit(s)', found: today(), period: late, type: 'VFCP (self-correction component if lost earnings ≤ $1,000 and fixed within 180 days)', status: 'open', owner: 'you', lost: '', notes: 'Pay dates: ' + late + '\n1. Deposit the deferrals if not done.\n2. DOL VFCP Online Calculator → lost earnings → deposit to each affected account.\n3. Form 5330 + 15% excise tax on lost earnings (not needed if using the VFCP self-correction component).\n4. Report on the Form 5500-SF late-deposit line.\n5. Memo to the file: what happened, what changed.', closedOn: '' }); act('Correction opened: late deposits'); save(); route.page = 'corr'; render(); });
+  on('[data-act=latecorr]', () => { const late = depositRows().filter(r => r.cls === 'bad').map(r => fmt(r.payDate)).join(', '); S.corrections.push({ id: uid(), kind: 'late', steps: {}, title: 'Late deferral deposit(s)', found: today(), period: late, type: 'VFCP (self-correction component if lost earnings ≤ $1,000 and fixed within 180 days)', status: 'open', owner: 'you', lost: '', notes: 'Pay dates: ' + late + '\n1. Deposit the deferrals if not done.\n2. DOL VFCP Online Calculator → lost earnings → deposit to each affected account.\n3. Form 5330 + 15% excise tax on lost earnings (not needed if using the VFCP self-correction component).\n4. Report on the Form 5500-SF late-deposit line.\n5. Memo to the file: what happened, what changed.', closedOn: '' }); act('Correction opened: late deposits'); save(); route.page = 'corr'; render(); });
   $$('tr[data-id]', m).forEach(tr => {
     $$('input[data-f],select[data-f]', tr).forEach(inp => inp.onchange = () => {
       const id = tr.dataset.id; const f = inp.dataset.f; const v = inp.type === 'checkbox' ? inp.checked : inp.value;
@@ -1135,11 +1376,18 @@ function wire(m) {
   on('[data-act=printnotice]', e => printNotice(S.notices.find(x => x.id === e.target.closest('tr').dataset.id)));
   /* corrections */
   on('[data-act=addcorr]', () => modalCorr());
+  on('[data-act=newkind]', e => { const k = e.currentTarget.dataset.kind; modalCorr({ kind: k, title: k === 'other' ? '' : KINDS[k], found: today(), status: 'open', owner: k === 'late' ? 'you' : 'tpa', type: k === 'late' ? 'VFCP (self-correction component if ≤ $1,000 lost earnings within 180 days)' : k === '5500' ? 'DFVCP' : k === 'notice' ? 'Send now + TPA assessment' : 'SCP (self-correction) via TPA' }); });
+  on('[data-act=memo]', e => printMemo(S.corrections.find(c => c.id === e.target.closest('.card').dataset.id)));
+  on('[data-act=closecorr]', e => { const c = S.corrections.find(x => x.id === e.target.closest('.card').dataset.id); if (!c) return; c.status = 'closed'; c.closedOn = today(); act('Closed correction: ' + c.title); save(); render(); });
+  $$('.step', m).forEach(st => { const card = st.closest('.card'); const c = S.corrections.find(x => x.id === card.dataset.id); if (!c) return; $$('[data-f]', st).forEach(inp => inp.onchange = () => { c.steps = c.steps || {}; const r = c.steps[st.dataset.step] = c.steps[st.dataset.step] || {}; const f = inp.dataset.f; r[f] = inp.type === 'checkbox' ? inp.checked : inp.value; if (f === 'done' && inp.checked && !r.date) r.date = today(); save(); render(); }); });
+  on('[data-act=lecalc]', () => { route.calc = { amt: $('#leAmt', m).value, loss: $('#leLoss', m).value, rec: $('#leRec', m).value }; render(); });
   on('[data-act=editcorr]', e => modalCorr(S.corrections.find(c => c.id === e.target.closest('.card').dataset.id)));
   /* settings */
   on('[data-act=saveplan]', () => { const f = $('#planForm', m); $$('[data-k]', f).forEach(inp => { S.plan[inp.dataset.k] = inp.type === 'checkbox' ? inp.checked : inp.value; }); const tiers = []; for (const i of [0, 1]) { const p = $(`[data-t="${i}.pct"]`, f).value, u = $(`[data-t="${i}.upto"]`, f).value; if (p !== '' && u !== '') tiers.push({ pct: +p, upto: +u }); } if (tiers.length) S.plan.matchTiers = tiers; act('Plan facts updated'); save(); $('#tbPlan').textContent = S.plan.name; toast('Plan facts saved', 'ok'); render(); });
   on('[data-act=addcontact]', () => modalContact());
   on('[data-act=editcontact]', e => modalContact(S.contacts.find(c => c.id === e.target.closest('tr').dataset.id)));
+  on('[data-act=saveai]', () => { const ai = S.settings.ai = S.settings.ai || {}; ai.provider = $('#aiProv', m).value; ai.key = $('#aiKey', m).value.trim(); const mdl = $('#aiModel', m).value.trim(); if (ai.provider === 'claude') ai.modelC = mdl || 'claude-sonnet-4-5'; else ai.modelG = mdl || 'gemini-2.5-flash'; ai.on = $('#aiOn', m).checked && !!ai.key; act('AI answers ' + (ai.on ? 'turned on (' + ai.provider + ')' : 'turned off')); save(); toast(ai.on ? 'AI answers on' : 'AI answers off — the Ask button uses the app only', 'ok'); render(); askRefreshMode(); });
+  on('[data-act=aipreview]', () => openModal(`<h3>What the AI would receive</h3><p class="small" style="margin-bottom:8px">Your question goes after this. Nothing else.</p><div class="mono" style="max-height:60vh;overflow:auto">${esc(aiSnapshot())}</div><div class="actions"><button class="btn sec" type="button" onclick="closeModal()">Close</button></div>`));
   on('[data-act=savebeh]', () => { S.settings.autoLockMin = Math.max(2, +$('#setLock', m).value || 15); S.settings.lookahead = Math.max(14, +$('#setLook', m).value || 60); save(); toast('Saved', 'ok'); render(); });
   on('[data-act=export]', exportBackup);
   on('[data-act=exportcsv]', exportCSV);
@@ -1194,12 +1442,13 @@ function modalNotice() {
 function modalCorr(c) {
   c = c || {}; const edit = !!c.id;
   openModal(`<h3>${edit ? 'Edit' : 'New'} correction</h3><form class="form" id="mf">
+    <div class="row">${fld('Kind', `<select name="kind">${Object.keys(KINDS).map(k => `<option value="${k}" ${(c.kind || 'other') === k ? 'selected' : ''}>${esc(KINDS[k])}</option>`).join('')}</select>`, 'Picks the step-by-step playbook.')}</div>
     ${fld('What went wrong', `<input name="title" value="${esc(c.title || '')}" required>`)}
     <div class="row">${fld('Period affected', `<input name="period" value="${esc(c.period || '')}" placeholder="e.g. 2022 – 2026">`)}${fld('Found on', `<input type="date" name="found" value="${esc(c.found || today())}">`)}${fld('Status', `<select name="status"><option value="open" ${c.status === 'open' ? 'selected' : ''}>Open</option><option value="in progress" ${c.status === 'in progress' ? 'selected' : ''}>In progress</option><option value="closed" ${c.status === 'closed' ? 'selected' : ''}>Closed</option></select>`)}</div>
     <div class="row">${fld('Correction method', `<input name="type" value="${esc(c.type || '')}" placeholder="SCP / VCP / VFCP / late deposit">`)}${fld('Who is handling it', ownerSel('owner', c.owner || 'tpa'))}${fld('Lost earnings / cost ($)', `<input type="number" step="0.01" name="lost" value="${esc(c.lost || '')}">`)}${fld('Closed on', `<input type="date" name="closedOn" value="${esc(c.closedOn || '')}">`)}</div>
     ${fld('Notes / steps', `<textarea name="notes" style="min-height:140px">${esc(c.notes || '')}</textarea>`)}
     <div class="actions"><button class="btn" type="submit">Save</button><button class="btn sec" type="button" data-x="cancel">Cancel</button>${edit ? '<button class="btn sec" type="button" data-x="del" style="margin-left:auto;color:var(--coral)">Delete</button>' : ''}</div></form>`);
-  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const d = formData(f); if (edit) Object.assign(c, d); else S.corrections.push(Object.assign({ id: uid() }, d)); act((edit ? 'Updated' : 'Opened') + ' correction: ' + d.title); save(); closeModal(); render(); };
+  const f = $('#mf'); f.onsubmit = e => { e.preventDefault(); const d = formData(f); if (edit) Object.assign(c, d); else S.corrections.push(Object.assign({ id: uid(), steps: {} }, d)); act((edit ? 'Updated' : 'Opened') + ' correction: ' + d.title); save(); closeModal(); render(); };
   $('[data-x=cancel]', f).onclick = closeModal; const del = $('[data-x=del]', f); if (del) del.onclick = () => { if (!confirm('Delete this correction?')) return; S.corrections = S.corrections.filter(x => x.id !== c.id); save(); closeModal(); render(); };
 }
 function modalContact(c) {
@@ -1269,6 +1518,180 @@ function showImportPreview(rows) {
   f.onsubmit = e => { e.preventDefault(); const picked = rows.filter((r, i) => f['r' + i] && f['r' + i].checked); if (!picked.length) { closeModal(); return; } const res = shApply(picked); act(`Imported from Staff Hub: ${res.added} added, ${res.updated} updated`); save(); closeModal(); render(); toast(`${res.added} added, ${res.updated} updated. Now add each person's deferral % from Paychex.`, 'ok', 7000); };
   $('[data-x=cancel]', f).onclick = closeModal;
 }
+
+/* =========================================================================================
+   ASK — answers from the app (local), with optional AI for open questions
+   ========================================================================================= */
+let askHist = [];
+const askNorm = q => String(q || '').toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, ' ').trim();
+const has = (q, ...ws) => ws.some(w => q.includes(w));
+const goBtn = (page, label, extra) => `<button data-go-page="${page}" ${extra || ''}>${esc(label)}</button>`;
+function fmtItemLine(i) { const t = today(); const st = i.status === 'done' ? 'done' : i.status === 'na' ? 'N/A' : i.status === 'waiting' ? 'waiting on ' + (OWNER[i.owner] || '') : i.due < t ? Math.abs(daysBetween(t, i.due)) + ' days overdue' : 'in ' + daysBetween(t, i.due) + ' days'; return `<li><b>${fmtShort(i.due)}</b> — ${esc(i.title)} <span class="small">(${esc(OWNER[i.owner] || i.owner)} · ${esc(st)})</span></li>`; }
+function personCard(p) {
+  const st = personStatus(p), a = age(p.dob), L = limitsFor(new Date().getFullYear()); const ed = entryDateFor(p);
+  const bits = [];
+  bits.push(`<b>${esc(p.first)} ${esc(p.last)}</b>${p.role ? ' · ' + esc(p.role) : ''}`);
+  bits.push(`Status: ${esc(st.label)}`);
+  if (p.hired) bits.push(`Hired ${fmt(p.hired)}${ed ? ' · entry date ' + fmt(ed) : ''}`);
+  if (a != null) bits.push(`Age ${a}${a >= 50 ? ' · catch-up ' + money(a >= 60 && a <= 63 ? L.super : L.catchup) : ''}`);
+  if (st.k === 'active') bits.push(`Deferral ${pct(p.deferral)} ${p.deferralType === 'roth' ? 'Roth' : p.deferralType === 'mixed' ? 'pre-tax + Roth' : 'pre-tax'} → match ${pct(matchFor(p.deferral))} of pay`);
+  if (p.electionDate) bits.push(`Election dated ${fmt(p.electionDate)}`);
+  if (p.owner) bits.push('Owner / key employee');
+  if (p.parttime) bits.push('Part-time — check the 500-hour rule each year');
+  if (p.termed || p.termedUnknown) bits.push(`Left${p.termed ? ' ' + fmt(p.termed) : ' (date not entered)'}${p.balance ? ' · still has a balance' : ''}`);
+  if (p.notes) bits.push(`<span class="small">${esc(p.notes)}</span>`);
+  return `<p>${bits.join('<br>')}</p><div class="go">${goBtn('people', 'Open People')}</div>`;
+}
+function monthFromQ(q) { const ms = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']; for (let i = 0; i < 12; i++) if (q.includes(ms[i]) || q.includes(ms[i].slice(0, 3) + ' ') || q.endsWith(ms[i].slice(0, 3))) return i; return null; }
+function yearFromQ(q) { const m = /\b(20\d\d)\b/.exec(q); return m ? +m[1] : null; }
+
+function localAnswer(qRaw) {
+  const q = askNorm(qRaw); const t = today(); const y = yearFromQ(q) || new Date().getFullYear(); const A = alerts();
+  if (!q) return null;
+  /* a person by name */
+  const person = S.people.find(p => (p.first && q.includes(askNorm(p.first))) || (p.last && p.last.length > 2 && q.includes(askNorm(p.last))));
+  if (person && !has(q, 'everyone', 'all ')) return { html: personCard(person) };
+  /* "what is a …" → the glossary wins */
+  if (/^(what is|what's|whats|what are|define|meaning of|explain|what does)\b/.test(q) && !has(q, 'due', 'deadline', 'limit', 'election', 'status')) {
+    for (const g of GLOSS) { if (g[1].some(w => q.includes(w))) return { html: `<p><b>${esc(g[0])}</b><br>${g[2]()}</p><div class="go">${goBtn('guide', 'Open the Guide')}</div>` }; }
+  }
+  /* a specific calendar item (before the generic "what's due" list) */
+  const KEYS = [['5500', ['5500', 'annual return', 'efast']], ['shnotice', ['safe harbor notice', 'harbor notice', 'december notice', 'dec 1']], ['qdia', ['qdia']], ['sar', ['summary annual', ' sar']], ['census', ['census']], ['bond', ['bond']], ['testing', ['testing', 'test result']], ['secure2', ['secure', 'amendment']], ['feedisc', ['fee disclosure', '404a']], ['408b2', ['408']], ['1099r', ['1099', ' 945']], ['w2', ['w-2', 'w2', 'box 12']], ['rmd', ['rmd', 'minimum distribution']], ['smm', ['smm', 'material modification']], ['ltpt', ['part-time', 'part time', '500 hour', 'ltpt']], ['handoff', ['hand-off', 'handoff', 'futureplan', 'transition']], ['limits', ['limits into payroll', 'load the limits']], ['fidreview', ['fiduciary review', 'review the funds', 'fund review']], ['ercontrib', ['deductib', 'tax return', 'employer contribution deadline']], ['forfeit', ['forfeit']], ['enrolldrive', ['open enrollment', 'beneficiar']], ['hce', ['hce list', 'key employee list']]];
+  for (const [id, ws] of KEYS) { if (ws.some(w => q.includes(w))) { const its = yearItems(y).filter(i => i.id === id); if (!its.length) continue; const i = its[0]; return { html: `<p><b>${esc(i.title)}</b><br>Due <b>${fmt(i.due)}</b>${i.start ? ' (window opens ' + fmtShort(i.start) + ')' : ''} · ${esc(OWNER[i.owner] || i.owner)} · status: ${esc(i.status === 'na' ? 'N/A' : i.status)}${i.doneOn ? ' ' + fmtShort(i.doneOn) : ''}</p><p><b>Why.</b> ${esc(i.why)}</p><p><b>What to do.</b> ${i.how}</p><div class="go">${goBtn('cal', 'Open in calendar', `data-go-year="${y}"`)}</div>` }; } }
+  /* calendar: month / this month / next / overdue / due */
+  const mo = monthFromQ(q);
+  if (mo != null || has(q, 'this month', 'next month', 'due', 'deadline', 'overdue', 'coming up', 'what\'s next', 'whats next', 'upcoming', 'to do', 'todo', 'what do i need')) {
+    let items, label;
+    if (mo != null) { const yy = yearFromQ(q) || (mo < new Date().getMonth() ? new Date().getFullYear() + 1 : new Date().getFullYear()); items = yearItems(yy).filter(i => parse(i.due).getMonth() === mo); label = new Date(yy, mo, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); }
+    else if (has(q, 'next month')) { const d = addMonths(t.slice(0, 7) + '-01', 1); const yy = +d.slice(0, 4), mm = +d.slice(5, 7) - 1; items = yearItems(yy).filter(i => parse(i.due).getMonth() === mm); label = parse(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); }
+    else if (has(q, 'this month')) { const mm = new Date().getMonth(); items = yearItems(y).filter(i => parse(i.due).getMonth() === mm); label = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); }
+    else if (has(q, 'overdue')) { items = A.overdue; label = 'overdue'; }
+    else { items = A.overdue.concat(A.soon); label = 'overdue or due in the next ' + (S.settings.lookahead || 60) + ' days'; }
+    const open = items.filter(i => i.status === 'todo' || i.status === 'waiting');
+    const extra = []; if (A.lateDeps.length) extra.push(`<li><b>${A.lateDeps.length} late or unlogged deposit${A.lateDeps.length > 1 ? 's' : ''}</b> — see Deposits</li>`); if (A.noElection.length) extra.push(`<li><b>${A.noElection.map(p => p.first).join(', ')}</b> — eligible, no election on file</li>`);
+    return { html: `<p><b>${open.length}</b> open item${open.length === 1 ? '' : 's'} ${esc(label)}${items.length - open.length ? ` (${items.length - open.length} already done/N/A)` : ''}:</p><ul>${open.map(fmtItemLine).join('') || '<li>Nothing open.</li>'}${label.startsWith('overdue') || label.startsWith('overdue or') ? extra.join('') : ''}</ul><div class="go">${goBtn('cal', 'Open calendar')}</div>` };
+  }
+  /* people lists */
+  if (has(q, 'not enrolled', 'no election', 'hasn\'t enrolled', 'havent enrolled', 'haven\'t enrolled', 'not participating', 'waived', 'who is not', 'who isn\'t', 'who hasn')) {
+    const list = S.people.filter(p => !gone(p) && ['noelection', 'waived'].includes(personStatus(p).k));
+    return { html: `<p>${list.length ? list.length + ' eligible without an active deferral:' : 'Everyone eligible has an election on file.'}</p><ul>${list.map(p => `<li><b>${esc(p.first)} ${esc(p.last)}</b> — ${esc(personStatus(p).label)}</li>`).join('')}</ul>${list.some(p => personStatus(p).k === 'noelection') ? '<p class="small">"No election on file" means you need a signed election or 0% waiver from them — otherwise it looks like a missed deferral opportunity.</p>' : ''}<div class="go">${goBtn('people', 'Open People')}</div>` };
+  }
+  if (has(q, 'eligible', 'who can join', 'entry date', 'becomes eligible', 'newly')) {
+    const act_ = S.people.filter(p => !gone(p)); const pend = act_.filter(p => personStatus(p).k === 'pending').sort((a, b) => entryDateFor(a) < entryDateFor(b) ? -1 : 1); const inn = act_.filter(p => !['pending', 'unknown'].includes(personStatus(p).k));
+    return { html: `<p><b>${inn.length}</b> eligible now${pend.length ? `; <b>${pend.length}</b> not yet:` : '.'}</p><ul>${pend.map(p => `<li><b>${esc(p.first)} ${esc(p.last)}</b> — eligible ${fmt(entryDateFor(p))}</li>`).join('')}</ul><p class="small">Eligible now: ${inn.map(p => esc(p.first)).join(', ') || '—'}</p><div class="go">${goBtn('people', 'Open People')}</div>` };
+  }
+  if (has(q, 'who defers', 'participating', 'who is in', 'everyone', 'all staff', 'elections', 'list people', 'roster')) {
+    const list = S.people.filter(p => !gone(p)).sort((a, b) => (a.last + a.first).localeCompare(b.last + b.first));
+    return { html: `<ul>${list.map(p => { const st = personStatus(p); return `<li><b>${esc(p.first)} ${esc(p.last)}</b> — ${esc(st.label)}</li>`; }).join('')}</ul><div class="go">${goBtn('people', 'Open People')}</div>` };
+  }
+  if (has(q, 'terminated', 'former', 'who left', 'has a balance')) {
+    const list = S.people.filter(p => gone(p));
+    return { html: `<p>${list.length ? 'Former employees on record:' : 'No former employees on record.'}</p><ul>${list.map(p => `<li><b>${esc(p.first)} ${esc(p.last)}</b>${p.termed ? ' — left ' + fmt(p.termed) : ''}${p.balance ? ' · still has a balance (stays on the SAR/notice list)' : ''}</li>`).join('')}</ul>` };
+  }
+  /* deposits */
+  if (has(q, 'deposit', 'pay date', 'payday', 'pay day', 'payroll date', '7 business', 'seven business')) {
+    const rows = depositRows(); const late = rows.filter(r => r.cls === 'bad'), pend = rows.filter(r => r.cls === 'warn'); const cand = rows.filter(r => r.payDate >= t).map(r => r.payDate).concat(nextPayDates(1)).filter(Boolean).sort(); const nextPay = cand[0];
+    return { html: `<p>${rows.length} pay dates logged · <b>${rows.filter(r => r.cls === 'ok').length}</b> on time · <b>${late.length}</b> late/unlogged · ${pend.length} pending.</p>${late.length ? `<ul>${late.map(r => `<li><b>${fmt(r.payDate)}</b> — ${esc(r.st)}${r.depositedOn ? ' (deposited ' + fmtShort(r.depositedOn) + ', ' + r.days + ' business days)' : ''}</li>`).join('')}</ul>` : ''}${nextPay ? `<p>Next pay date ${fmt(nextPay)} → deferrals due at Vanguard by <b>${fmt(addBiz(nextPay, 7))}</b>.</p>` : ''}<p class="small">Rule: within 7 business days of the pay date (small-plan safe harbor), federal holidays excluded.</p><div class="go">${goBtn('deposits', 'Open Deposits')}</div>` };
+  }
+  /* limits */
+  if (has(q, 'limit', 'maximum', 'max ', 'how much can', 'contribute', 'catch-up', 'catch up', 'catchup', '402', '415', 'compensation cap', 'hce threshold', 'key employee threshold')) {
+    const L = limitsFor(y);
+    return { html: `<p><b>${y} limits</b></p><ul><li>Employee deferral: <b>${money(L.deferral)}</b></li><li>Catch-up, 50+: <b>${money(L.catchup)}</b> · ages 60–63: <b>${money(L.super)}</b></li><li>Total additions (deferral + match): ${money(L.annual)}</li><li>Compensation cap: ${money(L.comp)}</li><li>HCE threshold: ${money(L.hce)} · key employee (officer): ${money(L.key)}</li><li>Roth-only catch-up if prior-year FICA wages over ${money(L.rothCatch)}</li></ul><div class="go">${goBtn('limits', 'All limits')}</div>` };
+  }
+  /* match */
+  if (has(q, 'match')) { const m = /(\d+(?:\.\d+)?)\s*%/.exec(q); const d = m ? +m[1] : null; return { html: `<p><b>${esc(S.plan.matchFormula)}</b>${d != null ? `<br>Deferring ${d}% → match <b>${pct(matchFor(d))}</b> of pay.` : ''}</p><p>2% → ${pct(matchFor(2))} · 4% → ${pct(matchFor(4))} · 6% → ${pct(matchFor(6))}. Safe harbor match is 100% vested and must be in the plan by the end of the quarter after it's earned.</p>${A.corr.length ? `<p class="small">Open correction: ${esc(A.corr[0].title)}</p>` : ''}` }; }
+  /* contacts / plan facts */
+  if (has(q, 'contact', 'phone', 'email', 'who is my tpa', 'who is the tpa', 'recordkeeper', 'vanguard', 'ascensus', 'futureplan', 'angela', 'plan id', 'plan number', 'ein')) {
+    return { html: `<p><b>${esc(S.plan.name)}</b>${S.plan.planId ? ' · Plan ID ' + esc(S.plan.planId) : ''}</p><ul>${S.contacts.map(c => `<li><b>${esc(c.name || c.org)}</b>${c.name ? ' — ' + esc(c.org) : ''}${c.role ? ' · ' + esc(c.role) : ''}${c.phone ? '<br>' + esc(c.phone) : ''}${c.email ? ' · <a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : ''}</li>`).join('')}</ul><div class="links">${extLink(S.plan.rkSponsorUrl, 'Vanguard sponsor site')}${extLink(S.plan.rkParticipantUrl, 'Participant site')}</div>` };
+  }
+  if (has(q, 'eligibility rule', 'how long until', 'months of service', 'waiting period', 'when can someone join', 'plan rules', 'plan facts')) {
+    const P = S.plan; return { html: `<p>Eligibility: age ${esc(P.eligAge)}, ${esc(P.eligMonths)} months of service${P.eligHours ? ' (' + esc(P.eligHours) + ' hours)' : ''}; entry ${esc(P.entry)}.<br>Match: ${esc(P.matchFormula)}.<br>Roth: ${P.rothAllowed === false ? 'no' : 'yes'} · Loans: ${P.loans ? 'yes' : 'no'} · Auto-enroll: ${P.autoEnroll ? 'yes' : 'no'}.<br>Plan year: calendar · TPA: ${esc(P.tpa)}${P.tpaFrom2027 ? ' → ' + esc(P.tpaFrom2027) + ' from 2027' : ''} · Recordkeeper: ${esc(P.rk)}.</p><div class="go">${goBtn('settings', 'Edit plan facts')}</div>` };
+  }
+  /* corrections */
+  if (has(q, 'correction', 'mistake', 'error', 'wrong', 'fix', '3%')) {
+    return { html: `<p>${A.corr.length ? A.corr.length + ' open correction' + (A.corr.length > 1 ? 's' : '') + ':' : 'No open corrections.'}</p><ul>${A.corr.map(c => { const pr = corrProgress(c); return `<li><b>${esc(c.title)}</b> — ${esc(c.period || '')} · ${esc(c.status)} · ${pr.done}/${pr.total} steps done</li>`; }).join('')}</ul><div class="go">${goBtn('corr', 'Open Corrections')}</div>` };
+  }
+  /* notices log */
+  if (has(q, 'did we send', 'was sent', 'notice log', 'when was', 'last sent', 'sent the')) {
+    const log = S.notices.slice().sort((a, b) => a.sentOn < b.sentOn ? 1 : -1);
+    return { html: `<p>${log.length ? 'Last logged notices:' : 'No notices logged yet.'}</p><ul>${log.slice(0, 8).map(l => { const n = NOTICES.find(x => x.id === l.type) || { name: l.type }; return `<li><b>${fmt(l.sentOn)}</b> — ${esc(n.name)} for ${esc(l.planYear || '')} · ${esc(l.method)} · ${l.recipients === 'all' ? 'all' : (l.recipients || []).length + ' people'}</li>`; }).join('')}</ul><div class="go">${goBtn('notices', 'Open Notices')}</div>` };
+  }
+  /* fiduciary file */
+  if (has(q, 'fiduciary file', 'documents do i need', 'what documents', 'plan document', 'missing document')) {
+    const miss = DOCS.filter(d => !(S.docs[d[0]] || {}).have); return { html: `<p>${DOCS.length - miss.length}/${DOCS.length} documents located. Missing:</p><ul>${miss.slice(0, 12).map(d => `<li>${esc(d[1])}</li>`).join('')}</ul><div class="go">${goBtn('docs', 'Open Fiduciary file')}</div>` };
+  }
+  /* how-tos */
+  for (const f of FAQ) { if (f.k.every(k => q.includes(k)) || (f.alt || []).some(a => q.includes(a))) return { html: `<p><b>${esc(f.t)}</b></p>${f.a()}` }; }
+  /* glossary */
+  for (const g of GLOSS) { if (g[1].some(w => q.includes(w))) return { html: `<p><b>${esc(g[0])}</b><br>${g[2]()}</p><div class="go">${goBtn('guide', 'Open the Guide')}</div>` }; }
+  if (has(q, 'help', 'what can you', 'how does this work')) return { html: `<p>Ask me things like:</p><ul><li>what's due this month / in December / overdue</li><li>who hasn't enrolled · who is eligible · everyone's elections</li><li>a person's name</li><li>when is the 5500 due · safe harbor notice · SAR · census</li><li>late deposits · next pay date</li><li>2026 limits · catch-up</li><li>what is a QDIA · what is top-heavy</li><li>an employee wants to change their deferral · someone left · a deposit was late</li></ul>` };
+  return null;
+}
+
+/* ---------- AI (optional) ---------- */
+function aiCfg() { return Object.assign({ on: false, provider: 'gemini', key: '', modelG: 'gemini-2.5-flash', modelC: 'claude-sonnet-4-5' }, S.settings.ai || {}); }
+function aiReady() { const c = aiCfg(); return !!(c.on && c.key); }
+function aiSnapshot() {
+  const t = today(), y = new Date().getFullYear(), P = S.plan, L = limitsFor(y), L2 = limitsFor(y + 1);
+  const lines = [];
+  lines.push(`TODAY: ${t}. PLAN: ${P.name}${P.planId ? ' (ID ' + P.planId + ')' : ''}; sponsor ${P.sponsor}; calendar plan year; under 100 participants; taxed as ${P.entityTax}.`);
+  lines.push(`DESIGN: safe harbor ${P.shType}; match "${P.matchFormula}"; eligibility age ${P.eligAge}, ${P.eligMonths} months${P.eligHours ? ' / ' + P.eligHours + ' hrs' : ''}, entry ${P.entry}; Roth ${P.rothAllowed === false ? 'no' : 'yes'}; loans ${P.loans ? 'yes' : 'no'}; auto-enroll ${P.autoEnroll ? 'yes' : 'no'}; QDIA ${P.qdia === false ? 'no' : 'yes'}; plan expenses paid by ${P.feesPaidBy}; fidelity bond ${P.bondAmount ? money(P.bondAmount) : 'not entered'}; pay frequency ${P.payFreq}.`);
+  lines.push(`VENDORS: recordkeeper ${P.rk}; TPA ${P.tpa}${P.tpaFrom2027 ? ' (from 1/1/2027: ' + P.tpaFrom2027 + ')' : ''}; payroll Paychex.`);
+  lines.push(`LIMITS ${y}: deferral ${money(L.deferral)}, catch-up ${money(L.catchup)}, 60-63 ${money(L.super)}, 415c ${money(L.annual)}, comp cap ${money(L.comp)}, HCE ${money(L.hce)}, key ${money(L.key)}, Roth-catch-up wage threshold ${money(L.rothCatch)}. ${y + 1}: deferral ${money(L2.deferral)}, catch-up ${money(L2.catchup)}.`);
+  lines.push('CALENDAR (due | item | owner | status):');
+  for (const i of yearItems(y).concat(yearItems(y + 1))) lines.push(`  ${i.due} | ${i.title} | ${OWNER[i.owner] || i.owner} | ${i.status}${i.doneOn ? ' ' + i.doneOn : ''}`);
+  lines.push('PEOPLE (redacted — first name + last initial; ages, no birthdays):');
+  for (const p of S.people) { const st = personStatus(p), a = age(p.dob), ed = entryDateFor(p); lines.push(`  ${p.first} ${(p.last || '')[0] || ''}. | ${p.role || ''} | hired ${p.hired || '?'} | entry ${ed || '?'} | age ${a == null ? '?' : a} | ${st.label} | ${p.owner ? 'owner/key' : ''}${p.parttime ? ' part-time' : ''}${gone(p) ? ' LEFT' + (p.termed ? ' ' + p.termed : '') + (p.balance ? ' has balance' : '') : ''}`); }
+  const rows = depositRows(); lines.push(`DEPOSITS: ${rows.length} pay dates logged; ${rows.filter(r => r.cls === 'ok').length} on time; ${rows.filter(r => r.cls === 'bad').length} late/unlogged; ${rows.filter(r => r.cls === 'warn').length} pending.` + (rows.filter(r => r.cls === 'bad').length ? ' Late: ' + rows.filter(r => r.cls === 'bad').map(r => r.payDate + (r.depositedOn ? ' (deposited ' + r.depositedOn + ')' : ' (not logged)')).join(', ') : ''));
+  lines.push('CORRECTIONS: ' + (S.corrections.map(c => `${c.title} [${c.period || ''}; ${c.type || ''}; ${c.status}]`).join(' || ') || 'none'));
+  lines.push('NOTICE LOG: ' + (S.notices.map(l => `${l.sentOn} ${(NOTICES.find(x => x.id === l.type) || {}).name || l.type} for ${l.planYear || ''} via ${l.method}`).join('; ') || 'none logged'));
+  lines.push('FIDUCIARY FILE located: ' + (DOCS.filter(d => (S.docs[d[0]] || {}).have).map(d => d[1]).join('; ') || 'nothing ticked yet'));
+  lines.push('CONTACTS: ' + S.contacts.map(c => `${c.name || ''} (${c.org}${c.role ? ', ' + c.role : ''})`).join('; '));
+  lines.push('GLOSSARY: ' + GLOSS.map(g => g[0] + ' = ' + g[2]().replace(/<[^>]+>/g, '')).join(' | '));
+  return lines.join('\n');
+}
+const AI_SYSTEM = `You are the plan-administration assistant inside "NLO 401(k)", an app Dr. Amir Akhavan (orthodontist, plan sponsor and plan administrator of a small safe-harbor 401(k) in Florida) uses to run the plan. Answer his question using the SNAPSHOT below plus general knowledge of ERISA/IRS rules for small calendar-year safe harbor plans. Be concise and concrete (a few sentences or a short list), name dates and people from the snapshot when relevant, say plainly when something should be confirmed with the TPA or CPA, and never invent plan facts that are not in the snapshot. Do not give legal or tax advice beyond what a careful TPA would say. Use plain English; no markdown headings.`;
+async function aiAnswer(question) {
+  const cfg = aiCfg(); const snap = aiSnapshot();
+  const prompt = AI_SYSTEM + '\n\nSNAPSHOT:\n' + snap + '\n\nQUESTION: ' + question;
+  let r, j;
+  if (cfg.provider === 'claude') {
+    r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify({ model: cfg.modelC || 'claude-sonnet-4-5', max_tokens: 900, messages: [{ role: 'user', content: prompt }] }) });
+    j = await r.json().catch(() => ({})); if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+    return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+  }
+  r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.modelG || 'gemini-2.5-flash') + ':generateContent?key=' + encodeURIComponent(cfg.key), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1024, temperature: 0.2 } }) });
+  j = await r.json().catch(() => ({})); if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+  const cand = (j.candidates || [])[0]; return cand && cand.content && cand.content.parts ? cand.content.parts.map(p => p.text || '').join('').trim() : '';
+}
+function textToHTML(txt) { return esc(txt).split(/\n{2,}/).map(par => '<p>' + par.replace(/\n/g, '<br>') + '</p>').join(''); }
+
+/* ---------- panel ---------- */
+const ASK_SUGG = ["What's due this month?", 'Who hasn\'t enrolled?', 'Any late deposits?', 'When is the 5500 due?', '2026 limits', 'An employee wants to change her deferral'];
+function askRefreshMode() { const m = $('#askMode'); if (m) m.textContent = aiReady() ? 'app + ' + (aiCfg().provider === 'claude' ? 'Claude' : 'Gemini') : 'answers from the app'; const f = $('#askFoot'); if (f) f.innerHTML = aiReady() ? `Answers marked <b>AI</b> were produced by ${aiCfg().provider === 'claude' ? 'Claude' : 'Gemini'} from a redacted snapshot sent from this browser with your key. Everything else is computed here and never leaves. Not legal or tax advice.` : 'Everything answered here is computed in this browser from the app\'s data — nothing is sent anywhere. For open-ended questions, turn on AI answers in Settings.'; }
+function askOpen(on) { const p = $('#askPanel'); p.classList.toggle('open', on !== false); if (on !== false) { askRefreshMode(); renderSugg(); if (!askHist.length) askBot('<p>Hi Dr. A. Ask me about deadlines, people, deposits, limits or what a term means — try one of the questions below.</p>', 'app'); setTimeout(() => $('#askIn').focus(), 120); } }
+function renderSugg() { $('#askSugg').innerHTML = ASK_SUGG.map(s => `<button type="button">${esc(s)}</button>`).join(''); $$('#askSugg button').forEach(b => b.onclick = () => { $('#askIn').value = b.textContent; askSubmit(); }); }
+function askMsg(cls, html) { const log = $('#askLog'); const el = document.createElement('div'); el.className = 'msg ' + cls; el.innerHTML = html; log.appendChild(el); log.scrollTop = log.scrollHeight; return el; }
+function askBot(html, src) { const el = askMsg('bot', `<span class="src ${src === 'ai' ? 'ai' : ''}">${src === 'ai' ? 'AI · ' + (aiCfg().provider === 'claude' ? 'Claude' : 'Gemini') : 'From the app'}</span>${html}`); $$('[data-go-page]', el).forEach(b => b.onclick = () => { route.page = b.dataset.goPage; if (b.dataset.goYear) route.year = +b.dataset.goYear; render(); window.scrollTo(0, 0); if (window.innerWidth < 760) askOpen(false); }); askHist.push({ role: 'bot', src, html }); return el; }
+async function askSubmit(e) {
+  if (e) e.preventDefault();
+  const q = $('#askIn').value.trim(); if (!q) return; $('#askIn').value = '';
+  askMsg('me', esc(q)); askHist.push({ role: 'me', q });
+  let local = null; try { local = localAnswer(q); } catch (err) { console.error(err); }
+  if (local) { const el = askBot(local.html, 'app'); if (aiReady()) { const b = document.createElement('div'); b.className = 'go'; b.innerHTML = '<button type="button">Ask the AI instead</button>'; b.firstChild.onclick = () => { b.remove(); askAI(q); }; el.appendChild(b); } return; }
+  if (aiReady()) return askAI(q);
+  askBot(`<p>I couldn't match that to anything in the app. I can answer about deadlines, people and eligibility, deposits, limits, the match, contacts, corrections, notices, the fiduciary file, and what a term means — or turn on <b>AI answers</b> in Settings for open-ended questions.</p><div class="go">${goBtn('settings', 'Open Settings')}${goBtn('guide', 'Read the Guide')}</div>`, 'app');
+}
+async function askAI(q) {
+  const th = askMsg('bot think', 'Thinking…');
+  try { const a = await aiAnswer(q); th.remove(); askBot(textToHTML(a || 'No answer came back.'), 'ai'); act('AI question asked'); }
+  catch (err) { th.remove(); askBot(`<p>AI call failed: ${esc(err.message || err)}. Check the key in Settings.</p>`, 'app'); }
+}
+$('#btnAsk').onclick = () => askOpen(!$('#askPanel').classList.contains('open'));
+$('#askClose').onclick = () => askOpen(false);
+$('#askNew').onclick = () => { askHist = []; $('#askLog').innerHTML = ''; askOpen(true); };
+$('#askForm').addEventListener('submit', askSubmit);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#askPanel').classList.contains('open') && !$('#modalBg').classList.contains('on')) askOpen(false); });
 
 /* ---------- printable distribution record ---------- */
 function printNotice(l) {
