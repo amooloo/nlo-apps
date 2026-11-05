@@ -133,8 +133,13 @@ const cfg = A.arCfg({});
     eq(A.kpis(RI, cfg1).pt.n, 3, 'an Inactive account past due isn’t one of the active accounts (collections, not the goal)');
     ok(A.kpis(Object.assign({}, RG, { cover: { full: false, pastDue: true, credit: true, ins: true } }), cfg) === null && A.kpis(Object.assign({}, RG, { cover: Object.assign({}, RG.cover, { ins: false }) }), cfg).ins === null, 'no goals from a partial report; no insurance goal without insurance contracts');
     eq(A.kpis(R, cfg).pt.of, 7, 'an older report without the active count uses the patient account count');
-    eq(A.reportTotals(RG, cfg).kp, { ptOf: 50, ptPd: 3, ptPd30: 2, insOf: 25, insLate: 1, win: 60 }, 'each saved report keeps the goal counts (both ways of counting) for the trend');
-    eq(A.normSum(A.reportTotals(RG, cfg)).kp, { ptOf: 50, ptPd: 3, ptPd30: 2, insOf: 25, insLate: 1, win: 60 }, '…and they’re read back checked');
+    eq(A.reportTotals(RG, cfg).kp, { ptOf: 50, ptPd: 3, ptPd30: 2, ptFee: 0, ptFee30: 0, insOf: 25, insLate: 1, win: 60 }, 'each saved report keeps the goal counts (both ways of counting) for the trend');
+    eq(A.normSum(A.reportTotals(RG, cfg)).kp, { ptOf: 50, ptPd: 3, ptPd30: 2, ptFee: 0, ptFee30: 0, insOf: 25, insLate: 1, win: 60 }, '…and they’re read back checked');
+    // accounts tagged as a missed-appointment fee (P2's $200 past due is one, say) are left out of the patient count
+    const exclP2 = new Set([A.acctKey(row({ patient: 'P2' }))]), kf = A.kpis(RG, cfg1, exclP2), kf30 = A.kpis(RG, cfg, exclP2);
+    eq([kf.pt.n, kf.fee, kf.pt.rate, kf30.pt.n, kf30.fee, kf30.pt.ok, kf.ins.n], [2, 1, 0.04, 1, 1, true, 1], 'an account tagged as a missed-appointment fee doesn’t count as delinquent (both ways of counting); insurance is as before');
+    eq(A.reportTotals(RG, cfg, null, exclP2).kp, { ptOf: 50, ptPd: 3, ptPd30: 2, ptFee: 1, ptFee30: 1, insOf: 25, insLate: 1, win: 60 }, 'the sealed totals keep every past-due account and say how many were tagged, so old and new reports read alike');
+    eq(A.normSum({ kp: { ptOf: 50, ptPd: 3, ptPd30: 2, insOf: 25, insLate: 1, win: 60 } }).kp.ptFee, 0, 'a report saved before the tags reads back with none tagged');
 
     section('What changed since the report before');
     const prev = { asOf: '2026-09-28', cover: R.cover, rows: [row({ patient: 'P2', due: 100, b0: 100, bal: 1100 }), row({ patient: 'P9', due: 75, b0: 75 }), row({ patient: 'I1', rp: 'INS: A', due: 33.33, b0: 11.11, b30: 11.11, b60: 11.11, days: 60 }),
@@ -515,6 +520,72 @@ const cfg = A.arCfg({});
     eq(icr.stage, 'plan', 'a credit review logged on it keeps it on the arrangement too');
   }
 
+  section('Missed-appointment fees (Past due → Missed-appt fees)');
+  {
+    const at = (y, m, d, h) => new Date(y, m - 1, d, h || 10).getTime(), asOf = '2026-11-03', T = '2026-11-05', who = s => ({ sarah: 'Sarah', amir: 'Dr. A' })[s] || '';
+    const fa = o => A.acctOf(row(Object.assign({ bal: 2100, recv: '2026-10-20', lastAmt: 199 }, o)), cfg, asOf), en = (it, e) => A.edgeNoteOf(it, e, who, '');
+    // which past-due amounts are a fee (or two)
+    eq([100, 50, 150, 200, 250, 300, 99.99, 0].map(v => A.feeSplit(v, cfg)), [[100], [50], [100, 50], [100, 100], null, null, null, null], 'the office’s fees ($50, $100): one of them, or two added up — nothing else');
+    eq(A.feeSplit(125, A.arCfg({ ar: { fees: [25, 100] } })), [100, 25], '…with the amounts from Settings');
+    eq([A.feeAmtsSay(cfg), A.feeAmtsSay(A.arCfg({ ar: { fees: [25, 62.5, 100] } })), A.feeMoney(62.5), A.feeMoney(100)], ['$50 or $100', '$25, $62.50 or $100', '$62.50', '$100'], 'the amounts in words');
+    // which accounts look like one
+    const L = (o, it) => A.feeLikely(fa(o), it || null, cfg, asOf);
+    eq(L({ due: 100, b0: 100, days: 20 }), { amts: [100], amt: 100, sure: true }, 'past due exactly $100, a $199 draft paid 14 days before the report: a likely fee, and a sure one');
+    eq([L({ due: 50, b0: 50, days: 12, recv: '2026-08-01' }).sure, L({ due: 50, b0: 50, days: 12, recv: '' }).sure, L({ due: 100, b0: 100, days: 20, lastAmt: 100 }).sure, L({ due: 200, b30: 200, days: 40, lastAmt: 100 })], [false, false, false, null],
+      'not sure when the last payment is old or unknown, or when the past due is the monthly draft itself; two fees ($200) that could be two $100 drafts: not suggested at all');
+    eq([L({ due: 150, b0: 100, b30: 50, days: 35 }), L({ due: 150, b0: 150, days: 20, lastAmt: 150 })], [{ amts: [100, 50], amt: 150, sure: true }, null], 'two fees added up: only when the contract is plainly being paid with a different draft');
+    eq([L({ due: 100, b0: 100, days: 20, rp: 'INS: Jordan Sample' }), L({ due: 100, b0: 100, days: 20, sts: 'Inactive' }), L({ due: 0, bal: -100 }), L({ due: 100, b0: 100, days: 20 }, { state: 'done', log: [] })], [null, null, null, null], 'never an insurance, inactive, credit or resolved account');
+    // tagging
+    const a1 = fa({ due: 100, b0: 100, days: 20 }), it1 = A.blankItem(a1);
+    const e1 = A.feeLog(it1, true, { by: 'sarah', amt: '100', note: 'No-show 10/14' }, at(2026, 11, 5));
+    eq([e1.k, e1.amt, A.logLabel(e1), it1.follow, it1.stage, !!A.feeOf(it1), L({ due: 100, b0: 100, days: 20 }, it1)], ['fee_on', 100, 'Tagged: missed-appointment fee ($100.00)', '2026-11-19', '', true, null],
+      'tagged with the fee: a follow-up in two weeks (an office day), the status as it was, and it isn’t suggested any more');
+    eq(A.feeState(it1, a1), { on: e1, amt: 100, pd: 100, over: 0, only: true }, 'where it stands: the past due is the fee and nothing else');
+    eq(A.feeState(it1, fa({ due: 299, b0: 199, b30: 100, days: 40 })), { on: e1, amt: 100, pd: 299, over: 199, only: false }, 'a draft missed since: past due $199 more than the fee');
+    eq(A.feeState(it1, null).pd, 0, 'not on the newest report: nothing past due');
+    const ls = A.ladState(a1, it1, asOf, T);
+    eq([ls.paused, ls.due, !!ls.fee, A.ladState(a1, null, asOf, T).due.id], ['fee', null, true, 'l1'], 'the collections ladder waits while it’s tagged (untagged, Letter #1 would be due at day 22)');
+    eq(en(it1, e1), '11/05/26 Past due of $100.00 is a missed-appointment fee, not a treatment payment; tracked apart from collections. No-show 10/14. -Sarah', 'its Edge note');
+    // collecting it
+    A.applyLog(it1, 'fee_draft', { by: 'sarah', note: 'Mom OK’d it' }, at(2026, 11, 5, 11));
+    eq([it1.stage, it1.follow, A.logLabel(it1.log[1]), en(it1, it1.log[1])], ['waiting', '2026-11-16', 'Fee on the next draft', '11/05/26 Added the missed-appointment fee of $100.00 to the next OrthoBanc draft. Mom OK’d it. Next F/U 11/16/26. -Sarah'],
+      'on the next OrthoBanc draft (Nov 12): look again a few days after it (Mon Nov 16), and the Edge note says so');
+    eq([A.nextDraftDay('2026-11-05'), A.nextDraftDay('2026-11-12'), A.nextDraftDay('2026-11-26'), A.nextDraftDay('2026-12-31')], ['2026-11-12', '2026-11-19', '2026-12-05', '2027-01-05'], 'OrthoBanc’s next drafting day: the 5th, 12th, 19th or 26th after the day');
+    const it2 = A.blankItem(a1); A.feeLog(it2, true, { by: 'sarah', amt: 50 }, at(2026, 11, 5)); A.applyLog(it2, 'fee_visit', { by: 'sarah' }, at(2026, 11, 5, 11));
+    eq([it2.follow, en(it2, it2.log[1])], ['2026-11-19', '11/05/26 RP will pay the missed-appointment fee of $50.00 at the next visit. Next F/U 11/19/26. -Sarah'], 'at the next visit: two weeks');
+    const it3 = A.blankItem(a1); A.feeLog(it3, true, { by: 'sarah', amt: 100 }, at(2026, 11, 5)); A.applyLog(it3, 'fee_waive', { by: 'sarah', note: 'First miss in two years' }, at(2026, 11, 5, 11));
+    eq([it3.drA, A.drAQuestion(it3).k, A.logLabel(it3.log[1]), en(it3, it3.log[1])], [true, 'fee_waive', 'Asked Dr. A to waive the fee', '11/05/26 Asked Dr. A to waive the missed-appointment fee of $100.00. First miss in two years. Next F/U 11/12/26. -Sarah'],
+      'asking Dr. A to waive it puts it on his Today (like a refund request)');
+    A.answerDrA(it3, true, { by: 'amir' }, at(2026, 11, 6)); A.resolveItem(it3, 'waived', { by: 'sarah', note: 'Written off in Edge' }, at(2026, 11, 6, 11));
+    eq([it3.drA, it3.outcome, A.OUTCOMES.waived, en(it3, it3.log[it3.log.length - 1])], [false, 'waived', 'Fee waived', '11/06/26 Account resolved: fee waived. Written off in Edge. -Sarah'], 'Dr. A OK’s it, and the account is resolved as waived');
+    const itn = A.blankItem(a1); A.feeLog(itn, true, { by: 'sarah' }, at(2026, 11, 5));
+    eq([itn.log[0].amt, A.feeState(itn, fa({ due: 299, b0: 299, days: 20 })).over, A.logLabel(itn.log[0]), A.edgeNoteOf(itn, itn.log[0], who, '')], [undefined, 0, 'Tagged: missed-appointment fee', '11/05/26 Past due is a missed-appointment fee, not a treatment payment; tracked apart from collections. -Sarah'],
+      'tagged without an amount: nothing can be “more than the fee”');
+    // the tag off, "not a fee", undo, a new round
+    const e1b = A.feeLog(it1, false, { by: 'sarah' }, at(2026, 11, 7));
+    eq([!!A.feeOf(it1), A.feeDismissed(it1), A.ladState(a1, it1, asOf, '2026-11-07').due.id, A.logLabel(e1b), en(it1, e1b), L({ due: 100, b0: 100, days: 20 }, it1)],
+      [false, true, 'l1', 'Not a missed-appointment fee', '11/07/26 Not a missed-appointment fee; the regular collections sequence applies. -Sarah', null], 'the tag off: back on the ladder (Letter #1 due), not suggested again');
+    A.undoLog(it1); eq([!!A.feeOf(it1), it1.follow], [true, '2026-11-16'], 'undo puts the tag back (and the follow-up)');
+    const itd = A.blankItem(a1); A.feeLog(itd, false, { by: 'sarah', note: 'Not a missed-appointment fee' }, at(2026, 11, 5));
+    eq([!!A.feeOf(itd), A.feeDismissed(itd), L({ due: 100, b0: 100, days: 20 }, itd), itd.follow], [false, true, null, ''], '“not a fee” on an account never tagged: it stays as it is, and isn’t suggested again');
+    A.resolveItem(itd, 'paid', { by: 'sarah' }, at(2026, 11, 10)); A.reopenItem(itd, { by: 'sarah', note: 'On the list again', fresh: true }, at(2026, 12, 20));
+    ok(!A.feeDismissed(itd) && !!L({ due: 100, b0: 100, days: 20 }, itd), 'past due again after being resolved (a new round): the old “not a fee” doesn’t carry over');
+    const itr = A.blankItem(a1); A.feeLog(itr, true, { by: 'sarah', amt: 100 }, at(2026, 11, 5)); A.resolveItem(itr, 'paid', { by: 'sarah' }, at(2026, 11, 10)); A.reopenItem(itr, { by: 'sarah', note: 'On the list again', fresh: true }, at(2026, 12, 20));
+    ok(!A.feeOf(itr) && A.ladState(a1, itr, asOf, T).paused !== 'fee', '…nor does an old tag: the new round starts untagged, on the ladder');
+    // read back
+    const n = A.normItem({ id: 'x', state: 'open', log: [{ k: 'fee_on', at: 1, amt: '100', prev: { stage: '', follow: '', drA: false } }, { k: 'fee_on', at: 2, amt: 75.5 }, { k: 'fee_off', at: 3 }, { k: 'fee_draft', at: 4 }, { k: 'fee_waive', at: 5 }, { k: 'done', outcome: 'waived', at: 6 }] });
+    eq(n.log.map(e => [e.k, e.amt === undefined ? null : e.amt, e.outcome || null]), [['fee_on', null, null], ['fee_on', 75.5, null], ['fee_off', null, null], ['fee_draft', null, null], ['fee_waive', null, null], ['done', null, 'waived']], 'read back: the fee kinds and the waived outcome are known, the amount checked');
+    // Focus: more than the fee is past due
+    const fctx = o => Object.assign({ accts: [], asOf, byKey: new Map(), item: () => null, lad: () => null, open: [], cleared: () => false, today: T, owner: false, prevPd: null, book: null, auditStart: '', aa: [] }, o);
+    const aO = fa({ due: 299, b0: 199, b30: 100, days: 40 }), itO = A.blankItem(aO); A.feeLog(itO, true, { by: 'sarah', amt: 100 }, at(2026, 10, 20));
+    const fo = A.focusEntries(fctx({ accts: [aO], byKey: new Map([[aO.key, aO]]), item: () => itO, lad: a => A.ladState(a, itO, asOf, T), open: [itO], fee: () => A.feeState(itO, aO) }));
+    eq(fo.map(e => [e.kind, e.cls, e.act, e.why]), [['feeover', 'today', 'Check', 'Past due $299 is more than the $100 missed-appointment fee — $199 of treatment payments behind too: take the tag off to put it back on the ladder, or keep it as a fee']],
+      'Focus: a tagged account past due more than the fee is for today — and nothing from the ladder (it’s paused)');
+    const aF = fa({ due: 100, b0: 100, days: 20 }), itF = A.blankItem(aF); A.feeLog(itF, true, { by: 'sarah', amt: 100 }, at(2026, 10, 20));
+    eq(A.focusEntries(fctx({ accts: [aF], byKey: new Map([[aF.key, aF]]), item: () => itF, lad: a => A.ladState(a, itF, asOf, T), open: [itF], fee: () => A.feeState(itF, aF) })).map(e => e.kind), ['follow'],
+      '…one past due just the fee: only its follow-up (Nov 3), no ladder step');
+  }
+
   section('Insurance carriers (the carrier book)');
   {
     const bk = A.emptyBook(), t0 = Date.UTC(2026, 9, 6, 14);
@@ -871,9 +942,11 @@ const cfg = A.arCfg({});
   section('Office days and settings');
   eq(['2026-10-09', '2026-10-10', '2026-11-25', '2026-12-24', '2026-12-25', '2026-09-07'].map(A.nextOfficeDay), ['2026-10-12', '2026-10-12', '2026-11-30', '2026-12-24', '2026-12-28', '2026-09-08'],
     'office days: Mon–Thu, skipping Thanksgiving week, Christmas, Labor Day');
-  eq(A.arCfg({ ar: { inst: 0, writeOff: -1, tiers: [90, 60, 365], dueDay: 6, goalPt: 0, goalIns: 140, kpiFrom: 7 } }), { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31 }, 'bad settings fall back to the usual numbers (report due Tuesday, goals 4% and 4%, counted from 31 days)');
+  eq(A.arCfg({ ar: { inst: 0, writeOff: -1, tiers: [90, 60, 365], dueDay: 6, goalPt: 0, goalIns: 140, kpiFrom: 7, fees: [0, 'x', 5000] } }), { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31, fees: [50, 100] }, 'bad settings fall back to the usual numbers (report due Tuesday, goals 4% and 4%, counted from 31 days, fees $50 and $100)');
   eq([A.arCfg({}).kpiFrom, A.arCfg({ ar: { kpiFrom: 1 } }).kpiFrom], [31, 1], 'the patient goal counts from 31 days unless Settings say from day 1');
-  eq(A.arCfg({ ar: { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], dueDay: 3, goalPt: 3.5, goalIns: 5, kpiFrom: 31 } }), { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], dueDay: 3, goalPt: 3.5, goalIns: 5, kpiFrom: 31 }, 'good settings are used');
+  eq(A.arCfg({ ar: { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], dueDay: 3, goalPt: 3.5, goalIns: 5, kpiFrom: 31, fees: [75, 25, '150'] } }), { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], dueDay: 3, goalPt: 3.5, goalIns: 5, kpiFrom: 31, fees: [25, 75, 150] }, 'good settings are used (the fee amounts smallest first)');
+  eq([A.feeAmounts('50, 100'), A.feeAmounts('$100; 50 50 62.50'), A.feeAmounts([1, 2, 3, 4, 5, 6, 7]), A.feeAmounts(''), A.feeAmounts('abc'), A.feeAmounts([1001, -5, 0.5])], [[50, 100], [50, 62.5, 100], [1, 2, 3, 4, 5, 6], [], [], [0.5]],
+    'the fee amounts as typed: $ and separators, each once, at most six, each from a cent to $1,000');
   eq(A.arCfg({ ar: { staleDays: 21 } }).dueDay, 2, 'an older settings record (report "old after N days") gets the usual Tuesday due day');
 
   section('The weekly report (handbook §19: weekly)');

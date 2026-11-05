@@ -237,6 +237,28 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   const aaBlob = JSON.stringify((await fsDocs('arItems')).concat(await fsDocs('arLog')));
   check(!/187\.5|Altered Arrangement|pt_plan|aa_ok/.test(aaBlob) && !aaBlob.includes(aaPt), 'the arrangement, its terms and the patient are sealed in the database');
 
+  console.log('\n# A missed-appointment fee: Jamie tags an account (with the fee); it’s off the ladder and on Dr. A’s Past due → Missed-appt fees at once; she asks him to waive it, he OKs it');
+  const feePt = await jamie.evaluate(() => { const a = list0(S.accts).concat(list31(S.accts)).find(x => onLadder(x) && !itemFor(x.key)); return a && a.patient; });
+  const feeBefore = await owner.evaluate(n => { const a = S.accts.find(x => x.patient === n); return { lad: counts().lad, due: !!(ladFor(a) && ladFor(a).due), kFee: kpiNow().fee }; }, feePt);
+  await openAcct(jamie, feePt); await jamie.click('#drawer .nowBox [data-act=feeTag]'); await jamie.waitForSelector('#drawer .feeForm #feeAmt');
+  await jamie.fill('#feeAmt', '$100'); await jamie.fill('#nowNote', 'No-show 10/30'); await jamie.click('#drawer [data-act=feeSave]');
+  await owner.waitForFunction(n => { const x = Array.from(feeAll().values()).find(y => y.it.name === n); return !!x && x.st.amt === 100; }, feePt, { timeout: 30000 });
+  const feeAfter = await owner.evaluate(n => { const a = S.accts.find(x => x.patient === n), l = ladFor(a); return { lad: counts().lad, paused: l && l.paused, inLists: list0(pdAccts()).concat(list31(pdAccts())).some(x => x.patient === n), inAll: S.accts.some(x => x.patient === n) }; }, feePt);
+  check(feeBefore.due && feeAfter.paused === 'fee' && feeAfter.lad === feeBefore.lad - 1 && !feeAfter.inLists && feeAfter.inAll, 'on Dr. A’s screen without reloading: the account’s ladder is paused for the fee (one step fewer due), and it’s off the 0–30 / 31–90 lists');
+  await owner.click('#nav-pd'); await owner.click('[data-act=tab][data-t=fees]'); await owner.waitForSelector('#view .aaSum');
+  const feeRow = await owner.evaluate(n => { const r = Array.from(document.querySelectorAll('#view tbody tr')).find(x => x.textContent.includes(n)); return r ? r.textContent : ''; }, feePt);
+  check(/\$100/.test(feeRow) && /Jamie/.test(feeRow) && /Not started/.test(feeRow), 'on Dr. A’s Past due → Missed-appt fees: the $100 fee, tagged by Jamie, not started');
+  await jamie.click('#drawer .feeBox [data-act=feeWaive]'); await jamie.waitForSelector('#feeWhy'); await jamie.fill('#feeWhy', 'First miss in two years'); await jamie.click('#feeWhyOk');
+  await owner.waitForFunction(n => { const it = Array.from(S.items.values()).find(x => x.name === n); return !!it && it.drA && it.log.some(e => e.k === 'fee_waive'); }, feePt, { timeout: 30000 });
+  await openAcct(owner, feePt); await owner.waitForSelector('#drawer .drABox [data-act=drAok]');
+  check(await owner.$eval('#drawer .drABox', e => /Asked Dr\. A to waive the fee: First miss in two years/.test(e.textContent)), 'the waiver asked of Dr. A, with the reason, is on his screen');
+  await owner.click('#drawer .drABox [data-act=drAok]');
+  await jamie.waitForFunction(n => { const it = Array.from(S.items.values()).find(x => x.name === n); return !!it && !it.drA && it.log.some(e => e.k === 'drA_ok'); }, feePt, { timeout: 30000 });
+  check(await jamie.$eval('#drawer .feeBox', e => /Dr\. A OK’d waiving it/.test(e.textContent)), 'Dr. A OKs it: Jamie’s screen says to write it off in Edge and resolve it as waived');
+  await owner.keyboard.press('Escape'); await jamie.keyboard.press('Escape'); await settled(owner); await settled(jamie);
+  const feeBlob = JSON.stringify((await fsDocs('arItems')).concat(await fsDocs('arLog')));
+  check(!/fee_on|fee_waive|No-show|First miss|missed-appointment/i.test(feeBlob) && !feeBlob.includes(feePt), 'the tag, the fee, the reason and the patient are sealed in the database');
+
   console.log('\n# Settings: the numbers are shared');
   await owner.click('#nav-settings'); await owner.waitForSelector('#cfgInst');
   await owner.selectOption('#cfgDue', '4'); await owner.fill('#cfgGoalPt', '5'); await owner.click('[data-act=saveCfg]');

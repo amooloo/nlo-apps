@@ -124,13 +124,16 @@ function numbersCardHTML() {
     '<div class="field"><label for="cfgKpiFrom">A patient account counts as past due</label><select class="inp" id="cfgKpiFrom" data-cfg style="max-width:100%">' +
     [[31, 'From day 31 — 30+ days past due (usual)'], [1, 'From day 1 — anything past due']].map(([v, l]) => '<option value="' + v + '"' + (c.kpiFrom === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
     '<div class="hint">Counts of accounts, not dollars. Insurance’s payment window is the “monitor up to” days above.</div></div>' +
+    '<div class="field"><label for="cfgFees">Missed-appointment fee amounts ($)</label><input class="inp" id="cfgFees" data-cfg value="' + esc(c.fees.map(feeMoney).map(x => x.replace(/^\$/, '')).join(', ')) + '" placeholder="50, 100" style="max-width:220px">' +
+    '<div class="hint">A patient account past due exactly one of these (or two added up) is pointed out as a likely missed-appointment fee — Past due → Missed-appt fees. Tagged accounts leave the collections ladder and the patient goal.</div></div>' +
     '<div class="small planPrev" id="cfgPrev">' + cfgPreview() + '</div>' +
     '<div class="btnRow" style="margin-top:12px"><button class="btn btn-pri btn-sm" data-act="saveCfg">Save</button><button class="btn btn-ghost" data-act="resetCfg">Back to the usual numbers</button></div></div></div>';
 }
 function readCfg() {
   const num = id => Number((($('#' + id) || {}).value || '').trim());
   return { inst: round2(num('cfgInst')), writeOff: num('cfgWo'), tiers: [num('cfgT0'), num('cfgT1'), num('cfgT2')], dueDay: num('cfgDue'),
-    goalPt: Math.round(num('cfgGoalPt') * 10) / 10, goalIns: Math.round(num('cfgGoalIns') * 10) / 10, kpiFrom: num('cfgKpiFrom') === 31 ? 31 : 1 };
+    goalPt: Math.round(num('cfgGoalPt') * 10) / 10, goalIns: Math.round(num('cfgGoalIns') * 10) / 10, kpiFrom: num('cfgKpiFrom') === 31 ? 31 : 1,
+    fees: feeAmounts((($('#cfgFees') || {}).value || '')), feesTyped: (($('#cfgFees') || {}).value || '').trim() };
 }
 function cfgProblem(c) {
   if (!(c.inst > 0 && c.inst <= 5000)) return 'The instalment needs to be more than $0.';
@@ -139,6 +142,8 @@ function cfgProblem(c) {
   if (!(c.writeOff >= 1 && c.writeOff <= 100000)) return 'The write-off amount needs to be at least $1.';
   if (![1, 2, 3, 4].includes(c.dueDay)) return 'Pick the day the report is due (Monday to Thursday).';
   if (!(c.goalPt > 0 && c.goalPt <= 100 && c.goalIns > 0 && c.goalIns <= 100)) return 'The goals need to be between 0.1% and 100%.';
+  const toks = String(c.feesTyped || '').split(/[,;\s]+/).filter(Boolean);
+  if (!c.fees.length || toks.length > 6 || toks.some(t => !feeAmounts([t]).length)) return 'The missed-appointment fee amounts: one to six amounts, each from $1 to $1,000, separated by commas (e.g. 50, 100).';
   return '';
 }
 /* what the numbers typed would give with the report on screen */
@@ -147,19 +152,23 @@ function cfgPreview() {
   const c = $('#cfgInst') ? readCfg() : S.cfg; if (cfgProblem(c)) return '<span class="muted">—</span>';
   const A = reportAccts(S.rep, arCfg({ ar: c })), nev = A.filter(a => a.months), by = t => nev.filter(a => a.tier === t).length;
   const wo = A.filter(a => a.bucket === '91' && a.b90 < c.writeOff).length;
-  const k = kpis(S.rep, arCfg({ ar: c })), pc = x => (x * 100).toFixed(1).replace(/\.0$/, '') + '%';
+  const cf = arCfg({ ar: c }), k = kpis(S.rep, cf, feeKeys()), pc = x => (x * 100).toFixed(1).replace(/\.0$/, '') + '%';
+  // accounts that would look like a missed-appointment fee with these amounts (the ones tagged or dismissed already aside)
+  const fl = A.filter(a => feeLikely(a, (it => it && !isBack(it) ? it : null)(itemFor(a.key)), cf, S.rep.asOf)).length;
   return 'With the ' + esc(fmtDate(S.rep.asOf)) + ' report: <b>' + plural(nev.length, 'insurance account') + '</b> with nothing paid (chase now ' + by('chase') + ' · investigate ' + by('investigate') + ' · never filed? ' + by('nofile') + ' · monitor ' + by('monitor') + '), <b>' + wo + '</b> write-off candidate' + (wo === 1 ? '' : 's') + '.' +
-    (k ? ' Goals: patient accounts past due <b>' + pc(k.pt.rate || 0) + '</b> (goal ' + pc(k.pt.goal) + ')' + (k.ins ? ', insurance past its window <b>' + pc(k.ins.rate || 0) + '</b> (goal ' + pc(k.ins.goal) + ')' : '') + '.' : '');
+    (k ? ' Goals: patient accounts past due <b>' + pc(k.pt.rate || 0) + '</b> (goal ' + pc(k.pt.goal) + ')' + (k.ins ? ', insurance past its window <b>' + pc(k.ins.rate || 0) + '</b> (goal ' + pc(k.ins.goal) + ')' : '') + '.' : '') +
+    ' <b>' + fl + '</b> account' + (fl === 1 ? ' looks' : 's look') + ' like a missed-appointment fee (' + esc(feeAmtsSay(cf)) + ').';
 }
 document.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-cfg]')) { const p = $('#cfgPrev'); if (p) p.innerHTML = cfgPreview(); } });
 Object.assign(ACT, {
   saveCfg() {
     const c = readCfg(), bad = cfgProblem(c); if (bad) { toast(bad, { bad: true }); return; }
+    delete c.feesTyped;
     act(() => B.saveSettings({ ar: c }), 'Saved — the lists use the new numbers');
   },
   async resetCfg() {
-    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), patient accounts counted ' + (AR_DEFAULTS.kpiFrom > 1 ? 'from 31 days past due.' : 'from the first day past due.'), 'Use the usual numbers'))) return;
-    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), dueDay: AR_DEFAULTS.dueDay, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
+    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), patient accounts counted ' + (AR_DEFAULTS.kpiFrom > 1 ? 'from 31 days past due' : 'from the first day past due') + '; missed-appointment fees of ' + feeAmtsSay(AR_DEFAULTS) + '.', 'Use the usual numbers'))) return;
+    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), dueDay: AR_DEFAULTS.dueDay, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom, fees: AR_DEFAULTS.fees.slice() };
     if (await act(() => B.saveSettings({ ar: d }), 'Back to the usual numbers')) { S.cfg = arCfg({ ar: d }); renderView(); }
   }
 });

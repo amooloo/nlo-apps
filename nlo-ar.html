@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2o6bGQ7J4UQrNkWwxADTWwcg6YLAGVugp53BsCjwTd0=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-pZTwHBpOo7bi+CKWCzCJ/YIoqXNsExcxaRHlV8ocWF8=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -711,6 +711,7 @@ ol.steps b{color:var(--navy)}
 #tourRing[hidden]{display:none}
 #tourCard{position:fixed;z-index:3001;width:348px;max-width:calc(100vw - 28px);background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(17,32,58,.32);padding:14px 16px 12px;color:var(--grey-700);border:1.5px solid var(--grey-100)}
 #tourCard.sheet{left:10px;right:10px;bottom:46px;top:auto;width:auto;max-width:none}
+html.tourOn nlo-aisa{display:none!important} /* the Ask AISA button sits above everything (its own z-index); it steps aside during the tour */
 #tourCard .tcTop{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 #tourCard .tcN{font-size:11.5px;font-weight:700;color:var(--grey-500);white-space:nowrap}
 #tourCard .tcBar{flex:1;height:4px;border-radius:2px;background:var(--grey-100);overflow:hidden}
@@ -851,6 +852,23 @@ ol.steps b{color:var(--navy)}
 .aaPrev{display:flex;align-items:flex-start;gap:6px;margin:2px 0 10px;padding:8px 10px;border-radius:var(--r);background:var(--grey-50);color:var(--grey-700);line-height:1.4}
 .aaPrev .i{flex:none;margin-top:2px;color:var(--grey-500)} .aaPrev b{color:var(--navy)}
 @media (max-width:860px){ .tbl .aaWhy{max-width:none} }
+/* missed-appointment fees (Past due → Missed-appt fees, 5 Nov 2026) */
+.badge.s-fee{background:var(--blue-100);color:var(--blue-700)}
+.badge.s-feeq{background:var(--amber-100);color:var(--amber-700)}
+.feeSec h5{display:flex;align-items:center;gap:6px}
+.feeSec h5 .sug{text-transform:none;letter-spacing:0;font-family:var(--fb)}
+.feeBox{border:1.5px solid var(--grey-200);border-left:5px solid var(--blue-500);border-radius:var(--r);padding:11px 14px 13px;background:#fff}
+.feeBox.over{border-left-color:var(--amber)}
+.feeBox .notice{margin-bottom:0}
+.feeMeta{color:var(--grey-500)} .feeMeta b{color:var(--navy)}
+.feeHow{display:flex;align-items:center;gap:6px;color:var(--grey-700)} .feeHow .i{flex:none;color:var(--grey-500)}
+.feeBox .btnRow{margin-top:10px}
+.feeHint{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;background:var(--blue-100);color:var(--blue-700);font-weight:500;line-height:1.4}
+.feeHint>.i{flex:none} .feeHint>span:not(.btnRow){flex:1 1 240px;min-width:0} .feeHint .btnRow{margin-top:0}
+.feeForm .grid2{gap:0 12px}
+.tbl .feeOver{color:var(--amber-700);font-weight:700;white-space:nowrap}
+.tbl .feeBtns{margin-top:0;flex-wrap:nowrap}
+.rb .i{vertical-align:-2px}
 
 </style>
 </head>
@@ -1707,15 +1725,25 @@ async function readReportFile(name, bytes) {
    past due from 31 days (the 30+ the Month-End numbers use; the usual — Dr. A, 6 Oct 2026: counting 0–30 days, under 4%
    is too hard to hold) or from its first day past due (1, the handbook's wording);
    dueDay: the weekly report is due every Monday (1) … Thursday (4); Tuesday by default, the day of the FC's weekly
-   checklist in CADANCe (the handbook says weekly and names no day; Dr. A, 6 Oct 2026) */
-const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31 };
+   checklist in CADANCe (the handbook says weekly and names no day; Dr. A, 6 Oct 2026);
+   fees: the office's missed-appointment fee amounts ($50 and $100 — Dr. A, 5 Nov 2026): a patient account past due exactly one of
+   them (or two added up) is pointed out as a likely missed-appointment fee (see feeLikely) */
+const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31, fees: [50, 100] };
 const DUE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+/* the fee amounts as typed or read back: 1 to 6 amounts, each more than $0 and up to $1,000, smallest first, none twice ([] if nothing usable) */
+function feeAmounts(l) {
+  const seen = new Set(), num = v => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v.replace(/[$,\s]/g, '')) : NaN);
+  return (Array.isArray(l) ? l : typeof l === 'string' ? l.split(/[,;\s]+/) : []).map(num).filter(v => isFinite(v) && v > 0 && v <= 1000).map(round2)
+    .filter(v => { if (seen.has(v)) return false; seen.add(v); return true; }).sort((x, y) => x - y).slice(0, 6);
+}
 function arCfg(settings) {
   const a = (settings && settings.ar) || {};
   const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d), pctOf = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 && v <= 100 ? v : d);
   const tiers = Array.isArray(a.tiers) && a.tiers.length === 3 && a.tiers.every((n, i) => Number.isInteger(n) && n > 0 && (!i || n > a.tiers[i - 1])) ? a.tiers.slice() : AR_DEFAULTS.tiers.slice();
+  const fees = feeAmounts(a.fees);
   return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, dueDay: [1, 2, 3, 4].includes(a.dueDay) ? a.dueDay : AR_DEFAULTS.dueDay,
-    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: [1, 31].includes(a.kpiFrom) ? a.kpiFrom : AR_DEFAULTS.kpiFrom };
+    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: [1, 31].includes(a.kpiFrom) ? a.kpiFrom : AR_DEFAULTS.kpiFrom,
+    fees: fees.length ? fees : AR_DEFAULTS.fees.slice() };
 }
 
 /* ---------- the weekly report (AISA handbook §19: "Weekly: FC runs AR Aging") ----------
@@ -1902,25 +1930,28 @@ function summarize(rep, cfg) {
    Insurance delinquency: insurance accounts past their expected payment window ÷ open insurance accounts, no more than 4%.
    Counts of accounts (not dollars), both from one full A/R Aging report (Subgroup None, insurance included). The handbook
    gives no window for insurance: the app uses the "monitor up to" days of the insurance triage (60 to start with).
+   excl: the keys of the accounts tagged as a missed-appointment fee (and past due no more than the fee) — a no-show fee
+   isn't a missed treatment payment, so they don't count as delinquent (`fee` says how many were left out).
    ---------------------------------------------------------------------------------------------------------------- */
 function insLate(a, cfg) { const d = a.days != null ? a.days : a.b90 > 0.004 ? 91 : a.b60 > 0.004 ? 61 : a.b30 > 0.004 ? 31 : 1; return a.pd > 0 && d > cfg.tiers[0]; }
-function kpis(rep, cfg) {
+function kpis(rep, cfg, excl) {
   if (!rep || !rep.book || !rep.cover || !rep.cover.full) return null;
-  const A = reportAccts(rep, cfg), bk = rep.book;
-  const ptOf = bk.pt.act != null ? bk.pt.act : bk.pt.n, ptN = A.filter(a => !a.ins && !a.inactive && (cfg.kpiFrom > 1 ? a.o30 > 0.004 : a.pd > 0)).length;
+  const A = reportAccts(rep, cfg), bk = rep.book, fee = a => !!(excl && excl.has && excl.has(a.key));
+  const ptOf = bk.pt.act != null ? bk.pt.act : bk.pt.n, ptAll = A.filter(a => !a.ins && !a.inactive && (cfg.kpiFrom > 1 ? a.o30 > 0.004 : a.pd > 0)), ptN = ptAll.filter(a => !fee(a)).length;
   const one = (n, of, goalPct) => { const goal = goalPct / 100; return { n, of, rate: of ? n / of : null, goal, ok: of ? n / of <= goal + 1e-9 : null, need: of ? Math.max(0, n - Math.floor(goal * of + 1e-9)) : null }; };
   return {
     pt: one(ptN, ptOf, cfg.goalPt),
     ins: rep.cover.ins ? one(A.filter(a => a.ins && insLate(a, cfg)).length, bk.ins.n, cfg.goalIns) : null,
-    from: cfg.kpiFrom, win: cfg.tiers[0]
+    from: cfg.kpiFrom, win: cfg.tiers[0], fee: ptAll.length - ptN
   };
 }
 /* a small summary kept with each saved report, for the trend charts (totals and counts only) */
-/* prev: the report before it, when there is one (for what moved week over week) */
-function reportTotals(rep, cfg, prev) {
-  const s = summarize(rep, cfg), k1 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 1 })), k30 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 31 }));
+/* prev: the report before it, when there is one (for what moved week over week); excl: the accounts tagged as a missed-appointment
+   fee when it was saved (kp.ptPd / ptPd30 count every past-due patient account; ptFee / ptFee30 say how many of those were tagged) */
+function reportTotals(rep, cfg, prev, excl) {
+  const s = summarize(rep, cfg), k1 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 1 }), excl), k30 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 31 }), excl);
   return { asOf: s.asOf, cover: s.cover, pd: s.pd.total, b90: s.pd.b90, b31: round2(s.pd.b30 + s.pd.b60), n91: s.conc.n, never: s.never.n, neverPd: s.never.pd, cr: s.cr.total, crWork: s.cr.work.total, crN: s.cr.work.n, bal: s.book ? s.book.bal : null,
-    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n, ptPd30: k30.pt.n, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null,
+    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n + k1.fee, ptPd30: k30.pt.n + k30.fee, ptFee: k1.fee, ptFee30: k30.fee, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null,
     fl: prev ? flowOf(rep, prev, cfg) : null };
 }
 
@@ -1952,7 +1983,7 @@ function diffReports(cur, prev, cfg) {
 const STAGES = {
   '': 'Not started', working: 'Working on it', waiting: 'Waiting to hear back', promise: 'Promised to pay', plan: 'Payment plan (AA)', hold: 'Paused'
 };
-const OUTCOMES = { paid: 'Paid', writeoff: 'Written off', refund: 'Refunded', transfer: 'Credit transferred', applied: 'Credit applied', cleared: 'Cleared in Edge', other: 'Resolved' };
+const OUTCOMES = { paid: 'Paid', waived: 'Fee waived', writeoff: 'Written off', refund: 'Refunded', transfer: 'Credit transferred', applied: 'Credit applied', cleared: 'Cleared in Edge', other: 'Resolved' };
 /* one tap logs it; most set what happens next */
 const LOGS = {
   // patient past due
@@ -1967,6 +1998,10 @@ const LOGS = {
   pt_plan: { g: 'pt', l: 'Payment plan (AA) made…', s: 'Payment plan (AA) made', stage: 'plan', next: 30, ask: 'aa' },
   aa_ok: { g: 'aa', l: 'Payment in — on track', s: 'AA payment in', stage: 'plan', next: 30 },
   aa_terms: { g: 'aa', l: 'The terms', s: 'AA terms', ask: 'aa' },
+  // a missed-appointment fee (Past due → Missed-appt fees): how it's being collected, or asking Dr. A to waive it
+  fee_draft: { g: 'fee', l: 'Added to the next OrthoBanc draft', s: 'Fee on the next draft', stage: 'waiting' },
+  fee_visit: { g: 'fee', l: 'They’ll pay it at the next visit', s: 'Fee at the next visit', stage: 'waiting', next: 14 },
+  fee_waive: { g: 'fee', l: 'Ask Dr. A to waive it…', s: 'Asked Dr. A to waive the fee', stage: 'waiting', next: 7, drA: true },
   // insurance
   ins_call: { g: 'ins', l: 'Called the carrier', s: 'Called the carrier', stage: 'waiting', next: 14 },
   ins_portal: { g: 'ins', l: 'Checked the portal', s: 'Checked the portal', stage: 'working', next: 14 },
@@ -2025,6 +2060,8 @@ function applyLog(item, k, o, now) {
   else if (o.next !== undefined) item.follow = o.next || '';
   // an arrangement: look again a few days after its next payment (made: the first one; a payment in: the one after today)
   else if ((k === 'pt_plan' || k === 'aa_ok') && terms && terms.start) item.follow = aaFollow(terms, k === 'aa_ok' ? addDays(today, 1) : today) || nextOfficeDay(addDays(today, L.next));
+  // a fee put on the next OrthoBanc draft: look again a few days after that drafting day (it can take that long to post, or to come back)
+  else if (k === 'fee_draft') item.follow = nextOfficeDay(addDays(nextDraftDay(today), AA_LOOK));
   else if (L.next) item.follow = nextOfficeDay(addDays(today, L.next));
   if (L.drA) item.drA = true;
   return e;
@@ -2072,6 +2109,8 @@ function logLabel(e) {
   if (e.k === 'ladder') return st ? st.did : 'Collections step';
   if (e.k === 'edgetask') return 'Edge task' + (e.op ? ' (' + e.op + ')' : '') + (e.date ? ' · due ' + fmtDate(e.date) + ' in Edge' : '');
   if (e.k === 'aa_broken') return 'Arrangement broken';
+  if (e.k === 'fee_on') return 'Tagged: missed-appointment fee' + (e.amt > 0 ? ' (' + money(e.amt, true) + ')' : '');
+  if (e.k === 'fee_off') return 'Not a missed-appointment fee';
   if (e.k === 'mhold_on') return 'Put on Maintenance Hold';
   if (e.k === 'mhold_off') return 'Maintenance Hold lifted';
   if (e.k === 'assign') return 'Assigned';
@@ -2163,17 +2202,19 @@ function ladState(a, it, asOf, today) {
   let reached = 0, last = -1;
   LADDER.forEach((s, i) => { if (day >= s.day) reached = i; if (done[s.id]) last = i; });
   const fin = done.aa || done.l7 || null, endOn = fin ? nextOfficeDay(addDays(isoOf(new Date(fin.at)), 30)) : '';
-  const st = it && it.state === 'open' ? it.stage : '';
-  const why = it && it.state === 'done' ? 'done' : st === 'plan' ? 'plan' : st === 'hold' ? 'hold' : st === 'promise' && it.follow && it.follow >= today ? 'promise' : '';
+  const st = it && it.state === 'open' ? it.stage : '', fee = it && it.state === 'open' ? feeOf(it) : null;
+  // tagged as a missed-appointment fee: the sequence isn't for a no-show fee, so the ladder waits (Past due → Missed-appt fees has it)
+  const why = it && it.state === 'done' ? 'done' : fee ? 'fee' : st === 'plan' ? 'plan' : st === 'hold' ? 'hold' : st === 'promise' && it.follow && it.follow >= today ? 'promise' : '';
   const pip = /in\s*process/i.test(a.note || '');
   let due = null, paused = '';
   if (why === 'done') paused = 'done';
+  else if (why === 'fee') paused = 'fee';
   else if (broke && !done.aa) due = LAD_AA;
   else if (fin) due = endOn <= today ? (done.aa ? LAD_ENDAA : LAD_END) : null;
   else if (why) paused = why;
   else if (reached > last && !(reached === 0 && pip)) due = LADDER[reached];
   const next = fin || (broke && !done.aa) ? null : LADDER[Math.max(reached, last) + 1] || null;
-  return { day, done, signed, asked, hold, broke, plan, fin, endOn, pip, paused, due, next, nextOn: next ? ladDate(a, asOf, today, next.day) : '', reached, last };
+  return { day, done, signed, asked, hold, broke, plan, fin, endOn, pip, paused, due, next, nextOn: next ? ladDate(a, asOf, today, next.day) : '', reached, last, fee };
 }
 /* a step done. o: { by, note } — the account's follow-up isn't moved: the next step comes due by itself */
 function ladderLog(item, id, o, now) {
@@ -2375,6 +2416,78 @@ function aaState(it, a, p, o) {
 }
 
 /* =====================================================================
+   Missed-appointment fees (5 Nov 2026, Amir: "there are pts with 50 or
+   100 missed appt fees … create a way that these can be tagged and
+   separated for AR because they don't really fall under the same
+   category"). A family that misses an appointment is charged a fee in
+   Edge ($50 or $100). While it's unpaid the account shows as past due
+   on the A/R Aging exactly like a missed treatment payment — but it
+   isn't one: the contract is current, and the collections sequence
+   (letters, Maintenance Hold, discontinuing treatment) isn't for a
+   no-show fee. So an account can be tagged as a missed-appointment fee
+   (with the fee's amount): it leaves the collections ladder, the
+   91+ / 31–90 / 0–30 lists and the patient delinquency goal, and goes
+   to Past due → Missed-appt fees, with its own ways to collect it (the
+   next OrthoBanc draft, the next visit) or to have Dr. A waive it. An
+   account whose past due is exactly one of the office's fee amounts
+   (or two of them) is pointed out as a likely fee, to tag with one tap.
+   The tag is an entry in the account's sealed log (fee_on / fee_off),
+   like Maintenance Hold — no rules change.
+   ===================================================================== */
+const FEE_LOOK = 45; // a payment on the contract within this many days before the report: they're paying, the fee is what's left
+/* the tag in this round: the latest "fee_on" not taken off since (null: not tagged) */
+function feeOf(it) { let f = null; ladEntries(it).forEach(e => { if (e.k === 'fee_on') f = e; else if (e.k === 'fee_off') f = null; }); return f; }
+/* "not a fee" was the last word on it this round (the tag taken off, or never a fee): it isn't suggested again */
+function feeDismissed(it) { let d = false; ladEntries(it).forEach(e => { if (e.k === 'fee_on') d = false; else if (e.k === 'fee_off') d = true; }); return d; }
+/* a past-due amount that is one of the office's fee amounts, or two of them added up → the fees that make it (the bigger first), or null */
+function feeSplit(pd, cfg) {
+  const F = (cfg && Array.isArray(cfg.fees) && cfg.fees.length ? cfg.fees : AR_DEFAULTS.fees), same = (x, y) => Math.abs(x - y) < 0.005;
+  if (!(pd > 0)) return null;
+  const one = F.find(f => same(f, pd)); if (one != null) return [one];
+  for (let i = F.length - 1; i >= 0; i--) for (let j = i; j >= 0; j--) if (same(F[i] + F[j], pd)) return [F[i], F[j]];
+  return null;
+}
+/* does the account look like a missed-appointment fee? A patient account (not insurance, not inactive) whose past due is one fee
+   amount, or two added up — not tagged, dismissed or resolved already (it: its record this round, or null).
+   → { amts, amt, sure: a payment on the contract within the last 45 days before the report, and the past due isn't that payment (or
+     a multiple of it) — they're paying the contract and the fee is what's left } or null. Two fees added up count only when sure:
+     $150 or $200 is as likely a missed draft, unless the draft is plainly something else and coming in. */
+function feeLikely(a, it, cfg, asOf) {
+  if (!a || a.ins || a.inactive || !(a.pd > 0)) return null;
+  if (it && (it.state === 'done' || it.stage === 'plan' || feeOf(it) || feeDismissed(it))) return null; // on a payment plan: the contract is behind, not a fee
+  const amts = feeSplit(a.pd, cfg); if (!amts) return null;
+  const la = a.lastAmt > 0 ? a.lastAmt : 0, recent = !!(a.recv && isoOrBlank(asOf) && a.recv <= asOf && daysBetween(a.recv, asOf) <= FEE_LOOK);
+  const draft = la > 0 && Math.abs(a.pd / la - Math.round(a.pd / la)) < 0.004; // the past due is the monthly draft, or several: missed drafts
+  const sure = recent && la > 0 && !draft;
+  if (amts.length > 1 && !sure) return null;
+  return { amts, amt: round2(amts.reduce((s, x) => s + x, 0)), sure };
+}
+/* where a tagged account stands. a: the account on the newest report (null if it isn't on it).
+   → null (not tagged) | { on: the tag entry, amt: the fee (null if none was recorded), pd, over: how much more than the fee is past due
+     (0 when it isn't, or no amount is known), only: the past due is the fee and nothing else } */
+function feeState(it, a) {
+  const f = feeOf(it); if (!f) return null;
+  const amt = f.amt > 0 ? f.amt : null, pd = a && a.pd > 0 ? a.pd : 0, over = amt != null && pd > amt + 0.5 ? round2(pd - amt) : 0;
+  return { on: f, amt, pd, over, only: !over };
+}
+/* tag the account as a missed-appointment fee (o: { by, note, amt: the fee }), or take the tag off — on = false is also "not a fee" on
+   an account that was never tagged (mutates it). A tagged account with no follow-up gets one in two weeks, so it isn't forgotten. */
+function feeLog(item, on, o, now) {
+  o = o || {};
+  const e = { id: uid8(), at: now, by: o.by || '', k: on ? 'fee_on' : 'fee_off', note: String(o.note || '').trim(), prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } };
+  if (on) { const amt = Number(o.amt); if (amt > 0 && amt < 100000) e.amt = round2(amt); }
+  item.log = (item.log || []).concat([e]);
+  if (on && !item.follow && item.state !== 'done') item.follow = nextOfficeDay(addDays(isoOf(new Date(now)), 14));
+  return e;
+}
+/* OrthoBanc's next drafting day after `iso` (the 5th, 12th, 19th or 26th) */
+function nextDraftDay(iso) { let d = addDays(iso, 1); for (let i = 0; i < 31; i++) { if (AA_DAYS.includes(Number(d.slice(8)))) return d; d = addDays(d, 1); } return d; }
+/* a fee amount: "$50", or "$62.50" when it has cents */
+function feeMoney(v) { return money(v, Math.abs(v - Math.round(v)) > 0.004); }
+/* the fee amounts in words: "$50 or $100" */
+function feeAmtsSay(cfg) { const s = ((cfg && cfg.fees) || AR_DEFAULTS.fees).map(feeMoney); return s.length > 1 ? s.slice(0, -1).join(', ') + ' or ' + s[s.length - 1] : s[0] || ''; }
+
+/* =====================================================================
    Edge notes (8 Oct 2026, Amir: "after every action that is taken turn
    it into a edge note that can be copied and entered into the edge"):
    each thing done on an account in A/R as one line to paste into the
@@ -2400,15 +2513,22 @@ function ladderSay(s) {
   const how = s.cert ? 'certified + regular mail + email' : String(s.send || '').split(' · ')[0].toLowerCase();
   return 'Sent ' + s.l + (how ? ' (' + how + ')' : '') + (s.call ? ' and called RP' : '') + (s.text ? '; texted ' + s.text : '') + '.';
 }
-/* the note for one entry. o: { who: who did it, carrier: an insurance account's carrier, follow: the follow-up it set } → '' if none */
+/* the note for one entry. o: { who: who did it, carrier: an insurance account's carrier, follow: the follow-up it set, fee: the account's
+   missed-appointment fee (for the entries about it) } → '' if none */
 function edgeNoteText(e, o) {
   if (!e || !e.at || e.k === 'edgetask' || e.k === 'reopen' || (e.k === 'done' && e.outcome === 'cleared')) return '';
   o = o || {};
   const st = own(LAD_BY, e.step) ? LAD_BY[e.step] : null, car = String(o.carrier || '').trim(), note = String(e.note || '').replace(/\s+/g, ' ').trim();
+  const fee = o.fee > 0 ? 'missed-appointment fee of ' + money(o.fee, true) : 'missed-appointment fee';
   let say;
   if (own(EDGE_SAY, e.k)) say = EDGE_SAY[e.k];
   else if (e.k === 'pt_plan') say = 'Alternative Arrangement (AA) made' + (e.aa ? ': ' + aaTermsSay(e.aa) : '') + '.';
   else if (e.k === 'aa_terms') say = 'AA terms' + (e.aa ? ': ' + aaTermsSay(e.aa) : '') + '.';
+  else if (e.k === 'fee_on') say = 'Past due' + (e.amt > 0 ? ' of ' + money(e.amt, true) : '') + ' is a missed-appointment fee, not a treatment payment; tracked apart from collections.';
+  else if (e.k === 'fee_off') say = 'Not a missed-appointment fee; the regular collections sequence applies.';
+  else if (e.k === 'fee_draft') say = 'Added the ' + fee + ' to the next OrthoBanc draft.';
+  else if (e.k === 'fee_visit') say = 'RP will pay the ' + fee + ' at the next visit.';
+  else if (e.k === 'fee_waive') say = 'Asked Dr. A to waive the ' + fee + '.';
   else if (e.k === 'pt_promise') say = 'RP promised to pay' + (e.amt > 0 ? ' ' + money(e.amt, true) : '') + (isoOrBlank(e.date) ? ' by ' + mdy(e.date) : '') + '.';
   else if (e.k === 'ins_call') say = /^called\b/i.test(note) ? '' : car ? 'Called ' + car + '.' : 'Called the insurance carrier.';
   else if (e.k === 'ins_portal') say = car ? 'Checked the ' + car + ' portal.' : 'Checked the insurance portal.';
@@ -2433,13 +2553,15 @@ function edgeNoteText(e, o) {
    account's own while nothing came after) */
 function followAfter(item, e) {
   const L = (item && item.log) || [], i = L.indexOf(e);
-  if (i < 0 || !e || !own(LOGS, e.k) || !LOGS[e.k].next) return '';
+  if (i < 0 || !e || !own(LOGS, e.k) || !(LOGS[e.k].next || e.k === 'fee_draft')) return '';
   const nx = L.slice(i + 1).find(x => x && x.prev);
   return isoOrBlank(nx ? nx.prev.follow : item.state === 'open' ? item.follow : '');
 }
 /* the note for an entry of an account's record. whoOf(sid) → the name to sign it with; carrier: the account's carrier's name */
 function edgeNoteOf(item, e, whoOf, carrier) {
-  return e ? edgeNoteText(e, { who: whoOf ? whoOf(e.by) : '', carrier, follow: followAfter(item, e) }) : '';
+  if (!e) return '';
+  const f = e.k === 'fee_draft' || e.k === 'fee_visit' || e.k === 'fee_waive' ? feeOf(item) : null;
+  return edgeNoteText(e, { who: whoOf ? whoOf(e.by) : '', carrier, follow: followAfter(item, e), fee: f && f.amt > 0 ? f.amt : 0 });
 }
 /* a family on OrthoBanc's failed-payment list ticked as texted (handbook §14 day 0: text the RP, note it in the chart in Edge).
    r: the list's row; d: its tick { at, by } */
@@ -2483,10 +2605,10 @@ function normReport(rep) {
 function normSum(s) {
   if (!s || typeof s !== 'object') return null;
   const i = v => Math.max(0, Math.round(numOr0(v)));
-  const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
+  const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), ptFee: i(s.kp.ptFee), ptFee30: i(s.kp.ptFee30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
   return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp, fl: normFlow(s.fl) };
 }
-const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off', 'edgetask']));
+const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off', 'fee_on', 'fee_off', 'edgetask']));
 function normLog(e) {
   e = e && typeof e === 'object' ? e : {};
   const o = { id: strOf(e.id, 40), at: numOr0(e.at), by: strOf(e.by, 60), k: LOG_KINDS.has(e.k) ? e.k : 'note', note: strOf(e.note, 2000) };
@@ -2837,14 +2959,14 @@ function edgeTasksApply(item, list, o, now) {
    reason first, the rest listed with it).
    ===================================================================== */
 const FOCUS_SEV = { promise: 1, signlate: 2, tf: 3, aamiss: 3, ladlate: 4, cross: 5, new: 6, insinv: 7, followlate: 8,
-  sign: 10, lad: 11, drA: 12, follow: 13, aacheck: 13, aahold: 13, chase: 14, claim: 15, end: 16, creditaudit: 17, aaend: 17, credit: 20, nofile: 21, wait: 22 };
+  sign: 10, lad: 11, drA: 12, follow: 13, aacheck: 13, aahold: 13, feeover: 13, feelikely: 14, chase: 14, claim: 15, end: 16, creditaudit: 17, aaend: 17, credit: 20, nofile: 21, wait: 22 };
 /* office days after `from`, up to and including `today` */
 function officeDaysLate(from, today) { let n = 0, d = from; for (let i = 0; i < 400 && d < today; i++) { d = addDays(d, 1); if (nextOfficeDay(d) === d) n++; } return n; }
 /* about how long a step takes, in minutes */
 function stepMin(s) { return s.id === 'end' || s.id === 'endaa' ? 5 : (s.n ? (s.cert ? 7 : 4) : 2) + (s.call ? 5 : 0); }
 /* ctx: { accts, asOf: the report's date, byKey, item(key) → its record (null if none, or back on the list), lad(a) → its ladder state, open: open records,
    cleared(it), today, owner, prevPd: keys past due in the report before (or null), book, auditStart: the December credit audit's first day, while it runs,
-   aa: the accounts on an Alternative Arrangement [{ it, a, st: aaState(…) }] } */
+   aa: the accounts on an Alternative Arrangement [{ it, a, st: aaState(…) }], fee(key) → feeState(…) for an account tagged as a missed-appointment fee (or null) } */
 function focusEntries(ctx) {
   const t = ctx.today, best = new Map();
   const put = e => { const cur = best.get(e.key); if (!cur) best.set(e.key, e); else if (e.sev < cur.sev) { e.also = [cur.why].concat(cur.also); best.set(e.key, e); } else cur.also.push(e.why); };
@@ -2854,6 +2976,9 @@ function focusEntries(ctx) {
   (ctx.accts || []).forEach(a => {
     const it = ctx.item(a.key);
     if (it && it.state === 'done') return; // resolved (and not past due or in credit again)
+    // tagged as a missed-appointment fee, but more than the fee is past due: treatment payments are behind too
+    const F = ctx.fee ? ctx.fee(a.key) : null;
+    if (F && F.over) put(mk(a, it, 'feeover', 'Past due ' + money(a.pd) + ' is more than the ' + money(F.amt) + ' missed-appointment fee — ' + money(F.over) + ' of treatment payments behind too: take the tag off to put it back on the ladder, or keep it as a fee', 'Check', 3));
     if (onLadder(a)) {
       const L = ctx.lad(a);
       if (L && L.due) {
@@ -3746,6 +3871,13 @@ const DEMO = {
     // it was made (added last, so the made-up names and amounts above stay as they were)
     const aaMade = addDays(asOfW(2), 2), aaStart = obOnOrAfter(addDays(aaMade, 3)), aaT = { pay: 199, n: 10, start: aaStart, day: Number(aaStart.slice(8)), down: 199 };
     const aaCur = add({ src: 'pt', m: 199, sts: 'A-Comp Bra', rem: 9, from: 3, aaCur: { made: aaMade, t: aaT, pays: Array.from({ length: 10 }, (_, i) => aaPayDate(aaT, i + 1)) } });
+    // missed-appointment fees (Past due → Missed-appt fees): the contract is current and drafting — the past due is the no-show fee
+    // charged in Edge ($50 or $100). Three to tag (one of them two fees), and three tagged already: one with the fee put on the next
+    // OrthoBanc draft, one that has since missed a draft too (past due more than the fee), one Dr. A was asked to waive
+    [[100, 20, 199], [50, 12, 175], [150, 37, 225]].forEach(([fee, d, m]) => add({ src: 'pt', fee, days: d, m, sts: pick(PT_STS), rem: int(6, 18) }));
+    const feeTagged = add({ src: 'pt', fee: 100, days: 48, m: 199, sts: 'A-Comp Bra', rem: 10 });
+    const feeOver = add({ src: 'pt', fee: 50, days: 40, m: 199, over: 199, sts: 'A-Comp Inv', rem: 8 });
+    const feeDrA = add({ src: 'pt', fee: 100, days: 25, m: 250, sts: 'A- Ph II B', rem: 14 });
 
     const rowAt = (a, w) => {
       if (w < a.from || w > a.to) return null;
@@ -3753,6 +3885,12 @@ const DEMO = {
       const base = { patient: a.patient, sts: a.sts, rp, home: a.home, work: a.work, note: '' };
       if (a.credit) return Object.assign(base, { due: -a.credit, b0: 0, b30: 0, b60: 0, b90: 0, days: 0, bal: -a.credit, lastAmt: round2(a.credit + (a.src === 'ins' ? 0 : 150)), recv: addDays(latest, -a.age) });
       if (a.aaCur) { const paid = a.aaCur.pays.filter(d => d <= asOf); return Object.assign(base, { due: 0, b0: 0, b30: 0, b60: 0, b90: 0, days: 0, bal: round2(a.m * (a.rem + 1 - paid.length)), lastAmt: a.m, recv: paid.length ? paid[paid.length - 1] : a.aaCur.made }); }
+      if (a.fee) { // the fee sits in the bucket its days call for; the contract's draft came in a couple of weeks ago (or, over: the latest one was missed)
+        const d = a.days - back; if (d <= 0) return null;
+        const bk = [0, 0, 0, 0], missed = !!(a.over && d > 10); bk[d > 90 ? 3 : d > 60 ? 2 : d > 30 ? 1 : 0] += a.fee; if (missed) bk[0] += a.over;
+        const [b0, b30, b60, b90] = bk.map(round2), due = round2(b0 + b30 + b60 + b90);
+        return Object.assign(base, { due, b0, b30, b60, b90, days: d, bal: round2(due + a.m * a.rem), lastAmt: a.m, recv: addDays(asOf, -(missed ? 38 : 12 + (a.fee % 7))), note: '' });
+      }
       const d = a.days - back; if (d <= 0) return null;
       // one instalment missed every 30 days; an unpaid claim (partly paid insurance) sits in the oldest bucket
       const n = Math.ceil(d / 30), m = a.m, x = a.extra || 0;
@@ -3793,6 +3931,8 @@ const DEMO = {
         else if (k === 'sign') { signStep(it, o.step, { by: who }, at); act = { a: 'drAok', step: o.step }; }
         else if (k === 'hold') { holdLog(it, o.on !== false, { by: who }, at); act = { a: 'mhold', on: o.on !== false }; }
         else if (k === 'aa') { breakArrangement(it, { by: who, note: o && o.note || '' }, at); act = { a: 'aa' }; }
+        // tagged as a missed-appointment fee (with the fee's amount)
+        else if (k === 'fee') { feeLog(it, true, { by: who, amt: o.amt, note: o.note || '' }, at); act = { a: 'fee', on: true, amt: o.amt }; }
         // a task imported from Edge's task list ("AA MADE …" puts the account on an Alternative Arrangement)
         else if (k === 'et') { edgeTasksApply(it, [Object.assign({ id: taskId(o), op: 'Jamie' }, o)], { by: who, today: isoOf(new Date(at)), aa: true }, at); act = { a: 'edgetask', n: 1 }; }
         else applyLog(it, k, Object.assign({ by: who }, o || {}), at);
@@ -3878,6 +4018,15 @@ const DEMO = {
     if (cur) await make(cur, 'taylor', [['pt_plan', Math.min(now - 3600000, atDay(aaCur.aaCur.made, 14, 5)), 'taylor', { note: 'Altered Arrangement signed', aa: aaCur.aaCur.t }],
       ['aa_ok', Math.min(now - 3500000, atDay(addDays(aaCur.aaCur.t.start, 2), 9, 30)), 'taylor', { note: 'First payment posted' }]]);
 
+    /* missed-appointment fees (Past due → Missed-appt fees) — the three tagged ones; the other three are left for the FC to tag */
+    const feeAcct = x => accts.find(a => a.patient === x.patient);
+    // tagged ten days ago, the fee put on the next OrthoBanc draft the day after
+    await make(feeAcct(feeTagged), 'jamie', [['fee', ago(10, 9, 30), 'jamie', { amt: 100, note: 'No-show 9/18 — fee posted in Edge' }], ['fee_draft', ago(9, 10, 0), 'jamie', { note: 'Mom OK’d adding it to the next draft' }]]);
+    // tagged when the $50 fee was all that was past due; since then a draft was missed too (past due more than the fee)
+    await make(feeAcct(feeOver), 'jamie', [['fee', ago(20, 11, 0), 'jamie', { amt: 50 }]], it => { it.follow = soon(); });
+    // tagged, and Dr. A asked to waive it
+    await make(feeAcct(feeDrA), 'taylor', [['fee', ago(4, 14, 0), 'taylor', { amt: 100 }], ['fee_waive', ago(1, 9, 15), 'taylor', { note: 'First missed appointment in two years — a flat tire; mom called the same morning' }]]);
+
     /* insurance carriers (made-up names, 555 numbers): most insurance accounts have theirs; a few are left for the FC to set */
     const book = emptyBook();
     [['Bayside Dental Plan', '(800) 555-0142', 'BDP01', 365, 'Claims: PO Box 1000. Ask for the orthodontic unit.', 'https://provider.example.com/bayside'],
@@ -3920,7 +4069,7 @@ const DEMO = {
    ===================================================================== */
 const S = {
   demo: false, emu: false, tour: '', inApp: false, arState: '', view: 'today', q: '',
-  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', ladVer: 0,
+  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', feeSub: '', ladVer: 0,
   settings: { idleMin: 10 }, cfg: arCfg({}), roster: [], team: [],
   reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
   items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {},
@@ -3968,7 +4117,8 @@ const IC = {
   ladder: '<path d="M7 3.5v17M17 3.5v17M7 7.5h10M7 12h10M7 16.5h10"/>',
   pause: '<circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/>',
   plan: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17.3h2M11 17.3h2"/>',
-  tour: '<circle cx="12" cy="12" r="8.5"/><path d="M10.3 8.7l5 3.3-5 3.3z"/>'
+  tour: '<circle cx="12" cy="12" r="8.5"/><path d="M10.3 8.7l5 3.3-5 3.3z"/>',
+  tag: '<path d="M3.5 12.3V5.2A1.7 1.7 0 015.2 3.5h7.1l8.2 8.2-7.1 7.1z"/><circle cx="8.3" cy="8.3" r="1.4"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -4004,8 +4154,9 @@ function errText(e) {
 
 /* ---------- boot ---------- */
 /* a link can open A/R on one screen — the FC's checklist in CADANCe links here: nlo-ar.html#today, #focus (Today in Focus
-   mode), #pd, #aa (Past due → Arrangements), #ins, #cr, #sum or #reports. Used once, after signing in; anything else opens Today. */
-const START_VIEWS = ['today', 'focus', 'pd', 'aa', 'ins', 'cr', 'sum', 'reports'];
+   mode), #pd, #aa (Past due → Arrangements), #fees (Past due → Missed-appt fees), #ins, #cr, #sum or #reports. Used once, after
+   signing in; anything else opens Today. */
+const START_VIEWS = ['today', 'focus', 'pd', 'aa', 'fees', 'ins', 'cr', 'sum', 'reports'];
 function startView(hash) { const v = String(hash || '').replace(/^#/, '').toLowerCase(); return START_VIEWS.includes(v) ? v : ''; }
 /* leaving the page: nothing from A/R stays in the page the browser may keep for Back; coming back to it starts over */
 window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
@@ -4133,7 +4284,7 @@ async function enterApp() {
   const sv = S.startView; S.startView = ''; // a link's screen (see startView), this once — after Lock it's Today again
   if (sv === 'focus') { try { localStorage.setItem('nloAR.focus', '1'); } catch (e) { } } // same as tapping Focus mode
   Object.assign(S, {
-    inApp: true, arState: 'opening', view: sv === 'aa' ? 'pd' : sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', ladMemo: null, aaMemo: null,
+    inApp: true, arState: 'opening', view: sv === 'aa' || sv === 'fees' ? 'pd' : sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', feeSub: '', ladMemo: null, aaMemo: null, feeMemo: null,
     book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: sv === 'focus' || focusPref(),
     obReps: new Map(), obVer: 0, obPend: {}, obSrv: {}, obImp: null, obIdx: null,
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
@@ -4141,6 +4292,7 @@ async function enterApp() {
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
   });
   if (sv === 'aa') S.tab.pd = 'aa';
+  if (sv === 'fees') S.tab.pd = 'fees';
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   clearInterval(S.idleTimer);
@@ -4331,6 +4483,33 @@ function aaFor(key) { return key ? aaAll().get(key) || null : null; }
 function aaKeepKeys() { return new Set(aaAll().keys()); }
 function curRepMeta() { return S.reports.find(r => r.id === S.repId) || null; }
 
+/* ---------- missed-appointment fees (5 Nov 2026): the accounts tagged as one, and the ones that look like one, worked out once per change ---------- */
+/* key → { it, a (the account on the newest report, or null), st: feeState(…) } for every open account tagged as a missed-appointment fee */
+function feeAll() {
+  const mk = S.ladVer + '|' + S.repId;
+  if (S.feeMemo && S.feeMemo.k === mk) return S.feeMemo.m;
+  const m = new Map();
+  openItems().forEach(it => { if (!it.key || it.src === 'ins') return; const st = feeState(it, S.byKey.get(it.key) || null); if (st) m.set(it.key, { it, a: S.byKey.get(it.key) || null, st }); });
+  S.feeMemo = { k: mk, m };
+  return m;
+}
+function feeFor(key) { return key ? feeAll().get(key) || null : null; }
+/* the keys the goals leave out: tagged, with nothing past due beyond the fee */
+function feeKeys() { const s = new Set(); feeAll().forEach((x, k) => { if (x.st.only) s.add(k); }); return s; }
+/* the accounts on the newest report that look like a missed-appointment fee and aren't tagged (or dismissed) yet — [{ a, f: feeLikely(…) }],
+   the surer ones (a recent payment on the contract) first, then by days past due */
+function feeLikelyAll() {
+  const mk = S.ladVer + '|' + S.repId;
+  if (S.feeLkMemo && S.feeLkMemo.k === mk) return S.feeLkMemo.l;
+  const l = !S.rep || !S.rep.cover.pastDue ? [] : S.accts.map(a => { const it = itemFor(a.key), f = feeLikely(a, it && !isBack(it) ? it : null, S.cfg, S.rep.asOf); return f ? { a, f } : null; }).filter(Boolean)
+    .sort((x, y) => Number(y.f.sure) - Number(x.f.sure) || (y.a.days || 0) - (x.a.days || 0));
+  S.feeLkMemo = { k: mk, l, m: new Map(l.map(x => [x.a.key, x.f])) };
+  return l;
+}
+function feeLikelyFor(key) { feeLikelyAll(); return (key && S.feeLkMemo.m.get(key)) || null; }
+/* the patient accounts the regular past-due lists and the ladder show: the ones tagged as a missed-appointment fee are on their own tab */
+function pdAccts() { const F = feeAll(); return F.size ? S.accts.filter(a => !F.has(a.key)) : S.accts; }
+
 /* ---------- owner upkeep: logins reissued since, the recovery copy, anything under an older A/R key ---------- */
 async function ownerUpkeep() {
   if (!S.inApp || !isOwner() || S.arState !== 'ok') return;
@@ -4383,12 +4562,13 @@ function isBack(it) {
 function openItems() { return Array.from(S.items.values()).filter(it => !it.locked && it.state === 'open'); }
 function dueItems() { const t = todayISO(); return openItems().filter(it => it.follow && it.follow <= t && !isCleared(it)); }
 function counts() {
-  const A = S.accts, t = todayISO(), due = dueItems();
+  const A = S.accts, P = pdAccts(), t = todayISO(), due = dueItems();
   return {
     due: due.length, late: due.filter(it => it.follow < t).length,
-    n91: A.filter(a => a.bucket === '91').length, chase: A.filter(a => a.tier === 'chase').length,
+    n91: P.filter(a => a.bucket === '91').length, chase: A.filter(a => a.tier === 'chase').length,
     cr: A.filter(a => a.credit > 0 && !a.prepay).length, drA: openItems().filter(it => it.drA).length,
-    cleared: openItems().filter(isCleared).length, lad: ladDueAccts().length
+    cleared: openItems().filter(isCleared).length, lad: ladDueAccts().length,
+    fees: feeAll().size, feeLikely: feeLikelyAll().length
   };
 }
 
@@ -4555,10 +4735,10 @@ Object.assign(ACT, {
     if (S.view === 'reports' && v !== 'reports' && S.imp && S.imp.files && S.imp.files.length && !confirm('Leave without saving this report?')) return;
     if (v !== 'reports') S.imp = null;
     S.view = v; if (t.dataset.tab) S.tab[v] = t.dataset.tab;
-    S.f = { src: '', work: '', who: '', car: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || ''; S.aaSub = t.dataset.sub || '';
+    S.f = { src: '', work: '', who: '', car: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || ''; S.aaSub = S.feeSub = t.dataset.sub || '';
     closeDrawer(true); renderNav(); renderView(); window.scrollTo(0, 0);
   },
-  tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; S.aaSub = ''; renderView(); },
+  tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; S.aaSub = ''; S.feeSub = ''; renderView(); },
   clearF() { S.f = { src: '', work: '', who: '', car: '' }; renderView(); },
   sort(t) { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : (t.dataset.d === 'asc' ? 1 : -1) }; renderView(); },
   open(t) { openDrawer(t.dataset.key); },
@@ -4639,7 +4819,7 @@ function tableHTML(cols, list, def, opt) {
 }
 const C = {
   rank: { l: '#', cls: 'rank', td: (a, i) => String(i + 1) },
-  name: { k: 'name', l: 'Patient', td: a => { const L = ladFor(a); return '<div class="pt">' + esc(a.patient) + '</div><div class="ptSub">' + stsBadge(a) + (a.ins ? '<span class="badge s-ins" title="Insurance contract">Ins</span>' : '') + (L && L.hold ? '<span class="badge s-hold" title="Maintenance Hold — comfort visits only, no active tooth movement">Maint. Hold</span>' : '') + '<span class="small muted">' + esc(rpName(a)) + '</span></div>'; } },
+  name: { k: 'name', l: 'Patient', td: a => { const L = ladFor(a); return '<div class="pt">' + esc(a.patient) + '</div><div class="ptSub">' + stsBadge(a) + (a.ins ? '<span class="badge s-ins" title="Insurance contract">Ins</span>' : '') + (L && L.hold ? '<span class="badge s-hold" title="Maintenance Hold — comfort visits only, no active tooth movement">Maint. Hold</span>' : '') + feeBadge(a) + '<span class="small muted">' + esc(rpName(a)) + '</span></div>'; } },
   b0: { k: 'b0', l: '0–30', num: true, td: a => a.b0 ? money(a.b0, true) : '<span class="muted">—</span>' },
   b30: { k: 'b30', l: '31–60', num: true, td: a => a.b30 ? money(a.b30, true) : '<span class="muted">—</span>' },
   b60: { k: 'b60', l: '61–90', num: true, td: a => a.b60 ? money(a.b60, true) : '<span class="muted">—</span>' },
@@ -4668,21 +4848,23 @@ function goalBox(k, label, what) {
     '<span class="gS">' + esc(k.ok ? 'Goal met' : k.of ? k.need + ' to go' : '') + '</span></div>' +
     '<div class="gD">' + esc(k.n + ' of ' + k.of + ' ' + what + (k.ok || !k.of ? '' : ' — ' + plural(k.need, 'account') + ' to bring current to reach ' + pc(g))) + '</div></div>';
 }
+/* the goals as the app counts them: accounts tagged as a missed-appointment fee (and past due no more than the fee) are left out */
+function kpiNow() { return S.rep ? kpis(S.rep, S.cfg, feeKeys()) : null; }
 /* both goals, from the newest full report */
 function goalsHTML(inCard) {
   if (!S.rep) return '';
-  const k = kpis(S.rep, S.cfg);
+  const k = kpiNow();
   if (!k) return inCard ? '<div class="small muted">The goals are measured from a full report: Subgroup None, insurance contracts included.</div>' : '';
   return '<div class="goals' + (inCard ? ' inCard' : '') + '">' +
-    goalBox(k.pt, 'Patient accounts past due', 'active patient accounts ' + (k.from > 1 ? '30+ days past due' : 'past due')) +
+    goalBox(k.pt, 'Patient accounts past due', 'active patient accounts ' + (k.from > 1 ? '30+ days past due' : 'past due') + (k.fee ? ' (' + plural(k.fee, 'missed-appt fee') + ' not counted)' : '')) +
     (k.ins ? goalBox(k.ins, 'Insurance past its payment window', 'insurance accounts more than ' + k.win + ' days past due') : '') + '</div>';
 }
 /* Summary: the goals, report by report, and how they're counted */
 function goalsCardHTML() {
-  const k = S.rep ? kpis(S.rep, S.cfg) : null;
+  const k = kpiNow();
   const how = k ? '<div class="gHow small"><div class="gHowT">How they’re counted</div><ul>' +
     '<li>Accounts, not dollars — from each week’s full report.</li>' +
-    '<li><b>Patient:</b> accounts ' + (k.from > 1 ? '30 or more days past due' : 'with anything past due') + ' ÷ patient accounts on the report that aren’t Inactive in Edge.</li>' +
+    '<li><b>Patient:</b> accounts ' + (k.from > 1 ? '30 or more days past due' : 'with anything past due') + ' ÷ patient accounts on the report that aren’t Inactive in Edge. An account tagged as a <b>missed-appointment fee</b> doesn’t count (a no-show fee isn’t a missed treatment payment) — unless more than the fee is past due.</li>' +
     '<li><b>Insurance:</b> accounts more than ' + k.win + ' days past due (the “monitor up to” days) ÷ insurance accounts with a balance.</li>' +
     '<li>Dr. A sets the goals in Settings.</li></ul></div>' : '';
   return '<div class="card goalsCard" style="margin-bottom:18px"><div class="cardHd"><h3>Goals</h3><span class="sub">Practice KPIs · handbook §19 · as of ' + esc(fmtDate(S.rep.asOf)) + '</span></div><div class="cardBd">' + goalsHTML(true) +
@@ -4694,7 +4876,7 @@ function goalTrendHTML() {
   const pts = S.reports.filter(r => r.sum && r.sum.kp && r.sum.kp.ptOf).slice().sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : (a.at || 0) - (b.at || 0)));
   const byDay = new Map(); pts.forEach(r => byDay.set(r.asOf, r)); const P = Array.from(byDay.values()).slice(-26);
   if (P.length < 2) return '<div class="small muted">The week-by-week line shows up once there are two full reports.</div>';
-  const pr = r => (from30 ? r.sum.kp.ptPd30 : r.sum.kp.ptPd) / r.sum.kp.ptOf, ir = r => (r.sum.kp.insOf ? r.sum.kp.insLate / r.sum.kp.insOf : null);
+  const pr = r => kpPtRate(r.sum.kp, from30), ir = r => (r.sum.kp.insOf ? r.sum.kp.insLate / r.sum.kp.insOf : null);
   const gp = S.cfg.goalPt / 100, gi = S.cfg.goalIns / 100;
   /* the top of the chart: a round number, with room for the goal line in the middle */
   const top = Math.max(gp * 2, gi * 2, ...P.map(r => Math.max(pr(r), ir(r) || 0))) * 1.08 || 0.1;
@@ -4717,12 +4899,19 @@ function goalTrendHTML() {
 }
 
 /* ---------- the collections ladder: shared bits ---------- */
-const LAD_PAUSE = { plan: 'A payment plan (Alternative Arrangement) is in place', promise: 'They promised to pay by a day that hasn’t come yet', hold: 'The account is set to Paused', done: 'Resolved' };
+const LAD_PAUSE = { plan: 'A payment plan (Alternative Arrangement) is in place', promise: 'They promised to pay by a day that hasn’t come yet', hold: 'The account is set to Paused', done: 'Resolved',
+  fee: 'Tagged as a missed-appointment fee — a no-show fee, not a missed treatment payment' };
+/* on a list: the account is tagged as a missed-appointment fee, or looks like one */
+function feeBadge(a) {
+  const x = feeFor(a.key); if (x) return '<span class="badge s-fee" title="' + esc(LAD_PAUSE.fee + (x.st.amt != null ? ' (' + money(x.st.amt, true) + ')' : '') + ' — Past due → Missed-appt fees') + '">Missed-appt fee</span>';
+  const f = feeLikelyFor(a.key); return f ? '<span class="badge s-feeq" title="' + esc('Past due of exactly ' + money(a.pd, true) + ' — a missed-appointment fee? Tag it on the account, or under Past due → Missed-appt fees') + '">Fee?</span>' : '';
+}
 /* the ladder's step as the suggestion; nothing due: what's next, or why it's paused */
 function ladSug(a) {
   const L = ladFor(a); if (!L) return '';
   if (L.due) return ladChip(L.due);
   if (L.paused === 'plan') return '<span class="sug mint" title="' + esc(LAD_PAUSE.plan + ' — Past due → Arrangements') + '">' + ic('plan', 12) + 'On an AA</span>';
+  if (L.paused === 'fee') return '<span class="sug blue" title="' + esc(LAD_PAUSE.fee + ' — Past due → Missed-appt fees') + '">' + ic('tag', 12) + 'Missed-appt fee</span>';
   if (L.paused) return '<span class="sug" title="' + esc(LAD_PAUSE[L.paused] || '') + '">' + ic('pause', 12) + 'Paused</span>';
   if (L.fin) return '<span class="small muted" title="The last letter went out; the 30 days end then">Ends ' + esc(fmtDate(L.endOn)) + '</span>';
   if (L.next) return '<span class="small muted" title="' + esc(L.next.l) + '">Next: ' + esc(L.next.s) + ' · ' + esc(fmtDate(L.nextOn)) + '</span>';
@@ -4784,8 +4973,9 @@ function viewToday() {
   if (S.firstLoad && !S.demo) return '<div class="empty">Opening the latest report…</div>';
   if (!S.reports.length) return noReportHTML();
   if (notOpenHTML()) return notOpenHTML();
-  const c = counts(), A = S.accts.filter(matchesQ), t = todayISO();
-  const s91 = round2(S.accts.filter(a => a.bucket === '91').reduce((s, a) => s + a.b90, 0)), crw = S.accts.filter(a => a.credit > 0 && !a.prepay);
+  const c = counts(), A = pdAccts().filter(matchesQ), t = todayISO();
+  const s91 = round2(pdAccts().filter(a => a.bucket === '91').reduce((s, a) => s + a.b90, 0)), crw = S.accts.filter(a => a.credit > 0 && !a.prepay);
+  const feeSum = round2(Array.from(feeAll().values()).reduce((s, x) => s + (x.st.amt != null ? x.st.amt : x.st.pd), 0));
   const tile = (n, l, cls, act, sub) => '<button class="tile ' + cls + '" ' + act + '><span class="n' + (String(n).length > 6 ? ' sm' : '') + '">' + n + '</span><span class="l">' + l + '</span>' + (sub ? '<span class="s">' + sub + '</span>' : '') + '</button>';
   const toSign = ladDueAccts().filter(a => { const l = ladFor(a); return l.due.dra && !l.signed[l.due.id]; }).length;
   const aaC = Array.from(aaAll().values()).filter(x => x.st.st === 'check').length;
@@ -4794,6 +4984,8 @@ function viewToday() {
     tile(c.due, 'Follow-ups due', c.late ? 'red' : 'amber', 'data-act="tileDue"', c.late ? c.late + ' late' : 'today') +
     tile(c.lad, 'Collection steps due', 'coral', 'data-act="nav" data-v="pd" data-tab="lad"', toSign ? toSign + ' for Dr. A to sign' : 'letters, texts & calls') +
     (aaC ? tile(aaC, 'Arrangements to check', 'amber', 'data-act="nav" data-v="pd" data-tab="aa" data-sub="check"', 'Alternative Arrangements (AA)') : '') +
+    (c.feeLikely ? tile(c.feeLikely, 'Look like missed-appt fees', 'amber', 'data-act="nav" data-v="pd" data-tab="fees" data-sub="likely"', 'tag them — they leave the ladder') :
+      c.fees ? tile(money(feeSum), 'Missed-appt fees', 'blue', 'data-act="nav" data-v="pd" data-tab="fees"', plural(c.fees, 'account') + ' tagged') : '') +
     tile(money(s91), '91+ days past due', 'red', 'data-act="nav" data-v="pd" data-tab="91"', plural(c.n91, 'account')) +
     tile(c.chase, 'Insurance: chase now', 'coral', 'data-act="nav" data-v="ins" data-tab="chase"', 'nothing paid, ' + (S.cfg.tiers[0] + 1) + '–' + S.cfg.tiers[1] + ' days') +
     tile(money(crw.reduce((s, a) => s + a.credit, 0)), 'Credits to resolve', 'blue', 'data-act="nav" data-v="cr" data-tab="work"', plural(crw.length, 'account')) +
@@ -4882,13 +5074,16 @@ function viewPastDue() {
   if (!S.reports.length) return noReportHTML();
   if (notOpenHTML()) return notOpenHTML();
   if (S.rep && !S.rep.cover.pastDue) return staleHTML() + '<div class="card"><div class="empty">The latest report doesn’t have past-due accounts in it (it was run for credit balances only).</div></div>';
-  const A = S.accts, l91 = withCum(list91(A)), l31 = list31(A), l0 = list0(A), all = A.filter(a => a.pd > 0), LD = ladDueAccts();
+  // accounts tagged as a missed-appointment fee have their own tab; "All past due" still has every account
+  const A = pdAccts(), l91 = withCum(list91(A)), l31 = list31(A), l0 = list0(A), all = S.accts.filter(a => a.pd > 0), LD = ladDueAccts(), FEE = feeAll(), FL = feeLikelyAll();
   const amt = (l, f) => l.reduce((s, a) => s + f(a), 0), tab = S.tab.pd;
-  let h = staleHTML() + tabsHTML([['lad', 'Steps due', LD.length], ['aa', 'Arrangements (AA)', aaAll().size], ['91', '91+ days', l91.length, amt(l91, a => a.b90)], ['31', '31–90 days', l31.length, amt(l31, a => a.pd)], ['0', '0–30 days', l0.length, amt(l0, a => a.pd)], ['all', 'All past due', all.length, amt(all, a => a.pd)]]);
+  let h = staleHTML() + tabsHTML([['lad', 'Steps due', LD.length], ['aa', 'Arrangements (AA)', aaAll().size], ['fees', 'Missed-appt fees', FL.length ? FEE.size + ' · ' + FL.length + ' to tag' : FEE.size],
+    ['91', '91+ days', l91.length, amt(l91, a => a.b90)], ['31', '31–90 days', l31.length, amt(l31, a => a.pd)], ['0', '0–30 days', l0.length, amt(l0, a => a.pd)], ['all', 'All past due', all.length, amt(all, a => a.pd)]]);
   if (tab === 'lad') return h + ladListHTML(A, LD);
   if (tab === 'aa') return h + aaTabHTML();
+  if (tab === 'fees') return h + feeTabHTML();
   if (tab === '91') {
-    const s = summarize(S.rep, S.cfg).conc;
+    const tot = amt(l91, a => a.b90), s = { n: l91.length, total: tot, top25: amt(l91.slice(0, 25), a => a.b90) };
     h += '<div class="listHd">' + ic('info', 16) + '<span><b>' + plural(s.n, 'account') + ', ' + money(s.total) + '.</b> ' + (s.n > 25 ? 'The top 25 carry ' + pct(s.top25, s.total) + '% of it — w' : 'W') + 'ork down the list and stop where the return stops justifying the call. Under ' + money(S.cfg.writeOff) + ' is a write-off candidate.</span></div>';
     const list = applyFilters(l91), sorted = sortBy(list, { k: 'b90', dir: -1 });
     const cut = !S.sort.k && !S.f.src && !S.f.work && !S.f.who && !S.q ? l91.findIndex(a => a.cum >= 0.7) : -1;
@@ -4969,6 +5164,100 @@ function aaHelpHTML() {
 Object.assign(ACT, {
   aaSub(t) { S.aaSub = t.dataset.s || ''; S.sort = { k: '', dir: 1 }; renderView(); },
   aaHelp() { const w = openModal(aaHelpHTML()); const m = w && $('.modal', w); if (m) m.classList.add('ladM'); }
+});
+
+/* ---------- Past due → Missed-appt fees (5 Nov 2026): accounts tagged as a missed-appointment fee, and the ones that look like one ---------- */
+/* the tab's rows: the account as it is on the report — or, when it isn't on it any more, what its record knows */
+function feeRows() {
+  return Array.from(feeAll().values()).map(x => {
+    const a = x.a || { key: x.it.key, patient: x.it.name, rp: x.it.rp, sts: '', ins: false, src: 'pt', inactive: false, prepay: false, home: '', work: '', note: '',
+      due: 0, b0: 0, b30: 0, b60: 0, b90: 0, pd: 0, credit: 0, o30: 0, bal: null, days: null, recv: '', lastAmt: null, bucket: '', months: 0, tier: '', age: null, ageBucket: '' };
+    const s = x.st, drA = !!x.it.drA;
+    return Object.assign({}, a, { fee: s, feeRank: s.over ? 0 : drA ? 1 : 2, feeOn: isoOf(new Date(s.on.at)), feeAmt: s.amt == null ? -1 : s.amt, feeDrA: drA, onRep: !!x.a });
+  });
+}
+/* how the fee is being collected: the latest fee entry since it was tagged (on the next draft, at the next visit, with Dr. A) */
+function feeHow(it) {
+  const E = ladEntries(it); let i = E.length; while (i-- > 0) if (E[i].k === 'fee_on') break;
+  const after = E.slice(i + 1), e = after.slice().reverse().find(x => /^fee_/.test(x.k)); if (!e) return '';
+  if (e.k === 'fee_waive') return after.some(x => x.k === 'drA_ok') ? 'Dr. A OK’d the waiver' : after.some(x => x.k === 'drA_no') ? 'Dr. A: not waived' : 'Asked Dr. A to waive it';
+  return LOGS[e.k] ? LOGS[e.k].s : '';
+}
+const CF = {
+  name: { k: 'name', l: 'Patient', td: a => '<div class="pt">' + esc(a.patient) + '</div><div class="ptSub">' + stsBadge(a) + (holdOf(itemFor(a.key)) ? '<span class="badge s-hold" title="Maintenance Hold">Maint. Hold</span>' : '') + '<span class="small muted">' + esc(rpName(a)) + '</span></div>' },
+  amt: { k: 'feeAmt', l: 'Fee', num: true, td: a => a.fee.amt != null ? '<span class="big">' + feeMoney(a.fee.amt) + '</span>' : '<span class="small muted">Not recorded</span>' },
+  pd: { k: 'pd', l: 'Past due', num: true, td: a => a.pd > 0 ? money(a.pd, true) + (a.fee.over ? '<div class="small feeOver">+ ' + money(a.fee.over, true) + ' more than the fee</div>' : '') : '<span class="small muted">' + (a.onRep ? 'Nothing' : 'Not on the report') + '</span>' },
+  on: { k: 'feeOn', l: 'Tagged', cls: 'hideM', td: a => esc(fmtDate(a.feeOn)) + '<div class="small muted">' + esc(shortName(a.fee.on.by)) + '</div>' },
+  how: { k: 'feeRank', l: 'Collecting it', cls: 'hideM', td: a => { const h = feeHow(itemFor(a.key)); return a.feeDrA ? '<span class="sug amber">With Dr. A</span>' : h ? '<span class="small">' + esc(h) + '</span>' : '<span class="small muted">Not started</span>'; } },
+  // likely fees, not tagged yet
+  split: { k: 'pd', l: 'Past due', num: true, td: a => '<span class="big">' + money(a.pd, true) + '</span><div class="small muted">' + esc(a.fl.amts.length > 1 ? a.fl.amts.map(feeMoney).join(' + ') : 'one fee') + '</div>' },
+  last: { k: 'recv', l: 'Last payment', cls: 'hideM', td: a => a.recv ? esc(fmtDate(a.recv)) + (a.lastAmt ? '<div class="small muted">' + money(a.lastAmt, true) + (a.fl.sure ? ' · paying the contract' : '') + '</div>' : '') : '<span class="small muted">—</span>' },
+  note: { l: 'Edge note', cls: 'hideM', td: a => '<span class="small muted">' + esc(a.note || '') + '</span>' },
+  tag: { l: '', td: a => '<span class="btnRow feeBtns"><button class="btn btn-pri btn-sm" data-act="feeTagRow" data-key="' + esc(a.key) + '">' + ic('tag', 14) + 'Tag it</button><button class="btn btn-ghost btn-sm" data-act="feeNoRow" data-key="' + esc(a.key) + '">Not a fee</button></span>' }
+};
+function feeTabHTML() {
+  const all = feeRows(), FL = feeLikelyAll(), over = all.filter(r => r.fee.over), drA = all.filter(r => r.feeDrA);
+  if (S.feeSub && (S.feeSub === 'likely' ? !FL.length : S.feeSub === 'over' ? !over.length : S.feeSub === 'drA' ? !drA.length : true)) S.feeSub = ''; // nothing left under that chip: show the tagged ones
+  const sub = S.feeSub, amtOf = l => l.reduce((s, r) => s + (r.fee.amt != null ? r.fee.amt : r.pd), 0);
+  let h = '<div class="listHd">' + ic('tag', 16) + '<span><b>Missed-appointment fees</b> — accounts whose past due is a no-show fee (' + esc(feeAmtsSay(S.cfg)) + '), not a missed treatment payment. Tagged, they leave the collections ladder, the 91+ / 31–90 / 0–30 lists and the patient goal, and are collected from here: the next OrthoBanc draft, the next visit, or Dr. A waives it. <button class="linkBtn" data-act="feeHelp">How it works</button></span></div>';
+  const chip = (k, l, c) => '<button class="chip sm' + (sub === k ? ' on' : '') + '" data-act="feeSub" data-s="' + esc(k) + '">' + esc(l) + '<span class="c">' + c + '</span></button>';
+  h += '<div class="chips subChips">' + chip('', 'Tagged', all.length) + (over.length ? chip('over', 'More than the fee', over.length) : '') + (drA.length ? chip('drA', 'With Dr. A', drA.length) : '') + (FL.length ? chip('likely', 'Look like fees — not tagged', FL.length) : '') + '</div>';
+  if (sub === 'likely') {
+    const list = FL.map(x => Object.assign({}, x.a, { fl: x.f })), sure = list.filter(a => a.fl.sure).length;
+    h += '<div class="batchBar"><span><b>' + plural(list.length, 'account') + ' past due exactly ' + esc(feeAmtsSay(S.cfg)) + (list.some(a => a.fl.amts.length > 1) ? ' (or two fees)' : '') + '.</b>' +
+      (sure ? ' ' + (sure === list.length ? (list.length === 1 ? 'It’s' : 'They’re all') : sure + ' are') + ' paying the contract (a payment in the last ' + FEE_LOOK + ' days), so the fee is what’s left.' : '') +
+      ' Check the ledger in Edge when unsure. Tagging takes the account off the collections ladder and out of the goal; “Not a fee” leaves it where it is and stops asking.</span>' +
+      '<span class="btnRow"><button class="btn btn-pri btn-sm" data-act="feeTagAll">' + ic('tag', 15) + 'Tag ' + (list.length > 1 ? 'all ' + list.length : 'it') + '</button></span></div>';
+    return h + filtersHTML({ src: false }) + tableHTML([C.name, CF.split, C.bal, C.days, CF.last, CF.note, C.sug, CF.tag], sortBy(applyFilters(list), { k: 'days', dir: -1 }), { k: 'days', dir: -1 }, { empty: 'No account looks like a missed-appointment fee.' });
+  }
+  if (all.length) h += '<div class="aaSum small">' + plural(all.length, 'account') + ' tagged · ' + money(amtOf(all)) + ' in fees' + (over.length ? ' · <b>' + plural(over.length, 'account') + ' past due more than the fee</b>' : '') + (drA.length ? ' · ' + drA.length + ' with Dr. A' : '') +
+    (FL.length ? ' · <button class="linkBtn" data-act="feeSub" data-s="likely">' + plural(FL.length, 'more looks', 'more look') + ' like a fee — tag them</button>' : '') + '</div>';
+  const base = sub === 'over' ? over : sub === 'drA' ? drA : all;
+  return h + filtersHTML({ src: false }) + tableHTML([CF.name, CF.amt, CF.pd, C.days, CF.on, CF.how, C.work], sortBy(applyFilters(base), { k: 'feeRank', dir: 1 }), { k: 'feeRank', dir: 1 },
+    { empty: all.length ? 'No accounts match.' : FL.length ? plural(FL.length, 'account looks', 'accounts look') + ' like a missed-appointment fee — see the chip above to tag them.' : 'No account is tagged as a missed-appointment fee. On an account, “Missed-appointment fee…” tags it; accounts past due exactly ' + feeAmtsSay(S.cfg) + ' are pointed out here.' });
+}
+function feeHelpHTML() {
+  return '<h3>Missed-appointment fees</h3><div class="lsub">A family that misses an appointment is charged a fee in Edge (' + esc(feeAmtsSay(S.cfg)) + '). Unpaid, it shows on the A/R Aging as past due — exactly like a missed treatment payment, which it isn’t.</div>' +
+    '<ul class="small helpList">' +
+    '<li><b>Tagging:</b> on the account, <b>Missed-appointment fee…</b> (with the fee’s amount). The tagged account leaves the collections ladder (no letters, no Maintenance Hold for a no-show fee), the 91+ / 31–90 / 0–30 lists and the patient delinquency goal, and comes here. “All past due” still lists it, marked. The tag is written in the account’s notes and in its Edge note.</li>' +
+    '<li><b>Finding them:</b> a patient account past due exactly one fee amount — or two added up — is pointed out as a likely fee (on the lists as <i>Fee?</i>, and under the chip here), surest first: a payment on the contract in the last ' + FEE_LOOK + ' days means they’re paying and the fee is what’s left. Tag them one by one or all at once; <b>Not a fee</b> leaves the account where it is and stops asking. When unsure, the ledger in Edge says what the charge is.</li>' +
+    '<li><b>Collecting it:</b> on the account — <b>Added to the next OrthoBanc draft</b> (follow-up a few days after that drafting day), <b>They’ll pay it at the next visit</b> (two weeks), or <b>Ask Dr. A to waive it</b> (it goes on his Today; once he OKs it, resolve the account as <i>Fee waived</i> and write the fee off in Edge). Calls and texts are logged as on any account. Paid: the account leaves Edge’s next report, and “Cleared in Edge” closes it.</li>' +
+    '<li><b>More than the fee:</b> when a tagged account’s past due grows beyond the fee, treatment payments are behind too — it’s pointed out here and in Focus. Take the tag off (<b>Not a missed-appointment fee</b> on the account) to put it back on the ladder, or keep it here while the fee is collected.</li>' +
+    '<li><b>The amounts</b> are Dr. A’s Settings (' + esc(feeAmtsSay(S.cfg)) + ' to start with). The weekly goal gauges and the Summary leave tagged accounts out; Month-End’s numbers stay Edge’s.</li></ul>' +
+    '<div class="mFt"><button class="btn btn-pri" data-act="closeModal">Close</button></div>';
+}
+/* tag one or more accounts as a missed-appointment fee, each with the fee the past due comes to; `no`: "not a fee" instead */
+async function feeTagMany(list, no) {
+  const now = Date.now(), by = meSid(), done = [];
+  for (const a of list) {
+    const f = feeLikelyFor(a.key), amt = f ? f.amt : a.pd;
+    if (await change(a.key, d => { feeLog(d, !no, no ? { by, note: 'Not a missed-appointment fee' } : { by, amt }, now); }, { a: 'fee', on: !no })) done.push(a);
+  }
+  return done;
+}
+Object.assign(ACT, {
+  feeSub(t) { S.feeSub = t.dataset.s || ''; S.sort = { k: '', dir: 1 }; if (S.view !== 'pd' || S.tab.pd !== 'fees') { S.view = 'pd'; S.tab.pd = 'fees'; renderNav(); } renderView(); },
+  feeHelp() { const w = openModal(feeHelpHTML()); const m = w && $('.modal', w); if (m) m.classList.add('ladM'); },
+  /* Focus / Today: the accounts that look like fees */
+  feeLikely() { S.view = 'pd'; S.tab.pd = 'fees'; S.feeSub = 'likely'; S.sort = { k: '', dir: 1 }; S.f = { src: '', work: '', who: '', car: '' }; closeDrawer(true); renderNav(); renderView(); window.scrollTo(0, 0); },
+  async feeTagRow(t) {
+    const a = S.byKey.get(t.dataset.key); if (!a) return;
+    const done = await feeTagMany([a], false);
+    if (done.length) { toast(a.patient + ' tagged as a missed-appointment fee', { actions: edgeRows(done).map(r => edgeAct(r.text, r.e)) }); }
+  },
+  async feeNoRow(t) {
+    const a = S.byKey.get(t.dataset.key); if (!a) return;
+    const done = await feeTagMany([a], true);
+    if (done.length) toast(a.patient + ': not a missed-appointment fee — it stays where it is', { actions: edgeRows(done).map(r => edgeAct(r.text, r.e)) });
+  },
+  async feeTagAll() {
+    const list = (S.lastList || []).filter(a => a.fl && S.byKey.has(a.key)); if (!list.length) return;
+    const names = list.slice(0, 12).map(a => a.patient).join(', ') + (list.length > 12 ? ' and ' + (list.length - 12) + ' more' : '');
+    if (!(await confirmBox('Tag ' + plural(list.length, 'account') + ' as missed-appointment fees?', names + '. Each gets the fee its past due comes to, leaves the collections ladder and the goal, and is collected from the Missed-appt fees tab.', 'Tag them'))) return;
+    const done = await feeTagMany(list, false);
+    toast('Tagged ' + plural(done.length, 'account') + ' as missed-appointment fees');
+    edgeNotesModal('Notes for Edge · missed-appointment fees · ' + plural(done.length, 'account'), edgeRows(done));
+  }
 });
 
 /* one step for many accounts at once — e.g. this week's Letter #2s, sent together from Edge */
@@ -5070,13 +5359,15 @@ ACT.csv = async () => {
   const list = S.lastList || [];
   if (!list.length) return;
   if (!(await confirmBox('Download this list?', 'The file has patients’ names, phone numbers and balances. Keep it on an office computer and delete it when you’re done.', 'Download'))) return;
-  const head = ['Patient', 'Responsible party', 'Edge status', 'Pays', 'Home phone', 'Work phone', '0-30', '31-60', '61-90', '91+', 'Past due', 'Contract balance', 'Credit', 'Days', 'Last payment', 'Suggested', 'Collections step', 'Follow-up', 'Last note'];
-  const rows = list.map(a => { const it = itemFor(a.key), e = it && lastLog(it), L = ladFor(a);
+  const head = ['Patient', 'Responsible party', 'Edge status', 'Pays', 'Home phone', 'Work phone', '0-30', '31-60', '61-90', '91+', 'Past due', 'Contract balance', 'Credit', 'Days', 'Last payment', 'Suggested', 'Collections step', 'Missed-appt fee', 'Follow-up', 'Last note'];
+  const rows = list.map(a => { const it = itemFor(a.key), e = it && lastLog(it), L = ladFor(a), F = feeFor(a.key), FL = F ? null : feeLikelyFor(a.key);
     // on the Arrangements tab: the arrangement's status and its first reason, and its terms
     const sug = a.aa ? 'AA ' + (AA_ST[a.aa.st] || AA_ST.ok).l.toLowerCase() + (a.aa.why[0] ? ': ' + a.aa.why[0].t : '') + (a.aa.terms ? ' · ' + aaTermsShort(a.aa.terms) : '') :
       a.credit > 0 && !(a.pd > 0) ? crAction(a).l : a.months ? TIERS[a.tier].l : pdAction(a, S.cfg).l;
     const lad = !L ? '' : (L.due ? 'Day ' + L.day + ': ' + L.due.s + ' — ' + L.due.l + (L.due.dra ? ' (' + ladSignText(L, L.due) + ')' : '') : L.paused ? 'Paused — ' + (LAD_PAUSE[L.paused] || '') : L.fin ? 'Last letter sent; 30 days end ' + L.endOn : L.next ? 'Next: ' + L.next.s + ' on ' + L.nextOn : '') + (L.hold ? ' · on Maintenance Hold' : '');
-    return [a.patient, a.rp, a.sts, a.ins ? 'Insurance' : 'Patient', a.home, a.work].map(csvCell).concat([a.b0, a.b30, a.b60, a.b90, a.pd, a.bal == null ? '' : a.bal, a.credit, a.days == null ? '' : a.days].map(n => String(n))).concat([a.recv, sug, lad, it ? it.follow || '' : '', e ? logLabel(e) + (e.note ? ': ' + e.note : '') : ''].map(csvCell)).join(','); });
+    // tagged as a missed-appointment fee (the fee, and whether more is past due), or one that looks like one
+    const fee = F ? 'Tagged' + (F.st.amt != null ? ' ' + feeMoney(F.st.amt) : '') + (F.st.over ? ' · past due ' + money(F.st.over, true) + ' more than the fee' : '') + (feeHow(F.it) ? ' · ' + feeHow(F.it) : '') : FL ? 'Looks like one: ' + FL.amts.map(feeMoney).join(' + ') : '';
+    return [a.patient, a.rp, a.sts, a.ins ? 'Insurance' : 'Patient', a.home, a.work].map(csvCell).concat([a.b0, a.b30, a.b60, a.b90, a.pd, a.bal == null ? '' : a.bal, a.credit, a.days == null ? '' : a.days].map(n => String(n))).concat([a.recv, sug, lad, fee, it ? it.follow || '' : '', e ? logLabel(e) + (e.note ? ': ' + e.note : '') : ''].map(csvCell)).join(','); });
   const blob = new Blob(['﻿' + head.map(csvCell).join(',') + '\n' + rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nlo-ar-' + (TITLES[S.view] || 'list').toLowerCase().replace(/\W+/g, '-') + '-' + S.tab[S.view] + '-' + todayISO() + '.csv'; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -5138,7 +5429,20 @@ function ladSummaryHTML() {
     '<div style="margin-top:10px"><div class="kvRow"><span>On Maintenance Hold</span><b>' + n(l => l.hold) + '</b></div>' +
     '<div class="kvRow"><span>Paused — a payment plan, or a promise to pay</span><b>' + n(l => l.paused === 'plan' || l.paused === 'promise') + '</b></div>' +
     (AA.size ? '<div class="kvRow"><span>On an Alternative Arrangement, current ones too (Past due → Arrangements)</span><b>' + AA.size + (aaN('check') ? ' · ' + aaN('check') + ' to check' : '') + '</b></div>' : '') +
+    feeSummaryRows() +
     '<div class="kvRow"><span>Last letter sent — in the 30 days after it</span><b>' + n(l => l.fin && !l.due) + '</b></div></div></div></div>';
+}
+/* Month-End's numbers are Edge's, fees and all: a note says how much of the patient 30+ is tagged missed-appointment fees */
+function feeMonthEndNote() {
+  const F = Array.from(feeAll().values()).filter(x => x.a && x.a.o30 > 0.004); if (!F.length) return '';
+  return ' Of the patient 30+ days past due, ' + plural(F.length, 'account') + ' (' + money(F.reduce((s, x) => s + x.a.o30, 0), true) + ') ' + (F.length === 1 ? 'is' : 'are') + ' tagged as missed-appointment fees — included, as Edge counts them.';
+}
+/* the ladder card's lines about missed-appointment fees: tagged (off the ladder, the lists and the goal), and the ones that look like one */
+function feeSummaryRows() {
+  const F = Array.from(feeAll().values()), FL = feeLikelyAll(); if (!F.length && !FL.length) return '';
+  const fees = round2(F.reduce((s, x) => s + (x.st.amt != null ? x.st.amt : x.st.pd), 0)), over = F.filter(x => x.st.over).length;
+  return (F.length ? '<div class="kvRow"><span>Tagged as a missed-appointment fee — off the ladder, the lists and the goal (Past due → Missed-appt fees)</span><b>' + F.length + ' · ' + money(fees) + (over ? ' · ' + over + ' past due more than the fee' : '') + '</b></div>' : '') +
+    (FL.length ? '<div class="kvRow"><span>Look like a missed-appointment fee, not tagged yet</span><b>' + FL.length + '</b></div>' : '');
 }
 /* past due, 91+ and credits to resolve, report by report (from each report's sealed totals) */
 function trendHTML() {
@@ -5163,7 +5467,7 @@ function monthEndHTML(s) {
   return head + '<div class="meGrid"><span class="h"></span><span class="h" style="text-align:right">Dollars</span><span class="h" style="text-align:right">Accounts</span>' +
     row('Insurance accounts', me.ins_ar, me.ins_ar_n) + row('Insurance 30+ days past due', me.ins_pd, me.ins_pd_n) + row('Patient accounts', me.pt_ar, me.pt_ar_n) + row('Patient 30+ days past due', me.pt_pd, me.pt_pd_n) +
     row('Total A/R', me.ar_total) + row('Patient credits', me.cred_pt) + row('Insurance credits', me.cred_ins) + '</div>' +
-    '<p class="small muted" style="margin-top:10px">As of ' + esc(fmtDateLong(s.asOf)) + '. For month-end, import the report run on the last day of the month. 30+ days = the 31–60, 61–90 and 91+ columns.</p>' +
+    '<p class="small muted" style="margin-top:10px">As of ' + esc(fmtDateLong(s.asOf)) + '. For month-end, import the report run on the last day of the month. 30+ days = the 31–60, 61–90 and 91+ columns.' + feeMonthEndNote() + '</p>' +
     '<div class="btnRow noPrint"><button class="btn btn-sec btn-sm" data-act="copyVal" data-v="' + esc(txt) + '">' + ic('copy', 15) + 'Copy the numbers</button><a class="btn btn-ghost" href="month-end.html" target="_blank" rel="noopener">Open Month-End ' + ic('next', 14) + '</a></div></div></div>';
 }
 
@@ -5289,7 +5593,8 @@ Object.assign(ACT, {
     imp.busy = true; const btn = $('#impSave'); busyBtn(btn, true, 'Sealing and saving…');
     try {
       const rep = Object.assign({}, imp.rep, { made: Date.now() }); delete rep.warn;
-      await B.saveReport(rep, reportTotals(rep, S.cfg, S.rep && S.rep.asOf < rep.asOf ? S.rep : null));
+      // the sealed totals remember which accounts were tagged as a missed-appointment fee, so the goal's history reads the same as the gauges
+      await B.saveReport(rep, reportTotals(rep, S.cfg, S.rep && S.rep.asOf < rep.asOf ? S.rep : null, feeKeys()));
       S.imp = null; toast('Report saved — the lists now show ' + fmtDateLong(rep.asOf)); S.view = 'today'; renderNav(); renderView();
     } catch (x) { imp.busy = false; busyBtn(btn, false); toast(errText(x), { bad: true }); }
   },
@@ -5309,7 +5614,8 @@ function focusCtx() {
   const t = todayISO(), aw = auditWindow(t), pk = S.prevId + '|' + S.repId;
   if (!S.prevPdMemo || S.prevPdMemo.k !== pk) S.prevPdMemo = { k: pk, set: S.prev && S.rep && S.prev.cover.pastDue && S.rep.cover.pastDue ? new Set(reportAccts(S.prev, S.cfg).filter(a => a.pd > 0).map(a => a.key)) : null };
   return { accts: S.rep ? S.accts : [], asOf: S.rep ? S.rep.asOf : t, byKey: S.byKey, item: k => { const it = itemFor(k); return it && !isBack(it) ? it : null; }, lad: a => ladFor(a), open: openItems(), cleared: isCleared,
-    today: t, owner: isOwner(), prevPd: S.prevPdMemo.set, book: S.book, auditStart: aw.on && S.rep && S.rep.cover.credit ? aw.start : '', aa: Array.from(aaAll().values()) };
+    today: t, owner: isOwner(), prevPd: S.prevPdMemo.set, book: S.book, auditStart: aw.on && S.rep && S.rep.cover.credit ? aw.start : '', aa: Array.from(aaAll().values()),
+    fee: k => { const x = feeFor(k); return x ? x.st : null; } };
 }
 /* accounts somebody logged something on today */
 function focusDoneToday() {
@@ -5326,6 +5632,13 @@ function focusData() {
     const rep = O.cur ? obRepFor(O.cur.date) : null, P = rep ? obProgress(rep) : null;
     if (P && P.left) (P.holdLeft ? U : T).unshift({ key: '_obl', special: 'obList', day: rep.day, label: 'OrthoBanc: ' + plural(P.left, 'family', 'families') + ' to text', kind: 'ob', cls: P.holdLeft ? 'urgent' : 'today', sev: 0,
       why: 'The ' + fmtDate(rep.day) + ' report' + (P.holdLeft ? ' · ' + P.holdLeft + ' on HOLD' : '') + ' — text each one (day 0), note the chart, set a 2-week Edge task, tick them off', act: 'Open the list', min: Math.min(60, 2 * P.left), amt: 0, also: [] });
+  }
+  // accounts that look like missed-appointment fees: one line for all of them, until each is tagged or marked "not a fee"
+  const FL = feeLikelyAll();
+  if (FL.length) {
+    const sev = FOCUS_SEV.feelikely, at = T.findIndex(e => e.sev > sev);
+    T.splice(at < 0 ? T.length : at, 0, { key: '_fees', special: 'feeLikely', label: plural(FL.length, 'account looks', 'accounts look') + ' like a missed-appointment fee', kind: 'feelikely', cls: 'today', sev,
+      why: 'Past due exactly ' + feeAmtsSay(S.cfg) + (FL.some(x => x.f.amts.length > 1) ? ' (or two fees)' : '') + ' — tag them so they leave the collections ladder and the goal, or mark them “not a fee”', act: 'See them', min: Math.min(30, FL.length), amt: 0, also: [] });
   }
   return { E, U, T, L, cl: openItems().filter(isCleared), done: focusDoneToday(), min: U.concat(T).reduce((s, e) => s + e.min, 0) };
 }
@@ -5678,10 +5991,12 @@ Object.assign(ACT, {
    what — and a weekly brief from AISA, written from the totals only
    ===================================================================== */
 function sumOf(id) { const r = S.reports.find(x => x.id === id); return r && r.sum; }
+/* a saved report's patient rate, the accounts tagged as a missed-appointment fee when it was saved left out (reports from before the tags have none) */
+function kpPtRate(kp, from30) { return Math.max(0, (from30 ? kp.ptPd30 - (kp.ptFee30 || 0) : kp.ptPd - (kp.ptFee || 0))) / kp.ptOf; }
 function kpiSeries(which) {
   const from30 = S.cfg.kpiFrom > 1, byDay = new Map();
   S.reports.filter(r => r.sum && r.sum.kp && r.sum.kp.ptOf).slice().sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : (a.at || 0) - (b.at || 0))).forEach(r => byDay.set(r.asOf, r));
-  return Array.from(byDay.values()).map(r => ({ asOf: r.asOf, rate: which === 'pt' ? (from30 ? r.sum.kp.ptPd30 : r.sum.kp.ptPd) / r.sum.kp.ptOf : r.sum.kp.insOf ? r.sum.kp.insLate / r.sum.kp.insOf : null })).filter(p => p.rate != null);
+  return Array.from(byDay.values()).map(r => ({ asOf: r.asOf, rate: which === 'pt' ? kpPtRate(r.sum.kp, from30) : r.sum.kp.insOf ? r.sum.kp.insLate / r.sum.kp.insOf : null })).filter(p => p.rate != null);
 }
 function paceText(p, goal) {
   const pc = x => (x * 100).toFixed(1).replace(/\.0$/, '') + '%', pts = x => Math.abs(x * 100).toFixed(1) + ' points';
@@ -5709,7 +6024,7 @@ function weekActivity() {
   return Array.from(by.values()).sort((x, y) => y.all - x.all);
 }
 function trendsCardHTML() {
-  const F = S.rep && S.prev ? flowOf(S.rep, S.prev, S.cfg) : null, k = S.rep ? kpis(S.rep, S.cfg) : null;
+  const F = S.rep && S.prev ? flowOf(S.rep, S.prev, S.cfg) : null, k = kpiNow();
   let h = '<div class="card trendsCard" style="margin-bottom:18px"><div class="cardHd"><h3>Trends</h3><span class="sub">' + (F ? 'Week over week · ' + esc(fmtDate(F.from)) + ' → ' + esc(fmtDate(F.to)) : 'Week over week') + '</span></div><div class="cardBd">';
   if (!F) h += '<div class="small muted">Shows up with the second report: what got current, what’s newly past due, what slid into an older bucket.</div>';
   else {
@@ -5751,7 +6066,7 @@ function mdLite(t) {
 }
 /* the numbers AISA gets: totals and counts only — never a patient's name or account */
 function briefFacts() {
-  const s = summarize(S.rep, S.cfg), k = kpis(S.rep, S.cfg), F = S.prev ? flowOf(S.rep, S.prev, S.cfg) : null, c = counts(), pc = x => (x * 100).toFixed(1) + '%', L = [];
+  const s = summarize(S.rep, S.cfg), k = kpiNow(), F = S.prev ? flowOf(S.rep, S.prev, S.cfg) : null, c = counts(), pc = x => (x * 100).toFixed(1) + '%', L = [];
   L.push('A/R aging report of ' + fmtDateLong(S.rep.asOf) + (S.prev ? ' (the one before it: ' + fmtDateLong(S.prev.asOf) + ')' : '') + '.');
   L.push('Past due: ' + money(s.pd.total) + ' across ' + s.pd.n + ' accounts (patients ' + money(s.pd.pt.total) + ', insurance ' + money(s.pd.ins.total) + '); 91+ days: ' + money(s.pd.b90) + ' (' + s.conc.n + ' accounts).');
   if (k) {
@@ -5763,6 +6078,8 @@ function briefFacts() {
   const LD = ladDueAccts(), by = new Map(); LD.forEach(a => { const st = ladFor(a).due; by.set(st.s, (by.get(st.s) || 0) + 1); });
   const held = S.accts.filter(a => { const l = ladFor(a); return l && l.hold; }).length;
   L.push('Collections ladder (handbook §14): ' + LD.length + ' steps due' + (by.size ? ' — ' + Array.from(by.entries()).map(([n, x]) => x + ' × ' + n).join(', ') : '') + '; ' + held + ' on Maintenance Hold.');
+  const FE = Array.from(feeAll().values()), FLn = feeLikelyAll().length;
+  if (FE.length || FLn) L.push('Missed-appointment fees (no-show fees, kept apart from collections and the goal): ' + FE.length + ' accounts tagged, ' + money(FE.reduce((x, y) => x + (y.st.amt != null ? y.st.amt : y.st.pd), 0)) + (FLn ? '; ' + FLn + ' more look like fees and aren’t tagged yet' : '') + '.');
   const T = s.never.tiers;
   L.push('Insurance with nothing paid: ' + s.never.n + ' accounts, ' + money(s.never.pd) + ' (chase now ' + T.chase.n + ', investigate ' + T.investigate.n + ', probably never filed ' + T.nofile.n + ', monitor ' + T.monitor.n + ').');
   if (S.book && S.book.carriers.length) {
@@ -6080,7 +6397,7 @@ function renderDrawer() {
   const d = $('#drawer'); if (!d) return;
   const key = S.openKey, a = S.byKey.get(key) || null, it = itemFor(key);
   if (!a && !it) { d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Not in this report</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd"><div class="notice info">This account isn’t past due or in credit in the latest report.</div></div>'; return; }
-  const keep = keepInputs(d), g = groupOf(a, it), back = isBack(it), done = !!it && it.state === 'done' && !back, aa = done || back ? null : aaFor(key);
+  const keep = keepInputs(d), g = groupOf(a, it), back = isBack(it), done = !!it && it.state === 'done' && !back, aa = done || back ? null : aaFor(key), fee = done || back ? null : feeFor(key);
   const name = a ? a.patient : it.name, rp = a ? a.rp : it.rp, ins = a ? a.ins : it.src === 'ins';
   let h = '<div class="dHd"><div style="flex:1;min-width:0"><h3>' + esc(name) + '</h3><div class="sub">' +
     (a ? stsBadge(a) + srcBadge(a) : '<span class="badge ' + (ins ? 's-ins' : 's-pt') + '">' + (ins ? 'Insurance' : 'Patient') + '</span>') +
@@ -6092,6 +6409,8 @@ function renderDrawer() {
   else if (!a) h += '<div class="notice info">Not past due or in credit in the ' + esc(S.rep ? fmtDateLong(S.rep.asOf) : 'latest') + ' report — paid or fixed in Edge.' + (it && it.state === 'open' ? ' <button class="linkBtn" data-act="resolveCleared">Close it as cleared</button>' : '') + '</div>';
   if (back) h += '<div class="notice info">Resolved ' + esc(fmtDate(isoOf(new Date(it.resolvedAt || it.updatedAt || 0)))) + ' (' + esc(String(OUTCOMES[it.outcome] || 'resolved').toLowerCase()) + '), but it’s ' + (a.pd > 0 ? 'past due' : 'in credit') + ' again in the ' + esc(fmtDate(S.rep.asOf)) + ' report. Logging anything reopens it.</div>';
   if (a) h += contactHTML(a) + (a.ins ? carrierBoxHTML(a) : obBoxHTML(a)) + numbersHTML(a) + whyHTML(a);
+  if (a && !fee && !done) h += feeHintHTML(a, back ? null : it);
+  if (fee) h += feeBoxHTML(fee, a, it);
   if (aa) h += aaBoxHTML(aa);
   if (it && it.drA && !done) h += drABoxHTML(it);
   const L = a && !done ? ladFor(a) : null;
@@ -6154,7 +6473,7 @@ function ladderHTML(a, it, L) {
   if (L.hold) h += '<div class="holdBox"><div class="hbT">' + ic('pause', 16) + '<b>On Maintenance Hold</b><span class="small">since ' + esc(fmtDate(isoOf(new Date(L.hold.at)))) + '</span></div>' +
     '<div class="small">Comfort visits only — no active tooth movement. Lift it once the past due is paid in full, or an arrangement is signed and its first payment is in: take the yellow box off in Edge and tell the clinical team.</div>' +
     '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="ladHold" data-on="0">Lift the hold</button></div></div>';
-  if (L.paused && L.paused !== 'done') h += '<div class="notice info">Paused — ' + esc(L.paused === 'plan' ? 'an Alternative Arrangement is in place (above).' : L.paused === 'promise' ? 'they promised to pay by ' + fmtDay(it.follow) + '; it picks up again after that.' : 'the account is set to Paused.') + '</div>';
+  if (L.paused && L.paused !== 'done') h += '<div class="notice info">Paused — ' + esc(L.paused === 'plan' ? 'an Alternative Arrangement is in place (above).' : L.paused === 'fee' ? 'it’s tagged as a missed-appointment fee (above): a no-show fee, not a missed treatment payment, so the letters don’t apply.' : L.paused === 'promise' ? 'they promised to pay by ' + fmtDay(it.follow) + '; it picks up again after that.' : 'the account is set to Paused.') + '</div>';
   if (L.pip && !L.due && L.reached === 0) h += '<div class="notice info">Edge’s note says a payment is in process — no text needed yet.</div>';
   if (L.due) h += ladNowHTML(L, L.due);
   else if (L.fin) h += '<div class="notice">' + esc((L.done.aa ? 'Letter #8' : 'Letter #7') + ' went out ' + fmtDate(isoOf(new Date(L.fin.at))) + '. The 30 days for appliance removal and emergencies end ' + fmtDay(L.endOn) + '.') + '</div>';
@@ -6257,16 +6576,54 @@ function aaFormHTML(kind, t) {
     '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="aaSave" data-k="' + esc(kind) + '">' + (kind === 'pt_plan' ? 'Save — arrangement made' : 'Save the terms') + '</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div></div>';
 }
 
+/* ---------- a missed-appointment fee (Past due → Missed-appt fees, 5 Nov 2026) ---------- */
+/* the fee as typed → { amt, bad } */
+function feeAmtTyped(v) { const s = String(v || '').trim(); if (!s) return { amt: null, bad: '' }; const n = Number(s.replace(/[$,\s]/g, '')); return n > 0 && n < 100000 ? { amt: round2(n), bad: '' } : { amt: null, bad: 'The fee needs to be an amount, like 50 or 100.' }; }
+/* the form: the fee's amount (the past due when it's one fee or two — else blank), to tag the account or change the amount */
+function feeFormHTML(a, cur) {
+  const f = a ? feeLikely(Object.assign({}, a, { ins: false, inactive: false }), null, S.cfg, S.rep ? S.rep.asOf : '') : null, pre = cur != null ? cur : f ? f.amt : '';
+  return '<div class="inForm feeForm"><div class="small" style="margin-bottom:8px">' + (cur != null ? 'The fee’s amount.' : 'A no-show fee charged in Edge (' + esc(feeAmtsSay(S.cfg)) + '), not a missed treatment payment: tagged, the account leaves the collections ladder, the 91+ / 31–90 / 0–30 lists and the patient goal, and is collected from Past due → Missed-appt fees.' +
+    (a && a.pd > 0 && !f ? ' Past due here is ' + money(a.pd, true) + ' — more than one or two fees, so check the ledger in Edge first.' : '')) + '</div>' +
+    '<div class="grid2"><div class="field"><label for="feeAmt">Fee amount</label><input id="feeAmt" data-keep inputmode="decimal" autocomplete="off" placeholder="$" value="' + esc(pre === '' ? '' : String(pre)) + '"></div></div>' +
+    '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="feeSave">' + ic('tag', 14) + (cur != null ? 'Save the amount' : 'Tag it — missed-appointment fee') + '</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div></div>';
+}
+/* an untagged patient account that looks like a missed-appointment fee (past due exactly one fee amount, or two) */
+function feeHintHTML(a, it) {
+  const f = feeLikely(a, it, S.cfg, S.rep ? S.rep.asOf : ''); if (!f || S.ui.form === 'fee_on') return '';
+  return '<div class="notice feeHint">' + ic('tag', 15) + '<span><b>A missed-appointment fee?</b> Past due is exactly ' + esc(f.amts.map(feeMoney).join(' + ')) + (f.sure && a.recv ? ', and the contract is being paid (last payment ' + esc(fmtDate(a.recv)) + ')' : '') +
+    '. If it’s the no-show fee, tag it: the collections letters aren’t for that.</span><span class="btnRow"><button class="btn btn-pri btn-sm" data-act="feeTag">' + ic('tag', 14) + 'Tag it</button><button class="btn btn-ghost btn-sm" data-act="feeNo">Not a fee</button></span></div>';
+}
+/* the account's missed-appointment fee: the tag, what's past due against it, how it's being collected, and the one-tap steps */
+function feeBoxHTML(x, a, it) {
+  const s = x.st, form = S.ui.form, q = it && it.drA ? drAQuestion(it) : null, waiting = !!(q && q.k === 'fee_waive');
+  // Dr. A OK'd the waiver (since it was tagged), and the account isn't resolved yet
+  const after = ladEntries(it).slice(ladEntries(it).indexOf(s.on) + 1), last = after.slice().reverse().find(e => e.k === 'fee_waive' || e.k === 'drA_ok' || e.k === 'drA_no'), okd = !waiting && !!last && last.k === 'drA_ok' && !last.step && after.some(e => e.k === 'fee_waive');
+  let h = '<div class="sec feeSec"><h5>' + ic('tag', 14) + 'Missed-appointment fee' + (s.over ? '<span class="sug amber">More than the fee</span>' : waiting ? '<span class="sug amber">With Dr. A</span>' : '<span class="sug blue">Tagged</span>') + '</h5><div class="feeBox' + (s.over ? ' over' : '') + '">';
+  h += '<div class="small feeMeta">Tagged ' + esc(fmtDay(isoOf(new Date(s.on.at)))) + (s.on.by ? ' · ' + esc(shortName(s.on.by)) : '') + ' · fee <b>' + (s.amt != null ? esc(money(s.amt, true)) : 'not recorded') + '</b>' + (form !== 'fee_amt' ? ' <button class="linkBtn small" data-act="feeAmtEdit">' + (s.amt != null ? 'Change' : 'Add the amount') + '</button>' : '') + '</div>';
+  if (form === 'fee_amt') h += feeFormHTML(a, s.amt != null ? s.amt : '');
+  if (a && a.pd > 0) h += s.over ? '<div class="notice" style="margin:8px 0 0">Past due is <b>' + esc(money(a.pd, true)) + '</b> — ' + esc(money(s.over, true)) + ' more than the fee: treatment payments are behind too. Take the tag off to put it back on the collections ladder, or keep it here while the fee is collected.</div>'
+    : '<div class="small muted" style="margin-top:6px">' + esc(money(a.pd, true)) + ' past due on Edge’s ' + esc(fmtDate(S.rep.asOf)) + ' report' + (s.amt != null ? ' — the fee' : '') + (a.recv ? ' · last payment ' + esc(fmtDate(a.recv)) + (a.lastAmt ? ' (' + esc(money(a.lastAmt, true)) + ')' : '') : '') + '.</div>';
+  else if (!a) h += '<div class="small muted" style="margin-top:6px">Not past due on Edge’s newest report — paid? Then resolve it as paid.</div>';
+  const how = feeHow(it);
+  if (okd) h += '<div class="notice info" style="margin:8px 0 0">Dr. A OK’d waiving it — write the fee off in Edge, then <button class="linkBtn" data-act="resolve">resolve it as waived</button>.</div>';
+  else if (how) h += '<div class="small feeHow" style="margin-top:6px">' + ic('next', 13) + esc(how) + (it.follow ? ' · follow-up ' + esc(fmtDay(it.follow)) : '') + '</div>';
+  if (form !== 'fee_amt') h += '<div class="btnRow">' + (waiting || okd ? '' : '<button class="btn btn-sec btn-sm" data-act="log" data-k="fee_draft">' + esc(LOGS.fee_draft.l) + '</button><button class="btn btn-sec btn-sm" data-act="log" data-k="fee_visit">' + esc(LOGS.fee_visit.l) + '</button>' +
+    (it && it.drA ? '' : '<button class="btn btn-ghost btn-sm" data-act="feeWaive">' + esc(LOGS.fee_waive.l) + '</button>')) + '<button class="btn btn-ghost btn-sm" data-act="feeOff" title="Take the tag off: it goes back on the collections ladder and the lists">Not a missed-appointment fee</button></div>';
+  return h + '</div></div>';
+}
+
 /* what was just done — one tap */
 function nowHTML(a, it, g) {
   const keys = Object.keys(LOGS).filter(k => LOGS[k].g === g && !(k === 'cr_refreq' && a && a.prepay));
-  const form = S.ui.form;
+  const form = S.ui.form, canTag = g === 'pt' && a && a.pd > 0 && !feeFor(a.key);
   let h = '<div class="nowBox"><div class="nowHd"><span class="nowN">Log it</span><b>' + (g === 'ins' ? 'What happened with the carrier?' : g === 'cr' ? 'What’s been done about the credit?' : 'What happened?') + '</b></div>' +
     (g === 'pt' && a && telHref(a.home) ? '<div class="btnRow" style="margin:0 0 10px"><a class="btn btn-act btn-sm" href="' + esc(telHref(a.home)) + '">' + ic('call', 15) + 'Call ' + esc(phoneTxt(a.home)) + '</a></div>' : '') +
-    '<div class="rbRow">' + keys.map(k => '<button class="rb" data-act="log" data-k="' + k + '"' + (form === k ? ' aria-pressed="true"' : '') + '>' + esc(LOGS[k].l) + '</button>').join('') + '</div>';
+    '<div class="rbRow">' + keys.map(k => '<button class="rb" data-act="log" data-k="' + k + '"' + (form === k ? ' aria-pressed="true"' : '') + '>' + esc(LOGS[k].l) + '</button>').join('') +
+    (canTag ? '<button class="rb" data-act="feeTag"' + (form === 'fee_on' ? ' aria-pressed="true"' : '') + ' title="A no-show fee, not a missed treatment payment: off the collections ladder, collected from its own tab">' + ic('tag', 13) + ' Missed-appointment fee…</button>' : '') + '</div>';
   if (form === 'pt_promise') h += '<div class="inForm"><div class="grid2"><div class="field"><label for="prDate">Pay by</label><input type="date" id="prDate" data-keep min="' + todayISO() + '"></div><div class="field"><label for="prAmt">Amount (optional)</label><input id="prAmt" data-keep inputmode="decimal" placeholder="$"></div></div>' +
     '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="savePromise">Save — follow up that day</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div></div>';
   if (form === 'pt_plan') h += aaFormHTML('pt_plan', null);
+  if (form === 'fee_on' && canTag) h += feeFormHTML(a, null);
   h += '<div class="inRow" style="margin:10px 0 0"><label for="nowNote" class="hidden">Note</label><input id="nowNote" class="inp" data-keep autocomplete="off" placeholder="' + (form === 'ins_denied' ? 'Why was it denied? (needed)' : 'Note — with a button above, or on its own') + '">' +
     (form ? '' : '<button class="btn btn-sec btn-sm" data-act="log" data-k="note" title="Save just the note">Save note</button>') + '</div>' +
     (form === 'ins_denied' ? '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="saveDenied">Save — claim denied</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div>' : '') +
@@ -6301,7 +6658,7 @@ function logHTML(it) {
   const box = td.length ? '<div class="edgeBox"><div class="ebHd">' + ic('note', 15) + '<b>For Edge · today</b><span class="small muted grow">' + (all ? 'copied' : 'paste into the patient’s notes in Edge') + '</span>' +
     '<button class="btn btn-sec btn-sm" data-act="copyEdgeDay">' + ic(all ? 'tick' : 'copy', 14) + (td.length > 1 ? 'Copy all ' + td.length : 'Copy') + '</button></div><div class="ebTx">' + esc(td.map(x => x.n).join('\n')) + '</div></div>' : '';
   return box + L.map(e => { const n = edgeNote(it, e); return '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(shortName(e.by) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
-    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + (e.aa ? ' — ' + esc(aaTermsShort(e.aa)) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') +
+    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null && e.k !== 'fee_on' ? ' · ' + money(e.amt, true) : '') + (e.aa ? ' — ' + esc(aaTermsShort(e.aa)) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') +
     (n ? '<button class="linkBtn small ebCp" data-act="copyEdge" data-id="' + esc(e.id) + '" title="' + esc(n) + '">' + (edgeCopied(e) ? ic('tick', 12) + 'Copied for Edge' : 'Copy Edge note') + '</button>' : '') + '</div>' +
     (e.id === undoId ? '<button class="btn btn-ghost" data-act="undoLog" title="Take this back">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>'; }).join('');
 }
@@ -6322,6 +6679,7 @@ function histText(x) {
     case 'ladder': return 'recorded: ' + (own(LAD_BY, x.step) ? LAD_BY[x.step].did.replace(/^./, c => c.toLowerCase()) : 'a collections step');
     case 'mhold': return x.on ? 'put it on Maintenance Hold' : 'lifted the Maintenance Hold';
     case 'aa': return 'marked the arrangement broken';
+    case 'fee': return x.on ? 'tagged it as a missed-appointment fee' + (x.amt > 0 ? ' (' + money(x.amt, true) + ')' : '') : 'marked it not a missed-appointment fee';
     case 'restore': return 'restored an earlier version';
     case 'obcheck': return 'checked OrthoBanc’s failed-payment report (' + fmtDate(x.for) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
     case 'obimport': return 'imported OrthoBanc’s failed-payment report (' + fmtDate(x.day) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
@@ -6412,6 +6770,39 @@ Object.assign(ACT, {
   aaOk() { doLog('aa_ok'); },
   aaEdit() { S.ui = { form: 'aa_terms' }; renderDrawer(); const f = $('#aaPay'); if (f) f.focus(); },
   aaNew() { S.ui = { form: 'pt_plan' }; renderDrawer(); const f = $('#aaPay'); if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); } },
+  /* a missed-appointment fee: tag it (with the fee's amount), change the amount, take the tag off, how it's collected, ask Dr. A to waive it */
+  feeTag() { S.ui = S.ui.form === 'fee_on' ? {} : { form: 'fee_on' }; renderDrawer(); const f = $('#feeAmt'); if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); } },
+  feeAmtEdit() { S.ui = { form: 'fee_amt' }; renderDrawer(); const f = $('#feeAmt'); if (f) f.focus(); },
+  feeSave() {
+    const key = curKey(), { amt, bad } = feeAmtTyped(($('#feeAmt') || {}).value), editing = S.ui.form === 'fee_amt', note = editing ? 'Fee amount changed' : noteVal();
+    if (bad) { toast(bad, { bad: true }); const f = $('#feeAmt'); if (f) f.focus(); return; }
+    if (editing && amt == null) { toast('Type the fee’s amount.', { bad: true }); return; }
+    const now = Date.now(), ni = $('#nowNote'); if (ni && !editing) ni.value = ''; S.ui = {};
+    change(key, d => { feeLog(d, true, { by: meSid(), amt, note }, now); }, { a: 'fee', on: true, amt }).then(ok => { if (ok) loadHistory(key); });
+    const te = { id: '', at: now, by: meSid(), k: 'fee_on', note, amt }, en = edgeNote(itemFor(key), te);
+    toast(editing ? 'Fee amount saved' : 'Tagged as a missed-appointment fee — off the collections ladder; it’s under Past due → Missed-appt fees', { ms: 7000, actions: en && !editing ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
+  },
+  feeNo() { // on an untagged account that looks like a fee: it stays where it is, and isn't suggested again
+    const key = curKey(), now = Date.now(), note = 'Not a missed-appointment fee';
+    change(key, d => { feeLog(d, false, { by: meSid(), note }, now); }, { a: 'fee', on: false }).then(ok => { if (ok) loadHistory(key); });
+    toast('Not a missed-appointment fee — it stays on the regular lists', { action: 'Undo', onAction: () => undoLast(key) });
+  },
+  async feeOff() {
+    const key = curKey(), x = feeFor(key); if (!x) return;
+    if (!(await confirmBox('Not a missed-appointment fee?', 'The tag comes off: the account goes back on the collections ladder (at its days past due) and the 91+ / 31–90 / 0–30 lists, and counts for the goal again.', 'Take the tag off'))) return;
+    const now = Date.now(), note = noteVal(), ni = $('#nowNote'); if (ni) ni.value = '';
+    change(key, d => { feeLog(d, false, { by: meSid(), note }, now); }, { a: 'fee', on: false }).then(ok => { if (ok) loadHistory(key); });
+    const te = { id: '', at: now, by: meSid(), k: 'fee_off', note }, en = edgeNote(itemFor(key), te);
+    toast('Tag taken off — back on the collections ladder', { actions: en ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
+  },
+  feeWaive() {
+    const key = curKey(), a = S.byKey.get(key), x = feeFor(key);
+    openModal('<h3>Ask Dr. A to waive the fee</h3><div class="lsub">' + esc(a ? a.patient : (itemFor(key) || {}).name || '') + (x && x.st.amt != null ? ' · ' + esc(money(x.st.amt, true)) + ' missed-appointment fee' : '') + ' — it shows on his Today until he answers. Once he OKs it, write the fee off in Edge and resolve the account as “Fee waived”.</div>' +
+      '<div class="field"><label for="feeWhy">Why? (shown to Dr. A)</label><textarea id="feeWhy" rows="3" placeholder="e.g. first missed appointment in 2 years; car trouble, called the same morning"></textarea></div>' +
+      '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="feeWhyOk">Ask</button></div>', w => {
+        $('#feeWhyOk', w).onclick = () => { const q = $('#feeWhy', w).value.trim(); closeModal(); doLog('fee_waive', { note: q }); };
+      });
+  },
   saveDenied() { doLog('ins_denied'); },
   cancelForm() { S.ui = {}; renderDrawer(); },
   undoLog() { undoLast(curKey()); },
@@ -6434,10 +6825,12 @@ Object.assign(ACT, {
   },
   drAno() { const key = curKey(), note = noteVal(); change(key, d => answerDrA(d, false, { by: meSid(), note }, Date.now()), { a: 'drAno' }, 'Sent back').then(() => loadHistory(key)); },
   resolve() {
-    const key = curKey(), a = S.byKey.get(key), it = itemFor(key), g = groupOf(a, it), hold = it && !isBack(it) && holdOf(it);
+    const key = curKey(), a = S.byKey.get(key), it = itemFor(key), g = groupOf(a, it), hold = it && !isBack(it) && holdOf(it), fee = g === 'pt' && feeFor(key);
+    const ways = fee ? DONE.pt.slice(0, 1).concat([['waived', 'Fee waived by Dr. A']], DONE.pt.slice(1)) : DONE[g];
     openModal('<h3>Resolve this account</h3><div class="lsub">' + esc(a ? a.patient : it.name) + (a ? ' · ' + (a.pd > 0 ? money(a.pd, true) + ' past due' : a.credit > 0 ? money(a.credit, true) + ' credit' : 'not past due' + (a.bal != null ? ' · ' + money(a.bal, true) + ' contract balance' : '')) : '') + '</div>' +
       (hold ? '<div class="notice">On Maintenance Hold: once it’s paid or settled, take the yellow box off in Edge and tell the clinical team.</div>' : '') +
-      '<div class="flabel">How was it resolved?</div><div class="pickRow" id="rsPick">' + DONE[g].map(([k, l]) => '<button class="pick" data-o="' + k + '" aria-pressed="false">' + esc(l) + '</button>').join('') + '</div>' +
+      (fee ? '<div class="notice info">A missed-appointment fee' + (fee.st.amt != null ? ' of ' + esc(money(fee.st.amt, true)) : '') + '. Waived by Dr. A: write it off in Edge too.</div>' : '') +
+      '<div class="flabel">How was it resolved?</div><div class="pickRow" id="rsPick">' + ways.map(([k, l]) => '<button class="pick" data-o="' + k + '" aria-pressed="false">' + esc(l) + '</button>').join('') + '</div>' +
       '<div class="field" style="margin-top:14px"><label for="rsNote">Note (optional)</label><textarea id="rsNote" rows="2" placeholder="e.g. refund check #1012 mailed 10/6"></textarea></div>' +
       '<p class="small muted">It stays on the list as resolved until the next report from Edge no longer shows it.</p>' +
       '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="rsOk" disabled>Resolve</button></div>', w => {
@@ -6663,13 +7056,16 @@ function numbersCardHTML() {
     '<div class="field"><label for="cfgKpiFrom">A patient account counts as past due</label><select class="inp" id="cfgKpiFrom" data-cfg style="max-width:100%">' +
     [[31, 'From day 31 — 30+ days past due (usual)'], [1, 'From day 1 — anything past due']].map(([v, l]) => '<option value="' + v + '"' + (c.kpiFrom === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
     '<div class="hint">Counts of accounts, not dollars. Insurance’s payment window is the “monitor up to” days above.</div></div>' +
+    '<div class="field"><label for="cfgFees">Missed-appointment fee amounts ($)</label><input class="inp" id="cfgFees" data-cfg value="' + esc(c.fees.map(feeMoney).map(x => x.replace(/^\$/, '')).join(', ')) + '" placeholder="50, 100" style="max-width:220px">' +
+    '<div class="hint">A patient account past due exactly one of these (or two added up) is pointed out as a likely missed-appointment fee — Past due → Missed-appt fees. Tagged accounts leave the collections ladder and the patient goal.</div></div>' +
     '<div class="small planPrev" id="cfgPrev">' + cfgPreview() + '</div>' +
     '<div class="btnRow" style="margin-top:12px"><button class="btn btn-pri btn-sm" data-act="saveCfg">Save</button><button class="btn btn-ghost" data-act="resetCfg">Back to the usual numbers</button></div></div></div>';
 }
 function readCfg() {
   const num = id => Number((($('#' + id) || {}).value || '').trim());
   return { inst: round2(num('cfgInst')), writeOff: num('cfgWo'), tiers: [num('cfgT0'), num('cfgT1'), num('cfgT2')], dueDay: num('cfgDue'),
-    goalPt: Math.round(num('cfgGoalPt') * 10) / 10, goalIns: Math.round(num('cfgGoalIns') * 10) / 10, kpiFrom: num('cfgKpiFrom') === 31 ? 31 : 1 };
+    goalPt: Math.round(num('cfgGoalPt') * 10) / 10, goalIns: Math.round(num('cfgGoalIns') * 10) / 10, kpiFrom: num('cfgKpiFrom') === 31 ? 31 : 1,
+    fees: feeAmounts((($('#cfgFees') || {}).value || '')), feesTyped: (($('#cfgFees') || {}).value || '').trim() };
 }
 function cfgProblem(c) {
   if (!(c.inst > 0 && c.inst <= 5000)) return 'The instalment needs to be more than $0.';
@@ -6678,6 +7074,8 @@ function cfgProblem(c) {
   if (!(c.writeOff >= 1 && c.writeOff <= 100000)) return 'The write-off amount needs to be at least $1.';
   if (![1, 2, 3, 4].includes(c.dueDay)) return 'Pick the day the report is due (Monday to Thursday).';
   if (!(c.goalPt > 0 && c.goalPt <= 100 && c.goalIns > 0 && c.goalIns <= 100)) return 'The goals need to be between 0.1% and 100%.';
+  const toks = String(c.feesTyped || '').split(/[,;\s]+/).filter(Boolean);
+  if (!c.fees.length || toks.length > 6 || toks.some(t => !feeAmounts([t]).length)) return 'The missed-appointment fee amounts: one to six amounts, each from $1 to $1,000, separated by commas (e.g. 50, 100).';
   return '';
 }
 /* what the numbers typed would give with the report on screen */
@@ -6686,19 +7084,23 @@ function cfgPreview() {
   const c = $('#cfgInst') ? readCfg() : S.cfg; if (cfgProblem(c)) return '<span class="muted">—</span>';
   const A = reportAccts(S.rep, arCfg({ ar: c })), nev = A.filter(a => a.months), by = t => nev.filter(a => a.tier === t).length;
   const wo = A.filter(a => a.bucket === '91' && a.b90 < c.writeOff).length;
-  const k = kpis(S.rep, arCfg({ ar: c })), pc = x => (x * 100).toFixed(1).replace(/\.0$/, '') + '%';
+  const cf = arCfg({ ar: c }), k = kpis(S.rep, cf, feeKeys()), pc = x => (x * 100).toFixed(1).replace(/\.0$/, '') + '%';
+  // accounts that would look like a missed-appointment fee with these amounts (the ones tagged or dismissed already aside)
+  const fl = A.filter(a => feeLikely(a, (it => it && !isBack(it) ? it : null)(itemFor(a.key)), cf, S.rep.asOf)).length;
   return 'With the ' + esc(fmtDate(S.rep.asOf)) + ' report: <b>' + plural(nev.length, 'insurance account') + '</b> with nothing paid (chase now ' + by('chase') + ' · investigate ' + by('investigate') + ' · never filed? ' + by('nofile') + ' · monitor ' + by('monitor') + '), <b>' + wo + '</b> write-off candidate' + (wo === 1 ? '' : 's') + '.' +
-    (k ? ' Goals: patient accounts past due <b>' + pc(k.pt.rate || 0) + '</b> (goal ' + pc(k.pt.goal) + ')' + (k.ins ? ', insurance past its window <b>' + pc(k.ins.rate || 0) + '</b> (goal ' + pc(k.ins.goal) + ')' : '') + '.' : '');
+    (k ? ' Goals: patient accounts past due <b>' + pc(k.pt.rate || 0) + '</b> (goal ' + pc(k.pt.goal) + ')' + (k.ins ? ', insurance past its window <b>' + pc(k.ins.rate || 0) + '</b> (goal ' + pc(k.ins.goal) + ')' : '') + '.' : '') +
+    ' <b>' + fl + '</b> account' + (fl === 1 ? ' looks' : 's look') + ' like a missed-appointment fee (' + esc(feeAmtsSay(cf)) + ').';
 }
 document.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-cfg]')) { const p = $('#cfgPrev'); if (p) p.innerHTML = cfgPreview(); } });
 Object.assign(ACT, {
   saveCfg() {
     const c = readCfg(), bad = cfgProblem(c); if (bad) { toast(bad, { bad: true }); return; }
+    delete c.feesTyped;
     act(() => B.saveSettings({ ar: c }), 'Saved — the lists use the new numbers');
   },
   async resetCfg() {
-    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), patient accounts counted ' + (AR_DEFAULTS.kpiFrom > 1 ? 'from 31 days past due.' : 'from the first day past due.'), 'Use the usual numbers'))) return;
-    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), dueDay: AR_DEFAULTS.dueDay, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
+    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), patient accounts counted ' + (AR_DEFAULTS.kpiFrom > 1 ? 'from 31 days past due' : 'from the first day past due') + '; missed-appointment fees of ' + feeAmtsSay(AR_DEFAULTS) + '.', 'Use the usual numbers'))) return;
+    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), dueDay: AR_DEFAULTS.dueDay, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom, fees: AR_DEFAULTS.fees.slice() };
     if (await act(() => B.saveSettings({ ar: d }), 'Back to the usual numbers')) { S.cfg = arCfg({ ar: d }); renderView(); }
   }
 });
@@ -6817,6 +7219,9 @@ function tourSteps(kind) {
     { id: 'aa', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t=aa]'), t: 'Alternative Arrangements',
       b: 'Families on a new payment plan (an AA) have their own tab, until it’s paid off or broken: the terms, the next payment, and whether they’re keeping it. A failed OrthoBanc draft, or a payment that didn’t come in, puts them under To check.',
       act: 'Tap Arrangements (AA).', done: () => S.view === 'pd' && S.tab.pd === 'aa' },
+    { id: 'fees', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t=fees]'), t: 'Missed-appointment fees',
+      b: () => 'A no-show fee (' + feeAmtsSay(S.cfg) + ') shows as past due in Edge, but it isn’t a missed treatment payment — the collections letters aren’t for it. Accounts past due exactly a fee amount are pointed out (“Fee?”); tagged, they leave the ladder, the lists and the goal, and are collected from this tab: the next OrthoBanc draft, the next visit, or Dr. A waives it.',
+      act: 'Tap Missed-appt fees.', done: () => S.view === 'pd' && S.tab.pd === 'fees' },
     { id: 'p91', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t="91"]'), t: 'Biggest first', b: '91+ days is ranked by the money at 91+ days; a dashed line marks where 70% of it is reached. 31–90 and 0–30 catch accounts before they age.',
       act: 'Tap 91+ days.', done: () => S.view === 'pd' && S.tab.pd === '91' },
     { id: 'ins', at: () => tVis('#nav-ins', '#mnav-ins'), t: 'Insurance', b: 'Insurance accounts where nothing has been paid: a past due that’s an exact multiple of the $11.11 instalment means that many untouched months. Triaged: monitor, chase now, investigate, never filed? The Carriers tab has each carrier’s phone, portal and payer ID, and who’s slow to pay — Edge’s Insurance Aging, dropped on Reports, fills in every account’s carrier.',
@@ -6853,6 +7258,7 @@ function tourStart(kind, from) {
     okAt: 0, hold: false, shown: -1, backAt: from ? from.at : '', paused: null, ringEl: null });
   const ring = document.createElement('div'); ring.id = 'tourRing'; ring.hidden = true; document.body.appendChild(ring);
   const card = document.createElement('div'); card.id = 'tourCard'; card.setAttribute('role', 'dialog'); card.setAttribute('aria-label', 'Tour'); document.body.appendChild(card);
+  document.documentElement.classList.add('tourOn'); // the Ask AISA button (appended to <html>) steps aside while the tour is on: on a phone it sat over the card's buttons
   card.addEventListener('click', e => {
     const b = e.target.closest('[data-tour]'); if (!b) return; e.stopPropagation();
     const a = b.dataset.tour;
@@ -6875,6 +7281,7 @@ function tourEnd(finished, quiet) {
   TOUR.on = false; clearInterval(TOUR.timer);
   if (TOUR.onMove) { window.removeEventListener('resize', TOUR.onMove); window.removeEventListener('scroll', TOUR.onMove, true); }
   ['#tourRing', '#tourCard'].forEach(s => { const el = $(s); if (el) el.remove(); });
+  document.documentElement.classList.remove('tourOn');
   if (finished) { try { localStorage.setItem('nloAR.tourDone', String(Date.now())); } catch (e) { } }
   if (!quiet) toast(finished ? 'Tour done — close this tab to go back to NLO A/R' : 'Tour ended — restart it from My account', { ms: 6000 });
 }

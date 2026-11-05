@@ -104,7 +104,7 @@ function renderDrawer() {
   const d = $('#drawer'); if (!d) return;
   const key = S.openKey, a = S.byKey.get(key) || null, it = itemFor(key);
   if (!a && !it) { d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Not in this report</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd"><div class="notice info">This account isn’t past due or in credit in the latest report.</div></div>'; return; }
-  const keep = keepInputs(d), g = groupOf(a, it), back = isBack(it), done = !!it && it.state === 'done' && !back, aa = done || back ? null : aaFor(key);
+  const keep = keepInputs(d), g = groupOf(a, it), back = isBack(it), done = !!it && it.state === 'done' && !back, aa = done || back ? null : aaFor(key), fee = done || back ? null : feeFor(key);
   const name = a ? a.patient : it.name, rp = a ? a.rp : it.rp, ins = a ? a.ins : it.src === 'ins';
   let h = '<div class="dHd"><div style="flex:1;min-width:0"><h3>' + esc(name) + '</h3><div class="sub">' +
     (a ? stsBadge(a) + srcBadge(a) : '<span class="badge ' + (ins ? 's-ins' : 's-pt') + '">' + (ins ? 'Insurance' : 'Patient') + '</span>') +
@@ -116,6 +116,8 @@ function renderDrawer() {
   else if (!a) h += '<div class="notice info">Not past due or in credit in the ' + esc(S.rep ? fmtDateLong(S.rep.asOf) : 'latest') + ' report — paid or fixed in Edge.' + (it && it.state === 'open' ? ' <button class="linkBtn" data-act="resolveCleared">Close it as cleared</button>' : '') + '</div>';
   if (back) h += '<div class="notice info">Resolved ' + esc(fmtDate(isoOf(new Date(it.resolvedAt || it.updatedAt || 0)))) + ' (' + esc(String(OUTCOMES[it.outcome] || 'resolved').toLowerCase()) + '), but it’s ' + (a.pd > 0 ? 'past due' : 'in credit') + ' again in the ' + esc(fmtDate(S.rep.asOf)) + ' report. Logging anything reopens it.</div>';
   if (a) h += contactHTML(a) + (a.ins ? carrierBoxHTML(a) : obBoxHTML(a)) + numbersHTML(a) + whyHTML(a);
+  if (a && !fee && !done) h += feeHintHTML(a, back ? null : it);
+  if (fee) h += feeBoxHTML(fee, a, it);
   if (aa) h += aaBoxHTML(aa);
   if (it && it.drA && !done) h += drABoxHTML(it);
   const L = a && !done ? ladFor(a) : null;
@@ -178,7 +180,7 @@ function ladderHTML(a, it, L) {
   if (L.hold) h += '<div class="holdBox"><div class="hbT">' + ic('pause', 16) + '<b>On Maintenance Hold</b><span class="small">since ' + esc(fmtDate(isoOf(new Date(L.hold.at)))) + '</span></div>' +
     '<div class="small">Comfort visits only — no active tooth movement. Lift it once the past due is paid in full, or an arrangement is signed and its first payment is in: take the yellow box off in Edge and tell the clinical team.</div>' +
     '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="ladHold" data-on="0">Lift the hold</button></div></div>';
-  if (L.paused && L.paused !== 'done') h += '<div class="notice info">Paused — ' + esc(L.paused === 'plan' ? 'an Alternative Arrangement is in place (above).' : L.paused === 'promise' ? 'they promised to pay by ' + fmtDay(it.follow) + '; it picks up again after that.' : 'the account is set to Paused.') + '</div>';
+  if (L.paused && L.paused !== 'done') h += '<div class="notice info">Paused — ' + esc(L.paused === 'plan' ? 'an Alternative Arrangement is in place (above).' : L.paused === 'fee' ? 'it’s tagged as a missed-appointment fee (above): a no-show fee, not a missed treatment payment, so the letters don’t apply.' : L.paused === 'promise' ? 'they promised to pay by ' + fmtDay(it.follow) + '; it picks up again after that.' : 'the account is set to Paused.') + '</div>';
   if (L.pip && !L.due && L.reached === 0) h += '<div class="notice info">Edge’s note says a payment is in process — no text needed yet.</div>';
   if (L.due) h += ladNowHTML(L, L.due);
   else if (L.fin) h += '<div class="notice">' + esc((L.done.aa ? 'Letter #8' : 'Letter #7') + ' went out ' + fmtDate(isoOf(new Date(L.fin.at))) + '. The 30 days for appliance removal and emergencies end ' + fmtDay(L.endOn) + '.') + '</div>';
@@ -281,16 +283,54 @@ function aaFormHTML(kind, t) {
     '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="aaSave" data-k="' + esc(kind) + '">' + (kind === 'pt_plan' ? 'Save — arrangement made' : 'Save the terms') + '</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div></div>';
 }
 
+/* ---------- a missed-appointment fee (Past due → Missed-appt fees, 5 Nov 2026) ---------- */
+/* the fee as typed → { amt, bad } */
+function feeAmtTyped(v) { const s = String(v || '').trim(); if (!s) return { amt: null, bad: '' }; const n = Number(s.replace(/[$,\s]/g, '')); return n > 0 && n < 100000 ? { amt: round2(n), bad: '' } : { amt: null, bad: 'The fee needs to be an amount, like 50 or 100.' }; }
+/* the form: the fee's amount (the past due when it's one fee or two — else blank), to tag the account or change the amount */
+function feeFormHTML(a, cur) {
+  const f = a ? feeLikely(Object.assign({}, a, { ins: false, inactive: false }), null, S.cfg, S.rep ? S.rep.asOf : '') : null, pre = cur != null ? cur : f ? f.amt : '';
+  return '<div class="inForm feeForm"><div class="small" style="margin-bottom:8px">' + (cur != null ? 'The fee’s amount.' : 'A no-show fee charged in Edge (' + esc(feeAmtsSay(S.cfg)) + '), not a missed treatment payment: tagged, the account leaves the collections ladder, the 91+ / 31–90 / 0–30 lists and the patient goal, and is collected from Past due → Missed-appt fees.' +
+    (a && a.pd > 0 && !f ? ' Past due here is ' + money(a.pd, true) + ' — more than one or two fees, so check the ledger in Edge first.' : '')) + '</div>' +
+    '<div class="grid2"><div class="field"><label for="feeAmt">Fee amount</label><input id="feeAmt" data-keep inputmode="decimal" autocomplete="off" placeholder="$" value="' + esc(pre === '' ? '' : String(pre)) + '"></div></div>' +
+    '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="feeSave">' + ic('tag', 14) + (cur != null ? 'Save the amount' : 'Tag it — missed-appointment fee') + '</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div></div>';
+}
+/* an untagged patient account that looks like a missed-appointment fee (past due exactly one fee amount, or two) */
+function feeHintHTML(a, it) {
+  const f = feeLikely(a, it, S.cfg, S.rep ? S.rep.asOf : ''); if (!f || S.ui.form === 'fee_on') return '';
+  return '<div class="notice feeHint">' + ic('tag', 15) + '<span><b>A missed-appointment fee?</b> Past due is exactly ' + esc(f.amts.map(feeMoney).join(' + ')) + (f.sure && a.recv ? ', and the contract is being paid (last payment ' + esc(fmtDate(a.recv)) + ')' : '') +
+    '. If it’s the no-show fee, tag it: the collections letters aren’t for that.</span><span class="btnRow"><button class="btn btn-pri btn-sm" data-act="feeTag">' + ic('tag', 14) + 'Tag it</button><button class="btn btn-ghost btn-sm" data-act="feeNo">Not a fee</button></span></div>';
+}
+/* the account's missed-appointment fee: the tag, what's past due against it, how it's being collected, and the one-tap steps */
+function feeBoxHTML(x, a, it) {
+  const s = x.st, form = S.ui.form, q = it && it.drA ? drAQuestion(it) : null, waiting = !!(q && q.k === 'fee_waive');
+  // Dr. A OK'd the waiver (since it was tagged), and the account isn't resolved yet
+  const after = ladEntries(it).slice(ladEntries(it).indexOf(s.on) + 1), last = after.slice().reverse().find(e => e.k === 'fee_waive' || e.k === 'drA_ok' || e.k === 'drA_no'), okd = !waiting && !!last && last.k === 'drA_ok' && !last.step && after.some(e => e.k === 'fee_waive');
+  let h = '<div class="sec feeSec"><h5>' + ic('tag', 14) + 'Missed-appointment fee' + (s.over ? '<span class="sug amber">More than the fee</span>' : waiting ? '<span class="sug amber">With Dr. A</span>' : '<span class="sug blue">Tagged</span>') + '</h5><div class="feeBox' + (s.over ? ' over' : '') + '">';
+  h += '<div class="small feeMeta">Tagged ' + esc(fmtDay(isoOf(new Date(s.on.at)))) + (s.on.by ? ' · ' + esc(shortName(s.on.by)) : '') + ' · fee <b>' + (s.amt != null ? esc(money(s.amt, true)) : 'not recorded') + '</b>' + (form !== 'fee_amt' ? ' <button class="linkBtn small" data-act="feeAmtEdit">' + (s.amt != null ? 'Change' : 'Add the amount') + '</button>' : '') + '</div>';
+  if (form === 'fee_amt') h += feeFormHTML(a, s.amt != null ? s.amt : '');
+  if (a && a.pd > 0) h += s.over ? '<div class="notice" style="margin:8px 0 0">Past due is <b>' + esc(money(a.pd, true)) + '</b> — ' + esc(money(s.over, true)) + ' more than the fee: treatment payments are behind too. Take the tag off to put it back on the collections ladder, or keep it here while the fee is collected.</div>'
+    : '<div class="small muted" style="margin-top:6px">' + esc(money(a.pd, true)) + ' past due on Edge’s ' + esc(fmtDate(S.rep.asOf)) + ' report' + (s.amt != null ? ' — the fee' : '') + (a.recv ? ' · last payment ' + esc(fmtDate(a.recv)) + (a.lastAmt ? ' (' + esc(money(a.lastAmt, true)) + ')' : '') : '') + '.</div>';
+  else if (!a) h += '<div class="small muted" style="margin-top:6px">Not past due on Edge’s newest report — paid? Then resolve it as paid.</div>';
+  const how = feeHow(it);
+  if (okd) h += '<div class="notice info" style="margin:8px 0 0">Dr. A OK’d waiving it — write the fee off in Edge, then <button class="linkBtn" data-act="resolve">resolve it as waived</button>.</div>';
+  else if (how) h += '<div class="small feeHow" style="margin-top:6px">' + ic('next', 13) + esc(how) + (it.follow ? ' · follow-up ' + esc(fmtDay(it.follow)) : '') + '</div>';
+  if (form !== 'fee_amt') h += '<div class="btnRow">' + (waiting || okd ? '' : '<button class="btn btn-sec btn-sm" data-act="log" data-k="fee_draft">' + esc(LOGS.fee_draft.l) + '</button><button class="btn btn-sec btn-sm" data-act="log" data-k="fee_visit">' + esc(LOGS.fee_visit.l) + '</button>' +
+    (it && it.drA ? '' : '<button class="btn btn-ghost btn-sm" data-act="feeWaive">' + esc(LOGS.fee_waive.l) + '</button>')) + '<button class="btn btn-ghost btn-sm" data-act="feeOff" title="Take the tag off: it goes back on the collections ladder and the lists">Not a missed-appointment fee</button></div>';
+  return h + '</div></div>';
+}
+
 /* what was just done — one tap */
 function nowHTML(a, it, g) {
   const keys = Object.keys(LOGS).filter(k => LOGS[k].g === g && !(k === 'cr_refreq' && a && a.prepay));
-  const form = S.ui.form;
+  const form = S.ui.form, canTag = g === 'pt' && a && a.pd > 0 && !feeFor(a.key);
   let h = '<div class="nowBox"><div class="nowHd"><span class="nowN">Log it</span><b>' + (g === 'ins' ? 'What happened with the carrier?' : g === 'cr' ? 'What’s been done about the credit?' : 'What happened?') + '</b></div>' +
     (g === 'pt' && a && telHref(a.home) ? '<div class="btnRow" style="margin:0 0 10px"><a class="btn btn-act btn-sm" href="' + esc(telHref(a.home)) + '">' + ic('call', 15) + 'Call ' + esc(phoneTxt(a.home)) + '</a></div>' : '') +
-    '<div class="rbRow">' + keys.map(k => '<button class="rb" data-act="log" data-k="' + k + '"' + (form === k ? ' aria-pressed="true"' : '') + '>' + esc(LOGS[k].l) + '</button>').join('') + '</div>';
+    '<div class="rbRow">' + keys.map(k => '<button class="rb" data-act="log" data-k="' + k + '"' + (form === k ? ' aria-pressed="true"' : '') + '>' + esc(LOGS[k].l) + '</button>').join('') +
+    (canTag ? '<button class="rb" data-act="feeTag"' + (form === 'fee_on' ? ' aria-pressed="true"' : '') + ' title="A no-show fee, not a missed treatment payment: off the collections ladder, collected from its own tab">' + ic('tag', 13) + ' Missed-appointment fee…</button>' : '') + '</div>';
   if (form === 'pt_promise') h += '<div class="inForm"><div class="grid2"><div class="field"><label for="prDate">Pay by</label><input type="date" id="prDate" data-keep min="' + todayISO() + '"></div><div class="field"><label for="prAmt">Amount (optional)</label><input id="prAmt" data-keep inputmode="decimal" placeholder="$"></div></div>' +
     '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="savePromise">Save — follow up that day</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div></div>';
   if (form === 'pt_plan') h += aaFormHTML('pt_plan', null);
+  if (form === 'fee_on' && canTag) h += feeFormHTML(a, null);
   h += '<div class="inRow" style="margin:10px 0 0"><label for="nowNote" class="hidden">Note</label><input id="nowNote" class="inp" data-keep autocomplete="off" placeholder="' + (form === 'ins_denied' ? 'Why was it denied? (needed)' : 'Note — with a button above, or on its own') + '">' +
     (form ? '' : '<button class="btn btn-sec btn-sm" data-act="log" data-k="note" title="Save just the note">Save note</button>') + '</div>' +
     (form === 'ins_denied' ? '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="saveDenied">Save — claim denied</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div>' : '') +
@@ -325,7 +365,7 @@ function logHTML(it) {
   const box = td.length ? '<div class="edgeBox"><div class="ebHd">' + ic('note', 15) + '<b>For Edge · today</b><span class="small muted grow">' + (all ? 'copied' : 'paste into the patient’s notes in Edge') + '</span>' +
     '<button class="btn btn-sec btn-sm" data-act="copyEdgeDay">' + ic(all ? 'tick' : 'copy', 14) + (td.length > 1 ? 'Copy all ' + td.length : 'Copy') + '</button></div><div class="ebTx">' + esc(td.map(x => x.n).join('\n')) + '</div></div>' : '';
   return box + L.map(e => { const n = edgeNote(it, e); return '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(shortName(e.by) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
-    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + (e.aa ? ' — ' + esc(aaTermsShort(e.aa)) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') +
+    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null && e.k !== 'fee_on' ? ' · ' + money(e.amt, true) : '') + (e.aa ? ' — ' + esc(aaTermsShort(e.aa)) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') +
     (n ? '<button class="linkBtn small ebCp" data-act="copyEdge" data-id="' + esc(e.id) + '" title="' + esc(n) + '">' + (edgeCopied(e) ? ic('tick', 12) + 'Copied for Edge' : 'Copy Edge note') + '</button>' : '') + '</div>' +
     (e.id === undoId ? '<button class="btn btn-ghost" data-act="undoLog" title="Take this back">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>'; }).join('');
 }
@@ -346,6 +386,7 @@ function histText(x) {
     case 'ladder': return 'recorded: ' + (own(LAD_BY, x.step) ? LAD_BY[x.step].did.replace(/^./, c => c.toLowerCase()) : 'a collections step');
     case 'mhold': return x.on ? 'put it on Maintenance Hold' : 'lifted the Maintenance Hold';
     case 'aa': return 'marked the arrangement broken';
+    case 'fee': return x.on ? 'tagged it as a missed-appointment fee' + (x.amt > 0 ? ' (' + money(x.amt, true) + ')' : '') : 'marked it not a missed-appointment fee';
     case 'restore': return 'restored an earlier version';
     case 'obcheck': return 'checked OrthoBanc’s failed-payment report (' + fmtDate(x.for) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
     case 'obimport': return 'imported OrthoBanc’s failed-payment report (' + fmtDate(x.day) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
@@ -436,6 +477,39 @@ Object.assign(ACT, {
   aaOk() { doLog('aa_ok'); },
   aaEdit() { S.ui = { form: 'aa_terms' }; renderDrawer(); const f = $('#aaPay'); if (f) f.focus(); },
   aaNew() { S.ui = { form: 'pt_plan' }; renderDrawer(); const f = $('#aaPay'); if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); } },
+  /* a missed-appointment fee: tag it (with the fee's amount), change the amount, take the tag off, how it's collected, ask Dr. A to waive it */
+  feeTag() { S.ui = S.ui.form === 'fee_on' ? {} : { form: 'fee_on' }; renderDrawer(); const f = $('#feeAmt'); if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); } },
+  feeAmtEdit() { S.ui = { form: 'fee_amt' }; renderDrawer(); const f = $('#feeAmt'); if (f) f.focus(); },
+  feeSave() {
+    const key = curKey(), { amt, bad } = feeAmtTyped(($('#feeAmt') || {}).value), editing = S.ui.form === 'fee_amt', note = editing ? 'Fee amount changed' : noteVal();
+    if (bad) { toast(bad, { bad: true }); const f = $('#feeAmt'); if (f) f.focus(); return; }
+    if (editing && amt == null) { toast('Type the fee’s amount.', { bad: true }); return; }
+    const now = Date.now(), ni = $('#nowNote'); if (ni && !editing) ni.value = ''; S.ui = {};
+    change(key, d => { feeLog(d, true, { by: meSid(), amt, note }, now); }, { a: 'fee', on: true, amt }).then(ok => { if (ok) loadHistory(key); });
+    const te = { id: '', at: now, by: meSid(), k: 'fee_on', note, amt }, en = edgeNote(itemFor(key), te);
+    toast(editing ? 'Fee amount saved' : 'Tagged as a missed-appointment fee — off the collections ladder; it’s under Past due → Missed-appt fees', { ms: 7000, actions: en && !editing ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
+  },
+  feeNo() { // on an untagged account that looks like a fee: it stays where it is, and isn't suggested again
+    const key = curKey(), now = Date.now(), note = 'Not a missed-appointment fee';
+    change(key, d => { feeLog(d, false, { by: meSid(), note }, now); }, { a: 'fee', on: false }).then(ok => { if (ok) loadHistory(key); });
+    toast('Not a missed-appointment fee — it stays on the regular lists', { action: 'Undo', onAction: () => undoLast(key) });
+  },
+  async feeOff() {
+    const key = curKey(), x = feeFor(key); if (!x) return;
+    if (!(await confirmBox('Not a missed-appointment fee?', 'The tag comes off: the account goes back on the collections ladder (at its days past due) and the 91+ / 31–90 / 0–30 lists, and counts for the goal again.', 'Take the tag off'))) return;
+    const now = Date.now(), note = noteVal(), ni = $('#nowNote'); if (ni) ni.value = '';
+    change(key, d => { feeLog(d, false, { by: meSid(), note }, now); }, { a: 'fee', on: false }).then(ok => { if (ok) loadHistory(key); });
+    const te = { id: '', at: now, by: meSid(), k: 'fee_off', note }, en = edgeNote(itemFor(key), te);
+    toast('Tag taken off — back on the collections ladder', { actions: en ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
+  },
+  feeWaive() {
+    const key = curKey(), a = S.byKey.get(key), x = feeFor(key);
+    openModal('<h3>Ask Dr. A to waive the fee</h3><div class="lsub">' + esc(a ? a.patient : (itemFor(key) || {}).name || '') + (x && x.st.amt != null ? ' · ' + esc(money(x.st.amt, true)) + ' missed-appointment fee' : '') + ' — it shows on his Today until he answers. Once he OKs it, write the fee off in Edge and resolve the account as “Fee waived”.</div>' +
+      '<div class="field"><label for="feeWhy">Why? (shown to Dr. A)</label><textarea id="feeWhy" rows="3" placeholder="e.g. first missed appointment in 2 years; car trouble, called the same morning"></textarea></div>' +
+      '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="feeWhyOk">Ask</button></div>', w => {
+        $('#feeWhyOk', w).onclick = () => { const q = $('#feeWhy', w).value.trim(); closeModal(); doLog('fee_waive', { note: q }); };
+      });
+  },
   saveDenied() { doLog('ins_denied'); },
   cancelForm() { S.ui = {}; renderDrawer(); },
   undoLog() { undoLast(curKey()); },
@@ -458,10 +532,12 @@ Object.assign(ACT, {
   },
   drAno() { const key = curKey(), note = noteVal(); change(key, d => answerDrA(d, false, { by: meSid(), note }, Date.now()), { a: 'drAno' }, 'Sent back').then(() => loadHistory(key)); },
   resolve() {
-    const key = curKey(), a = S.byKey.get(key), it = itemFor(key), g = groupOf(a, it), hold = it && !isBack(it) && holdOf(it);
+    const key = curKey(), a = S.byKey.get(key), it = itemFor(key), g = groupOf(a, it), hold = it && !isBack(it) && holdOf(it), fee = g === 'pt' && feeFor(key);
+    const ways = fee ? DONE.pt.slice(0, 1).concat([['waived', 'Fee waived by Dr. A']], DONE.pt.slice(1)) : DONE[g];
     openModal('<h3>Resolve this account</h3><div class="lsub">' + esc(a ? a.patient : it.name) + (a ? ' · ' + (a.pd > 0 ? money(a.pd, true) + ' past due' : a.credit > 0 ? money(a.credit, true) + ' credit' : 'not past due' + (a.bal != null ? ' · ' + money(a.bal, true) + ' contract balance' : '')) : '') + '</div>' +
       (hold ? '<div class="notice">On Maintenance Hold: once it’s paid or settled, take the yellow box off in Edge and tell the clinical team.</div>' : '') +
-      '<div class="flabel">How was it resolved?</div><div class="pickRow" id="rsPick">' + DONE[g].map(([k, l]) => '<button class="pick" data-o="' + k + '" aria-pressed="false">' + esc(l) + '</button>').join('') + '</div>' +
+      (fee ? '<div class="notice info">A missed-appointment fee' + (fee.st.amt != null ? ' of ' + esc(money(fee.st.amt, true)) : '') + '. Waived by Dr. A: write it off in Edge too.</div>' : '') +
+      '<div class="flabel">How was it resolved?</div><div class="pickRow" id="rsPick">' + ways.map(([k, l]) => '<button class="pick" data-o="' + k + '" aria-pressed="false">' + esc(l) + '</button>').join('') + '</div>' +
       '<div class="field" style="margin-top:14px"><label for="rsNote">Note (optional)</label><textarea id="rsNote" rows="2" placeholder="e.g. refund check #1012 mailed 10/6"></textarea></div>' +
       '<p class="small muted">It stays on the list as resolved until the next report from Edge no longer shows it.</p>' +
       '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="rsOk" disabled>Resolve</button></div>', w => {

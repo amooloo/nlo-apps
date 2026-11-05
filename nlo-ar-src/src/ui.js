@@ -5,7 +5,7 @@
    ===================================================================== */
 const S = {
   demo: false, emu: false, tour: '', inApp: false, arState: '', view: 'today', q: '',
-  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', ladVer: 0,
+  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', feeSub: '', ladVer: 0,
   settings: { idleMin: 10 }, cfg: arCfg({}), roster: [], team: [],
   reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
   items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {},
@@ -53,7 +53,8 @@ const IC = {
   ladder: '<path d="M7 3.5v17M17 3.5v17M7 7.5h10M7 12h10M7 16.5h10"/>',
   pause: '<circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/>',
   plan: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17.3h2M11 17.3h2"/>',
-  tour: '<circle cx="12" cy="12" r="8.5"/><path d="M10.3 8.7l5 3.3-5 3.3z"/>'
+  tour: '<circle cx="12" cy="12" r="8.5"/><path d="M10.3 8.7l5 3.3-5 3.3z"/>',
+  tag: '<path d="M3.5 12.3V5.2A1.7 1.7 0 015.2 3.5h7.1l8.2 8.2-7.1 7.1z"/><circle cx="8.3" cy="8.3" r="1.4"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -89,8 +90,9 @@ function errText(e) {
 
 /* ---------- boot ---------- */
 /* a link can open A/R on one screen — the FC's checklist in CADANCe links here: nlo-ar.html#today, #focus (Today in Focus
-   mode), #pd, #aa (Past due → Arrangements), #ins, #cr, #sum or #reports. Used once, after signing in; anything else opens Today. */
-const START_VIEWS = ['today', 'focus', 'pd', 'aa', 'ins', 'cr', 'sum', 'reports'];
+   mode), #pd, #aa (Past due → Arrangements), #fees (Past due → Missed-appt fees), #ins, #cr, #sum or #reports. Used once, after
+   signing in; anything else opens Today. */
+const START_VIEWS = ['today', 'focus', 'pd', 'aa', 'fees', 'ins', 'cr', 'sum', 'reports'];
 function startView(hash) { const v = String(hash || '').replace(/^#/, '').toLowerCase(); return START_VIEWS.includes(v) ? v : ''; }
 /* leaving the page: nothing from A/R stays in the page the browser may keep for Back; coming back to it starts over */
 window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
@@ -218,7 +220,7 @@ async function enterApp() {
   const sv = S.startView; S.startView = ''; // a link's screen (see startView), this once — after Lock it's Today again
   if (sv === 'focus') { try { localStorage.setItem('nloAR.focus', '1'); } catch (e) { } } // same as tapping Focus mode
   Object.assign(S, {
-    inApp: true, arState: 'opening', view: sv === 'aa' ? 'pd' : sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', ladMemo: null, aaMemo: null,
+    inApp: true, arState: 'opening', view: sv === 'aa' || sv === 'fees' ? 'pd' : sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', aaSub: '', feeSub: '', ladMemo: null, aaMemo: null, feeMemo: null,
     book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: sv === 'focus' || focusPref(),
     obReps: new Map(), obVer: 0, obPend: {}, obSrv: {}, obImp: null, obIdx: null,
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
@@ -226,6 +228,7 @@ async function enterApp() {
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
   });
   if (sv === 'aa') S.tab.pd = 'aa';
+  if (sv === 'fees') S.tab.pd = 'fees';
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   clearInterval(S.idleTimer);
@@ -416,6 +419,33 @@ function aaFor(key) { return key ? aaAll().get(key) || null : null; }
 function aaKeepKeys() { return new Set(aaAll().keys()); }
 function curRepMeta() { return S.reports.find(r => r.id === S.repId) || null; }
 
+/* ---------- missed-appointment fees (5 Nov 2026): the accounts tagged as one, and the ones that look like one, worked out once per change ---------- */
+/* key → { it, a (the account on the newest report, or null), st: feeState(…) } for every open account tagged as a missed-appointment fee */
+function feeAll() {
+  const mk = S.ladVer + '|' + S.repId;
+  if (S.feeMemo && S.feeMemo.k === mk) return S.feeMemo.m;
+  const m = new Map();
+  openItems().forEach(it => { if (!it.key || it.src === 'ins') return; const st = feeState(it, S.byKey.get(it.key) || null); if (st) m.set(it.key, { it, a: S.byKey.get(it.key) || null, st }); });
+  S.feeMemo = { k: mk, m };
+  return m;
+}
+function feeFor(key) { return key ? feeAll().get(key) || null : null; }
+/* the keys the goals leave out: tagged, with nothing past due beyond the fee */
+function feeKeys() { const s = new Set(); feeAll().forEach((x, k) => { if (x.st.only) s.add(k); }); return s; }
+/* the accounts on the newest report that look like a missed-appointment fee and aren't tagged (or dismissed) yet — [{ a, f: feeLikely(…) }],
+   the surer ones (a recent payment on the contract) first, then by days past due */
+function feeLikelyAll() {
+  const mk = S.ladVer + '|' + S.repId;
+  if (S.feeLkMemo && S.feeLkMemo.k === mk) return S.feeLkMemo.l;
+  const l = !S.rep || !S.rep.cover.pastDue ? [] : S.accts.map(a => { const it = itemFor(a.key), f = feeLikely(a, it && !isBack(it) ? it : null, S.cfg, S.rep.asOf); return f ? { a, f } : null; }).filter(Boolean)
+    .sort((x, y) => Number(y.f.sure) - Number(x.f.sure) || (y.a.days || 0) - (x.a.days || 0));
+  S.feeLkMemo = { k: mk, l, m: new Map(l.map(x => [x.a.key, x.f])) };
+  return l;
+}
+function feeLikelyFor(key) { feeLikelyAll(); return (key && S.feeLkMemo.m.get(key)) || null; }
+/* the patient accounts the regular past-due lists and the ladder show: the ones tagged as a missed-appointment fee are on their own tab */
+function pdAccts() { const F = feeAll(); return F.size ? S.accts.filter(a => !F.has(a.key)) : S.accts; }
+
 /* ---------- owner upkeep: logins reissued since, the recovery copy, anything under an older A/R key ---------- */
 async function ownerUpkeep() {
   if (!S.inApp || !isOwner() || S.arState !== 'ok') return;
@@ -468,12 +498,13 @@ function isBack(it) {
 function openItems() { return Array.from(S.items.values()).filter(it => !it.locked && it.state === 'open'); }
 function dueItems() { const t = todayISO(); return openItems().filter(it => it.follow && it.follow <= t && !isCleared(it)); }
 function counts() {
-  const A = S.accts, t = todayISO(), due = dueItems();
+  const A = S.accts, P = pdAccts(), t = todayISO(), due = dueItems();
   return {
     due: due.length, late: due.filter(it => it.follow < t).length,
-    n91: A.filter(a => a.bucket === '91').length, chase: A.filter(a => a.tier === 'chase').length,
+    n91: P.filter(a => a.bucket === '91').length, chase: A.filter(a => a.tier === 'chase').length,
     cr: A.filter(a => a.credit > 0 && !a.prepay).length, drA: openItems().filter(it => it.drA).length,
-    cleared: openItems().filter(isCleared).length, lad: ladDueAccts().length
+    cleared: openItems().filter(isCleared).length, lad: ladDueAccts().length,
+    fees: feeAll().size, feeLikely: feeLikelyAll().length
   };
 }
 
@@ -640,10 +671,10 @@ Object.assign(ACT, {
     if (S.view === 'reports' && v !== 'reports' && S.imp && S.imp.files && S.imp.files.length && !confirm('Leave without saving this report?')) return;
     if (v !== 'reports') S.imp = null;
     S.view = v; if (t.dataset.tab) S.tab[v] = t.dataset.tab;
-    S.f = { src: '', work: '', who: '', car: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || ''; S.aaSub = t.dataset.sub || '';
+    S.f = { src: '', work: '', who: '', car: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || ''; S.aaSub = S.feeSub = t.dataset.sub || '';
     closeDrawer(true); renderNav(); renderView(); window.scrollTo(0, 0);
   },
-  tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; S.aaSub = ''; renderView(); },
+  tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; S.aaSub = ''; S.feeSub = ''; renderView(); },
   clearF() { S.f = { src: '', work: '', who: '', car: '' }; renderView(); },
   sort(t) { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : (t.dataset.d === 'asc' ? 1 : -1) }; renderView(); },
   open(t) { openDrawer(t.dataset.key); },
