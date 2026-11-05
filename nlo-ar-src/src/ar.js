@@ -13,15 +13,25 @@
    past due from 31 days (the 30+ the Month-End numbers use; the usual — Dr. A, 6 Oct 2026: counting 0–30 days, under 4%
    is too hard to hold) or from its first day past due (1, the handbook's wording);
    dueDay: the weekly report is due every Monday (1) … Thursday (4); Tuesday by default, the day of the FC's weekly
-   checklist in CADANCe (the handbook says weekly and names no day; Dr. A, 6 Oct 2026) */
-const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31 };
+   checklist in CADANCe (the handbook says weekly and names no day; Dr. A, 6 Oct 2026);
+   fees: the office's missed-appointment fee amounts ($50 and $100 — Dr. A, 5 Nov 2026): a patient account past due exactly one of
+   them (or two added up) is pointed out as a likely missed-appointment fee (see feeLikely) */
+const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31, fees: [50, 100] };
 const DUE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+/* the fee amounts as typed or read back: 1 to 6 amounts, each more than $0 and up to $1,000, smallest first, none twice ([] if nothing usable) */
+function feeAmounts(l) {
+  const seen = new Set(), num = v => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v.replace(/[$,\s]/g, '')) : NaN);
+  return (Array.isArray(l) ? l : typeof l === 'string' ? l.split(/[,;\s]+/) : []).map(num).filter(v => isFinite(v) && v > 0 && v <= 1000).map(round2)
+    .filter(v => { if (seen.has(v)) return false; seen.add(v); return true; }).sort((x, y) => x - y).slice(0, 6);
+}
 function arCfg(settings) {
   const a = (settings && settings.ar) || {};
   const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d), pctOf = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 && v <= 100 ? v : d);
   const tiers = Array.isArray(a.tiers) && a.tiers.length === 3 && a.tiers.every((n, i) => Number.isInteger(n) && n > 0 && (!i || n > a.tiers[i - 1])) ? a.tiers.slice() : AR_DEFAULTS.tiers.slice();
+  const fees = feeAmounts(a.fees);
   return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, dueDay: [1, 2, 3, 4].includes(a.dueDay) ? a.dueDay : AR_DEFAULTS.dueDay,
-    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: [1, 31].includes(a.kpiFrom) ? a.kpiFrom : AR_DEFAULTS.kpiFrom };
+    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: [1, 31].includes(a.kpiFrom) ? a.kpiFrom : AR_DEFAULTS.kpiFrom,
+    fees: fees.length ? fees : AR_DEFAULTS.fees.slice() };
 }
 
 /* ---------- the weekly report (AISA handbook §19: "Weekly: FC runs AR Aging") ----------
@@ -208,25 +218,28 @@ function summarize(rep, cfg) {
    Insurance delinquency: insurance accounts past their expected payment window ÷ open insurance accounts, no more than 4%.
    Counts of accounts (not dollars), both from one full A/R Aging report (Subgroup None, insurance included). The handbook
    gives no window for insurance: the app uses the "monitor up to" days of the insurance triage (60 to start with).
+   excl: the keys of the accounts tagged as a missed-appointment fee (and past due no more than the fee) — a no-show fee
+   isn't a missed treatment payment, so they don't count as delinquent (`fee` says how many were left out).
    ---------------------------------------------------------------------------------------------------------------- */
 function insLate(a, cfg) { const d = a.days != null ? a.days : a.b90 > 0.004 ? 91 : a.b60 > 0.004 ? 61 : a.b30 > 0.004 ? 31 : 1; return a.pd > 0 && d > cfg.tiers[0]; }
-function kpis(rep, cfg) {
+function kpis(rep, cfg, excl) {
   if (!rep || !rep.book || !rep.cover || !rep.cover.full) return null;
-  const A = reportAccts(rep, cfg), bk = rep.book;
-  const ptOf = bk.pt.act != null ? bk.pt.act : bk.pt.n, ptN = A.filter(a => !a.ins && !a.inactive && (cfg.kpiFrom > 1 ? a.o30 > 0.004 : a.pd > 0)).length;
+  const A = reportAccts(rep, cfg), bk = rep.book, fee = a => !!(excl && excl.has && excl.has(a.key));
+  const ptOf = bk.pt.act != null ? bk.pt.act : bk.pt.n, ptAll = A.filter(a => !a.ins && !a.inactive && (cfg.kpiFrom > 1 ? a.o30 > 0.004 : a.pd > 0)), ptN = ptAll.filter(a => !fee(a)).length;
   const one = (n, of, goalPct) => { const goal = goalPct / 100; return { n, of, rate: of ? n / of : null, goal, ok: of ? n / of <= goal + 1e-9 : null, need: of ? Math.max(0, n - Math.floor(goal * of + 1e-9)) : null }; };
   return {
     pt: one(ptN, ptOf, cfg.goalPt),
     ins: rep.cover.ins ? one(A.filter(a => a.ins && insLate(a, cfg)).length, bk.ins.n, cfg.goalIns) : null,
-    from: cfg.kpiFrom, win: cfg.tiers[0]
+    from: cfg.kpiFrom, win: cfg.tiers[0], fee: ptAll.length - ptN
   };
 }
 /* a small summary kept with each saved report, for the trend charts (totals and counts only) */
-/* prev: the report before it, when there is one (for what moved week over week) */
-function reportTotals(rep, cfg, prev) {
-  const s = summarize(rep, cfg), k1 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 1 })), k30 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 31 }));
+/* prev: the report before it, when there is one (for what moved week over week); excl: the accounts tagged as a missed-appointment
+   fee when it was saved (kp.ptPd / ptPd30 count every past-due patient account; ptFee / ptFee30 say how many of those were tagged) */
+function reportTotals(rep, cfg, prev, excl) {
+  const s = summarize(rep, cfg), k1 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 1 }), excl), k30 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 31 }), excl);
   return { asOf: s.asOf, cover: s.cover, pd: s.pd.total, b90: s.pd.b90, b31: round2(s.pd.b30 + s.pd.b60), n91: s.conc.n, never: s.never.n, neverPd: s.never.pd, cr: s.cr.total, crWork: s.cr.work.total, crN: s.cr.work.n, bal: s.book ? s.book.bal : null,
-    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n, ptPd30: k30.pt.n, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null,
+    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n + k1.fee, ptPd30: k30.pt.n + k30.fee, ptFee: k1.fee, ptFee30: k30.fee, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null,
     fl: prev ? flowOf(rep, prev, cfg) : null };
 }
 
@@ -258,7 +271,7 @@ function diffReports(cur, prev, cfg) {
 const STAGES = {
   '': 'Not started', working: 'Working on it', waiting: 'Waiting to hear back', promise: 'Promised to pay', plan: 'Payment plan (AA)', hold: 'Paused'
 };
-const OUTCOMES = { paid: 'Paid', writeoff: 'Written off', refund: 'Refunded', transfer: 'Credit transferred', applied: 'Credit applied', cleared: 'Cleared in Edge', other: 'Resolved' };
+const OUTCOMES = { paid: 'Paid', waived: 'Fee waived', writeoff: 'Written off', refund: 'Refunded', transfer: 'Credit transferred', applied: 'Credit applied', cleared: 'Cleared in Edge', other: 'Resolved' };
 /* one tap logs it; most set what happens next */
 const LOGS = {
   // patient past due
@@ -273,6 +286,10 @@ const LOGS = {
   pt_plan: { g: 'pt', l: 'Payment plan (AA) made…', s: 'Payment plan (AA) made', stage: 'plan', next: 30, ask: 'aa' },
   aa_ok: { g: 'aa', l: 'Payment in — on track', s: 'AA payment in', stage: 'plan', next: 30 },
   aa_terms: { g: 'aa', l: 'The terms', s: 'AA terms', ask: 'aa' },
+  // a missed-appointment fee (Past due → Missed-appt fees): how it's being collected, or asking Dr. A to waive it
+  fee_draft: { g: 'fee', l: 'Added to the next OrthoBanc draft', s: 'Fee on the next draft', stage: 'waiting' },
+  fee_visit: { g: 'fee', l: 'They’ll pay it at the next visit', s: 'Fee at the next visit', stage: 'waiting', next: 14 },
+  fee_waive: { g: 'fee', l: 'Ask Dr. A to waive it…', s: 'Asked Dr. A to waive the fee', stage: 'waiting', next: 7, drA: true },
   // insurance
   ins_call: { g: 'ins', l: 'Called the carrier', s: 'Called the carrier', stage: 'waiting', next: 14 },
   ins_portal: { g: 'ins', l: 'Checked the portal', s: 'Checked the portal', stage: 'working', next: 14 },
@@ -331,6 +348,8 @@ function applyLog(item, k, o, now) {
   else if (o.next !== undefined) item.follow = o.next || '';
   // an arrangement: look again a few days after its next payment (made: the first one; a payment in: the one after today)
   else if ((k === 'pt_plan' || k === 'aa_ok') && terms && terms.start) item.follow = aaFollow(terms, k === 'aa_ok' ? addDays(today, 1) : today) || nextOfficeDay(addDays(today, L.next));
+  // a fee put on the next OrthoBanc draft: look again a few days after that drafting day (it can take that long to post, or to come back)
+  else if (k === 'fee_draft') item.follow = nextOfficeDay(addDays(nextDraftDay(today), AA_LOOK));
   else if (L.next) item.follow = nextOfficeDay(addDays(today, L.next));
   if (L.drA) item.drA = true;
   return e;
@@ -378,6 +397,8 @@ function logLabel(e) {
   if (e.k === 'ladder') return st ? st.did : 'Collections step';
   if (e.k === 'edgetask') return 'Edge task' + (e.op ? ' (' + e.op + ')' : '') + (e.date ? ' · due ' + fmtDate(e.date) + ' in Edge' : '');
   if (e.k === 'aa_broken') return 'Arrangement broken';
+  if (e.k === 'fee_on') return 'Tagged: missed-appointment fee' + (e.amt > 0 ? ' (' + money(e.amt, true) + ')' : '');
+  if (e.k === 'fee_off') return 'Not a missed-appointment fee';
   if (e.k === 'mhold_on') return 'Put on Maintenance Hold';
   if (e.k === 'mhold_off') return 'Maintenance Hold lifted';
   if (e.k === 'assign') return 'Assigned';
@@ -469,17 +490,19 @@ function ladState(a, it, asOf, today) {
   let reached = 0, last = -1;
   LADDER.forEach((s, i) => { if (day >= s.day) reached = i; if (done[s.id]) last = i; });
   const fin = done.aa || done.l7 || null, endOn = fin ? nextOfficeDay(addDays(isoOf(new Date(fin.at)), 30)) : '';
-  const st = it && it.state === 'open' ? it.stage : '';
-  const why = it && it.state === 'done' ? 'done' : st === 'plan' ? 'plan' : st === 'hold' ? 'hold' : st === 'promise' && it.follow && it.follow >= today ? 'promise' : '';
+  const st = it && it.state === 'open' ? it.stage : '', fee = it && it.state === 'open' ? feeOf(it) : null;
+  // tagged as a missed-appointment fee: the sequence isn't for a no-show fee, so the ladder waits (Past due → Missed-appt fees has it)
+  const why = it && it.state === 'done' ? 'done' : fee ? 'fee' : st === 'plan' ? 'plan' : st === 'hold' ? 'hold' : st === 'promise' && it.follow && it.follow >= today ? 'promise' : '';
   const pip = /in\s*process/i.test(a.note || '');
   let due = null, paused = '';
   if (why === 'done') paused = 'done';
+  else if (why === 'fee') paused = 'fee';
   else if (broke && !done.aa) due = LAD_AA;
   else if (fin) due = endOn <= today ? (done.aa ? LAD_ENDAA : LAD_END) : null;
   else if (why) paused = why;
   else if (reached > last && !(reached === 0 && pip)) due = LADDER[reached];
   const next = fin || (broke && !done.aa) ? null : LADDER[Math.max(reached, last) + 1] || null;
-  return { day, done, signed, asked, hold, broke, plan, fin, endOn, pip, paused, due, next, nextOn: next ? ladDate(a, asOf, today, next.day) : '', reached, last };
+  return { day, done, signed, asked, hold, broke, plan, fin, endOn, pip, paused, due, next, nextOn: next ? ladDate(a, asOf, today, next.day) : '', reached, last, fee };
 }
 /* a step done. o: { by, note } — the account's follow-up isn't moved: the next step comes due by itself */
 function ladderLog(item, id, o, now) {
@@ -681,6 +704,78 @@ function aaState(it, a, p, o) {
 }
 
 /* =====================================================================
+   Missed-appointment fees (5 Nov 2026, Amir: "there are pts with 50 or
+   100 missed appt fees … create a way that these can be tagged and
+   separated for AR because they don't really fall under the same
+   category"). A family that misses an appointment is charged a fee in
+   Edge ($50 or $100). While it's unpaid the account shows as past due
+   on the A/R Aging exactly like a missed treatment payment — but it
+   isn't one: the contract is current, and the collections sequence
+   (letters, Maintenance Hold, discontinuing treatment) isn't for a
+   no-show fee. So an account can be tagged as a missed-appointment fee
+   (with the fee's amount): it leaves the collections ladder, the
+   91+ / 31–90 / 0–30 lists and the patient delinquency goal, and goes
+   to Past due → Missed-appt fees, with its own ways to collect it (the
+   next OrthoBanc draft, the next visit) or to have Dr. A waive it. An
+   account whose past due is exactly one of the office's fee amounts
+   (or two of them) is pointed out as a likely fee, to tag with one tap.
+   The tag is an entry in the account's sealed log (fee_on / fee_off),
+   like Maintenance Hold — no rules change.
+   ===================================================================== */
+const FEE_LOOK = 45; // a payment on the contract within this many days before the report: they're paying, the fee is what's left
+/* the tag in this round: the latest "fee_on" not taken off since (null: not tagged) */
+function feeOf(it) { let f = null; ladEntries(it).forEach(e => { if (e.k === 'fee_on') f = e; else if (e.k === 'fee_off') f = null; }); return f; }
+/* "not a fee" was the last word on it this round (the tag taken off, or never a fee): it isn't suggested again */
+function feeDismissed(it) { let d = false; ladEntries(it).forEach(e => { if (e.k === 'fee_on') d = false; else if (e.k === 'fee_off') d = true; }); return d; }
+/* a past-due amount that is one of the office's fee amounts, or two of them added up → the fees that make it (the bigger first), or null */
+function feeSplit(pd, cfg) {
+  const F = (cfg && Array.isArray(cfg.fees) && cfg.fees.length ? cfg.fees : AR_DEFAULTS.fees), same = (x, y) => Math.abs(x - y) < 0.005;
+  if (!(pd > 0)) return null;
+  const one = F.find(f => same(f, pd)); if (one != null) return [one];
+  for (let i = F.length - 1; i >= 0; i--) for (let j = i; j >= 0; j--) if (same(F[i] + F[j], pd)) return [F[i], F[j]];
+  return null;
+}
+/* does the account look like a missed-appointment fee? A patient account (not insurance, not inactive) whose past due is one fee
+   amount, or two added up — not tagged, dismissed or resolved already (it: its record this round, or null).
+   → { amts, amt, sure: a payment on the contract within the last 45 days before the report, and the past due isn't that payment (or
+     a multiple of it) — they're paying the contract and the fee is what's left } or null. Two fees added up count only when sure:
+     $150 or $200 is as likely a missed draft, unless the draft is plainly something else and coming in. */
+function feeLikely(a, it, cfg, asOf) {
+  if (!a || a.ins || a.inactive || !(a.pd > 0)) return null;
+  if (it && (it.state === 'done' || it.stage === 'plan' || feeOf(it) || feeDismissed(it))) return null; // on a payment plan: the contract is behind, not a fee
+  const amts = feeSplit(a.pd, cfg); if (!amts) return null;
+  const la = a.lastAmt > 0 ? a.lastAmt : 0, recent = !!(a.recv && isoOrBlank(asOf) && a.recv <= asOf && daysBetween(a.recv, asOf) <= FEE_LOOK);
+  const draft = la > 0 && Math.abs(a.pd / la - Math.round(a.pd / la)) < 0.004; // the past due is the monthly draft, or several: missed drafts
+  const sure = recent && la > 0 && !draft;
+  if (amts.length > 1 && !sure) return null;
+  return { amts, amt: round2(amts.reduce((s, x) => s + x, 0)), sure };
+}
+/* where a tagged account stands. a: the account on the newest report (null if it isn't on it).
+   → null (not tagged) | { on: the tag entry, amt: the fee (null if none was recorded), pd, over: how much more than the fee is past due
+     (0 when it isn't, or no amount is known), only: the past due is the fee and nothing else } */
+function feeState(it, a) {
+  const f = feeOf(it); if (!f) return null;
+  const amt = f.amt > 0 ? f.amt : null, pd = a && a.pd > 0 ? a.pd : 0, over = amt != null && pd > amt + 0.5 ? round2(pd - amt) : 0;
+  return { on: f, amt, pd, over, only: !over };
+}
+/* tag the account as a missed-appointment fee (o: { by, note, amt: the fee }), or take the tag off — on = false is also "not a fee" on
+   an account that was never tagged (mutates it). A tagged account with no follow-up gets one in two weeks, so it isn't forgotten. */
+function feeLog(item, on, o, now) {
+  o = o || {};
+  const e = { id: uid8(), at: now, by: o.by || '', k: on ? 'fee_on' : 'fee_off', note: String(o.note || '').trim(), prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } };
+  if (on) { const amt = Number(o.amt); if (amt > 0 && amt < 100000) e.amt = round2(amt); }
+  item.log = (item.log || []).concat([e]);
+  if (on && !item.follow && item.state !== 'done') item.follow = nextOfficeDay(addDays(isoOf(new Date(now)), 14));
+  return e;
+}
+/* OrthoBanc's next drafting day after `iso` (the 5th, 12th, 19th or 26th) */
+function nextDraftDay(iso) { let d = addDays(iso, 1); for (let i = 0; i < 31; i++) { if (AA_DAYS.includes(Number(d.slice(8)))) return d; d = addDays(d, 1); } return d; }
+/* a fee amount: "$50", or "$62.50" when it has cents */
+function feeMoney(v) { return money(v, Math.abs(v - Math.round(v)) > 0.004); }
+/* the fee amounts in words: "$50 or $100" */
+function feeAmtsSay(cfg) { const s = ((cfg && cfg.fees) || AR_DEFAULTS.fees).map(feeMoney); return s.length > 1 ? s.slice(0, -1).join(', ') + ' or ' + s[s.length - 1] : s[0] || ''; }
+
+/* =====================================================================
    Edge notes (8 Oct 2026, Amir: "after every action that is taken turn
    it into a edge note that can be copied and entered into the edge"):
    each thing done on an account in A/R as one line to paste into the
@@ -706,15 +801,22 @@ function ladderSay(s) {
   const how = s.cert ? 'certified + regular mail + email' : String(s.send || '').split(' · ')[0].toLowerCase();
   return 'Sent ' + s.l + (how ? ' (' + how + ')' : '') + (s.call ? ' and called RP' : '') + (s.text ? '; texted ' + s.text : '') + '.';
 }
-/* the note for one entry. o: { who: who did it, carrier: an insurance account's carrier, follow: the follow-up it set } → '' if none */
+/* the note for one entry. o: { who: who did it, carrier: an insurance account's carrier, follow: the follow-up it set, fee: the account's
+   missed-appointment fee (for the entries about it) } → '' if none */
 function edgeNoteText(e, o) {
   if (!e || !e.at || e.k === 'edgetask' || e.k === 'reopen' || (e.k === 'done' && e.outcome === 'cleared')) return '';
   o = o || {};
   const st = own(LAD_BY, e.step) ? LAD_BY[e.step] : null, car = String(o.carrier || '').trim(), note = String(e.note || '').replace(/\s+/g, ' ').trim();
+  const fee = o.fee > 0 ? 'missed-appointment fee of ' + money(o.fee, true) : 'missed-appointment fee';
   let say;
   if (own(EDGE_SAY, e.k)) say = EDGE_SAY[e.k];
   else if (e.k === 'pt_plan') say = 'Alternative Arrangement (AA) made' + (e.aa ? ': ' + aaTermsSay(e.aa) : '') + '.';
   else if (e.k === 'aa_terms') say = 'AA terms' + (e.aa ? ': ' + aaTermsSay(e.aa) : '') + '.';
+  else if (e.k === 'fee_on') say = 'Past due' + (e.amt > 0 ? ' of ' + money(e.amt, true) : '') + ' is a missed-appointment fee, not a treatment payment; tracked apart from collections.';
+  else if (e.k === 'fee_off') say = 'Not a missed-appointment fee; the regular collections sequence applies.';
+  else if (e.k === 'fee_draft') say = 'Added the ' + fee + ' to the next OrthoBanc draft.';
+  else if (e.k === 'fee_visit') say = 'RP will pay the ' + fee + ' at the next visit.';
+  else if (e.k === 'fee_waive') say = 'Asked Dr. A to waive the ' + fee + '.';
   else if (e.k === 'pt_promise') say = 'RP promised to pay' + (e.amt > 0 ? ' ' + money(e.amt, true) : '') + (isoOrBlank(e.date) ? ' by ' + mdy(e.date) : '') + '.';
   else if (e.k === 'ins_call') say = /^called\b/i.test(note) ? '' : car ? 'Called ' + car + '.' : 'Called the insurance carrier.';
   else if (e.k === 'ins_portal') say = car ? 'Checked the ' + car + ' portal.' : 'Checked the insurance portal.';
@@ -739,13 +841,15 @@ function edgeNoteText(e, o) {
    account's own while nothing came after) */
 function followAfter(item, e) {
   const L = (item && item.log) || [], i = L.indexOf(e);
-  if (i < 0 || !e || !own(LOGS, e.k) || !LOGS[e.k].next) return '';
+  if (i < 0 || !e || !own(LOGS, e.k) || !(LOGS[e.k].next || e.k === 'fee_draft')) return '';
   const nx = L.slice(i + 1).find(x => x && x.prev);
   return isoOrBlank(nx ? nx.prev.follow : item.state === 'open' ? item.follow : '');
 }
 /* the note for an entry of an account's record. whoOf(sid) → the name to sign it with; carrier: the account's carrier's name */
 function edgeNoteOf(item, e, whoOf, carrier) {
-  return e ? edgeNoteText(e, { who: whoOf ? whoOf(e.by) : '', carrier, follow: followAfter(item, e) }) : '';
+  if (!e) return '';
+  const f = e.k === 'fee_draft' || e.k === 'fee_visit' || e.k === 'fee_waive' ? feeOf(item) : null;
+  return edgeNoteText(e, { who: whoOf ? whoOf(e.by) : '', carrier, follow: followAfter(item, e), fee: f && f.amt > 0 ? f.amt : 0 });
 }
 /* a family on OrthoBanc's failed-payment list ticked as texted (handbook §14 day 0: text the RP, note it in the chart in Edge).
    r: the list's row; d: its tick { at, by } */
@@ -789,10 +893,10 @@ function normReport(rep) {
 function normSum(s) {
   if (!s || typeof s !== 'object') return null;
   const i = v => Math.max(0, Math.round(numOr0(v)));
-  const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
+  const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), ptFee: i(s.kp.ptFee), ptFee30: i(s.kp.ptFee30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
   return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp, fl: normFlow(s.fl) };
 }
-const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off', 'edgetask']));
+const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off', 'fee_on', 'fee_off', 'edgetask']));
 function normLog(e) {
   e = e && typeof e === 'object' ? e : {};
   const o = { id: strOf(e.id, 40), at: numOr0(e.at), by: strOf(e.by, 60), k: LOG_KINDS.has(e.k) ? e.k : 'note', note: strOf(e.note, 2000) };
@@ -1143,14 +1247,14 @@ function edgeTasksApply(item, list, o, now) {
    reason first, the rest listed with it).
    ===================================================================== */
 const FOCUS_SEV = { promise: 1, signlate: 2, tf: 3, aamiss: 3, ladlate: 4, cross: 5, new: 6, insinv: 7, followlate: 8,
-  sign: 10, lad: 11, drA: 12, follow: 13, aacheck: 13, aahold: 13, chase: 14, claim: 15, end: 16, creditaudit: 17, aaend: 17, credit: 20, nofile: 21, wait: 22 };
+  sign: 10, lad: 11, drA: 12, follow: 13, aacheck: 13, aahold: 13, feeover: 13, feelikely: 14, chase: 14, claim: 15, end: 16, creditaudit: 17, aaend: 17, credit: 20, nofile: 21, wait: 22 };
 /* office days after `from`, up to and including `today` */
 function officeDaysLate(from, today) { let n = 0, d = from; for (let i = 0; i < 400 && d < today; i++) { d = addDays(d, 1); if (nextOfficeDay(d) === d) n++; } return n; }
 /* about how long a step takes, in minutes */
 function stepMin(s) { return s.id === 'end' || s.id === 'endaa' ? 5 : (s.n ? (s.cert ? 7 : 4) : 2) + (s.call ? 5 : 0); }
 /* ctx: { accts, asOf: the report's date, byKey, item(key) → its record (null if none, or back on the list), lad(a) → its ladder state, open: open records,
    cleared(it), today, owner, prevPd: keys past due in the report before (or null), book, auditStart: the December credit audit's first day, while it runs,
-   aa: the accounts on an Alternative Arrangement [{ it, a, st: aaState(…) }] } */
+   aa: the accounts on an Alternative Arrangement [{ it, a, st: aaState(…) }], fee(key) → feeState(…) for an account tagged as a missed-appointment fee (or null) } */
 function focusEntries(ctx) {
   const t = ctx.today, best = new Map();
   const put = e => { const cur = best.get(e.key); if (!cur) best.set(e.key, e); else if (e.sev < cur.sev) { e.also = [cur.why].concat(cur.also); best.set(e.key, e); } else cur.also.push(e.why); };
@@ -1160,6 +1264,9 @@ function focusEntries(ctx) {
   (ctx.accts || []).forEach(a => {
     const it = ctx.item(a.key);
     if (it && it.state === 'done') return; // resolved (and not past due or in credit again)
+    // tagged as a missed-appointment fee, but more than the fee is past due: treatment payments are behind too
+    const F = ctx.fee ? ctx.fee(a.key) : null;
+    if (F && F.over) put(mk(a, it, 'feeover', 'Past due ' + money(a.pd) + ' is more than the ' + money(F.amt) + ' missed-appointment fee — ' + money(F.over) + ' of treatment payments behind too: take the tag off to put it back on the ladder, or keep it as a fee', 'Check', 3));
     if (onLadder(a)) {
       const L = ctx.lad(a);
       if (L && L.due) {

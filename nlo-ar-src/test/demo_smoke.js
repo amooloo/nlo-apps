@@ -38,16 +38,16 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   const clip = () => page.evaluate(() => window.__clip[window.__clip.length - 1] || '');
   await collect(); await shot(page, 'today', true);
   const c0 = await S_(() => counts());
-  ok(await page.$$eval('.tiles .tile', t => t.length) === 8, 'Today: eight tiles (follow-ups, collection steps, arrangements to check, 91+, chase now, credits, waiting for Dr. A, cleared)');
-  ok(c0.due === 2 && c0.late === 1 && c0.drA === 2 && c0.cleared === 1 && c0.lad > 20, 'counts: 2 follow-ups (1 late), 2 for Dr. A (a refund, a letter to sign), 1 cleared, ' + c0.lad + ' collection steps: ' + JSON.stringify(c0));
+  ok(await page.$$eval('.tiles .tile', t => t.length) === 9, 'Today: nine tiles (follow-ups, collection steps, arrangements to check, accounts that look like missed-appt fees, 91+, chase now, credits, waiting for Dr. A, cleared)');
+  ok(c0.due === 2 && c0.late === 1 && c0.drA === 3 && c0.cleared === 1 && c0.lad > 20 && c0.fees === 3 && c0.feeLikely === 3, 'counts: 2 follow-ups (1 late), 3 for Dr. A (a refund, a letter to sign, a fee to waive), 1 cleared, ' + c0.lad + ' collection steps, 3 missed-appt fees tagged and 3 that look like one: ' + JSON.stringify(c0));
   ok((await page.title()) === '(' + (c0.due + c0.lad) + ') NLO A/R', 'tab title counts follow-ups and collection steps due: ' + await page.title());
   ok((await page.evaluate(() => window.__maxCleared)) === 1, 'while opening, “Cleared in Edge” never counts more than the 1 really cleared');
   ok(await page.$$eval('#view details.help summary', s => s.some(x => /newly 91\+/.test(x.textContent))), '“Since the last report” lists newly 91+ accounts');
   ok(await page.isVisible('[data-act=closeCleared]'), '“Cleared in Edge” offers to close them');
   // the goals (handbook §19): counts of accounts from the newest full report
-  const k0 = await S_(() => kpis(S.rep, S.cfg));
-  ok(await page.$$eval('.goals .goal', g => g.length) === 2 && k0.pt.n === 25 && k0.pt.of === 422 && k0.ins.n === 14 && k0.ins.of === 204 && k0.from === 31 && k0.win === 60, 'Today: two goal gauges — patient 25 of 422 (30+ days past due, the usual), insurance 14 of 204 (over 60 days): ' + JSON.stringify(k0));
-  ok(await page.$eval('.goals .goal', e => /5\.9%/.test(e.textContent) && /9 to go/.test(e.textContent) && /goal ≤ 4%/.test(e.textContent) && /30\+ days past due/.test(e.textContent) && e.classList.contains('near')), 'the patient gauge reads 5.9% (30+ days) against 4%, 9 to go, in amber');
+  const k0 = await S_(() => kpiNow());
+  ok(await page.$$eval('.goals .goal', g => g.length) === 2 && k0.pt.n === 27 && k0.pt.of === 428 && k0.fee === 1 && k0.ins.n === 14 && k0.ins.of === 204 && k0.from === 31 && k0.win === 60, 'Today: two goal gauges — patient 27 of 428 (30+ days past due, the usual; 1 tagged missed-appt fee left out), insurance 14 of 204 (over 60 days): ' + JSON.stringify(k0));
+  ok(await page.$eval('.goals .goal', e => /6\.3%/.test(e.textContent) && /10 to go/.test(e.textContent) && /goal ≤ 4%/.test(e.textContent) && /30\+ days past due \(1 missed-appt fee not counted\)/.test(e.textContent) && e.classList.contains('far')), 'the patient gauge reads 6.3% (30+ days) against 4%, 10 to go, in red (over 1.5× the goal) — and says a missed-appt fee isn’t counted');
   // the weekly report (due Tuesdays): this week's is in, so no banner and no badge
   ok(!(await page.$('.staleBox.wk')) && await page.$eval('#nav-reports .cnt', e => e.classList.contains('hidden')), 'this week’s report is in: no banner on Today, no badge on Reports');
   // pretend it's later: the first day this week's report would be due, then 9 days on (late)
@@ -377,6 +377,125 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await aaSt(kCur) === 'ok', '…undone: on track again');
   await closeDrawer();
 
+  // ---- Missed-appointment fees: Past due → Missed-appt fees (5 Nov 2026)
+  const feeSt = k => page.evaluate(k => { const x = feeFor(k); return x ? JSON.parse(JSON.stringify({ amt: x.st.amt, over: x.st.over, only: x.st.only })) : null; }, k);
+  const likelyKeys = () => S_(() => feeLikelyAll().map(x => [x.a.key, x.a.pd, x.f.amt, x.f.sure, x.f.amts.join('+')]));
+  await page.click('#nav-today'); await page.waitForSelector('.tiles');
+  const feeTile = await page.$eval('.tile[data-tab=fees]', e => e.querySelector('.n').textContent + ' ' + e.querySelector('.l').textContent + ' · ' + e.querySelector('.s').textContent);
+  ok(feeTile === '3 Look like missed-appt fees · tag them — they leave the ladder', 'Today: “Look like missed-appt fees” (3)');
+  const lk0 = await likelyKeys();
+  ok(lk0.length === 3 && lk0.map(x => x[1]).join() === '150,100,50' && lk0.every(x => x[3]) && lk0[0][4] === '100+50', 'three accounts past due exactly a fee ($100, $50) or two ($150 = $100 + $50), each paying its contract (sure), the oldest first: ' + JSON.stringify(lk0.map(x => x.slice(1))));
+  await page.click('[data-act=focusOn]'); await page.waitForSelector('.fList .frow');
+  const feeF = await page.$$eval('.fList .frow[data-kind^=fee]', r => r.map(x => ({ cls: x.className.replace('frow ', ''), kind: x.dataset.kind, act: x.dataset.act, why: x.querySelector('.fWhy').textContent, label: x.querySelector('.pt').textContent })));
+  ok(feeF.length === 2 && feeF.some(x => x.kind === 'feelikely' && x.cls === 'today' && x.act === 'feeLikely' && x.label === '3 accounts look like a missed-appointment fee' && /^Past due exactly \$50 or \$100 \(or two fees\) — tag them/.test(x.why)) &&
+    feeF.some(x => x.kind === 'feeover' && x.cls === 'today' && /^Past due \$249 is more than the \$50 missed-appointment fee — \$199 of treatment payments behind too/.test(x.why)), 'Focus: one line for the accounts that look like fees, and the tagged one past due more than its fee — both for today: ' + JSON.stringify(feeF.map(x => x.kind + ':' + x.cls)));
+  ok(!(await page.$$eval('.fList .frow', r => r.some(x => /Letter #|First text/.test(x.querySelector('.fWhy').textContent) && !!feeFor(x.dataset.key)))), 'no collection step in Focus for a tagged account');
+  await page.click('.frow[data-act=feeLikely]'); await page.waitForSelector('#view .batchBar');
+  ok(await S_(() => S.view === 'pd' && S.tab.pd === 'fees' && S.feeSub === 'likely' && S.lastList.length === 3), 'the Focus line opens Past due → Missed-appt fees on the three to tag');
+  ok(await page.$eval('#view [data-act=tab][data-t=fees] .c', e => e.textContent) === '3 · 3 to tag', 'the tab counts the tagged and the ones to tag');
+  ok(await page.$eval('#view .batchBar', e => /3 accounts past due exactly \$50 or \$100 \(or two fees\)\./.test(e.textContent) && /They’re all paying the contract/.test(e.textContent) && /Tag all 3/.test(e.textContent)), 'the bar says what they are and offers to tag all 3');
+  const rowsL = await page.$$eval('#view tbody tr', r => r.map(x => ({ key: x.dataset.key, txt: x.textContent, tag: !!x.querySelector('[data-act=feeTagRow]'), no: !!x.querySelector('[data-act=feeNoRow]') })));
+  ok(rowsL.length === 3 && rowsL.every(r => r.tag && r.no) && rowsL.some(r => /\$150\.00/.test(r.txt) && /\$100 \+ \$50/.test(r.txt)) && rowsL.every(r => /paying the contract/.test(r.txt)) && rowsL.every(r => /Fee\?/.test(r.txt)), 'each row: the past due as fees, the last payment (paying the contract), “Fee?”, Tag it / Not a fee');
+  await collect(); await shot(page, 'fees-likely', true);
+  // tag one from its row ($100, 20 days): off the ladder, out of the goal, out of the 0–30 list; "Not a fee" on another ($50): it stays
+  const [kFee, kNo] = [lk0.find(x => x[1] === 100)[0], lk0.find(x => x[1] === 50)[0]];
+  const fb0 = await S_(() => ({ lad: counts().lad, l0: list0(pdAccts()).length, fee: kpiNow().fee, due: counts().due }));
+  ok((await ladOf(kFee)).due === 'l1', 'before: the $100 account is on the ladder (Letter #1 due at day 20)');
+  await noToasts(); await page.click('tr[data-key="' + kFee + '"] [data-act=feeTagRow]'); await page.waitForTimeout(300);
+  const tagIt = await itemOf(kFee), fb1 = await S_(() => ({ lad: counts().lad, l0: list0(pdAccts()).length, fee: kpiNow().fee, due: counts().due, likely: feeLikelyAll().length, tagged: feeAll().size }));
+  ok(tagIt && tagIt.log.length === 1 && tagIt.log[0].k === 'fee_on' && tagIt.log[0].amt === 100 && tagIt.follow === await S_(() => nextOfficeDay(addDays(todayISO(), 14))), 'tagged from the row: a fee_on entry with the $100, a follow-up in two weeks');
+  ok(await toastHas(/tagged as a missed-appointment fee/) && await page.$('.toast button:has-text("Copy for Edge")'), 'the confirmation offers its Edge note');
+  await page.click('.toast button:has-text("Copy for Edge")'); await page.waitForTimeout(150);
+  ok(/^\d\d\/\d\d\/\d\d Past due of \$100\.00 is a missed-appointment fee, not a treatment payment; tracked apart from collections\. -Dr\. A$/.test(await clip()), 'its note for Edge: “' + (await clip()) + '”');
+  ok(fb1.lad === fb0.lad - 1 && (await ladOf(kFee)).due === null && (await ladOf(kFee)).paused === 'fee', 'it left the collections ladder (paused — a fee): ' + fb0.lad + ' → ' + fb1.lad + ' steps due');
+  ok(fb1.l0 === fb0.l0 - 1 && fb1.likely === 2 && fb1.tagged === 4 && fb1.fee === fb0.fee && fb1.due === fb0.due, 'it left the 0–30 list and the “look like fees” chip; 4 tagged now (the goal counts 30+, so it’s unchanged)');
+  ok(await S_(() => S.feeSub === 'likely' && S.lastList.length === 2), 'the list is down to 2');
+  await noToasts(); await page.click('tr[data-key="' + kNo + '"] [data-act=feeNoRow]'); await page.waitForTimeout(300);
+  const noIt = await itemOf(kNo);
+  const noDbg = { log: noIt && noIt.log.map(e => e.k).join(), lad: await ladOf(kNo), likely: await S_(() => feeLikelyAll().length), toast: await toastHas(/not a missed-appointment fee — it stays where it is/) };
+  ok(noIt && noIt.log.length === 1 && noIt.log[0].k === 'fee_off' && !!noDbg.lad.due && !noDbg.lad.paused && noDbg.likely === 1 && noDbg.toast,
+    '“Not a fee”: a note on the account, it stays on the ladder (a step due) and isn’t suggested again — 1 left: ' + JSON.stringify(noDbg));
+  ok(await page.evaluate(([n, f]) => list0(pdAccts()).some(a => a.key === n) && !list0(pdAccts()).some(a => a.key === f), [kNo, kFee]), 'the 0–30 list keeps the “not a fee” account and not the tagged one');
+  // the tab: the tagged accounts, most in need of a look first
+  await page.click('[data-act=feeSub][data-s=""]'); await page.waitForTimeout(150);
+  const feeChips = await page.$$eval('#view .subChips .chip', c => c.map(x => x.firstChild.textContent + '=' + x.querySelector('.c').textContent));
+  ok(feeChips.join() === 'Tagged=4,More than the fee=1,With Dr. A=1,Look like fees — not tagged=1', 'the chips: ' + feeChips.join(', '));
+  const feeRows_ = await page.$$eval('#view tbody tr', r => r.map(x => x.textContent));
+  ok(feeRows_.length === 4 && /More than the fee|\+ \$199\.00 more than the fee/.test(feeRows_[0]) && /With Dr\. A/.test(feeRows_[1]) && feeRows_.slice(2).every(t => /Fee on the next draft|Not started/.test(t)), 'the one past due more than the fee first, then the one with Dr. A, then the rest');
+  ok(await page.$eval('#view .aaSum', e => /^4 accounts tagged · \$350 in fees · 1 account past due more than the fee · 1 with Dr\. A · 1 more looks like a fee — tag them$/.test(e.textContent)), 'how many, the fees, the ones to look at: ' + await page.textContent('#view .aaSum'));
+  await collect(); await shot(page, 'fees-tab', true);
+  await page.click('[data-act=feeHelp]'); await page.waitForSelector('#modalWrap .helpList');
+  ok(/Added to the next OrthoBanc draft/.test(await page.textContent('#modalWrap')) && /More than the fee/.test(await page.textContent('#modalWrap')), '“How it works”');
+  await collect(); await page.click('#modalWrap [data-act=closeModal]');
+  // the panel of the one just tagged: the fee box, the ladder paused, the fee on the next draft, then the tag off
+  await page.click('tr[data-key="' + kFee + '"]'); await page.waitForSelector('#drawer .feeBox');
+  const fbx = await page.$eval('#drawer', e => ({ box: e.querySelector('.feeBox').textContent, lad: (e.querySelector('.ladSec .notice.info') || {}).textContent || '', hint: !!e.querySelector('.feeHint'), tagBtn: !!e.querySelector('.nowBox [data-act=feeTag]'),
+    btns: Array.from(e.querySelectorAll('.feeBox .btnRow button')).map(b => b.textContent.trim()) }));
+  ok(/Tagged .* · fee \$100\.00/.test(fbx.box) && /\$100\.00 past due on Edge’s .* report — the fee/.test(fbx.box) && /tagged as a missed-appointment fee \(above\)/.test(fbx.lad) && !fbx.hint && !fbx.tagBtn, 'its panel: the fee box (the tag, the fee, the past due is the fee), the ladder paused for it, no “Fee?” hint or tag button any more');
+  ok(fbx.btns.join('|') === 'Added to the next OrthoBanc draft|They’ll pay it at the next visit|Ask Dr. A to waive it…|Not a missed-appointment fee', 'its buttons: ' + fbx.btns.join(' · '));
+  await collect(); await shot(page, 'fees-panel');
+  const draftFU = await S_(() => nextOfficeDay(addDays(nextDraftDay(todayISO()), AA_LOOK)));
+  await noToasts(); await page.click('#drawer .feeBox [data-act=log][data-k=fee_draft]'); await page.waitForTimeout(250);
+  const drIt = await itemOf(kFee);
+  ok(drIt.log[drIt.log.length - 1].k === 'fee_draft' && drIt.stage === 'waiting' && drIt.follow === draftFU && await toastHas(/Logged: Fee on the next draft/) && await page.$eval('#drawer .feeHow', e => /Fee on the next draft/.test(e.textContent)),
+    '“Added to the next OrthoBanc draft”: logged, follow-up a few days fb1 that drafting day (' + draftFU + ')');
+  await page.click('.toast button:has-text("Copy for Edge")'); await page.waitForTimeout(150);
+  ok(/^\d\d\/\d\d\/\d\d Added the missed-appointment fee of \$100\.00 to the next OrthoBanc draft\. Next F\/U \d\d\/\d\d\/\d\d\. -Dr\. A$/.test(await clip()), 'its note for Edge: “' + (await clip()) + '”');
+  await page.click('#drawer [data-act=feeAmtEdit]'); await page.waitForSelector('#drawer .feeForm #feeAmt');
+  ok(await page.$eval('#feeAmt', e => e.value) === '100', 'Change: the form has the fee');
+  await page.fill('#feeAmt', 'abc'); await page.click('#drawer [data-act=feeSave]'); await page.waitForTimeout(150);
+  ok(await toastHas(/fee needs to be an amount/) && await page.isVisible('#feeAmt'), 'an amount that isn’t one is refused (the form stays open)');
+  await noToasts(); await page.fill('#feeAmt', '50'); await page.click('#drawer [data-act=feeSave]'); await page.waitForTimeout(250);
+  ok((await feeSt(kFee)).amt === 50 && (await feeSt(kFee)).over === 50 && await page.$eval('#drawer .feeBox', e => /\$50\.00 more than the fee/.test(e.textContent)) && await S_(() => kpiNow().fee) === fb0.fee, 'the fee changed to $50: now $50 more than the fee is past due (and it counts for the goal again)');
+  await page.click('#drawer [data-act=feeOff]'); await page.waitForSelector('#cbYes'); await page.click('#cbYes'); await page.waitForTimeout(300);
+  ok(await feeSt(kFee) === null && (await ladOf(kFee)).due === 'l1' && await S_(() => feeLikelyAll().length) === 1 && await S_(() => counts().lad) === fb0.lad && !(await page.$('#drawer .feeBox')) && await page.$('#drawer .nowBox [data-act=feeTag]'),
+    '“Not a missed-appointment fee”: the tag off — back on the ladder (Letter #1), not suggested again, the tag button back in Log it');
+  await page.click('.toast button:has-text("Copy for Edge")'); await page.waitForTimeout(150);
+  ok(/^\d\d\/\d\d\/\d\d Not a missed-appointment fee; the regular collections sequence applies\. -Dr\. A$/.test(await clip()), 'its note for Edge: “' + (await clip()) + '”');
+  await closeDrawer();
+  // Dr. A's side: the waiver asked, OK'd, then the account resolved as waived
+  const kWaive = await S_(() => { const x = Array.from(feeAll().values()).find(x => x.it.drA); return x && x.it.key; });
+  await page.click('#nav-today'); await page.waitForSelector('.focusHd'); await page.click('[data-act=focusOff]'); await page.waitForSelector('.tiles');
+  ok(await page.$$eval('.card', c => c.some(x => /Waiting for your OK/.test(x.textContent) && /Asked Dr\. A to waive the fee: First missed appointment in two years/.test(x.textContent))), 'Today: the waiver is in “Waiting for your OK”, with the reason');
+  await page.evaluate(k => openDrawer(k), kWaive); await page.waitForSelector('#drawer .drABox');
+  ok(await page.$eval('#drawer .drABox', e => /Waiting for your OK/.test(e.textContent) && /Asked Dr\. A to waive the fee/.test(e.textContent)) && await page.$eval('#drawer .feeSec', e => /With Dr\. A/.test(e.querySelector('h5').textContent) && !e.querySelector('[data-act=feeWaive]')), 'its panel: the question for Dr. A; the fee box says it’s with him');
+  await noToasts(); await page.click('#drawer .drABox [data-act=drAok]'); await page.waitForTimeout(300);
+  ok(await page.$eval('#drawer .feeBox', e => /Dr\. A OK’d waiving it — write the fee off in Edge/.test(e.textContent) && !!e.querySelector('[data-act=resolve]')) && await S_(() => counts().drA) === 2, 'OK: the fee box says to write it off in Edge and resolve it as waived; 2 left for Dr. A');
+  await page.click('#drawer .feeBox [data-act=resolve]'); await page.waitForSelector('#rsPick');
+  ok(await page.$$eval('#rsPick .pick', b => b.map(x => x.dataset.o).join()) === 'paid,waived,writeoff,other' && /A missed-appointment fee of \$100\.00/.test(await page.textContent('#modalWrap')), 'Resolve offers “Fee waived by Dr. A”');
+  await page.click('#rsPick .pick[data-o=waived]'); await noToasts(); await page.click('#rsOk'); await page.waitForTimeout(300);
+  const wvIt = await itemOf(kWaive);
+  ok(wvIt.state === 'done' && wvIt.outcome === 'waived' && await toastHas(/Resolved — fee waived/) && await S_(() => feeAll().size) === 2, 'resolved as waived: 2 tagged left');
+  await page.click('.toast button:has-text("Copy for Edge")'); await page.waitForTimeout(150);
+  ok(/^\d\d\/\d\d\/\d\d Account resolved: fee waived\. -Dr\. A$/.test(await clip()), 'its note for Edge: “' + (await clip()) + '”');
+  await page.evaluate(k => { change(k, d => reopenItem(d, { by: meSid() }, Date.now()), { a: 'reopen' }); }, kWaive); await page.waitForTimeout(300);
+  ok(await S_(() => feeAll().size) === 3 && (await itemOf(kWaive)).state === 'open', 'reopened: tagged again (the same round)');
+  await closeDrawer();
+  // tag the account from its panel ("Missed-appointment fee…" in Log it), with the amount filled in; then All past due marks it; Download list has the column
+  const kZ = (await likelyKeys())[0][0];
+  await page.evaluate(k => openDrawer(k), kZ); await page.waitForSelector('#drawer .feeHint');
+  ok(await page.$eval('#drawer .feeHint', e => /A missed-appointment fee\?/.test(e.textContent) && /Past due is exactly \$100 \+ \$50/.test(e.textContent) && /contract is being paid/.test(e.textContent) && !!e.querySelector('[data-act=feeTag]') && !!e.querySelector('[data-act=feeNo]')),
+    'an untagged account that looks like one: the hint at the top, with Tag it / Not a fee');
+  await page.click('#drawer .nowBox [data-act=feeTag]'); await page.waitForSelector('#drawer .nowBox .feeForm #feeAmt');
+  ok(await page.$eval('#feeAmt', e => e.value) === '150' && !(await page.$('#drawer .feeHint')), '“Missed-appointment fee…” in Log it opens the form with the $150 filled in (the hint folds away)');
+  await page.fill('#nowNote', 'Two no-shows in October'); await noToasts(); await page.click('#drawer [data-act=feeSave]'); await page.waitForTimeout(300);
+  const zzIt = await itemOf(kZ);
+  ok(zzIt.log[0].k === 'fee_on' && zzIt.log[0].amt === 150 && zzIt.log[0].note === 'Two no-shows in October' && await toastHas(/Tagged as a missed-appointment fee — off the collections ladder/) && await page.$eval('#drawer .feeBox', e => /fee \$150\.00/.test(e.textContent)) && await S_(() => feeLikelyAll().length === 0),
+    'tagged from the panel, with the note: nothing left that looks like a fee');
+  await closeDrawer();
+  await page.click('#nav-pd'); await page.waitForSelector('#view .chips'); await page.click('[data-act=tab][data-t=all]'); await page.waitForTimeout(150);
+  ok(await page.$eval('tr[data-key="' + kZ + '"]', r => /Missed-appt fee/.test(r.textContent)) && await page.evaluate(k => S.lastList.some(a => a.key === k), kZ), '“All past due” still lists it, marked Missed-appt fee');
+  await page.click('[data-act=tab][data-t="31"]'); await page.waitForTimeout(150);
+  ok(!(await page.$('tr[data-key="' + kZ + '"]')) && await page.evaluate(k => !ladDueAccts().some(a => a.key === k), kZ), '31–90 doesn’t (nor Steps due)');
+  await page.click('[data-act=tab][data-t=fees]'); await page.waitForTimeout(150);
+  const [dlF] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=csv]').then(() => page.click('#cbYes'))]);
+  const csvF = fs.readFileSync(await dlF.path(), 'utf8');
+  ok(/"Missed-appt fee"/.test(csvF.split('\n')[0]) && /"Tagged \$150"/.test(csvF) && /"Tagged \$50 · past due \$199\.00 more than the fee"/.test(csvF) && /nlo-ar-past-due-fees-\d{4}-\d{2}-\d{2}\.csv/.test(dlF.suggestedFilename()), 'Download list on the tab: a Missed-appt fee column');
+  // back as it was for the rest: the $150 one untagged (it looks like a fee again), so the counts below read the same
+  await page.evaluate(k => undoLast(k), kZ); await page.waitForTimeout(300);
+  ok(await S_(() => feeAll().size === 3 && feeLikelyAll().length === 1 && counts().drA === 2), 'undone: 3 tagged, 1 that looks like a fee, 2 for Dr. A');
+  await page.click('#nav-today'); await page.waitForSelector('.tiles');
+
   // ---- the collections ladder (handbook §14)
   const lad = k => page.evaluate(k => { const l = ladFor(S.byKey.get(k)); return l && JSON.parse(JSON.stringify({ due: l.due && l.due.id, done: Object.keys(l.done), signed: Object.keys(l.signed), asked: l.asked, hold: !!l.hold, paused: l.paused, fin: !!l.fin })); }, k);
   const dueKey = (step, extra) => page.evaluate(([st, x]) => { const a = ladDueAccts().find(a => { const l = ladFor(a); return l.due.id === st && (x !== 'asked' || l.asked === st) && (x !== 'free' || (!l.asked && !l.signed[st])); }); return a && a.key; }, [step, extra || '']);
@@ -703,17 +822,23 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await toastHas(/more than the one before/), 'cutoffs out of order are refused');
   // the goals in Settings
   await page.fill('#cfgT1', '120'); await page.fill('#cfgGoalPt', '9'); await page.waitForTimeout(100);
-  ok(/patient accounts past due <b>5\.9%<\/b> \(goal 9%\)/.test(await page.innerHTML('#cfgPrev')), 'the preview shows the patient rate (30+ days) against a 9% goal');
+  ok(/patient accounts past due <b>6\.3%<\/b> \(goal 9%\)/.test(await page.innerHTML('#cfgPrev')) && /<b>1<\/b> account looks like a missed-appointment fee \(\$50 or \$100\)/.test(await page.innerHTML('#cfgPrev')), 'the preview shows the patient rate (30+ days) against a 9% goal, and how many accounts look like a missed-appointment fee: ' + (await page.innerHTML('#cfgPrev')).replace(/<[^>]+>/g, '').slice(-120));
   await page.selectOption('#cfgKpiFrom', '1'); await page.waitForTimeout(100);
-  ok(/patient accounts past due <b>8\.1%<\/b> \(goal 9%\)/.test(await page.innerHTML('#cfgPrev')), 'counting from day 1 instead, the preview shows 8.1%');
+  ok(/patient accounts past due <b>8\.9%<\/b> \(goal 9%\)/.test(await page.innerHTML('#cfgPrev')), 'counting from day 1 instead, the preview shows 8.9%');
+  await page.fill('#cfgFees', '25, 50, 100, 150'); await page.waitForTimeout(100);
+  const fl150 = await S_(() => { const cf = arCfg({ ar: { fees: [25, 50, 100, 150] } }); return S.accts.filter(a => feeLikely(a, (it => it && !isBack(it) ? it : null)(itemFor(a.key)), cf, S.rep.asOf)).length; });
+  ok(fl150 >= 1 && new RegExp('<b>' + fl150 + '</b> accounts? looks? like a missed-appointment fee \\(\\$25, \\$50, \\$100 or \\$150\\)').test(await page.innerHTML('#cfgPrev')), 'with $25 and $150 as fees too, the preview counts the accounts that would look like one (' + fl150 + '): ' + (await page.innerHTML('#cfgPrev')).replace(/<[^>]+>/g, '').slice(-110));
+  await page.fill('#cfgFees', '50, abc'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(150);
+  ok(await toastHas(/fee amounts: one to six amounts/), 'a fee amount that isn’t one is refused');
+  await noToasts(); await page.fill('#cfgFees', '50, 100');
   await page.click('[data-act=saveCfg]'); await page.waitForTimeout(300);
-  const k9 = await S_(() => ({ cfg: [S.cfg.goalPt, S.cfg.kpiFrom], k: kpis(S.rep, S.cfg) }));
-  ok(k9.cfg[0] === 9 && k9.cfg[1] === 1 && k9.k.pt.n === 34 && k9.k.pt.ok, 'saved: a 9% goal, counting from day 1 — ' + k9.k.pt.n + ' patient accounts, goal met');
+  const k9 = await S_(() => ({ cfg: [S.cfg.goalPt, S.cfg.kpiFrom, S.cfg.fees.join()], k: kpiNow() }));
+  ok(k9.cfg[0] === 9 && k9.cfg[1] === 1 && k9.cfg[2] === '50,100' && k9.k.pt.n === 38 && k9.k.fee === 2 && k9.k.pt.ok, 'saved: a 9% goal, counting from day 1 — ' + k9.k.pt.n + ' patient accounts (2 tagged missed-appt fees left out), goal met; the fees as before');
   await page.click('#nav-today'); await page.waitForSelector('.goals .goal');
-  ok(await page.$eval('.goals .goal', e => e.classList.contains('ok') && /Goal met/.test(e.textContent) && /34 of 422 active patient accounts past due/.test(e.textContent)), 'Today: the patient gauge turns green, “Goal met” (34 of 422 past due)');
+  ok(await page.$eval('.goals .goal', e => e.classList.contains('ok') && /Goal met/.test(e.textContent) && /38 of 428 active patient accounts past due \(2 missed-appt fees not counted\)/.test(e.textContent)), 'Today: the patient gauge turns green, “Goal met” (38 of 428 past due, 2 fees not counted)');
   await page.click('#nav-settings'); await page.waitForSelector('#cfgGoalPt'); await page.waitForTimeout(300);
   await page.click('[data-act=resetCfg]'); await page.click('#cbYes'); await page.waitForTimeout(300);
-  ok(await S_(() => S.cfg.goalPt === 4 && S.cfg.goalIns === 4 && S.cfg.kpiFrom === 31), 'back to the usual numbers: 4%, 4%, counted from 31 days');
+  ok(await S_(() => S.cfg.goalPt === 4 && S.cfg.goalIns === 4 && S.cfg.kpiFrom === 31 && S.cfg.fees.join() === '50,100'), 'back to the usual numbers: 4%, 4%, counted from 31 days, fees $50 and $100');
   await page.fill('#cfgGoalIns', '0'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(150);
   ok(await toastHas(/between 0\.1% and 100%/) && await S_(() => S.cfg.goalIns === 4), 'a 0% goal is refused');
   await page.fill('#cfgGoalIns', '4'); await page.selectOption('#cfgDue', '4'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(300);
@@ -755,6 +880,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
     r = await open('#settings'); ok(r.view === 'today' && !r.focus, 'anything else (#settings) opens Today');
     r = await open('#pd'); ok(r.view === 'pd', '#pd opens Past due');
     r = await open('#aa'); ok(r.view === 'pd' && await pl.evaluate(() => S.tab.pd === 'aa' && !!document.querySelector('#view .aaSum')), '#aa opens Past due → Arrangements');
+    r = await open('#fees'); ok(r.view === 'pd' && await pl.evaluate(() => S.tab.pd === 'fees' && /Missed-appointment fees/.test(document.querySelector('#view .listHd').textContent)), '#fees opens Past due → Missed-appt fees');
     await pl.click('[data-act=lock] >> nth=0'); await pl.waitForSelector('#loginForm'); await pl.click('#lgBtn'); await pl.waitForFunction(() => S.arState === 'ok' && S.rep, null, { timeout: 15000 });
     ok(await pl.evaluate(() => S.view) === 'today', 'after Lock and signing in again: Today, as usual');
     await lc.close();
@@ -796,6 +922,17 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await p2.evaluate(() => document.querySelector('#drawer .aaSec').scrollIntoView({ block: 'start' }));
   await p2.screenshot({ path: path.join(SHOTS, 'phone-aa-panel.png'), fullPage: false });
   ok(await p2.$eval('#drawer .aaBox', e => e.getBoundingClientRect().right <= window.innerWidth + 1) && await p2.$$eval('#drawer .aaBox .btn', b => b.every(x => x.getBoundingClientRect().right <= window.innerWidth + 1)), 'phone: an arrangement’s box fits');
+  await p2.click('#drawer [data-act=closeDrawer]');
+  await p2.click('[data-act=tab][data-t=fees]'); await p2.waitForSelector('#view .aaSum');
+  await p2.screenshot({ path: path.join(SHOTS, 'phone-fees.png'), fullPage: true });
+  ok(await wide() <= 0 && await p2.$$eval('#view tbody tr', r => r.length) === 3, 'phone: Past due → Missed-appt fees fits (3)');
+  await p2.click('[data-act=feeSub][data-s=likely]'); await p2.waitForSelector('#view .batchBar');
+  ok(await wide() <= 0 && await p2.$$eval('#view tbody tr', r => r.length === 3 && r.every(x => x.querySelector('[data-act=feeTagRow]').getBoundingClientRect().right <= window.innerWidth + 1)), 'phone: the ones to tag fit (3), with their buttons');
+  await p2.click('[data-act=feeSub][data-s=""]'); await p2.waitForSelector('#view .aaSum');
+  await p2.click('#view tbody tr >> nth=0'); await p2.waitForSelector('#drawer .feeBox');
+  await p2.evaluate(() => document.querySelector('#drawer .feeSec').scrollIntoView({ block: 'start' }));
+  await p2.screenshot({ path: path.join(SHOTS, 'phone-fees-panel.png'), fullPage: false });
+  ok(await p2.$eval('#drawer .feeBox', e => e.getBoundingClientRect().right <= window.innerWidth + 1) && await p2.$$eval('#drawer .feeBox .btn', b => b.every(x => x.getBoundingClientRect().right <= window.innerWidth + 1)), 'phone: a fee’s box fits');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ':\n    ' + errs.join('\n    ') : ''));
   await browser.close();
