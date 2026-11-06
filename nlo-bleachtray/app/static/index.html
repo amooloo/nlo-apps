@@ -268,6 +268,9 @@
   .tbadge{position:absolute;transform:translate(-50%,-50%);min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:#0f766e;color:#fff;font:700 12px/24px var(--fb);text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer;pointer-events:auto;user-select:none;white-space:nowrap}
   .tbadge.hand{background:#b45309} .tbadge.none{background:#64748b} .tbadge:hover{outline:2px solid #fff}
   .tbadge.plus{background:#1d4ed8;font-size:17px;line-height:25px;min-width:26px;height:26px} .tbadge.pont{background:#ca8a04} .tbadge.pont.on{background:#1B2F4C;outline:2px solid #fde68a}
+  .gchip{position:absolute;transform:translate(-50%,-100%);padding:0 8px;border-radius:999px;font:700 11px/19px var(--fb);color:#fff;pointer-events:none;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)} .gchip.zero{background:#15803d} .gchip.plus{background:#1e3a8a} .gchip.minus{background:#7c2d12}
+  #teethov svg line.gline{stroke:#475569;stroke-width:1;opacity:.55}
+  .pontoff{margin-top:6px;font-size:11.5px;color:var(--grey-500);display:flex;gap:4px 10px;align-items:center;flex-wrap:wrap} .pontoff b{color:var(--navy);font-variant-numeric:tabular-nums} .pontoff span{white-space:nowrap} .pontoff button{margin-left:auto}
   .pontrow{display:grid;grid-template-columns:62px 1fr 56px;gap:6px;align-items:center;margin-top:5px;font-size:11.5px;color:var(--grey-500)} .pontrow input[type=range]{margin:0} .pontrow b{color:var(--navy);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap} .pontrow select{min-height:28px;padding:3px 6px;font-size:12px}
   .pontnudge{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px} .pontnudge button{min-height:26px;padding:2px 4px;font-size:11px;border:1.5px solid var(--grey-200);border-radius:8px;background:#fff;color:var(--navy);font-weight:600} .pontnudge button:hover{background:var(--grey-100)}
   .pontlist{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px} .pontlist button{min-height:24px;padding:2px 9px;font-size:11.5px;border-radius:999px;border:1.5px solid var(--grey-200);background:#fff;color:var(--navy);font-weight:600} .pontlist button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -880,8 +883,8 @@ const PANELS = {
             sets: ['p1span', 'unp1span', 'p1end', 'unp1end', 'p1six', 'unp1six'], hint: '<b>Cutout outline</b> (the easiest way): three steps per side - <b>1</b> Shift-click the distal of the 2 (where the cutout starts), <b>2</b> click your way round the tongue side of the C/D area, as far onto the gum as the cutout should go, <b>3</b> click on the E (or the 5) where the cutout ends - then click the last dot again or press Enter. The app cuts out everything between your outline and the cheek side and joins both ends to the trim line; the 2 and the teeth behind your last dot stay whole. One outline per side. <b>6 is here</b>: Shift-click the first molar on a side when the app has it wrong (a space between the front teeth counted as a tooth gone makes the 6 a "7", and the retainer stops short of it): that tooth is the 6, the side is counted from it - 7 behind it, and in front of it one less per tooth, with a space of 4.5 mm or more between two teeth counted as a tooth gone (the D across the E\'s space stays the 4). <b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (the lateral\'s distal face to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
   teeth:  { group: 'seg', title: 'Teeth — the number of every tooth', modes: [['number', 'Number', 'Click a tooth\'s badge and pick its number (1-8, or A-E for a primary tooth); the other teeth on that side are counted from it. × = not a tooth', 'dot']],
             sets: [], hint: 'Every tooth carries a badge with the number the app gave it (counted from the midline). Click a badge and pick the right number - <b>Perm</b> 1-8 or <b>Primary</b> A-E - and the rest of that side is counted from it (one more going back, one less going forward), so one click puts a whole side right; <b>× not a tooth</b> makes a label gum again; <b>auto</b> gives the app\'s count back. Badges given by hand show orange. Apply &amp; re-run makes the models with these numbers; they are kept with the scan.' },
-  pontic: { group: 'seg', title: 'Pontics — a tooth shape where a tooth is missing', modes: [['pontic', 'Place', 'Click a + badge in a space where a tooth is missing, or Shift-click the gum where the pontic goes; Shift-drag a pontic to move it', 'dot']],
-            sets: [], hint: 'Where a tooth is missing the app offers a <b>+</b> badge in the space (from the tooth numbers: a space of 5 mm or more counts as a tooth gone - or give the numbers on the Teeth tab): click it and a pontic stands there - the missing tooth\'s own shape from Dr. Brenes\' library, as wide as the room between the neighbours less 0.6 mm, as tall as the neighbours, its base 2 mm into the gum. Or hold <kbd class="key">Shift</kbd> and click the gum anywhere - a pontic stands there. Then set its <b>Width / Height / Thickness</b> and how far <b>into the gum</b> it sits, nudge it along the arch, out / in, up / down, turn, tip or torque it, or pick another <b>Shape</b> (one from the other side is mirrored); hold Shift and drag it on the model to move it. <b>Delete</b> (or the Delete key) takes the selected one away. The model is built with the pontic fused into the ridge and filled under its contour (a thermoformed sheet must not get under it), so the retainer carries a tooth-shaped pocket there for the lab to fill. Apply &amp; re-run makes the models with them; they are kept with the scan. Not on a whitening tray or a mouthguard.' },
+  pontic: { group: 'seg', title: 'Pontics — a tooth shape where a tooth is missing', modes: [['pontic', 'Place', 'Click a + badge in a space where a tooth is missing, or Shift-click the gum where the pontic goes; then drag the arrows and arcs on it', 'dot']],
+            sets: [], hint: 'Where a tooth is missing the app offers a <b>+</b> badge in the space (from the tooth numbers: a space of 5 mm or more counts as a tooth gone - or give the numbers on the Teeth tab): click it and a pontic stands there - the missing tooth\'s own shape from Dr. Brenes\' library, as wide as the room between the neighbours less 0.6 mm, as tall as the neighbours, its base 2 mm into the gum. Or hold <kbd class="key">Shift</kbd> and click the gum anywhere - a pontic stands there. Then move it like a tooth in a setup: <b>drag the arrows</b> on its axes - red along the arch, blue out / in, green up / down (0.1 mm steps) - and <b>drag the arcs</b> to turn it round its long axis (green), tip it mesio-distally (blue) or torque it (red), 1 degree steps; the handle under the mouse turns yellow, and the chips at the arrows say how far it has moved since it was placed. Set its <b>Width / Height / Thickness</b> and how far <b>into the gum</b> it sits with the sliders, or pick another <b>Shape</b> (one from the other side is mirrored); <b>Reset position</b> puts it back where it was placed; hold Shift and drag the pontic itself to carry it along the surface. <b>Delete</b> (or the Delete key) takes the selected one away. The model is built with the pontic fused into the ridge and filled under its contour (a thermoformed sheet must not get under it), so the retainer carries a tooth-shaped pocket there for the lab to fill. Apply &amp; re-run makes the models with them; they are kept with the scan. Not on a whitening tray or a mouthguard.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed, keep what is not a bracket', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the band)', 'brush'], ['notbracket', 'Not a bracket', 'Tooth or gum the app took for a bracket: left as scanned on the next run (on a mouthguard it is kept out of the band). Saved with the case, to teach the detector', 'eraser']],
             sets: ['takeoff', 'notbracket'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard band; blue = marked not a bracket. Hold <kbd class="key">Shift</kbd> and drag; rotate with the mouse otherwise. <b>Take off</b> over anything that was missed: on a retainer it comes off and the enamel is rebuilt, on a mouthguard it joins the band. <b>Not a bracket</b> over anything taken for one that is not: on a retainer the braces are taken off the scan as scanned again, leaving those areas as they were scanned; on a mouthguard the band leaves them out. The strokes are kept with the case and saved with its lesson. <b>Scan as scanned</b> (below) shows the scan exactly as it came with what comes off marked, to fix the outline before it is cut.' },
 };
@@ -1023,6 +1026,7 @@ function showTab(t){
   document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t));
   $('#teethov').classList.toggle('on', t === 'teeth' || t === 'pontic'); if (t !== 'teeth') closePick(); if (t === 'teeth' || t === 'pontic') drawBadges();
   if (typeof ponticGroup !== 'undefined') ponticGroup.visible = t === 'pontic';
+  if (typeof gizmoGroup !== 'undefined') { gizmoGroup.visible = t === 'pontic'; if (t === 'pontic' && typeof buildGizmo === 'function') buildGizmo(); }
   renderPanel(); if (segMesh) paintColors();
   syncPanels(); syncBrush(); requestRender();
 }
@@ -2425,7 +2429,7 @@ async function loadSeg(id, k=0){
   // the pontics kept for this scan (the page's own, changed and not applied, win) and the scan's rough-frame transform
   ponticInfo = { T_rough: null, gaps: [], made: null }; setRough(null);
   try { const pi = await (await fetch(`/api/jobs/${id}/pontics?scan=${k}`, NOCACHE)).json(); ponticInfo = pi; setRough(pi.T_rough);
-    if (!ponticsDirty) { pontics = (pi.pontics || []).map(p => Object.assign({ sink: PONTIC_SINK }, p)); if (!pontics.some(p => p.id === ponticSel)) ponticSel = null; } } catch (e) {}
+    if (!ponticsDirty) { pontics = (pi.pontics || []).map(p => Object.assign({ sink: PONTIC_SINK }, p, { home: (p.m || []).map(r => r.slice()) })); if (!pontics.some(p => p.id === ponticSel)) ponticSel = null; } } catch (e) {}
   await loadPonticLib();
   // each tooth's middle and the arch's centre, for the Teeth tab's badges
   toothCent = {}; { const acc = {}; for (let i = 0; i < nV; i++) { const l = segLabels[i]; if (!l) continue; const a = acc[l] || (acc[l] = [0, 0, 0, 0]); a[0] += V[i*3]; a[1] += V[i*3+1]; a[2] += V[i*3+2]; a[3]++; }
@@ -2441,6 +2445,7 @@ async function loadSeg(id, k=0){
     segAdj = { off, nb }; }
   findContacts();
   groups.seg.remove(ponticGroup);           // (its meshes share the library's geometry: clear() must not dispose it)
+  if (typeof gizmoGroup !== 'undefined') groups.seg.remove(gizmoGroup);
   clear(groups.seg); clear(groups.scan);
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(V.slice(), 3)); g.setIndex(new THREE.BufferAttribute(F.slice(), 1)); g.computeVertexNormals();
   segColors = new Float32Array(nV*3); paintColors();
@@ -2649,7 +2654,7 @@ function drawBadges(){
   const ov = $('#teethov'); const svg = ov.querySelector('svg');
   ov.querySelectorAll('.tbadge').forEach(e => e.remove()); svg.innerHTML = '';
   if (!segPos || !(tab === 'teeth' || tab === 'pontic')) return;
-  if (tab === 'pontic') { drawPonticBadges(ov, svg); placeBadges(); return; }
+  if (tab === 'pontic') { drawPonticBadges(ov, svg); drawGizmoChips(ov, svg); placeBadges(); return; }
   const nums = toothNumbers();
   for (const l in toothCent) {
     const n = nums[l]; const txt = !n || n.pos === 0 ? '×' : (n.prim ? PRIM[n.pos] || n.pos : String(n.pos));
@@ -2673,6 +2678,11 @@ function placeBadges(){
     b.style.left = e[0] + 'px'; b.style.top = e[1] + 'px';
     const ln = ov.querySelector(b.dataset.label ? `line[data-label="${b.dataset.label}"]` : `line[data-key="${b.dataset.key}"]`); if (ln) { ln.setAttribute('x1', a[0]); ln.setAttribute('y1', a[1]); ln.setAttribute('x2', e[0]); ln.setAttribute('y2', e[1]); }
   });
+  ov.querySelectorAll('.gchip').forEach(b => {
+    const a = toScreen(+b.dataset.ax, +b.dataset.ay, +b.dataset.az);
+    b.style.left = a[0] + 'px'; b.style.top = (a[1] - 14) + 'px';
+    const ln = ov.querySelector(`line[data-key="${b.dataset.key}"]`); if (ln) { ln.setAttribute('x1', a[0]); ln.setAttribute('y1', a[1]); ln.setAttribute('x2', a[0]); ln.setAttribute('y2', a[1] - 14); }
+  });
   if (pickFor) { const b = ov.querySelector(`.tbadge[data-label="${pickFor}"]`); const pk = ov.querySelector('.tpick'); if (b && pk) { pk.style.left = Math.max(4, Math.min(parseFloat(b.style.left) + 16, ov.clientWidth - 345)) + 'px'; pk.style.top = Math.max(4, Math.min(parseFloat(b.style.top) + 16, ov.clientHeight - 150)) + 'px'; } }
 }
 function drawPonticBadges(ov, svg){
@@ -2682,7 +2692,7 @@ function drawPonticBadges(ov, svg){
     b.onclick = ev => { ev.stopPropagation(); onclick(); }; ov.appendChild(b);
   };
   for (const s of ponticSlots()) { if (s.taken) continue; mk('slot:' + s.slot, [s.x, s.y, s.z], 'plus', '+', `Add a pontic for the missing ${s.slot}`, () => addPonticAt(new THREE.Vector3(s.x, s.y, s.z), s)); }
-  for (const p of pontics) { const top = new THREE.Vector3(0, 0, p.h).applyMatrix4(TR.clone().multiply(ponticMat4(p)));
+  for (const p of pontics) { if (p.id === ponticSel) continue; const top = new THREE.Vector3(0, 0, p.h).applyMatrix4(TR.clone().multiply(ponticMat4(p)));
     mk('pont:' + p.id, [top.x, top.y, top.z], 'pont' + (p.id === ponticSel ? ' on' : ''), p.slot || 'pontic', `${p.slot} pontic - click to select it, Shift-drag it on the model to move it`, () => { ponticSel = p.id; drawPontics(); drawBadges(); renderPanel(); }); }
 }
 function closePick(){ pickFor = null; const pk = $('#teethov').querySelector('.tpick'); if (pk) pk.remove(); }
@@ -2748,6 +2758,7 @@ async function drawPontics(){
     mesh.matrixAutoUpdate = false; mesh.matrix.copy(TR).multiply(ponticMat4(p)).multiply(S); mesh.userData.pontic = p.id;
     ponticGroup.add(mesh);
   }
+  buildGizmo();
   requestRender();
 }
 // every tooth's middle in arch order (by its angle round the arch's centre), with its number, for the spaces and the frames
@@ -2824,7 +2835,7 @@ async function addPonticAt(pt, slot){
   const h = clampTo(sp && sp.ztop > pt.z ? sp.ztop - (pt.z - PONTIC_SINK) : s.h0, PONTIC_LIM.h);
   const t = clampTo(s.t0 * Math.sqrt(w / s.w0), PONTIC_LIM.t);   // (the shape's own thickness, following the width only half-way: a wide space does not want a fat tooth)
   const id = 'p' + Date.now().toString(36);
-  pontics.push({ id, n, slot: `${side}${pos}`, w: +w.toFixed(1), h: +h.toFixed(1), t: +t.toFixed(1), sink: PONTIC_SINK, mirror: false, m: mat4Rows(Mraw) });
+  pontics.push({ id, n, slot: `${side}${pos}`, w: +w.toFixed(1), h: +h.toFixed(1), t: +t.toFixed(1), sink: PONTIC_SINK, mirror: false, m: mat4Rows(Mraw), home: mat4Rows(Mraw) });
   ponticSel = id; ponticsDirty = true;
   await drawPontics(); drawBadges(); renderPanel();
 }
@@ -2848,12 +2859,8 @@ function ponticPanelHtml(){
   return `<div class="pontlist" id="pontlist">${chips}<button data-addhint="1" title="Click a + badge in a space, or hold Shift and click the gum where the pontic goes">${pontics.length ? '+ add: a badge, or Shift-click the gum' : 'None yet: click a + badge on the model, or Shift-click the gum'}</button></div>` +
     (p ? `<div class="pontrow" style="grid-template-columns:62px 1fr"><span>Shape</span><select id="pontshape" title="The library shape: its own tooth by default; a shape from the other side is mirrored">${groupsL}</select></div>` +
       row('w', 'Width', PONTIC_LIM.w, 0.1, ' mm') + row('h', 'Height', PONTIC_LIM.h, 0.1, ' mm') + row('t', 'Thickness', PONTIC_LIM.t, 0.1, ' mm') + row('sink', 'Into gum', PONTIC_LIM.sink, 0.25, ' mm') +
-      `<div class="pontnudge">
-        <button data-n="-0.25,0,0,0,0,0" title="Along the arch, 0.25 mm">&larr; along</button><button data-n="0.25,0,0,0,0,0" title="Along the arch, 0.25 mm">along &rarr;</button><button data-n="0,0,0,5,0,0" title="Turn 5 degrees (Shift: the other way)">&#8635; turn</button>
-        <button data-n="0,0.25,0,0,0,0" title="Out, towards the cheek / lip, 0.25 mm">&#9650; out</button><button data-n="0,-0.25,0,0,0,0" title="In, towards the tongue / palate, 0.25 mm">&#9660; in</button><button data-n="0,0,0,0,3,0" title="Tip mesio-distally 3 degrees (Shift: the other way)">&#8646; tip</button>
-        <button data-n="0,0,0.25,0,0,0" title="Up 0.25 mm (out of the gum)">&#8679; up</button><button data-n="0,0,-0.25,0,0,0" title="Down 0.25 mm (into the gum)">&#8681; down</button><button data-n="0,0,0,0,0,3" title="Torque facio-lingually 3 degrees (Shift: the other way)">&#8645; torque</button>
-      </div>
-      <div style="margin-top:6px;display:flex;gap:6px;align-items:center"><button class="small" id="pontdel" title="Take this pontic away (Delete key does the same)">Delete ${esc(p.slot)}</button><span class="hint" style="margin:0">${s ? esc(s.name) : ''} · Shift-drag it on the model to move it</span></div>` : '');
+      (o => `<div class="pontoff" title="Since the pontic was placed: drag the arrows (mm) and the arcs (degrees) on it"><span>along <b>${fmtOff(o.x, 'mm')}</b> · out <b>${fmtOff(o.y, 'mm')}</b> · up <b>${fmtOff(o.z, 'mm')}</b> mm</span><span>turn <b>${fmtOff(o.turn, 'deg')}</b> · tip <b>${fmtOff(o.tip, 'deg')}</b> · torque <b>${fmtOff(o.torque, 'deg')}</b></span><button class="small" id="pontreset" title="Back to where it was placed" ${Object.values(o).some(v => Math.abs(v) > 0.049) ? '' : 'disabled'}>Reset position</button></div>`)(ponticOffsets(p)) +
+      `<div style="margin-top:6px;display:flex;gap:6px;align-items:center"><button class="small" id="pontdel" title="Take this pontic away (Delete key does the same)">Delete ${esc(p.slot)}</button><span class="hint" style="margin:0">${s ? esc(s.name) : ''} · drag its arrows and arcs; Shift-drag it to carry it</span></div>` : '');
 }
 function wirePonticPanel(box){
   box.querySelectorAll('#pontlist button[data-sel]').forEach(b => b.onclick = () => { ponticSel = b.dataset.sel; drawPontics(); drawBadges(); renderPanel(); });
@@ -2861,18 +2868,19 @@ function wirePonticPanel(box){
   const p = ponticNow(); if (!p) return;
   box.querySelectorAll('input[type=range][data-k]').forEach(inp => inp.oninput = () => {
     const k = inp.dataset.k, v = +inp.value, b = inp.parentElement.querySelector('b');
-    if (k === 'sink') { const d = v - (p.sink || 0); p.sink = v; p.h = clampTo(p.h + d, PONTIC_LIM.h); nudgePontic(p, 0, 0, -d, 0, 0, 0); const hb = box.querySelector('input[data-k="h"]'); if (hb) { hb.value = p.h; hb.parentElement.querySelector('b').textContent = p.h.toFixed(1) + ' mm'; } }
+    if (k === 'sink') { const d = v - (p.sink || 0); p.sink = v; p.h = clampTo(p.h + d, PONTIC_LIM.h); if (p.home) { const H = new THREE.Matrix4().set(...p.home.flat()); p.home = mat4Rows(H.multiply(new THREE.Matrix4().makeTranslation(0, 0, -d))); } nudgePontic(p, 0, 0, -d, 0, 0, 0); const hb = box.querySelector('input[data-k="h"]'); if (hb) { hb.value = p.h; hb.parentElement.querySelector('b').textContent = p.h.toFixed(1) + ' mm'; } }
     else { p[k] = v; ponticChanged(); }
     b.textContent = v.toFixed(k === 'sink' ? 2 : 1) + ' mm';
   });
   const sel = box.querySelector('#pontshape'); if (sel) sel.onchange = () => { const n = +sel.value; const s = ponticShape(n); if (!s) return; p.n = n; const slotSide = (p.slot || '')[0]; p.mirror = !!slotSide && s.side !== slotSide; ponticChanged(); renderPanel(); };
-  box.querySelectorAll('.pontnudge button').forEach(b => b.onclick = ev => { const v = b.dataset.n.split(',').map(Number); const sgn = ev.shiftKey ? -1 : 1; nudgePontic(p, v[0], v[1], v[2], v[3] * sgn, v[4] * sgn, v[5] * sgn); });
+  const rst = box.querySelector('#pontreset'); if (rst) rst.onclick = () => resetPontic(p);
   const del = box.querySelector('#pontdel'); if (del) del.onclick = () => removePontic(p.id);
 }
 // a Shift-click on the Pontics tab: on a pontic - select it and drag it along the surface; elsewhere - a new one there
 let ponticDrag = null;
 function ponticHitAt(ev){ if (!ponticGroup.children.length) return null; const r = canvas.getBoundingClientRect(); mouse.x = ((ev.clientX - r.left) / r.width) * 2 - 1; mouse.y = -((ev.clientY - r.top) / r.height) * 2 + 1; ray.setFromCamera(mouse, camera); const h = ray.intersectObjects(ponticGroup.children, false)[0]; return h ? h.object.userData.pontic : null; }
 function ponticDown(ev){
+  if (gizmoDown(ev)) return;
   const onP = ponticHitAt(ev);
   if (onP) { ponticSel = onP; ponticDrag = { id: onP, moved: false }; controls.enabled = false; drawPontics(); drawBadges(); renderPanel(); return; }
   const hit = hitAt(ev); if (!hit) return;
@@ -2887,6 +2895,176 @@ function ponticMove(ev){
 }
 function ponticUp(){ if (!ponticDrag) return; const moved = ponticDrag.moved; ponticDrag = null; controls.enabled = true; if (moved) { drawBadges(); updateFixCount(); } }
 window.addEventListener('keydown', ev => { if (tab !== 'pontic' || !ponticSel) return; if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT' || document.activeElement.tagName === 'TEXTAREA') return; if (ev.key === 'Delete' || ev.key === 'Backspace') { removePontic(ponticSel); ev.preventDefault(); } });
+// ---------- the pontic's move gizmo (the doctor, 11/6/2026, with a clip of the tooth-move tool he likes: arrows on the three
+// axes to drag the tooth along the arch / out-in / up-down, arcs to tip, torque and turn it, the handle under the mouse
+// yellow, the amounts on chips) ----------
+// Built on the selected pontic: its own axes through the middle of the crown - red along the arch, blue facial / lingual,
+// green up / down - with a cone at each end to drag (0.1 mm steps), and three arcs with arrowheads to drag round an axis
+// (1 degree steps): red round the arch axis = torque, blue round the facial axis = tip, green round the long axis = turn.
+// Plain drag (no Shift). The amounts since the pontic was placed show on chips at the arrows' ends and in the box.
+const gizmoGroup = new THREE.Group(); gizmoGroup.renderOrder = 20;
+const GIZ_COL = { x: 0xdc2626, y: 0x2563eb, z: 0x16a34a, hover: 0xfacc15 };
+const GIZ_KIND_AXIS = { tx: 'x', ty: 'y', tz: 'z', rx: 'x', ry: 'y', rz: 'z' };
+let gizmo = null;          // { id, c (Vector3, rough frame), ax: {x, y, z} unit Vector3s (rough frame), parts: [{mesh, kind, mat}] , hits: [Mesh] }
+let gizmoDrag = null;      // { kind, t0 | a0, applied, axis, c, u, v } while a handle is dragged
+let gizmoHover = null;     // the kind under the mouse
+function gizMat(col){ return new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false }); }
+function gizCone(axis, at, dir, kind, col, parts, hits){
+  const g = new THREE.Group(); g.position.copy(at); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.95, 2.6, 18), gizMat(col)); cone.position.y = 1.3; cone.renderOrder = 21; g.add(cone);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 10), gizMat(col)); dot.position.y = -1.6; dot.renderOrder = 21; g.add(dot);
+  const hit = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 5.2, 8), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 0.6; hit.userData.kind = kind; hit.userData.idx = parts.length; g.add(hit);
+  gizmoGroup.add(g); parts.push({ group: g, kind, mats: [cone.material, dot.material], col }); hits.push(hit);
+}
+const GIZ_ARC = [Math.PI / 10, Math.PI * 0.4];     // an arc runs from 18 to 72 degrees between two arrows, across neither
+function gizArc(c, u, v, r, kind, col, parts, hits){
+  // an arc from u towards v round the axis u x v, with an arrowhead at each end
+  const g = new THREE.Group(); g.position.copy(c);
+  const n = new THREE.Vector3().crossVectors(u, v).normalize();
+  const M = new THREE.Matrix4().makeBasis(u, v, n); g.quaternion.setFromRotationMatrix(M);
+  const [a0, a1] = GIZ_ARC;
+  const tube = new THREE.Mesh(new THREE.TorusGeometry(r, 0.28, 8, 40, a1 - a0), gizMat(col)); tube.rotation.z = a0; tube.renderOrder = 21; g.add(tube);
+  const hit = new THREE.Mesh(new THREE.TorusGeometry(r, 1.4, 6, 24, a1 - a0), new THREE.MeshBasicMaterial({ visible: false })); hit.rotation.z = a0; hit.userData.kind = kind; hit.userData.idx = parts.length; g.add(hit);
+  const mats = [tube.material];
+  for (const [ang, sgn] of [[a0, -1], [a1, 1]]) {
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.85, 2.2, 14), gizMat(col));
+    head.position.set(r * Math.cos(ang), r * Math.sin(ang), 0); head.rotation.z = ang + sgn * Math.PI / 2 - Math.PI / 2; head.renderOrder = 21; g.add(head); mats.push(head.material);
+  }
+  gizmoGroup.add(g); parts.push({ group: g, kind, mats, col }); hits.push(hit);
+}
+function gizLine(c, dir, len, col){
+  const pts = [c.clone().addScaledVector(dir, -len), c.clone().addScaledVector(dir, len)];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const ln = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: col, dashSize: 0.9, gapSize: 0.5, transparent: true, opacity: 0.8, depthTest: false }));
+  ln.computeLineDistances(); ln.renderOrder = 20; gizmoGroup.add(ln);
+}
+function buildGizmo(){
+  while (gizmoGroup.children.length) gizmoGroup.remove(gizmoGroup.children[0]);
+  gizmo = null;
+  const p = ponticNow(); if (!p || tab !== 'pontic' || !segPos) { requestRender(); return; }
+  const M = TR.clone().multiply(ponticMat4(p));
+  const ax = { x: new THREE.Vector3().setFromMatrixColumn(M, 0).normalize(), y: new THREE.Vector3().setFromMatrixColumn(M, 1).normalize(), z: new THREE.Vector3().setFromMatrixColumn(M, 2).normalize() };
+  const c = new THREE.Vector3(0, 0, p.h * 0.45).applyMatrix4(M);     // the middle of the crown: the gizmo's centre, the rotations' pivot
+  const parts = [], hits = [];
+  const rx = p.w / 2 + 3.5, ry = p.t / 2 + 3.5, rz = p.h * 0.55 + 3.0;
+  gizLine(c, ax.x, rx + 1.5, GIZ_COL.x); gizLine(c, ax.y, ry + 1.5, GIZ_COL.y); gizLine(c, ax.z, rz + 1.5, GIZ_COL.z);
+  gizCone(ax.x, c.clone().addScaledVector(ax.x, rx), ax.x, 'tx', GIZ_COL.x, parts, hits); gizCone(ax.x, c.clone().addScaledVector(ax.x, -rx), ax.x.clone().negate(), 'tx', GIZ_COL.x, parts, hits);
+  gizCone(ax.y, c.clone().addScaledVector(ax.y, ry), ax.y, 'ty', GIZ_COL.y, parts, hits); gizCone(ax.y, c.clone().addScaledVector(ax.y, -ry), ax.y.clone().negate(), 'ty', GIZ_COL.y, parts, hits);
+  gizCone(ax.z, c.clone().addScaledVector(ax.z, rz), ax.z, 'tz', GIZ_COL.z, parts, hits); gizCone(ax.z, c.clone().addScaledVector(ax.z, -(p.h * 0.45 + 2.5)), ax.z.clone().negate(), 'tz', GIZ_COL.z, parts, hits);
+  // the arcs: torque (round X) in the facial-up quadrant, tip (round Y) in the along-up quadrant, turn (round Z) in the along-facial quadrant
+  gizArc(c, ax.y, ax.z, (ry + rz) / 2, 'rx', GIZ_COL.x, parts, hits);
+  gizArc(c, ax.x, ax.z, (rx + rz) / 2, 'ry', GIZ_COL.y, parts, hits);
+  gizArc(c, ax.x, ax.y, (rx + ry) / 2, 'rz', GIZ_COL.z, parts, hits);
+  gizmo = { id: p.id, c, ax, parts, hits, r: { x: rx, y: ry, z: rz } };
+  gizmoGroup.visible = true; if (!gizmoGroup.parent) groups.seg.add(gizmoGroup);
+  gizmoPaint(); requestRender();
+}
+function gizmoPaint(){
+  if (!gizmo) return;
+  const on = gizmoDrag ? gizmoDrag.idx : gizmoHover;     // (the one handle under the mouse, or the one being dragged)
+  gizmo.parts.forEach((q, i) => q.mats.forEach(m => m.color.setHex(i === on ? GIZ_COL.hover : q.col)));
+}
+function gizmoHitAt(ev, want){
+  if (!gizmo || !gizmoGroup.visible) return null;
+  const r = canvas.getBoundingClientRect(); mouse.x = ((ev.clientX - r.left) / r.width) * 2 - 1; mouse.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(mouse, camera); const h = ray.intersectObjects(gizmo.hits, false)[0];
+  return h ? (want === 'idx' ? h.object.userData.idx : h.object.userData.kind) : null;
+}
+const _ro = new THREE.Vector3(), _rd = new THREE.Vector3();
+function mouseRay(ev){ const r = canvas.getBoundingClientRect(); mouse.x = ((ev.clientX - r.left) / r.width) * 2 - 1; mouse.y = -((ev.clientY - r.top) / r.height) * 2 + 1; ray.setFromCamera(mouse, camera); _ro.copy(ray.ray.origin); _rd.copy(ray.ray.direction); }
+// the point of the axis line (c, a) nearest the mouse ray, as a distance along the axis from c
+function axisParam(ev, c, a){
+  mouseRay(ev);
+  const w0 = new THREE.Vector3().subVectors(c, _ro);
+  const b = a.dot(_rd), d = a.dot(w0), e = _rd.dot(w0), den = 1 - b * b;
+  if (Math.abs(den) < 1e-6) return null;              // the axis points at the camera: no reading
+  return (b * e - d) / den;
+}
+// the angle of the mouse ray's hit on the plane through c with normal n, in the plane's basis (u, v)
+function planeAngle(ev, c, n, u, v){
+  mouseRay(ev);
+  const denom = n.dot(_rd); if (Math.abs(denom) < 1e-6) return null;
+  const t = n.dot(new THREE.Vector3().subVectors(c, _ro)) / denom; if (t < 0) return null;
+  const hit = _ro.clone().addScaledVector(_rd, t).sub(c);
+  return Math.atan2(hit.dot(v), hit.dot(u));
+}
+function gizmoDown(ev){
+  const idx = gizmoHitAt(ev, 'idx'); if (idx === null || !gizmo) return false;
+  const kind = gizmo.parts[idx].kind;
+  const p = ponticNow(); if (!p) return false;
+  const a = GIZ_KIND_AXIS[kind], axis = gizmo.ax[a];
+  gizmoDrag = { kind, idx, axis, c: gizmo.c.clone(), applied: 0 };
+  if (kind[0] === 't') { gizmoDrag.t0 = axisParam(ev, gizmo.c, axis); if (gizmoDrag.t0 === null) { gizmoDrag = null; return false; } }
+  else {
+    const u = gizmo.ax[a === 'x' ? 'y' : 'x'], v = gizmo.ax[a === 'z' ? 'y' : 'z'];
+    gizmoDrag.u = u; gizmoDrag.v = v; gizmoDrag.a0 = planeAngle(ev, gizmo.c, axis, u, v); if (gizmoDrag.a0 === null) { gizmoDrag = null; return false; }
+    gizmoDrag.sign = new THREE.Vector3().crossVectors(u, v).dot(axis) > 0 ? 1 : -1;
+  }
+  if (!p.home) p.home = p.m.map(r => r.slice());
+  controls.enabled = false; canvas.style.cursor = 'grabbing'; gizmoPaint(); requestRender();
+  return true;
+}
+function gizmoMove(ev){
+  if (!gizmoDrag) return; const p = ponticNow(); if (!p || p.id !== gizmo.id) return;
+  const D = gizmoDrag, a = GIZ_KIND_AXIS[D.kind];
+  if (D.kind[0] === 't') {
+    const t = axisParam(ev, D.c, D.axis); if (t === null) return;
+    const want = Math.round((t - D.t0) * 10) / 10, step = want - D.applied;     // 0.1 mm steps along the pontic's own axis
+    if (Math.abs(step) < 1e-9) return;
+    nudgePontic(p, a === 'x' ? step : 0, a === 'y' ? step : 0, a === 'z' ? step : 0, 0, 0, 0); D.applied = want;
+    D.c.addScaledVector(D.axis, step);                                            // the gizmo rides along
+  } else {
+    const ang = planeAngle(ev, D.c, D.axis, D.u, D.v); if (ang === null) return;
+    let d = (ang - D.a0) * 180 / Math.PI; d = ((d + 540) % 360) - 180;
+    const want = Math.round(d) * D.sign, step = want - D.applied;              // 1 degree steps round the pontic's own axis, through the middle of the crown
+    if (Math.abs(step) < 1e-9) return;
+    rotatePontic(p, a, step); D.applied = want;
+  }
+}
+function gizmoUp(){ if (!gizmoDrag) return; gizmoDrag = null; controls.enabled = true; canvas.style.cursor = ''; gizmoPaint(); updateFixCount(); renderPanel(); }
+function gizmoHoverAt(ev){
+  const k = gizmoHitAt(ev, 'idx');
+  if (k !== gizmoHover) { gizmoHover = k; gizmoPaint(); requestRender(); }
+  if (k !== null) { canvas.style.cursor = 'grab'; if (brushCursor.visible || crossCursor.visible) { brushCursor.visible = false; crossCursor.visible = false; requestRender(); } }
+  return k !== null;
+}
+// turn / tip / torque about the pontic's own axis through the middle of its crown (not its seat): degrees
+function rotatePontic(p, axis, deg){
+  const M = ponticMat4(p); const cl = new THREE.Vector3(0, 0, p.h * 0.45);
+  const R = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(axis === 'x' ? deg * Math.PI / 180 : 0, axis === 'y' ? deg * Math.PI / 180 : 0, axis === 'z' ? deg * Math.PI / 180 : 0, 'XYZ'));
+  const T1 = new THREE.Matrix4().makeTranslation(cl.x, cl.y, cl.z), T2 = new THREE.Matrix4().makeTranslation(-cl.x, -cl.y, -cl.z);
+  p.m = mat4Rows(M.multiply(T1).multiply(R).multiply(T2)); ponticChanged();
+}
+// how far the pontic has moved since it was placed (or since it was loaded as applied): mm along its own axes and degrees
+function ponticOffsets(p){
+  if (!p || !p.home) return { x: 0, y: 0, z: 0, turn: 0, tip: 0, torque: 0 };
+  const H = new THREE.Matrix4().set(...p.home.flat()), M = ponticMat4(p);
+  const D = H.clone().invert().multiply(M); const e = D.elements;
+  const eu = new THREE.Euler().setFromRotationMatrix(D, 'ZYX');
+  return { x: e[12], y: e[13], z: e[14], turn: eu.z * 180 / Math.PI, tip: eu.y * 180 / Math.PI, torque: eu.x * 180 / Math.PI };
+}
+function resetPontic(p){ if (!p || !p.home) return; p.m = p.home.map(r => r.slice()); ponticChanged(); renderPanel(); }
+const fmtOff = (v, unit) => `${v > 0.049 ? '+' : ''}${(Math.round(v * 10) / 10).toFixed(unit === 'mm' ? 1 : 0)}${unit === 'mm' ? '' : '°'}`;
+// the chips: the amounts at the ends of the three axes, coloured like the clip (blue plus, brown minus, green nothing)
+function drawGizmoChips(ov, svg){
+  ov.querySelectorAll('.gchip').forEach(e => e.remove());
+  if (!gizmo || tab !== 'pontic') return;
+  const p = ponticNow(); if (!p) return;
+  const o = ponticOffsets(p);
+  const put = (key, pt, val, unit, title) => {
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line'); ln.dataset.key = key; ln.classList.add('gline'); svg.appendChild(ln);
+    const b = document.createElement('div'); const v = Math.round(val * 10) / 10;
+    b.className = 'gchip ' + (Math.abs(v) < 0.05 ? 'zero' : v > 0 ? 'plus' : 'minus'); b.dataset.key = key; b.dataset.ax = pt.x; b.dataset.ay = pt.y; b.dataset.az = pt.z; b.textContent = fmtOff(val, unit); b.title = title; ov.appendChild(b);
+  };
+  put('g:x', gizmo.c.clone().addScaledVector(gizmo.ax.x, gizmo.r.x + 2.5), o.x, 'mm', 'Along the arch since placed (mm)');
+  put('g:y', gizmo.c.clone().addScaledVector(gizmo.ax.y, gizmo.r.y + 2.5), o.y, 'mm', 'Out (+) / in (-) since placed (mm)');
+  put('g:z', gizmo.c.clone().addScaledVector(gizmo.ax.z, gizmo.r.z + 2.5), o.z, 'mm', 'Up (+) / down (-) since placed (mm)');
+  if (gizmoDrag && gizmoDrag.kind[0] === 'r') {
+    const a = GIZ_KIND_AXIS[gizmoDrag.kind]; const val = a === 'x' ? o.torque : a === 'y' ? o.tip : o.turn;
+    const rr = (gizmo.r[a === 'x' ? 'y' : 'x'] + gizmo.r[a === 'z' ? 'y' : 'z']) / 2 + 1.5, am = (GIZ_ARC[0] + GIZ_ARC[1]) / 2;
+    put('g:r', gizmo.c.clone().addScaledVector(gizmoDrag.u, rr * Math.cos(am)).addScaledVector(gizmoDrag.v, rr * Math.sin(am)), val, 'deg', a === 'x' ? 'Torque' : a === 'y' ? 'Tip' : 'Turn');
+  }
+}
 // ---------- brush ----------
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
 const brushMeshNow = () => tab === 'res' ? resMesh : (tab in PANELS && tab !== 'teeth' ? segMesh : null);   // (the Teeth tab has badges, no brush)
@@ -3111,19 +3289,25 @@ window.addEventListener('keydown', ev => {
     else if (p1paths.length) { p1paths.pop(); drawP1Paths(); updateFixCount(); ev.preventDefault(); }
   }
 });
+canvas.addEventListener('pointerdown', ev => {
+  // the pontic's gizmo works with a plain drag, and a plain click on a pontic picks it
+  if (!ev.shiftKey && ev.button === 0 && tab === 'pontic' && brushOn()) { if (gizmoDown(ev)) return; const id = ponticHitAt(ev); if (id && id !== ponticSel) { ponticSel = id; drawPontics(); drawBadges(); renderPanel(); } }
+});
 canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (isDotMode(modeNow())) { dotDown(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } if (modeNow() === 'p1path') { p1PathClick(ev); return; } if (modeNow() === 'pontic') { ponticDown(ev); return; } painting = true; controls.enabled = false; startStroke(ev); paintAt(ev); } });
 // hovering: one pick per frame at most (a pick walks every triangle of the scan)
 let hoverEv = null, hoverQueued = false;
 canvas.addEventListener('pointermove', ev => {
   if (dotDrag) { dotMove(ev); return; }
   if (ponticDrag) { ponticMove(ev); return; }
+  if (gizmoDrag) { gizmoMove(ev); return; }
   if (painting) { paintAt(ev); return; }
   if (!brushOn()) return;
+  if (tab === 'pontic' && gizmoHoverAt(ev)) return;
   hoverEv = ev;
   if (!hoverQueued) { hoverQueued = true; requestAnimationFrame(() => { hoverQueued = false; if (brushOn() && hoverEv) placeCursor(hitAt(hoverEv)); }); }
 });
 canvas.addEventListener('pointerleave', () => placeCursor(null));
-window.addEventListener('pointerup', () => { if (dotDrag) dotUp(); if (ponticDrag) ponticUp(); if (painting) { finishStroke(); pickLabel = 0; syncBrush(); } painting = false; controls.enabled = true; });
+window.addEventListener('pointerup', () => { if (dotDrag) dotUp(); if (ponticDrag) ponticUp(); if (gizmoDrag) gizmoUp(); if (painting) { finishStroke(); pickLabel = 0; syncBrush(); } painting = false; controls.enabled = true; });
 function updateFixCount(){
   const el = $('#fixcount'); if (!el) return;
   const words = { add: '→ tooth', remove: '→ gum', relabel: 'given a picked tooth\'s colour', cut: 'cut away', noreservoir: 'reservoir erased', reservoir: 'reservoir painted', blockout: 'block out', unblockout: 'block-out cleared', takeoff: 'take off', notbracket: 'not a bracket' };
@@ -3209,7 +3393,11 @@ window.__view = { camera, controls, requestRender, markFrame, labelAt: (x, y) =>
   editsInfo: () => ({ here: EDIT_KEYS.reduce((a, k) => a + edits[k].size, 0), files: Object.keys(editsByFile).length, payload: allEdits().map(e => [e.scan, e.noreservoir.length, e.add.length]) }), allEdits, refreshQueue, tracker: () => TRACKER, queue: () => QUEUE, renderQueue,
   handleAt: (x, y) => { const h = baseHandleAt({ clientX: x, clientY: y }); return h && h.kind; }, viewState: () => ({ underside, autoFlipped }), planeHit: (x, y, z) => { const p = planeHit({ clientX: x, clientY: y }, z); return p && [p.x, p.y, p.z]; },
   pontics: () => ({ list: pontics.map(p => Object.assign({}, p)), dirty: ponticsDirty, sel: ponticSel, slots: ponticSlots().map(s => ({ slot: s.slot, x: s.x, y: s.y, z: s.z, taken: s.taken })), byFile: Object.keys(ponticsByFile), meshes: ponticGroup.children.length, visible: ponticGroup.visible, lib: (ponticLib || []).length }),
-  addPonticAt, removePontic, nudgePontic, ponticNow, setRough: T => setRough(T), pending: pendingWork,
+  addPonticAt, removePontic, nudgePontic, ponticNow, setRough: T => setRough(T), pending: pendingWork, rotatePontic, ponticOffsets, resetPontic,
+  gizmoHit: (x, y) => gizmoHitAt({ clientX: x, clientY: y }),
+  arcPoint: (kind, deg) => { if (!gizmo) return null; const a = GIZ_KIND_AXIS[kind]; const u = gizmo.ax[a === 'x' ? 'y' : 'x'], v = gizmo.ax[a === 'z' ? 'y' : 'z']; const r = (gizmo.r[a === 'x' ? 'y' : 'x'] + gizmo.r[a === 'z' ? 'y' : 'z']) / 2; const q = gizmo.c.clone().addScaledVector(u, r * Math.cos(deg * Math.PI / 180)).addScaledVector(v, r * Math.sin(deg * Math.PI / 180)).project(camera); return { x: q.x, y: q.y }; },
+  gizmo: () => (gizmo ? { id: gizmo.id, c: gizmo.c.toArray(), ax: { x: gizmo.ax.x.toArray(), y: gizmo.ax.y.toArray(), z: gizmo.ax.z.toArray() }, r: gizmo.r, parts: gizmo.parts.length, hover: gizmoHover === null ? null : gizmo.parts[gizmoHover].kind, drag: gizmoDrag && gizmoDrag.kind, visible: gizmoGroup.visible,
+    handles: gizmo.parts.map(q => { const v = new THREE.Vector3(); q.group.getWorldPosition(v); const pr = v.clone().project(camera); return { kind: q.kind, x: pr.x, y: pr.y }; }) } : null),
   contacts: () => ({ seen: segContacts.map(c => ({ ...c })), noSplit: segNoSplit.slice(), nosplit: [...edits.nosplit], unnosplit: [...edits.unnosplit], contact: [...edits.contact], uncontact: [...edits.uncontact], rings: dotGroup ? dotGroup.children.filter(o => o.type === 'Group').length : 0, mode: modeNow() }), viewFrom };   // for automated checks
 window.__appReady = true;
 </script>
