@@ -1022,6 +1022,34 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             log(f"[{name}] block-out skipped: {ex}")
             rep["blockout"] = dict(error=str(ex))
             rep.setdefault("warnings", []).append(f"block-out not made ({ex}) - re-run the case; if it happens again, the tray will grip the undercuts there")
+    # pontics (the Pontics tab, 11/6/2026): library tooth shapes stood where a tooth is missing, fused into the model like a
+    # block-out, so the thermoformed retainer carries a tooth-shaped pocket there for the lab to fill. On a retainer (and a
+    # Phase I or plain model); a whitening tray and a mouthguard are made without them. Shown on the page in ivory, saved
+    # as <name>_pontics.stl
+    pon_path = os.path.join(out_dir, f"{name}_pontics.stl")
+    if os.path.exists(pon_path):
+        os.remove(pon_path)
+    pon_at = None
+    if P.get("pontics"):
+        if MG or P["reservoir_height"] > 0:
+            rep["pontics"] = dict(count=0, skipped="mouthguard" if MG else "whitening tray", asked=len(P["pontics"]))
+            log(f"[{name}] pontics: {len(P['pontics'])} on this scan, left off the {'mouthguard' if MG else 'whitening tray'}")
+        else:
+            try:
+                from .pontic import build_pontics
+                pm, pinfo = build_pontics(P["pontics"], T_total, mesh_f, fuse=bool(P.get("fuse_blockout", True)), radius=float(P.get("fuse_radius") or 0.6),
+                                          overlap=float(P.get("fuse_overlap") or 0.2), log=lambda m: log(f"[{name}] {m}"))
+                rep["pontics"] = pinfo
+                if pinfo.get("dropped"):
+                    rep.setdefault("warnings", []).append(f"pontic{'s' if len(pinfo['dropped']) > 1 else ''} {', '.join(pinfo['dropped'])} could not be made - open the Pontics tab and place {'them' if len(pinfo['dropped']) > 1 else 'it'} again")
+                if pm is not None:
+                    pon_at = len(extra_solids)
+                    extra_solids.append(pm)
+                    pm.export(pon_path)
+            except Exception as ex:  # noqa
+                log(f"[{name}] pontics skipped: {ex}")
+                rep["pontics"] = dict(count=0, error=str(ex)[:160], asked=len(P["pontics"]))
+                rep.setdefault("warnings", []).append(f"the pontics could not be made ({str(ex)[:80]}) - this model has none; re-run the case")
     # mouthguard: the brackets stay on the model under smooth convex caps with `mg_clearance` mm of room, so
     # the sheet forms over a band instead of locking into the bracket undercuts (mesh_f keeps the scan's
     # vertex order, so the appliance mask applies as it is)
@@ -1152,6 +1180,13 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         log(f"[{name}] block-out: the fill could not be joined to the model - nothing blocked out")
         if os.path.exists(bo_path):
             os.remove(bo_path)
+    if pon_at is not None and (len(extras_status) <= pon_at or extras_status[pon_at] != "merged"):
+        # a pontic that is not part of the model must not be shown as if it were
+        rep["pontics"] = dict(rep.get("pontics") or {}, error="the pontics could not be joined to the model", count=0)
+        rep.setdefault("warnings", []).append("the pontics could not be joined to the model - this model has none; re-run the case, and if it happens again move the pontic a little")
+        log(f"[{name}] pontics: could not be joined to the model")
+        if os.path.exists(pon_path):
+            os.remove(pon_path)
     if p1_cap_at is not None:
         # is the block in the model? points just under its top must lie inside the body
         try:
