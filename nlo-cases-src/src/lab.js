@@ -575,27 +575,36 @@ function labAdminHTML() {
     '<button class="btn btn-ghost btn-sm" data-act="labOff" style="color:var(--coral-700)">Turn off</button></div></div></div>';
 }
 /* ---------- Titan app on each office PC (NLO Titan Launcher; ui.js titanAppOpen) ---------- */
-const TITAN_CMD = 'powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\\Downloads\\nlo-titan-launcher.ps1" -Install';
+/* the one line that sets a PC up: fetches the launcher from this site (so no file to find — Downloads is often elsewhere, OneDrive
+   for one; Amir, 6 Nov 2026: "The argument '…\Downloads\nlo-titan-launcher.ps1' to the -File parameter does not exist") and runs it */
+function titanCmd() {
+  let u = 'https://apps.thenextlevelorthodontics.com/nlo-titan-launcher.ps1';
+  try { const x = new URL('nlo-titan-launcher.ps1', location.href); if (/^https?:$/.test(x.protocol)) u = x.href; } catch (e) { }
+  // pasted INTO a PowerShell window (not the Command Prompt): no outer "powershell -Command" — PowerShell would expand $f and
+  // $env:TEMP inside it first (Amir, 6 Nov 2026: "=Join-Path : The term '=Join-Path' is not recognized"); the fetched copy
+  // runs through a fresh powershell -File with Bypass, so this user's execution policy doesn't matter
+  return '[Net.ServicePointManager]::SecurityProtocol=\'Tls12\'; $f="$env:TEMP\\nlo-titan-launcher.ps1"; Invoke-WebRequest -UseBasicParsing "' + u + '?t=$(Get-Random)" -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f -Install';
+}
 function titanAdminHTML() {
   return '<div class="card" style="margin-top:18px" id="titanAdmin"><div class="cardHd"><h3>Titan app</h3><span class="sub">“Open Titan (app)” on in-house cases</span></div><div class="cardBd">' +
     '<p class="small" style="margin-bottom:10px">A web page can’t start a program on its own, so each office computer gets a small launcher once: it teaches Windows the link “nlo-titan:” that the <b>Open Titan (app)</b> button uses, and answers it by copying the patient’s name and bringing the Titan program to the front (starting it if it isn’t running). Nothing is sent anywhere; the link carries only the name. The web buttons stay as they are.</p>' +
     '<div class="mlBtns"><button class="btn btn-act btn-sm" data-act="titanSetup">' + ic('plus', 15) + 'Set up this computer</button><button class="btn btn-sec btn-sm" data-act="titanTest">' + ic('done', 15) + 'Test on this computer</button><a class="btn btn-ghost btn-sm" href="nlo-titan-launcher.ps1" download>' + ic('download', 15) + 'The launcher</a></div>' +
-    '<p class="small muted" style="margin-top:8px">Per computer and Windows user. Staff can set up their own computer from the hint under the button (no code or login involved). The launcher is run with <i>right-click → Run with PowerShell</i>, not opened (double-clicking only shows it as text). Mac: the web version for now.</p></div></div>';
+    '<p class="small muted" style="margin-top:8px">Per computer and Windows user: one line pasted into PowerShell (Set up this computer shows it). Staff can set up their own computer from the hint under the button (no code or login involved). Mac: the web version for now.</p></div></div>';
 }
 function titanSetupModal() {
   openModal('<h3>Open Titan (app) on this computer</h3><div class="lsub">A one-time setup on each office computer, as the Windows user who uses NLO Cases there. About a minute; nothing needs an administrator.</div>' +
-    '<ol class="mlSteps"><li>Download the launcher on this computer: <a href="nlo-titan-launcher.ps1" download><b>nlo-titan-launcher.ps1</b></a> (it lands in Downloads).</li>' +
-    '<li>In Downloads, <b>right-click</b> the file → <b>Run with PowerShell</b> (Windows 11: <i>Show more options</i> first). <b>Don’t double-click it</b> — that only opens it as text.' +
-    '<div class="small muted" style="margin-top:6px">No “Run with PowerShell”? Open <b>Windows PowerShell</b> (Start → type PowerShell), paste this line and press Enter:</div><div class="labCmd"><code id="titanCmd">' + esc(TITAN_CMD) + '</code><button type="button" class="btn btn-sec btn-sm" data-act="titanCopyCmd">Copy</button></div></li>' +
+    '<ol class="mlSteps"><li>Open <b>Windows PowerShell</b> on this computer (Start → type PowerShell), paste this line and press Enter:<div class="labCmd"><code id="titanCmd">' + esc(titanCmd()) + '</code><button type="button" class="btn btn-sec btn-sm" data-act="titanCopyCmd">Copy</button></div>' +
+    '<div class="small muted" style="margin-top:6px">It fetches the launcher from this site — nothing to download first.</div></li>' +
     '<li>It finds Titan (asks if it can’t), registers the link for this Windows user, and shows a small “NLO Titan Launcher” box to prove it works. Press Enter to close its window.</li>' +
     '<li>Back here, tap <b>Open Titan (app)</b> on an in-house case. The first time, the browser asks “Open Windows PowerShell?” — tick <b>Always allow</b> and Open. From then on it just opens Titan with the patient’s name copied.</li></ol>' +
+    '<p class="small muted">Prefer a file? <a href="nlo-titan-launcher.ps1" download>Download nlo-titan-launcher.ps1</a>, then <b>right-click</b> it → <b>Run with PowerShell</b> (Windows 11: <i>Show more options</i> first). Double-clicking only opens it as text.</p>' +
     '<p class="small muted">Titan not on this computer? Then there’s nothing to set up — use Open Titan (web). Mac: the web version for now.</p>' +
     '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Done</button></div>', w => w.querySelector('.modal').classList.add('wide'));
 }
 Object.assign(ADMIN_ACTS, {
   titanSetup() { titanSetupModal(); },
   titanTest() { try { location.href = TITAN_APP.scheme + ':test'; } catch (e) { } toast('If this computer is set up, a small “NLO Titan Launcher” box appears. Nothing? Set up this computer.'); },
-  async titanCopyCmd() { const ok = await copyText(TITAN_CMD); toast(ok ? 'Copied — paste it into PowerShell on this computer' : 'Couldn’t copy — select the line and copy it', ok ? {} : { bad: true }); }
+  async titanCopyCmd() { const ok = await copyText(titanCmd()); toast(ok ? 'Copied — paste it into PowerShell on this computer' : 'Couldn’t copy — select the line and copy it', ok ? {} : { bad: true }); }
 });
 
 /* the code the lab PC's script asks for: this office's project and the lab PC's login */
