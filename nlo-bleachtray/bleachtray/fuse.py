@@ -134,15 +134,18 @@ def _foot_to_body(Fo, O, foot_vox):
 
 
 def fuse_fill(fill, surface, cell=0.1, radius=0.6, overlap=0.2, pad=1.0, avoid=None, avoid_mm=0.0, max_voxels=3.0e6,
-              smooth_vox=0.7, taubin=8, foot_mm=3.0, log=None):
+              smooth_vox=0.7, taubin=8, foot_mm=3.0, reach_below=0.0, log=None):
     """`fill`: a closed mesh (one piece); `surface`: the scan the body is built from, same frame. The fill itself is
     kept as it was made (its own smooth surface); what is added is a **collar** along every seam between fill and
     body - the fillets of the closing, carried `overlap` mm into both the fill and the body - and the two are unioned
-    into one solid. Returns (fused mesh or None, info)."""
+    into one solid. `reach_below`: the grid goes that far under the fill's lowest point (beyond the pad), so a foot can
+    reach a surface further down than the pad (a pontic over a ridge that falls away under its sides). Returns (fused
+    mesh or None, info)."""
     info = dict(cell=cell, radius=radius, overlap=overlap)
     if fill is None or len(fill.faces) < 4:
         return None, dict(info, error="no fill")
     lo = np.asarray(fill.bounds[0], float) - (radius + pad)
+    lo[2] -= max(0.0, float(reach_below or 0.0))
     hi = np.asarray(fill.bounds[1], float) + (radius + pad)
     ext = hi - lo
     nvox = np.prod(np.ceil(ext / cell))

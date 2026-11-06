@@ -38,8 +38,8 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    it step by step in an order that makes sense"): Result first - looks right, send it; not right, **Fix it step by
    step** - 1 Clean-up (it changes the scan, so everything after it is found again), 2 Braces (a scan with them on:
    off before the teeth are found), 3 Segmentation (which vertices are which tooth), 4 Teeth (their numbers - on
-   the segmentation as it stands), 5 Phase I (its dots, on the numbered teeth), 6 Reservoirs and 7 Block-outs (on the
-   model as it will be made), then Result. The brush box says "Step k of n" with Back / Next; the steps that do not
+   the segmentation as it stands), 5 Phase I (its dots, on the numbered teeth), 6 Reservoirs, 7 Block-outs and 8 Pontics
+   (on the model as it will be made), then Result. The brush box says "Step k of n" with Back / Next; the steps that do not
    apply to a case are skipped in the count. Edits on every tab are kept and go with one Apply.
    **Clear** asks first (click it again within 5 s) and can be undone for 20 s (a mis-click threw away a whole
    segmentation, 10/21/2026). Its **Erase** brush takes a stroke back before Apply, and once a
@@ -91,7 +91,15 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    always a millimetre off the gum line, feathered at the edge of your stroke, ignored on gum; **Block-outs** fills
    the undercut you mark out (under a pontic, round an implant crown, a black triangle) so the retainer seats - **Outline**
    it: Shift-click corner after corner round the area and click the first dot again to close, the inside is filled
-   (or use the **Block out** brush); **Braces** (only
+   (or use the **Block out** brush); **Pontics** (11/6/2026, the doctor: "when we need to make retainers with missing teeth
+   we can click + and add optional pontics ... height, width and thickness should be adjustable") stands a tooth shape
+   where a tooth is missing, so the retainer carries a tooth-shaped pocket there for the lab to fill: the tab offers a
+   **+** badge in every space (from the tooth numbers - a space of 5 mm or more counts as a tooth gone, or give the numbers
+   on the Teeth tab) - click it and the missing tooth's own shape (Dr. Christian Brenes' pontic library, 28 shapes) stands
+   there, as wide as the room between the neighbours less 0.6 mm, as tall as the neighbours, its base 2 mm into the gum;
+   or Shift-click the gum anywhere. Then **Width / Height / Thickness** sliders, **Into gum**, nudges (along the arch, out /
+   in, up / down, turn, tip, torque), another **Shape** (one from the other side is mirrored), Shift-drag it on the model to
+   move it, **Delete**. Shown in ivory on the Result; a whitening tray or a mouthguard is made without them; **Braces** (only
    for a scan dropped with Braces on, or a mouthguard) takes off a bracket or bit of wire the app missed, and its
    **Not a bracket** brush marks tooth or gum the app took for a bracket (left as scanned on a retainer, left out of
    a mouthguard's band; blue on the tab, kept with the case and saved with its lesson). **Also make …** in the Check & send box adds the other
@@ -843,8 +851,40 @@ of the two crowns in plan view, from the neighbours' cervical level up - or the 
 tooth for the purpose of drawing the line, so the line runs across the ridge to the teeth behind, and - for gaps of
 5 mm or more - keeps the missing tooth's position (one per ~7 mm of gap), so the molar behind a missing premolar is
 still a molar for reservoirs, the tooth mark and crown sizes. Undercuts facing the gap are filled by the normal
-block-out when it is on. Not done yet: building the edentulous span up to the neighbours' bucco-lingual width
-(a pontic-like filler) so the retainer is not a thin strip there.
+block-out when it is on. A pontic can be stood in the space from the Pontics tab (below) - that is the pontic-like
+filler the retainer needs there, when it is wanted.
+
+**Pontics** (`bleachtray/pontic.py`, the Pontics tab, 11/6/2026). The library is `assets/pontics/` - the 28 pontics of the
+Christian Brenes Pontic Library (Meshmixer, 2016; #2-#15 upper, #18-#31 lower, no third molars) decimated to 8000
+triangles each and put in a frame of their own by `tools/make_pontic_lib.py`: X along the arch, Y facial (outwards), Z
+occlusal, the origin at the deepest point of the base (the **seat**); `lib.json` has each shape's natural width / height /
+thickness (w0 / h0 / t0). The orientation came from the library's own arch sets - every pontic is an exact translated copy
+of its tooth in the maxilla / mandible set (vertex order kept, 0.0000 mm), so the set's outward direction at the tooth is its
+facial direction; the sets stand in occlusion (-Y of the file is occlusal for an upper, +Y for a lower). The page keeps one
+entry per pontic with the scan (`paint[path]["pontics"]`: `{id, n, slot, w, h, t, sink, mirror, m}`), `m` being the frame in
+the **scan's own coordinates** (row-major 4x4, columns X / Y / Z / seat) - the page draws on the rough-oriented scan and
+goes through `T_rough` (from `GET /api/jobs/<id>/pontics`) each way, so a cut or a take-off, which re-indexes the scan but
+moves no vertex, leaves it valid, like the label on the model. The page places one at a slot - X from the neighbours'
+centres, Y outwards from the arch's centre, Z up, the seat `sink` (2 mm) under the surface point - sized to the space
+(the neighbours' extents along X less 0.6 mm; the height to the neighbours' tops; the thickness the shape's own, following
+the width half-way), its number from the slot (universal: UR 9 - pos, UL 8 + pos, LL 25 - pos, LR 24 + pos; an 8 gets the
+7's shape); Apply sends a changed file's whole list (the server replaces what it kept, `[]` clears) and `_scan_params`
+hands it to the pipeline as `params["pontics"]`. In `process` (after the block-out, before the body): each shape scaled
+to w / h / t about its seat (mirrored in X when a shape from the other side is used - `pontic_mesh`), placed by `T_total @
+m`, **fused** into the scan surface like a block-out fill (`fuse_many`, 0.6 mm fillet, 0.2 mm into the body) with the
+foot reaching **8 mm** down and the grid reaching that far under it (`reach_below`): every column under the pontic's
+silhouette is filled to the gum, so the crown's bulge stands on a wall flush with its contour - the pontic brings its own
+block-out, a thermoformed sheet must not get under it - and a seat a little high over a resorbed ridge still reaches it.
+Then one extra solid in the body union (its footprint joins the walls' keep zone like a fill's), written as
+`<name>_pontics.stl` (ivory on the Result), `rep["pontics"]` (count, each one's shape / slot / sizes / seat / fillet) and a
+warning when one could not be made or joined. Not on a whitening tray (`reservoir_height > 0`) or a mouthguard: the
+report says `skipped`. The trim line is found before the pontic exists (the ridge between the neighbours is already carried
+as tooth for the line, `edentulous_gaps`), and `_line_onto_model` puts any point the pontic's foot covers onto its surface.
+Checks: `tools/test_pontics.py` (a shape on a synthetic ridge: sizes, mirror, fuse, union, no air under it, 17 checks),
+`tools/test_pontics_arch.py` (the whole `process` on a synthetic upper built from the library itself with the UL5 left
+out: the pontic in the model, watertight, the line round it), `tools/test_pontics_page.py` (the real server with a
+synthetic case in headless Chromium: the + badge, the placement, the sliders, mirror, turn, Shift-click, Delete, Apply,
+the kept list back, Clear / Undo, no page errors).
 
 **Exposed root.** A bleaching reservoir must not sit on root (sensitivity). The reservoir stops 1 mm short of the
 gum line everywhere (Settings → Reservoirs). Recession itself is the doctor's call: by default the app does **not**

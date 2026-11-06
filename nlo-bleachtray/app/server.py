@@ -768,6 +768,7 @@ def _scan_params(job, scan):
     params["p1_span_idx"] = pe.get("p1span") or []; params["p1_end_idx"] = pe.get("p1end") or []; params["p1_six_idx"] = pe.get("p1six") or []   # the Phase I tab's dots
     params["p1_path_idx"] = [list(r) for r in (pe.get("p1path") or []) if isinstance(r, (list, tuple)) and len(r) >= 2]   # ... and its traced cutout outlines (ordered runs of dots)
     params["tooth_ids"] = pe.get("tooth_ids") or {}      # the Teeth tab: {label: [position, primary]}
+    params["pontics"] = [p for p in (pe.get("pontics") or []) if isinstance(p, dict)]   # the Pontics tab: shapes stood where teeth are missing (raw-frame matrices)
     params["adjust"] = _adjust_by_arch(job["params"], job["scans"]).get(scan.get("arch") or "", dict(ADJUST_ZERO))
     params.pop("adjust_by_arch", None)
     params["mark"] = _mark_by_arch(job["params"]).get(scan.get("arch") or "") or None
@@ -915,8 +916,17 @@ def _run(job):
                         r[ok] = remap2[remap[ok]]; remap = r
             # "no reservoir" / "block out" strokes: kept per scan file (every model from it, every later re-run)
             path = job["scans"][k0]["path"]       # (a take-off / cut gave the scan a new file)
-            if "p1path" in me or any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "nosplit", "unnosplit", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
+            if "p1path" in me or "pontics" in me or any(me.get(k_) for k_ in ("noreservoir", "blockout", "reservoir", "unblockout", "contact", "uncontact", "nosplit", "unnosplit", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")):
                 entry = paint.setdefault(path, {"noreservoir": [], "blockout": []})
+                # the Pontics tab: the page sends every pontic it holds for the scan (the applied ones it kept, plus the new
+                # ones, as changed), so the list replaces the kept one ([] clears). Each is a frame in the scan's own
+                # coordinates plus sizes - no vertex numbers, so a cut or a take-off needs no remap
+                if "pontics" in me and isinstance(me["pontics"], list):
+                    from bleachtray.pontic import norm_spec
+                    kept = [q for q in (norm_spec(p_) for p_ in me["pontics"]) if q is not None]
+                    entry["pontics"] = kept
+                    log(f"pontics: {len(kept)} on this scan" + (" (the earlier ones replaced)" if kept else " - cleared")
+                        + (f"; {len(me['pontics']) - len(kept)} could not be read and were dropped" if len(kept) < len(me["pontics"]) else ""))
                 # the Teeth tab: the number the doctor gave a tooth ({label: [position, primary]}, position 0 = not a
                 # tooth, null = back to the app's count), kept by the tooth's label - the labels are frozen for the
                 # scan from here on (fixed_labels), so a later run cannot renumber them under the doctor's numbers
@@ -1167,10 +1177,13 @@ def register_watcher_result(ent, work, results, log=print):
 
 def _remap_entry(pe, remap, skip=()):
     """A scan file's painted areas carried to its new file by `remap` (old -> new vertex index, -1 = gone): every
-    vertex list, and the block-out outlines (lists of corners, kept while 3 corners survive)."""
+    vertex list, the block-out outlines (lists of corners, kept while 3 corners survive), and the pontics as they are."""
     out = {}
     for key, vals in (pe or {}).items():
         if key in skip or not isinstance(vals, list):
+            continue
+        if key == "pontics":
+            out[key] = [dict(p) for p in vals if isinstance(p, dict)]     # frames in the scan's own coordinates: a cut or a take-off moves no vertex
             continue
         if key in ("outlines", "p1path"):
             outl = []
@@ -1845,7 +1858,7 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         # one edit per scan file (the upper's and the lower's strokes come in one Apply); a re-run without
         # any painted vertex is just a re-run: it must not count as a brush correction
         mes = me if isinstance(me, list) else ([me] if me else [])
-        mes = [e for e in mes if isinstance(e, dict) and ("p1path" in e or any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "nosplit", "unnosplit", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")))]
+        mes = [e for e in mes if isinstance(e, dict) and ("p1path" in e or "pontics" in e or any(e.get(k) for k in ("add", "remove", "relabel", "cut", "noreservoir", "blockout", "unblockout", "takeoff", "notbracket", "reservoir", "contact", "uncontact", "nosplit", "unnosplit", "outlines", "p1span", "unp1span", "p1end", "unp1end", "p1six", "unp1six", "teeth")))]
     except Exception:
         mes = []
     # strokes are vertex numbers of the scan file as the page showed it: while the case is waiting or being made, the
@@ -2804,6 +2817,7 @@ def job_file(jid: str, kind: str, scan: int = 0):
         "scan_res": (f"{name}_scan_with_reservoirs_NOBASE_not_for_trimlign.stl", "model/stl"),   # (the page's "Scan + reservoirs" button: the old name was never written)
         "body": (f"{name}_body_only.stl", "model/stl"),
         "blockout": (f"{name}_blockout.stl", "model/stl"),
+        "pontics": (f"{name}_pontics.stl", "model/stl"),
         "mark": (f"{name}_mark.stl", "model/stl"),
         "report": (f"{name}_report.json", "application/json"),
     }
@@ -2954,6 +2968,49 @@ def teeth_of(jid: str, scan: int = 0):
     pe = (job.get("paint") or {}).get(sc["path"]) or {}
     rep_ = sc.get("report") or {}
     return {"teeth": rep_.get("teeth") or {}, "ids": pe.get("tooth_ids") or {}, "arch": sc.get("arch")}
+
+
+@app.get("/api/jobs/{jid}/pontics")
+def pontics_of(jid: str, scan: int = 0):
+    """The Pontics tab: the pontics kept for a scan (each a frame in the scan's own coordinates plus sizes) and the
+    scan's rough-orientation transform, so the page - which draws on the rough-oriented scan - can show them there and
+    give back what it places in the scan's own coordinates (T_rough: new = T @ raw)."""
+    job = JOBS.get(jid)
+    if not job or not (0 <= scan < len(job["scans"])):
+        raise HTTPException(404)
+    sc = job["scans"][scan]
+    pe = (job.get("paint") or {}).get(sc["path"]) or {}
+    T = None
+    try:
+        st = np.load(os.path.join(job["dir"], f"{sc['name']}_state.npz"))
+        T = np.asarray(st["T_rough"], float).tolist()
+    except Exception:
+        try:
+            from bleachtray.mesh_utils import load_scan
+            from bleachtray.orient import rough_orient
+            T = np.asarray(rough_orient(load_scan(sc["path"]))[1], float).tolist()
+        except Exception:
+            T = None
+    rep_ = sc.get("report") or {}
+    return {"pontics": [p for p in (pe.get("pontics") or []) if isinstance(p, dict)], "T_rough": T, "arch": sc.get("arch"),
+            "gaps": rep_.get("gaps") or [], "made": rep_.get("pontics") or None}
+
+
+@app.get("/api/pontics/lib")
+def pontics_lib():
+    """The pontic library (assets/pontics/lib.json): every shape's number, name, arch / side / position and natural sizes."""
+    from bleachtray.pontic import library
+    return {"shapes": sorted(library().values(), key=lambda s: int(s["n"]))}
+
+
+@app.get("/api/pontics/{n}.stl")
+def pontic_shape(n: int):
+    """One library shape as binary STL, in its own frame (X along the arch, Y facial, Z occlusal, the seat at the origin)."""
+    from bleachtray.pontic import library, shape_mesh
+    if int(n) not in library():
+        raise HTTPException(404)
+    m = shape_mesh(int(n))
+    return Response(content=m.export(file_type="stl"), media_type="model/stl", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/jobs/{jid}/trimline.json")
