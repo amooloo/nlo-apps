@@ -9,6 +9,8 @@
   only thing read from it is the name (and a chart number, for the log).
 
   Set up once per computer, as the Windows user who uses NLO Cases there (no administrator needed, about a minute):
+      in Downloads, right-click this file -> Run with PowerShell   (double-clicking only opens it as text)
+      or, in Windows PowerShell:
       powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\Downloads\nlo-titan-launcher.ps1" -Install
   It finds Titan (asks if it can't), keeps a copy of itself in %LOCALAPPDATA%\NLO Titan Launcher, registers "nlo-titan:" for this
   Windows user, and tries it. The first time Chrome or Edge opens one of these links it asks "Open Windows PowerShell?" -
@@ -27,7 +29,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
-$VER = '1.0'
+$VER = '1.1'
 $SCHEME = 'nlo-titan'
 $DIR = Join-Path $env:LOCALAPPDATA 'NLO Titan Launcher'
 $CFG = Join-Path $DIR 'config.json'
@@ -143,6 +145,7 @@ function Install-Launcher {
   if (-not (Test-Path $DIR)) { New-Item -ItemType Directory -Path $DIR | Out-Null }
   $copy = Join-Path $DIR 'nlo-titan-launcher.ps1'
   if ((Resolve-Path -LiteralPath $ME).Path -ne $copy) { Copy-Item -LiteralPath $ME -Destination $copy -Force }
+  try { Unblock-File -LiteralPath $copy } catch { }   # (a download carries the "from the internet" mark; the copy needn't)
   @{ titan = $exe; ver = $VER; at = (Get-Date).ToString('s'); user = $env:USERNAME } | ConvertTo-Json | Set-Content -LiteralPath $CFG -Encoding UTF8
   $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
   $cmd = '"' + $ps + '" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $copy + '" "%1"'
@@ -157,7 +160,10 @@ function Install-Launcher {
   Say 'Trying it (a small "NLO Titan Launcher" box should appear)...'
   try { Start-Process ($SCHEME + ':test') } catch { Say ('Could not try the link: ' + $_.Exception.Message) }
   Say 'Done. In NLO Cases, open an in-house case and tap "Open Titan (app)". The first time, the browser asks "Open Windows PowerShell?" - tick "Always allow" and Open.'
+  Hold-Window
 }
+# when run by right-click -> Run with PowerShell (or a double-clicked line), the window would close at once: keep it until Enter
+function Hold-Window { try { if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsInputRedirected) { Write-Host ''; [void](Read-Host 'Press Enter to close this window') } } catch { } }
 
 function Uninstall-Launcher {
   $k = 'HKCU:\Software\Classes\' + $SCHEME
@@ -175,5 +181,5 @@ try {
   Log ('ERROR ' + $_.Exception.Message)
   if ($Url -match ('^' + $SCHEME + ':')) {
     try { Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show(('Could not open Titan: ' + $_.Exception.Message + "`r`n`r`n" + 'Set it up again from NLO Cases (Team & security -> Titan app).'), 'NLO Titan Launcher', 'OK', 'Warning') } catch { }
-  } else { Write-Host ('ERROR: ' + $_.Exception.Message) -ForegroundColor Red; exit 1 }
+  } else { Write-Host ('ERROR: ' + $_.Exception.Message) -ForegroundColor Red; Hold-Window; exit 1 }
 }
