@@ -681,6 +681,7 @@ td.shipCol .flags{margin-top:0}
 .tsvg .tms{fill:var(--navy)}
 .tsvg .tjs{fill:#fff;stroke:var(--navy);stroke-width:1.2}
 .portals{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 4px}
+.portals .titanHint{flex-basis:100%}.portals .titanHint:empty{display:none}
 .portals .small{flex-basis:100%}
 a.btn{text-decoration:none}
 .cfMore{margin-top:10px;border-top:1px solid var(--grey-100);padding-top:10px}

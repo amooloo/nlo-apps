@@ -574,6 +574,29 @@ function labAdminHTML() {
     '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="labSetup">' + ic('key', 15) + 'New setup code</button><a class="btn btn-ghost btn-sm" href="nlo-lab-bridge.ps1" download>' + ic('download', 15) + 'The script</a>' +
     '<button class="btn btn-ghost btn-sm" data-act="labOff" style="color:var(--coral-700)">Turn off</button></div></div></div>';
 }
+/* ---------- Titan app on each office PC (NLO Titan Launcher; ui.js titanAppOpen) ---------- */
+const TITAN_CMD = 'powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\\Downloads\\nlo-titan-launcher.ps1" -Install';
+function titanAdminHTML() {
+  return '<div class="card" style="margin-top:18px" id="titanAdmin"><div class="cardHd"><h3>Titan app</h3><span class="sub">“Open Titan (app)” on in-house cases</span></div><div class="cardBd">' +
+    '<p class="small" style="margin-bottom:10px">A web page can’t start a program on its own, so each office computer gets a small launcher once: it teaches Windows the link “nlo-titan:” that the <b>Open Titan (app)</b> button uses, and answers it by copying the patient’s name and bringing the Titan program to the front (starting it if it isn’t running). Nothing is sent anywhere; the link carries only the name. The web buttons stay as they are.</p>' +
+    '<div class="mlBtns"><button class="btn btn-act btn-sm" data-act="titanSetup">' + ic('plus', 15) + 'Set up this computer</button><button class="btn btn-sec btn-sm" data-act="titanTest">' + ic('done', 15) + 'Test on this computer</button><a class="btn btn-ghost btn-sm" href="nlo-titan-launcher.ps1" download>' + ic('download', 15) + 'The launcher</a></div>' +
+    '<p class="small muted" style="margin-top:8px">Per computer and Windows user. Staff can set up their own computer from the hint under the button (no code or login involved). Mac: the web version for now.</p></div></div>';
+}
+function titanSetupModal() {
+  openModal('<h3>Open Titan (app) on this computer</h3><div class="lsub">A one-time setup on each office computer, as the Windows user who uses NLO Cases there. About a minute; nothing needs an administrator.</div>' +
+    '<ol class="mlSteps"><li>Download the launcher on this computer: <a href="nlo-titan-launcher.ps1" download><b>nlo-titan-launcher.ps1</b></a> (it lands in Downloads).</li>' +
+    '<li>Open <b>Windows PowerShell</b> (Start → type PowerShell), paste this line and press Enter:<div class="labCmd"><code id="titanCmd">' + esc(TITAN_CMD) + '</code><button type="button" class="btn btn-sec btn-sm" data-act="titanCopyCmd">Copy</button></div></li>' +
+    '<li>It finds Titan (asks if it can’t), registers the link for this Windows user, and shows a small “NLO Titan Launcher” box to prove it works.</li>' +
+    '<li>Back here, tap <b>Open Titan (app)</b> on an in-house case. The first time, the browser asks “Open Windows PowerShell?” — tick <b>Always allow</b> and Open. From then on it just opens Titan with the patient’s name copied.</li></ol>' +
+    '<p class="small muted">Titan not on this computer? Then there’s nothing to set up — use Open Titan (web). Mac: the web version for now.</p>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Done</button></div>', w => w.querySelector('.modal').classList.add('wide'));
+}
+Object.assign(ADMIN_ACTS, {
+  titanSetup() { titanSetupModal(); },
+  titanTest() { try { location.href = TITAN_APP.scheme + ':test'; } catch (e) { } toast('If this computer is set up, a small “NLO Titan Launcher” box appears. Nothing? Set up this computer.'); },
+  async titanCopyCmd() { const ok = await copyText(TITAN_CMD); toast(ok ? 'Copied — paste it into PowerShell on this computer' : 'Couldn’t copy — select the line and copy it', ok ? {} : { bad: true }); }
+});
+
 /* the code the lab PC's script asks for: this office's project and the lab PC's login */
 function labCode(creds) {
   const cfg = B === DEMO ? { apiKey: 'demo', projectId: 'demo' } : FB.cfg, c = { p: cfg.projectId || 'demo', k: cfg.apiKey || 'demo', e: creds.email, w: creds.password };

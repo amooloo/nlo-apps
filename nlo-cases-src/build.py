@@ -67,4 +67,8 @@ if cfg.exists():  # it accepts setup codes for this office's project only
 # (Windows PowerShell 5.1 reads a file without a BOM as the PC's code page: the script is kept to plain ASCII)
 assert all(ord(ch) < 128 for ch in ps1_text), 'the lab PC script must be plain ASCII'
 (root / 'dist' / 'nlo-lab-bridge.ps1').write_text(ps1_text)
+# the office PCs' Titan launcher (lab/nlo-titan-launcher.ps1): nothing to fill in
+tl_text = (root / 'lab' / 'nlo-titan-launcher.ps1').read_text()
+assert 'nlo-titan' in tl_text and all(ord(ch) < 128 for ch in tl_text), 'the Titan launcher must be plain ASCII'
+(root / 'dist' / 'nlo-titan-launcher.ps1').write_text(tl_text)
 print('built', len(out), 'bytes')

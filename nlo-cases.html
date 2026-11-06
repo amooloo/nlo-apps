@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-qoXRH5+RVMcP6krR8cTjT4Vm4OJ2hCKsSW7m7fzRz5c=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-819q+824Yj+j/KQnAer4R+OKTlwROgCO3M+pk+/4eX8=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -695,6 +695,7 @@ td.shipCol .flags{margin-top:0}
 .tsvg .tms{fill:var(--navy)}
 .tsvg .tjs{fill:#fff;stroke:var(--navy);stroke-width:1.2}
 .portals{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 4px}
+.portals .titanHint{flex-basis:100%}.portals .titanHint:empty{display:none}
 .portals .small{flex-basis:100%}
 a.btn{text-decoration:none}
 .cfMore{margin-top:10px;border-top:1px solid var(--grey-100);padding-top:10px}
@@ -4966,6 +4967,28 @@ function copyPtName(c, where) {
   if (!c || !c.patient) return;
   copyText(c.patient).then(ok => toast(ok ? (PH.hide ? 'Copied the patient’s name' : 'Copied “' + c.patient + '”') + ' — paste it in ' + (where || 'the portal’s search') : 'Couldn’t copy the name — type it in ' + (where ? where.replace(/’s search$/, '') : 'the portal'), ok ? {} : { bad: true }));
 }
+/* "Open Titan (app)" on an in-house case (Amir, 6 Nov 2026: "is there anyway it can also (in addition) to the web version, open the
+   software version"): a web page can't start a program, but it can open a link of a kind the computer knows. The NLO Titan
+   Launcher (lab/nlo-titan-launcher.ps1, a one-time setup per office PC — Team & security → Titan app, or the hint under the
+   button) teaches Windows "nlo-titan:" and answers nlo-titan:open?name=… by putting the patient's name on the clipboard and
+   bringing Titan to the front (starting it if needed). The name is copied here too, like the portals. A computer that doesn't know
+   the link does nothing (the browser keeps focus), so after 1.5 s the hint under the buttons says how to set it up. */
+const TITAN_APP = { scheme: 'nlo-titan', t: 0 };
+function titanAppUrl(c) { return TITAN_APP.scheme + ':open?name=' + encodeURIComponent(c.patient || '') + (c.chart ? '&chart=' + encodeURIComponent(c.chart) : ''); }
+function titanAppOpen(c) {
+  if (!c) return;
+  copyPtName(c, 'Titan’s search');
+  const left = { v: false }, on = () => { left.v = true; };
+  window.addEventListener('blur', on); document.addEventListener('visibilitychange', on);
+  const hint = $('#titanAppHint'); if (hint) hint.innerHTML = '<span class="muted">Opening Titan on this computer…</span>';
+  try { location.href = titanAppUrl(c); } catch (e) { }
+  clearTimeout(TITAN_APP.t);
+  TITAN_APP.t = setTimeout(() => {
+    window.removeEventListener('blur', on); document.removeEventListener('visibilitychange', on);
+    const h = $('#titanAppHint'); if (!h) return;
+    h.innerHTML = left.v || !document.hasFocus() ? '' : '<span style="color:var(--amber-700)">Titan didn’t open? This computer doesn’t know the link yet — a one-time setup: <a href="#" data-act="titanAppHow">how to set it up</a>.</span>';
+  }, 1500);
+}
 /* while a MARPE case is gathering its records: what's still missing, or that both are on file */
 function recFlag(c) {
   if (typeOf(c).flow !== 'marpe' || stageIndex(c) > 0) return '';
@@ -5968,8 +5991,11 @@ function renderDrawer() {
     // in-house: the case's own Titan link first (when saved), then Titan's web version and its beta
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
       (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
-      (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
-      '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
+      (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') +
+      // in-house: the Titan program on this computer too (Amir, 6 Nov 2026) — see titanAppOpen
+      (c.type === 'nla' ? '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" title="Opens the Titan program on this computer and copies the patient’s name (a one-time setup per computer)">' + ic('next', 15) + 'Open Titan (app)</button>' : '') +
+      (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+      '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span>' + (c.type === 'nla' ? '<span id="titanAppHint" class="small titanHint"></span>' : '') + '</div>' : '') +
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
     '<div class="dsList">' +
     // the step's station icon moves while the case is at Printing, Thermoforming or Trimming (lab.js labStepIcon; Amir, 7 Oct 2026)
@@ -6684,6 +6710,8 @@ function onClick(e) {
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'zoomJoin': break; // a MARPE case's Join Zoom: the link itself opens the call in a new tab (and doesn't open the case)
     case 'portal': copyPtName(findCase(S.openId)); break; // the link itself opens the portal in a new tab
+    case 'titanApp': titanAppOpen(findCase(S.openId)); break;
+    case 'titanAppHow': e.preventDefault(); titanSetupModal(); break;
     // an Oliv patient's row or card: the link itself opens Dental Monitoring in a new tab (and doesn't open the case)
     case 'dmLink': copyPtName(findCase(id), 'Dental Monitoring’s search'); break;
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
@@ -9170,7 +9198,7 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox">' + (S.delList ? delListHTML(S.delList) : '<div class="small muted">Deleted cases can be brought back. Click Load.</div>') + '</div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + aiPrefsCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML() + labAdminHTML()) + actv + deleted + dupAdminCardHTML() + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + aiPrefsCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML() + labAdminHTML()) + titanAdminHTML() + actv + deleted + dupAdminCardHTML() + '</div></div>';
 }
 /* Deleted cases, once loaded (it stays through the page's own redraws — the Staff Hub roster or the lab-email status arriving) */
 function delListHTML(list) {
@@ -11328,6 +11356,29 @@ function labAdminHTML() {
     '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="labSetup">' + ic('key', 15) + 'New setup code</button><a class="btn btn-ghost btn-sm" href="nlo-lab-bridge.ps1" download>' + ic('download', 15) + 'The script</a>' +
     '<button class="btn btn-ghost btn-sm" data-act="labOff" style="color:var(--coral-700)">Turn off</button></div></div></div>';
 }
+/* ---------- Titan app on each office PC (NLO Titan Launcher; ui.js titanAppOpen) ---------- */
+const TITAN_CMD = 'powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\\Downloads\\nlo-titan-launcher.ps1" -Install';
+function titanAdminHTML() {
+  return '<div class="card" style="margin-top:18px" id="titanAdmin"><div class="cardHd"><h3>Titan app</h3><span class="sub">“Open Titan (app)” on in-house cases</span></div><div class="cardBd">' +
+    '<p class="small" style="margin-bottom:10px">A web page can’t start a program on its own, so each office computer gets a small launcher once: it teaches Windows the link “nlo-titan:” that the <b>Open Titan (app)</b> button uses, and answers it by copying the patient’s name and bringing the Titan program to the front (starting it if it isn’t running). Nothing is sent anywhere; the link carries only the name. The web buttons stay as they are.</p>' +
+    '<div class="mlBtns"><button class="btn btn-act btn-sm" data-act="titanSetup">' + ic('plus', 15) + 'Set up this computer</button><button class="btn btn-sec btn-sm" data-act="titanTest">' + ic('done', 15) + 'Test on this computer</button><a class="btn btn-ghost btn-sm" href="nlo-titan-launcher.ps1" download>' + ic('download', 15) + 'The launcher</a></div>' +
+    '<p class="small muted" style="margin-top:8px">Per computer and Windows user. Staff can set up their own computer from the hint under the button (no code or login involved). Mac: the web version for now.</p></div></div>';
+}
+function titanSetupModal() {
+  openModal('<h3>Open Titan (app) on this computer</h3><div class="lsub">A one-time setup on each office computer, as the Windows user who uses NLO Cases there. About a minute; nothing needs an administrator.</div>' +
+    '<ol class="mlSteps"><li>Download the launcher on this computer: <a href="nlo-titan-launcher.ps1" download><b>nlo-titan-launcher.ps1</b></a> (it lands in Downloads).</li>' +
+    '<li>Open <b>Windows PowerShell</b> (Start → type PowerShell), paste this line and press Enter:<div class="labCmd"><code id="titanCmd">' + esc(TITAN_CMD) + '</code><button type="button" class="btn btn-sec btn-sm" data-act="titanCopyCmd">Copy</button></div></li>' +
+    '<li>It finds Titan (asks if it can’t), registers the link for this Windows user, and shows a small “NLO Titan Launcher” box to prove it works.</li>' +
+    '<li>Back here, tap <b>Open Titan (app)</b> on an in-house case. The first time, the browser asks “Open Windows PowerShell?” — tick <b>Always allow</b> and Open. From then on it just opens Titan with the patient’s name copied.</li></ol>' +
+    '<p class="small muted">Titan not on this computer? Then there’s nothing to set up — use Open Titan (web). Mac: the web version for now.</p>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Done</button></div>', w => w.querySelector('.modal').classList.add('wide'));
+}
+Object.assign(ADMIN_ACTS, {
+  titanSetup() { titanSetupModal(); },
+  titanTest() { try { location.href = TITAN_APP.scheme + ':test'; } catch (e) { } toast('If this computer is set up, a small “NLO Titan Launcher” box appears. Nothing? Set up this computer.'); },
+  async titanCopyCmd() { const ok = await copyText(TITAN_CMD); toast(ok ? 'Copied — paste it into PowerShell on this computer' : 'Couldn’t copy — select the line and copy it', ok ? {} : { bad: true }); }
+});
+
 /* the code the lab PC's script asks for: this office's project and the lab PC's login */
 function labCode(creds) {
   const cfg = B === DEMO ? { apiKey: 'demo', projectId: 'demo' } : FB.cfg, c = { p: cfg.projectId || 'demo', k: cfg.apiKey || 'demo', e: creds.email, w: creds.password };
