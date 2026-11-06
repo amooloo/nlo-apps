@@ -693,14 +693,16 @@ function copyPtName(c, where) {
    bringing Titan to the front (starting it if needed). The name is copied here too, like the portals. A computer that doesn't know
    the link does nothing (the browser keeps focus), so after 1.5 s the hint under the buttons says how to set it up. */
 const TITAN_APP = { scheme: 'nlo-titan', t: 0 };
-function titanAppUrl(c) { return TITAN_APP.scheme + ':open?name=' + encodeURIComponent(c.patient || '') + (c.chart ? '&chart=' + encodeURIComponent(c.chart) : ''); }
-function titanAppOpen(c) {
+function titanAppUrl(c, app) { return TITAN_APP.scheme + ':open?name=' + encodeURIComponent(c.patient || '') + (c.chart ? '&chart=' + encodeURIComponent(c.chart) : '') + (app === 'ea' ? '&app=ea' : ''); }
+// app: 'ea' for Titan EA (the early adopter version, installed beside the regular one in this office — Amir, 6 Nov 2026); the
+// launcher opens the regular Titan where EA isn't set up
+function titanAppOpen(c, app) {
   if (!c) return;
   copyPtName(c, 'Titan’s search');
   const left = { v: false }, on = () => { left.v = true; };
   window.addEventListener('blur', on); document.addEventListener('visibilitychange', on);
   const hint = $('#titanAppHint'); if (hint) hint.innerHTML = '<span class="muted">Opening Titan on this computer…</span>';
-  try { location.href = titanAppUrl(c); } catch (e) { }
+  try { location.href = titanAppUrl(c, app); } catch (e) { }
   clearTimeout(TITAN_APP.t);
   TITAN_APP.t = setTimeout(() => {
     window.removeEventListener('blur', on); document.removeEventListener('visibilitychange', on);
@@ -1712,7 +1714,8 @@ function renderDrawer() {
       (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
       (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') +
       // in-house: the Titan program on this computer too (Amir, 6 Nov 2026) — see titanAppOpen
-      (c.type === 'nla' ? '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" title="Opens the Titan program on this computer and copies the patient’s name (a one-time setup per computer)">' + ic('next', 15) + 'Open Titan (app)</button>' : '') +
+      (c.type === 'nla' ? '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" title="Opens the Titan program on this computer and copies the patient’s name (a one-time setup per computer)">' + ic('next', 15) + 'Open Titan (app)</button>' +
+        '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" data-app="ea" title="Opens the Titan EA (early adopter) program on this computer — the regular one where EA isn’t set up — and copies the patient’s name">' + ic('next', 15) + 'Open Titan EA (app)</button>' : '') +
       (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span>' + (c.type === 'nla' ? '<span id="titanAppHint" class="small titanHint"></span>' : '') + '</div>' : '') +
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
@@ -2429,7 +2432,7 @@ function onClick(e) {
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'zoomJoin': break; // a MARPE case's Join Zoom: the link itself opens the call in a new tab (and doesn't open the case)
     case 'portal': copyPtName(findCase(S.openId)); break; // the link itself opens the portal in a new tab
-    case 'titanApp': titanAppOpen(findCase(S.openId)); break;
+    case 'titanApp': titanAppOpen(findCase(S.openId), t.dataset.app); break;
     case 'titanAppHow': e.preventDefault(); titanSetupModal(); break;
     // an Oliv patient's row or card: the link itself opens Dental Monitoring in a new tab (and doesn't open the case)
     case 'dmLink': copyPtName(findCase(id), 'Dental Monitoring’s search'); break;
