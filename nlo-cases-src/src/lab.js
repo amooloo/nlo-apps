@@ -578,7 +578,7 @@ function labAdminHTML() {
 /* the one line that sets a PC up: fetches the launcher from this site (so no file to find — Downloads is often elsewhere, OneDrive
    for one; Amir, 6 Nov 2026: "The argument '…\Downloads\nlo-titan-launcher.ps1' to the -File parameter does not exist") and runs it */
 function titanCmd() {
-  let u = 'https://apps.thenextlevelorthodontics.com/nlo-titan-launcher.ps1';
+  let u = 'https://amooloo.github.io/nlo-apps/nlo-titan-launcher.ps1'; // (only when the page isn't on the web; the practice subdomain doesn't resolve on the office PCs — 6 Nov 2026)
   try { const x = new URL('nlo-titan-launcher.ps1', location.href); if (/^https?:$/.test(x.protocol)) u = x.href; } catch (e) { }
   // pasted INTO a PowerShell window (not the Command Prompt): no outer "powershell -Command" — PowerShell would expand $f and
   // $env:TEMP inside it first (Amir, 6 Nov 2026: "=Join-Path : The term '=Join-Path' is not recognized"); the fetched copy
