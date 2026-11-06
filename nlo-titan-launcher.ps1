@@ -6,7 +6,8 @@
       nlo-titan:open?name=<the patient's name>
   Windows hands that to this script, which puts the patient's name on the clipboard (paste it in Titan's search, like the web
   portals) and brings Titan to the front - starting it if it isn't running. Nothing else: the link never runs anything, and the
-  only thing read from it is the name (and a chart number, for the log).
+  only things read from it are the name (and a chart number, for the log) and which Titan: "&app=ea" opens Titan EA (the early
+  adopter version, "Open Titan EA (app)") when it is set up on this computer, else the regular one.
 
   Set up once per computer, as the Windows user who uses NLO Cases there (no administrator needed, about a minute). NLO Cases
   (Team & security -> Titan app, or the hint under the button) shows the one line to paste into Windows PowerShell: it fetches
@@ -18,6 +19,7 @@
   tick "Always allow" and Open. (The link runs through PowerShell, so that is the name the browser shows.)
 
   Other switches:  -Install -Titan "C:\...\Titan.exe"   use that program instead of looking for it
+                   -Install -TitanEA "C:\...\Titan.exe" ... and that one as Titan EA (both switches can be given together)
                    -Test        the same as the "Test on this computer" button in NLO Cases
                    -Uninstall   forgets "nlo-titan:" on this computer and removes the copy
   Runs on the Windows PowerShell 5.1 that comes with Windows; nothing to install. Log: %LOCALAPPDATA%\NLO Titan Launcher\launcher.log
@@ -26,11 +28,11 @@
 param(
   [Parameter(Position = 0)][string]$Url = '',
   [switch]$Install, [switch]$Uninstall, [switch]$Test,
-  [string]$Titan = ''
+  [string]$Titan = '', [string]$TitanEA = ''
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
-$VER = '1.1'
+$VER = '1.2'
 $SCHEME = 'nlo-titan'
 $DIR = Join-Path $env:LOCALAPPDATA 'NLO Titan Launcher'
 $CFG = Join-Path $DIR 'config.json'
@@ -72,13 +74,14 @@ function Find-Titan {
 
 # ---------- the link's parts: nlo-titan:open?name=...&chart=... ----------
 function Parse-Link([string]$u) {
-  $r = @{ action = ''; name = ''; chart = '' }
+  $r = @{ action = ''; name = ''; chart = ''; app = '' }
   if ($u -notmatch ('^' + $SCHEME + ':/*([^?]*)\??(.*)$')) { return $r }
   $r.action = $Matches[1].Trim('/').ToLower(); $q = $Matches[2]
   foreach ($kv in ($q -split '&')) { if (-not $kv) { continue }
     $p = $kv -split '=', 2; $k = [uri]::UnescapeDataString($p[0]); $v = ''
     if ($p.Count -gt 1) { $v = [uri]::UnescapeDataString(($p[1] -replace '\+', ' ')) }
     if ($k -eq 'name' -or $k -eq 'chart') { $r[$k] = ($v -replace '[\x00-\x1f]', ' ').Trim(); if ($r[$k].Length -gt 120) { $r[$k] = $r[$k].Substring(0, 120) } }
+    if ($k -eq 'app' -and $v.ToLower() -eq 'ea') { $r.app = 'ea' }
   }
   $r
 }
@@ -103,6 +106,7 @@ function Show-Titan([string]$exe) {
 }
 
 function Read-Config { if (-not (Test-Path $CFG)) { throw ('Not set up on this computer yet (no ' + $CFG + '). Run the script with -Install.') }; Get-Content -LiteralPath $CFG -Raw | ConvertFrom-Json }
+function Cfg-Get($cfg, [string]$k) { if ($cfg -and $cfg.PSObject.Properties[$k]) { [string]$cfg.$k } else { '' } }
 
 function Handle-Link([string]$u) {
   $l = Parse-Link $u
@@ -111,30 +115,40 @@ function Handle-Link([string]$u) {
   if ($l.action -eq 'test') {
     Add-Type -AssemblyName System.Windows.Forms
     $cfg = $null; try { $cfg = Read-Config } catch { }
-    $where = 'But Titan is not set up here - run the launcher with -Install.'; if ($cfg) { $where = 'Titan: ' + $cfg.titan }
+    $where = 'But Titan is not set up here - run the launcher with -Install.'
+    if ($cfg) { $where = 'Titan: ' + (Cfg-Get $cfg 'titan'); $ea = Cfg-Get $cfg 'titanEA'; if ($ea) { $where += "`r`n" + 'Titan EA: ' + $ea } else { $where += "`r`n" + 'Titan EA: not set up here (Open Titan EA (app) opens the regular one)' } }
     $msg = 'NLO Cases can open Titan on this computer.' + "`r`n`r`n" + $where + "`r`n" + 'Launcher ' + $VER + ' in ' + $DIR
     [void][System.Windows.Forms.MessageBox]::Show($msg, 'NLO Titan Launcher', 'OK', 'Information')
     return
   }
   $cfg = Read-Config
   if ($l.name) { try { Set-Clipboard -Value $l.name } catch { try { $l.name | clip.exe } catch { } } }
-  $how = Show-Titan $cfg.titan
+  $exe = Cfg-Get $cfg 'titan'; $which = 'Titan'
+  if ($l.app -eq 'ea') { $ea = Cfg-Get $cfg 'titanEA'; if ($ea) { $exe = $ea; $which = 'Titan EA' } else { $which = 'Titan (EA asked for, not set up here)' } }
+  if (-not $exe) { throw 'No Titan program is set up on this computer. Run the launcher with -Install.' }
+  $how = Show-Titan $exe
   $copied = ''; if ($l.name) { $copied = ', name copied' }
-  Log ('Titan ' + $how + $copied)
+  Log ($which + ' ' + $how + $copied)
 }
 
 # ---------- setup ----------
 function Install-Launcher {
   Say ('NLO Titan Launcher ' + $VER + ' - setting up for ' + $env:USERNAME + ' on ' + $env:COMPUTERNAME)
   if ($env:OS -ne 'Windows_NT') { throw 'This sets up a Windows computer.' }
-  $exe = $Titan
+  $exe = $Titan; $exeEA = $TitanEA
   if ($exe -and -not (Test-Path -LiteralPath $exe)) { throw ('Not found: ' + $exe) }
+  if ($exeEA -and -not (Test-Path -LiteralPath $exeEA)) { throw ('Not found: ' + $exeEA) }
   if (-not $exe) {
-    $found = Find-Titan
+    $found = @(Find-Titan | Where-Object { $_ -ne $exeEA })
     if ($found.Count -eq 1) { $exe = $found[0]; Say ('Found Titan: ' + $exe) }
     elseif ($found.Count -gt 1) {
+      # this office has the regular Titan and Titan EA (the early adopter version) side by side (Amir, 6 Nov 2026)
       Write-Host 'More than one program looks like Titan:'; for ($i = 0; $i -lt $found.Count; $i++) { Write-Host ('  ' + ($i + 1) + '. ' + $found[$i]) }
-      $n = Read-Host 'Which one is Titan? (number)'; $exe = $found[[int]$n - 1]
+      $n = Read-Host 'Which one is the regular Titan? (number)'; if ($n -notmatch '^\d+$' -or [int]$n -lt 1 -or [int]$n -gt $found.Count) { throw ('Not a number from the list: ' + $n) }; $exe = $found[[int]$n - 1]
+      if (-not $exeEA) {
+        $m = Read-Host 'Which one is Titan EA, the early adopter version? (number, or just Enter for none)'
+        if ($m -match '^\d+$' -and [int]$m -ge 1 -and [int]$m -le $found.Count -and $found[[int]$m - 1] -ne $exe) { $exeEA = $found[[int]$m - 1] }
+      }
     } else {
       Write-Host 'Titan was not found in the usual places. If it is installed, pick its program (Titan.exe) in the window that opens.'
       Add-Type -AssemblyName System.Windows.Forms
@@ -147,7 +161,7 @@ function Install-Launcher {
   $copy = Join-Path $DIR 'nlo-titan-launcher.ps1'
   if ((Resolve-Path -LiteralPath $ME).Path -ne $copy) { Copy-Item -LiteralPath $ME -Destination $copy -Force }
   try { Unblock-File -LiteralPath $copy } catch { }   # (a download carries the "from the internet" mark; the copy needn't)
-  @{ titan = $exe; ver = $VER; at = (Get-Date).ToString('s'); user = $env:USERNAME } | ConvertTo-Json | Set-Content -LiteralPath $CFG -Encoding UTF8
+  @{ titan = $exe; titanEA = $exeEA; ver = $VER; at = (Get-Date).ToString('s'); user = $env:USERNAME } | ConvertTo-Json | Set-Content -LiteralPath $CFG -Encoding UTF8
   $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
   $cmd = '"' + $ps + '" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $copy + '" "%1"'
   $k = 'HKCU:\Software\Classes\' + $SCHEME
@@ -158,6 +172,7 @@ function Install-Launcher {
   New-Item -Path ($k + '\shell\open\command') -Force | Out-Null; Set-ItemProperty -Path ($k + '\shell\open\command') -Name '(default)' -Value $cmd
   Say ('Registered ' + $SCHEME + ': for this Windows user -> ' + $copy)
   Say ('Titan: ' + $exe)
+  if ($exeEA) { Say ('Titan EA: ' + $exeEA) } else { Say 'Titan EA: none (Open Titan EA (app) opens the regular one). To add it later: run again with -Install -Titan "<regular>" -TitanEA "<EA>", or pick both when asked.' }
   Say 'Trying it (a small "NLO Titan Launcher" box should appear)...'
   try { Start-Process ($SCHEME + ':test') } catch { Say ('Could not try the link: ' + $_.Exception.Message) }
   Say 'Done. In NLO Cases, open an in-house case and tap "Open Titan (app)". The first time, the browser asks "Open Windows PowerShell?" - tick "Always allow" and Open.'

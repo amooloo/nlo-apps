@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-zGTHrZ3tcX6vY2HaT/sBpNmb9LQr7IQbSmJ0hk3hkUE=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-0cZaDDG92IxO06khj65fQgs0P6lgI8RanzqjHHCd/qo=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2088,7 +2088,7 @@ const SCAN_SITE = { 'Allied Star': { l: 'AS Connect (US & Canada)', u: 'https://
 const DM_URL = 'https://dental-monitoring.com/doctor/login';
 function dmOn(c) { return !!c && c.type === 'oliv'; }
 const PORTALS = {
-  nla: [{ l: 'Titan (web)', u: 'https://client.titandentaldesign.com/Live/index.html' }, { l: 'Titan beta (web)', u: 'https://client.titandentaldesign.com/EA/index.html' }],
+  nla: [{ l: 'Titan (web)', u: 'https://client.titandentaldesign.com/Live/index.html' }, { l: 'Titan EA (web)', u: 'https://client.titandentaldesign.com/EA/index.html' }],
   oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: DM_URL }],
   invisalign: [{ l: 'Invisalign Doctor Site', u: 'https://vip.invisalign.com/' }],
   angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/cas/login?service=https://iortho.angelalign.com/OPM/shiro-cas' }],
@@ -4974,14 +4974,16 @@ function copyPtName(c, where) {
    bringing Titan to the front (starting it if needed). The name is copied here too, like the portals. A computer that doesn't know
    the link does nothing (the browser keeps focus), so after 1.5 s the hint under the buttons says how to set it up. */
 const TITAN_APP = { scheme: 'nlo-titan', t: 0 };
-function titanAppUrl(c) { return TITAN_APP.scheme + ':open?name=' + encodeURIComponent(c.patient || '') + (c.chart ? '&chart=' + encodeURIComponent(c.chart) : ''); }
-function titanAppOpen(c) {
+function titanAppUrl(c, app) { return TITAN_APP.scheme + ':open?name=' + encodeURIComponent(c.patient || '') + (c.chart ? '&chart=' + encodeURIComponent(c.chart) : '') + (app === 'ea' ? '&app=ea' : ''); }
+// app: 'ea' for Titan EA (the early adopter version, installed beside the regular one in this office — Amir, 6 Nov 2026); the
+// launcher opens the regular Titan where EA isn't set up
+function titanAppOpen(c, app) {
   if (!c) return;
   copyPtName(c, 'Titan’s search');
   const left = { v: false }, on = () => { left.v = true; };
   window.addEventListener('blur', on); document.addEventListener('visibilitychange', on);
   const hint = $('#titanAppHint'); if (hint) hint.innerHTML = '<span class="muted">Opening Titan on this computer…</span>';
-  try { location.href = titanAppUrl(c); } catch (e) { }
+  try { location.href = titanAppUrl(c, app); } catch (e) { }
   clearTimeout(TITAN_APP.t);
   TITAN_APP.t = setTimeout(() => {
     window.removeEventListener('blur', on); document.removeEventListener('visibilitychange', on);
@@ -5993,7 +5995,8 @@ function renderDrawer() {
       (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
       (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') +
       // in-house: the Titan program on this computer too (Amir, 6 Nov 2026) — see titanAppOpen
-      (c.type === 'nla' ? '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" title="Opens the Titan program on this computer and copies the patient’s name (a one-time setup per computer)">' + ic('next', 15) + 'Open Titan (app)</button>' : '') +
+      (c.type === 'nla' ? '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" title="Opens the Titan program on this computer and copies the patient’s name (a one-time setup per computer)">' + ic('next', 15) + 'Open Titan (app)</button>' +
+        '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" data-app="ea" title="Opens the Titan EA (early adopter) program on this computer — the regular one where EA isn’t set up — and copies the patient’s name">' + ic('next', 15) + 'Open Titan EA (app)</button>' : '') +
       (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span>' + (c.type === 'nla' ? '<span id="titanAppHint" class="small titanHint"></span>' : '') + '</div>' : '') +
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
@@ -6710,7 +6713,7 @@ function onClick(e) {
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'zoomJoin': break; // a MARPE case's Join Zoom: the link itself opens the call in a new tab (and doesn't open the case)
     case 'portal': copyPtName(findCase(S.openId)); break; // the link itself opens the portal in a new tab
-    case 'titanApp': titanAppOpen(findCase(S.openId)); break;
+    case 'titanApp': titanAppOpen(findCase(S.openId), t.dataset.app); break;
     case 'titanAppHow': e.preventDefault(); titanSetupModal(); break;
     // an Oliv patient's row or card: the link itself opens Dental Monitoring in a new tab (and doesn't open the case)
     case 'dmLink': copyPtName(findCase(id), 'Dental Monitoring’s search'); break;
@@ -11369,7 +11372,7 @@ function titanCmd() {
 }
 function titanAdminHTML() {
   return '<div class="card" style="margin-top:18px" id="titanAdmin"><div class="cardHd"><h3>Titan app</h3><span class="sub">“Open Titan (app)” on in-house cases</span></div><div class="cardBd">' +
-    '<p class="small" style="margin-bottom:10px">A web page can’t start a program on its own, so each office computer gets a small launcher once: it teaches Windows the link “nlo-titan:” that the <b>Open Titan (app)</b> button uses, and answers it by copying the patient’s name and bringing the Titan program to the front (starting it if it isn’t running). Nothing is sent anywhere; the link carries only the name. The web buttons stay as they are.</p>' +
+    '<p class="small" style="margin-bottom:10px">A web page can’t start a program on its own, so each office computer gets a small launcher once: it teaches Windows the link “nlo-titan:” that the <b>Open Titan (app)</b> and <b>Open Titan EA (app)</b> buttons use, and answers it by copying the patient’s name and bringing the Titan program to the front (starting it if it isn’t running) — the regular one or Titan EA, as set up on that computer. Nothing is sent anywhere; the link carries only the name. The web buttons stay as they are.</p>' +
     '<div class="mlBtns"><button class="btn btn-act btn-sm" data-act="titanSetup">' + ic('plus', 15) + 'Set up this computer</button><button class="btn btn-sec btn-sm" data-act="titanTest">' + ic('done', 15) + 'Test on this computer</button><a class="btn btn-ghost btn-sm" href="nlo-titan-launcher.ps1" download>' + ic('download', 15) + 'The launcher</a></div>' +
     '<p class="small muted" style="margin-top:8px">Per computer and Windows user: one line pasted into PowerShell (Set up this computer shows it). Staff can set up their own computer from the hint under the button (no code or login involved). Mac: the web version for now.</p></div></div>';
 }
@@ -11377,7 +11380,7 @@ function titanSetupModal() {
   openModal('<h3>Open Titan (app) on this computer</h3><div class="lsub">A one-time setup on each office computer, as the Windows user who uses NLO Cases there. About a minute; nothing needs an administrator.</div>' +
     '<ol class="mlSteps"><li>Open <b>Windows PowerShell</b> on this computer (Start → type PowerShell), paste this line and press Enter:<div class="labCmd"><code id="titanCmd">' + esc(titanCmd()) + '</code><button type="button" class="btn btn-sec btn-sm" data-act="titanCopyCmd">Copy</button></div>' +
     '<div class="small muted" style="margin-top:6px">It fetches the launcher from this site — nothing to download first.</div></li>' +
-    '<li>It finds Titan (asks if it can’t), registers the link for this Windows user, and shows a small “NLO Titan Launcher” box to prove it works. Press Enter to close its window.</li>' +
+    '<li>It finds Titan (asks if it can’t), registers the link for this Windows user, and shows a small “NLO Titan Launcher” box to prove it works. Press Enter to close its window. On a computer with both the regular Titan and <b>Titan EA</b> it lists them and asks which is which — then <b>Open Titan (app)</b> and <b>Open Titan EA (app)</b> each open their own.</li>' +
     '<li>Back here, tap <b>Open Titan (app)</b> on an in-house case. The first time, the browser asks “Open Windows PowerShell?” — tick <b>Always allow</b> and Open. From then on it just opens Titan with the patient’s name copied.</li></ol>' +
     '<p class="small muted">Prefer a file? <a href="nlo-titan-launcher.ps1" download>Download nlo-titan-launcher.ps1</a>, then <b>right-click</b> it → <b>Run with PowerShell</b> (Windows 11: <i>Show more options</i> first). Double-clicking only opens it as text.</p>' +
     '<p class="small muted">Titan not on this computer? Then there’s nothing to set up — use Open Titan (web). Mac: the web version for now.</p>' +
