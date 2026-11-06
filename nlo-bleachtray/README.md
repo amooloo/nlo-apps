@@ -97,9 +97,13 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    **+** badge in every space (from the tooth numbers - a space of 5 mm or more counts as a tooth gone, or give the numbers
    on the Teeth tab) - click it and the missing tooth's own shape (Dr. Christian Brenes' pontic library, 28 shapes) stands
    there, as wide as the room between the neighbours less 0.6 mm, as tall as the neighbours, its base 2 mm into the gum;
-   or Shift-click the gum anywhere. Then **Width / Height / Thickness** sliders, **Into gum**, nudges (along the arch, out /
-   in, up / down, turn, tip, torque), another **Shape** (one from the other side is mirrored), Shift-drag it on the model to
-   move it, **Delete**. Shown in ivory on the Result; a whitening tray or a mouthguard is made without them; **Braces** (only
+   or Shift-click the gum anywhere. Then move it like a tooth in a setup (the doctor's clip of the tool he likes, 11/6/2026):
+   **drag the arrows** on its axes - red along the arch, blue out / in, green up / down, 0.1 mm steps - and **drag the arcs**
+   to turn it round its long axis (green), tip it (blue) or torque it (red), 1 degree steps; the handle under the mouse turns
+   yellow and chips at the arrows say how far it has moved since it was placed (**Reset position** puts it back). **Width /
+   Height / Thickness** sliders, **Into gum**, another **Shape** (one from the other side is mirrored), Shift-drag the pontic
+   itself to carry it along the surface, **Delete**. Shown in ivory on the Result; a whitening tray or a mouthguard is made
+   without them; **Braces** (only
    for a scan dropped with Braces on, or a mouthguard) takes off a bracket or bit of wire the app missed, and its
    **Not a bracket** brush marks tooth or gum the app took for a bracket (left as scanned on a retainer, left out of
    a mouthguard's band; blue on the tab, kept with the case and saved with its lesson). **Also make …** in the Check & send box adds the other
@@ -868,7 +872,16 @@ moves no vertex, leaves it valid, like the label on the model. The page places o
 centres, Y outwards from the arch's centre, Z up, the seat `sink` (2 mm) under the surface point - sized to the space
 (the neighbours' extents along X less 0.6 mm; the height to the neighbours' tops; the thickness the shape's own, following
 the width half-way), its number from the slot (universal: UR 9 - pos, UL 8 + pos, LL 25 - pos, LR 24 + pos; an 8 gets the
-7's shape); Apply sends a changed file's whole list (the server replaces what it kept, `[]` clears) and `_scan_params`
+7's shape). **The move gizmo** (`buildGizmo` and friends, after the doctor's clip of a tooth-setup tool): on the selected
+pontic, its own axes through the middle of the crown (seat + 0.45 h) with a cone at each end to drag - the mouse ray's
+nearest point on the axis line (`axisParam`), 0.1 mm steps along the pontic's own axis (`nudgePontic`) - and three arcs
+(18-72 degrees between two arrows, at the mean of their distances) to drag round an axis - the ray's hit on the plane
+through the centre, its angle in the plane's basis (`planeAngle`), 1 degree steps about the pontic's own axis through
+the crown's middle (`rotatePontic`: `M · T(c) · R · T(-c)`); the hit shapes are fatter invisible meshes, the handle
+under the mouse (or dragged) is yellow, the OrbitControls are off for the drag. `p.home` is the frame at placement
+(or as loaded), moved along with the Into-gum slider; `ponticOffsets` = `home^-1 · m` (mm along the axes, ZYX Euler
+degrees) for the chips at the arrows' ends (green 0, blue +, brown -, like the clip) and the box's line; Reset position
+puts `m` back to `home`. Not sent to the server. Apply sends a changed file's whole list (the server replaces what it kept, `[]` clears) and `_scan_params`
 hands it to the pipeline as `params["pontics"]`. In `process` (after the block-out, before the body): each shape scaled
 to w / h / t about its seat (mirrored in X when a shape from the other side is used - `pontic_mesh`), placed by `T_total @
 m`, **fused** into the scan surface like a block-out fill (`fuse_many`, 0.6 mm fillet, 0.2 mm into the body) with the

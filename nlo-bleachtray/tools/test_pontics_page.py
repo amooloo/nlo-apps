@@ -117,7 +117,7 @@ def main():
         M = np.asarray(p["m"], float); Mr = T_rough @ M
         check("the frame: a rigid right-handed one, seat between the crowns, Z straight up", abs(np.linalg.det(M[:3, :3]) - 1) < 1e-3 and abs(M[2, 2] - 1) < 1e-3 and abs(M[0, 3]) < 1.5 and abs(M[1, 3]) < 1.5 and abs(M[2, 3] - (TP.CREST - 2.0)) < 0.5, M.round(2).tolist())
         check("the frame's X runs along the arch (from crown to crown)", abs(abs(M[0, 0]) - 1) < 0.05, M[:3, 0].round(2).tolist())
-        check("the pontic's mesh is on screen and selected, its badge up, the + gone", st["meshes"] == 1 and st["sel"] == p["id"] and page.locator(".tbadge.pont.on").count() == 1 and page.locator(".tbadge.plus").count() == 0, (st["meshes"], st["sel"]))
+        check("the pontic's mesh is on screen and selected (its gizmo in place of a badge), the + gone", st["meshes"] == 1 and st["sel"] == p["id"] and page.locator(".tbadge.pont").count() == 0 and page.locator(".tbadge.plus").count() == 0 and page.evaluate("window.__view.gizmo() && window.__view.gizmo().id") == p["id"], (st["meshes"], st["sel"]))
         check("the list says so", "changed" in page.text_content("#fixcount") and "L5" in page.text_content("#fixcount"), page.text_content("#fixcount"))
         page.screenshot(path=os.path.join("/tmp", "pontics_page_sel.png"))
         # the Width slider
@@ -126,13 +126,57 @@ def main():
         page.evaluate("(() => { const i = document.querySelector('input[data-k=\"sink\"]'); i.value = 3.0; i.dispatchEvent(new Event('input')); })()")
         st = P(); p2 = st["list"][0]; M2 = T_rough @ np.asarray(p2["m"], float)
         check("Into gum 3 mm: the seat 1 mm lower, the height 1 mm more (the top stays)", abs(p2["sink"] - 3.0) < 1e-6 and abs(M2[2, 3] - (Mr[2, 3] - 1.0)) < 1e-3 and abs(p2["h"] - (p["h"] + 1.0)) < 1e-3, (p2["sink"], M2[2, 3], p2["h"]))
+        M3 = np.asarray(page.evaluate("window.__view.ponticNow().m"), float)
+        # the move gizmo (the doctor's clip, 11/6/2026): arrows to drag along the axes, arcs to turn / tip / torque
+        G = lambda: page.evaluate("window.__view.gizmo()")
+        g = G()
+        check("the gizmo stands on the selected pontic: 6 arrows and 3 arcs, visible", g and g["parts"] == 9 and g["visible"] and g["id"] == p["id"], g and (g["parts"], g["visible"]))
+        rect = page.evaluate("(() => { const r = document.querySelector('canvas').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })()")
+        px = lambda h: (rect[0] + (h["x"] + 1) / 2 * rect[2], rect[1] + (1 - h["y"]) / 2 * rect[3])
+        def handle(kind, which=0):
+            if kind[0] == "r":       # an arc (its group sits at the centre): its middle, 45 degrees round
+                return px(page.evaluate(f"window.__view.arcPoint('{kind}', 45)"))
+            hs = [h for h in G()["handles"] if h["kind"] == kind]; return px(hs[which])
+        page.click("#brushhide"); time.sleep(0.2)      # the box folds to its chip: the model (and the gizmo) is free of it for the drags
+        # hover: the handle under the mouse turns yellow
+        hx, hy = handle("tx", 0); page.mouse.move(hx, hy); time.sleep(0.15)
+        check("hovering an arrow highlights it", G()["hover"] == "tx", G()["hover"])
+        # drag the +X arrow 40 px along the arrow's own direction on screen: the pontic moves along the arch
+        ax, ay = handle("tx", 0); bx, by = handle("tx", 1); d = ((ax - bx), (ay - by)); L = (d[0] ** 2 + d[1] ** 2) ** 0.5
+        off0 = page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow())")
+        page.mouse.move(ax, ay); page.mouse.down(); page.mouse.move(ax + 40 * d[0] / L, ay + 40 * d[1] / L, steps=8); time.sleep(0.2)
+        check("while dragging: the arrow is the live handle", G()["drag"] == "tx", G()["drag"])
+        page.mouse.up(); time.sleep(0.3)
+        off1 = page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow())")
+        check("dragging the arrow moved the pontic along the arch, in 0.1 mm steps, the others untouched", abs(off1["x"]) > 0.5 and abs(off1["x"] * 10 - round(off1["x"] * 10)) < 1e-6 and abs(off1["y"]) < 1e-6 and abs(off1["z"]) < 1e-6, off1)
+        check("the chips say so (blue for plus / brown for minus, green for nothing)", page.locator(".gchip").count() == 3 and page.locator(".gchip.zero").count() == 2 and page.locator(".gchip.plus, .gchip.minus").count() == 1, page.locator(".gchip").all_text_contents())
+        check("the frame moved along its own X only (raw coordinates)", abs(np.linalg.norm((np.asarray(page.evaluate("window.__view.ponticNow().m"), float) @ np.array([0, 0, 0, 1]))[:3] - M3[:3, 3]) - abs(off1["x"])) < 0.05, "")
+        # drag the green arc: the pontic turns round its long axis, 1 degree steps
+        cx, cy = handle("rz"); gz = G(); c3 = page.evaluate("(() => { const v = new (window.__view.seg().position.constructor)(...%s).project(window.__view.camera); return [v.x, v.y]; })()" % gz["c"])
+        ccx, ccy = px({"x": c3[0], "y": c3[1]})
+        # move round the centre on screen by ~25 degrees
+        import math
+        a0 = math.atan2(cy - ccy, cx - ccx); rr = math.hypot(cx - ccx, cy - ccy)
+        page.mouse.move(cx, cy); page.mouse.down()
+        for k in range(1, 9):
+            a = a0 + k * math.radians(3); page.mouse.move(ccx + rr * math.cos(a), ccy + rr * math.sin(a))
+        time.sleep(0.2); page.mouse.up(); time.sleep(0.3)
+        off2 = page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow())")
+        check("dragging the arc turned the pontic round its long axis (whole degrees), nothing else", abs(off2["turn"]) >= 3 and abs(off2["turn"] - round(off2["turn"])) < 0.05 and abs(off2["tip"]) < 0.5 and abs(off2["torque"]) < 0.5 and abs(off2["x"] - off1["x"]) < 1e-6, off2)
+        page.click("#brushchip"); time.sleep(0.2)
+        check("the box says how far it moved and offers Reset", "turn" in page.text_content(".pontoff") and page.is_enabled("#pontreset"), page.text_content(".pontoff"))
+        page.click("#pontreset"); time.sleep(0.3)
+        off3 = page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow())")
+        check("Reset position puts it back where it was placed", all(abs(v) < 1e-6 for v in off3.values()), off3)
+        M3 = np.asarray(page.evaluate("window.__view.ponticNow().m"), float)
         page.select_option("#pontshape", "4")
         st = P(); check("a shape from the other side (#4, UR) is mirrored", st["list"][0]["n"] == 4 and st["list"][0]["mirror"] is True, st["list"][0])
         page.select_option("#pontshape", "13")
         st = P(); check("... and its own side's is not", st["list"][0]["n"] == 13 and st["list"][0]["mirror"] is False)
-        page.click(".pontnudge button[data-n='0,0,0,5,0,0']")
-        st = P(); M3 = T_rough @ np.asarray(st["list"][0]["m"], float)
-        check("turn 5 deg: the frame turned about Z, the seat where it was", abs(np.degrees(np.arctan2(M3[1, 0], M3[0, 0]) - np.arctan2(M2[1, 0], M2[0, 0]))) - 5 < 0.1 and np.allclose(M3[:3, 3], M2[:3, 3], atol=1e-3), "")
+        page.evaluate("window.__view.rotatePontic(window.__view.ponticNow(), 'z', 5)"); time.sleep(0.2)
+        st = P(); M4 = T_rough @ np.asarray(st["list"][0]["m"], float)
+        check("turn 5 deg: the frame turned about its Z, the middle of the crown where it was", abs(abs(np.degrees(np.arctan2(M4[1, 0], M4[0, 0]) - np.arctan2(M2[1, 0], M2[0, 0]))) - 5) < 0.1 and np.allclose((M4 @ np.array([0, 0, p2["h"] * 0.45, 1]))[:3], (M2 @ np.array([0, 0, p2["h"] * 0.45, 1]))[:3], atol=1e-3), "")
+        page.evaluate("window.__view.rotatePontic(window.__view.ponticNow(), 'z', -5)"); time.sleep(0.2)
         # a second pontic by hand, on the gum at the far end (the page's own entry point for a Shift-click), then Delete
         far = (T_rough @ np.array([12.0, 0.0, TP.ridge_top(0.0), 1.0]))[:3]     # on the gum beyond L6, in the page's rough frame
         page.evaluate(f"window.__view.addPonticAt(new (window.__view.seg().position.constructor)({far[0]:.4f}, {far[1]:.4f}, {far[2]:.4f}), null)")
@@ -157,7 +201,7 @@ def main():
         st = P(); check("after the re-run the page shows the applied pontic, nothing pending", len(st["list"]) == 1 and not st["dirty"] and st["list"][0]["slot"] == "L5" and abs(st["list"][0]["sink"] - 3.0) < 1e-6, st)
         check("nothing pending for Send / Export", page.evaluate("window.__view.pending()") == [], page.evaluate("window.__view.pending()"))
         page.click(".tab[data-tab='pontic']"); time.sleep(0.3)
-        check("its badge and mesh are up on the Pontics tab", page.locator(".tbadge.pont").count() == 1 and P()["meshes"] == 1 and P()["visible"], (page.locator('.tbadge.pont').count(), P()["meshes"]))
+        check("its mesh is up on the Pontics tab (selected: the gizmo, no badge; unselected: a badge)", P()["meshes"] == 1 and P()["visible"] and (page.locator(".tbadge.pont").count() + (1 if page.evaluate("!!window.__view.gizmo()") else 0)) == 1, (page.locator('.tbadge.pont').count(), P()["meshes"]))
         page.click(".tab[data-tab='result']"); time.sleep(0.3)
         check("... and hidden on the Result tab", not P()["visible"])
         # Clear on the tab: asks first, clears, Undo brings it back
