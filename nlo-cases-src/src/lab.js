@@ -7,8 +7,9 @@
    (Ortho Factory records trimming only; 3D printing comes from Formlabs' emails about each print (prints.js), thermoforming is a
    manual tap.)
    Whenever someone has NLO Cases open, the app opens them here (mailSync hands them over), finds the patient's in-house case —
-   the order it was linked to before, else the name — keeps the progress on the case (sealed with the rest), fills in the set's
-   aligner counts from the export when nobody typed them, and offers the matching step with one tap: Dr. A's "suggest, one tap
+   the order it was linked to before, else the name — keeps the progress on the case (sealed with the rest), puts the set's
+   aligner counts from the export on the case (what's exported is what's made — see labEffect; only counts changed by hand after the
+   order was on the case stay, with "Use these" offered), and offers the matching step with one tap: Dr. A's "suggest, one tap
    to confirm" — nothing moves by itself. An order it can't place waits on Today for someone to pick the case.
    The Tray Maker's orders (retainers, whitening trays, mouthguards — 20 Oct 2026, tmKind / tmMatch below) belong to those cases,
    not to an in-house set: they're never asked about on Today, and the lab PC seeing one moves its case on from To make to Printing
@@ -156,26 +157,45 @@ function labMatchSet(o, open, closed) {
    open case — a set completed long ago, still in Ortho Factory's folder — is nothing to do) */
 function labWorthAsking(o) { const t = labOrderedMs(o); return !labDone(o) && !!t && Date.now() - t < LAB_SHOW_DAYS * 864e5; }
 
-/* what an order does to its case: the progress kept on it (only when it's newer and something changed) and, when nobody typed the
-   set's aligner counts, the counts from the export (Amir, 6 Oct 2026: "automatically pick number of aligners based on what gets
-   exported") — typed counts are never overwritten (the case offers the lab's instead, see labCountsNote) — and the attachment
-   templates when that's not answered yet (the export has the template models, or none) */
+/* the aligner counts the export says this case has (its treated arch(es) only): { u, l }, or null when the order has none */
+function labCountsOf(c, o) {
+  if (!o || !o.key) return null; const one = typeof oneArch === 'function' ? oneArch(c) : '';
+  const u = one === 'L' ? 0 : Number(o.au) || 0, l = one === 'U' ? 0 : Number(o.al) || 0;
+  return u + l > 0 ? { u, l } : null;
+}
+/* what the case's counts (or template answer) are: 'none', 'lab' (what this order filled in, unchanged since) or 'hand'
+   (typed, or changed by hand after the order was on the case) */
+function labOwnerOf(c, prev, what) {
+  const n = v => Number(v) || 0, fill = (prev && prev.filled) || {};
+  if (what === 'at') { if (!c.atTemplates) return 'none'; return 'atTemplates' in fill && fill.atTemplates === c.atTemplates ? 'lab' : 'hand'; }
+  if (!n(c.alU) && !n(c.alL) && !n(c.aligners)) return 'none';
+  return ('alU' in fill || 'alL' in fill) && n(fill.alU) === n(c.alU) && n(fill.alL) === n(c.alL) ? 'lab' : 'hand';
+}
+/* what an order does to its case: the progress kept on it (only when it's newer and something changed) and the set's aligner
+   counts from the export (Amir, 6 Oct 2026: "automatically pick number of aligners based on what gets exported"; 6 Nov 2026: "the
+   number of aligners are not getting updated … after I export them") — the export is what's being made, so its counts go on the case:
+   when nobody typed them, when they're what the lab filled in before (the rest of the set exported later, a re-export), and the first
+   time the order reaches the case even over counts typed before it (at TxP approved, from the plan; the history keeps what the case
+   said). Only counts changed by hand AFTER the order was on the case stay — a correction — and the case offers the lab's instead
+   (labCountsNote). The attachment templates follow the same rule (the export has the template models, or none). */
 function labEffect(c, o) {
-  const prev = c.labOrd && c.labOrd.key === o.key ? c.labOrd : null, set = {};
-  if (prev && (prev.at || 0) > (o.at || 0)) return { set, prev }; // an older reading than the one kept
+  const prev = c.labOrd && c.labOrd.key === o.key ? c.labOrd : null, set = {}, was = {};
+  if (prev && (prev.at || 0) > (o.at || 0)) return { set, prev, was }; // an older reading than the one kept
   const keep = labKeep(o), core = x => JSON.stringify([x.key, x.ordered, x.au, x.al, x.tu, x.tl, x.a, x.t, x.lv || {}]);
   if (!prev || core(prev) !== core(keep)) set.labOrd = keep;
-  const one = typeof oneArch === 'function' ? oneArch(c) : '';
-  if (!(Number(c.alU) || 0) && !(Number(c.alL) || 0) && !(Number(c.aligners) || 0)) {
-    const u = one === 'L' ? 0 : o.au, l = one === 'U' ? 0 : o.al;
-    if (u + l > 0) { set.alU = u || ''; set.alL = l || ''; set.aligners = u + l; }
+  const one = typeof oneArch === 'function' ? oneArch(c) : '', n = v => Number(v) || 0, cnt = labCountsOf(c, o);
+  const follows = what => { const w = labOwnerOf(c, prev, what); return w === 'none' || w === 'lab' || (w === 'hand' && !prev); };
+  if (cnt && follows('al') && (n(c.alU) !== cnt.u || n(c.alL) !== cnt.l)) {
+    if (n(c.alU) || n(c.alL) || n(c.aligners)) { was.alU = n(c.alU); was.alL = n(c.alL); } // (what the case said before the export)
+    set.alU = cnt.u || ''; set.alL = cnt.l || ''; set.aligners = cnt.u + cnt.l;
   }
-  if (!c.atTemplates && o.au + o.al > 0) { const at = atFor(o.tu && o.tl ? 'UL' : o.tu ? 'U' : o.tl ? 'L' : 'none', one); if (at) set.atTemplates = at; }
-  // what the lab filled in is noted with the order, so "Not this order" can take it back off (security review, 6 Oct 2026)
+  if (cnt && follows('at')) { const at = atFor(o.tu && o.tl ? 'UL' : o.tu ? 'U' : o.tl ? 'L' : 'none', one); if (at && at !== c.atTemplates) { if (c.atTemplates) was.atTemplates = c.atTemplates; set.atTemplates = at; } }
+  // what the lab filled in is noted with the order, so "Not this order" can take it back off (security review, 6 Oct 2026), and so
+  // a later reading knows the counts are the lab's and may change them
   const filled = Object.assign({}, prev && prev.filled); ['alU', 'alL', 'aligners', 'atTemplates'].forEach(k => { if (k in set) filled[k] = set[k]; });
   if (Object.keys(filled).length) keep.filled = filled;
   if (!set.labOrd && Object.keys(set).length) set.labOrd = keep; // (the counts came with this reading: keep it too)
-  return { set, prev };
+  return { set, prev, was };
 }
 /* the furthest step every aligner got past with this reading (for the case's history) */
 function labStepNew(prev, o) {
@@ -188,6 +208,7 @@ function labAction(o, eff, extra) {
   const x = Object.assign({ a: 'lab', key: o.key, fields: Object.keys(eff.set).filter(k => k !== 'labOrd'), now: labNowText(o) }, extra || {});
   if (!eff.prev) x.first = 1; const st = labStepNew(eff.prev, o); if (st) x.step = st;
   if (x.fields.length) { x.au = o.au; x.al = o.al; }
+  if (eff.was && Object.keys(eff.was).length) x.was = eff.was; // (counts or a template answer the export replaced)
   return x;
 }
 /* one order onto its case, in a transaction (a reading already there, or older, changes nothing) */
@@ -224,7 +245,9 @@ async function labUnlink(c) {
 /* the Aligners section's "Use these": the counts from the lab order instead of the typed ones */
 async function labUseCounts(c) {
   const o = c && c.labOrd; if (!o) return; const one = oneArch(c), u = one === 'L' ? 0 : o.au, l = one === 'U' ? 0 : o.al; if (u + l <= 0) return;
-  await act(() => B.mutateCase(c.id, d => { d.alU = u || ''; d.alL = l || ''; d.aligners = u + l; }, { a: 'edit', fields: ['alU', 'alL', 'aligners'] }), 'Aligner counts set from the lab order');
+  await act(() => B.mutateCase(c.id, d => { d.alU = u || ''; d.alL = l || ''; d.aligners = u + l;
+    if (d.labOrd && d.labOrd.key === o.key) d.labOrd.filled = Object.assign({}, d.labOrd.filled, { alU: d.alU, alL: d.alL, aligners: d.aligners }); // (the lab's now: later exports keep them current)
+  }, { a: 'edit', fields: ['alU', 'alL', 'aligners'] }), 'Aligner counts set from the lab order');
 }
 
 /* ---------- keeping up: the lab PC's messages in the inbox (handed over by mailSync) ---------- */
@@ -307,8 +330,9 @@ function labHistText(x) {
   if (x.unlink) return 'took Ortho Factory order' + k + ' off this case' + (f.length ? ' (and the aligner counts it had filled in)' : '');
   if (x.relink) return 'put Ortho Factory order' + k + ' back on this case';
   if (x.hand) out.push('linked Ortho Factory order' + k); else if (x.first) out.push('found Ortho Factory order' + k);
-  if (f.some(n => n === 'alU' || n === 'alL' || n === 'aligners')) out.push('filled in the aligner counts from the export' + (x.au || x.al ? ' (U ' + (x.au || 0) + ' · L ' + (x.al || 0) + ')' : ''));
-  if (f.includes('atTemplates')) out.push('answered attachment templates from the export');
+  const w = x.was || {}, hadN = 'alU' in w || 'alL' in w, said = hadN ? ' (this case said U ' + (w.alU || 0) + ' · L ' + (w.alL || 0) + ')' : '';
+  if (f.some(n => n === 'alU' || n === 'alL' || n === 'aligners')) out.push((hadN ? 'updated' : 'filled in') + ' the aligner counts from the export' + (x.au || x.al ? ' (U ' + (x.au || 0) + ' · L ' + (x.al || 0) + ')' : '') + said);
+  if (f.includes('atTemplates')) out.push((w.atTemplates ? 'changed' : 'answered') + ' attachment templates from the export' + (w.atTemplates ? ' (this case said ' + (atLabel(w.atTemplates) || w.atTemplates) + ')' : ''));
   const st = { atTrimmer: 'stickers printed for every aligner', trimmed: 'every aligner trimmed' }[x.step];
   if (st) out.push('reported ' + st);
   return out.length ? out.join(', ') : 'updated the lab progress' + (x.now ? ': ' + x.now : '');
@@ -484,14 +508,31 @@ function labBoxHTML(c) {
       (o.tu || o.tl ? ' · templates ' + (o.tu && o.tl ? 'U & L' : o.tu ? 'U' : 'L') : '') + (labWhen(o) ? ' · last change ' + esc(labWhen(o)) : '') + '</div>' +
     (done ? '' : '<div class="labBtns">' + labGoHTML(c, false) + '<button type="button" class="btn btn-ghost btn-sm" data-act="labUnlink" title="Not this patient’s order? Take it off this case">Not this order</button></div>') + '</div>';
 }
-/* the Aligners section: typed counts that differ from the export — one tap to use the lab's */
+/* the case's counts against the export it follows: { lab: 'U 20 · L 18', mine: 'U 20 · L 20', n: 38 } when they differ
+   (counts changed by hand after the order was on the case, or linked before the export started keeping them current), else null */
+function labCountsDiff(c) {
+  const o = c && c.labOrd, cnt = labCountsOf(c, o); if (!cnt || c.status === 'done' || !(Number(c.alU) || Number(c.alL))) return null;
+  const u = Number(c.alU) || 0, l = Number(c.alL) || 0; if (u === cnt.u && l === cnt.l) return null;
+  const one = oneArch(c), say = (a, b) => one === 'U' ? 'U ' + a : one === 'L' ? 'L ' + b : 'U ' + a + ' · L ' + b;
+  return { lab: say(cnt.u, cnt.l), mine: say(u, l), n: cnt.u + cnt.l };
+}
+/* the Aligners section: counts that differ from the export — one tap to use the lab's */
 function labCountsNote(c) {
-  const o = c.labOrd; if (!o || !o.key || !(o.au || o.al) || !(Number(c.alU) || Number(c.alL)) || c.status === 'done') return '';
-  const one = oneArch(c), U = one === 'L' ? 0 : o.au, L = one === 'U' ? 0 : o.al;
-  if ((Number(c.alU) || 0) === U && (Number(c.alL) || 0) === L) return '';
-  const say = (u, l) => one === 'U' ? 'U ' + u : one === 'L' ? 'L ' + l : 'U ' + u + ' · L ' + l;
-  return '<div class="notice labCnt">' + ic('lab', 15) + '<span>The Ortho Factory order has <b>' + say(U, L) + '</b> — this case says ' + say(Number(c.alU) || 0, Number(c.alL) || 0) + '.</span>' +
+  const d = labCountsDiff(c); if (!d) return '';
+  return '<div class="notice labCnt">' + ic('lab', 15) + '<span>The Ortho Factory order has <b>' + d.lab + '</b> — this case says ' + d.mine + '.</span>' +
     '<button type="button" class="btn btn-sec btn-sm" data-act="labUseCounts">Use these</button></div>';
+}
+/* the same in a few words, for the folded Aligners line, the list rows and the board cards */
+function labCountsHint(c, full) {
+  const d = labCountsDiff(c); if (!d) return '';
+  return '<span class="alLab" title="The Ortho Factory order has ' + esc(d.lab) + ' — this case says ' + esc(d.mine) + '. Open Aligners to use the lab’s.">' + ic('lab', 12) + (full ? 'Ortho Factory has ' + esc(d.lab) : 'lab ' + d.n) + '</span>';
+}
+
+/* Today's hint when the one case this order could be already follows another order: a re-export of the same set under a new
+   revision letter (Titan: the patient's ID plus the plan's revision, 80871D → 80871E), or truly another order */
+function labFollowsText(c, o) {
+  const f = c && c.labOrd; if (!f || !f.key) return 'its case follows another order';
+  return f.pid && o.pid && f.pid === o.pid && f.key !== o.key ? 'a newer export of the order this case follows (' + f.key + ' → ' + o.key + ') — Link moves the case onto it, counts included' : 'its case follows another order (' + f.key + ')';
 }
 
 /* ---------- Today: lab orders waiting for a case ---------- */
@@ -507,7 +548,7 @@ function labWaitHTML() {
       const rest = open.filter(c => !x.cands.includes(c));
       return '<div class="mlRow"><div class="mlWhat"><span class="badge t-lab">Ortho Factory</span><span class="mlName">' + ptName(labPtName(o) || 'No name on the order') + '</span>' +
         '<span class="small muted">' + esc(labNowText(o)) + (ord ? ' · exported ' + esc(fmtWhen(ord)) : '') + ' · order ' + esc(o.key) + '</span>' +
-        (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : x.cands.length === 1 ? '<span class="small" style="color:var(--amber-700)">its case follows another order</span>' : '') + '</div>' +
+        (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : x.cands.length === 1 ? '<span class="small" style="color:var(--amber-700)">' + esc(labFollowsText(x.cands[0], o)) + '</span>' : '') + '</div>' +
         '<div class="mlDo"><select class="inp labSel" data-g="' + gid + '" aria-label="Case for this lab order"><option value="">Pick the case…</option>' +
         (x.cands.length ? '<optgroup label="Possible matches">' + x.cands.map(opt).join('') + '</optgroup>' : '') +
         (rest.length ? '<optgroup label="Open in-house cases">' + rest.map(opt).join('') + '</optgroup>' : '') + '</select>' +
@@ -522,7 +563,7 @@ function labAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="labAdmin"><div class="cardHd"><h3>Lab PC</h3><span class="sub">Ortho Factory’s progress on each in-house set</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap — an in-house set never moves by itself. (3D printing comes from Formlabs’ emails about each print, under Email updates — not Ortho Factory.) Orders it can’t place show on Today. The Tray Maker’s retainers, whitening trays and mouthguards aren’t asked about: they belong to their own cases, which move to Printing once their models are in Ortho Factory.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, takes its aligner counts from the export (a re-export updates them; counts changed by hand afterwards stay, with the lab’s offered), and offers the next step with one tap — an in-house set never moves by itself. (3D printing comes from Formlabs’ emails about each print, under Email updates — not Ortho Factory.) Orders it can’t place show on Today. The Tray Maker’s retainers, whitening trays and mouthguards aren’t asked about: they belong to their own cases, which move to Printing once their models are in Ortho Factory.</p>';
   const bots = (st.bots || []).filter(labBot), beats = (st.beats || []).filter(labBeat).sort((a, b) => (b.at || 0) - (a.at || 0));
   if (!bots.length) return head + how + '<button class="btn btn-act btn-sm" data-act="labSetup">' + ic('plus', 15) + 'Set up the lab PC</button></div></div>';
   const box = b => { const late = !b.at || Date.now() - b.at > 20 * 60000;

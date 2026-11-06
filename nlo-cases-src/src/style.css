@@ -1808,6 +1808,8 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .labMeta b{color:var(--navy)}
 .labBtns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px}
 .notice.labCnt{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px}
+.alLab{display:inline-flex;align-items:center;gap:3px;margin-left:6px;color:var(--amber-700);font-weight:600;white-space:nowrap}
+.alLab svg{flex:none}
 .notice.labCnt>.i{flex:none}
 .notice.labCnt>span{flex:1 1 220px}
 .labCmd{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 2px}

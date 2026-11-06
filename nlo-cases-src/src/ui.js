@@ -1024,7 +1024,7 @@ function alignerTotalHTML(c, inForm) {
 function alignerMini(c) {
   if (c.type !== 'nla') return '';
   const n = alN(c), sets = histReady(c) ? alignerSets(c, casePool()) : null, total = sets ? sets.reduce((s, x) => s + x.n, 0) : 0;
-  return n || total ? '<span class="alMini">' + (n ? n + ' aligners' : '') + (sets && sets.length > 1 && total ? (n ? ' · ' : '') + total + ' total' : '') + '</span>' : '';
+  return n || total ? '<span class="alMini">' + (n ? n + ' aligners' : '') + (sets && sets.length > 1 && total ? (n ? ' · ' : '') + total + ' total' : '') + labCountsHint(c, false) + '</span>' : '';
 }
 function avatar(c) {
   const r = staff(c.assignee);
@@ -1724,7 +1724,7 @@ function renderDrawer() {
     // a Specialty case once it has shipped: Specialty's remake deadlines and how to claim one (warranty.js)
     wtySecHTML(c) +
     (c.type === 'nla' ? dsec('tx', 'Treatment', txSumHTML(c), '<div id="txBox">' + txBoxHTML(c) + '</div>') : '') +
-    (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') : 'Aligner counts not entered yet',
+    (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') + labCountsHint(c, true) : 'Aligner counts not entered yet',
       labCountsNote(c) + '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
     // (retainers & whitening trays: the bag label, which then offers to complete the case (Amir, 2 Oct 2026), is Print labels in the header)
     (c.instructions ? dsec('instr', 'Dr. A’s instructions', oneLine(c.instructions), txt(c.instructions)) : '') +
