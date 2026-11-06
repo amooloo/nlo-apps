@@ -686,6 +686,28 @@ function copyPtName(c, where) {
   if (!c || !c.patient) return;
   copyText(c.patient).then(ok => toast(ok ? (PH.hide ? 'Copied the patient’s name' : 'Copied “' + c.patient + '”') + ' — paste it in ' + (where || 'the portal’s search') : 'Couldn’t copy the name — type it in ' + (where ? where.replace(/’s search$/, '') : 'the portal'), ok ? {} : { bad: true }));
 }
+/* "Open Titan (app)" on an in-house case (Amir, 6 Nov 2026: "is there anyway it can also (in addition) to the web version, open the
+   software version"): a web page can't start a program, but it can open a link of a kind the computer knows. The NLO Titan
+   Launcher (lab/nlo-titan-launcher.ps1, a one-time setup per office PC — Team & security → Titan app, or the hint under the
+   button) teaches Windows "nlo-titan:" and answers nlo-titan:open?name=… by putting the patient's name on the clipboard and
+   bringing Titan to the front (starting it if needed). The name is copied here too, like the portals. A computer that doesn't know
+   the link does nothing (the browser keeps focus), so after 1.5 s the hint under the buttons says how to set it up. */
+const TITAN_APP = { scheme: 'nlo-titan', t: 0 };
+function titanAppUrl(c) { return TITAN_APP.scheme + ':open?name=' + encodeURIComponent(c.patient || '') + (c.chart ? '&chart=' + encodeURIComponent(c.chart) : ''); }
+function titanAppOpen(c) {
+  if (!c) return;
+  copyPtName(c, 'Titan’s search');
+  const left = { v: false }, on = () => { left.v = true; };
+  window.addEventListener('blur', on); document.addEventListener('visibilitychange', on);
+  const hint = $('#titanAppHint'); if (hint) hint.innerHTML = '<span class="muted">Opening Titan on this computer…</span>';
+  try { location.href = titanAppUrl(c); } catch (e) { }
+  clearTimeout(TITAN_APP.t);
+  TITAN_APP.t = setTimeout(() => {
+    window.removeEventListener('blur', on); document.removeEventListener('visibilitychange', on);
+    const h = $('#titanAppHint'); if (!h) return;
+    h.innerHTML = left.v || !document.hasFocus() ? '' : '<span style="color:var(--amber-700)">Titan didn’t open? This computer doesn’t know the link yet — a one-time setup: <a href="#" data-act="titanAppHow">how to set it up</a>.</span>';
+  }, 1500);
+}
 /* while a MARPE case is gathering its records: what's still missing, or that both are on file */
 function recFlag(c) {
   if (typeOf(c).flow !== 'marpe' || stageIndex(c) > 0) return '';
@@ -1688,8 +1710,11 @@ function renderDrawer() {
     // in-house: the case's own Titan link first (when saved), then Titan's web version and its beta
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
       (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
-      (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
-      '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
+      (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') +
+      // in-house: the Titan program on this computer too (Amir, 6 Nov 2026) — see titanAppOpen
+      (c.type === 'nla' ? '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" title="Opens the Titan program on this computer and copies the patient’s name (a one-time setup per computer)">' + ic('next', 15) + 'Open Titan (app)</button>' : '') +
+      (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+      '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span>' + (c.type === 'nla' ? '<span id="titanAppHint" class="small titanHint"></span>' : '') + '</div>' : '') +
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
     '<div class="dsList">' +
     // the step's station icon moves while the case is at Printing, Thermoforming or Trimming (lab.js labStepIcon; Amir, 7 Oct 2026)
@@ -2404,6 +2429,8 @@ function onClick(e) {
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'zoomJoin': break; // a MARPE case's Join Zoom: the link itself opens the call in a new tab (and doesn't open the case)
     case 'portal': copyPtName(findCase(S.openId)); break; // the link itself opens the portal in a new tab
+    case 'titanApp': titanAppOpen(findCase(S.openId)); break;
+    case 'titanAppHow': e.preventDefault(); titanSetupModal(); break;
     // an Oliv patient's row or card: the link itself opens Dental Monitoring in a new tab (and doesn't open the case)
     case 'dmLink': copyPtName(findCase(id), 'Dental Monitoring’s search'); break;
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
