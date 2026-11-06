@@ -8,10 +8,11 @@
   portals) and brings Titan to the front - starting it if it isn't running. Nothing else: the link never runs anything, and the
   only thing read from it is the name (and a chart number, for the log).
 
-  Set up once per computer, as the Windows user who uses NLO Cases there (no administrator needed, about a minute):
-      in Downloads, right-click this file -> Run with PowerShell   (double-clicking only opens it as text)
-      or, in Windows PowerShell:
-      powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\Downloads\nlo-titan-launcher.ps1" -Install
+  Set up once per computer, as the Windows user who uses NLO Cases there (no administrator needed, about a minute). NLO Cases
+  (Team & security -> Titan app, or the hint under the button) shows the one line to paste into Windows PowerShell: it fetches
+  this script from the site into %TEMP% and runs it with -Install. By hand, with a downloaded copy:
+      right-click the file -> Run with PowerShell   (double-clicking only opens it as text)
+      or   powershell -NoProfile -ExecutionPolicy Bypass -File "<where it is>\nlo-titan-launcher.ps1" -Install
   It finds Titan (asks if it can't), keeps a copy of itself in %LOCALAPPDATA%\NLO Titan Launcher, registers "nlo-titan:" for this
   Windows user, and tries it. The first time Chrome or Edge opens one of these links it asks "Open Windows PowerShell?" -
   tick "Always allow" and Open. (The link runs through PowerShell, so that is the name the browser shows.)
