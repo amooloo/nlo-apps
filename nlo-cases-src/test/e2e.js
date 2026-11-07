@@ -1110,7 +1110,7 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await openByName(owner, 'Dmitri Distalson'); check((await owner.locator('#drawer .portals').count()) === 0, 'no portal link on appliances');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
-  await openByName(owner, 'Ines Smilewright'); check((await owner.locator('#drawer .portals').count()) === 0, 'no portal link on InSmile');
+  await openByName(owner, 'Ines Smilewright'); check(await owner.isVisible('#drawer .portals a[href="https://portal.insmilebraces.com/"][target=_blank]:has-text("Open InSmile portal")'), 'an InSmile case links to the InSmile portal (7 Nov 2026)');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
 
   console.log('\n# MARPE: its own steps (records → lab → Zoom call → design approved → delivered)');
