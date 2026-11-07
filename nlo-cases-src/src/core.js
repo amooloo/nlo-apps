@@ -95,8 +95,10 @@ const TYPES = [
   { k: 'misc', l: 'Other (misc.)', flow: 'misc', cls: 't-misc', legacy: true }
 ];
 const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
-/* where each aligner company's cases are worked on (Amir, 2 Oct 2026; not for appliances or InSmile); in-house sets open
-   Titan's web version, the released one and the early-access (beta) one — opening any of them copies the patient's name */
+/* where each company's cases are worked on (Amir, 2 Oct 2026; not for appliances); in-house sets open Titan's web version,
+   the released one and the early-access (beta) one — opening any of them copies the patient's name. InSmile Braces' doctor
+   portal (Amir, 7 Nov 2026: "Add the portal.insmile for insmile cases") — portal.insmilebraces.com; older InBrace cases
+   get it too, since InBrace's portal now forwards to InSmile, who took the system over */
 /* where each scanner's scans are (Amir, 3 Oct 2026: "link that back to the actual website for myitero.com or allied-star one in
    case if you need to log in and look at the scans"): MyiTero, and AlliedStar's AS Connect web app — its US & Canada site
    (Amir: "make sure the as connect link is for US and north america"; the address AlliedStar's own "Log in to AS Connect"
@@ -112,7 +114,9 @@ const PORTALS = {
   oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: DM_URL }],
   invisalign: [{ l: 'Invisalign Doctor Site', u: 'https://vip.invisalign.com/' }],
   angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/cas/login?service=https://iortho.angelalign.com/OPM/shiro-cas' }],
-  ulab: [{ l: 'uDesign Cloud', u: 'https://udesign.cloud/' }]
+  ulab: [{ l: 'uDesign Cloud', u: 'https://udesign.cloud/' }],
+  insmile: [{ l: 'InSmile portal', u: 'https://portal.insmilebraces.com/' }],
+  inbrace: [{ l: 'InSmile portal', u: 'https://portal.insmilebraces.com/' }]
 };
 /* types to offer in pickers: retired types only while some case still uses them (or one is already chosen) */
 function typesShown(cases, chosen) { return TYPES.filter(t => !t.legacy || t.k === chosen || (cases || []).some(c => c.type === t.k)); }
