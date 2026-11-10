@@ -824,12 +824,14 @@ let editsByFile = {}, curFile = null, curScans = [];
 const fileKeyOf = sc => sc ? `${sc.filename}|${sc.preset === 'mouthguard' ? 'mg' : 'std'}` : null;
 let outlines = [];   // closed outlines on the current file: lists of corner vertices (sent with the strokes, kept with the case)
 let p1paths = [], p1pathClear = false;   // the Phase I tab's traced cutout outlines drawn this time (ordered vertex runs), and whether the applied ones were cleared
+let p1ctrl = {}, p1Gone = new Set(), p1active = null;   /* the Cutout outline as it is edited: each side's dots {R: [{id, p}], L: [...]}, the applied outlines taken up or cleared (their numbers), the side worked on last */
+const p1Clone = o => Object.fromEntries(Object.entries(o).map(([k, l]) => [k, l.map(c => ({ id: c.id, p: c.p.slice() }))]));
 let p1AppliedByFile = {};                // per scan file: the traced outlines already applied (from /p1dots when the file was shown)
 function stashPontics(){ if (!curFile) return; if (pontics.length || ponticsDirty) ponticsByFile[curFile] = { list: pontics.map(p => Object.assign({}, p)), dirty: ponticsDirty, sel: ponticSel }; else delete ponticsByFile[curFile]; }
-function stashEdits(){ stashPontics(); if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length || p1paths.length || p1pathClear || Object.keys(toothIds).length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].teeth = Object.assign({}, toothIds); editsByFile[curFile].outlines = outlines.map(o => o.slice()); editsByFile[curFile].p1paths = p1paths.map(o => o.slice()); editsByFile[curFile].p1pathClear = p1pathClear; editsByFile[curFile].raw = rawView && (edits.takeoff.size + edits.notbracket.size) > 0; } else delete editsByFile[curFile]; }
+function stashEdits(){ stashPontics(); if (!curFile) return; if (EDIT_KEYS.some(k => edits[k].size) || outlines.length || p1paths.length || p1pathClear || Object.keys(p1ctrl).length || p1Gone.size || Object.keys(toothIds).length) { editsByFile[curFile] = Object.fromEntries(EDIT_KEYS.map(k => [k, new Set(edits[k])])); editsByFile[curFile].teeth = Object.assign({}, toothIds); editsByFile[curFile].outlines = outlines.map(o => o.slice()); editsByFile[curFile].p1paths = p1paths.map(o => o.slice()); editsByFile[curFile].p1pathClear = p1pathClear; editsByFile[curFile].p1ctrl = p1Clone(p1ctrl); editsByFile[curFile].p1Gone = [...p1Gone]; editsByFile[curFile].raw = rawView && (edits.takeoff.size + edits.notbracket.size) > 0; } else delete editsByFile[curFile]; }
 function restoreEdits(key){ const pb = ponticsByFile[key]; if (pb) { pontics = pb.list.map(p => Object.assign({}, p)); ponticsDirty = !!pb.dirty; ponticSel = pb.sel || null; } else { pontics = []; ponticsDirty = false; ponticSel = null; }
-  const e = editsByFile[key]; toothIds = e && e.teeth ? Object.assign({}, e.teeth) : {}; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); outlines = e && e.outlines ? e.outlines.map(o => o.slice()) : []; p1paths = e && e.p1paths ? e.p1paths.map(o => o.slice()) : []; p1pathClear = !!(e && e.p1pathClear); }
-function forgetEdits(){ editsByFile = {}; ponticsByFile = {}; pontics = []; ponticsDirty = false; ponticSel = null; curFile = null; toothIds = {}; p1AppliedByFile = {}; EDIT_KEYS.forEach(k => edits[k].clear()); if (typeof relabelOf !== 'undefined') relabelOf = new Map(); outlines = []; if (typeof dropOutline === 'function') dropOutline(); p1paths = []; p1pathClear = false; if (typeof dropP1Path === 'function') dropP1Path(); }
+  const e = editsByFile[key]; toothIds = e && e.teeth ? Object.assign({}, e.teeth) : {}; EDIT_KEYS.forEach(k => { edits[k].clear(); if (e && e[k]) e[k].forEach(i => edits[k].add(i)); }); outlines = e && e.outlines ? e.outlines.map(o => o.slice()) : []; p1paths = e && e.p1paths ? e.p1paths.map(o => o.slice()) : []; p1pathClear = !!(e && e.p1pathClear); p1ctrl = e && e.p1ctrl ? p1Clone(e.p1ctrl) : {}; p1Gone = new Set((e && e.p1Gone) || []); p1active = null; }
+function forgetEdits(){ editsByFile = {}; ponticsByFile = {}; pontics = []; ponticsDirty = false; ponticSel = null; curFile = null; toothIds = {}; p1AppliedByFile = {}; EDIT_KEYS.forEach(k => edits[k].clear()); if (typeof relabelOf !== 'undefined') relabelOf = new Map(); outlines = []; if (typeof dropOutline === 'function') dropOutline(); p1paths = []; p1pathClear = false; p1ctrl = {}; p1Gone = new Set(); p1active = null; if (typeof dropP1Path === 'function') dropP1Path(); }
 // every file's strokes, as the server takes them: one entry per scan file, with the index of a scan made from it
 function allEdits(){
   stashEdits();
@@ -879,8 +881,8 @@ const PANELS = {
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
   block:  { group: 'seg', title: 'Block-outs — fill an undercut for thermoforming', modes: [['outline', 'Outline', 'Click round the undercut, corner by corner (Shift-click): the corners are joined along the surface; click the first dot again to close and everything inside is blocked out. Esc drops an unfinished outline', 'poly'], ['blockout', 'Block out', 'Brush: fill the undercut under this spot (under a pontic, round an implant crown, a black triangle) so the retainer seats', 'brush'], ['unblockout', 'Clear', 'Take a painted block-out away here (an applied one shows pale green) - the next Apply re-makes the model without it', 'eraser']],
             sets: ['blockout', 'unblockout'], hint: '<b>Outline</b>: Shift-click corner after corner round the undercut and click the first dot again to close it - the inside is blocked out and the outline is kept with the case (it teaches the automatic block-out where you want them). <b>Block out</b> is the brush instead: hold <kbd class="key">Shift</kbd> and drag over the undercut (the black triangle, the space under a pontic, round an implant crown); rotate with the mouse otherwise. The space under the painted overhang is filled solid, flush with the tooth\'s widest line - the crown continues straight down to the gum, like block-out resin; where there is no undercut nothing is added. Already applied block-outs show pale green on the Result. <b>Block-out amount</b> in Settings moves the wall out or in. Kept for every model made from this scan and every re-run.' },
-  p1:     { group: 'seg', title: 'Phase I — where the cutouts go and where the retainer ends', modes: [['p1path', 'Cutout outline', 'Hold Shift and draw the cutout\'s edge on the model in one stroke - from the distal of the 2, round the tongue side of the C/D area, to the E or 5; letting go finishes it. Or dot by dot: Shift-click the distal of the 2, then along the tongue side of the C/D area (as far onto the gum as the cutout should go), and last on the E or 5 where the cutout ends; click the last dot again (or press Enter) to finish - the app joins both ends to the trim line. Backspace takes the last dot back, Esc drops the outline', 'poly'], ['p1span', 'Cutout span', 'Shift-click twice on a side - the near end and the far end of the cutout, mesio-distal - and the cutout runs between the two dots, whatever teeth stand there. Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1end', 'Ends here', 'Shift-click once on a side where the retainer ends: nothing is covered behind the dot (instead of the app finding the 12-year molar). Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1six', '6 is here', 'Shift-click on the first molar on a side: that tooth is the 6, the side is counted from it (anything behind is a 7; in front of it one less per tooth, a space of 4.5 mm or more counting as a tooth gone). For when the app has the 6 as a 7 and cuts it off', 'dot']],
-            sets: ['p1span', 'unp1span', 'p1end', 'unp1end', 'p1six', 'unp1six'], hint: '<b>Cutout outline</b> (the easiest way): <b>draw it</b> - hold <kbd class="key">Shift</kbd>, press on the distal of the 2 and drag round the tongue side of the C/D area (as far onto the gum as the cutout should go) to the E or the 5, then let go: the green line is the cutout\'s edge. Backspace takes the last outline back. Or dot by dot, three steps per side - <b>1</b> Shift-click the distal of the 2 (where the cutout starts), <b>2</b> click your way round the tongue side of the C/D area, as far onto the gum as the cutout should go, <b>3</b> click on the E (or the 5) where the cutout ends - then click the last dot again or press Enter. The app cuts out everything between your outline and the cheek side and joins both ends to the trim line; the 2 and the teeth behind your last dot stay whole. One outline per side. <b>6 is here</b>: Shift-click the first molar on a side when the app has it wrong (a space between the front teeth counted as a tooth gone makes the 6 a "7", and the retainer stops short of it): that tooth is the 6, the side is counted from it - 7 behind it, and in front of it one less per tooth, with a space of 4.5 mm or more between two teeth counted as a tooth gone (the D across the E\'s space stays the 4). <b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (the lateral\'s distal face to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
+  p1:     { group: 'seg', title: 'Phase I — where the cutouts go and where the retainer ends', modes: [['p1path', 'Cutout outline', 'Hold Shift and click a few dots along the cutout\'s edge - the distal of the 2, round the tongue side of the C/D area, the E or 5: a smooth curve is drawn through them. Each side is its own outline. Shift-drag a dot to bend the curve, Shift-click a dot to delete it, Shift-click the curve to add one; Backspace takes the last dot back. Shift-drag on the model draws freehand', 'poly'], ['p1span', 'Cutout span', 'Shift-click twice on a side - the near end and the far end of the cutout, mesio-distal - and the cutout runs between the two dots, whatever teeth stand there. Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1end', 'Ends here', 'Shift-click once on a side where the retainer ends: nothing is covered behind the dot (instead of the app finding the 12-year molar). Click a dot to take it away, Shift-drag it to move it', 'dot'], ['p1six', '6 is here', 'Shift-click on the first molar on a side: that tooth is the 6, the side is counted from it (anything behind is a 7; in front of it one less per tooth, a space of 4.5 mm or more counting as a tooth gone). For when the app has the 6 as a 7 and cuts it off', 'dot']],
+            sets: ['p1span', 'unp1span', 'p1end', 'unp1end', 'p1six', 'unp1six'], hint: '<b>Cutout outline</b> (the easiest way): hold <kbd class="key">Shift</kbd> and click a few dots along the cutout\'s edge on one side - the distal of the 2 (where it starts), round the tongue side of the C/D area as far onto the gum as the cutout should go, and on the E or the 5 (where it ends). The app draws a <b>smooth curve</b> through the dots: the <b>amber</b> dot is the start, the <b>blue</b> dot the end. There is nothing to finish - the right and the left are two outlines of their own, and a dot belongs to the side it is clicked on. To shape it: <b>Shift-drag a dot</b> and the curve bends with it; <b>Shift-click the curve</b> to put a dot in between; <b>Shift-click a dot</b> to delete that one dot; <b>Undo last dot</b> (or Backspace) takes the last one back. Shift-drag on the bare model draws the line freehand and turns it into dots. The app cuts out everything between the curve and the cheek side and joins both ends to the trim line; the 2 and the teeth behind the last dot stay whole. An applied outline shows pale - Shift-click on it and it is dots again. <b>6 is here</b>: Shift-click the first molar on a side when the app has it wrong (a space between the front teeth counted as a tooth gone makes the 6 a "7", and the retainer stops short of it): that tooth is the 6, the side is counted from it - 7 behind it, and in front of it one less per tooth, with a space of 4.5 mm or more between two teeth counted as a tooth gone (the D across the E\'s space stays the 4). <b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (the lateral\'s distal face to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
   teeth:  { group: 'seg', title: 'Teeth — the number of every tooth', modes: [['number', 'Number', 'Click a tooth\'s badge and pick its number (1-8, or A-E for a primary tooth); the other teeth on that side are counted from it. × = not a tooth', 'dot']],
             sets: [], hint: 'Every tooth carries a badge with the number the app gave it (counted from the midline). Click a badge and pick the right number - <b>Perm</b> 1-8 or <b>Primary</b> A-E - and the rest of that side is counted from it (one more going back, one less going forward), so one click puts a whole side right; <b>× not a tooth</b> makes a label gum again; <b>auto</b> gives the app\'s count back. Badges given by hand show orange. Apply &amp; re-run makes the models with these numbers; they are kept with the scan.' },
   pontic: { group: 'seg', title: 'Pontics — a tooth shape where a tooth is missing', modes: [['pontic', 'Place', 'Click a + badge in a space where a tooth is missing, or Shift-click the gum where the pontic goes; then drag the arrows and arcs on it', 'dot']],
@@ -927,7 +929,7 @@ function renderPanel(){
     <div class="hint phelp ${helpOpen.brush ? 'on' : ''}" id="brushhelptext"><b>${P.title}.</b> ${P.hint} ${tab === 'pontic' ? '' : '<b>Outline instead of filling:</b> a stroke that comes back onto itself paints everything inside the loop.'}</div>
     ${tab === 'pontic' ? ponticPanelHtml() : ''}
     ${tab === 'braces' ? `<label class="ck" style="margin-top:8px;display:block" title="Shows the scan exactly as it came, with what comes off marked orange (blue = marked Not a bracket). Paint on it: Take off adds to the outline, Not a bracket takes away from it, and Apply takes the braces off again from this scan as marked. Nothing is lost: the scan as scanned is always kept with the case."><input type="checkbox" id="rawview" ${rawView ? 'checked' : ''}> <b>Scan as scanned</b>, with what comes off marked - fix the outline here</label>` : ''}
-    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button>${tab === 'clean' && curScans[scanIdx] && curScans[scanIdx].cut ? '<button class="small" id="uncut" title="Puts the scan back as it was before the first cut and re-makes its models">Bring back what was cut</button>' : ''}</div>
+    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button>${tab === 'p1' ? '<button class="small" id="p1undo" title="Takes away the last dot of the outline you worked on last - one dot at a time (Backspace does the same). To take away any other dot, hold Shift and click it">Undo last dot</button>' : ''}${tab === 'clean' && curScans[scanIdx] && curScans[scanIdx].cut ? '<button class="small" id="uncut" title="Puts the scan back as it was before the first cut and re-makes its models">Bring back what was cut</button>' : ''}</div>
     <div class="hint" id="fixcount">No edits.</div>
     <div class="stepnav"><span class="where" id="stepwhere"></span><button class="small" id="stepback" title="The step before">&larr; Back</button><button class="small" id="stepnext" title="The next step - your edits here are kept and go with the next Apply">Next &rarr;</button></div>`;
   box.querySelectorAll('button[data-mode]').forEach(b => b.onclick = () => { box.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('on')); b.classList.add('on'); tabMode[tab] = b.dataset.mode; syncBrush(); drawDots(); requestRender(); });
@@ -946,7 +948,7 @@ function renderPanel(){
   // should ask you to confirm if you want to undo everything")
   $('#clearfix').onclick = () => {
     const btn = $('#clearfix');
-    const n = P.sets.reduce((a, k) => a + edits[k].size, 0) + (tab === 'teeth' ? Object.keys(toothIds).length : 0) + (tab === 'block' ? outlines.length : 0) + (tab === 'p1' ? p1paths.length + (p1cur ? 1 : 0) + (p1pathClear ? 0 : p1Dots.path.length) : 0) + (tab === 'pontic' ? pontics.length : 0);
+    const n = P.sets.reduce((a, k) => a + edits[k].size, 0) + (tab === 'teeth' ? Object.keys(toothIds).length : 0) + (tab === 'block' ? outlines.length : 0) + (tab === 'p1' ? p1DotCount() + p1Live() : 0) + (tab === 'pontic' ? pontics.length : 0);
     if (!n) { btn.textContent = 'Nothing to clear'; setTimeout(() => { btn.textContent = 'Clear'; }, 1500); return; }
     if (!btn.dataset.armed) {
       btn.dataset.armed = '1'; btn.textContent = `Clear ${n} edit${n > 1 ? 's' : ''}? click again`; btn.style.color = 'var(--err)';
@@ -954,8 +956,8 @@ function renderPanel(){
       return;
     }
     clearTimeout(btn._t); delete btn.dataset.armed; btn.style.color = '';
-    lastCleared = { tab, sets: Object.fromEntries(P.sets.map(k => [k, new Set(edits[k])])), teeth: Object.assign({}, toothIds), outlines: outlines.map(o => o.slice()), p1paths: p1paths.map(o => o.slice()), p1pathClear, pontics: pontics.map(p => Object.assign({}, p)), ponticsDirty, ponticSel };
-    P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'teeth') { toothIds = {}; drawBadges(); } if (tab === 'block') { outlines = []; dropOutline(); } if (tab === 'p1') { p1paths = []; dropP1Path(); p1pathClear = p1Dots.path.length > 0; } if (tab === 'pontic') { pontics = []; ponticSel = null; ponticsDirty = true; drawPontics(); drawBadges(); } paintColors(); paintResColors(); updateFixCount();
+    lastCleared = { tab, sets: Object.fromEntries(P.sets.map(k => [k, new Set(edits[k])])), teeth: Object.assign({}, toothIds), outlines: outlines.map(o => o.slice()), p1ctrl: p1Clone(p1ctrl), p1Gone: [...p1Gone], pontics: pontics.map(p => Object.assign({}, p)), ponticsDirty, ponticSel };
+    P.sets.forEach(k => edits[k].clear()); relabelOf = new Map(); if (tab === 'teeth') { toothIds = {}; drawBadges(); } if (tab === 'block') { outlines = []; dropOutline(); } if (tab === 'p1') { p1ctrl = {}; p1Gone = new Set(p1Dots.path.map((_, i) => i)); p1active = null; p1Rebuild(); } if (tab === 'pontic') { pontics = []; ponticSel = null; ponticsDirty = true; drawPontics(); drawBadges(); } paintColors(); paintResColors(); updateFixCount();
     btn.textContent = `Undo clear (${n})`; btn.dataset.undo = '1';
     btn._t = setTimeout(() => { if (btn.dataset.undo) { delete btn.dataset.undo; btn.textContent = 'Clear'; lastCleared = null; } }, 20000);
     btn.onclick = () => {
@@ -963,6 +965,7 @@ function renderPanel(){
         for (const k in lastCleared.sets) { edits[k].clear(); lastCleared.sets[k].forEach(i => edits[k].add(i)); }
         if (tab === 'teeth') { toothIds = Object.assign({}, lastCleared.teeth); drawBadges(); }
         if (tab === 'block') outlines = lastCleared.outlines.map(o => o.slice());
+        if (tab === 'p1') { p1ctrl = p1Clone(lastCleared.p1ctrl); p1Gone = new Set(lastCleared.p1Gone); p1Rebuild(); }
         if (tab === 'pontic') { pontics = lastCleared.pontics.map(p => Object.assign({}, p)); ponticsDirty = lastCleared.ponticsDirty; ponticSel = lastCleared.ponticSel; drawPontics(); drawBadges(); }
         paintColors(); paintResColors(); updateFixCount();
       }
@@ -970,6 +973,7 @@ function renderPanel(){
     };
   };
   $('#rerun').onclick = applyAndRerun;
+  if ($('#p1undo')) $('#p1undo').onclick = () => { const b = $('#p1undo'); if (!p1UndoDot()) { b.textContent = 'No dots'; setTimeout(() => { b.textContent = 'Undo last dot'; }, 1500); } };
   if ($('#uncut')) $('#uncut').onclick = bringBackCut;
   if (tab === 'pontic') wirePonticPanel(box);
   $('#brushhide').onclick = () => { panelOpen.brush = false; syncPanels(); };
@@ -3242,76 +3246,120 @@ window.addEventListener('keydown', ev => { if (ev.key === 'Escape' && outl) drop
 // E / 5), the dots between are its edge on the tongue side. Clicking the last dot again, or Enter, finishes the run; it
 // is kept with the scan (the server cuts out everything between the run and the cheek side and joins the ends to the
 // trim line). Applied runs show pale; Clear on the tab takes them all away on the next Apply.
-let p1cur = null;   // { pts: [Vector3], ids: [vertex], ns: [Vector3] } while a run is being traced
+// One outline per side, as a curve through a few dots (the doctor, 11/10/2026: "make it vector like so I can make it
+// curve ... not clear how to do the final dot ... it keeps jumping to the other side ... delete one dot at a time"):
+// - a Shift-click puts a dot on the side it is clicked on (the side of the nearest tooth) - the right and the left are
+//   two outlines of their own, so there is no "finish": a click on the other side simply belongs to that side's outline;
+// - the app draws a smooth curve through a side's dots, in the order they were placed: the first (amber) is where the
+//   cutout starts, the last (blue) where it ends; a click on the curve puts a dot in between;
+// - Shift-drag a dot to move it (the curve bends with it), Shift-click a dot to take that one dot away, Backspace /
+//   "Undo last dot" takes the last one of the side worked on last;
+// - Shift-drag on the bare model still draws freehand: the stroke becomes a few dots to adjust;
+// - an applied outline (pale) becomes its side's dots again the moment that side is touched.
+// What goes to the server is unchanged: per side, the curve as an ordered run of the scan's vertices.
 const p1Group = new THREE.Group(); groups.seg.add(p1Group);
-const P1_STEPS = ['hold Shift and draw: from the distal of the 2, round the tongue side of the C/D area, to the E (or the 5) - let go to finish. Or Shift-click dot by dot', 'now click round the tongue side of the C/D area, as far onto the gum as the cutout should go (or hold Shift and draw the rest)', 'last: click on the E (or the 5) where the cutout ends - then click that dot again, or press Enter, to finish'];
-function p1Guide(){ if (!p1cur) return P1_STEPS[0]; return p1cur.pts.length === 1 ? P1_STEPS[1] : P1_STEPS[2] + ` (${p1cur.pts.length} dots so far)`; }
-function dropP1Path(){ p1cur = null; drawP1Paths(); updateFixCount(); }
-function finishP1Path(){
-  if (!p1cur) return;
-  if (p1cur.ids.length < 2) { showErr('An outline needs at least two dots: the distal of the 2 and the E/5, with the tongue-side edge between them.', 6000); return; }
-  const ids = p1cur.ids.filter((v, i, a) => i === 0 || v !== a[i - 1]);
-  p1paths.push(ids); p1cur = null; drawP1Paths(); updateFixCount();
+let p1Drag = null;   // { kind: 'dot' | 'new', side, ev, ... } from a Shift-press on the model until the button is let go
+const P1_DRAW_PX = 5, P1_STEP_MM = 0.8, P1_PICK_MM = 1.3, P1_ON_CURVE_MM = 1.2, P1_SIMPLIFY_MM = 0.5;
+const P1_SIDE_NAME = { R: 'Right', L: 'Left', A: 'Outline' };
+const P1_GUIDE = 'Cutout outline - hold Shift and click a few dots along the cutout\'s edge: the distal of the 2, round the tongue side, the E (or the 5). A curve is drawn through them; each side is its own outline';
+const p1Vec = c => new THREE.Vector3(c.p[0], c.p[1], c.p[2]);
+const p1VertVec = i => new THREE.Vector3(segPos[i*3], segPos[i*3+1], segPos[i*3+2]);
+const p1DotCount = () => Object.values(p1ctrl).reduce((a, l) => a + l.length, 0);
+const p1Live = () => p1Dots.path.filter((_, k) => !p1Gone.has(k)).length;
+// which side of the arch a point is on: the side of the tooth nearest to it ('A' when the teeth have no sides yet)
+function p1SideAt(p){
+  const T = teethInfo.teeth || {}; let best = 0, bd = 1e9;
+  for (let i = 0; i < segLabels.length; i++) { const l = segLabels[i]; if (!l || !T[l]) continue; const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z, d = dx*dx+dy*dy+dz*dz; if (d < bd) { bd = d; best = l; } }
+  return (best && sideOf(best)) || 'A';
 }
-// Drawn or clicked (the doctor, 11/10/2026: "can I just draw the cut out region on the model?"): hold Shift and drag -
-// the line follows the mouse along the surface and the outline is finished when the button is let go; a Shift-click
-// without moving still places one dot, as before.
-let p1Drag = null;   // { ev, h0, drawing } from a Shift-press on the model until the button is let go
-const P1_DRAW_PX = 5, P1_DRAW_MM = 0.8;
-function p1Push(h){ if (!p1cur) p1cur = { pts: [], ids: [], ns: [] }; p1cur.pts.push(h.p.clone()); p1cur.ns.push(new THREE.Vector3(0, 0, 1)); p1cur.ids.push(h.best); }
-function p1PathDown(ev){ p1Drag = { ev, h0: dotHit(ev), drawing: false }; controls.enabled = false; }
+// the smooth curve through a side's dots, as points a step apart
+function p1CurvePts(V, step){
+  if (V.length < 2) return V.slice();
+  const cv = new THREE.CatmullRomCurve3(V, false, 'centripetal');
+  return cv.getSpacedPoints(Math.max(2, Math.ceil(cv.getLength() / step)));
+}
+const p1RunOf = V => { const out = []; for (const q of p1CurvePts(V, P1_STEP_MM)) { const i = nearestVertex(q); if (i >= 0 && out[out.length - 1] !== i) out.push(i); } return out; };
+// a drawn stroke (or an applied run) down to the few points that carry its shape (Ramer-Douglas-Peucker)
+function p1Simplify(P, eps){
+  if (P.length <= 2) return P.slice();
+  const keep = new Uint8Array(P.length); keep[0] = keep[P.length - 1] = 1; const st = [[0, P.length - 1]], ab = new THREE.Vector3(), ap = new THREE.Vector3();
+  while (st.length) { const [a, b] = st.pop(); let bi = -1, bd = eps; ab.subVectors(P[b], P[a]); const L2 = ab.lengthSq();
+    for (let i = a + 1; i < b; i++) { ap.subVectors(P[i], P[a]); const t = L2 ? Math.max(0, Math.min(1, ap.dot(ab) / L2)) : 0; const d = ap.addScaledVector(ab, -t).length(); if (d > bd) { bd = d; bi = i; } }
+    if (bi >= 0) { keep[bi] = 1; st.push([a, bi], [bi, b]); } }
+  return P.filter((_, i) => keep[i]);
+}
+function p1AppliedSideOf(k){ const S = p1Dots.sides || (p1Dots.sides = []); if (!S[k]) { const r = p1Dots.path[k].filter(i => i < segLabels.length); S[k] = r.length ? p1SideAt(p1VertVec(r[r.length >> 1])) : 'A'; } return S[k]; }
+// the applied outline of a side becomes that side's dots, to go on with
+function p1Adopt(side){
+  p1Dots.path.forEach((r, k) => { if (p1Gone.has(k) || p1AppliedSideOf(k) !== side) return; p1Gone.add(k);
+    if (!(p1ctrl[side] || []).length) p1ctrl[side] = p1Simplify(r.filter(i => i < segLabels.length).map(p1VertVec), P1_SIMPLIFY_MM).map(v => ({ id: nearestVertex(v), p: v.toArray() })); });
+}
+// the dots -> what Apply sends: each side's curve as a run of vertices, plus the applied outlines left as they are
+function p1Rebuild(){
+  const mine = [];
+  for (const s of Object.keys(p1ctrl)) { if (!p1ctrl[s].length) { delete p1ctrl[s]; continue; } if (p1ctrl[s].length >= 2) { const r = p1RunOf(p1ctrl[s].map(p1Vec)); if (r.length >= 2) mine.push(r); } }
+  p1pathClear = p1Gone.size > 0;
+  p1paths = mine.concat(p1pathClear ? p1Dots.path.filter((_, k) => !p1Gone.has(k)).map(r => r.slice()) : []);
+  drawP1Paths(); updateFixCount();
+}
+function dropP1Path(){ p1Drag = null; drawP1Paths(); updateFixCount(); }
+function p1DotNear(p){ let best = null, bd = P1_PICK_MM; for (const s in p1ctrl) p1ctrl[s].forEach((c, k) => { const d = p1Vec(c).distanceTo(p); if (d < bd) { bd = d; best = { side: s, k }; } }); return best; }
+// on the curve between two dots: the place in the list for a new dot; -1 = not on the curve (the dot goes at the end)
+function p1InsertAt(list, p){
+  if (list.length < 2) return -1;
+  const K = 12, P = new THREE.CatmullRomCurve3(list.map(p1Vec), false, 'centripetal').getPoints((list.length - 1) * K);
+  let bj = -1, bd = P1_ON_CURVE_MM; P.forEach((q, j) => { const d = q.distanceTo(p); if (d < bd) { bd = d; bj = j; } });
+  return bj < 0 ? -1 : Math.min(list.length - 1, Math.floor(bj / K) + 1);
+}
+function p1PathDown(ev){
+  const h = dotHit(ev); if (!h) return;
+  const side = p1SideAt(h.p); p1Adopt(side);
+  const on = p1DotNear(h.p);
+  p1Drag = on ? { kind: 'dot', side: on.side, k: on.k, ev, moved: false } : { kind: 'new', side, ev, h0: h, drawing: false, pts: [h.p.clone()] };
+  p1active = p1Drag.side; controls.enabled = false; drawP1Paths();
+}
 function p1PathMove(ev){
   const d = p1Drag; if (!d) return;
-  if (!d.drawing) {
-    if (Math.hypot(ev.clientX - d.ev.clientX, ev.clientY - d.ev.clientY) < P1_DRAW_PX) return;
-    d.drawing = true;
-    if (d.h0 && !(p1cur && p1cur.pts.length && d.h0.p.distanceTo(p1cur.pts[p1cur.pts.length - 1]) < P1_DRAW_MM)) p1Push(d.h0);
-  }
-  const h = dotHit(ev); if (!h) return;
-  if (p1cur && p1cur.pts.length && h.p.distanceTo(p1cur.pts[p1cur.pts.length - 1]) < P1_DRAW_MM) return;
-  p1Push(h); drawP1Paths(); updateFixCount();
+  const far = Math.hypot(ev.clientX - d.ev.clientX, ev.clientY - d.ev.clientY) >= P1_DRAW_PX;
+  if (d.kind === 'dot') { if (!d.moved && !far) return; d.moved = true; const h = dotHit(ev); if (h) { p1ctrl[d.side][d.k] = { id: h.best, p: h.p.toArray() }; drawP1Paths(); } return; }
+  if (!d.drawing) { if (!far) return; d.drawing = true; }
+  const h = dotHit(ev);
+  if (h && h.p.distanceTo(d.pts[d.pts.length - 1]) >= P1_STEP_MM) { d.pts.push(h.p.clone()); drawP1Paths(); }
 }
 function p1PathUp(){
   const d = p1Drag; p1Drag = null; if (!d) return;
-  if (!d.drawing) { p1PathClick(d.ev); return; }
-  if (p1cur && new Set(p1cur.ids).size >= 2) finishP1Path(); else { dropP1Path(); showErr('That line was too short to be a cutout - hold Shift and draw from the distal of the 2, round the tongue side, to the E (or the 5).', 6000); }
+  const list = p1ctrl[d.side] || (p1ctrl[d.side] = []);
+  if (d.kind === 'dot') { if (!d.moved) list.splice(d.k, 1); }
+  else if (!d.drawing) { const c = { id: d.h0.best, p: d.h0.p.toArray() }, at = p1InsertAt(list, d.h0.p); if (at < 0) list.push(c); else list.splice(at, 0, c); }
+  else if (d.pts.length >= 2) { for (const v of p1Simplify(d.pts, P1_SIMPLIFY_MM)) { if (list.length && p1Vec(list[list.length - 1]).distanceTo(v) < P1_STEP_MM) continue; list.push({ id: nearestVertex(v), p: v.toArray() }); } }
+  p1Rebuild();
 }
-function p1PathClick(ev){
-  const hit = hitAt(ev); if (!hit || !hit.face) return;
-  const p = hit.point.clone(), n = hit.face.normal.clone().transformDirection(brushMeshNow().matrixWorld);
-  if (p1cur && p1cur.pts.length >= 2 && p.distanceTo(p1cur.pts[p1cur.pts.length - 1]) < 1.2) { finishP1Path(); return; }
-  if (!p1cur) p1cur = { pts: [], ids: [], ns: [] };
-  const i = dotHit(ev); p1cur.pts.push(p); p1cur.ns.push(n); p1cur.ids.push(i ? i.best : nearestVertex(p));
-  drawP1Paths(); updateFixCount();
+// the last dot of the side worked on last (Backspace, "Undo last dot"); an applied outline is taken up first
+function p1UndoDot(){
+  let s = p1active && (p1ctrl[p1active] || []).length ? p1active : Object.keys(p1ctrl).find(k => p1ctrl[k].length);
+  if (!s) { const k = p1Dots.path.findIndex((_, i) => !p1Gone.has(i)); if (k < 0) return false; s = p1AppliedSideOf(k); p1Adopt(s); if (!(p1ctrl[s] || []).length) { p1Rebuild(); return true; } }
+  p1ctrl[s].pop(); p1active = s; p1Rebuild(); return true;
 }
-const p1Mats = { cur: new THREE.LineBasicMaterial({ color: 0x15803d, linewidth: 2, depthTest: false }), mine: new THREE.LineBasicMaterial({ color: 0x16a34a, linewidth: 2, depthTest: false }), old: new THREE.LineBasicMaterial({ color: 0x86efac, linewidth: 2, depthTest: false }),
-                 dotCur: new THREE.MeshBasicMaterial({ color: 0x15803d, depthTest: false }), dotFirst: new THREE.MeshBasicMaterial({ color: 0xf59e0b, depthTest: false }), dotMine: new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }), dotOld: new THREE.MeshBasicMaterial({ color: 0xbbf7d0, depthTest: false }) };
+const p1Mats = { cur: new THREE.MeshBasicMaterial({ color: 0x15803d, depthTest: false }), mine: new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }), old: new THREE.LineBasicMaterial({ color: 0x86efac, linewidth: 2, depthTest: false }),
+                 dotFirst: new THREE.MeshBasicMaterial({ color: 0xf59e0b, depthTest: false }), dotLast: new THREE.MeshBasicMaterial({ color: 0x1d4ed8, depthTest: false }), dotMine: new THREE.MeshBasicMaterial({ color: 0x15803d, depthTest: false }), dotOld: new THREE.MeshBasicMaterial({ color: 0xbbf7d0, depthTest: false }) };
+const p1DotGeo = new THREE.SphereGeometry(1, 14, 10);
 function drawP1Paths(){
-  while (p1Group.children.length) p1Group.remove(p1Group.children[0]);
+  for (const c of [...p1Group.children]) { p1Group.remove(c); if (c.geometry !== p1DotGeo) c.geometry.dispose(); }
   if (!segPos || tab !== 'p1') { requestRender(); return; }
-  const vAt = i => new THREE.Vector3(segPos[i*3], segPos[i*3+1], segPos[i*3+2]);
-  const lift = (v, i) => { const nn = segNormalAt(i); return v.clone().addScaledVector(nn, 0.3); };
-  const draw = (ids, lineMat, dotMat, firstMat) => {
-    const pts = ids.map(i => lift(vAt(i), i)); if (!pts.length) return;
-    if (pts.length >= 2) { const g = new THREE.BufferGeometry().setFromPoints(pts); const ln = new THREE.Line(g, lineMat); ln.renderOrder = 8; p1Group.add(ln); }
-    pts.forEach((q, k) => { const d = new THREE.Mesh(new THREE.SphereGeometry(k === 0 || k === pts.length - 1 ? 0.5 : 0.32, 12, 8), k === 0 ? (firstMat || dotMat) : dotMat); d.renderOrder = 9; d.position.copy(q); p1Group.add(d); });
-  };
-  if (!p1pathClear) p1Dots.path.forEach(ids => draw(ids, p1Mats.old, p1Mats.dotOld, p1Mats.dotOld));
-  p1paths.forEach(ids => draw(ids, p1Mats.mine, p1Mats.dotMine, p1Mats.dotFirst));
-  if (p1cur) draw(p1cur.ids, p1Mats.cur, p1Mats.dotCur, p1Mats.dotFirst);
+  const dot = (v, mat, r) => { const m = new THREE.Mesh(p1DotGeo, mat); m.scale.setScalar(r); m.position.copy(v); m.renderOrder = 9; p1Group.add(m); };
+  const tube = (pts, mat, r) => { if (pts.length < 2) return; const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), Math.max(8, pts.length * 2), r, 6, false), mat); m.renderOrder = 8; p1Group.add(m); };
+  // applied outlines not taken up: pale, as they were cut
+  p1Dots.path.forEach((ids, k) => { if (p1Gone.has(k)) return; const pts = ids.filter(i => i < segLabels.length).map(p1VertVec); if (pts.length < 2) return;
+    const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), p1Mats.old); ln.renderOrder = 8; p1Group.add(ln); dot(pts[0], p1Mats.dotOld, 0.4); dot(pts[pts.length - 1], p1Mats.dotOld, 0.4); });
+  for (const s in p1ctrl) { const V = p1ctrl[s].map(p1Vec); tube(p1CurvePts(V, P1_STEP_MM), p1Mats.mine, 0.12);
+    V.forEach((v, k) => dot(v, k === 0 ? p1Mats.dotFirst : k === V.length - 1 ? p1Mats.dotLast : p1Mats.dotMine, p1Drag && p1Drag.kind === 'dot' && p1Drag.side === s && p1Drag.k === k ? 0.65 : 0.45)); }
+  if (p1Drag && p1Drag.kind === 'new' && p1Drag.drawing) tube(p1Drag.pts, p1Mats.cur, 0.1);
   requestRender();
 }
-// a vertex's normal from the segmentation mesh (for lifting the drawn runs just off the surface)
-function segNormalAt(i){ const a = segMesh && segMesh.geometry.attributes.normal; if (!a) return new THREE.Vector3(0, 0, 1); return new THREE.Vector3(a.getX(i), a.getY(i), a.getZ(i)).normalize(); }
 window.addEventListener('keydown', ev => {
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
   if (tab !== 'p1' || modeNow() !== 'p1path') return;
-  if (ev.key === 'Escape' && p1cur) { dropP1Path(); ev.preventDefault(); }
-  else if (ev.key === 'Enter' && p1cur) { finishP1Path(); ev.preventDefault(); }
-  else if (ev.key === 'Backspace' || ev.key === 'Delete') {
-    if (p1cur && p1cur.pts.length) { p1cur.pts.pop(); p1cur.ids.pop(); p1cur.ns.pop(); if (!p1cur.pts.length) p1cur = null; drawP1Paths(); updateFixCount(); ev.preventDefault(); }
-    else if (p1paths.length) { p1paths.pop(); drawP1Paths(); updateFixCount(); ev.preventDefault(); }
-  }
+  if ((ev.key === 'Backspace' || ev.key === 'Delete') && p1UndoDot()) ev.preventDefault();
 });
 canvas.addEventListener('pointerdown', ev => {
   // the pontic's gizmo works with a plain drag, and a plain click on a pontic picks it
@@ -3345,9 +3393,12 @@ function updateFixCount(){
   else if (tab === 'block' && outlines.length) here.unshift(`${outlines.length} outline${outlines.length > 1 ? 's' : ''}`);
   if (tab === 'pontic') { if (pontics.length) here.unshift(`${pontics.length} pontic${pontics.length > 1 ? 's' : ''} (${pontics.map(p => p.slot).join(', ')})${ponticsDirty ? ' - changed, Apply makes the model with them' : ' applied'}`); else if (ponticsDirty) here.unshift('pontics cleared - Apply makes the model without them'); }
   if (tab === 'p1') {
-    if (p1paths.length) here.unshift(`${p1paths.length} cutout outline${p1paths.length > 1 ? 's' : ''} traced`);
-    if (p1pathClear && p1Dots.path.length) here.unshift(`${p1Dots.path.length} applied outline${p1Dots.path.length > 1 ? 's' : ''} to be cleared`);
-    if (modeNow() === 'p1path') here.unshift(`Cutout outline - ${p1Guide()}`);
+    const live = p1Live();
+    if (live) here.unshift(`${live} applied outline${live > 1 ? 's' : ''} (pale) - Shift-click on one to change it`);
+    else if (p1Gone.size && !p1DotCount()) here.unshift('the applied outlines are cleared - Apply makes the model without them');
+    const sides = Object.keys(p1ctrl).filter(s => p1ctrl[s].length).map(s => `${P1_SIDE_NAME[s] || s}: ${p1ctrl[s].length} dot${p1ctrl[s].length > 1 ? 's' : ''}${p1ctrl[s].length < 2 ? ' (needs 2)' : ''}`);
+    if (sides.length) here.unshift(`${sides.join(' · ')} - amber = start, blue = end. Shift-drag a dot to bend the curve, Shift-click a dot to delete it, Shift-click the curve to add one`);
+    else if (modeNow() === 'p1path' && !live) here.unshift(P1_GUIDE);
   }
   const other = Object.keys(edits).filter(k => !mine.includes(k)).reduce((a, k) => a + edits[k].size, 0);
   const elsewhere = otherEditCount();
@@ -3381,7 +3432,6 @@ async function bringBackCut(){
 async function applyAndRerun(){
   if (!currentJob) { showErr('No case is open — click the case in the list on the left, then Apply again.'); return; }
   const btn = $('#rerun'); if (btn && btn.disabled) return;
-  if (typeof p1cur !== 'undefined' && p1cur && new Set(p1cur.ids).size >= 2) finishP1Path();   /* an outline clicked but not closed goes with the Apply */
   if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
   let resp, r = {};
   try {
@@ -3421,7 +3471,7 @@ window.__view = { camera, controls, requestRender, markFrame, labelAt: (x, y) =>
   pontics: () => ({ list: pontics.map(p => Object.assign({}, p)), dirty: ponticsDirty, sel: ponticSel, slots: ponticSlots().map(s => ({ slot: s.slot, x: s.x, y: s.y, z: s.z, taken: s.taken })), byFile: Object.keys(ponticsByFile), meshes: ponticGroup.children.length, visible: ponticGroup.visible, lib: (ponticLib || []).length }),
   addPonticAt, removePontic, nudgePontic, ponticNow, setRough: T => setRough(T), pending: pendingWork, rotatePontic, ponticOffsets, resetPontic,
   gizmoHit: (x, y) => gizmoHitAt({ clientX: x, clientY: y }),
-  p1path: () => ({ cur: p1cur ? p1cur.ids.slice() : null, mine: p1paths.map(o => o.slice()), applied: p1Dots.path.map(o => o.slice()), shown: p1Group.children.length, attached: p1Group.parent === groups.seg, visible: groups.seg.visible }),
+  p1path: () => ({ ctrl: p1Clone(p1ctrl), active: p1active, mine: p1paths.map(o => o.slice()), applied: p1Dots.path.map(o => o.slice()), gone: [...p1Gone], shown: p1Group.children.length, attached: p1Group.parent === groups.seg, visible: groups.seg.visible, dots: Object.fromEntries(Object.entries(p1ctrl).map(([k, l]) => [k, l.map(c => { const v = new THREE.Vector3(c.p[0], c.p[1], c.p[2]).project(camera); return [v.x, v.y]; })])) }),
   arcPoint: (kind, deg) => { if (!gizmo) return null; const a = GIZ_KIND_AXIS[kind]; const u = gizmo.ax[a === 'x' ? 'y' : 'x'], v = gizmo.ax[a === 'z' ? 'y' : 'z']; const r = (gizmo.r[a === 'x' ? 'y' : 'x'] + gizmo.r[a === 'z' ? 'y' : 'z']) / 2; const q = gizmo.c.clone().addScaledVector(u, r * Math.cos(deg * Math.PI / 180)).addScaledVector(v, r * Math.sin(deg * Math.PI / 180)).project(camera); return { x: q.x, y: q.y }; },
   gizmo: () => (gizmo ? { id: gizmo.id, c: gizmo.c.toArray(), ax: { x: gizmo.ax.x.toArray(), y: gizmo.ax.y.toArray(), z: gizmo.ax.z.toArray() }, r: gizmo.r, parts: gizmo.parts.length, hover: gizmoHover === null ? null : gizmo.parts[gizmoHover].kind, drag: gizmoDrag && gizmoDrag.kind, visible: gizmoGroup.visible,
     handles: gizmo.parts.map(q => { const v = new THREE.Vector3(); q.group.getWorldPosition(v); const pr = v.clone().project(camera); return { kind: q.kind, x: pr.x, y: pr.y }; }) } : null),

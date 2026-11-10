@@ -69,8 +69,11 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    cursor shows the colour being painted, and painting a tooth's own colour (or plain tooth) back over a mistaken
    pick takes it back;
    **Phase I** (on a Phase I case only) takes the doctor's own dots: **Cutout outline** (the easiest way - since
-   11/10/2026 it can be **drawn**: hold Shift and drag from the distal of the 2 round the tongue side to the E / 5, let go
-   to finish; Shift-click dot by dot still works, and an outline left open goes with Apply; 10/27/2026 - the
+   11/10/2026 a **curve through a few dots, one outline per side**: Shift-click dots from the distal of the 2 round the
+   tongue side to the E / 5 and a smooth curve is drawn through them (amber dot = start, blue = end); nothing to finish -
+   a dot belongs to the side it is clicked on; Shift-drag a dot to bend the curve, Shift-click the curve to add a dot,
+   Shift-click a dot to delete it, Backspace / Undo last dot takes the last one; Shift-drag on the model draws freehand
+   and becomes dots; an applied outline (pale) is dots again once its side is touched; 10/27/2026 - the
    doctor: "start by clicking on the distal of the 2, trace around the lingual aspect, then go to the E/5, and you
    connect it to the rest of the trim line") - three steps per side: Shift-click the distal of the 2, click your way
    round the tongue side of the C/D area as far onto the gum as the cutout should go, click last on the E (or the 5)
