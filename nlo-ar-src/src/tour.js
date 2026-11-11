@@ -63,6 +63,9 @@ function tourSteps(kind) {
     { id: 'aa', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t=aa]'), t: 'Alternative Arrangements',
       b: 'Families on a new payment plan (an AA) have their own tab, until it’s paid off or broken: the terms, the next payment, and whether they’re keeping it. A failed OrthoBanc draft, or a payment that didn’t come in, puts them under To check.',
       act: 'Tap Arrangements (AA).', done: () => S.view === 'pd' && S.tab.pd === 'aa' },
+    { id: 'fees', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t=fees]'), t: 'Missed-appointment fees',
+      b: () => 'A no-show fee (' + feeAmtsSay(S.cfg) + ') shows as past due in Edge, but it isn’t a missed treatment payment — the collections letters aren’t for it. Accounts past due exactly a fee amount are pointed out (“Fee?”); tagged, they leave the ladder, the lists and the goal, and are collected from this tab: the next OrthoBanc draft, the next visit, or Dr. A waives it.',
+      act: 'Tap Missed-appt fees.', done: () => S.view === 'pd' && S.tab.pd === 'fees' },
     { id: 'p91', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t="91"]'), t: 'Biggest first', b: '91+ days is ranked by the money at 91+ days; a dashed line marks where 70% of it is reached. 31–90 and 0–30 catch accounts before they age.',
       act: 'Tap 91+ days.', done: () => S.view === 'pd' && S.tab.pd === '91' },
     { id: 'ins', at: () => tVis('#nav-ins', '#mnav-ins'), t: 'Insurance', b: 'Insurance accounts where nothing has been paid: a past due that’s an exact multiple of the $11.11 instalment means that many untouched months. Triaged: monitor, chase now, investigate, never filed? The Carriers tab has each carrier’s phone, portal and payer ID, and who’s slow to pay — Edge’s Insurance Aging, dropped on Reports, fills in every account’s carrier.',
@@ -99,6 +102,7 @@ function tourStart(kind, from) {
     okAt: 0, hold: false, shown: -1, backAt: from ? from.at : '', paused: null, ringEl: null });
   const ring = document.createElement('div'); ring.id = 'tourRing'; ring.hidden = true; document.body.appendChild(ring);
   const card = document.createElement('div'); card.id = 'tourCard'; card.setAttribute('role', 'dialog'); card.setAttribute('aria-label', 'Tour'); document.body.appendChild(card);
+  document.documentElement.classList.add('tourOn'); // the Ask AISA button (appended to <html>) steps aside while the tour is on: on a phone it sat over the card's buttons
   card.addEventListener('click', e => {
     const b = e.target.closest('[data-tour]'); if (!b) return; e.stopPropagation();
     const a = b.dataset.tour;
@@ -121,6 +125,7 @@ function tourEnd(finished, quiet) {
   TOUR.on = false; clearInterval(TOUR.timer);
   if (TOUR.onMove) { window.removeEventListener('resize', TOUR.onMove); window.removeEventListener('scroll', TOUR.onMove, true); }
   ['#tourRing', '#tourCard'].forEach(s => { const el = $(s); if (el) el.remove(); });
+  document.documentElement.classList.remove('tourOn');
   if (finished) { try { localStorage.setItem('nloAR.tourDone', String(Date.now())); } catch (e) { } }
   if (!quiet) toast(finished ? 'Tour done — close this tab to go back to NLO A/R' : 'Tour ended — restart it from My account', { ms: 6000 });
 }

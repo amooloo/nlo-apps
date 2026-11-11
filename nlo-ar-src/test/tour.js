@@ -103,8 +103,13 @@ const check = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { f
   a = await aimed(); check(a.ring && a.on && a.inView, 'the ring is on the Arrangements (AA) tab');
   check(/Tap Arrangements \(AA\)/.test(await p.textContent('#tourCard')), 'its card says what to tap');
   await p.click('#view [data-act=tab][data-t=aa]');
-  check(await waitStep('p91'), 'tapping Arrangements (AA) → Biggest first');
+  check(await waitStep('fees'), 'tapping Arrangements (AA) → Missed-appointment fees');
   check(await p.evaluate(() => S.tab.pd === 'aa' && !!document.querySelector('#view .aaSum')), '…with the arrangements showing behind it');
+  a = await aimed(); check(a.ring && a.on && a.inView, 'the ring is on the Missed-appt fees tab');
+  check(/Tap Missed-appt fees/.test(await p.textContent('#tourCard')) && /\$50 or \$100/.test(await p.textContent('#tourCard')), 'its card says what to tap, and names the fee amounts');
+  await p.click('#view [data-act=tab][data-t=fees]');
+  check(await waitStep('p91'), 'tapping Missed-appt fees → Biggest first');
+  check(await p.evaluate(() => S.tab.pd === 'fees' && !!document.querySelector('#view .listHd') && /Missed-appointment fees/.test(document.querySelector('#view .listHd').textContent)), '…with the fees tab showing behind it');
   await p.click('#view [data-act=tab][data-t="91"]');
   check(await waitStep('ins'), 'tapping 91+ days → Insurance');
   await p.click('#nav-ins');

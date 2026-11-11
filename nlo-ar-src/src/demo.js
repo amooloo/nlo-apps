@@ -157,6 +157,13 @@ const DEMO = {
     // it was made (added last, so the made-up names and amounts above stay as they were)
     const aaMade = addDays(asOfW(2), 2), aaStart = obOnOrAfter(addDays(aaMade, 3)), aaT = { pay: 199, n: 10, start: aaStart, day: Number(aaStart.slice(8)), down: 199 };
     const aaCur = add({ src: 'pt', m: 199, sts: 'A-Comp Bra', rem: 9, from: 3, aaCur: { made: aaMade, t: aaT, pays: Array.from({ length: 10 }, (_, i) => aaPayDate(aaT, i + 1)) } });
+    // missed-appointment fees (Past due → Missed-appt fees): the contract is current and drafting — the past due is the no-show fee
+    // charged in Edge ($50 or $100). Three to tag (one of them two fees), and three tagged already: one with the fee put on the next
+    // OrthoBanc draft, one that has since missed a draft too (past due more than the fee), one Dr. A was asked to waive
+    [[100, 20, 199], [50, 12, 175], [150, 37, 225]].forEach(([fee, d, m]) => add({ src: 'pt', fee, days: d, m, sts: pick(PT_STS), rem: int(6, 18) }));
+    const feeTagged = add({ src: 'pt', fee: 100, days: 48, m: 199, sts: 'A-Comp Bra', rem: 10 });
+    const feeOver = add({ src: 'pt', fee: 50, days: 40, m: 199, over: 199, sts: 'A-Comp Inv', rem: 8 });
+    const feeDrA = add({ src: 'pt', fee: 100, days: 25, m: 250, sts: 'A- Ph II B', rem: 14 });
 
     const rowAt = (a, w) => {
       if (w < a.from || w > a.to) return null;
@@ -164,6 +171,12 @@ const DEMO = {
       const base = { patient: a.patient, sts: a.sts, rp, home: a.home, work: a.work, note: '' };
       if (a.credit) return Object.assign(base, { due: -a.credit, b0: 0, b30: 0, b60: 0, b90: 0, days: 0, bal: -a.credit, lastAmt: round2(a.credit + (a.src === 'ins' ? 0 : 150)), recv: addDays(latest, -a.age) });
       if (a.aaCur) { const paid = a.aaCur.pays.filter(d => d <= asOf); return Object.assign(base, { due: 0, b0: 0, b30: 0, b60: 0, b90: 0, days: 0, bal: round2(a.m * (a.rem + 1 - paid.length)), lastAmt: a.m, recv: paid.length ? paid[paid.length - 1] : a.aaCur.made }); }
+      if (a.fee) { // the fee sits in the bucket its days call for; the contract's draft came in a couple of weeks ago (or, over: the latest one was missed)
+        const d = a.days - back; if (d <= 0) return null;
+        const bk = [0, 0, 0, 0], missed = !!(a.over && d > 10); bk[d > 90 ? 3 : d > 60 ? 2 : d > 30 ? 1 : 0] += a.fee; if (missed) bk[0] += a.over;
+        const [b0, b30, b60, b90] = bk.map(round2), due = round2(b0 + b30 + b60 + b90);
+        return Object.assign(base, { due, b0, b30, b60, b90, days: d, bal: round2(due + a.m * a.rem), lastAmt: a.m, recv: addDays(asOf, -(missed ? 38 : 12 + (a.fee % 7))), note: '' });
+      }
       const d = a.days - back; if (d <= 0) return null;
       // one instalment missed every 30 days; an unpaid claim (partly paid insurance) sits in the oldest bucket
       const n = Math.ceil(d / 30), m = a.m, x = a.extra || 0;
@@ -204,6 +217,8 @@ const DEMO = {
         else if (k === 'sign') { signStep(it, o.step, { by: who }, at); act = { a: 'drAok', step: o.step }; }
         else if (k === 'hold') { holdLog(it, o.on !== false, { by: who }, at); act = { a: 'mhold', on: o.on !== false }; }
         else if (k === 'aa') { breakArrangement(it, { by: who, note: o && o.note || '' }, at); act = { a: 'aa' }; }
+        // tagged as a missed-appointment fee (with the fee's amount)
+        else if (k === 'fee') { feeLog(it, true, { by: who, amt: o.amt, note: o.note || '' }, at); act = { a: 'fee', on: true, amt: o.amt }; }
         // a task imported from Edge's task list ("AA MADE …" puts the account on an Alternative Arrangement)
         else if (k === 'et') { edgeTasksApply(it, [Object.assign({ id: taskId(o), op: 'Jamie' }, o)], { by: who, today: isoOf(new Date(at)), aa: true }, at); act = { a: 'edgetask', n: 1 }; }
         else applyLog(it, k, Object.assign({ by: who }, o || {}), at);
@@ -288,6 +303,15 @@ const DEMO = {
     const cur = accts.find(a => a.patient === aaCur.patient);
     if (cur) await make(cur, 'taylor', [['pt_plan', Math.min(now - 3600000, atDay(aaCur.aaCur.made, 14, 5)), 'taylor', { note: 'Altered Arrangement signed', aa: aaCur.aaCur.t }],
       ['aa_ok', Math.min(now - 3500000, atDay(addDays(aaCur.aaCur.t.start, 2), 9, 30)), 'taylor', { note: 'First payment posted' }]]);
+
+    /* missed-appointment fees (Past due → Missed-appt fees) — the three tagged ones; the other three are left for the FC to tag */
+    const feeAcct = x => accts.find(a => a.patient === x.patient);
+    // tagged ten days ago, the fee put on the next OrthoBanc draft the day after
+    await make(feeAcct(feeTagged), 'jamie', [['fee', ago(10, 9, 30), 'jamie', { amt: 100, note: 'No-show 9/18 — fee posted in Edge' }], ['fee_draft', ago(9, 10, 0), 'jamie', { note: 'Mom OK’d adding it to the next draft' }]]);
+    // tagged when the $50 fee was all that was past due; since then a draft was missed too (past due more than the fee)
+    await make(feeAcct(feeOver), 'jamie', [['fee', ago(20, 11, 0), 'jamie', { amt: 50 }]], it => { it.follow = soon(); });
+    // tagged, and Dr. A asked to waive it
+    await make(feeAcct(feeDrA), 'taylor', [['fee', ago(4, 14, 0), 'taylor', { amt: 100 }], ['fee_waive', ago(1, 9, 15), 'taylor', { note: 'First missed appointment in two years — a flat tire; mom called the same morning' }]]);
 
     /* insurance carriers (made-up names, 555 numbers): most insurance accounts have theirs; a few are left for the FC to set */
     const book = emptyBook();
