@@ -1175,7 +1175,7 @@ def _tooth_field(n, res=0.15, margin=6.0, skirt=2.0):
     return out
 
 
-def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=1.10, tooth_mm=7.5, z_target=None):
+def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=1.10, tooth_mm=7.5, z_target=None, relief=0.6):
     """The tooth-shaped ceiling of a block-out (the doctor, 11/10/2026: "right now it's very blocky ... use the tooth
     library - it doesn't have to be a perfect tooth shape, in fact I would rather not, but a blend of the shape of those
     teeth that will build out the block-out instead of just a block shape"): the block's stretch round the arch is
@@ -1196,28 +1196,35 @@ def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=
     th_b = th_b + 2 * np.pi * np.round((float(np.median(th)) - th_b) / (2 * np.pi))
     r_med = float(np.median(np.linalg.norm(rel, axis=1)))
     t_lo, t_hi = np.percentile(th_b, [0.5, 99.5])
-    k_n = int(np.clip(round((t_hi - t_lo) * r_med / tooth_mm), 1, 4))
-    order = {1: [4], 2: [3, 4], 3: [3, 4, 5], 4: [3, 4, 5, 6]}[k_n]
-    edges = np.linspace(t_lo, t_hi, k_n + 1)
+    # one general shape, no valleys (the doctor, 11/10/2026: "don't spend too much time figuring out the cusps - a
+    # general shape is fine", and an arrow at the dip between two teeth): the premolar's shape is stood every step_mm
+    # along the stretch, so the top runs on as one rounded ridge with a tooth's cross-section and rounded ends
+    step_mm = 2.0
+    w_mm = tooth_mm * grow_w
+    half = 0.5 * w_mm / max(r_med, 1.0)
+    a_lo, a_hi = t_lo + half, t_hi - half
+    if a_hi <= a_lo:
+        a_lo = a_hi = 0.5 * (t_lo + t_hi)
+        w_mm = max((t_hi - t_lo) * r_med, 3.0) * grow_w
+    n_pos = max(1, int(np.ceil((a_hi - a_lo) * r_med / step_mm)) + 1)
     bins = []
-    for k in range(k_n):
-        mk = (th_b >= edges[k] - 1e-9) & (th_b <= edges[k + 1] + 1e-9)
-        if mk.sum() < 10:
-            continue
-        a_mid = 0.5 * (edges[k] + edges[k + 1])
+    for a_mid in np.linspace(a_lo, a_hi, n_pos):
         f = np.array([np.cos(a_mid), np.sin(a_mid)]); t = np.array([-f[1], f[0]])
-        Q = B[mk]; ck = Q.mean(0)
-        u = (Q - ck) @ t; v = (Q - ck) @ f
-        ck = ck + t * 0.5 * (u.max() + u.min()) + f * 0.5 * (v.max() + v.min())
+        mk = np.abs(th_b - a_mid) * r_med <= 3.0
+        if mk.sum() < 5:
+            continue
+        Q = B[mk]; c0 = np.asarray(c_arch) + f * r_med
+        v = (Q - c0) @ f
+        ck = c0 + f * 0.5 * (v.max() + v.min())
         top_k = float(np.percentile(top[body][mk], 90))
         if z_target is not None:                                     # as high as a tooth that has come in
             zt = float(z_target(ck))
             if np.isfinite(zt):
                 top_k = max(top_k, zt)
-        bins.append(dict(c=ck, t=t, f=f, w=float(np.ptp(u)), th=float(np.ptp(v)), top=top_k))
+        bins.append(dict(c=ck, t=t, f=f, w=w_mm / grow_w, th=float(np.ptp(v)), top=top_k))
     if not bins:
         return None
-    bins.sort(key=lambda b: -b["c"][1])                              # the front of the arch first: the canine, then back
+    order = [4] * len(bins)
     env = np.full(len(G2), -np.inf)
     for b, pos in zip(bins, order):
         n = by_pos.get(pos) or by_pos.get(4) or (next(iter(by_pos.values())) if by_pos else None)
@@ -1231,7 +1238,7 @@ def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=
         ij = np.floor((np.column_stack([uu, vv]) - T["lo"]) / T["res"]).astype(int)
         ok = (ij[:, 0] >= 0) & (ij[:, 0] < T["z"].shape[0]) & (ij[:, 1] >= 0) & (ij[:, 1] < T["z"].shape[1])
         zk = np.full(len(G2), -np.inf)
-        zk[ok] = b["top"] - (T["zmax"] - T["z"][ij[ok, 0], ij[ok, 1]]) * sz
+        zk[ok] = b["top"] - (T["zmax"] - T["z"][ij[ok, 0], ij[ok, 1]]) * sz * relief
         env = np.maximum(env, zk)
     return env
 
@@ -1550,15 +1557,14 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
                     skin = np.minimum(top, zs + 1.0)                              # the block as built, as the foot
                     dome = env.reshape(nx, ny)
                     if zo_at is not None:
-                        # the bite: the dome stands to the line, but never into the opposing teeth as they close on it
-                        # (dome_clear_mm short of them, cell by cell). The half-the-room rule of the flat block is not
-                        # used for the dome: it left a loaf on the gum where the line is 5 mm up
+                        # the bite does not trim the dome (the doctor, 11/10/2026: the height is the line from the
+                        # molar's cusp to the lateral's incisal edge - an arrow at the dip the opposing teeth had cut
+                        # into it): how far the opposing teeth, as scanned in occlusion, close into it is said, for
+                        # him to judge
                         zo_c = zo_at(np.column_stack([G2, np.zeros(len(G2))])).reshape(nx, ny)
-                        cap = np.where(np.isfinite(zo_c), zo_c - dome_clear_mm, np.inf)
-                        took = (dome - np.minimum(dome, cap))[has & np.isfinite(dome)]
-                        if len(took) and float(took.max()) > 0.05:
-                            info.setdefault("dome_bite_mm", []).append(round(float(took.max()), 1))
-                        dome = np.minimum(dome, cap)
+                        into = (dome - (zo_c - dome_clear_mm))[has & np.isfinite(dome) & np.isfinite(zo_c)]
+                        if len(into) and float(into.max()) > 0.05:
+                            info.setdefault("dome_bite_mm", []).append(round(float(into.max()), 1))
                     shaped = np.maximum(np.maximum(dome, cover), skin)
                     ceiling = np.where(has, shaped, -np.inf)
                     info["shape"] = "teeth"
@@ -1600,13 +1606,13 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
             f"the crowns (median {tm['median']:.1f}; " + (f"lift {info['lift_mm']:.1f} mm from the bite" if opposing_f is not None else f"a flat {flat_mm:.1f} mm, no bite")
             + f"), {info['volume_ml']:.2f} mL"
             + (f"; domed like teeth up to the line between the neighbouring teeth's tops, {max(info['dome_mm']):.1f} mm over what is there" if info.get("dome_mm") else "")
-            + (f"; the opposing teeth took up to {max(info['dome_bite_mm']):.1f} mm off it" if info.get("dome_bite_mm") else ""))
+            + (f"; the opposing teeth close up to {max(info['dome_bite_mm']):.1f} mm into it (not trimmed)" if info.get("dome_bite_mm") else ""))
     if info.get("shape") == "teeth":
         if opposing_f is None and info.get("warning", "").startswith("no opposing arch"):
             info["warning"] = "no opposing arch in the case: the block-out's dome stands up to the line between the neighbouring teeth's tops - check the bite"
         elif info.get("warning", "").startswith("the bite is tight"):
             info.pop("warning")                                   # (the flat block's measure: the dome has its own)
         if info.get("dome_bite_mm") and max(info["dome_bite_mm"]) > 1.0:
-            info["warning"] = (f"the opposing teeth close into the block-out's dome: up to {max(info['dome_bite_mm']):.1f} mm of it was taken off under them "
-                               f"(it stops {dome_clear_mm:.1f} mm short of the opposing teeth) - judge it on the occlusion")
+            info["warning"] = (f"the block-out's dome stands to the line between the neighbouring teeth; as scanned in occlusion the opposing teeth "
+                               f"close up to {max(info['dome_bite_mm']):.1f} mm into it - judge it on the occlusion")
     return solid, info

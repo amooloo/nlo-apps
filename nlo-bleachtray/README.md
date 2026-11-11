@@ -849,9 +849,11 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   as wide and thick as the block there and as high as **the line from the top of the tooth in front of the block to the top of the tooth behind
   it** (the doctor, 11/10/2026, drawn on the model: "the height should be somewhere near the green line, going from the
   cusp of the molar to the incisal edge of the laterals"; 0.25 mm under it). The block as built stays as the foot (outline,
-  taper to the line, a 1 mm skin). With the bite the dome only stops 0.3 mm short of the opposing teeth where they close
-  into it (the half-the-room rule of the flat block left a loaf on the gum and is not used for the dome); never closer
-  than 0.8 mm beside / 0.4 mm over what stands under it. `p1_block_shape: "block"` in the settings file gives the old block.
+  taper to the line, a 1 mm skin). **The bite does not trim the dome** (the doctor's arrow at the dip the opposing teeth had cut
+  into it): how far the opposing teeth, as scanned in occlusion, close into it is in the log and a warning
+  (`dome_bite_mm`). One general shape, no valleys ("don't spend too much time figuring out the cusps - a general shape is
+  fine"): the premolar's shape stood every 2 mm along the stretch, its relief at 60 %. Never closer than 0.8 mm beside /
+  0.4 mm over what stands under it. `p1_block_shape: "block"` in the settings file gives the old block.
 - **The 5 mm rule** (the doctor: "min 5 mm - if below that reject the cutouts and just do block-out"): on a lower the
   flange left under the windows on the tongue side (what the scan holds below the window's edge, the 10th percentile
   along the C/Ds) must be 5 mm or more; when it is not, the cutouts are rejected and that arch is made by block-out,
