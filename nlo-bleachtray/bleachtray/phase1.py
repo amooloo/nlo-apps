@@ -1167,12 +1167,13 @@ def _tooth_field(n, res=0.15, margin=6.0, skirt=2.0):
     d_out, (oi, oj) = distance_transform_edt(~inside, return_indices=True)
     z = np.where(inside, z, z[oi, oj] - skirt * d_out * res)
     ext = P[:, :2].max(0) - P[:, :2].min(0)
-    out = dict(z=z, lo=lo, res=res, zmax=float(P[:, 2].max()), w=float(ext[0]), t=float(ext[1]), c=(P[:, :2].max(0) + P[:, :2].min(0)) / 2.0)
+    out = dict(z=z, lo=lo, res=res, zmax=float(P[:, 2].max()), w=float(ext[0]), t=float(ext[1]), c=(P[:, :2].max(0) + P[:, :2].min(0)) / 2.0, inside=inside)
     _TOOTH_FIELD[n] = out
     return out
 
 
-def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=1.10, tooth_mm=7.5, z_target=None, relief=0.6):
+def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=1.10, tooth_mm=7.5, z_target=None, relief=0.6,
+                    others_xy=None, min_thick_mm=None, end_gap_mm=0.5, end_reach_mm=4.0):
     """The tooth-shaped ceiling of a block-out (the doctor, 11/10/2026: "right now it's very blocky ... use the tooth
     library - it doesn't have to be a perfect tooth shape, in fact I would rather not, but a blend of the shape of those
     teeth that will build out the block-out instead of just a block shape"): the block's stretch round the arch is
@@ -1193,21 +1194,35 @@ def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=
     th_b = th_b + 2 * np.pi * np.round((float(np.median(th)) - th_b) / (2 * np.pi))
     r_med = float(np.median(np.linalg.norm(rel, axis=1)))
     t_lo, t_hi = np.percentile(th_b, [0.5, 99.5])
+    # ... up to the teeth on either side of it (the doctor, 11/11/2026, hatching the gap between the block and the
+    # lateral from above): the stretch is carried on to end_gap_mm short of the neighbouring tooth at each end, when that
+    # tooth is within end_reach_mm
+    if others_xy is not None and len(others_xy):
+        ro = np.asarray(others_xy) - np.asarray(c_arch)
+        near_r = np.abs(np.linalg.norm(ro, axis=1) - r_med) < 6.0
+        th_o = np.arctan2(ro[near_r, 1], ro[near_r, 0])
+        th_o = th_o + 2 * np.pi * np.round((float(np.median(th)) - th_o) / (2 * np.pi))
+        g_ = end_gap_mm / max(r_med, 1.0); reach_ = end_reach_mm / max(r_med, 1.0)
+        up = th_o[th_o > t_hi]; dn = th_o[th_o < t_lo]
+        if len(up) and 0 < float(up.min()) - t_hi <= reach_:
+            t_hi = max(t_hi, float(up.min()) - g_)
+        if len(dn) and 0 < t_lo - float(dn.max()) <= reach_:
+            t_lo = min(t_lo, float(dn.max()) + g_)
     # one general shape, no valleys (the doctor, 11/10/2026: "don't spend too much time figuring out the cusps - a
     # general shape is fine", and an arrow at the dip between two teeth): the premolar's shape is stood every step_mm
     # along the stretch, so the top runs on as one rounded ridge with a tooth's cross-section and rounded ends
     step_mm = 2.0
     w_mm = tooth_mm * grow_w
-    half = 0.5 * w_mm / max(r_med, 1.0)
-    a_lo, a_hi = t_lo + half, t_hi - half
-    if a_hi <= a_lo:
-        a_lo = a_hi = 0.5 * (t_lo + t_hi)
-        w_mm = max((t_hi - t_lo) * r_med, 3.0) * grow_w
+    # the shape is stood right up to both ends of the stretch (the doctor, 11/11/2026, hatching the gap on the model: "the
+    # block-out should go higher closer to the lateral"): with the first and last shapes half a tooth in from the ends,
+    # the dome rounded down over its last 4 mm and met the lateral well under the line. The block's own outline ends
+    # it - keep_mm short of the neighbouring tooth - at the line's full height there
+    a_lo, a_hi = t_lo, t_hi
     n_pos = max(1, int(np.ceil((a_hi - a_lo) * r_med / step_mm)) + 1)
     bins = []
     for a_mid in np.linspace(a_lo, a_hi, n_pos):
         f = np.array([np.cos(a_mid), np.sin(a_mid)]); t = np.array([-f[1], f[0]])
-        mk = np.abs(th_b - a_mid) * r_med <= 3.0
+        mk = np.abs(th_b - np.clip(a_mid, th_b.min(), th_b.max())) * r_med <= 3.0   # (past the block's own end: as at its end)
         if mk.sum() < 5:
             continue
         Q = B[mk]; c0 = np.asarray(c_arch) + f * r_med
@@ -1218,11 +1233,14 @@ def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=
             zt = float(z_target(ck))
             if np.isfinite(zt):
                 top_k = max(top_k, zt)
-        bins.append(dict(c=ck, t=t, f=f, w=w_mm / grow_w, th=float(np.ptp(v)), top=top_k))
+        # as thick, cheek to tongue, as a tooth that comes in there needs (the doctor, 11/11/2026: "also fatter
+        # bucco-lingually - to better accommodate the erupting teeth"): over a bare ridge the block was only the ridge
+        # and its clearance wide
+        bins.append(dict(c=ck, t=t, f=f, w=w_mm / grow_w, th=max(float(np.ptp(v)), float(min_thick_mm or 0.0)), top=top_k))
     if not bins:
         return None
     order = [4] * len(bins)
-    env = np.full(len(G2), -np.inf)
+    env = np.full(len(G2), -np.inf); inside_any = np.zeros(len(G2), bool)
     for b, pos in zip(bins, order):
         n = by_pos.get(pos) or by_pos.get(4) or (next(iter(by_pos.values())) if by_pos else None)
         if n is None:
@@ -1237,12 +1255,20 @@ def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=
         zk = np.full(len(G2), -np.inf)
         zk[ok] = b["top"] - (T["zmax"] - T["z"][ij[ok, 0], ij[ok, 1]]) * sz * relief
         env = np.maximum(env, zk)
-    return env
+        inside_any[np.where(ok)[0][T["inside"][ij[ok, 0], ij[ok, 1]]]] = True
+    # (the outlines of the end shapes reach half a tooth past the stretch: what the dome may be carried onto ends with
+    # the stretch, so it does not wrap round the neighbouring tooth)
+    rg = G2 - np.asarray(c_arch)
+    th_g = np.arctan2(rg[:, 1], rg[:, 0])
+    th_g = th_g + 2 * np.pi * np.round((float(np.median(th)) - th_g) / (2 * np.pi))
+    inside_any &= (th_g >= t_lo) & (th_g <= t_hi)
+    return env, inside_any
 
 
 def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.0, clear_mm=0.2, share=0.5, flat_mm=0.5,
                full_mm=2.0, keep_mm=0.8, spacing=0.2, crown_mm=4.5, line=None, line_gap_mm=0.3, span=None, wedge=None, log=None,
-               arch=None, form="teeth", min_room_mm=0.8, min_over_mm=0.4, dome_below_mm=0.25, dome_clear_mm=0.3):
+               arch=None, form="teeth", min_room_mm=0.8, min_over_mm=0.4, dome_below_mm=0.25, dome_clear_mm=0.3,
+               dome_thick_mm={"lower": 9.5, "upper": 10.5}, dome_grow_mm=3.0):
     """BOTT: the block-out built into the model in place of the putty - one solid block over each side's run of chosen
     teeth (`sel`, tooth labels), not shaped to the teeth under it (the doctor, 10/20/2026: "a solid block, almost like a
     blob that is smoothed out on the top ... don't try to match the anatomy"), with room round the teeth as the
@@ -1503,6 +1529,8 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
     parts = []
     for k_solid, (reg, h) in enumerate(solids):
         lo = h.bounds[0] - 1.0; hi = h.bounds[1] + 1.0
+        if form == "teeth" and arch in ("upper", "lower"):
+            lo[:2] -= 4.0; hi[:2] += 4.0                            # (room for the dome to stand wider and longer than the block as built)
         z_mirror = other_side_top(k_solid)
         if form == "teeth" and occ_tops:
             hi[2] = max(hi[2], max(z for _, z in occ_tops) + 1.5, max((float(z_.max()) for _, z_ in side_tops if len(z_)), default=-np.inf) + 1.5)        # (room for the dome)
@@ -1575,7 +1603,10 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
                 if body_c.sum() < 50:
                     body_c = has.reshape(-1)
                 env = _tooth_envelope(G2, body_c, top.reshape(-1), c_arch, arch, patient_side(side_sd, arch),
-                                      z_target=(lambda xy: max(occ_level(xy) - dome_below_mm, z_mirror(xy))))
+                                      z_target=(lambda xy: max(occ_level(xy) - dome_below_mm, z_mirror(xy))),
+                                      others_xy=(V[others][:, :2] if others.any() else None),
+                                      min_thick_mm=(dome_thick_mm.get(arch) if isinstance(dome_thick_mm, dict) else dome_thick_mm))
+                env, env_in = env if env is not None else (None, None)
                 if env is not None:
                     from scipy.ndimage import maximum_filter
                     z_reg = field(V[reg], "max")
@@ -1594,6 +1625,27 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
                         if len(into) and float(into.max()) > 0.05:
                             info.setdefault("dome_bite_mm", []).append(round(float(into.max()), 1))
                     shaped = np.maximum(np.maximum(dome, cover), skin)
+                    # the dome may stand wider and longer than the block as built: inside the teeth's outlines, over
+                    # the model's own surface, the footprint is carried on (from the surface up to the dome); what
+                    # comes within keep_mm of a neighbouring tooth is taken off below, as for the block
+                    real = np.isfinite(field(V, "max"))
+                    real = maximum_filter(real.astype(np.uint8), size=5).astype(bool)
+                    more = env_in.reshape(nx, ny) & real & ~has & (dome - zs > 0.3)
+                    # ... no further than dome_grow_mm past the block as built, on the ridge only (not down the
+                    # model's side, where the surface lies well under the block's foot) and not over a neighbouring tooth
+                    k_g = max(1, int(round(dome_grow_mm / spacing)))
+                    yy_g, xx_g = np.ogrid[-k_g:k_g + 1, -k_g:k_g + 1]
+                    more &= maximum_filter(has.astype(np.uint8), footprint=(xx_g * xx_g + yy_g * yy_g) <= k_g * k_g).astype(bool)
+                    z_foot = float(np.percentile(zs[has], 5)) if has.any() else -np.inf
+                    more &= zs >= z_foot - 1.5
+                    if others.any():
+                        o_col = maximum_filter(np.isfinite(field(V[others], "max")).astype(np.uint8), size=2 * k_r + 1).astype(bool)
+                        more &= ~o_col
+                    if more.any():
+                        has = has | more
+                        shaped = np.where(more, np.maximum(dome, cover), shaped)
+                        bottom = np.where(more, zs - 0.4, bottom)
+                        info.setdefault("dome_wider_mm2", []).append(round(float(more.sum()) * spacing * spacing, 1))
                     ceiling = np.where(has, shaped, -np.inf)
                     info["shape"] = "teeth"
                     hgt = (ceiling - zs)[has & np.isfinite(ceiling)]
