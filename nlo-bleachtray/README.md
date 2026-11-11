@@ -854,7 +854,12 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   it** (the doctor, 11/10/2026, drawn on the model: "the height should be somewhere near the green line, going from the
   cusp of the molar to the incisal edge of the laterals"; 0.25 mm under it). Each side is at least as high as the other side's block at the same place round the
   arch ("the right side should be higher - the left is higher because there is a canine on that side, the right doesn't
-  have any reference"). The block as built stays as the foot (outline, taper to the line, a 1 mm skin). **The bite does not trim the dome** (the doctor's arrow at the dip the opposing teeth had cut
+  have any reference"). **Up to the neighbouring teeth, and a tooth's width cheek to tongue**
+  (11/11/2026: "the block-out should go higher closer to the lateral ... also fatter bucco-lingually - to better
+  accommodate the erupting teeth"): the shape is stood right to both ends of the stretch, the stretch is carried on to
+  0.5 mm short of the tooth at each end (when within 4 mm), each shape is at least 9.5 mm (lower) / 10.5 mm (upper) thick,
+  and the dome's footprint may grow up to 3 mm past the block as built - on the ridge only, not over a neighbouring tooth
+  (`dome_wider_mm2`). The block as built stays as the foot (outline, taper to the line, a 1 mm skin). **The bite does not trim the dome** (the doctor's arrow at the dip the opposing teeth had cut
   into it): how far the opposing teeth, as scanned in occlusion, close into it is in the log and a warning
   (`dome_bite_mm`). One general shape, no valleys ("don't spend too much time figuring out the cusps - a general shape is
   fine"): the premolar's shape stood every 2 mm along the stretch, its relief at 60 %. Never closer than 0.8 mm beside /
