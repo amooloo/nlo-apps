@@ -33,6 +33,7 @@ def main():
     job, _ = TPP.make_case(srv)
     JID = TPP.JID
     thin = dict(method="cott", arch="upper", teeth=["R3", "R4"], thin_flange_mm=2.9, bridge_mm=2.9)
+    plain = dict(method="cott", arch="upper", teeth=["R3", "R4"], bridge_mm=6.0)
     for sc in job["scans"]:
         sc["tag"] = "P1"; sc["preset"] = "phase1"
         sc["report"]["phase1"] = dict(thin)
@@ -45,7 +46,7 @@ def main():
         seen["params"] = dict(params or {}); seen["n"] += 1
         rep = dict(job["scans"][0]["report"])
         how = (params.get("p1_method_by_arch") or {}).get("upper")
-        rep["phase1"] = dict(method="bott", arch="upper", method_by_choice="bott") if how == "bott" else dict(thin)
+        rep["phase1"] = dict(method="bott", arch="upper", method_by_choice="bott") if how == "bott" else dict(thin if seen.get("thin", True) else plain)
         return rep
     srv.process = fake_process
     threading.Thread(target=lambda: uvicorn.run(srv.app, host="127.0.0.1", port=PORT, log_level="error"), daemon=True).start()
@@ -80,20 +81,26 @@ def main():
             page.wait_for_function("window.__view.seg() !== null", timeout=30000); time.sleep(1.0)
         open_case()
         check("cutouts with a thin flange: the strip is shown with the amount", page.locator("#p1choice").count() == 1 and "2.9 mm" in page.text_content("#p1choice"), page.text_content("#stats")[:200])
-        check("... with both choices", page.locator("#p1keep").count() == 1 and page.locator("#p1toBott").count() == 1)
+        check("... with Keep the cutouts, and the two ways side by side (Cutout TT marked)", page.locator("#p1keep").count() == 1 and page.is_enabled("#p1toBott") and page.is_disabled("#p1toCott") and "Cutout TT ✓" in page.text_content("#p1switch"), page.text_content("#stats")[-200:])
         n0 = seen["n"]
         page.click("#p1toBott"); wait_run(n0)
         p1p = seen.get("params") or {}
         check("Switch this arch to block-out: the arch is re-made with block-out for that arch only", (p1p.get("p1_method_by_arch") or {}).get("upper") == "bott" and p1p.get("p1_method") == "cott", (p1p.get("p1_method_by_arch"), p1p.get("p1_method")))
-        check("the switched arch offers the way back", page.locator("#p1toCott").count() == 1 and page.locator("#p1keep").count() == 0, page.text_content("#stats")[-200:])
+        check("the switched arch: Block-out TT marked, Cutout TT offered, no thin-flange strip", page.is_enabled("#p1toCott") and page.is_disabled("#p1toBott") and "Block-out TT ✓" in page.text_content("#p1switch") and page.locator("#p1keep").count() == 0, page.text_content("#stats")[-200:])
         n0 = seen["n"]
         page.click("#p1toCott"); wait_run(n0)
         p1p = seen.get("params") or {}
-        check("Back to cutouts: the arch's entry is gone, cutouts again", not (p1p.get("p1_method_by_arch") or {}).get("upper") and page.locator("#p1keep").count() == 1, p1p.get("p1_method_by_arch"))
+        check("Cutout TT: the arch is cutouts again", (p1p.get("p1_method_by_arch") or {}).get("upper") == "cott" and page.locator("#p1keep").count() == 1, p1p.get("p1_method_by_arch"))
         page.click("#p1keep"); time.sleep(0.2)
-        check("Keep the cutouts: the strip goes away", page.locator("#p1choice").count() == 0)
+        check("Keep the cutouts: the strip goes away, the switch stays", page.locator("#p1choice").count() == 0 and page.locator("#p1switch").count() == 1)
         open_case()
-        check("... and stays away when the case is opened again", page.locator("#p1choice").count() == 0)
+        check("... and stays away when the case is opened again", page.locator("#p1choice").count() == 0 and page.locator("#p1switch").count() == 1)
+        # an arch with enough flange has the switch too, back and forth
+        seen["thin"] = False
+        n0 = seen["n"]; page.click("#p1toBott"); wait_run(n0)
+        check("with enough flange: to Block-out TT", (seen["params"].get("p1_method_by_arch") or {}).get("upper") == "bott" and page.is_disabled("#p1toBott"))
+        n0 = seen["n"]; page.click("#p1toCott"); wait_run(n0)
+        check("... and back to Cutout TT, no strip", (seen["params"].get("p1_method_by_arch") or {}).get("upper") == "cott" and page.is_disabled("#p1toCott") and page.locator("#p1choice").count() == 0)
         check("no page errors", not errors, errors[:3])
         browser.close()
     print("\n" + ("ALL OK" if not fails else f"{len(fails)} FAILED: {fails}"))

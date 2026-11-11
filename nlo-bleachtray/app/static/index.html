@@ -1488,16 +1488,23 @@ $('#setClose').onclick = closeSettings;
 // automatically switch to block-out - give them an option, and they can either continue or switch to block-out"). The
 // strip sits with the result: Keep the cutouts (it goes away for this arch of this case) / Switch this arch to
 // block-out (the arch is re-made with block-out; the other arch stays as it is). An arch switched that way offers the
-// way back.
+// way back. Since 11/11/2026 the two ways are always offered side by side for a Phase I arch (Cutout TT / Block-out TT).
 const p1KeepKey = (id, arch) => `nlo_p1keep_${id}_${arch}`;
 function p1ChoiceHtml(id, r){
   const p1 = r.phase1 || null; if (!p1 || p1.error || !r.arch) return '';
+  const bott = p1.method === 'bott';
+  // always there for a Phase I arch (the doctor, 11/11/2026: "there should be a possibility to switch back and forth
+  // between Cut out TT or block out TT"): the two ways side by side, the one the arch is made with marked; a click on
+  // the other re-makes this arch that way (the other arch stays as it is)
+  const failed = bott && p1.cutout_failed_first;
+  const sw = `<div class="hint" id="p1switch" style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span>Phase I retainer, ${r.arch}:</span>`
+    + `<button class="small${bott ? '' : ' primary'}" id="p1toCott" ${bott ? '' : 'disabled'} title="${failed ? 'The cutouts could not be cut on this arch (they would cut the retainer into pieces) - a click tries them again' : 'Re-makes this arch with cutouts round the C/Ds'}">Cutout TT${bott ? '' : ' ✓'}</button>`
+    + `<button class="small${bott ? ' primary' : ''}" id="p1toBott" ${bott ? 'disabled' : ''} title="Re-makes this arch with a block-out over the C/Ds in place of the cutouts">Block-out TT${bott ? ' ✓' : ''}</button>`
+    + (failed ? '<span>the cutouts could not be cut on this arch</span>' : '') + `</div>`;
   let kept = false; try { kept = localStorage.getItem(p1KeepKey(id, r.arch)) === String(p1.thin_flange_mm); } catch (e) {}
-  if (p1.method !== 'bott' && p1.thin_flange_mm != null && !kept)
-    return `<div class="warnstrip" id="p1choice" style="margin-top:8px;display:block"><b>Thin flange under the cutouts: ${p1.thin_flange_mm} mm</b> on the tongue side - narrower than the 5 mm we aim for, the retainer may be weak there. The cutouts were made. <span style="display:inline-flex;gap:6px;margin-left:6px;vertical-align:middle"><button class="small primary" id="p1keep" title="Go on with the cutouts as they are">Keep the cutouts</button><button class="small" id="p1toBott" title="Re-makes this arch with block-out in place of the cutouts; the other arch stays as it is">Switch this arch to block-out</button></span></div>`;
-  if (p1.method === 'bott' && p1.method_by_choice === 'bott')
-    return `<div class="hint" id="p1choice" style="margin-top:6px">This arch was switched to block-out (the flange under the cutouts was thin). <button class="small" id="p1toCott" title="Re-makes this arch with the cutouts again">Back to cutouts</button></div>`;
-  return '';
+  const thin = !bott && p1.thin_flange_mm != null && !kept
+    ? `<div class="warnstrip" id="p1choice" style="margin-top:8px;display:block"><b>Thin flange under the cutouts: ${p1.thin_flange_mm} mm</b> on the tongue side - narrower than the 5 mm we aim for, the retainer may be weak there. The cutouts were made: keep them, or switch this arch to Block-out TT below. <button class="small primary" id="p1keep" style="margin-left:6px" title="Go on with the cutouts as they are">Keep the cutouts</button></div>` : '';
+  return thin + sw;
 }
 async function p1SetArchMethod(id, arch, how){
   const pr = params();
@@ -1513,7 +1520,7 @@ function wireP1Choice(id, r){
   const k = $('#p1keep'), b = $('#p1toBott'), c = $('#p1toCott');
   if (k) k.onclick = () => { try { localStorage.setItem(p1KeepKey(id, r.arch), String(r.phase1.thin_flange_mm)); } catch (e) {} const box = $('#p1choice'); if (box) box.remove(); };
   if (b) b.onclick = () => { b.disabled = true; b.textContent = 'Switching…'; p1SetArchMethod(id, r.arch, 'bott'); };
-  if (c) c.onclick = () => { c.disabled = true; c.textContent = 'Switching…'; p1SetArchMethod(id, r.arch, null); };
+  if (c) c.onclick = () => { c.disabled = true; c.textContent = 'Switching…'; p1SetArchMethod(id, r.arch, 'cott'); };
 }
 $('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
 document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => { const inp = $('#' + b.dataset.for); const step = +b.dataset.step; const dec = (String(step).split('.')[1] || '').length;
