@@ -605,8 +605,29 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         # ... and the teeth whose middle lies behind the last dot (the 6 behind the E's quarter) stay whole too: a label
         # that spilled a few vertices forward of the dot would be scooped with the window
         behind_t = [t for am, t in mids if am > end and t != keep_t]
+        # the outline as a region seen from above (11/10/2026: "the results don't match" - a line drawn across the E's
+        # crown, back out to the cheek, was only read for its nearest and farthest angle and its innermost radius, and
+        # every tooth between those angles was cut whole): the drawn line itself is the window's edge, all of it - the
+        # window is what lies between the line and the cheek, closed from each end of the line straight out (radially)
+        # past the arch. What is on the other side of the line stays, crown or gum.
+        region = None
+        try:
+            from shapely.geometry import Polygon as _Poly
+            pts = V[d][:, :2]
+            keep_ = np.r_[True, np.linalg.norm(np.diff(pts, axis=0), axis=1) > 1e-6]
+            pts = pts[keep_]
+            if len(pts) >= 2:
+                th = np.unwrap(np.arctan2(pts[:, 1] - c[1], pts[:, 0] - c[0]))
+                r_out = float(r_v0.max()) + 10.0
+                arc = np.linspace(th[-1], th[0], 48)
+                ring = np.vstack([pts, np.c_[c[0] + r_out * np.cos(arc), c[1] + r_out * np.sin(arc)]])
+                poly = shapely.make_valid(_Poly(ring))
+                if not poly.is_empty and poly.area > 1.0:
+                    region = poly
+        except Exception:   # noqa - the angle-and-radius reading below still stands
+            region = None
         segs[sd] = dict(start=start, end=end, tooth_a=None, tooth_e=None, e_edge=end + 0.3 / r_arch, manual=True, traced=True,
-                        r_path=(a_u, r_u), keep_tooth=keep_t, keep_behind=behind_t, dots=[int(i) for i in d])
+                        r_path=(a_u, r_u), region=region, keep_tooth=keep_t, keep_behind=behind_t, dots=[int(i) for i in d])
         manual[sd] = int(len(d))
         length = float(np.sum(np.linalg.norm(np.diff(V[d], axis=0), axis=1)))
         res.setdefault("window", {})[patient_side(sd, arch)] = f"your outline ({len(d)} dots, {length:.0f} mm, from {'the ' + str(info[keep_t][1]) + chr(39) + 's distal' if keep_t else 'the first dot'} round the tongue side to the last dot)"
@@ -928,6 +949,15 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                     base_ &= labels != kt
                 if g.get("keep_behind"):
                     base_ &= ~np.isin(labels, g["keep_behind"])
+                if g.get("region") is not None:
+                    # the drawn line is the edge: inside the region it closes with the cheek side is the window (the
+                    # line lies 0.3 mm beyond the trough, on what stays, as at a span's walls)
+                    keep_ = on_side & (labels != kt if kt is not None else True)
+                    if g.get("keep_behind"):
+                        keep_ &= ~np.isin(labels, g["keep_behind"])
+                    trough |= keep_ & shapely.contains_xy(g["region"].buffer(0.15), V[:, 0], V[:, 1])
+                    window |= keep_ & shapely.contains_xy(g["region"].buffer(0.3), V[:, 0], V[:, 1])
+                    continue
                 trough |= base_ & (sd * ang_v >= g["start"]) & (sd * ang_v <= g["end"])
                 window |= base_ & (sd * ang_v >= g["start"] - 0.3 / r_arch) & (sd * ang_v <= g["e_edge"])
                 continue
