@@ -767,19 +767,24 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rep.setdefault("warnings", []).append("the mouthguard line could not be made - this guard is trimmed at the gum line like a tray: check it before sending")
     p1_cut = None             # Phase I: the line the Trimlign cuts (with the C/D cutouts); margin_f is the outline the model is built round
     p1_span = p1_wedge = None   # Phase I: each side's window as a vertex mask (the block-out stands over it), and its wedge
+    # how the Phase I retainer is made: the case's choice, or this arch's own (the page's "switch this arch to
+    # block-out" when the flange under the cutouts is thin, 11/10/2026)
+    p1_asked = str(((P.get("p1_method_by_arch") or {}).get(arch) if isinstance(P.get("p1_method_by_arch"), dict) else None) or P.get("p1_method") or "cott").lower()
     if P1:
         from .phase1 import phase1_trimline
         try:
             rc = np.asarray(aux.get("ring_center", margin[:, :2].mean(0)), float)[:2]
             rc_f = trimesh.transform_points(np.array([[rc[0], rc[1], 0.0]]), T_tilt @ T_ref)[0, :2]
             cut_line, body_line, p1_info, p1_mesh = phase1_trimline(
-                mesh_f, A, labels, info, margin_f, edge_zone, rc_f, arch=arch, method=("cott" if str(P.get("p1_method") or "cott").lower() in ("cott", "cutt") else "bott"),
+                mesh_f, A, labels, info, margin_f, edge_zone, rc_f, arch=arch, method=("cott" if p1_asked in ("cott", "cutt") else "bott"),
                 picks=P.get("p1_teeth"), buccal_mm=float(P["trimline_offset"] or 1.25), plate_mm=float(P.get("p1_plate_mm", 0.0)),
                 apex_shift_mm=float(P.get("p1_apex_shift", 0.0)), cut_palatal_mm=float(P.get("p1_cut_palatal_mm", 1.25)),
                 flange_max=float(P.get("p1_flange_max", 10.0)), scoop=bool(P.get("p1_scoop", True)),
                 span_idx=P.get("p1_span_idx") or None, end_idx=P.get("p1_end_idx") or None, six_idx=P.get("p1_six_idx") or None,
                 path_idx=P.get("p1_path_idx") or None, log=lambda m: log(f"[{name}] {m}"))
             p1_span = p1_info.pop("_span", None); p1_wedge = p1_info.pop("_wedge", None)
+            if isinstance(P.get("p1_method_by_arch"), dict) and P["p1_method_by_arch"].get(arch):
+                p1_info["method_by_choice"] = str(P["p1_method_by_arch"][arch]).lower()
             rep["phase1"] = p1_info
             if p1_info.get("positions"):
                 # the doctor's "6 is here" dot moved a side's count: the case's teeth follow (the block-out's picks too)
@@ -1088,7 +1093,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # of contact" - the doctor, 10/20/2026). The bite comes from the case's other arch, its raw scan brought into this
     # model's frame (the scanners export upper and lower in occlusion)
     p1_cap_at = None
-    p1_eff = (rep.get("phase1") or {}).get("method") or str(P.get("p1_method") or "cott").lower()   # the cutouts may have been rejected (too little flange)
+    p1_eff = (rep.get("phase1") or {}).get("method") or p1_asked   # the cutouts may have been rejected (too little flange)
     if P1 and p1_eff == "bott":
         from .phase1 import block_outs, pick_teeth, DEFAULT_PICKS
         try:

@@ -1484,6 +1484,37 @@ $('#setApply').onclick = async () => {
   forgetEdits(); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 $('#setClose').onclick = closeSettings;
+// Phase I, a thin flange under the cutouts: the cutouts are made and the choice is the doctor's (11/10/2026: "don't just
+// automatically switch to block-out - give them an option, and they can either continue or switch to block-out"). The
+// strip sits with the result: Keep the cutouts (it goes away for this arch of this case) / Switch this arch to
+// block-out (the arch is re-made with block-out; the other arch stays as it is). An arch switched that way offers the
+// way back.
+const p1KeepKey = (id, arch) => `nlo_p1keep_${id}_${arch}`;
+function p1ChoiceHtml(id, r){
+  const p1 = r.phase1 || null; if (!p1 || p1.error || !r.arch) return '';
+  let kept = false; try { kept = localStorage.getItem(p1KeepKey(id, r.arch)) === String(p1.thin_flange_mm); } catch (e) {}
+  if (p1.method !== 'bott' && p1.thin_flange_mm != null && !kept)
+    return `<div class="warnstrip" id="p1choice" style="margin-top:8px;display:block"><b>Thin flange under the cutouts: ${p1.thin_flange_mm} mm</b> on the tongue side - narrower than the 5 mm we aim for, the retainer may be weak there. The cutouts were made. <span style="display:inline-flex;gap:6px;margin-left:6px;vertical-align:middle"><button class="small primary" id="p1keep" title="Go on with the cutouts as they are">Keep the cutouts</button><button class="small" id="p1toBott" title="Re-makes this arch with block-out in place of the cutouts; the other arch stays as it is">Switch this arch to block-out</button></span></div>`;
+  if (p1.method === 'bott' && p1.method_by_choice === 'bott')
+    return `<div class="hint" id="p1choice" style="margin-top:6px">This arch was switched to block-out (the flange under the cutouts was thin). <button class="small" id="p1toCott" title="Re-makes this arch with the cutouts again">Back to cutouts</button></div>`;
+  return '';
+}
+async function p1SetArchMethod(id, arch, how){
+  const pr = params();
+  const by = Object.assign({}, (CUR_P1 && CUR_P1.p1_method_by_arch) || {}); if (how) by[arch] = how; else delete by[arch];
+  CUR_P1 = Object.assign({ p1_method: 'cott', p1_teeth: ['R3', 'R4', 'L3', 'L4'] }, CUR_P1 || {}, { p1_method_by_arch: by });
+  pr.p1 = Object.assign({}, pr.p1, CUR_P1);
+  const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', JSON.stringify(pr));
+  const resp = await fetch(`/api/jobs/${id}/rerun`, { method: 'POST', body: fd }); const j = await resp.json().catch(() => ({}));
+  if (!resp.ok) { showErr('Could not re-make the arch: ' + (j.detail || resp.status)); return; }
+  forgetEdits(); $('#dl').innerHTML = ''; selectJob(id);
+}
+function wireP1Choice(id, r){
+  const k = $('#p1keep'), b = $('#p1toBott'), c = $('#p1toCott');
+  if (k) k.onclick = () => { try { localStorage.setItem(p1KeepKey(id, r.arch), String(r.phase1.thin_flange_mm)); } catch (e) {} const box = $('#p1choice'); if (box) box.remove(); };
+  if (b) b.onclick = () => { b.disabled = true; b.textContent = 'Switching…'; p1SetArchMethod(id, r.arch, 'bott'); };
+  if (c) c.onclick = () => { c.disabled = true; c.textContent = 'Switching…'; p1SetArchMethod(id, r.arch, null); };
+}
 $('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
 document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => { const inp = $('#' + b.dataset.for); const step = +b.dataset.step; const dec = (String(step).split('.')[1] || '').length;
   let v = +inp.value + step; v = Math.min(+inp.max, Math.max(+inp.min, v)); inp.value = v.toFixed(dec); inp.dispatchEvent(new Event('change')); });
@@ -1795,7 +1826,7 @@ async function selectJob(id){
       // the New case card shows the open case's patient (unless a new case is being set up right now)
       const p = j.params || {}; if (!pending.length) { $('#pfirst').value = p.patient_first || ''; $('#plast').value = p.patient_last || ''; } updatePatientLine();
       // the open case's own Phase I choice (how, which teeth) rides along on its re-runs
-      CUR_P1 = p.p1 && (p.p1.p1_method || p.p1.p1_teeth) ? { p1_method: p.p1.p1_method || 'cott', p1_teeth: p.p1.p1_teeth || ['R3', 'R4', 'L3', 'L4'] } : null;
+      CUR_P1 = p.p1 && (p.p1.p1_method || p.p1.p1_teeth) ? { p1_method: p.p1.p1_method || 'cott', p1_teeth: p.p1.p1_teeth || ['R3', 'R4', 'L3', 'L4'], p1_method_by_arch: Object.assign({}, p.p1.p1_method_by_arch || {}) } : null;
       try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); }
     }
     if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; const box = $('#review'); box.className = 'review discarded'; box.innerHTML = '<b>Processing failed.</b> Open the processing log below and send Dr. Akhavan the last lines. <button class="small" id="remakebtn">Make it again</button>'; $('#dl').innerHTML = ''; $('#remakebtn').onclick = async () => { $('#remakebtn').disabled = true; $('#remakebtn').textContent = 'Starting…'; const fd = new FormData(); fd.append('edits', '{}'); fd.append('params', '{}'); const rs = await fetch(`/api/jobs/${id}/rerun`, { method: 'POST', body: fd }).catch(() => null); if (!rs || !rs.ok) { showErr('Could not start it again — reopen the case from the list.'); $('#remakebtn').disabled = false; $('#remakebtn').textContent = 'Make it again'; return; } shown = ''; refreshJobs(); }; }
@@ -2039,7 +2070,9 @@ async function loadResult(id, j){
   const big = (ap.used && !mg && ap.large_patches) || [];
   const warns = (r.warnings || []).concat(big.length ? [`braces: ${big.length} rebuilt area${big.length > 1 ? 's cover' : ' covers'} most of a tooth (${big.join(', ')} mm², red on the Braces tab) — the enamel there is a guess (crowded teeth: brackets and wire run together); check those teeth before printing`] : []);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : '<span style="color:var(--err)">NOT watertight</span>'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '')
-    + (warns.length ? `<br><span style="color:var(--err);font-weight:600">&#9888; ${warns.join(' · ')}</span>` : '');
+    + (warns.length ? `<br><span style="color:var(--err);font-weight:600">&#9888; ${warns.join(' · ')}</span>` : '')
+    + p1ChoiceHtml(id, r);
+  wireP1Choice(id, r);
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
   // result: the arch body and the base as two pieces, so the arch can be moved on the base

@@ -946,21 +946,18 @@ def _phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, 
                     # sides drawn the rule was skipped, the cutouts then cut the retainer apart and the model came out
                     # with neither cutouts nor block-out)
                     traced_left = min(traced_left, max(left, 0.0))
-        if traced_left < min_bridge and traced_left < bridge_avail:
-            res["bridge_mm"] = round(traced_left, 1)
-            res["cutout_rejected"] = (f"only {traced_left:.1f} mm of flange would be left under your outline on the tongue side "
-                                      f"({min_bridge:.0f} mm needed) - made with block-out instead")
-            res.setdefault("warnings", []).append(res["cutout_rejected"])
-            method = "bott"
-            res["method"] = "bott"
-            res["method_asked"] = "cott"
-        elif bridge_avail < min_bridge:
-            res["cutout_rejected"] = (f"only {bridge_avail:.1f} mm of flange would be left under the cutouts on the tongue side "
-                                      f"({min_bridge:.0f} mm needed) - made with block-out instead")
-            res.setdefault("warnings", []).append(res["cutout_rejected"])
-            method = "bott"
-            res["method"] = "bott"
-            res["method_asked"] = "cott"
+        # under min_bridge of flange the cutouts are still made, with a warning - the choice is the doctor's (11/10/2026:
+        # "still do the cutouts but also give that warning that the flange is going to be smaller than what seems to be
+        # the appropriate amount - don't just automatically switch to block-out; give them an option, and they can
+        # either continue or switch to block-out"). The page offers the switch for this arch (`p1_method_by_arch`).
+        # Until then the rule made the retainer with block-out by itself ("min 5 mm - if below that reject the cutouts")
+        thin = min(traced_left, bridge_avail)
+        if thin < min_bridge:
+            res["bridge_mm"] = round(thin, 1)
+            res["thin_flange_mm"] = round(thin, 1)
+            res.setdefault("warnings", []).append(
+                f"only {thin:.1f} mm of flange is left under the cutouts on the tongue side - narrower than the {min_bridge:.0f} mm "
+                f"we aim for, the retainer may be weak there. The cutouts were made: keep them, or switch this arch to block-out")
     if method == "cott" and segs:
         for sd, g in segs.items():
             on_side = np.sign(V[:, 0] - c[0]) == sd
@@ -1484,14 +1481,31 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
             w_ = (u - f_[0]) / max(b_[0] - f_[0], 1e-6)
             return f_[1] + w_ * (b_[1] - f_[1])
         return (f_ or b_)[1]
+    # ... and no lower than the other side's block at the same place round the arch (the doctor, 11/10/2026: "the right
+    # side should be higher - the left is higher because there is a canine on that side, the right doesn't have any
+    # reference"): a side whose C is still there stands over it; the side where it is gone takes that height too
+    side_tops = [(V[reg_][:, :2], hull_top(h_, V[reg_])) for reg_, h_ in solids]
+    def other_side_top(k_self):
+        P_, Z_ = [], []
+        for k_, (xy_, z_) in enumerate(side_tops):
+            if k_ != k_self and len(xy_):
+                P_.append(np.column_stack([2.0 * c_all[0] - xy_[:, 0], xy_[:, 1]])); Z_.append(z_)
+        if not P_:
+            return lambda xy: -np.inf
+        P_ = np.vstack(P_); Z_ = np.concatenate(Z_); kd_ = cKDTree(P_)
+        def f(xy):
+            near = kd_.query_ball_point(np.asarray(xy)[:2], 3.0)
+            return float(np.percentile(Z_[near], 90)) if len(near) >= 5 else -np.inf
+        return f
     # each block on its own voxel grid: inside the hull, or (under a crown) from the gum under its bulge up to the
     # hull's top in that column - the undercuts filled as putty does; never within keep_mm of a neighbouring tooth;
     # blurred a little and meshed. Inside a convex hull = on the inner side of every face plane
     parts = []
-    for reg, h in solids:
+    for k_solid, (reg, h) in enumerate(solids):
         lo = h.bounds[0] - 1.0; hi = h.bounds[1] + 1.0
+        z_mirror = other_side_top(k_solid)
         if form == "teeth" and occ_tops:
-            hi[2] = max(hi[2], max(z for _, z in occ_tops) + 1.5)        # (room for the dome)
+            hi[2] = max(hi[2], max(z for _, z in occ_tops) + 1.5, max((float(z_.max()) for _, z_ in side_tops if len(z_)), default=-np.inf) + 1.5)        # (room for the dome)
         cm = reg & tooth                                              # the crown columns: filled down to the gum under the bulge
         lo[2] = min(lo[2], float(V[reg][:, 2].min()) - 3.5)
         shape = np.ceil((hi - lo) / spacing).astype(int) + 1
@@ -1561,7 +1575,7 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
                 if body_c.sum() < 50:
                     body_c = has.reshape(-1)
                 env = _tooth_envelope(G2, body_c, top.reshape(-1), c_arch, arch, patient_side(side_sd, arch),
-                                      z_target=(lambda xy: occ_level(xy) - dome_below_mm))
+                                      z_target=(lambda xy: max(occ_level(xy) - dome_below_mm, z_mirror(xy))))
                 if env is not None:
                     from scipy.ndimage import maximum_filter
                     z_reg = field(V[reg], "max")

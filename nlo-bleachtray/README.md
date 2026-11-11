@@ -839,8 +839,12 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   those angles was cut whole (an outline that came back across the E to the cheek took the whole E). The lines then run along
   the traced edge and up the walls onto the first-trim line by themselves. **Since 11/10/2026 the 5 mm rule below
   holds for a traced side too** (the doctor: under 5 mm "it's not going to be able to do a cutout, which is good - that's
-  what I instructed"): the flange left under the outline on the tongue side (`traced_bridge_mm`) under 5 mm makes the
-  retainer with block-out. And **cutouts that cannot be cut at all** (they would cut the retainer into pieces) are made
+  what I instructed"): the flange left under the outline on the tongue side (`traced_bridge_mm`) counts like an
+  automatic side's. **Later the same day the rule became a choice** (the doctor: "still do the cutouts but also give that
+  warning ... don't just automatically switch to block-out. Give them an option"): under 5 mm the cutouts are made, the
+  case warns (`thin_flange_mm`) and the Result panel offers **Keep the cutouts** / **Switch this arch to block-out**
+  (`p1.p1_method_by_arch = {arch: "bott"}`, that arch only; a switched arch offers Back to cutouts). And **cutouts that
+  cannot be cut at all** (they would cut the retainer into pieces) are made
   with block-out as well, not left as a first trim with neither (`cutout_failed_first`).
 - **The block-out is domed like teeth** (11/10/2026 - the doctor: "the purpose of the block-out is to provide room for the
   teeth underneath to erupt, so having it flat does not work - it should have a dome shape, which is why I said maybe use
@@ -848,8 +852,9 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   canine / premolar shapes (`assets/pontics`, one per ~7.5 mm of the block's stretch) over the block and blends them - each
   as wide and thick as the block there and as high as **the line from the top of the tooth in front of the block to the top of the tooth behind
   it** (the doctor, 11/10/2026, drawn on the model: "the height should be somewhere near the green line, going from the
-  cusp of the molar to the incisal edge of the laterals"; 0.25 mm under it). The block as built stays as the foot (outline,
-  taper to the line, a 1 mm skin). **The bite does not trim the dome** (the doctor's arrow at the dip the opposing teeth had cut
+  cusp of the molar to the incisal edge of the laterals"; 0.25 mm under it). Each side is at least as high as the other side's block at the same place round the
+  arch ("the right side should be higher - the left is higher because there is a canine on that side, the right doesn't
+  have any reference"). The block as built stays as the foot (outline, taper to the line, a 1 mm skin). **The bite does not trim the dome** (the doctor's arrow at the dip the opposing teeth had cut
   into it): how far the opposing teeth, as scanned in occlusion, close into it is in the log and a warning
   (`dome_bite_mm`). One general shape, no valleys ("don't spend too much time figuring out the cusps - a general shape is
   fine"): the premolar's shape stood every 2 mm along the stretch, its relief at 60 %. Never closer than 0.8 mm beside /
