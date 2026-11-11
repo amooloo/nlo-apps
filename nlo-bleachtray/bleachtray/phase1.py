@@ -433,7 +433,27 @@ def scoop_trough(V, labels, trough, keep_mask, floor_z, keep_mm=0.6, ramp_mm=2.0
     return Vn, int((drop > 0.05).sum()), float(drop.max()) if len(drop) else 0.0
 
 
-def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch="upper", method="cott",
+def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch="upper", method="cott", **kw):
+    """The Phase I retainer's line (_phase1_trimline). When the cutouts were asked for and cannot be cut - they would
+    cut the retainer into pieces - the retainer is made with block-out instead, as when the 5 mm rule rejects them (the
+    doctor, 11/10/2026: "the block out does not show either ... even though it cannot do the cutout"): until then the
+    line fell back to the first trim and the model had neither."""
+    out = _phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch=arch, method=method, **kw)
+    res = out[2]
+    if method == "cott" and res.get("cutout_failed") and "error" not in res:
+        out2 = _phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch=arch, method="bott", **kw)
+        r2 = out2[2]
+        if "error" not in r2:
+            why = "the cutouts would cut the retainer into pieces (too little " + ("palate" if arch == "upper" else "tongue-side gum") + " in the scan between the windows and its edge) - made with block-out instead"
+            r2["method_asked"] = "cott"; r2["cutout_rejected"] = why; r2["cutout_failed_first"] = True
+            r2.setdefault("warnings", []).append(why)
+            if kw.get("log"):
+                kw["log"]("phase I: " + why)
+            return out2
+    return out
+
+
+def _phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, arch="upper", method="cott",
                     picks=None, buccal_mm=1.25, plate_mm=0.0, apex_shift_mm=0.0, open_round_mm=6.0, cut_palatal_mm=1.25, cut_lingual_mm=1.5, min_bridge=5.0,
                     keep_mm=0.0, notch_round_mm=2.0, crown_mm=4.5, bridge_mm=5.0, flange_inset=1.5, flange_min=4.0, flange_max=10.0,
                     frenum_depth=3.0, frenum_width=6.0, smooth=False, scoop=True, scoop_depth_mm=1.0, scoop_ramp_mm=2.0, window_start_mm=0.0, window_e_frac=0.3,
@@ -911,6 +931,7 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
         held = float(np.percentile(flange_v[zone], 10)) if zone.any() else np.inf
         bridge_avail = max(0.0, held - cut_lingual_mm) if np.isfinite(held) else np.inf
         res["bridge_mm"] = round(bridge_avail, 1) if np.isfinite(bridge_avail) else None
+        traced_left = np.inf
         for sd, g in segs.items():
             if g.get("traced"):
                 # how much flange the traced edge leaves on the tongue side, for the record (the doctor decides)
@@ -920,9 +941,20 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
                 if dots_t:
                     left = float(np.min(flange_v[dots_t] - dist[dots_t]))
                     res.setdefault("traced_bridge_mm", {})[patient_side(sd, arch)] = round(max(left, 0.0), 1)
-                    if left < 3.0:
-                        res.setdefault("warnings", []).append(f"your outline on the {'right' if patient_side(sd, arch) == 'R' else 'left'} leaves only about {max(left, 0.0):.1f} mm of flange on the tongue side under the cutout - the retainer may be weak there")
-        if bridge_avail < min_bridge:
+                    # the 5 mm rule holds for a drawn outline too (the doctor, 11/10/2026: with under 5 mm of flange
+                    # "it's not going to be able to do a cutout, which is good - that's what I instructed"; with both
+                    # sides drawn the rule was skipped, the cutouts then cut the retainer apart and the model came out
+                    # with neither cutouts nor block-out)
+                    traced_left = min(traced_left, max(left, 0.0))
+        if traced_left < min_bridge and traced_left < bridge_avail:
+            res["bridge_mm"] = round(traced_left, 1)
+            res["cutout_rejected"] = (f"only {traced_left:.1f} mm of flange would be left under your outline on the tongue side "
+                                      f"({min_bridge:.0f} mm needed) - made with block-out instead")
+            res.setdefault("warnings", []).append(res["cutout_rejected"])
+            method = "bott"
+            res["method"] = "bott"
+            res["method_asked"] = "cott"
+        elif bridge_avail < min_bridge:
             res["cutout_rejected"] = (f"only {bridge_avail:.1f} mm of flange would be left under the cutouts on the tongue side "
                                       f"({min_bridge:.0f} mm needed) - made with block-out instead")
             res.setdefault("warnings", []).append(res["cutout_rejected"])
@@ -1112,8 +1144,101 @@ def phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, a
     return lines["cut"], lines["body"], res, mesh_out
 
 
+_TOOTH_FIELD = {}
+
+
+def _tooth_field(n, res=0.15, margin=6.0, skirt=2.0):
+    """A library tooth (pontic.shape_mesh) seen from above, for the tooth-shaped block-out: its top surface as a height
+    map on a grid in the shape's own frame (X along the arch, Y facial), carried on outside its outline as a skirt that
+    falls `skirt` mm per mm. Returns dict(z=height map, lo=grid origin, res, zmax, w, t, c=outline centre) (cached)."""
+    n = int(n)
+    if n in _TOOTH_FIELD:
+        return _TOOTH_FIELD[n]
+    import trimesh
+    from scipy.ndimage import distance_transform_edt, binary_closing, binary_fill_holes
+    from .pontic import shape_mesh
+    m = shape_mesh(n)
+    P = np.vstack([np.asarray(m.vertices), trimesh.sample.sample_surface(m, 120000, seed=1)[0]])
+    lo = P[:, :2].min(0) - margin
+    shape = np.ceil((P[:, :2].max(0) + margin - lo) / res).astype(int) + 1
+    z = np.full(tuple(shape), -np.inf)
+    ij = np.floor((P[:, :2] - lo) / res).astype(int)
+    np.maximum.at(z, (ij[:, 0], ij[:, 1]), P[:, 2])
+    inside = binary_fill_holes(binary_closing(np.isfinite(z), iterations=2))
+    d, (ii, jj) = distance_transform_edt(~np.isfinite(z), return_indices=True)
+    z = z[ii, jj]                                                    # (holes inside the outline: the nearest height)
+    d_out, (oi, oj) = distance_transform_edt(~inside, return_indices=True)
+    z = np.where(inside, z, z[oi, oj] - skirt * d_out * res)
+    ext = P[:, :2].max(0) - P[:, :2].min(0)
+    out = dict(z=z, lo=lo, res=res, zmax=float(P[:, 2].max()), w=float(ext[0]), t=float(ext[1]), c=(P[:, :2].max(0) + P[:, :2].min(0)) / 2.0)
+    _TOOTH_FIELD[n] = out
+    return out
+
+
+def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=1.10, tooth_mm=7.5, z_target=None):
+    """The tooth-shaped ceiling of a block-out (the doctor, 11/10/2026: "right now it's very blocky ... use the tooth
+    library - it doesn't have to be a perfect tooth shape, in fact I would rather not, but a blend of the shape of those
+    teeth that will build out the block-out instead of just a block shape"): the block's stretch round the arch is
+    shared out among the library's canine / premolar shapes of that quadrant (one per ~tooth_mm), each stood over its
+    share, as wide and as thick as the block there and as high as the block's top; the ceiling over a cell is the
+    highest of the teeth's top surfaces there (their skirts outside the outlines). `G2` the grid's (x, y), `body` the
+    cells where the block has real height, `top` the block's top per cell. Returns the ceiling per cell (-inf where no
+    tooth reaches), or None when it cannot be made."""
+    from .pontic import library
+    if arch not in ("upper", "lower") or body.sum() < 50:
+        return None
+    lib = library()
+    by_pos = {int(v["pos"]): int(k) for k, v in lib.items() if v.get("arch") == arch and v.get("side") == side_name}
+    B = G2[body]
+    rel = B - c_arch
+    th = np.unwrap(np.sort(np.arctan2(rel[:, 1], rel[:, 0])))
+    th_b = np.arctan2(rel[:, 1], rel[:, 0])
+    th_b = th_b + 2 * np.pi * np.round((float(np.median(th)) - th_b) / (2 * np.pi))
+    r_med = float(np.median(np.linalg.norm(rel, axis=1)))
+    t_lo, t_hi = np.percentile(th_b, [0.5, 99.5])
+    k_n = int(np.clip(round((t_hi - t_lo) * r_med / tooth_mm), 1, 4))
+    order = {1: [4], 2: [3, 4], 3: [3, 4, 5], 4: [3, 4, 5, 6]}[k_n]
+    edges = np.linspace(t_lo, t_hi, k_n + 1)
+    bins = []
+    for k in range(k_n):
+        mk = (th_b >= edges[k] - 1e-9) & (th_b <= edges[k + 1] + 1e-9)
+        if mk.sum() < 10:
+            continue
+        a_mid = 0.5 * (edges[k] + edges[k + 1])
+        f = np.array([np.cos(a_mid), np.sin(a_mid)]); t = np.array([-f[1], f[0]])
+        Q = B[mk]; ck = Q.mean(0)
+        u = (Q - ck) @ t; v = (Q - ck) @ f
+        ck = ck + t * 0.5 * (u.max() + u.min()) + f * 0.5 * (v.max() + v.min())
+        top_k = float(np.percentile(top[body][mk], 90))
+        if z_target is not None:                                     # as high as a tooth that has come in
+            zt = float(z_target(ck))
+            if np.isfinite(zt):
+                top_k = max(top_k, zt)
+        bins.append(dict(c=ck, t=t, f=f, w=float(np.ptp(u)), th=float(np.ptp(v)), top=top_k))
+    if not bins:
+        return None
+    bins.sort(key=lambda b: -b["c"][1])                              # the front of the arch first: the canine, then back
+    env = np.full(len(G2), -np.inf)
+    for b, pos in zip(bins, order):
+        n = by_pos.get(pos) or by_pos.get(4) or (next(iter(by_pos.values())) if by_pos else None)
+        if n is None:
+            return None
+        T = _tooth_field(n)
+        sx = max(b["w"], 3.0) * grow_w / T["w"]; sy = max(b["th"], 3.0) * grow_t / T["t"]
+        sz = float(np.clip(min(sx, sy), 0.6, 1.5))
+        d = G2 - b["c"]
+        uu = (d @ b["t"]) / sx + T["c"][0]; vv = (d @ b["f"]) / sy + T["c"][1]
+        ij = np.floor((np.column_stack([uu, vv]) - T["lo"]) / T["res"]).astype(int)
+        ok = (ij[:, 0] >= 0) & (ij[:, 0] < T["z"].shape[0]) & (ij[:, 1] >= 0) & (ij[:, 1] < T["z"].shape[1])
+        zk = np.full(len(G2), -np.inf)
+        zk[ok] = b["top"] - (T["zmax"] - T["z"][ij[ok, 0], ij[ok, 1]]) * sz
+        env = np.maximum(env, zk)
+    return env
+
+
 def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.0, clear_mm=0.2, share=0.5, flat_mm=0.5,
-               full_mm=2.0, keep_mm=0.8, spacing=0.2, crown_mm=4.5, line=None, line_gap_mm=0.3, span=None, wedge=None, log=None):
+               full_mm=2.0, keep_mm=0.8, spacing=0.2, crown_mm=4.5, line=None, line_gap_mm=0.3, span=None, wedge=None, log=None,
+               arch=None, form="teeth", min_room_mm=0.8, min_over_mm=0.4):
     """BOTT: the block-out built into the model in place of the putty - one solid block over each side's run of chosen
     teeth (`sel`, tooth labels), not shaped to the teeth under it (the doctor, 10/20/2026: "a solid block, almost like a
     blob that is smoothed out on the top ... don't try to match the anatomy"), with room round the teeth as the
@@ -1315,12 +1440,21 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         worst = max(info["bite_mm"].values())
         info["warning"] = (f"the bite is tight over the C/Ds: with the block-out's top at the cusps the opposing teeth still take up to "
                            f"{worst:.1f} mm of its top over the fossae - judge it on the occlusion before cutting")
+    # the level a tooth comes in to, near a point: the tops of the two nearest teeth that are not under a block
+    occ_tops = [(V[labels == t][:, :2].mean(0), float(np.percentile(V[labels == t][:, 2], 95))) for t in np.unique(labels[others])] if others.any() else []
+    def occ_level(xy):
+        if not occ_tops:
+            return -np.inf
+        d = sorted((float(np.linalg.norm(c_ - np.asarray(xy)[:2])), z_) for c_, z_ in occ_tops)[:2]
+        return float(np.mean([z_ for _, z_ in d]))
     # each block on its own voxel grid: inside the hull, or (under a crown) from the gum under its bulge up to the
     # hull's top in that column - the undercuts filled as putty does; never within keep_mm of a neighbouring tooth;
     # blurred a little and meshed. Inside a convex hull = on the inner side of every face plane
     parts = []
     for reg, h in solids:
         lo = h.bounds[0] - 1.0; hi = h.bounds[1] + 1.0
+        if form == "teeth" and occ_tops:
+            hi[2] = max(hi[2], max(z for _, z in occ_tops) + 1.0)        # (room for the dome)
         cm = reg & tooth                                              # the crown columns: filled down to the gum under the bulge
         lo[2] = min(lo[2], float(V[reg][:, 2].min()) - 3.5)
         shape = np.ceil((hi - lo) / spacing).astype(int) + 1
@@ -1373,13 +1507,51 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         base = np.where(np.isfinite(zc_min), floor, np.where(bot - zs <= fill_gap, zs, bot)) - 0.4
         bottom = np.where(has, np.minimum(bot, base), np.inf)
         ceiling = np.where(has, top, -np.inf)
+        # domed like teeth, not a flat block (11/10/2026, _tooth_envelope - the doctor: "the purpose of the block-out is
+        # to provide room for the teeth underneath to erupt, so having it flat like that does not work - it should have
+        # a dome shape to it, which is why I said maybe use the teeth shape"): over the block's stretch stands a row of
+        # library teeth blended together, each as wide and as thick as the block there and as high as a tooth that has
+        # come in - up to the level of the neighbouring teeth's tops, where the block as built stood only its lift over
+        # what is there now (over a ridge whose C and D are gone: a slab on the gum). The block as built stays as the
+        # foot: its outline, its taper down to the line, a skin over the gum. Limits: with the bite, over every cell at
+        # most `share` of the room up to the opposing tooth (less clear_mm), as before; never closer to what stands
+        # under it than min_room_mm to the side and min_over_mm on top
+        if form == "teeth" and arch in ("upper", "lower"):
+            try:
+                side_sd = int(np.sign(np.median(V[reg][:, 0]) - float(np.median(V[tooth][:, 0]) if tooth.any() else 0.0)) or 1)
+                c_arch = V[tooth][:, :2].mean(0) if tooth.any() else V[:, :2].mean(0)
+                body_c = (has & (top - zs > 1.0)).reshape(-1)
+                if body_c.sum() < 50:
+                    body_c = has.reshape(-1)
+                env = _tooth_envelope(G2, body_c, top.reshape(-1), c_arch, arch, patient_side(side_sd, arch),
+                                      z_target=(lambda xy: occ_level(xy) - (0.5 if zo_at is not None else 1.0)))
+                if env is not None:
+                    from scipy.ndimage import maximum_filter
+                    z_reg = field(V[reg], "max")
+                    k_r = max(1, int(round(min_room_mm / spacing)))
+                    yy, xx = np.ogrid[-k_r:k_r + 1, -k_r:k_r + 1]
+                    cover = maximum_filter(z_reg, footprint=(xx * xx + yy * yy) <= k_r * k_r, mode="constant", cval=-np.inf) + min_over_mm
+                    skin = np.minimum(top, zs + 1.0)                              # the block as built, as the foot
+                    dome = env.reshape(nx, ny)
+                    if zo_at is not None:                                         # the bite, cell by cell
+                        zo_c = zo_at(np.column_stack([G2, np.zeros(len(G2))])).reshape(nx, ny)
+                        cap = np.where(np.isfinite(zo_c), zs + share * np.clip(zo_c - zs - clear_mm, 0.0, None), np.inf)
+                        dome = np.minimum(dome, cap)
+                    shaped = np.maximum(np.maximum(dome, cover), skin)
+                    ceiling = np.where(has, shaped, -np.inf)
+                    info["shape"] = "teeth"
+                    hgt = (ceiling - zs)[has & np.isfinite(ceiling)]
+                    if len(hgt):
+                        info.setdefault("dome_mm", []).append(round(float(np.percentile(hgt, 98)), 1))
+            except Exception as ex:  # noqa - the plain block stands
+                info["shape_error"] = str(ex)[:120]
         occ = ((gz[None, None, :] >= bottom[:, :, None]) & (gz[None, None, :] <= ceiling[:, :, None])).astype(np.float32)
         if kd_other is not None and occ.any():
             idx = np.where(occ.reshape(-1) > 0)[0]
             Gp = np.column_stack([G2[idx // nz], gz[idx % nz]])
             d_o = kd_other.query(Gp, distance_upper_bound=keep_mm + 0.01)[0]
             occ.reshape(-1)[idx[np.isfinite(d_o)]] = 0.0
-        occ = gaussian_filter(occ, 0.5 / spacing)                       # (the hull's facets eased)
+        occ = gaussian_filter(occ, (0.9 if info.get("shape") == "teeth" else 0.5) / spacing)   # (the hull's facets eased; the teeth blended into one another)
         if occ.max() < 0.5:
             continue
         verts, faces, _, _ = marching_cubes(occ, 0.5, spacing=(spacing, spacing, spacing))
@@ -1404,5 +1576,8 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         what = (f"one block per side over the window ({len(under_t)} teeth under them)" if span else f"one block per side over {len(sel)} teeth")
         log(f"phase I block-out: {what}, {clearance_mm:.1f} mm of room round them, {tm['min']:.1f}-{tm['max']:.1f} mm over "
             f"the crowns (median {tm['median']:.1f}; " + (f"lift {info['lift_mm']:.1f} mm from the bite" if opposing_f is not None else f"a flat {flat_mm:.1f} mm, no bite")
-            + f"), {info['volume_ml']:.2f} mL")
+            + f"), {info['volume_ml']:.2f} mL"
+            + (f"; domed like teeth, up to {max(info['dome_mm']):.1f} mm over what is there" if info.get("dome_mm") else ""))
+    if info.get("shape") == "teeth" and opposing_f is None and info.get("warning", "").startswith("no opposing arch"):
+        info["warning"] = "no opposing arch in the case: the block-out's dome stands up to the level of the neighbouring teeth - check the bite"
     return solid, info

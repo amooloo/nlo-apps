@@ -837,9 +837,19 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   arch is the window's region): a line drawn across a crown cuts the crown there and what lies on the other side of the
   line stays - before, only the line's nearest and farthest angle and innermost radius were read and every tooth between
   those angles was cut whole (an outline that came back across the E to the cheek took the whole E). The lines then run along
-  the traced edge and up the walls onto the first-trim line by themselves. The 5 mm rule below is not applied to a
-  traced side - the edge is where the doctor put it - but the case says how much flange is left under the outline on
-  the tongue side (`traced_bridge_mm`) and warns under 3 mm.
+  the traced edge and up the walls onto the first-trim line by themselves. **Since 11/10/2026 the 5 mm rule below
+  holds for a traced side too** (the doctor: under 5 mm "it's not going to be able to do a cutout, which is good - that's
+  what I instructed"): the flange left under the outline on the tongue side (`traced_bridge_mm`) under 5 mm makes the
+  retainer with block-out. And **cutouts that cannot be cut at all** (they would cut the retainer into pieces) are made
+  with block-out as well, not left as a first trim with neither (`cutout_failed_first`).
+- **The block-out is domed like teeth** (11/10/2026 - the doctor: "the purpose of the block-out is to provide room for the
+  teeth underneath to erupt, so having it flat does not work - it should have a dome shape, which is why I said maybe use
+  the teeth shape ... not a perfect tooth shape, a blend"): `block_outs(form="teeth")` stands a row of the tooth library's
+  canine / premolar shapes (`assets/pontics`, one per ~7.5 mm of the block's stretch) over the block and blends them - each
+  as wide and thick as the block there and as high as a tooth that has come in (the level of the two nearest teeth's tops,
+  less 0.5 mm; 1 mm without the bite). The block as built stays as the foot (outline, taper to the line, a 1 mm skin).
+  With the bite the dome takes at most half the room up to the opposing tooth, cell by cell; never closer than 0.8 mm
+  beside / 0.4 mm over what stands under it. `p1_block_shape: "block"` in the settings file gives the old block.
 - **The 5 mm rule** (the doctor: "min 5 mm - if below that reject the cutouts and just do block-out"): on a lower the
   flange left under the windows on the tongue side (what the scan holds below the window's edge, the 10th percentile
   along the C/Ds) must be 5 mm or more; when it is not, the cutouts are rejected and that arch is made by block-out,

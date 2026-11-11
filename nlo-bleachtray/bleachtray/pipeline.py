@@ -1110,7 +1110,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             # the block stands over each side's window - the cutout's own extent, whatever is in it (the C and D, the
             # space where they were, the E's mesial quarter) - and ends at the window's ends; the chosen teeth only on
             # a side without a window
-            cap, cinfo = block_outs(mesh_f, labels, sel_b, opposing_f=opp, line=(p1_cut if p1_cut is not None else margin_f), span=p1_span, wedge=p1_wedge, log=lambda m: log(f"[{name}] {m}"))
+            cap, cinfo = block_outs(mesh_f, labels, sel_b, opposing_f=opp, line=(p1_cut if p1_cut is not None else margin_f), span=p1_span, wedge=p1_wedge, arch=arch, form=str(P.get("p1_block_shape") or "teeth"), log=lambda m: log(f"[{name}] {m}"))
             under_b = set(cinfo.get("labels_under") or sel_b)
             cinfo["teeth"] = sorted(f"{'R' if (s > 0) == (arch == 'lower') else 'L'}{p}" for t, (s, p) in info.items() if int(t) in under_b)
             if p1_span:
