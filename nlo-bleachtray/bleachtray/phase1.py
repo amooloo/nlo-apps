@@ -1238,7 +1238,7 @@ def _tooth_envelope(G2, body, top, c_arch, arch, side_name, grow_w=1.18, grow_t=
 
 def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.0, clear_mm=0.2, share=0.5, flat_mm=0.5,
                full_mm=2.0, keep_mm=0.8, spacing=0.2, crown_mm=4.5, line=None, line_gap_mm=0.3, span=None, wedge=None, log=None,
-               arch=None, form="teeth", min_room_mm=0.8, min_over_mm=0.4):
+               arch=None, form="teeth", min_room_mm=0.8, min_over_mm=0.4, dome_below_mm=0.25, dome_clear_mm=0.3):
     """BOTT: the block-out built into the model in place of the putty - one solid block over each side's run of chosen
     teeth (`sel`, tooth labels), not shaped to the teeth under it (the doctor, 10/20/2026: "a solid block, almost like a
     blob that is smoothed out on the top ... don't try to match the anatomy"), with room round the teeth as the
@@ -1440,13 +1440,29 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         worst = max(info["bite_mm"].values())
         info["warning"] = (f"the bite is tight over the C/Ds: with the block-out's top at the cusps the opposing teeth still take up to "
                            f"{worst:.1f} mm of its top over the fossae - judge it on the occlusion before cutting")
-    # the level a tooth comes in to, near a point: the tops of the two nearest teeth that are not under a block
-    occ_tops = [(V[labels == t][:, :2].mean(0), float(np.percentile(V[labels == t][:, 2], 95))) for t in np.unique(labels[others])] if others.any() else []
+    # the level a tooth comes in to, at a point of the arch (the doctor, 11/10/2026, a line drawn on the model: "the height
+    # should be somewhere near the green line, going from the cusp of the molar to the incisal edge of the laterals"):
+    # the straight line from the top of the nearest tooth in front of the block to the top of the nearest tooth behind
+    # it - teeth that are not under a block - by how far round the arch the point lies between the two
+    c_all = V[tooth][:, :2].mean(0) if tooth.any() else V[:, :2].mean(0)
+    arch_a = lambda xy: float(np.arctan2(np.asarray(xy)[0] - c_all[0], np.asarray(xy)[1] - c_all[1]))    # 0 at the front, signed by side
+    occ_tops = []
+    if others.any():
+        for t in np.unique(labels[others]):
+            m_ = labels == t
+            if m_.sum() >= 30:
+                occ_tops.append((arch_a(V[m_][:, :2].mean(0)), float(np.percentile(V[m_][:, 2], 98))))
     def occ_level(xy):
         if not occ_tops:
             return -np.inf
-        d = sorted((float(np.linalg.norm(c_ - np.asarray(xy)[:2])), z_) for c_, z_ in occ_tops)[:2]
-        return float(np.mean([z_ for _, z_ in d]))
+        a = arch_a(xy); sd_ = 1.0 if a >= 0 else -1.0; u = sd_ * a
+        us = [(sd_ * a_t, z_t) for a_t, z_t in occ_tops]
+        front = [q for q in us if q[0] < u]; back = [q for q in us if q[0] > u]
+        f_ = max(front) if front else None; b_ = min(back) if back else None
+        if f_ and b_:
+            w_ = (u - f_[0]) / max(b_[0] - f_[0], 1e-6)
+            return f_[1] + w_ * (b_[1] - f_[1])
+        return (f_ or b_)[1]
     # each block on its own voxel grid: inside the hull, or (under a crown) from the gum under its bulge up to the
     # hull's top in that column - the undercuts filled as putty does; never within keep_mm of a neighbouring tooth;
     # blurred a little and meshed. Inside a convex hull = on the inner side of every face plane
@@ -1454,7 +1470,7 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
     for reg, h in solids:
         lo = h.bounds[0] - 1.0; hi = h.bounds[1] + 1.0
         if form == "teeth" and occ_tops:
-            hi[2] = max(hi[2], max(z for _, z in occ_tops) + 1.0)        # (room for the dome)
+            hi[2] = max(hi[2], max(z for _, z in occ_tops) + 1.5)        # (room for the dome)
         cm = reg & tooth                                              # the crown columns: filled down to the gum under the bulge
         lo[2] = min(lo[2], float(V[reg][:, 2].min()) - 3.5)
         shape = np.ceil((hi - lo) / spacing).astype(int) + 1
@@ -1524,7 +1540,7 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
                 if body_c.sum() < 50:
                     body_c = has.reshape(-1)
                 env = _tooth_envelope(G2, body_c, top.reshape(-1), c_arch, arch, patient_side(side_sd, arch),
-                                      z_target=(lambda xy: occ_level(xy) - (0.5 if zo_at is not None else 1.0)))
+                                      z_target=(lambda xy: occ_level(xy) - dome_below_mm))
                 if env is not None:
                     from scipy.ndimage import maximum_filter
                     z_reg = field(V[reg], "max")
@@ -1533,9 +1549,15 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
                     cover = maximum_filter(z_reg, footprint=(xx * xx + yy * yy) <= k_r * k_r, mode="constant", cval=-np.inf) + min_over_mm
                     skin = np.minimum(top, zs + 1.0)                              # the block as built, as the foot
                     dome = env.reshape(nx, ny)
-                    if zo_at is not None:                                         # the bite, cell by cell
+                    if zo_at is not None:
+                        # the bite: the dome stands to the line, but never into the opposing teeth as they close on it
+                        # (dome_clear_mm short of them, cell by cell). The half-the-room rule of the flat block is not
+                        # used for the dome: it left a loaf on the gum where the line is 5 mm up
                         zo_c = zo_at(np.column_stack([G2, np.zeros(len(G2))])).reshape(nx, ny)
-                        cap = np.where(np.isfinite(zo_c), zs + share * np.clip(zo_c - zs - clear_mm, 0.0, None), np.inf)
+                        cap = np.where(np.isfinite(zo_c), zo_c - dome_clear_mm, np.inf)
+                        took = (dome - np.minimum(dome, cap))[has & np.isfinite(dome)]
+                        if len(took) and float(took.max()) > 0.05:
+                            info.setdefault("dome_bite_mm", []).append(round(float(took.max()), 1))
                         dome = np.minimum(dome, cap)
                     shaped = np.maximum(np.maximum(dome, cover), skin)
                     ceiling = np.where(has, shaped, -np.inf)
@@ -1577,7 +1599,14 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         log(f"phase I block-out: {what}, {clearance_mm:.1f} mm of room round them, {tm['min']:.1f}-{tm['max']:.1f} mm over "
             f"the crowns (median {tm['median']:.1f}; " + (f"lift {info['lift_mm']:.1f} mm from the bite" if opposing_f is not None else f"a flat {flat_mm:.1f} mm, no bite")
             + f"), {info['volume_ml']:.2f} mL"
-            + (f"; domed like teeth, up to {max(info['dome_mm']):.1f} mm over what is there" if info.get("dome_mm") else ""))
-    if info.get("shape") == "teeth" and opposing_f is None and info.get("warning", "").startswith("no opposing arch"):
-        info["warning"] = "no opposing arch in the case: the block-out's dome stands up to the level of the neighbouring teeth - check the bite"
+            + (f"; domed like teeth up to the line between the neighbouring teeth's tops, {max(info['dome_mm']):.1f} mm over what is there" if info.get("dome_mm") else "")
+            + (f"; the opposing teeth took up to {max(info['dome_bite_mm']):.1f} mm off it" if info.get("dome_bite_mm") else ""))
+    if info.get("shape") == "teeth":
+        if opposing_f is None and info.get("warning", "").startswith("no opposing arch"):
+            info["warning"] = "no opposing arch in the case: the block-out's dome stands up to the line between the neighbouring teeth's tops - check the bite"
+        elif info.get("warning", "").startswith("the bite is tight"):
+            info.pop("warning")                                   # (the flat block's measure: the dome has its own)
+        if info.get("dome_bite_mm") and max(info["dome_bite_mm"]) > 1.0:
+            info["warning"] = (f"the opposing teeth close into the block-out's dome: up to {max(info['dome_bite_mm']):.1f} mm of it was taken off under them "
+                               f"(it stops {dome_clear_mm:.1f} mm short of the opposing teeth) - judge it on the occlusion")
     return solid, info

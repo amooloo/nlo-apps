@@ -846,10 +846,12 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   teeth underneath to erupt, so having it flat does not work - it should have a dome shape, which is why I said maybe use
   the teeth shape ... not a perfect tooth shape, a blend"): `block_outs(form="teeth")` stands a row of the tooth library's
   canine / premolar shapes (`assets/pontics`, one per ~7.5 mm of the block's stretch) over the block and blends them - each
-  as wide and thick as the block there and as high as a tooth that has come in (the level of the two nearest teeth's tops,
-  less 0.5 mm; 1 mm without the bite). The block as built stays as the foot (outline, taper to the line, a 1 mm skin).
-  With the bite the dome takes at most half the room up to the opposing tooth, cell by cell; never closer than 0.8 mm
-  beside / 0.4 mm over what stands under it. `p1_block_shape: "block"` in the settings file gives the old block.
+  as wide and thick as the block there and as high as **the line from the top of the tooth in front of the block to the top of the tooth behind
+  it** (the doctor, 11/10/2026, drawn on the model: "the height should be somewhere near the green line, going from the
+  cusp of the molar to the incisal edge of the laterals"; 0.25 mm under it). The block as built stays as the foot (outline,
+  taper to the line, a 1 mm skin). With the bite the dome only stops 0.3 mm short of the opposing teeth where they close
+  into it (the half-the-room rule of the flat block left a loaf on the gum and is not used for the dome); never closer
+  than 0.8 mm beside / 0.4 mm over what stands under it. `p1_block_shape: "block"` in the settings file gives the old block.
 - **The 5 mm rule** (the doctor: "min 5 mm - if below that reject the cutouts and just do block-out"): on a lower the
   flange left under the windows on the tongue side (what the scan holds below the window's edge, the 10th percentile
   along the C/Ds) must be 5 mm or more; when it is not, the cutouts are rejected and that arch is made by block-out,
