@@ -832,7 +832,11 @@ Aligner piece of its own, stage 3 (`AU3A` / `AL3A`); the base says PHASE I and t
   radius from the arch centre by arch angle (where the run doubles back the innermost wins) - the window is everything
   on the side between the walls that lies farther out than that edge, teeth and gum, out to the cheek. The tooth in
   front of the first dot (the 2) and the teeth whose middle lies behind the last dot (the 6 behind the E's quarter)
-  stay whole, so a label that spilled a few vertices forward is not scooped with the window. The lines then run along
+  stay whole, so a label that spilled a few vertices forward is not scooped with the window. **Since 11/10/2026 the drawn line
+  itself is the window's edge, all of it** (seen from above, the line closed from each of its ends straight out past the
+  arch is the window's region): a line drawn across a crown cuts the crown there and what lies on the other side of the
+  line stays - before, only the line's nearest and farthest angle and innermost radius were read and every tooth between
+  those angles was cut whole (an outline that came back across the E to the cheek took the whole E). The lines then run along
   the traced edge and up the walls onto the first-trim line by themselves. The 5 mm rule below is not applied to a
   traced side - the edge is where the doctor put it - but the case says how much flange is left under the outline on
   the tongue side (`traced_bridge_mm`) and warns under 3 mm.
