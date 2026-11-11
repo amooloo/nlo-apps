@@ -1346,9 +1346,23 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         gap = zo_at(Vr) - Vr[:, 2]
         info["gap_mm"] = dict(min=round(float(np.nanmin(np.where(np.isfinite(gap), gap, np.nan))), 2)) if np.isfinite(gap).any() else None
         lift = float(max_mm)              # the hull is built, then let down to what the bite allows (below)
+        # the two arches are only in occlusion when a bite scan was taken (the doctor, 11/10/2026: "it doesn't make sense
+        # because the bite scan was never imported" - the other arch stood 1.9 mm inside this one's gum and was read as
+        # a tight bite): an opposing arch that passes through this one's surface is not in occlusion with it, and is
+        # not used
+        fin_g = gap[np.isfinite(gap)]
+        if len(fin_g) and float(np.percentile(fin_g, 2)) < -0.75:
+            zo_at = None
+            lift = float(flat_mm)
+            info["no_bite"] = round(float(np.percentile(fin_g, 2)), 1)
+            info["warning"] = ("the upper and lower scans are not in occlusion with each other (no bite scan in the case: the other arch passes "
+                               f"{-info['no_bite']:.1f} mm through this one) - the bite is not used for the block-out: check it on the occlusion")
+    if zo_at is not None:
+        pass
     else:
         lift = float(flat_mm)
-        info["warning"] = f"no opposing arch in the case: the block-out stands a flat {flat_mm:.1f} mm over the C/Ds - check the bite"
+        if "warning" not in info:
+            info["warning"] = f"no opposing arch in the case: the block-out stands a flat {flat_mm:.1f} mm over the C/Ds - check the bite"
     info["lift_mm"] = round(lift, 2)
     def hull_top(h, Pq):
         """the hull's top over the points Pq (x, y): the lowest of its upward faces' planes"""
@@ -1603,12 +1617,12 @@ def block_outs(mesh_f, labels, sel, opposing_f=None, clearance_mm=2.0, max_mm=2.
         tm = info["top_mm"]
         what = (f"one block per side over the window ({len(under_t)} teeth under them)" if span else f"one block per side over {len(sel)} teeth")
         log(f"phase I block-out: {what}, {clearance_mm:.1f} mm of room round them, {tm['min']:.1f}-{tm['max']:.1f} mm over "
-            f"the crowns (median {tm['median']:.1f}; " + (f"lift {info['lift_mm']:.1f} mm from the bite" if opposing_f is not None else f"a flat {flat_mm:.1f} mm, no bite")
+            f"the crowns (median {tm['median']:.1f}; " + (f"lift {info['lift_mm']:.1f} mm from the bite" if zo_at is not None else f"a flat {flat_mm:.1f} mm, no bite")
             + f"), {info['volume_ml']:.2f} mL"
             + (f"; domed like teeth up to the line between the neighbouring teeth's tops, {max(info['dome_mm']):.1f} mm over what is there" if info.get("dome_mm") else "")
             + (f"; the opposing teeth close up to {max(info['dome_bite_mm']):.1f} mm into it (not trimmed)" if info.get("dome_bite_mm") else ""))
     if info.get("shape") == "teeth":
-        if opposing_f is None and info.get("warning", "").startswith("no opposing arch"):
+        if zo_at is None and info.get("warning", "").startswith("no opposing arch"):
             info["warning"] = "no opposing arch in the case: the block-out's dome stands up to the line between the neighbouring teeth's tops - check the bite"
         elif info.get("warning", "").startswith("the bite is tight"):
             info.pop("warning")                                   # (the flat block's measure: the dome has its own)
