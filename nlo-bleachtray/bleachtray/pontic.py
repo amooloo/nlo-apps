@@ -89,12 +89,14 @@ def pontic_mesh(spec, T=None):
     return m
 
 
-def build_pontics(specs, T_total, surface, fuse=True, radius=0.6, overlap=0.2, foot_mm=8.0, log=None):
+def build_pontics(specs, T_total, surface, fuse=True, radius=0.6, overlap=0.2, foot_mm=8.0, foot_drop_mm=None, floor_z=None, log=None):
     """Every pontic of a scan as one mesh in the model's frame, each fused into `surface` (the scan as the body is built
     from it, same frame). `foot_mm`: how far down the air under the pontic is filled to the gum - every column under its
     silhouette, so the crown's bulge stands on a wall flush with its contour (the pontic comes with its own block-out: a
     thermoformed sheet must not get under it) and a seat a little high over a resorbed ridge still reaches it; 8 mm covers
-    any sensible placement (the block-out fills use 3). Returns (mesh or None, info)."""
+    any sensible placement (the block-out fills use 3). `floor_z`: the model's floor - the foot stops there and the piece
+    is cut flat at it: over a cheek-side gum that falls away below the floor the foot hung under the model as a curtain
+    (11/12/2026). Returns (mesh or None, info)."""
     info = dict(count=0, pontics=[])
     pieces = []
     for p in specs or []:
@@ -116,7 +118,7 @@ def build_pontics(specs, T_total, surface, fuse=True, radius=0.6, overlap=0.2, f
         if fuse:
             try:
                 from .fuse import fuse_many
-                m2, finfo = fuse_many(m, surface, radius=radius, overlap=overlap, foot_mm=foot_mm, reach_below=foot_mm, log=None)
+                m2, finfo = fuse_many(m, surface, radius=radius, overlap=overlap, foot_mm=foot_mm, reach_below=foot_mm, foot_drop_mm=foot_drop_mm, floor_z=floor_z, log=None)
                 entry["fused"] = dict(fillet_mm3=finfo.get("fillet_mm3"), fused=finfo.get("fused"), failed=finfo.get("failed"))
                 if finfo.get("errors"):
                     entry["fused"]["errors"] = finfo["errors"]
@@ -124,6 +126,16 @@ def build_pontics(specs, T_total, surface, fuse=True, radius=0.6, overlap=0.2, f
                     m = m2
             except Exception as ex:  # noqa
                 entry["fused"] = dict(error=str(ex)[:120])
+        if floor_z is not None and float(m.bounds[0][2]) < float(floor_z) - 1e-6:
+            try:
+                from .fuse import _to_manifold, _from_manifold
+                man = _to_manifold(m)
+                cut = _from_manifold(man.trim_by_plane((0.0, 0.0, 1.0), float(floor_z))) if man is not None else None
+                if cut is not None and len(cut.faces) >= 4:
+                    m = cut
+                    entry["cut_at_floor"] = True
+            except Exception:  # noqa
+                pass
         pieces.append(m)
         info["pontics"].append(entry)
         if log:

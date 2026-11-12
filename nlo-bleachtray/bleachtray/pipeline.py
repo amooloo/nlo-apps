@@ -37,6 +37,7 @@ DEFAULTS = dict(
     mouthguard=False,      # sports mouthguard: brackets stay under a smooth shield, the line runs into the vestibule with frenum notches, a flange onto the palate
     mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_smooth=6.0, mg_clearance=1.0, mg_band_smooth=1.25,
     distal_round=3.0,      # mm: corner radius of the trim line round the last tooth; it never goes past that tooth, dips behind it are lifted, and a tooth the scan cut through gets the line 2 mm short of the edge, over the tooth; 0 = off
+    distal_hug=True,       # behind the last molar the line runs on that tooth's own gum margin instead of trimline_offset onto the tissue behind it (which the relief cuts away)
     distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
     distal_relief=2.0,     # mm: the model behind the last molar (retromolar pad / tuberosity) is lowered to this far below the trim line so the trimmer reaches the distal surface; 0 = off
     distal_keep=3.0,       # mm: the model ends this far behind the last tooth on each side (Titan ~3); 0 = carry the scan to the outline
@@ -807,7 +808,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rep.setdefault("warnings", []).append("the Phase I line could not be made - this is a plain retainer line: check it before sending")
     if P.get("distal_round", 0.0) > 0 and len(info) >= 4 and not MG and not P1:
         try:
-            margin_f, dround = round_distal(margin_f, mesh_f, labels, info, edge_zone=edge_zone, radius=float(P["distal_round"]),
+            margin_f, dround = round_distal(margin_f, mesh_f, labels, info, edge_zone=edge_zone, radius=float(P["distal_round"]), hug=bool(P.get("distal_hug", True)),
                                             log=lambda m: log(f"[{name}] {m}"))
             margin_f = smooth_polyline(resample_polyline(margin_f, P["trimline_spacing"]), iters=2)
             rep["distal_round"] = dround
@@ -1043,7 +1044,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             try:
                 from .pontic import build_pontics
                 pm, pinfo = build_pontics(P["pontics"], T_total, mesh_f, fuse=bool(P.get("fuse_blockout", True)), radius=float(P.get("fuse_radius") or 0.6),
-                                          overlap=float(P.get("fuse_overlap") or 0.2), log=lambda m: log(f"[{name}] {m}"))
+                                          overlap=float(P.get("fuse_overlap") or 0.2), floor_z=0.0, log=lambda m: log(f"[{name}] {m}"))
                 rep["pontics"] = pinfo
                 if pinfo.get("dropped"):
                     rep.setdefault("warnings", []).append(f"pontic{'s' if len(pinfo['dropped']) > 1 else ''} {', '.join(pinfo['dropped'])} could not be made - open the Pontics tab and place {'them' if len(pinfo['dropped']) > 1 else 'it'} again")

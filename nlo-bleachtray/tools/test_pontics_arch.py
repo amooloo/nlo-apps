@@ -162,6 +162,11 @@ def main():
     vt = np.asarray(pm.vertices)[np.argmax(np.asarray(pm.vertices)[:, 2])]
     tip = body.contains(np.array([[vt[0], vt[1], vt[2] - 0.6], [vt[0], vt[1], vt[2] + 0.6]]))
     check("the pontic's top is in the model, the air above it is not", bool(tip[0]) and not bool(tip[1]), tip.tolist())
+    # nothing of a pontic hangs under the model's floor (z = 0), and behind the last molars the line is on their margin
+    check("no pontic reaches under the model's floor", float(pm.bounds[0][2]) >= -1e-3, round(float(pm.bounds[0][2]), 2))
+    dr = [r for r in (rep.get("distal_round") or []) if not r.get("incomplete")]
+    print("   distal:", [(r["side"], r.get("hug_points"), r.get("hug_mm")) for r in dr])
+    check("behind a whole last molar the margin step ran without an error", all("hug_points" in r and "hug_error" not in r for r in dr), dr)
     seat = (T @ np.asarray(M_raw))[:3, 3]
     pts = []
     for dx in np.linspace(-0.35 * spec["w"], 0.35 * spec["w"], 6):
