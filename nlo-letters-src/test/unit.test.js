@@ -92,6 +92,23 @@ d = draft('marpe', { opt: { count: '4', appliance: 'in', engage: 'bi', length: '
 eq(body[0], 'We are referring Avery to your office for the placement of four miniscrews for a miniscrew-assisted rapid palatal expander (MARPE) as part of their comprehensive orthodontic treatment plan.', 'MARPE opening');
 ok(body[1] === 'The expander is being used to correct a maxillary transverse deficiency and a restricted nasal airway.' && /through the guide slots/.test(body[2]) && /bicortical engagement\)\. We will send the miniscrews with Avery/.test(body[3]) && /do not activate the expander/.test(body[4]) && /length of each miniscrew/.test(body[5]), 'MARPE body :: ' + body.join(' | '));
 
+// ---- exposure: adult teeth to uncover, plus teeth to remove at the same visit ----
+d = draft('exposure', { teeth: ['6'], teeth2: ['C'], opt: { how: 'closed', chain: 'chain' } }); body = L.letterBody(d, cfg);
+ok(/surgical exposure of #6 \(upper right canine\) as part/.test(body[0]), 'exposure names the adult tooth');
+ok(body.includes('As part of the same plan, we are also requesting the extraction of #C (primary upper right canine) at the same visit.'), 'and asks for the baby tooth to come out at the same visit :: ' + body.join(' | '));
+eq(L.letterSubject(d), 'Referral for Surgical Exposure and Extraction', 'the subject says both');
+ok(/The tooth appears|chain to the tooth/.test(body.join(' ')), 'one tooth to uncover stays singular even with teeth to remove');
+d = draft('exposure', { teeth: ['6'], teeth2: ['C', '5'] });
+ok(L.letterBody(d, cfg).some(p => p.includes('extraction of #5 (upper right first premolar) and #C (primary upper right canine) at the same visit')), 'adult teeth can be removed too');
+d = draft('exposure', { teeth: ['6'] });
+ok(!/extraction/.test(L.letterText(d, cfg)) && L.letterSubject(d) === 'Referral for Surgical Exposure', 'nothing to remove → no extraction sentence, plain subject');
+d = draft('exposure', { teeth: ['C'] });
+ok(/\[choose the teeth\]/.test(L.letterText(d, cfg)) && L.draftProblems(d).some(p => /Pick the teeth/.test(p)), 'a baby tooth is never the tooth to uncover');
+d = draft('exposure', { teeth: ['6'], teeth2: ['6'] });
+ok(L.draftProblems(d).some(p => /both to uncover and to remove/.test(p)), 'the same tooth marked both ways is flagged');
+d = draft('extraction', { teeth: ['C'], teeth2: ['5'] });
+ok(!/#5/.test(L.letterText(d, cfg)) && L.letterSubject(d) === 'Referral for Extraction Request', 'other letters ignore the second list');
+
 // ---- problems before printing ----
 eq(L.draftProblems(L.blankDraft('', cfg)), ['Pick a letter.'], 'nothing picked');
 d = draft('hygiene'); d.text = L.letterText(d, cfg);

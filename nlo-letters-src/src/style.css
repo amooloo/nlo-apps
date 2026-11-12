@@ -504,8 +504,8 @@ ol.steps li{margin-bottom:6px}
 .tRow.prim .tooth.t-molar{width:26px}
 .tRow.perm.up,.tRow:first-of-type{align-items:flex-end}
 .tooth:hover{border-color:var(--blue);background:var(--blue-100)}
-.tooth.on{background:var(--coral-600);border-color:var(--coral-700);border-style:solid;color:#fff}
-.arch{display:flex;align-items:center;gap:8px;font-family:var(--fd);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-400);padding:0 4px;min-width:440px}
+.tooth.on,.tRow.prim .tooth.on{background:var(--coral-600);border-color:var(--coral-700);border-style:solid;color:#fff}
+.arch{margin:5px 0;display:flex;align-items:center;gap:8px;font-family:var(--fd);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-400);padding:0 4px;min-width:440px}
 .arch span{flex:1;border-top:1.5px solid var(--grey-200);margin:2px 0}
 .chartFt{display:flex;gap:12px;align-items:flex-start;margin-top:10px}
 .teethSay{flex:1;font-size:12.5px;color:var(--grey-600);line-height:1.45}

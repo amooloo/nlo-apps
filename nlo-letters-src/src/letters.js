@@ -143,6 +143,9 @@ const LETTERS = [
   {
     id: 'exposure', label: 'Exposure', subject: 'Referral for Surgical Exposure', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_REQUIRED,
     blurb: 'Ask a surgeon to uncover an impacted tooth.',
+    // Exposure is of adult teeth (the chart leaves the baby teeth out); teeth to take out at the same visit, baby or adult, are picked on a second chart.
+    teethTitle: 'Teeth to uncover', adultOnly: true, teethHint: 'Click the impacted teeth. Baby teeth to remove go on the next chart.',
+    teeth2: { title: 'Teeth to remove at the same visit', hint: 'Optional. Click any baby or adult teeth the surgeon should extract.', subject: 'Referral for Surgical Exposure and Extraction' },
     opts: [
       { key: 'side', label: 'Where the tooth sits', choices: [
         ['buccal', 'Buccal / labial', 'The tooth appears to be positioned on the buccal (cheek) side.'],
@@ -166,7 +169,8 @@ const LETTERS = [
       return [
         'We are referring ' + c.first + ' to your office for the evaluation and surgical exposure of ' + c.teeth + ' as part of their comprehensive orthodontic treatment plan.',
         [c.word('side'), c.word('how')].filter(Boolean).join(' '),
-        c.word('chain')
+        c.word('chain'),
+        c.teeth2 ? 'As part of the same plan, we are also requesting the extraction of ' + c.teeth2 + ' at the same visit.' : ''
         , c.notes('note'), 'Please send your operative report and any relevant post-operative imaging to ' + c.records + '.'
       ];
     }
@@ -393,7 +397,7 @@ function letterById(id) { return LETTERS.find(l => l.id === id) || null; }
 
 /* a blank letter in progress (never saved anywhere) */
 function blankDraft(letterId, cfg) {
-  return { letter: letterId || '', first: '', last: '', dob: '', rpPhone: '', docId: '', doc: null, teeth: [], opt: {}, text: '', edited: false,
+  return { letter: letterId || '', first: '', last: '', dob: '', rpPhone: '', docId: '', doc: null, teeth: [], teeth2: [], opt: {}, text: '', edited: false,
     letterhead: (cfg && cfg.letterhead) || OFFICE_DEFAULTS.letterhead, notation: (cfg && cfg.notation) || OFFICE_DEFAULTS.notation, date: '', images: [] };
 }
 /* the choice's words, with the patient's first name filled in */
@@ -412,15 +416,19 @@ const MANY_TEETH = [['The tooth appears to be positioned', 'The teeth appear to 
   ['we will bond one in our office once the tooth is uncovered', 'we will bond them in our office once the teeth are uncovered'], ['Space for the tooth has been opened', 'Space for the teeth has been opened'],
   ['to begin moving the tooth', 'to begin moving the teeth'], ['because the tooth is impacted or erupting out of position', 'because the teeth are impacted or erupting out of position']];
 function toothCount(s, n) { (n === 1 ? ONE_TOOTH : n > 1 ? MANY_TEETH : []).forEach(([a, b]) => { s = s.split(a).join(b); }); return s; }
+/* the teeth the letter is about; a letter for adult teeth only never carries a baby tooth */
+function mainTeeth(letter, draft) { return sortTeeth(draft.teeth).filter(id => !(letter.adultOnly && TEETH[id].primary)); }
+function letterSubject(draft) { const l = letterById(draft.letter); if (!l) return ''; return l.teeth2 && sortTeeth(draft.teeth2).length ? l.teeth2.subject : l.subject; }
 /* the body of the letter as paragraphs (no greeting, no closing) */
 function letterBody(draft, cfg) {
   const letter = letterById(draft.letter); if (!letter) return [];
   const first = (draft.first || '').trim() || 'the patient';
-  const n = sortTeeth(draft.teeth).length;
+  const n = mainTeeth(letter, draft).length;
   const say = s => toothCount(fillName(s, first), n);
   const c = {
     first, records: cfg.records,
-    teeth: teethText(draft.teeth, draft.notation),
+    teeth: teethText(mainTeeth(letter, draft), draft.notation),
+    teeth2: letter.teeth2 ? teethText(draft.teeth2, draft.notation) : '',
     one: n === 1, count: n,
     pick: key => { const p = picked(letter, draft, key); return p.length ? p[0][0] : ''; },
     words: key => picked(letter, draft, key).map(ch => say(ch[2])),
@@ -439,7 +447,8 @@ function draftProblems(draft) {
   if (!draft.dob) out.push('Enter the patient’s date of birth.');
   else if (!validDob(draft.dob)) out.push('The date of birth doesn’t look right.');
   if (!draft.doc || !(docName(draft.doc) || draft.doc.practice)) out.push('Choose the doctor the letter goes to.');
-  if (letter.teeth === TEETH_REQUIRED && !sortTeeth(draft.teeth).length) out.push('Pick the teeth on the chart.');
+  if (letter.teeth === TEETH_REQUIRED && !mainTeeth(letter, draft).length) out.push('Pick the teeth on the chart.');
+  if (letter.teeth2 && sortTeeth(draft.teeth2).some(id => draft.teeth.includes(id))) out.push('A tooth is marked both to uncover and to remove.');
   if (/\[choose the teeth\]/.test(draft.text || '')) out.push('The letter still says “[choose the teeth]”.');
   return out;
 }

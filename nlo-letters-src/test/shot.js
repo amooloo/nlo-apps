@@ -15,7 +15,9 @@ const { routes, watch } = require('./helpers');
   for (const id of ids) {
     await p.click('[data-act=pickLetter][data-id=' + id + ']');
     if (id === ids[0]) { await p.fill('#ptFirst', 'Avery'); await p.fill('#ptLast', 'Sample'); await p.fill('#ptDob', '2013-04-09'); await p.fill('#ptRp', '(352) 555-0142'); await p.fill('#docQ', 'mock'); await p.click('.docHit'); }
-    if (await p.locator('.tooth').count()) for (const t of ['6', '11']) await p.click('.tooth[data-id="' + t + '"]');
+    if (await p.locator('.tooth').count()) for (const t of ['6', '11']) await p.click('.tooth[data-set=teeth][data-id="' + t + '"]');
+    if (await p.locator('.tooth[data-set=teeth2]').count()) for (const t of ['C', 'H']) await p.click('.tooth[data-set=teeth2][data-id="' + t + '"]');
+    if (id === 'exposure') await p.screenshot({ path: path.join(out, '5-exposure.png'), fullPage: true });
     for (const key of await p.evaluate(() => letterById(S.draft.letter).opts.map(o => o.key))) {
       const chips = p.locator('.chip[data-k=' + key + ']'); const multi = await p.evaluate(k => letterById(S.draft.letter).opts.find(o => o.key === k).multi, key);
       const n = multi ? Math.min(3, await chips.count()) : 1; for (let i = 0; i < n; i++) await chips.nth(i).click();
