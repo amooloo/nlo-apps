@@ -273,7 +273,8 @@ function builderHTML() {
     '<div class="field"><label for="ptLast">Last name</label><input id="ptLast" data-d="last" autocomplete="off" value="' + esc(d.last) + '"></div></div>' +
     '<div class="grid2"><div class="field"><label for="ptDob">Date of birth</label><input id="ptDob" data-d="dob" type="date" max="' + todayISO() + '" value="' + esc(d.dob) + '"></div>' +
     '<div class="field"><label for="ptRp">Responsible party phone <span class="opt">optional</span></label><input id="ptRp" data-d="rpPhone" type="tel" autocomplete="off" placeholder="(352) 555-0100" value="' + esc(d.rpPhone) + '"></div></div>';
-  const opts = letter.opts.map(o => '<div class="optGrp"><div class="flabel">' + esc(o.label) + (o.multi ? ' <span class="opt">pick any</span>' : '') + '</div><div class="chips">' +
+  const opts = letter.opts.map(o => '<div class="optGrp"><div class="flabel">' + esc(o.label) + (o.multi ? ' <span class="opt">pick any</span>' : '') +
+    (o.helper ? ' <button type="button" class="linkBtn helpPick" data-act="exposureHelp">Help me choose</button>' : '') + '</div><div class="chips">' +
     o.choices.map(ch => '<button type="button" class="chip' + (isPicked(o, ch[0]) ? ' on' : '') + '" data-act="opt" data-k="' + o.key + '" data-c="' + ch[0] + '" aria-pressed="' + isPicked(o, ch[0]) + '">' + esc(ch[1]) + '</button>').join('') + '</div></div>').join('');
   const text = '<div class="field" style="margin-bottom:6px"><textarea id="ltText" rows="11" spellcheck="true" aria-label="Letter wording">' + esc(d.text) + '</textarea>' +
     '<div class="hint">Change anything you like. <button type="button" class="linkBtn' + (d.edited ? '' : ' hidden') + '" id="resetText" data-act="resetText">Put the suggested wording back</button></div></div>';
@@ -491,6 +492,24 @@ function settingsHTML() {
     '<div class="mFt" style="justify-content:flex-start"><button class="btn btn-pri" type="submit">Save</button></div></form></div></div>';
 }
 
+/* "Help me choose" for the type of exposure: one question at a time, then a suggestion that fills in the choices */
+function exposureHelpHTML() {
+  const path = S.help || [], step = exposureStep(path) || exposureStep([]);
+  const crumbs = path.map((i, n) => { const st = exposureStep(path.slice(0, n)); return st && st.node ? st.node.a[i][0] : ''; }).filter(Boolean);
+  const head = '<h3>Which kind of exposure?</h3><div class="lsub">A quick guide from the usual criteria for impacted canines. Your own judgment decides.</div>' +
+    (crumbs.length ? '<div class="helpCrumbs">' + crumbs.map(c => '<span>' + esc(c) + '</span>').join(ic('next', 12)) + '</div>' : '');
+  const back = path.length ? '<button type="button" class="btn btn-sec" data-act="helpBack">' + ic('back', 15) + 'Back</button>' : '';
+  if (step.result) {
+    const letter = letterById('exposure'), how = letter.opts.find(o => o.key === 'how').choices.find(c => c[0] === step.result.how);
+    return head + '<div class="helpResult"><div class="flabel">Suggested</div><b>' + esc(how[1]) + (step.result.how === 'closed' ? ' exposure, with a chain' : step.result.how === 'open' ? ' exposure' : '') + '</b><p>' + esc(step.result.why) + '</p></div>' +
+      '<div class="mFt">' + back + '<span style="flex:1"></span><button type="button" class="btn btn-sec" data-act="closeModal">Close</button><button type="button" class="btn btn-pri" data-act="helpUse" id="helpUse">Use this</button></div>';
+  }
+  return head + '<div class="helpQ">' + esc(step.node.q) + '</div><div class="helpAns">' +
+    step.node.a.map((a, i) => '<button type="button" class="helpA" data-act="helpPick" data-i="' + i + '"><b>' + esc(a[0]) + '</b>' + (a[1] ? '<span>' + esc(a[1]) + '</span>' : '') + '</button>').join('') + '</div>' +
+    '<div class="mFt">' + back + '<span style="flex:1"></span><button type="button" class="btn btn-sec" data-act="closeModal">Close</button></div>';
+}
+function exposureHelpRender() { const m = $('#modalWrap .modal'); if (m) m.innerHTML = exposureHelpHTML(); else openModal(exposureHelpHTML()); }
+
 /* ---------- modals ---------- */
 function openModal(html, onReady) {
   closeModal();
@@ -555,6 +574,18 @@ Object.assign(ACT, {
     $('#sitesSay').innerHTML = sitesSay(); syncSiteCount(); regenText(); updatePaper();
   },
   clearSites() { S.draft.sites = []; $$('.sDot.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#sitesSay').innerHTML = sitesSay(); syncSiteCount(); regenText(); updatePaper(); },
+  exposureHelp() { S.help = []; exposureHelpRender(); },
+  helpPick(t) { S.help = (S.help || []).concat(Number(t.dataset.i)); exposureHelpRender(); },
+  helpBack() { S.help = (S.help || []).slice(0, -1); exposureHelpRender(); },
+  helpUse() {
+    const step = exposureStep(S.help || []); if (!step || !step.result) return;
+    const d = S.draft, letter = letterById(d.letter), r = step.result;
+    d.opt.how = r.how; if (r.side) d.opt.side = r.side;
+    if (r.how !== 'closed' && d.opt.chain === 'chain') d.opt.chain = ''; // a chain goes with a closed exposure
+    if (r.how === 'closed' && !d.opt.chain) d.opt.chain = 'chain';
+    ['how', 'side', 'chain'].forEach(k => { const o = letter.opts.find(x => x.key === k); $$('.chip[data-k="' + k + '"]').forEach(b => { const on = isPicked(o, b.dataset.c); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); });
+    closeModal(); regenText(); updatePaper(); toast('Filled in the type of exposure');
+  },
   clearTeeth(t) { const set = t.dataset.set; S.draft[set] = []; $$('#chart-' + set + ' .tooth.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#teethSay-' + set).innerHTML = teethSay(set); regenText(); updatePaper(); },
   notation(t) {
     S.draft.notation = t.dataset.v;

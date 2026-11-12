@@ -152,9 +152,11 @@ const LETTERS = [
         ['palatal', 'Palatal', 'The tooth appears to be positioned on the palatal side.'],
         ['lingual', 'Lingual', 'The tooth appears to be positioned on the lingual (tongue) side.'],
         ['unsure', 'Not certain', 'Its exact position is best confirmed on your imaging.']] },
-      { key: 'how', label: 'Type of exposure', choices: [
+      { key: 'how', label: 'Type of exposure', helper: 'exposure', choices: [
         ['closed', 'Closed', 'We are requesting a closed exposure.'],
         ['open', 'Open', 'We are requesting an open exposure.'],
+        ['apf', 'Apically positioned flap', 'We are requesting an open exposure with an apically positioned flap.'],
+        ['ging', 'Gingivectomy', 'We are requesting an open exposure by gingivectomy.'],
         ['either', 'Surgeon’s choice', 'We leave the choice of an open or a closed exposure to your judgment.']] },
       { key: 'chain', label: 'Attachment', choices: [
         ['chain', 'Bond a gold chain', 'Please bond a gold chain to the tooth at the time of surgery and leave the end of the chain accessible so we can begin traction.'],
@@ -417,6 +419,50 @@ const MANY_TEETH = [['The tooth appears to be positioned', 'The teeth appear to 
   ['we will bond one in our office once the tooth is uncovered', 'we will bond them in our office once the teeth are uncovered'], ['Space for the tooth has been opened', 'Space for the teeth has been opened'],
   ['to begin moving the tooth', 'to begin moving the teeth'], ['because the tooth is impacted or erupting out of position', 'because the teeth are impacted or erupting out of position']];
 function toothCount(s, n) { (n === 1 ? ONE_TOOTH : n > 1 ? MANY_TEETH : []).forEach(([a, b]) => { s = s.split(a).join(b); }); return s; }
+/* ---------- "Help me choose" for the type of exposure ----------
+   A short question tree following the usual criteria for impacted canines (Kokich): where the crown sits (labial, mid-alveolar,
+   palatal); for labial crowns, whether the crown is coronal or apical to the mucogingival junction and how much attached gingiva
+   would be left; for palatal crowns, how deep it is. Each answer leads to another question or to a result:
+   how = the "Type of exposure" choice it suggests, side = the "Where the tooth sits" choice it also fills in. A guide, not a rule. */
+const EXPOSURE_TREE = {
+  start: { q: 'Where is the crown?', a: [
+    ['Labial', 'On the cheek / lip side of the ridge', 'labial'],
+    ['Mid-alveolar', 'In the centre of the ridge', 'r:mid'],
+    ['Palatal', 'On the palate side', 'palatal']] },
+  labial: { q: 'Where is the crown compared with the mucogingival junction?', a: [
+    ['Coronal to it', 'Toward the biting edge, under attached gingiva', 'gingiva'],
+    ['Apical to it', 'Above the junction, under loose mucosa', 'height']] },
+  gingiva: { q: 'After uncovering the crown, would 2–3 mm of attached gingiva be left?', a: [
+    ['Yes', '', 'r:ging'],
+    ['No', '', 'r:apfThin']] },
+  height: { q: 'How far above the junction is the crown?', a: [
+    ['Just above it', '', 'r:apf'],
+    ['Well above it', 'High in the vestibule', 'r:high']] },
+  palatal: { q: 'How deep is the crown?', a: [
+    ['Shallow', 'Close to the surface, little bone over it', 'r:palOpen'],
+    ['Deep', 'Deep in bone, horizontal, or near the midline', 'r:palClosed']] }
+};
+const EXPOSURE_RESULTS = {
+  mid: { how: 'closed', side: '', why: 'A crown in the centre of the ridge needs a lot of bone removed to leave it open, so it is covered again and pulled in with a chain.' },
+  ging: { how: 'ging', side: 'buccal', why: 'The crown is low and enough attached gingiva will remain, so a simple window is enough.' },
+  apfThin: { how: 'apf', side: 'buccal', why: 'A window would leave too little attached gingiva, so the gingiva is moved up with the flap instead.' },
+  apf: { how: 'apf', side: 'buccal', why: 'The crown is just above the junction, so a flap brings attached gingiva up onto the tooth.' },
+  high: { how: 'closed', side: 'buccal', why: 'A flap moved this far up tends to be unstable and the tooth can re-intrude after treatment, so the tooth is covered and pulled in with a chain.' },
+  palOpen: { how: 'open', side: 'palatal', why: 'A shallow palatal crown can be left uncovered and will often erupt on its own before you bond it.' },
+  palClosed: { how: 'closed', side: 'palatal', why: 'A deep palatal crown would grow over again if left open, so it is covered and pulled in with a chain.' }
+};
+/* follow the answers so far: [0, 1, …] = which answer was clicked at each question → { node } (another question) or { result } */
+function exposureStep(path) {
+  let key = 'start';
+  for (const i of path || []) {
+    const node = EXPOSURE_TREE[key]; if (!node || !node.a[i]) return null;
+    const next = node.a[i][2];
+    if (next.indexOf('r:') === 0) return { result: EXPOSURE_RESULTS[next.slice(2)], id: next.slice(2) };
+    key = next;
+  }
+  return { node: EXPOSURE_TREE[key], key };
+}
+
 /* ---------- TAD sites: a spot between two neighbouring teeth, on the buccal (B) or the lingual / palatal (L) side ---------- */
 /* id = side + ':' + the two teeth as they sit in the chart row, e.g. "B:3-4", "L:8-9" (across the upper midline), "B:30-29" */
 const NUM_WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];

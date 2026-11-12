@@ -526,6 +526,20 @@ ol.steps li{margin-bottom:6px}
 .sDot:hover i{width:15px;height:15px;border-color:var(--blue);background:var(--blue-100)}
 .sDot.on i{width:16px;height:16px;border-color:var(--coral-700);background:var(--coral-600);box-shadow:0 0 0 3px var(--coral-100)}
 
+/* "Help me choose" */
+.helpPick{margin-left:8px;font-family:var(--fb);font-size:12px;letter-spacing:0;text-transform:none}
+.helpCrumbs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--grey-500);margin:-6px 0 12px}
+.helpCrumbs span{background:var(--grey-100);border-radius:99px;padding:2px 10px;font-weight:600;color:var(--grey-600)}
+.helpQ{font-size:17px;font-weight:700;color:var(--navy);line-height:1.35;margin-bottom:12px}
+.helpAns{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.helpA{display:flex;flex-direction:column;gap:4px;text-align:left;border:1.5px solid var(--grey-200);border-radius:12px;padding:14px 16px;background:#fff;transition:border-color .12s,box-shadow .12s}
+.helpA:hover{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.helpA b{font-family:var(--fd);font-weight:600;font-size:16px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy)}
+.helpA span{font-size:12.5px;color:var(--grey-500);line-height:1.4}
+.helpResult{background:var(--mint-100);border-radius:12px;padding:16px 18px}
+.helpResult b{display:block;font-family:var(--fd);font-weight:600;font-size:20px;letter-spacing:.02em;text-transform:uppercase;color:var(--navy);margin:2px 0 6px}
+.helpResult p{font-size:13.5px;color:var(--grey-700);line-height:1.5}
+
 /* letterhead choices + images */
 .lhGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .lhOpt{display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 6px 9px;border:1.5px solid var(--grey-200);border-radius:12px;background:#fff}

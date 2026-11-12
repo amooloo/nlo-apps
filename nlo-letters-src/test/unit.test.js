@@ -122,6 +122,23 @@ ok(L.draftProblems(d).some(p => /both to uncover and to remove/.test(p)), 'the s
 d = draft('extraction', { teeth: ['C'], teeth2: ['5'] });
 ok(!/#5/.test(L.letterText(d, cfg)) && L.letterSubject(d) === 'Referral for Extraction Request', 'other letters ignore the second list');
 
+// ---- "Help me choose" for the type of exposure ----
+{
+  const hows = L.letterById('exposure').opts.find(o => o.key === 'how').choices.map(c => c[0]), sides = L.letterById('exposure').opts.find(o => o.key === 'side').choices.map(c => c[0]);
+  const leaves = []; const walk = path => { const st = L.exposureStep(path); if (st.result) { leaves.push([path.join(''), st.id, st.result]); return; } st.node.a.forEach((_, i) => walk(path.concat(i))); };
+  walk([]);
+  eq(leaves.map(l => l[0] + '=' + l[1]), ['000=ging', '001=apfThin', '010=apf', '011=high', '1=mid', '20=palOpen', '21=palClosed'], 'every path through the questions ends in a suggestion');
+  ok(leaves.every(l => hows.includes(l[2].how) && (!l[2].side || sides.includes(l[2].side)) && l[2].why.length > 30), 'each suggestion is one of the letter’s own choices and says why');
+  eq(leaves.map(l => l[2].how), ['ging', 'apf', 'apf', 'closed', 'closed', 'open', 'closed'], 'labial low + enough gingiva → gingivectomy; too little → apical flap; just above the junction → apical flap; high → closed; mid-alveolar → closed; palatal shallow → open; palatal deep → closed');
+  eq(L.exposureStep([0]).node.q, 'Where is the crown compared with the mucogingival junction?', 'labial asks about the junction next');
+  eq(L.exposureStep([9]), null, 'an answer that isn’t there is ignored');
+  ok(Object.keys(L.EXPOSURE_TREE).every(k => L.EXPOSURE_TREE[k].a.every(a => a[2].indexOf('r:') === 0 ? L.EXPOSURE_RESULTS[a[2].slice(2)] : L.EXPOSURE_TREE[a[2]])), 'no answer points nowhere');
+}
+d = draft('exposure', { teeth: ['6'], opt: { how: 'apf' } });
+ok(L.letterBody(d, cfg).some(p => p.includes('We are requesting an open exposure with an apically positioned flap.')), 'apically positioned flap is a type of exposure');
+d = draft('exposure', { teeth: ['6'], opt: { how: 'ging' } });
+ok(L.letterBody(d, cfg).some(p => p.includes('We are requesting an open exposure by gingivectomy.')), 'so is gingivectomy');
+
 // ---- problems before printing ----
 eq(L.draftProblems(L.blankDraft('', cfg)), ['Pick a letter.'], 'nothing picked');
 d = draft('hygiene'); d.text = L.letterText(d, cfg);
