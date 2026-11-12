@@ -651,6 +651,7 @@
     renderTop();
     renderTrace();
     renderSummary();
+    renderAi();
     renderCvm();
     renderMeasures();
   }
@@ -1075,6 +1076,101 @@
     const guess = vertebraeToCheck();
     el.innerHTML = a.summary.map((s) => `<div class="sitem ${esc(s.level)}"><div class="t">${esc(s.title)}</div>
       <div class="c">${esc(s.call)}</div><div class="d">${esc(s.detail)}${s.key === 'cvm' && guess ? ' · only a guess until C2-C4 are checked' : ''}</div></div>`).join('');
+  }
+
+  // ------------------------------------------------------------------ the AI summary
+  // A paragraph for the chart, written by the office's AISA from this tracing's NUMBERS. The page never talks to
+  // AISA: it asks this PC, which sends the numbers (no name, chart number, dates, notes or picture) and keeps the
+  // answer with the x-ray. "See what is sent" shows exactly that.
+  const AI = { busy: null, sentFor: null, sent: null };
+  function aiCopyText(ai) {
+    return [ai.text].concat(ai.findings && ai.findings.length ? ['', 'Key findings:'].concat(ai.findings.map((f) => '- ' + f)) : []).join('\n');
+  }
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).catch(() => copyTextOld(text));
+    return copyTextOld(text);
+  }
+  function copyTextOld(text) {
+    return new Promise((resolve, reject) => {           // (the office opens the app over plain http: no clipboard API)
+      const t = document.createElement('textarea');
+      t.value = text; t.setAttribute('readonly', ''); t.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(t); t.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      t.remove();
+      if (ok) resolve(); else reject(new Error('Could not copy - select the text and press Ctrl C.'));
+    });
+  }
+  function aiSentHtml(d) {
+    const p = d.sends;
+    const who = [p.age != null ? `age ${p.age} years` : 'age not known', p.sex === 'F' ? 'female' : p.sex === 'M' ? 'male' : 'sex not known', `tracing ${p.tracing}`];
+    const rows = p.measurements.map((m) => `<tr><td>${esc(m.name)}</td><td class="n">${esc(m.value)} ${esc(m.unit)}</td><td class="n">${m.norm ? 'norm ' + esc(m.norm) : ''}</td></tr>`).join('');
+    const ch = p.change ? `<b>Against the earlier x-ray</b> (${esc(p.change.months)} months before${p.change.class_before ? ', then ' + esc(p.change.class_before) : ''})
+      <table>${p.change.rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="n">${esc(r.before)} → ${esc(r.now)} ${esc(r.unit)}</td></tr>`).join('')}</table>` : '';
+    return `<b>This is all that goes to AISA:</b> ${esc(who.join(' · '))}
+      <table>${p.calls.map((c) => `<tr><td>${esc(c.title)}</td><td>${esc(c.call)}</td></tr>`).join('')}</table>
+      <b>Measurements</b><table>${rows}</table>${ch}
+      ${p.notes.length ? `<b>Notes</b><br>${p.notes.map(esc).join('<br>')}` : ''}
+      <div class="never">Never sent: the name, the chart number, the birth date, the x-ray date, your notes, the x-ray, the points.</div>`;
+  }
+  function renderAi() {
+    const card = $('#aiCard'), el = $('#aiBody');
+    const a = S.analysis, st = (a && a.ai) || { on: false };
+    const ai = (S.case && S.case.ai) || null;
+    card.hidden = !st.on && !(ai && ai.text);
+    if (card.hidden) return;
+    const id = S.case.id, busy = AI.busy === id;
+    const prog = a.progress || {};
+    const ready = prog.total > 0 && prog.placed === prog.total;
+    const sent = AI.sentFor === id && AI.sent ? `<div class="aiSent">${aiSentHtml(AI.sent)}</div>` : '';
+    const see = st.on ? `<button class="lnk" id="aiSee" type="button">${AI.sentFor === id ? 'Hide what is sent' : 'See what is sent'}</button>` : '';
+    $('#aiSub').textContent = ai && ai.at ? `written ${fmtDate(ai.at.slice(0, 10))}` : '';
+    if (!ai || !ai.text) {
+      el.innerHTML = `<p class="empty">A paragraph for the chart, written by AISA from this tracing's numbers. Only the numbers go out - never the name, the dates or the x-ray.</p>
+        <div class="aiBtns"><button class="primary" id="aiGo" type="button" ${ready && !busy ? '' : 'disabled'}>${busy ? '<span class="spin"></span>Writing…' : 'Write AI summary'}</button>${see}</div>
+        ${ready ? '' : '<p class="hint">Place all the points first.</p>'}${sent}`;
+    } else {
+      el.innerHTML = `${st.stale ? '<div class="notes" style="margin:0 0 8px">The tracing changed after this was written. Write it again to match the numbers now.</div>' : ''}
+        <p class="aiText${st.stale ? ' old' : ''}" id="aiText">${esc(ai.text)}</p>
+        ${ai.findings && ai.findings.length ? `<div class="aiH">Stands out</div><ul class="aiList">${ai.findings.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+        ${ai.check && ai.check.length ? `<div class="aiH">Worth checking</div><ul class="aiList chk">${ai.check.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+        ${ai.unverified && ai.unverified.length ? `<div class="notes">Check ${ai.unverified.length > 1 ? 'these numbers' : 'this number'} against the measurements - ${ai.unverified.length > 1 ? 'they are' : 'it is'} not among the ones that were sent: <b>${ai.unverified.map(esc).join(', ')}</b></div>` : ''}
+        <div class="aiBtns"><button class="primary" id="aiCopy" type="button">Copy</button>
+          ${st.on ? `<button class="small" id="aiGo" type="button" ${ready && !busy ? '' : 'disabled'}>${busy ? '<span class="spin"></span>Writing…' : 'Write again'}</button>` : ''}
+          <button class="small" id="aiDel" type="button">Remove</button>${see}</div>
+        <p class="hint">Written by AI from the numbers of this tracing${ai.compared ? ' and the patient\'s earlier x-ray' : ''}. Read it against the measurements before it goes in the chart - the clinical judgement is the doctor's.</p>${sent}`;
+    }
+    const go = $('#aiGo'), cp = $('#aiCopy'), del = $('#aiDel'), sb = $('#aiSee');
+    if (go) go.onclick = writeAi;
+    if (cp) cp.onclick = () => copyText(aiCopyText(ai)).then(() => toast('Copied. Paste it into the chart.'), (e) => toast(e.message, true, 6000));
+    if (del) del.onclick = async () => {
+      try { applyServer(await api(`/api/cases/${enc(id)}/ai-summary`, { method: 'DELETE' }), false); } catch (e) { toast(e.message, true); }
+    };
+    if (sb) sb.onclick = async () => {
+      if (AI.sentFor === id) { AI.sentFor = null; AI.sent = null; renderAi(); return; }
+      try {
+        await flushSave();
+        const d = await api(`/api/cases/${enc(id)}/ai-summary`);
+        if (!S.case || S.case.id !== id) return;
+        AI.sentFor = id; AI.sent = d; renderAi();
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+  async function writeAi() {
+    const id = S.case && S.case.id;
+    if (!id || AI.busy) return;
+    AI.busy = id;
+    renderAi();
+    try {
+      await flushSave();
+      const r = await api(`/api/cases/${enc(id)}/ai-summary`, { method: 'POST' });
+      AI.busy = null;
+      if (S.case && S.case.id === id) { if (AI.sentFor === id) { AI.sentFor = null; AI.sent = null; } applyServer(r, false); }
+    } catch (e) {
+      AI.busy = null;
+      toast(e.message, true, 9000);
+      if (S.case && S.case.id === id) renderAi();
+    }
   }
 
   // ------------------------------------------------------------------ CVM: pictures, the doctor's picks, three methods
@@ -2670,15 +2766,20 @@
       const off = $('#pcOff');
       if (off) off.onclick = async () => { await api('/api/settings/passcode', { method: 'POST', body: { code: '' } }); S.settings = await api('/api/settings'); toast('Passcode removed.'); renderSettings(); };
     } else {
-      body.innerHTML = `<p><b>Everything stays on this PC.</b></p>
+      const aiOn = !s.ai || s.ai.enabled !== false;
+      body.innerHTML = `<p><b>The x-rays, the tracings and the names stay on this PC.</b></p>
         <ul style="margin:8px 0 0 18px;line-height:1.7;font-size:13px">
           <li>The x-rays, tracings and notes are kept in the app folder (<code>cases\\</code>), the trained network in <code>models\\</code>. Nothing is uploaded or synced anywhere.</li>
-          <li>The app makes no internet connections. The page carries a security policy that stops the browser from loading or sending anything outside this app - fonts and pictures included.</li>
+          <li><b>The AI summary is the one thing that goes out</b>, and only when someone clicks <i>Write AI summary</i>: this PC sends that tracing's numbers (measurements, the calls, the growth stage, age in years, sex) to the office's AISA, which writes the paragraph and keeps nothing. Never the name, the chart number, the birth date, the x-ray date, the notes, the x-ray or the points. <i>See what is sent</i> on the card shows it.</li>
+          <li>The page itself still cannot reach the internet: it carries a security policy that stops the browser from loading or sending anything outside this app - fonts and pictures included.</li>
           <li>The network is trained here, from scratch, only on tracings confirmed in this office. No outside data or pre-trained models are used.</li>
           <li>It is reachable from computers on the office network only (it has no address on the internet). The optional passcode keeps it to staff computers.</li>
-          <li>The only time the app's PC talks to the internet for it is when someone runs the update, which downloads the app's program files from GitHub. No patient data goes the other way.</li>
+          <li>The only other time the app's PC talks to the internet for it is when someone runs the update, which downloads the app's program files from GitHub. No patient data goes the other way.</li>
           <li>Deleted x-rays go to <code>cases\\_deleted\\</code>; remove them there for good.</li>
-        </ul>`;
+        </ul>
+        <label class="ckRow" style="margin-top:16px"><input type="checkbox" id="aiOn" ${aiOn ? 'checked' : ''}> Allow the AI summary (numbers only, to the office's AISA)</label>
+        <p class="hint">Off: the button goes away and the app makes no internet connections at all. Summaries already written stay with their x-rays.</p>`;
+      $('#aiOn').onchange = (e) => saveSettings({ ai: { enabled: e.target.checked } });
     }
   }
 

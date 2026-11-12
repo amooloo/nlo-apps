@@ -3,7 +3,9 @@
 Traces a lateral ceph and shows the measurements, the skeletal class, the vertical pattern and the CVM stage.
 It learns to place the points itself from every tracing confirmed in this office. It runs on one office PC
 and is opened from any office computer (NLO apps home page → **X-Ray Reader**). **The x-rays, the tracings
-and what the app learns never leave that PC.**
+and what the app learns never leave that PC.** The one thing that goes out is the **AI summary**: on a click, the
+tracing's numbers only (no name, no dates, no picture) go to the office's AISA, which writes a paragraph for the
+chart.
 
 Panoramic x-rays are next; this first version reads lateral cephs.
 
@@ -83,6 +85,15 @@ Panoramic x-rays are next; this first version reads lateral cephs.
    corners - a front corner behind a back one, an upper corner below the lower border, a deepest point off the
    border) are named in a note, *Check the vertebra points*, and nothing is measured from them until they are
    moved: no shape, and no Mito bone age (nor one outside 4-25 years).
+   **AI summary** (the card under the Summary, since 1.10): **Write AI summary** has the office's AISA write a
+   paragraph for the chart from this tracing's numbers - skeletal class and the jaw behind it, vertical pattern,
+   incisors, soft tissue, growth stage and, when the patient has an earlier traced x-ray, what changed and over how
+   many months - with *Stands out* (the values furthest from their norms) and *Worth checking* (two measures that
+   disagree, a value so far off that a point may be misplaced, vertebrae not checked). **Copy** puts it on the
+   clipboard for the chart or a letter. It is kept with the x-ray; when a point moves afterwards it is marked *the
+   tracing changed* until it is written again. A number in the write-up that was not among the numbers sent is
+   called out in amber, so a figure the AI made up never passes for a measurement. It describes; it does not
+   propose treatment. **See what is sent** shows exactly what goes to AISA - see *Private by design*.
 5. **Confirm tracing.** It becomes a lesson for the app, and the five CVM judgements as shown (your picks and
    the readings you let stand) become lessons for its flat / concave and shape readings. **Print** gives a
    one-page report (tracing, summary with all three CVM methods, the stage drawing and timeline,
@@ -194,7 +205,16 @@ judgement stays the doctor's.
 - The x-rays, tracings and notes are kept in the app folder (`cases\`), the trained networks in `models\`, the
   outline shapes learned from your outlines in `outline_learning.json`, the settings in `settings.json` - on the PC
   that runs the app. Nothing is uploaded, synced or shared.
-- The app makes no internet connections. Every page it serves carries a Content-Security-Policy that lets the
+- **The AI summary is the one thing that goes out**, and only when someone clicks *Write AI summary*. The PC
+  that runs the app (not the browser) sends that tracing's **numbers** to the office's AISA Worker
+  (`/ceph-summary`, which asks Gemini and keeps nothing - it logs counts only): the measurements with their norms,
+  the summary's calls, the CVM reading, the age in years, the sex and, when the patient has an earlier traced
+  x-ray, that one's measurements with the **months** between the two. **Never** the name, the chart number, the
+  birth date, the x-ray date, the notes, the x-ray or the points. *See what is sent* on the card shows the exact
+  content before it goes; `xray/ai_summary.py` `build_payload` is the whole of it, and a test checks that nothing
+  else leaves. **Settings → Privacy → Allow the AI summary** turns it off: the button goes away and the app makes
+  no internet connections at all (summaries already written stay with their x-rays).
+- Apart from that the app makes no internet connections. Every page it serves carries a Content-Security-Policy that lets the
   browser load and send things only to this app - so not even a font, a script or a picture comes from outside
   (the fonts ship with the app). For that reason this app's page does not carry the NLO Apps button script or
   Ask AISA (both load from the internet); the sidebar has a plain link back to the home page instead.
@@ -256,6 +276,7 @@ nlo-xray\
   xray\model.py         the landmark network
   xray\train.py         learning rounds, the held-back check, versions, the evening schedule
   xray\iortho.py        importing iOrtho tracings: the report, the dots, registration, naming the dots
+  xray\ai_summary.py    the AI summary: the numbers-only content that is sent, the call to AISA, the number check
   xray\ruler.py         the nasion-rod ruler: finding its marks, the pixel size
   tools\synth.py        synthetic 'cephs' for tests (no patient data anywhere in the repo)
   tests\iortho_fake.py  a made-up iOrtho export (traced picture + Excel report) built on a synthetic ceph

@@ -1,9 +1,11 @@
 """NLO X-Ray Reader - the local web app.
 
 Serves the page to the office network and keeps everything in this app folder on this PC: the x-rays
-(cases/), the tracings, the trained network (models/) and the settings (settings.json). It makes no
-outbound connections, and every page it serves carries a Content-Security-Policy that stops the browser
-from loading or sending anything to anywhere but this PC.
+(cases/), the tracings, the trained network (models/) and the settings (settings.json). Every page it serves
+carries a Content-Security-Policy that stops the browser from loading or sending anything to anywhere but this PC.
+The app makes one kind of outbound connection, and only on a click: *Write AI summary* sends the open tracing's
+numbers (never the name, chart number, dates, notes or the x-ray) from this PC to the office's AISA - see
+xray/ai_summary.py. Settings -> Privacy turns it off.
 """
 import asyncio
 import base64
@@ -38,6 +40,7 @@ from xray import __version__  # noqa: E402
 from xray import geometry as geo  # noqa: E402
 from xray.analysis import DEFAULT_CUTOFFS, DEFAULT_NORMS, MEASURES, analyze  # noqa: E402
 from xray.cvm import DEFAULT_THRESHOLDS, clean_marks  # noqa: E402
+from xray import ai_summary  # noqa: E402
 from xray import iortho  # noqa: E402
 from xray import outline_learn  # noqa: E402
 from xray import outlines as outlines_mod  # noqa: E402
@@ -63,6 +66,7 @@ DEFAULT_SETTINGS = {
     "calibration": {"default_mm_per_px": None, "magnification": 1.13, "ruler_auto": True, "ruler_mm": ruler_mod.MARK_MM},
     "learning": {"nightly": True, "window_start": 19, "window_end": 1, "budget_min": 90},
     "passcode": None,           # {"salt": ..., "hash": ...} when set
+    "ai": {"enabled": True},    # the AI summary: numbers only, to the office's AISA, on a click
 }
 
 _settings_lock = threading.RLock()
@@ -476,9 +480,29 @@ def _get(cid):
         raise HTTPException(404, "No such x-ray (it may have been deleted).")
 
 
+def _vertebrae_unchecked(case):
+    if "cvm" in (case.get("skipped") or []):
+        return 0
+    lm = case.get("landmarks") or {}
+    return sum(1 for c in codes_in_group("cvm") if (lm.get(c) or {}).get("by") == "template")
+
+
+def _ai_on(settings=None):
+    return bool(((settings or load_settings()).get("ai") or {}).get("enabled", True))
+
+
+def _ai_state(case, a):
+    """For the page: is the AI summary on, and is the saved write-up older than this x-ray's numbers?"""
+    ai = case.get("ai") or {}
+    stale = bool(ai.get("text")) and ai.get("sig") != ai_summary.signature(
+        ai_summary.build_payload(case, a, _vertebrae_unchecked(case)))
+    return dict(on=_ai_on(), stale=stale)
+
+
 def _reply(case, a=None):
     if a is None:
         a = _analysis(case)
+    a["ai"] = _ai_state(case, a)
     return dict(case=case, analysis=a)
 
 
@@ -568,6 +592,68 @@ def get_case(cid: str):
         case, a = _refresh(case)
         STORE.save(case)
         return _reply(case, a)
+    return _reply(case)
+
+
+# ----------------------------------------------------------------------------- the AI summary (numbers only)
+
+def _ai_ready(case, a):
+    pr = a.get("progress") or {}
+    if not pr.get("total") or pr.get("placed", 0) < pr["total"]:
+        raise HTTPException(409, "Place all the points first - the summary is written from the measurements.")
+
+
+def _ai_payload(case, a=None):
+    """What would be sent for this x-ray: its own numbers and, when the patient has an earlier traced x-ray, that
+    one's as 'before' with the months between."""
+    a = a or _analysis(case)
+    earlier = None
+    if case.get("taken"):
+        prev = [c for c in _series(case) if c["id"] != case["id"] and c.get("taken") and c["taken"] < case["taken"]
+                and c.get("status") in ("traced", "confirmed")]
+        if prev:
+            earlier = (prev[-1], _analysis(prev[-1]))
+    return ai_summary.build_payload(case, a, _vertebrae_unchecked(case), earlier)
+
+
+@app.get("/api/cases/{cid}/ai-summary")
+def ai_preview(cid: str):
+    """Exactly what *Write AI summary* would send for this x-ray (the page shows it)."""
+    case = _get(cid)
+    return dict(on=_ai_on(), sends=_ai_payload(case))
+
+
+def _ai_write(cid):
+    if not _ai_on():
+        raise HTTPException(403, "The AI summary is turned off (Settings -> Privacy).")
+    case = _get(cid)
+    a = _analysis(case)
+    _ai_ready(case, a)
+    payload = _ai_payload(case, a)
+    try:
+        got = ai_summary.ask(payload, os.environ.get("NLO_XRAY_AI_URL") or ai_summary.AISA_URL)
+    except ai_summary.AiError as ex:
+        raise HTTPException(502, str(ex))
+    with STORE._lock:
+        case = _get(cid)                     # as it is now: points may have been saved while AISA was writing
+        case["ai"] = dict(text=got["text"], findings=got["findings"], check=got["check"],
+                          unverified=ai_summary.unverified_numbers([got["text"], *got["findings"], *got["check"]], payload),
+                          sig=ai_summary.signature(payload), compared=bool(payload.get("change")),
+                          at=dt.datetime.now().isoformat(timespec="seconds"))
+        STORE.save(case)
+    return _reply(case)
+
+
+@app.post("/api/cases/{cid}/ai-summary")
+async def ai_write(cid: str):
+    return await run_in_threadpool(_ai_write, cid)
+
+
+@app.delete("/api/cases/{cid}/ai-summary")
+def ai_remove(cid: str):
+    case = _get(cid)
+    if case.pop("ai", None) is not None:
+        STORE.save(case)
     return _reply(case)
 
 
@@ -1347,6 +1433,8 @@ async def put_settings(request: Request):
             cal["ruler_auto"] = bool(c["ruler_auto"])
         if "ruler_mm" in c:
             cal["ruler_mm"] = _num(c["ruler_mm"], 1.0, 50.0, "ruler mark spacing")
+    if "ai" in body:
+        s.setdefault("ai", {})["enabled"] = bool((body["ai"] or {}).get("enabled"))
     if "learning" in body:
         c = body["learning"] or {}
         le = s.setdefault("learning", {})
