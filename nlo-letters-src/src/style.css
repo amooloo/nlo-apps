@@ -514,6 +514,18 @@ ol.steps li{margin-bottom:6px}
 .seg button{padding:5px 11px;font-size:11.5px;font-weight:700;color:var(--grey-500)}
 .seg button.on{background:var(--navy);color:#fff}
 
+/* TAD sites: teeth as markers, a round spot between each pair on the buccal and the lingual side */
+.sChart .sRow{display:grid;grid-template-columns:54px repeat(32,minmax(11px,1fr));align-items:center;min-width:470px}
+.sLbl{font-family:var(--fd);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-500)}
+.sTooth{height:30px;margin:0 1px;border:1.5px solid var(--grey-200);background:#fff;color:var(--grey-500);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.sTooth.up{border-radius:5px 5px 10px 10px} .sTooth.lo{border-radius:10px 10px 5px 5px}
+.sTooth.midL{box-shadow:-4px 0 0 -2.5px var(--grey-400)}
+.sDots{height:24px}
+.sDot{justify-self:center;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.sDot i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--grey-300);background:#fff;transition:all .1s}
+.sDot:hover i{width:15px;height:15px;border-color:var(--blue);background:var(--blue-100)}
+.sDot.on i{width:16px;height:16px;border-color:var(--coral-700);background:var(--coral-600);box-shadow:0 0 0 3px var(--coral-100)}
+
 /* letterhead choices + images */
 .lhGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .lhOpt{display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 6px 9px;border:1.5px solid var(--grey-200);border-radius:12px;background:#fff}

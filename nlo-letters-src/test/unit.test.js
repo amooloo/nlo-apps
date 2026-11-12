@@ -43,7 +43,7 @@ ok(L.draftProblems(Object.assign(d, { text: L.letterText(d, cfg) })).some(p => /
 // ---- every letter reads as whole sentences with nothing picked and with everything picked ----
 L.LETTERS.forEach(letter => {
   const none = draft(letter.id, { teeth: letter.teeth === L.TEETH_REQUIRED ? ['8'] : [] });
-  const all = draft(letter.id, { teeth: letter.teeth === L.TEETH_NONE ? [] : ['8', '9'], opt: Object.fromEntries(letter.opts.map(o => [o.key, o.multi ? o.choices.map(c => c[0]) : o.choices[0][0]])) });
+  const all = draft(letter.id, { sites: letter.sites ? ['B:3-4', 'L:30-29'] : [], teeth: letter.teeth === L.TEETH_NONE ? [] : ['8', '9'], opt: Object.fromEntries(letter.opts.map(o => [o.key, o.multi ? o.choices.map(c => c[0]) : o.choices[0][0]])) });
   [none, all].forEach((dr, i) => {
     const paras = L.letterBody(dr, cfg), text = paras.join('\n\n'), tag = letter.id + (i ? ' (all picked)' : ' (nothing picked)');
     ok(paras.length >= 3, tag + ' has an opening, a request and a closing');
@@ -80,14 +80,27 @@ d = draft('radiographic', { opt: { symptoms: 'asym', urgency: 'routine' } });
 ok(L.letterBody(d, cfg)[2] === 'Avery reports no symptoms in the area. This can be evaluated at Avery’s next available appointment.', 'radiographic evaluation: symptoms are one or the other');
 
 // ---- TADs and MARPE ----
-d = draft('tads', { teeth: ['3', '4'], opt: { count: '1', site: ['buccal'], purpose: ['intrudeP'], size: 's8', load: 'now', note: ['supply', 'head'] } }); body = L.letterBody(d, cfg);
+d = draft('tads', { sites: ['B:3-4'], opt: { count: '1', purpose: ['intrudeP'], size: 's8', load: 'now', note: ['supply', 'head'] } }); body = L.letterBody(d, cfg);
 eq(body[0], 'We are referring Avery to your office for the placement of one temporary anchorage device (TAD) as part of their comprehensive orthodontic treatment plan.', 'TAD opening');
-eq(body[1], 'We are requesting placement on the buccal side between the roots, between #3 (upper right first molar) and #4 (upper right second premolar), to provide anchorage for intrusion of the posterior teeth.', 'TAD site: two teeth → between them');
-ok(/length of 8 mm\. We plan to load the TAD at the next orthodontic visit, so please let us know as soon as it is in place\./.test(body[2]) && /send the TAD with Avery/.test(body[3]) && /head of the TAD exposed/.test(body[3]) && /position of the TAD, to/.test(body[4]), 'one TAD: singular throughout :: ' + body.join(' | '));
-d = draft('tads', { teeth: ['3'], opt: { count: '2', load: 'wait', note: ['supply'] } }); body = L.letterBody(d, cfg);
-ok(/two temporary anchorage devices \(TADs\)/.test(body[0]) && body[1] === 'We are requesting placement next to #3 (upper right first molar).' && /load the TADs about two weeks/.test(body[2]) && /send the TADs with/.test(body[3]) && /each TAD/.test(body[4]), 'two TADs, one tooth → next to it :: ' + body.join(' | '));
+eq(body[1], 'We are requesting placement on the buccal side between #3 (upper right first molar) and #4 (upper right second premolar).', 'one marked spot → one sentence');
+eq(body[2], 'The TAD will provide anchorage for intrusion of the posterior teeth.', 'what it is for');
+ok(/length of 8 mm\. We plan to load the TAD at the next orthodontic visit, so please let us know as soon as it is in place\./.test(body[3]) && /send the TAD with Avery/.test(body[4]) && /head of the TAD exposed/.test(body[4]) && /position of the TAD, to/.test(body[5]), 'one TAD: singular throughout :: ' + body.join(' | '));
+d = draft('tads', { sites: ['L:30-29', 'B:13-14', 'L:13-14', 'B:3-4'], opt: { site: ['izc'], load: 'wait', note: ['supply'] } }); body = L.letterBody(d, cfg);
+ok(/four temporary anchorage devices \(TADs\)/.test(body[0]), 'no number picked → the number of marked spots');
+eq(body[1], 'We are requesting placement at the following sites: (1) buccal, between #3 (upper right first molar) and #4 (upper right second premolar); (2) buccal, between #13 (upper left second premolar) and #14 (upper left first molar); (3) palatal, between #13 (upper left second premolar) and #14 (upper left first molar); (4) lingual, between #30 (lower right first molar) and #29 (lower right second premolar); (5) at the infrazygomatic crest.', 'several spots are numbered, in chart order: upper buccal, upper palatal, lower lingual, lower buccal, then the places picked as words');
+ok(/load the TADs about two weeks/.test(body[2]) && /send the TADs with/.test(body[3]) && /each TAD/.test(body[4]), 'plural throughout');
+eq(L.siteText('L:8-9', 'universal'), 'on the palatal side between #8 (upper right central incisor) and #9 (upper left central incisor)', 'a spot across the upper midline; inside the upper arch is palatal');
+eq(L.siteText('L:25-24', 'fdi'), 'on the lingual side between #41 (lower right central incisor) and #31 (lower left central incisor)', 'inside the lower arch is lingual; FDI numbers');
+eq(L.siteText('B:4-3', 'universal'), '', 'only neighbours in chart order are spots'); eq(L.siteText('B:3-5', 'universal'), '', 'not teeth that aren’t neighbours');
+eq(L.SITE_ORDER.length, 60, '15 spots between 16 teeth × buccal and lingual × upper and lower'); eq(new Set(L.SITE_ORDER).size, 60, 'each once');
+ok(L.SITE_ORDER.every(id => { const s = L.siteParts(id); return s.a.upper === s.b.upper && !s.a.primary && !s.b.primary; }), 'every spot is between two adult teeth of the same arch');
+eq(L.siteShort('B:3-4', 'universal'), 'Buccal 3–4', 'short form for the screen');
 d = draft('tads', { opt: { purpose: ['space'] } });
-eq(L.letterBody(d, cfg)[1], 'We are requesting placement to provide anchorage for space closure.', 'TADs: purpose alone');
+ok(!L.letterBody(d, cfg).some(p => /requesting placement/.test(p)) && L.draftProblems(d).some(p => /Mark where the TADs go/.test(p)), 'nothing marked → no site sentence, and it is listed as missing');
+d = draft('tads', { sites: ['B:3-4', 'B:13-14'], opt: { count: '1' } });
+ok(L.draftProblems(d).some(p => /More places are marked/.test(p)), 'more spots than TADs is flagged');
+d = draft('tads', { sites: ['B:3-4'], opt: { site: ['shelf'], count: '2' } }); d.text = L.letterText(d, cfg);
+eq(L.draftProblems(d), [], 'a marked spot plus a place picked as words, two TADs: nothing missing');
 d = draft('marpe', { opt: { count: '4', appliance: 'in', engage: 'bi', length: 'send', reason: ['narrow', 'airway'], note: ['noturn', 'see'] } }); body = L.letterBody(d, cfg);
 eq(body[0], 'We are referring Avery to your office for the placement of four miniscrews for a miniscrew-assisted rapid palatal expander (MARPE) as part of their comprehensive orthodontic treatment plan.', 'MARPE opening');
 ok(body[1] === 'The expander is being used to correct a maxillary transverse deficiency and a restricted nasal airway.' && /through the guide slots/.test(body[2]) && /bicortical engagement\)\. We will send the miniscrews with Avery/.test(body[3]) && /do not activate the expander/.test(body[4]) && /length of each miniscrew/.test(body[5]), 'MARPE body :: ' + body.join(' | '));

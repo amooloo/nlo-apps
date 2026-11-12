@@ -18,7 +18,8 @@ const { routes, watch } = require('./helpers');
     if (await p.locator('.tooth').count()) for (const t of ['6', '11']) await p.click('.tooth[data-set=teeth][data-id="' + t + '"]');
     if (await p.locator('.tooth[data-set=teeth2]').count()) for (const t of ['C', 'H']) await p.click('.tooth[data-set=teeth2][data-id="' + t + '"]');
     if (id === 'exposure') await p.screenshot({ path: path.join(out, '5-exposure.png'), fullPage: true });
-    for (const key of await p.evaluate(() => letterById(S.draft.letter).opts.map(o => o.key))) {
+    if (await p.locator('.sDot').count()) for (const s of ['B:3-4', 'L:13-14', 'B:30-29']) await p.click('.sDot[data-id="' + s + '"]');
+    for (const key of await p.evaluate(() => letterById(S.draft.letter).opts.map(o => o.key).filter(k => !(k === 'count' && letterById(S.draft.letter).sites)))) { // the TAD count follows the marked spots
       const chips = p.locator('.chip[data-k=' + key + ']'); const multi = await p.evaluate(k => letterById(S.draft.letter).opts.find(o => o.key === k).multi, key);
       const n = multi ? Math.min(3, await chips.count()) : 1; for (let i = 0; i < n; i++) await chips.nth(i).click();
     }
@@ -28,6 +29,7 @@ const { routes, watch } = require('./helpers');
       await p.setInputFiles('#imgFile', { name: 'pano.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') }); await p.waitForSelector('.imgChip');
     }
     if (id === ids[0]) await p.screenshot({ path: path.join(out, '2-builder.png'), fullPage: true });
+    if (id === 'tads') await p.screenshot({ path: path.join(out, '6-tads.png'), fullPage: true });
     await p.emulateMedia({ media: 'print' });
     await p.pdf({ path: path.join(out, id + '.pdf'), format: 'Letter', preferCSSPageSize: true });
     await p.emulateMedia({ media: 'screen' });

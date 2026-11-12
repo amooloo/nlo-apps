@@ -303,19 +303,17 @@ const LETTERS = [
     }
   },
   {
-    id: 'tads', label: 'TAD placement', subject: 'Referral for Placement of Temporary Anchorage Devices (TADs)', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_OPTIONAL,
-    blurb: 'Ask a surgeon or periodontist to place TADs.', teethHint: 'Click the teeth each TAD goes next to or between.',
+    id: 'tads', label: 'TAD placement', subject: 'Referral for Placement of Temporary Anchorage Devices (TADs)', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_NONE,
+    blurb: 'Ask a surgeon or periodontist to place TADs.',
+    // where the TADs go is marked on a picture of both arches: a spot between two teeth, on the buccal or the lingual side
+    sites: { title: 'Where the TADs go', hint: 'Click a spot between two teeth: the outer rows are buccal, the inner rows are palatal (upper) and lingual (lower).' },
     opts: [
-      { key: 'count', label: 'How many', choices: [
-        ['1', '1', 'one temporary anchorage device (TAD)'], ['2', '2', 'two temporary anchorage devices (TADs)'],
-        ['3', '3', 'three temporary anchorage devices (TADs)'], ['4', '4', 'four temporary anchorage devices (TADs)']] },
-      { key: 'site', label: 'Where', multi: true, choices: [
-        ['buccal', 'Buccal, between the roots', 'on the buccal side between the roots'],
-        ['palatal', 'Palatal, between the roots', 'on the palatal side between the roots'],
+      { key: 'site', label: 'Other places', multi: true, choices: [
         ['paramedian', 'Palate, beside the midline', 'in the anterior palate beside the midline'],
         ['izc', 'Infrazygomatic crest', 'at the infrazygomatic crest'],
-        ['shelf', 'Buccal shelf', 'at the mandibular buccal shelf'],
-        ['anterior', 'Front, between the incisors', 'between the roots of the incisors']] },
+        ['shelf', 'Buccal shelf', 'at the mandibular buccal shelf']] },
+      { key: 'count', label: 'How many in all', choices: [
+        ['1', '1', 'one'], ['2', '2', 'two'], ['3', '3', 'three'], ['4', '4', 'four'], ['5', '5', 'five'], ['6', '6', 'six']] },
       { key: 'purpose', label: 'What they are for', multi: true, choices: [
         ['space', 'Closing space', 'space closure'],
         ['distal', 'Distalization', 'distalization of the posterior teeth'],
@@ -337,14 +335,17 @@ const LETTERS = [
         ['braces', 'Braces are on', 'The braces are in place; we are happy to remove an archwire before the appointment if that would help.']] }
     ],
     build(c) {
-      const many = (c.pick('count') || '2') !== '1';
-      const what = c.word('count') || 'temporary anchorage devices (TADs)';
-      const where = [joinList(c.words('site')), c.teeth ? (c.count === 2 ? 'between ' : 'next to ') + c.teeth : ''].filter(Boolean).join(', ');
+      const places = c.sites.concat(c.words('site'));
+      const n = Number(c.pick('count')) || c.sites.length || 0, many = n !== 1;
+      const what = n ? NUM_WORDS[n] + ' temporary anchorage device' + (many ? 's (TADs)' : ' (TAD)') : 'temporary anchorage devices (TADs)';
+      const where = places.length === 1 ? 'We are requesting placement ' + places[0] + '.'
+        : places.length ? 'We are requesting placement at the following sites: ' + places.map((x, i) => '(' + (i + 1) + ') ' + x.replace(/^on the (\w+) side between /, '$1, between ')).join('; ') + '.' : '';
       const why = joinList(c.words('purpose'));
       const fix = s => many ? s : s.replace('load the TADs', 'load the TAD').replace('as soon as they are in place', 'as soon as it is in place').replace('send the TADs', 'send the TAD').replace('the head of each TAD', 'the head of the TAD');
       return [
         'We are referring ' + c.first + ' to your office for the placement of ' + what + ' as part of their comprehensive orthodontic treatment plan.',
-        where || why ? 'We are requesting placement' + (where ? ' ' + where : '') + (why ? (where ? ', ' : ' ') + 'to provide anchorage for ' + why : '') + '.' : '',
+        where,
+        why ? (many ? 'The TADs' : 'The TAD') + ' will provide anchorage for ' + why + '.' : '',
         [c.word('size'), fix(c.word('load'))].filter(Boolean).join(' '),
         fix(c.notes('note')),
         'Please send a note of the placement, including the size and position of ' + (many ? 'each TAD' : 'the TAD') + ', to ' + c.records + '.'
@@ -397,7 +398,7 @@ function letterById(id) { return LETTERS.find(l => l.id === id) || null; }
 
 /* a blank letter in progress (never saved anywhere) */
 function blankDraft(letterId, cfg) {
-  return { letter: letterId || '', first: '', last: '', dob: '', rpPhone: '', docId: '', doc: null, teeth: [], teeth2: [], opt: {}, text: '', edited: false,
+  return { letter: letterId || '', first: '', last: '', dob: '', rpPhone: '', docId: '', doc: null, teeth: [], teeth2: [], sites: [], opt: {}, text: '', edited: false,
     letterhead: (cfg && cfg.letterhead) || OFFICE_DEFAULTS.letterhead, notation: (cfg && cfg.notation) || OFFICE_DEFAULTS.notation, date: '', images: [] };
 }
 /* the choice's words, with the patient's first name filled in */
@@ -416,6 +417,24 @@ const MANY_TEETH = [['The tooth appears to be positioned', 'The teeth appear to 
   ['we will bond one in our office once the tooth is uncovered', 'we will bond them in our office once the teeth are uncovered'], ['Space for the tooth has been opened', 'Space for the teeth has been opened'],
   ['to begin moving the tooth', 'to begin moving the teeth'], ['because the tooth is impacted or erupting out of position', 'because the teeth are impacted or erupting out of position']];
 function toothCount(s, n) { (n === 1 ? ONE_TOOTH : n > 1 ? MANY_TEETH : []).forEach(([a, b]) => { s = s.split(a).join(b); }); return s; }
+/* ---------- TAD sites: a spot between two neighbouring teeth, on the buccal (B) or the lingual / palatal (L) side ---------- */
+/* id = side + ':' + the two teeth as they sit in the chart row, e.g. "B:3-4", "L:8-9" (across the upper midline), "B:30-29" */
+const NUM_WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const SITE_ROWS = { upper: CHART_ROWS.upper.slice(0, -1).map((a, i) => a + '-' + CHART_ROWS.upper[i + 1]), lower: CHART_ROWS.lower.slice(0, -1).map((a, i) => a + '-' + CHART_ROWS.lower[i + 1]) };
+const SITE_ORDER = SITE_ROWS.upper.map(g => 'B:' + g).concat(SITE_ROWS.upper.map(g => 'L:' + g), SITE_ROWS.lower.map(g => 'L:' + g), SITE_ROWS.lower.map(g => 'B:' + g));
+function siteParts(id) {
+  if (!SITE_ORDER.includes(id)) return null;
+  const side = id[0], pair = id.slice(2).split('-'), a = TEETH[pair[0]], b = TEETH[pair[1]];
+  return { side, a, b, upper: a.upper, sideName: side === 'B' ? 'buccal' : a.upper ? 'palatal' : 'lingual' };
+}
+function sortSites(ids) { return Array.from(new Set((ids || []).filter(id => SITE_ORDER.includes(id)))).sort((x, y) => SITE_ORDER.indexOf(x) - SITE_ORDER.indexOf(y)); }
+/* "on the buccal side between #3 (upper right first molar) and #4 (upper right second premolar)" */
+function siteText(id, notation) {
+  const s = siteParts(id); if (!s) return '';
+  return 'on the ' + s.sideName + ' side between ' + toothLabel(s.a.id, notation) + ' (' + s.a.name + ') and ' + toothLabel(s.b.id, notation) + ' (' + s.b.name + ')';
+}
+/* a short form for the screen: "Buccal 3–4" */
+function siteShort(id, notation) { const s = siteParts(id); if (!s) return ''; return capFirst(s.sideName) + ' ' + toothLabel(s.a.id, notation).slice(1) + '–' + toothLabel(s.b.id, notation).slice(1); }
 /* the teeth the letter is about; a letter for adult teeth only never carries a baby tooth */
 function mainTeeth(letter, draft) { return sortTeeth(draft.teeth).filter(id => !(letter.adultOnly && TEETH[id].primary)); }
 function letterSubject(draft) { const l = letterById(draft.letter); if (!l) return ''; return l.teeth2 && sortTeeth(draft.teeth2).length ? l.teeth2.subject : l.subject; }
@@ -430,6 +449,7 @@ function letterBody(draft, cfg) {
     teeth: teethText(mainTeeth(letter, draft), draft.notation),
     teeth2: letter.teeth2 ? teethText(draft.teeth2, draft.notation) : '',
     one: n === 1, count: n,
+    sites: letter.sites ? sortSites(draft.sites).map(id => siteText(id, draft.notation)) : [],
     pick: key => { const p = picked(letter, draft, key); return p.length ? p[0][0] : ''; },
     words: key => picked(letter, draft, key).map(ch => say(ch[2])),
     word: key => { const p = picked(letter, draft, key); return p.length ? say(p[0][2]) : ''; },
@@ -449,6 +469,11 @@ function draftProblems(draft) {
   if (!draft.doc || !(docName(draft.doc) || draft.doc.practice)) out.push('Choose the doctor the letter goes to.');
   if (letter.teeth === TEETH_REQUIRED && !mainTeeth(letter, draft).length) out.push('Pick the teeth on the chart.');
   if (letter.teeth2 && sortTeeth(draft.teeth2).some(id => draft.teeth.includes(id))) out.push('A tooth is marked both to uncover and to remove.');
+  if (letter.sites) {
+    const marked = sortSites(draft.sites).length, other = picked(letter, draft, 'site').length, n = Number((picked(letter, draft, 'count')[0] || [])[0]) || 0;
+    if (!marked && !other) out.push('Mark where the TADs go.');
+    else if (n && n < marked) out.push('More places are marked than the number of TADs picked.');
+  }
   if (/\[choose the teeth\]/.test(draft.text || '')) out.push('The letter still says “[choose the teeth]”.');
   return out;
 }
