@@ -696,8 +696,62 @@ def _largest(geom):
     return geom
 
 
+def _hug_distal(out, mesh, labels, S, term, reach=3.0, full=1.0, sigma_mm=0.8):
+    """Behind the last molar the line follows that tooth's own gum margin (the edge of its label), not the offset
+    line: carried `trimline_offset` onto the gum there it stood on the tissue behind the tooth - which the distal relief
+    then cuts away, so the line ended up a millimetre or two behind and below the crown, on the cut slope (the doctor,
+    11/12/2026: "the terminal molars' trimline should be closer" to the tooth). From `reach` mm in front of the crown's
+    distal end the line eases onto the margin, and is on it for the last `full` mm; matched by direction round the
+    crown, so the cheek and palate sides keep their offset. Returns (line, number of points moved, furthest move)."""
+    from scipy.ndimage import gaussian_filter1d
+    V = np.asarray(mesh.vertices)
+    E = np.asarray(mesh.edges_unique)
+    la, lb = labels[E[:, 0]], labels[E[:, 1]]
+    on = ((la == term) & (lb == 0)) | ((lb == term) & (la == 0))
+    if on.sum() < 12:
+        return out, 0, 0.0
+    B = 0.5 * (V[E[on, 0]] + V[E[on, 1]])
+    c, d, n, t_tooth = S["c"], S["d"], S["n"], S["t_tooth"]
+    tb, wb = (B[:, :2] - c) @ d, (B[:, :2] - c) @ n
+    kb = (tb > t_tooth - reach - 1.0) & (tb <= t_tooth + 1.0)      # (a label that ran further onto the pad than that is not the margin)
+    if kb.sum() < 8:
+        return out, 0, 0.0
+    B, tb, wb = B[kb], tb[kb], wb[kb]
+    t0 = t_tooth - reach - 1.0                       # directions are taken round a point inside the crown
+    ang_b = np.arctan2(wb, tb - t0)
+    rel = out[:, :2] - c
+    t, w = rel @ d, rel @ n
+    sel = np.where((t > t_tooth - reach) & (np.abs(w) < 10.0))[0]
+    if len(sel) < 4:
+        return out, 0, 0.0
+    ang = np.arctan2(w[sel], t[sel] - t0)
+    tgt = np.full((len(sel), 3), np.nan)
+    for i, a in enumerate(ang):
+        nb = np.abs(ang_b - a) < np.radians(5.0)
+        if nb.sum() >= 2:
+            tgt[i] = np.median(B[nb], axis=0)
+    ok = np.isfinite(tgt[:, 0])
+    if ok.sum() < 4:
+        return out, 0, 0.0
+    wgt = np.clip((t[sel] - (t_tooth - reach)) / max(reach - full, 1e-3), 0.0, 1.0)
+    wgt = wgt * wgt * (3 - 2 * wgt)
+    wgt[~ok] = 0.0
+    tgt[~ok] = out[sel][~ok]
+    # along the line (the selection is one stretch of the loop, possibly across its start)
+    order = np.argsort((sel - sel[np.argmax(t[sel])] + len(out) // 2) % len(out))
+    sel, tgt, wgt = sel[order], tgt[order], wgt[order]
+    new = out[sel] + wgt[:, None] * (tgt - out[sel])
+    step = float(np.median(np.linalg.norm(np.diff(out[sel], axis=0), axis=1))) if len(sel) > 1 else 0.25
+    sm = np.column_stack([gaussian_filter1d(new[:, k], sigma=max(sigma_mm / max(step, 1e-3), 0.5), mode="nearest") for k in range(3)])
+    new = out[sel] + np.minimum(wgt * 4.0, 1.0)[:, None] * (sm - out[sel])
+    moved = np.linalg.norm(new - out[sel], axis=1)
+    res = out.copy()
+    res[sel] = new
+    return res, int((moved > 0.1).sum()), float(moved.max())
+
+
 def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.0, inset=0.5,
-                 z_sigma=2.0, max_dip=1.0, short_by=2.0, snap_tol=3.0, log=None):
+                 z_sigma=2.0, max_dip=1.0, short_by=2.0, snap_tol=3.0, hug=True, log=None):
     """Smooth, rounded distal ends: the trim line wraps the last tooth on each side as a gentle U and
     never goes past it.
 
@@ -813,7 +867,7 @@ def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.
             t_cap = max(t_max - short_by, t_min + 2.0)
         else:
             t_cap = t_tooth - inset
-        sides.append(dict(side=int(side), c=c, d=d, n=n, t_cap=t_cap, t_line=t_line, t_tooth=t_tooth, label_mm=round(t_max - t_min, 1), rules=rules,
+        sides.append(dict(side=int(side), term=int(term), c=c, d=d, n=n, t_cap=t_cap, t_line=t_line, t_tooth=t_tooth, label_mm=round(t_max - t_min, 1), rules=rules,
                           incomplete=bool(incomplete), edge_vertices=cut, t_thr=min(t_cap, t_line) - window))
     if not sides:
         return loop, []
@@ -937,6 +991,15 @@ def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.
         tmp = out[snap]
         tmp[ok] = closest[ok]
         out[snap] = tmp
+    # ---- behind the last tooth: onto its own gum margin
+    if hug:
+        for S in sides:
+            if S["incomplete"]:
+                continue
+            try:
+                out, S["hug_points"], S["hug_mm"] = _hug_distal(out, mesh, labels, S, S["term"])
+            except Exception as ex:  # noqa
+                S["hug_error"] = str(ex)[:120]
     res = []
     far_tree = cKDTree(loop)
     for S in sides:
@@ -947,6 +1010,10 @@ def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.
         r = dict(side=S["side"], incomplete=S["incomplete"], edge_vertices=S["edge_vertices"], moved_mm=round(moved_mm, 2), label_mm=S["label_mm"], rules=S["rules"],
                  t_tooth=round(float(S["t_tooth"]), 3),
                  clipped_mm=round(float(clipped), 2), past_tooth_mm=round(float(S["t_line"] - S["t_tooth"]), 2))
+        if S.get("hug_error"):
+            r["hug_error"] = S["hug_error"]
+        if "hug_points" in S:
+            r["hug_points"] = S["hug_points"]; r["hug_mm"] = round(S["hug_mm"], 2)
         for k in ("dip_before_mm", "dip_after_mm", "peak_before_mm", "lifted_points", "max_lift_mm", "crossing_points"):
             if k in S:
                 r[k] = S[k]
@@ -961,6 +1028,8 @@ def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.
                     bits.append(f"pulled {clipped:.1f} mm forward onto the tooth")
                 if S.get("dip_before_mm", 0) > max_dip + 0.2:
                     bits.append(f"{S['dip_before_mm']:.1f} mm dip behind the molar lifted to {S['dip_after_mm']:.1f}")
+                if S.get("hug_points"):
+                    bits.append(f"brought onto the tooth's gum margin behind it (up to {S['hug_mm']:.1f} mm)")
                 log(f"distal {name}: corners rounded (r {radius:.0f} mm)" + (" - " + ", ".join(bits) if bits else ""))
     return out, res
 

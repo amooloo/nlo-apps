@@ -113,11 +113,15 @@ def _from_manifold(man):
     return trimesh.Trimesh(np.asarray(mm.vert_properties)[:, :3], np.asarray(mm.tri_verts), process=False)
 
 
-def _foot_to_body(Fo, O, foot_vox):
+def _foot_to_body(Fo, O, foot_vox, drop_vox=None, k_floor=None):
     """A fill standing on the model must reach it: under every column of the fill, the air between the fill's lowest
     voxel and the body's top below it is the fill's too (up to `foot_vox` deep). A contact wedge stood on the papilla's
     tip and its full-reach foot hung a millimetre or two over the gum sloping away on either side - a flat underside
-    with a gap beneath, the "floating" piece (Anvalina Faltz's lower incisors, 10/27/2026)."""
+    with a gap beneath, the "floating" piece (10/27/2026). `drop_vox`: the foot only stands where the body under the
+    fill is within that of the ridge it sits on (the 80th percentile of the body's top under the fill). A pontic
+    wider than its ridge hung over the cheek side, where the gum falls away to the scan's edge - and the foot followed
+    it down as a curtain, past the model's floor (11/12/2026); there the pontic now overhangs, as a tooth's bulge does.
+    `k_floor`: the model's floor on the grid - no foot below it."""
     nx, ny, nz = Fo.shape
     col = Fo.any(axis=2)
     if not col.any():
@@ -129,12 +133,17 @@ def _foot_to_body(Fo, O, foot_vox):
     kO = np.where(has, nz - 1 - np.argmax(O_below[:, :, ::-1], axis=2), -1)        # the body's highest voxel under it
     gap = kF - kO - 1
     ok = col & has & (gap > 0) & (gap <= foot_vox)
+    if drop_vox is not None and (col & has).any():
+        ref = float(np.percentile(kO[col & has], 80))
+        ok &= kO >= ref - drop_vox
     add = ok[:, :, None] & (kz > kO[:, :, None]) & (kz < kF[:, :, None]) & ~O
+    if k_floor is not None:
+        add &= kz >= k_floor              # nothing under the model's floor: there is no model there to stand on
     return Fo | add
 
 
 def fuse_fill(fill, surface, cell=0.1, radius=0.6, overlap=0.2, pad=1.0, avoid=None, avoid_mm=0.0, max_voxels=3.0e6,
-              smooth_vox=0.7, taubin=8, foot_mm=3.0, reach_below=0.0, log=None):
+              smooth_vox=0.7, taubin=8, foot_mm=3.0, reach_below=0.0, foot_drop_mm=None, floor_z=None, log=None):
     """`fill`: a closed mesh (one piece); `surface`: the scan the body is built from, same frame. The fill itself is
     kept as it was made (its own smooth surface); what is added is a **collar** along every seam between fill and
     body - the fillets of the closing, carried `overlap` mm into both the fill and the body - and the two are unioned
@@ -170,7 +179,9 @@ def fuse_fill(fill, surface, cell=0.1, radius=0.6, overlap=0.2, pad=1.0, avoid=N
     # the fill's foot reaches the body under it (no flat underside hanging over the gum)
     foot_added = 0
     if foot_mm and foot_mm > 0:
-        F2 = _foot_to_body(Fo, O, int(round(foot_mm / cell)))
+        F2 = _foot_to_body(Fo, O, int(round(foot_mm / cell)),
+                           drop_vox=(int(round(foot_drop_mm / cell)) if foot_drop_mm else None),
+                           k_floor=(int(np.ceil((float(floor_z) - lo[2]) / cell)) if floor_z is not None else None))
         foot_added = int(F2.sum() - Fo.sum())
         Fo = F2
     U = O | Fo
