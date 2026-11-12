@@ -1,0 +1,2181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-yQxa1M5cEuZdLgY5WO5zKVojeHwTayM9GuOJGOKDByo=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="theme-color" content="#1B2F4C">
+<title>NLO Letters</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* NLO brand palette — same values as Staff Hub / Onboarding */
+  --navy-900:#11203A; --navy:#1B2F4C; --navy-700:#294169; --navy-600:#385686; --navy-500:#5471A0; --navy-100:#E8ECF2;
+  --blue-800:#122874; --blue-700:#16318C; --blue:#1D3EA9; --blue-500:#2E52C9; --blue-200:#BCC8EE; --blue-100:#E5EAF8;
+  --coral-700:#D8412E; --coral-600:#EE4F3A; --coral:#FA624D; --coral-200:#FFC8BF; --coral-100:#FFE7E1;
+  --mint-700:#1F9E7E; --mint-600:#34C49E; --mint:#64F4C9; --mint-200:#C0FBEC; --mint-100:#E2FBF4;
+  --amber-700:#C2820A; --amber-600:#E29A14; --amber:#F6AF24; --amber-200:#FCE2A6; --amber-100:#FEF2D7;
+  --grey-50:#F7F8F9; --grey-100:#ECEEF0; --grey-200:#DCE0E4; --grey-300:#C3C9D0; --grey-400:#969FAB; --grey-500:#6B7685; --grey-600:#4C5868; --grey-700:#33404F;
+  --off:#F2F3F4; --card:#FFFFFF;
+  --fd:'Oswald',system-ui,sans-serif;
+  --fb:'Montserrat',system-ui,-apple-system,sans-serif;
+  --sh-xs:0 1px 2px rgba(17,32,58,.07); --sh-sm:0 2px 6px rgba(17,32,58,.08);
+  --sh-md:0 8px 24px rgba(17,32,58,.10); --sh-lg:0 18px 48px rgba(17,32,58,.15); --sh-xl:0 32px 70px rgba(17,32,58,.22);
+  --r-sm:8px; --r:14px; --r-lg:22px;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--fb);background:var(--off);color:var(--grey-700);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font:inherit;color:var(--grey-700)}
+a{color:var(--blue)}
+:focus-visible{outline:2px solid var(--blue-500);outline-offset:2px;border-radius:4px}
+svg.i{flex:none;display:inline-block;vertical-align:-3px}
+.hidden{display:none !important}
+.muted{color:var(--grey-500)}
+.small{font-size:12.5px}
+
+/* ---------- Demo banner ---------- */
+#demoBar{position:fixed;left:0;right:0;bottom:0;z-index:2000;background:var(--amber);color:var(--navy-900);text-align:center;font-family:var(--fd);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px;padding:7px 12px}
+
+/* ---------- Lock ---------- */
+#lockWrap{position:fixed;inset:0;background:linear-gradient(158deg,var(--navy-900) 0%,var(--navy) 62%,#20395C 100%);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;overflow:hidden auto}
+#lockWrap::before{content:"";position:absolute;width:680px;height:680px;border-radius:50%;border:88px solid rgba(255,255,255,.03);top:-300px;right:-220px;pointer-events:none}
+#lockWrap::after{content:"";position:absolute;width:520px;height:520px;border-radius:50%;border:70px solid rgba(100,244,201,.045);bottom:-260px;left:-180px;pointer-events:none}
+.lockCol{position:relative;display:flex;flex-direction:column;align-items:center;gap:22px;width:100%;max-width:440px;margin:auto;padding:24px 0}
+.lockBrand{display:flex;flex-direction:column;align-items:center;gap:14px}
+.lockBrand img{width:160px;height:auto;display:block}
+.appTag{font-family:var(--fd);font-weight:500;font-size:13px;letter-spacing:.34em;text-transform:uppercase;color:var(--mint);text-indent:.34em}
+.lockCard{background:#fff;border-radius:var(--r-lg);box-shadow:var(--sh-xl);width:100%;padding:32px 34px 28px}
+.lockCard h1{font-family:var(--fd);font-weight:600;font-size:22px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy)}
+.lockCard .lsub{font-size:12.5px;color:var(--grey-500);margin-top:3px}
+.lockCard p.desc{color:var(--grey-500);font-size:13.5px;margin:12px 0 18px}
+.lockErr{background:var(--coral-100);color:var(--coral-700);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:500;margin-bottom:14px}
+.lockOk{background:var(--mint-100);color:var(--mint-700);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:500;margin-bottom:14px}
+.lockFoot{margin-top:16px;font-size:12px;color:var(--grey-400);text-align:center}
+.lockFoot a,.linkBtn{color:var(--blue);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.lockMeta{display:flex;align-items:center;gap:7px;font-size:11.5px;letter-spacing:.06em;color:#9DB0CC;text-transform:uppercase;font-family:var(--fd);font-weight:500}
+.ackBox{display:flex;gap:10px;align-items:flex-start;background:var(--amber-100);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--amber-700);margin-bottom:16px;line-height:1.5}
+.ackBox input{margin-top:2px;accent-color:var(--amber-600)}
+.codeBox{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:20px;letter-spacing:.08em;background:var(--grey-50);border:1.5px dashed var(--grey-300);border-radius:12px;padding:16px;text-align:center;color:var(--navy);word-break:break-all;margin:6px 0 14px;user-select:all}
+
+/* ---------- Fields ---------- */
+.field{margin-bottom:14px}
+.field label,.flabel{display:block;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500);margin-bottom:6px}
+.field input,.field select,.field textarea,.inp{width:100%;padding:10px 13px;border:1.5px solid var(--grey-200);border-radius:10px;background:#fff;outline:none;transition:border-color .14s var(--ease),box-shadow .14s var(--ease);min-height:42px}
+.field input:focus,.field select:focus,.field textarea:focus,.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.field textarea{resize:vertical;min-height:70px;line-height:1.45}
+.field .hint{font-size:11.5px;color:var(--grey-500);margin-top:5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 14px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:0 14px}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 20px;border-radius:999px;font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;line-height:1.1;white-space:nowrap;transition:background .14s var(--ease),transform .14s var(--ease),box-shadow .14s var(--ease)}
+.btn:active{transform:scale(.985)}
+.btn-pri{background:var(--navy);color:#fff;box-shadow:var(--sh-xs)}
+.btn-pri:hover{background:var(--navy-900);box-shadow:var(--sh-md)}
+.btn-act{background:var(--blue);color:#fff}
+.btn-act:hover{background:var(--blue-700)}
+.btn-sec{background:#fff;border:1.5px solid var(--grey-300);color:var(--navy)}
+.btn-sec:hover{background:var(--grey-100)}
+.btn-danger{background:var(--coral-600);color:#fff}
+.btn-danger:hover{background:var(--coral-700)}
+.btn-mint{background:var(--mint);color:var(--navy-900)}
+.btn-mint:hover{background:var(--mint-600)}
+.btn-ghost{color:var(--grey-600);padding:6px 12px;min-height:34px;border-radius:999px;font-family:var(--fb);font-weight:600;font-size:12.5px;letter-spacing:0;text-transform:none}
+.btn-ghost:hover{background:var(--grey-100);color:var(--navy)}
+.btn-sm{min-height:34px;padding:6px 14px;font-size:12px}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.55;cursor:not-allowed;transform:none !important;box-shadow:none !important}
+.iconBtn{width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--grey-600)}
+.iconBtn:hover{background:var(--grey-100);color:var(--navy)}
+
+/* ---------- Shell ---------- */
+#app{display:flex;min-height:100vh}
+#side{width:232px;flex:none;background:var(--navy);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sideTop{padding:28px 22px 20px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sideTop img{width:126px;height:auto;display:block}
+.sideTop .appTag{margin-top:12px;font-size:11px;letter-spacing:.3em;text-indent:0;text-align:left}
+.nav{padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.navLbl{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7E92B5;padding:14px 12px 6px}
+.navBtn{display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border-radius:10px;color:#C9D4E5;font-weight:600;font-size:13.5px;text-align:left}
+.navBtn:hover{background:rgba(255,255,255,.06);color:#fff}
+.navBtn.on{background:rgba(100,244,201,.12);color:var(--mint)}
+.navBtn .cnt{margin-left:auto;font-size:11px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:1px 8px}
+.navBtn .cnt.red{background:var(--coral-600)}
+.sideFoot{margin-top:auto;padding:16px 20px 22px;border-top:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px}
+.whoBox{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#DCE4EE}
+.whoBox b{display:block;color:#fff;font-size:13px}
+.sideLock{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:9px 14px;border-radius:999px;border:1.5px solid rgba(255,255,255,.22);color:#DCE4EE;font-family:var(--fd);font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase}
+.sideLock:hover{background:rgba(255,255,255,.09);color:#fff}
+.syncLine{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-family:var(--fd);font-weight:500;color:#9DB0CC}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--grey-400);flex:none}
+.dot.ok{background:var(--mint)} .dot.busy{background:var(--amber)} .dot.bad{background:var(--coral)}
+
+#main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topBar{display:flex;align-items:center;gap:14px;padding:18px 28px 14px;position:sticky;top:0;z-index:20;background:var(--off)}
+.topBar h2{font-family:var(--fd);font-weight:600;font-size:24px;letter-spacing:.02em;text-transform:uppercase;color:var(--navy);white-space:nowrap}
+.searchBox{flex:1;max-width:380px;margin-left:auto;position:relative}
+.searchBox input{width:100%;padding:10px 14px 10px 38px;border-radius:999px;border:1.5px solid var(--grey-200);background:#fff;outline:none;min-height:42px}
+.searchBox input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.searchBox svg{position:absolute;left:13px;top:12px;color:var(--grey-400)}
+#view{padding:4px 28px 60px;flex:1}
+.mobBar{display:none}
+
+/* ---------- Cards / tiles ---------- */
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--sh-xs);border:1px solid var(--grey-100)}
+.cardHd{display:flex;align-items:center;gap:10px;padding:16px 20px 12px}
+.cardHd h3{font-family:var(--fd);font-weight:600;font-size:15px;letter-spacing:.05em;text-transform:uppercase;color:var(--navy)}
+.cardHd .sub{font-size:12px;color:var(--grey-500)}
+.cardBd{padding:4px 20px 18px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+.tile{background:#fff;border-radius:var(--r);border:1px solid var(--grey-100);box-shadow:var(--sh-xs);padding:14px 16px;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:92px;transition:box-shadow .14s var(--ease),transform .14s var(--ease)}
+.tile:hover{box-shadow:var(--sh-md);transform:translateY(-1px)}
+.tile .n{font-family:var(--fd);font-weight:600;font-size:30px;line-height:1.1;color:var(--navy)}
+.tile .l{font-size:12.5px;font-weight:600;color:var(--grey-600)}
+.tile.red .n{color:var(--coral-700)} .tile.amber .n{color:var(--amber-700)} .tile.blue .n{color:var(--blue)} .tile.mint .n{color:var(--mint-700)}
+.twoCol{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start}
+
+/* ---------- Due groups ---------- */
+.dueGrp{margin-bottom:6px}
+.dueGrp h4{font-family:var(--fd);font-weight:500;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);padding:12px 0 6px;border-bottom:1px solid var(--grey-100)}
+.dueGrp h4.red{color:var(--coral-700)}
+.row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--grey-100);cursor:pointer;border-radius:8px;width:100%;text-align:left}
+.row:hover{background:var(--grey-50)}
+.row .pt{font-weight:700;color:var(--navy);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .meta{font-size:12px;color:var(--grey-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .grow{flex:1;min-width:0;display:flex;flex-direction:column}
+.empty{padding:28px 10px;text-align:center;color:var(--grey-500);font-size:13px}
+
+/* ---------- Badges ---------- */
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap;background:var(--grey-100);color:var(--grey-600)}
+.badge.t-aligner{background:var(--blue-100);color:var(--blue-700)}
+.badge.t-lab{background:var(--mint-100);color:var(--mint-700)}
+.badge.t-appl{background:var(--navy-100);color:var(--navy-700)}
+.badge.t-ret{background:var(--amber-100);color:var(--amber-700)}
+.badge.t-retx{background:var(--coral-100);color:var(--coral-700)}
+.badge.t-misc{background:var(--grey-100);color:var(--grey-600)}
+.due{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap;background:var(--grey-100);color:var(--grey-600)}
+.due.over{background:var(--coral-100);color:var(--coral-700)}
+.due.soon{background:var(--amber-100);color:var(--amber-700)}
+.due.none{background:transparent;color:var(--grey-400);font-weight:600}
+.av{width:28px;height:28px;border-radius:50%;background:var(--navy-600);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;letter-spacing:.02em}
+.av.none{background:var(--grey-200);color:var(--grey-500)}
+.av.lg{width:36px;height:36px;font-size:13px}
+
+/* ---------- Board ---------- */
+.boardTabs,.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{border:1.5px solid var(--grey-200);border-radius:99px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--grey-600);background:#fff;min-height:36px}
+.chip:hover{border-color:var(--navy-500);color:var(--navy)}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.chip .c{opacity:.7;margin-left:4px}
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;align-items:flex-start;scroll-snap-type:x proximity}
+.col{flex:1 0 225px;max-width:320px;background:var(--grey-100);border-radius:var(--r);padding:10px;scroll-snap-align:start;max-height:calc(100vh - 230px);display:flex;flex-direction:column}
+.colHd{display:flex;align-items:center;gap:8px;padding:4px 6px 10px}
+.colHd h4{font-family:var(--fd);font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy)}
+.colHd .c{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--grey-500)}
+.colBd{display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:40px;padding:2px}
+.kc{position:relative;background:#fff;border-radius:11px;box-shadow:var(--sh-xs);border:1px solid var(--grey-200);padding:10px 11px;display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;width:100%}
+.kc:hover{box-shadow:var(--sh-md);border-color:var(--grey-300)}
+.kc .pt{font-weight:700;color:var(--navy);font-size:13.5px;line-height:1.3;padding-right:36px}
+.kc .dt{font-size:12px;color:var(--grey-500);line-height:1.35}
+.kc .ft{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.kc .adv{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--blue);background:var(--blue-100)}
+.kc .adv:hover{background:var(--blue);color:#fff}
+
+/* ---------- Table ---------- */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filters select{padding:8px 12px;border:1.5px solid var(--grey-200);border-radius:999px;background:#fff;font-weight:600;font-size:12.5px;min-height:38px;color:var(--grey-700)}
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;font-family:var(--fd);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--grey-500);padding:11px 14px;border-bottom:1px solid var(--grey-100);white-space:nowrap}
+.tbl th button{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit}
+.tbl td{padding:11px 14px;border-bottom:1px solid var(--grey-100);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr.click{cursor:pointer}
+.cleanup{margin-bottom:18px;border:1.5px solid var(--amber-200)}
+.cleanup .oldPick select{margin-left:6px;padding:5px 8px;border-radius:8px;border:1.5px solid var(--grey-200);font:inherit;font-size:12.5px}
+.cleanup .oldNo{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.oldList{max-height:320px;overflow:auto;border:1px solid var(--grey-100);border-radius:10px}
+.oldRow{display:grid;grid-template-columns:22px minmax(0,1.2fr) minmax(0,1.6fr) auto;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--grey-100);cursor:pointer}
+.oldRow:last-child{border-bottom:none}
+.oldRow:hover{background:var(--grey-50)}
+.oldRow input{width:17px;height:17px;accent-color:var(--navy)}
+.oldRow .pt{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oldRow .muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oldD{color:var(--coral-700);font-weight:600}
+.oldAct{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.oldAct b{font-size:13px;color:var(--navy);margin-right:4px}
+.tbl tr.click:hover td{background:var(--grey-50)}
+.tbl .pt{font-weight:700;color:var(--navy)}
+.tblWrap{overflow-x:auto}
+
+/* ---------- Drawer ---------- */
+#scrim{position:fixed;inset:0;background:rgba(17,32,58,.35);z-index:900}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:#fff;z-index:901;box-shadow:var(--sh-xl);display:flex;flex-direction:column}
+.dHd{padding:20px 22px 14px;border-bottom:1px solid var(--grey-100);display:flex;gap:12px;align-items:flex-start}
+.dHd h3{font-family:var(--fd);font-weight:600;font-size:21px;letter-spacing:.02em;color:var(--navy);line-height:1.2}
+.dHd .sub{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.dBd{flex:1;overflow-y:auto;padding:16px 22px 26px}
+.dFt{padding:12px 22px;border-top:1px solid var(--grey-100);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sec{margin-top:18px}
+.sec h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin-bottom:8px}
+.stepper{display:flex;flex-direction:column;gap:6px}
+.step{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;border:1.5px solid var(--grey-200);text-align:left;font-weight:600;font-size:13px;color:var(--grey-600);background:#fff;min-height:40px}
+.step:hover{border-color:var(--blue-200);background:var(--blue-100)}
+.step .n{width:22px;height:22px;border-radius:50%;background:var(--grey-100);color:var(--grey-500);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.step.past{color:var(--grey-500)}
+.step.past .n{background:var(--mint-200);color:var(--mint-700)}
+.step.cur{border-color:var(--blue);background:var(--blue-100);color:var(--blue-700)}
+.step.cur .n{background:var(--blue);color:#fff}
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 16px}
+.kv div{min-width:0}
+.kv .k{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500)}
+.kv .v{font-weight:600;color:var(--navy);overflow-wrap:anywhere}
+.txt{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--grey-50);border-radius:10px;padding:10px 12px;font-size:13px}
+.cmt{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--grey-100)}
+.cmt:last-child{border-bottom:none}
+.cmt .w{font-size:12px;color:var(--grey-500)}
+.cmt .w b{color:var(--navy)}
+.hist{font-size:12.5px;color:var(--grey-600);padding:5px 0;display:flex;gap:8px}
+.hist time{color:var(--grey-400);white-space:nowrap;font-size:11.5px;min-width:96px}
+.notice{background:var(--amber-100);color:var(--amber-700);border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:600;margin-bottom:12px}
+.notice.info{background:var(--blue-100);color:var(--blue-700)}
+.notice.bad{background:var(--coral-100);color:var(--coral-700)}
+
+/* ---------- Modal ---------- */
+#modalWrap{position:fixed;inset:0;background:rgba(17,32,58,.45);z-index:950;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+.modal{background:#fff;border-radius:var(--r-lg);box-shadow:var(--sh-xl);width:100%;max-width:640px;padding:24px 26px 22px}
+.modal h3{font-family:var(--fd);font-weight:600;font-size:20px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy);margin-bottom:4px}
+.modal .lsub{font-size:12.5px;color:var(--grey-500);margin-bottom:16px}
+.mFt{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap}
+
+/* ---------- Toast ---------- */
+#toasts{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--navy-900);color:#fff;border-radius:12px;padding:11px 18px;font-size:13px;font-weight:600;box-shadow:var(--sh-lg);max-width:min(520px,92vw)}
+.toast.bad{background:var(--coral-700)}
+
+/* ---------- Admin ---------- */
+.adminGrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.stat{white-space:nowrap;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:99px;padding:2px 9px}
+.stat.ok{background:var(--mint-100);color:var(--mint-700)}
+.stat.wait{background:var(--amber-100);color:var(--amber-700)}
+.stat.off{background:var(--grey-100);color:var(--grey-500)}
+.prog{height:8px;border-radius:99px;background:var(--grey-100);overflow:hidden;margin:10px 0}
+.prog i{display:block;height:100%;background:var(--blue);width:0;transition:width .2s var(--ease)}
+
+/* ---------- Responsive ---------- */
+/* minmax(0,…) and min-width:0 keep long one-line rows from widening the page on phones */
+.twoCol>*,.adminGrid>*{min-width:0}
+@media (max-width:1100px){ .twoCol,.adminGrid{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:860px){
+  #app{flex-direction:column}
+  #side{display:none}
+  .mobBar{display:flex;align-items:center;gap:8px;background:var(--navy);color:#fff;padding:10px 12px;position:sticky;top:0;z-index:30}
+  .mobBar img{height:26px;width:auto}
+  .mobNav{display:flex;gap:4px;overflow-x:auto;background:var(--navy);padding:0 10px 10px;position:sticky;top:46px;z-index:29}
+  .mobNav .navBtn{width:auto;white-space:nowrap;padding:8px 12px;font-size:12.5px}
+  .topBar{padding:12px 16px 10px;flex-wrap:wrap;position:static}
+  .topBar h2{font-size:20px}
+  .searchBox{order:3;max-width:none;flex-basis:100%;margin-left:0}
+  #view{padding:4px 16px 70px}
+  .grid2,.grid3,.grid4{grid-template-columns:1fr}
+  .cardHd{flex-wrap:wrap}
+  .kv{grid-template-columns:1fr 1fr}
+  .col{flex-basis:82vw;max-height:none}
+  .tbl .hideM{display:none}
+  .modal{padding:20px 18px}
+  .lockCard{padding:26px 22px 22px}
+}
+@media (min-width:861px){ .mobNav{display:none} }
+@media print{ #side,.topBar,.mobBar,.mobNav{display:none} }
+/* The NLO Apps button (nlo-home.js) sits in the top-left corner: start the side menu's logo below it on a computer, and the phone bar's logo after it */
+@media screen{ html.nlo-home-on .sideTop{padding-top:var(--nlo-home-drop)} }
+@media screen and (max-width:860px){ html.nlo-home-on .mobBar{padding-left:var(--nlo-home-space)} }
+/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: in the demo it stays above the demo banner, and on phones the toasts show above it */
+html:has(body.demo){--nlo-aisa-bottom:48px}
+@media screen and (max-width:600px){ html.nlo-aisa-on #toasts{bottom:calc(var(--nlo-aisa-lift) + 4px)} }
+
+body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #view{padding-bottom:90px}
+.nameCell{display:flex;align-items:center;gap:9px}
+
+/* ---------- shared bits from NLO Cases ---------- */
+.btn-teal{background:var(--mint);color:var(--navy-900);box-shadow:var(--sh-xs)}
+.btn-teal:hover{background:var(--mint-600);box-shadow:var(--sh-md)}
+.pickRow{display:flex;flex-wrap:wrap;gap:7px}
+.pick{border:1.5px solid var(--grey-200);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--grey-700);background:#fff;min-height:38px;text-align:left;line-height:1.25}
+.pick.sm{min-height:34px;padding:5px 12px;font-size:12.5px}
+.pick:hover{border-color:var(--mint-600);background:var(--mint-100);color:var(--navy)}
+.pick[aria-pressed="true"]{background:var(--mint);border-color:var(--mint-600);color:var(--navy-900)}
+.pick[aria-pressed="true"]::before{content:"✓ ";font-weight:700}
+.sprog{display:flex;align-items:center;gap:3px;width:100%;max-width:200px;margin:3px 0 5px}
+.sprog i{flex:1 1 0;min-width:4px;height:6px;border-radius:3px;background:var(--grey-200)}
+.sprog i.d{background:var(--mint-600)}
+.sprog i.c{background:var(--navy);height:9px;box-shadow:0 0 0 2px var(--mint-200)}
+a.btn{text-decoration:none}
+@media (max-width:860px){ #modalWrap{padding:0} .modal.wide{border-radius:0;min-height:100vh} .tileGrid{grid-template-columns:repeat(2,1fr)} }
+
+/* ---------- NLO Leads ---------- */
+.sideLink{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#C9D4E5;text-decoration:none;padding:2px 2px}
+.sideLink:hover{color:#fff}
+.sprog{max-width:120px}
+.sprog i.s{background:var(--grey-100)}
+.due.flag{background:var(--coral-100);color:var(--coral-700)}
+.due.ok{background:var(--mint-100);color:var(--mint-700)}
+.tile.coral .n{color:var(--coral-600)}
+.tile.static{cursor:default}
+.tile.static:hover{box-shadow:var(--sh-xs);transform:none}
+.tile .s{font-size:11.5px;color:var(--grey-500);font-weight:600}
+.row .par{font-weight:500;color:var(--grey-500)}
+.row .meta{display:flex;align-items:center;gap:6px}
+.kd{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;flex:none;background:var(--grey-100);color:var(--grey-600)}
+.kd.k-call{background:var(--blue-100);color:var(--blue)}
+.kd.k-text{background:var(--mint-100);color:var(--mint-700)}
+.kd.k-email{background:var(--amber-100);color:var(--amber-700)}
+.row .kd{width:18px;height:18px}
+.badge svg.i{vertical-align:-2px}
+.badge.t-web{background:var(--blue-100);color:var(--blue-700)}
+.badge.t-asana{background:var(--grey-100);color:var(--grey-600)}
+.badge.t-hand{background:var(--navy-100);color:var(--navy-700)}
+.badge.t-ok{background:var(--mint-100);color:var(--mint-700)}
+.badge[class*="t-flag-"]{background:var(--coral-100);color:var(--coral-700)}
+.badge.t-flag-test{background:var(--amber-100);color:var(--amber-700)}
+.col.flagCol{background:var(--coral-100)}
+.kc .pt{padding-right:0}
+.kc .ft .av{width:24px;height:24px;font-size:10px}
+.btnRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.inRow{display:flex;gap:8px;align-items:center}
+.inRow input{flex:1;min-width:0}
+.subH{font-family:var(--fd);font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin:14px 0 8px}
+.kvRow{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--grey-100);font-size:13px}
+.kvRow:last-of-type{border-bottom:none}
+.kvRow b{color:var(--navy)}
+span.ok{color:var(--mint-700);font-weight:600} span.bad{color:var(--coral-700);font-weight:600}
+/* drawer: contact, the attempt to make now, the plan */
+.contact{display:flex;flex-direction:column;gap:4px;margin-top:2px}
+.cRow{display:flex;align-items:center;gap:10px;font-size:14px;min-height:36px;color:var(--grey-500)}
+.cRow a{font-weight:700;color:var(--navy);text-decoration:none;overflow-wrap:anywhere}
+.cRow a:hover{text-decoration:underline}
+.cRow .btn-ghost{min-height:30px;padding:4px 10px;margin-left:auto}
+.nowBox{margin-top:16px;border:1.5px solid var(--blue-200);background:linear-gradient(180deg,var(--blue-100),#fff 70%);border-radius:var(--r);padding:14px 16px 16px}
+.nowHd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.nowHd b{font-size:15px;color:var(--navy)}
+.nowN{font-family:var(--fd);font-weight:600;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#fff;background:var(--blue);border-radius:99px;padding:3px 10px}
+.msgPrev{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid var(--grey-200);border-radius:12px;padding:10px 12px;font-size:13px;margin-top:8px;max-height:220px;overflow:auto}
+.seg{display:inline-flex;border:1.5px solid var(--grey-200);border-radius:99px;overflow:hidden;background:#fff}
+.seg button{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--grey-600);min-height:34px}
+.seg button[aria-pressed="true"]{background:var(--navy);color:#fff}
+.rbRow{display:flex;flex-wrap:wrap;gap:7px}
+.rb{border:1.5px solid var(--grey-300);border-radius:12px;padding:9px 14px;font-size:13px;font-weight:700;color:var(--navy);background:#fff;min-height:44px;text-align:left;line-height:1.2}
+.rb:hover{border-color:var(--navy-500);background:var(--grey-50)}
+.rb.r-sched{background:var(--mint);border-color:var(--mint-600);color:var(--navy-900)}
+.rb.r-sched:hover{background:var(--mint-600)}
+.rb.r-no{color:var(--coral-700)}
+.rb[aria-pressed="true"]{box-shadow:0 0 0 3px var(--blue-200)}
+.inForm{margin-top:10px;padding:12px 14px;border-radius:12px;background:#fff;border:1px solid var(--grey-200)}
+.inForm .field{margin-bottom:8px}
+.plan{display:flex;flex-direction:column;gap:6px}
+.ps{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border:1.5px solid var(--grey-100);border-radius:12px;background:#fff}
+.ps .pn{width:24px;height:24px;border-radius:50%;background:var(--grey-100);color:var(--grey-500);font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;margin-top:1px}
+.ps .pb{flex:1;min-width:0}
+.ps .pl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ps .pl b{font-size:13px;color:var(--navy)}
+.pk{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;background:var(--grey-100);color:var(--grey-600)}
+.pk.k-call{background:var(--blue-100);color:var(--blue-700)} .pk.k-text{background:var(--mint-100);color:var(--mint-700)} .pk.k-email{background:var(--amber-100);color:var(--amber-700)}
+.ps .pm{font-size:12px;color:var(--grey-500);margin-top:2px}
+.ps .pnote{font-size:12.5px;color:var(--grey-700);margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}
+.ps.done .pn{background:var(--mint-200);color:var(--mint-700)}
+.ps.cur{border-color:var(--blue);background:var(--blue-100)}
+.ps.cur .pn{background:var(--blue);color:#fff}
+.ps.skip{opacity:.6}
+.ps .btn-ghost{min-height:30px;padding:4px 10px}
+.flagBox{margin-top:14px;border-radius:var(--r);padding:12px 14px;background:var(--coral-100);color:var(--coral-700);border:1.5px solid var(--coral-200)}
+.flagBox.f-test{background:var(--amber-100);color:var(--amber-700);border-color:var(--amber-200)}
+.flagBox .fbT{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px}
+.flagBox .fbW{font-size:13px;font-weight:600;margin-top:4px;color:var(--grey-700)}
+.flagBox .small{color:var(--grey-600)}
+details.raw,details.help{margin-top:10px}
+details.raw summary,details.help summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--grey-600);padding:6px 0}
+details.raw .txt{margin-top:6px;max-height:240px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+/* settings */
+.feedSt{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--grey-700);margin-bottom:2px}
+.feedSt b{color:var(--navy)}
+ol.steps{padding-left:20px;line-height:1.6;margin:6px 0 12px}
+ol.steps li{margin-bottom:6px}
+.cmd{display:flex;align-items:center;gap:8px;margin:6px 0;padding:8px 10px;border-radius:10px;background:var(--navy-900);color:#E8ECF2}
+.cmd code{flex:1;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;overflow-wrap:anywhere}
+.cmd .btn-ghost{color:#C9D4E5;min-height:30px}
+.cmd .btn-ghost:hover{background:rgba(255,255,255,.1);color:#fff}
+.planEd{display:flex;flex-direction:column;gap:6px}
+.peRow{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--grey-100)}
+.peRow .pn{width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.peRow .pl{flex:1;min-width:0;display:flex;flex-direction:column}
+.peRow .pl b{font-size:13px;color:var(--navy)}
+.peDay{display:flex;align-items:center;gap:6px;font-weight:600;color:var(--grey-600)}
+.peDay input{width:74px;min-height:36px;padding:6px 10px}
+.planPrev{margin-top:4px;line-height:1.9;color:var(--grey-600)}
+.planPrev .pp{display:inline-block;white-space:nowrap;background:var(--grey-100);border-radius:99px;padding:1px 8px;margin:0 2px;font-weight:600;font-size:12px}
+/* results */
+.bars{display:flex;align-items:flex-end;gap:6px;height:190px;padding-top:6px;overflow-x:auto}
+.bar{flex:1 0 28px;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%}
+.bar .bv{position:relative;flex:1;width:100%;max-width:34px}
+.bar .bv i{position:absolute;left:0;right:0;bottom:0;border-radius:6px 6px 2px 2px}
+.bar .bv i.n{background:var(--navy-100);box-shadow:inset 0 0 0 1px var(--navy-500)}
+.bar .bv i.s{background:var(--mint-600);left:22%;right:22%}
+.bar span{font-size:10.5px;color:var(--grey-500);white-space:nowrap}
+.lg{display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 4px 0 10px;vertical-align:-1px}
+.lg.n{background:var(--navy-100);box-shadow:inset 0 0 0 1px var(--navy-500)} .lg.s{background:var(--mint-600)}
+@media (max-width:860px){
+  .nowBox{padding:12px 12px 14px}
+  .rb{flex:1 1 44%}
+  .inRow{flex-wrap:wrap}
+  .board .col{flex-basis:78vw}
+}
+.tiles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.seg button[disabled]{opacity:.45;cursor:not-allowed}
+.dFt .btn-ghost{min-height:32px;padding:4px 10px}
+
+/* ---------- Phone fit (Oct 2026) ----------
+   iPhones zoom the page in when a box under 16px gets the cursor (and it stays zoomed); the lead list now fits the
+   screen instead of cutting off the "Next" column. */
+@media (max-width:900px){@supports (overflow:clip){html,body{overflow-x:clip}}}
+@media (hover:none) and (pointer:coarse),(max-width:760px){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),select,textarea{font-size:16px !important}
+}
+@media (max-width:520px){
+  .tbl td,.tbl th{padding-left:8px;padding-right:8px}
+  .tbl td .due,.tbl td .flag{white-space:normal;max-width:100%}
+  .tbl .pt,.tbl td .small{overflow-wrap:anywhere}
+  .tbl .sprog{min-width:44px}
+  .card.tblWrap>.tbl tr.click>td:first-child{width:50%}
+}
+
+
+/* =====================================================================
+   NLO Letters
+   ===================================================================== */
+.lead{font-size:15px;color:var(--grey-600);margin:2px 0 14px}
+.opt{font-family:var(--fb);font-weight:500;font-size:10.5px;letter-spacing:0;text-transform:none;color:var(--grey-400);margin-left:4px}
+.note{border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:12px}
+.note.amber{background:var(--amber-100);color:var(--amber-700)}
+.chk{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--grey-600);cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--navy)}
+.offRow td{opacity:.55}
+.mFt{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:18px;flex-wrap:wrap}
+.sideLink{display:flex;align-items:center;gap:6px;color:#C9D4E5;font-size:12.5px;font-weight:600;text-decoration:none}
+.sideLink:hover{color:#fff}
+
+/* pick a letter */
+.ltGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
+.ltTile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;background:#fff;border:1.5px solid var(--grey-100);border-radius:var(--r);box-shadow:var(--sh-xs);padding:18px 18px 16px;transition:box-shadow .15s var(--ease),transform .15s var(--ease),border-color .15s var(--ease)}
+.ltTile:hover{box-shadow:var(--sh-md);transform:translateY(-2px);border-color:var(--blue-200)}
+.ltTile .ltIc{width:58px;height:58px;border-radius:16px;background:var(--blue-100);color:var(--blue);display:flex;align-items:center;justify-content:center;margin-bottom:6px}
+.ltTile b{font-family:var(--fd);font-weight:600;font-size:17px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy)}
+.ltTile span:last-child{font-size:12.5px;color:var(--grey-500);line-height:1.4}
+
+/* the builder: form on the left, the letter on the right */
+.bWrap{display:grid;grid-template-columns:minmax(380px,520px) minmax(0,1fr);gap:22px;align-items:start}
+.bSec{background:#fff;border:1px solid var(--grey-100);border-radius:var(--r);box-shadow:var(--sh-xs);padding:16px 18px 14px;margin-bottom:12px}
+.bSec h4{display:flex;align-items:center;gap:9px;font-family:var(--fd);font-weight:600;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);margin-bottom:12px}
+.bNum{width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--fb);font-weight:700;letter-spacing:0}
+.optGrp{margin-bottom:12px}
+.optGrp .chips{margin-bottom:0}
+.optGrp .chip{background:#fff}
+.optGrp .chip.on{background:var(--navy)}
+#ltText{font-size:13.5px;line-height:1.55;min-height:220px}
+.docCard{display:flex;gap:12px;align-items:flex-start;background:var(--blue-100);border-radius:12px;padding:12px 14px}
+.docCard .grow{flex:1;min-width:0;display:flex;flex-direction:column;font-size:13px;color:var(--grey-700)}
+.docCard b{color:var(--navy);font-size:14px}
+.docMail{display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:600;color:var(--blue-700);flex-wrap:wrap}
+.docMail.none{color:var(--amber-700);font-weight:600}
+.docBtns{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.docHits{display:flex;flex-direction:column;border:1px solid var(--grey-100);border-radius:10px;overflow:hidden}
+.docHits:empty{display:none}
+.docHit{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 10px;text-align:left;padding:8px 12px;border-bottom:1px solid var(--grey-100);align-items:center}
+.docHit:last-child{border-bottom:none}
+.docHit:hover{background:var(--grey-50)}
+.docHit b{color:var(--navy);font-size:13.5px}
+.docHit span:nth-child(2){grid-column:1;font-size:12px;color:var(--grey-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.docHit .badge{grid-column:2;grid-row:1/3}
+
+/* tooth chart */
+.chart{background:var(--grey-50);border-radius:12px;padding:10px 8px 12px;overflow-x:auto}
+.sideLbl{display:flex;justify-content:space-between;align-items:center;font-family:var(--fd);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-400);padding:0 4px 6px;min-width:440px}
+.sideLbl b{font-weight:600;color:var(--grey-500)}
+.sideLbl span{min-width:90px} .sideLbl span:last-child{text-align:right}
+.tRow{display:flex;justify-content:center;gap:2px;min-width:440px}
+.tRow .mid{width:8px;flex:none;border-left:1.5px dashed var(--grey-300);margin-left:5px}
+.tRow.prim{margin:5px 0}
+.tooth{flex:none;width:24px;height:34px;border:1.5px solid var(--grey-300);background:#fff;color:var(--grey-600);font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:background .1s,border-color .1s}
+.tooth.up{border-radius:6px 6px 11px 11px} .tooth.lo{border-radius:11px 11px 6px 6px}
+.tooth.t-molar{width:29px} .tooth.t-premolar{width:25px} .tooth.t-canine{width:23px;height:38px} .tooth.t-incisor{width:22px}
+.tRow.prim .tooth{height:26px;width:22px;font-size:10px;border-style:dashed;color:var(--grey-500)}
+.tRow.prim .tooth.t-molar{width:26px}
+.tRow.perm.up,.tRow:first-of-type{align-items:flex-end}
+.tooth:hover{border-color:var(--blue);background:var(--blue-100)}
+.tooth.on{background:var(--coral-600);border-color:var(--coral-700);border-style:solid;color:#fff}
+.arch{display:flex;align-items:center;gap:8px;font-family:var(--fd);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-400);padding:0 4px;min-width:440px}
+.arch span{flex:1;border-top:1.5px solid var(--grey-200);margin:2px 0}
+.chartFt{display:flex;gap:12px;align-items:flex-start;margin-top:10px}
+.teethSay{flex:1;font-size:12.5px;color:var(--grey-600);line-height:1.45}
+.teethSay b{color:var(--navy)}
+.seg{display:inline-flex;border:1.5px solid var(--grey-200);border-radius:99px;overflow:hidden;flex:none}
+.seg button{padding:5px 11px;font-size:11.5px;font-weight:700;color:var(--grey-500)}
+.seg button.on{background:var(--navy);color:#fff}
+
+/* letterhead choices + images */
+.lhGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.lhOpt{display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 6px 9px;border:1.5px solid var(--grey-200);border-radius:12px;background:#fff}
+.lhOpt b{font-size:11.5px;color:var(--grey-600);text-align:center;line-height:1.25}
+.lhOpt.on{border-color:var(--navy);box-shadow:0 0 0 2px var(--navy-100)} .lhOpt.on b{color:var(--navy)}
+.lhPic{width:54px;height:66px;border:1px solid var(--grey-300);border-radius:3px;background:linear-gradient(var(--grey-200),var(--grey-200)) 8px 30px/38px 2px no-repeat,linear-gradient(var(--grey-200),var(--grey-200)) 8px 36px/38px 2px no-repeat,linear-gradient(var(--grey-200),var(--grey-200)) 8px 42px/30px 2px no-repeat,#fff;position:relative;display:block}
+.lhPic i{position:absolute;background:var(--navy);border-radius:1px}
+.lh-logo i:first-child{left:15px;top:7px;width:24px;height:6px} .lh-logo i:last-child{left:11px;top:16px;width:32px;height:2px;background:var(--grey-400)}
+.lh-side i:first-child{left:6px;top:8px;width:20px;height:6px} .lh-side i:last-child{right:6px;top:8px;width:14px;height:6px;background:var(--grey-400)}
+.lh-plain i:first-child{left:6px;top:6px;width:42px;height:14px;background:none;border:1px dashed var(--grey-300)} .lh-plain i:last-child{display:none}
+.imgList{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.imgChip{display:flex;align-items:center;gap:8px;border:1px solid var(--grey-200);border-radius:10px;padding:4px 4px 4px 6px;font-size:12px;max-width:100%}
+.imgChip img{width:44px;height:34px;object-fit:cover;border-radius:6px}
+.imgChip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.imgChip .iconBtn{width:28px;height:28px}
+.imgAdd{cursor:pointer}
+
+/* the paper */
+.paperCol{position:sticky;top:12px;min-width:0}
+.paperBar{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.probs{flex:1;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--amber-700);min-width:0}
+.probN{flex:none;min-width:20px;height:20px;border-radius:99px;background:var(--amber);color:var(--navy-900);font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+.probOk{display:inline-flex;align-items:center;gap:6px;color:var(--mint-700)}
+.paperScroll{max-height:calc(100vh - 96px);overflow:auto;border-radius:8px;background:var(--grey-200);padding:16px}
+.paper{background:#fff;box-shadow:var(--sh-md);margin:0 auto;width:100%;max-width:8.5in;min-height:11in;padding:.75in .95in .9in;font-family:Aptos,Calibri,"Helvetica Neue",Arial,sans-serif;font-size:11pt;line-height:1.38;color:#111}
+.paper p{margin:0 0 .75em}
+.paper .lh{margin-bottom:.26in}
+.paper .lh-logo{text-align:center;border-bottom:1.5pt solid #111;padding-bottom:.14in}
+.paper .lh-logo img{height:.5in;width:auto;display:block;margin:0 auto .09in}
+.paper .lh-logo div{font-size:9pt;letter-spacing:.06em;color:#333}
+.paper .lh-side{display:flex;align-items:center;justify-content:space-between;border-bottom:1.5pt solid #111;padding-bottom:.12in}
+.paper .lh-side img{height:.42in;width:auto}
+.paper .lh-side div{font-size:9pt;text-align:right;line-height:1.35;color:#333}
+.paper .lh-plain{height:1.35in;border:1.5px dashed var(--grey-300);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--grey-400);font-size:10pt}
+.paper .pDate{margin-bottom:.9em}
+.paper .pTo{margin-bottom:.4em;min-height:3em}
+.paper .pRe{margin:0 0 .9em 50%}
+.paper .pRe div{white-space:nowrap}
+.paper .pSub{margin-bottom:1em}
+.paper .pDear{margin-bottom:.9em}
+.paper .pSign{margin-top:1.3em;page-break-inside:avoid;break-inside:avoid}
+.paper .sigGap{height:.45in}
+.paper .pEncl{margin-top:1.2em;font-size:10pt}
+.paper .blank{background:var(--amber-100);color:var(--amber-700);border-radius:3px;padding:0 4px;font-size:.92em}
+.paper .pImg{page-break-before:always;break-before:page;margin-top:.5in;text-align:center}
+.paper .pImg img{max-width:100%;max-height:8.6in}
+.paper .pImg div{font-size:9.5pt;color:#333;margin-top:.1in}
+
+.impNums{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.impNums div{background:var(--grey-50);border-radius:10px;padding:10px 8px;text-align:center;font-size:11.5px;color:var(--grey-500)}
+.impNums b{display:block;font-family:var(--fd);font-size:24px;color:var(--navy);line-height:1.15}
+.bar{height:8px;border-radius:99px;background:var(--grey-100);overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:var(--mint-600);transition:width .2s}
+
+@media (max-width:1180px){ .bWrap{grid-template-columns:minmax(0,1fr)} .paperCol{position:static} .paperScroll{max-height:none} }
+@media (max-width:600px){ .paper{padding:.5in .45in;font-size:10.5pt} .paper .pRe{margin-left:30%} .lhGrid{grid-template-columns:1fr} }
+
+/* printing: only the letter, on plain letter paper */
+@page{size:letter;margin:.65in .95in .7in}
+@media print{
+  html,body{background:#fff !important}
+  #lockWrap,#side,#topSlot,.mobBar,.mobNav,#toasts,#demoBar,#modalWrap,.formCol,.paperBar,.lead,.ltGrid{display:none !important}
+  #app,#main,#view,.bWrap,.paperCol,.paperScroll{display:block !important;padding:0 !important;margin:0 !important;background:none !important;max-height:none !important;overflow:visible !important;position:static !important;min-height:0 !important}
+  .paper{box-shadow:none;padding:0;margin:0;max-width:none;min-height:0;width:auto}
+  .paper .lh-plain{border:none;color:transparent;height:1.1in}
+  .paper .blank{background:none;color:inherit}
+}
+
+</style>
+</head>
+<body>
+<div id="lockWrap">
+  <div class="lockCol">
+    <div class="lockBrand"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Letters</div></div>
+    <div class="lockCard" id="lockCard"><div class="lsub" style="text-align:center">Loading…</div></div>
+    <div class="lockMeta"><svg class="i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 2.8v5.5c0 4.4-3 7.5-7 9.2-4-1.7-7-4.8-7-9.2V5.8z"/><path d="M9.2 12l2 2 3.6-3.8"/></svg>Encrypted on this device before it’s saved</div>
+  </div>
+</div>
+<div id="app" class="hidden">
+  <aside id="side"></aside>
+  <div id="main">
+    <div class="mobBar" id="mobTop"></div>
+    <nav class="mobNav" id="mobNav" aria-label="Main"></nav>
+    <div id="topSlot"></div>
+    <main id="view"></main>
+  </div>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<div id="demoBar" class="hidden">Demo — made-up doctors, nothing is saved</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+   NLO Letters — referral letters for Next Level Orthodontics
+   - Same logins, office key and encryption as NLO Cases: the doctor
+     directory is sealed in the browser (AES-256-GCM) before it is stored;
+     Firestore only holds ciphertext.
+   - Nothing about a patient is ever saved or sent anywhere: the name and
+     date of birth are typed, printed (or saved as a PDF) and gone when
+     the page is closed or locked.
+   ===================================================================== */
+
+/* ---------- Firebase project (same project as NLO Cases) ---------- */
+const FB_CONFIG = {
+  apiKey: "AIzaSyAoPSh6DaKTeg-NplM-UaPoxlFdTo0u4go",
+  authDomain: "nlo-cases.firebaseapp.com",
+  projectId: "nlo-cases",
+  appId: "1:1050188201609:web:df7890b26686b41a395058"
+};
+/* Synthetic login addresses for staff usernames (no mail is ever sent to them). */
+const STAFF_DOMAIN = 'staff.thenextlevelorthodontics.com';
+const KDF_ITER = 600000;
+const OFFICE_NAME = 'Next Level Orthodontics';
+
+/* ---------- small utils ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function uid8() { return Array.from(crypto.getRandomValues(new Uint8Array(6)), b => b.toString(16).padStart(2, '0')).join(''); }
+function todayISO() { return isoOf(new Date()); }
+function isoOf(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function addDays(iso, n) { const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); dt.setDate(dt.getDate() + n); return isoOf(dt); }
+/* whole days from a to b (both YYYY-MM-DD); UTC maths so daylight-saving changes never skew it */
+function daysBetween(a, b) { const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number); return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000); }
+function dayDiff(iso) { if (!iso) return null; return daysBetween(todayISO(), iso); }
+function fmtDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); const opts = { month: 'short', day: 'numeric' }; if (y !== new Date().getFullYear()) opts.year = 'numeric'; return dt.toLocaleDateString(undefined, opts); }
+function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+function fmtWhen(ms) { if (!ms) return ''; const d = new Date(ms); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+/* "9:30 AM" from "09:30" (what <input type=time> gives) */
+function fmtClock(t) { const m = String(t || '').match(/^(\d{1,2}):(\d{2})$/); if (!m) return String(t || ''); const h = Number(m[1]); return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM'); }
+function initials(name) { const p = String(name || '').trim().split(/\s+/).filter(Boolean); if (!p.length) return '?'; return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
+function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30); }
+function firstName(n) { return String(n || '').replace(/^dr\.?\s+/i, '').split(/\s+/)[0] || ''; }
+function errCode(code, msg) { const e = new Error(msg || code); e.code = code; return e; }
+/* random characters without modulo bias (rejection sampling) */
+function randChars(n) {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', lim = 256 - (256 % A.length); let out = '';
+  while (out.length < n) { for (const b of crypto.getRandomValues(new Uint8Array(n * 2))) { if (b < lim && out.length < n) out += A[b % A.length]; } }
+  return out;
+}
+function tempPassword() { return randChars(12).replace(/(.{4})(?=.)/g, '$1-'); }
+function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(.{4})(?=.)/g, '$1-'); }
+
+/* ---------- crypto ---------- */
+const TE = new TextEncoder(), TD = new TextDecoder();
+function b64(buf) {
+  const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf), CH = 0x8000;
+  let s = ''; for (let i = 0; i < u.length; i += CH) s += String.fromCharCode.apply(null, u.subarray(i, i + CH));
+  return btoa(s);
+}
+function unb64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function rnd(n) { return crypto.getRandomValues(new Uint8Array(n)); }
+const Crypto = {
+  async pwKey(pw, salt, iter) {
+    const base = await crypto.subtle.importKey('raw', TE.encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  async seal(key, bytes, aad) {
+    const iv = rnd(12);
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: TE.encode(aad) }, key, bytes);
+    return { iv: b64(iv), ct: b64(ct) };
+  },
+  async open(key, box, aad) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv), additionalData: TE.encode(aad) }, key, unb64(box.ct));
+    return new Uint8Array(pt);
+  },
+  async sealJSON(key, obj, aad) { return Crypto.seal(key, TE.encode(JSON.stringify(obj)), aad); },
+  async openJSON(key, box, aad) { return JSON.parse(TD.decode(await Crypto.open(key, box, aad))); },
+  async pwSeal(pw, bytes, aad, iter) {
+    iter = iter || KDF_ITER; const salt = rnd(16);
+    const k = await Crypto.pwKey(pw, salt, iter); const box = await Crypto.seal(k, bytes, aad);
+    return { salt: b64(salt), iter, iv: box.iv, ct: box.ct };
+  },
+  async pwOpen(pw, box, aad) { const k = await Crypto.pwKey(pw, unb64(box.salt), box.iter || KDF_ITER); return Crypto.open(k, box, aad); },
+  EC: { name: 'ECDH', namedCurve: 'P-256' },
+  async newPair() { return crypto.subtle.generateKey(Crypto.EC, true, ['deriveBits']); },
+  async pubJwk(pair) { const j = await crypto.subtle.exportKey('jwk', pair.publicKey); return { kty: j.kty, crv: j.crv, x: j.x, y: j.y }; },
+  async privBytes(pair) { return new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey)); },
+  async importPriv(bytes) { return crypto.subtle.importKey('pkcs8', bytes, Crypto.EC, false, ['deriveBits']); },
+  async boxKey(bits, info) {
+    const hk = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: TE.encode(info) }, hk, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  async sealTo(pub, bytes, info) {
+    const pk = await crypto.subtle.importKey('jwk', { kty: pub.kty, crv: pub.crv, x: pub.x, y: pub.y, ext: true }, Crypto.EC, false, []);
+    const eph = await Crypto.newPair();
+    const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: pk }, eph.privateKey, 256);
+    const k = await Crypto.boxKey(bits, info); const box = await Crypto.seal(k, bytes, info);
+    return { epk: await Crypto.pubJwk(eph), iv: box.iv, ct: box.ct };
+  },
+  async openFrom(priv, box, info) {
+    const e = box.epk;
+    const epk = await crypto.subtle.importKey('jwk', { kty: e.kty, crv: e.crv, x: e.x, y: e.y, ext: true }, Crypto.EC, false, []);
+    const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: epk }, priv, 256);
+    const k = await Crypto.boxKey(bits, info); return Crypto.open(k, box, info);
+  },
+  /* key ring = { "1": base64(32 random bytes), "2": ... } */
+  newRingKey() { return b64(rnd(32)); },
+  async ringKeys(ring) {
+    const out = {};
+    for (const v of Object.keys(ring)) out[v] = await crypto.subtle.importKey('raw', unb64(ring[v]), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    return out;
+  },
+  ringBytes(ring) { return TE.encode(JSON.stringify(ring)); },
+  ringFrom(bytes) { return JSON.parse(TD.decode(bytes)); },
+  async sha256hex(s) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(s))), b => b.toString(16).padStart(2, '0')).join(''); },
+  /* a URL-safe random secret (43 characters = 256 bits) */
+  newSecret() { return b64(rnd(32)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+};
+
+/* ---------- CSV ---------- */
+/* Minimal RFC-4180 CSV parser (quoted fields, embedded newlines, "" escapes). */
+function parseCSV(text) {
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; continue; }
+    if (c === '"') q = true; else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n') { row.push(f); rows.push(row); row = []; f = ''; }
+    else if (c !== '\r') f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  if (!rows.length) return [];
+  const head = rows[0].map(h => h.replace(/^﻿/, '').trim());
+  return rows.slice(1).filter(r => r.some(x => x.trim())).map(r => Object.fromEntries(head.map((h, i) => [h, r[i] == null ? '' : r[i]])));
+}
+/* spreadsheet-safe cell: a leading = + - @ (or tab/CR) would be run as a formula by Excel/Sheets */
+function csvCell(v) {
+  let s = String(v == null ? '' : v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+/* =====================================================================
+   The letters themselves: the nine referral letters, the teeth, the
+   doctor directory's shape and the Edge import. Pure functions — no
+   page, no network — so every sentence can be tested without a browser.
+   ===================================================================== */
+
+/* What every letter is signed with. The owner can change these in Settings (kept sealed with the directory). */
+const OFFICE_DEFAULTS = {
+  doctor: 'Amir Akhavan, DMD, MS',
+  practice: 'Next Level Orthodontics',
+  addr1: '320 NW 76th Drive',
+  addr2: 'Gainesville, FL 32607',
+  phone: '(352) 332-7466',
+  records: 'records@thenextlevelorthodontics.com',
+  letterhead: 'logo',     // logo · side · plain
+  notation: 'universal'   // universal · fdi
+};
+function officeCfg(saved) {
+  const o = Object.assign({}, OFFICE_DEFAULTS);
+  Object.keys(OFFICE_DEFAULTS).forEach(k => { if (saved && typeof saved[k] === 'string' && saved[k].trim()) o[k] = saved[k].trim(); });
+  if (!LETTERHEADS.some(l => l[0] === o.letterhead)) o.letterhead = OFFICE_DEFAULTS.letterhead;
+  if (!['universal', 'fdi'].includes(o.notation)) o.notation = OFFICE_DEFAULTS.notation;
+  return o;
+}
+const LETTERHEADS = [
+  ['logo', 'Logo centered', 'The NLO logo across the top with the address under it.'],
+  ['side', 'Logo left, address right', 'A compact header that leaves more room for the letter.'],
+  ['plain', 'Pre-printed paper', 'Leaves the top of the page blank for your printed letterhead.']
+];
+
+/* ---------- teeth ---------- */
+/* Universal numbers 1–32 (permanent) and letters A–T (primary), as a US dental office writes them.
+   Every tooth also has its plain name, and the letter always prints both — a number alone is too easy to misread. */
+const TOOTH_KIND = ['third molar', 'second molar', 'first molar', 'second premolar', 'first premolar', 'canine', 'lateral incisor', 'central incisor'];
+const PRIMARY_KIND = ['second molar', 'first molar', 'canine', 'lateral incisor', 'central incisor'];
+const TEETH = (function () {
+  const out = {};
+  for (let n = 1; n <= 32; n++) {
+    const upper = n <= 16, right = n <= 8 || n >= 25;
+    const pos = n <= 8 ? n - 1 : n <= 16 ? 16 - n : n <= 24 ? n - 17 : 32 - n;           // 0 = third molar … 7 = central
+    const quad = n <= 8 ? 1 : n <= 16 ? 2 : n <= 24 ? 3 : 4;
+    out[String(n)] = { id: String(n), primary: false, upper, right, name: (upper ? 'upper ' : 'lower ') + (right ? 'right ' : 'left ') + TOOTH_KIND[pos], fdi: String(quad * 10 + (8 - pos)) };
+  }
+  'ABCDEFGHIJKLMNOPQRST'.split('').forEach((L, i) => {
+    const upper = i < 10, right = i < 5 || i >= 15;
+    const pos = i < 5 ? i : i < 10 ? 9 - i : i < 15 ? i - 10 : 19 - i;                     // 0 = second molar … 4 = central
+    const quad = i < 5 ? 5 : i < 10 ? 6 : i < 15 ? 7 : 8;
+    out[L] = { id: L, primary: true, upper, right, name: 'primary ' + (upper ? 'upper ' : 'lower ') + (right ? 'right ' : 'left ') + PRIMARY_KIND[pos], fdi: String(quad * 10 + (5 - pos)) };
+  });
+  return out;
+})();
+/* the chart's four rows, each left-to-right as you look at the patient (their right is on your left) */
+const CHART_ROWS = {
+  upper: Array.from({ length: 16 }, (_, i) => String(i + 1)),
+  lower: Array.from({ length: 16 }, (_, i) => String(32 - i)),
+  upperPrimary: 'ABCDEFGHIJ'.split(''),
+  lowerPrimary: 'TSRQPONMLK'.split('')
+};
+const TOOTH_ORDER = CHART_ROWS.upper.concat(CHART_ROWS.upperPrimary, CHART_ROWS.lowerPrimary.slice().reverse(), CHART_ROWS.lower.slice().reverse());
+function toothLabel(id, notation) { const t = TEETH[id]; if (!t) return ''; return '#' + (notation === 'fdi' ? t.fdi : t.id); }
+function sortTeeth(ids) { return Array.from(new Set((ids || []).filter(id => TEETH[id]))).sort((a, b) => TOOTH_ORDER.indexOf(a) - TOOTH_ORDER.indexOf(b)); }
+/* "#5 (upper right first premolar), #12 (upper left first premolar) and #21 (lower left first premolar)" */
+function teethText(ids, notation) {
+  return joinList(sortTeeth(ids).map(id => toothLabel(id, notation) + ' (' + TEETH[id].name + ')'));
+}
+function joinList(a) {
+  a = (a || []).filter(Boolean);
+  if (a.length < 2) return a[0] || '';
+  if (a.length === 2) return a[0] + ' and ' + a[1];
+  return a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+}
+function capFirst(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/* ---------- the letters ---------- */
+/* Each letter: who it usually goes to, whether it needs teeth picked, its clickable choices, and build(),
+   which turns the choices into paragraphs. A choice is [key, button label, the words it puts in the letter].
+   The wording follows the office's "Pt Extraction Request" merge letter (Edge, version 5, June 2026). */
+const TEETH_NONE = 0, TEETH_OPTIONAL = 1, TEETH_REQUIRED = 2;
+const LETTERS = [
+  {
+    id: 'extraction', label: 'Extraction', subject: 'Referral for Extraction Request', to: ['Dentist', 'Oral Surgery', 'Pediatric Dentistry'], teeth: TEETH_REQUIRED,
+    blurb: 'Ask a dentist or oral surgeon to remove teeth.',
+    opts: [
+      { key: 'reason', label: 'Reason', multi: true, choices: [
+        ['plan', 'Part of the treatment plan', 'to facilitate their orthodontic treatment'],
+        ['crowding', 'Crowding', 'to relieve crowding'],
+        ['retained', 'Retained primary teeth', 'because the primary teeth are retained and the permanent teeth need room to erupt'],
+        ['thirds', 'Third molars', 'because the third molars lack room to erupt'],
+        ['impacted', 'Impacted / ectopic', 'because the tooth is impacted or erupting out of position']] },
+      { key: 'timing', label: 'Timing', choices: [
+        ['soon', 'As soon as convenient', 'We would appreciate the extractions being completed at your earliest convenience so treatment can move forward.'],
+        ['before', 'Before braces go on', 'Please complete the extractions before the braces are placed; we will schedule that appointment once we hear from your office.'],
+        ['after', 'After braces go on', 'The braces are already in place, and space closure will begin once the extractions are complete.'],
+        ['wait', 'We will call to time it', 'Please wait to schedule until our office calls to coordinate the timing.']] }
+    ],
+    build(c) {
+      const why = joinList(c.words('reason')) || 'to facilitate their orthodontic treatment';
+      return [
+        'We are referring ' + c.first + ' to your office for the evaluation and extraction of the following ' + (c.one ? 'tooth' : 'teeth') + ' as part of their comprehensive orthodontic treatment plan.',
+        'We are requesting the extraction of ' + c.teeth + ' ' + why + '.',
+        c.word('timing'),
+        'Please send your operative report and any relevant post-operative imaging to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'hygiene', label: 'Oral hygiene', subject: 'Oral Hygiene During Orthodontic Treatment', to: ['Dentist', 'Pediatric Dentistry', 'Periodontics'], teeth: TEETH_NONE,
+    blurb: 'Tell the dentist about hygiene problems and ask for help.',
+    opts: [
+      { key: 'finding', label: 'What we see', multi: true, choices: [
+        ['plaque', 'Heavy plaque', 'heavy plaque accumulation'],
+        ['gingivitis', 'Gingivitis', 'gingival inflammation'],
+        ['overgrowth', 'Gum overgrowth', 'gingival overgrowth'],
+        ['decalc', 'White spots', 'early decalcification (white spot lesions)'],
+        ['calculus', 'Calculus', 'calculus buildup']] },
+      { key: 'area', label: 'Where', choices: [
+        ['all', 'Generalized', 'throughout the mouth'],
+        ['uf', 'Upper front', 'around the upper front teeth'],
+        ['lf', 'Lower front', 'around the lower front teeth'],
+        ['back', 'Back teeth', 'around the back teeth'],
+        ['gum', 'Along the gum line', 'along the gum line']] },
+      { key: 'ask', label: 'What we are asking for', multi: true, choices: [
+        ['cleaning', 'A cleaning', 'a professional cleaning'],
+        ['recall', 'Shorter recall', 'a shorter recall interval (every three to four months) while the braces are on'],
+        ['fluoride', 'Fluoride varnish', 'a fluoride varnish application'],
+        ['paste', 'Rx fluoride toothpaste', 'a prescription-strength fluoride toothpaste'],
+        ['ohi', 'Home-care coaching', 'reinforcement of home-care instructions']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['reviewed', 'We reviewed brushing', 'We have reviewed brushing and flossing with ' + '{first}' + ' and the family and will continue to reinforce it at each visit.'],
+        ['risk', 'Treatment may stop early', 'If the hygiene does not improve, we may need to remove the braces early to protect the teeth.']] }
+    ],
+    build(c) {
+      const seen = joinList(c.words('finding')) || 'areas of concern with the oral hygiene';
+      const asks = joinList(c.words('ask')) || 'your evaluation and any care you feel is appropriate';
+      return [
+        'We are writing about ' + c.first + '’s oral hygiene during their orthodontic treatment.',
+        'At their most recent visit we noted ' + seen + (c.word('area') ? ' ' + c.word('area') : '') + '.',
+        'We would appreciate ' + asks + '.'
+        , c.notes('note'), 'Please send any notes from the visit to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'exposure', label: 'Exposure', subject: 'Referral for Surgical Exposure', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_REQUIRED,
+    blurb: 'Ask a surgeon to uncover an impacted tooth.',
+    opts: [
+      { key: 'side', label: 'Where the tooth sits', choices: [
+        ['buccal', 'Buccal / labial', 'The tooth appears to be positioned on the buccal (cheek) side.'],
+        ['palatal', 'Palatal', 'The tooth appears to be positioned on the palatal side.'],
+        ['lingual', 'Lingual', 'The tooth appears to be positioned on the lingual (tongue) side.'],
+        ['unsure', 'Not certain', 'Its exact position is best confirmed on your imaging.']] },
+      { key: 'how', label: 'Type of exposure', choices: [
+        ['closed', 'Closed', 'We are requesting a closed exposure.'],
+        ['open', 'Open', 'We are requesting an open exposure.'],
+        ['either', 'Surgeon’s choice', 'We leave the choice of an open or a closed exposure to your judgment.']] },
+      { key: 'chain', label: 'Attachment', choices: [
+        ['chain', 'Bond a gold chain', 'Please bond a gold chain to the tooth at the time of surgery and leave the end of the chain accessible so we can begin traction.'],
+        ['button', 'Bond a button', 'Please bond a button to the tooth at the time of surgery.'],
+        ['none', 'We will bond it', 'No attachment is needed at surgery; we will bond one in our office once the tooth is uncovered.']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['space', 'Space is open', 'Space for the tooth has been opened orthodontically, and ' + '{first}' + ' is ready for the procedure.'],
+        ['cbct', 'CBCT available', 'A CBCT scan taken in our office is available; please let us know if you would like it sent.'],
+        ['traction', 'See us 1–2 weeks after', 'We would like to see ' + '{first}' + ' one to two weeks after surgery to begin moving the tooth.']] }
+    ],
+    build(c) {
+      return [
+        'We are referring ' + c.first + ' to your office for the evaluation and surgical exposure of ' + c.teeth + ' as part of their comprehensive orthodontic treatment plan.',
+        [c.word('side'), c.word('how')].filter(Boolean).join(' '),
+        c.word('chain')
+        , c.notes('note'), 'Please send your operative report and any relevant post-operative imaging to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'orthognathic', label: 'Orthognathic evaluation', subject: 'Referral for Orthognathic Surgery Evaluation', to: ['Oral Surgery'], teeth: TEETH_NONE,
+    blurb: 'Ask an oral surgeon for a jaw-surgery opinion.',
+    opts: [
+      { key: 'finding', label: 'Our findings', multi: true, choices: [
+        ['c2', 'Skeletal Class II', 'a skeletal Class II relationship'],
+        ['c3', 'Skeletal Class III', 'a skeletal Class III relationship'],
+        ['transverse', 'Narrow upper jaw', 'a maxillary transverse deficiency'],
+        ['openbite', 'Open bite', 'an anterior open bite'],
+        ['vme', 'Vertical excess', 'vertical maxillary excess'],
+        ['asym', 'Asymmetry', 'facial asymmetry'],
+        ['airway', 'Airway concern', 'a restricted airway']] },
+      { key: 'ask', label: 'What we are asking for', multi: true, choices: [
+        ['jaw', 'Jaw surgery opinion', 'an evaluation for orthognathic surgery'],
+        ['sarpe', 'SARPE', 'an evaluation for surgically assisted palatal expansion'],
+        ['airway', 'Airway evaluation', 'an airway evaluation'],
+        ['tmj', 'TMJ evaluation', 'an evaluation of the temporomandibular joints']] },
+      { key: 'stage', label: 'Where treatment stands', choices: [
+        ['pre', 'Not started', '{First} has not started orthodontic treatment, and we would value your opinion before we finalize the treatment plan.'],
+        ['mid', 'In pre-surgical braces', '{First} is currently in pre-surgical orthodontic treatment.'],
+        ['ready', 'Ready for surgery planning', 'Pre-surgical orthodontic treatment is nearly complete, and ' + '{first}' + ' is ready for surgical planning.']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['records', 'Records available', 'Photographs, radiographs and digital models are available; please let us know what you would like sent.'],
+        ['cbct', 'CBCT available', 'A CBCT scan taken in our office is available on request.']] }
+    ],
+    build(c) {
+      const asks = joinList(c.words('ask')) || 'an evaluation for orthognathic surgery';
+      const found = joinList(c.words('finding'));
+      return [
+        'We are referring ' + c.first + ' to your office for ' + asks + ' in conjunction with their orthodontic treatment.',
+        found ? 'Our findings include ' + found + '.' : '',
+        c.word('stage')
+        , c.notes('note'), 'Please send your consultation report and recommendations to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'bonding', label: 'Cosmetic bonding', subject: 'Referral for Cosmetic Bonding', to: ['Dentist', 'Prosthodontics'], teeth: TEETH_REQUIRED,
+    blurb: 'Ask the dentist to build up or reshape teeth.',
+    opts: [
+      { key: 'reason', label: 'Reason', multi: true, choices: [
+        ['peg', 'Peg / small laterals', 'to restore the teeth to their ideal width'],
+        ['space', 'Close remaining space', 'to close the remaining spaces'],
+        ['edges', 'Chipped or worn edges', 'to restore the chipped or worn incisal edges'],
+        ['bolton', 'Tooth-size mismatch', 'to correct a tooth-size discrepancy between the upper and lower teeth'],
+        ['shape', 'Reshape', 'to improve the shape of the teeth']] },
+      { key: 'timing', label: 'Timing', choices: [
+        ['during', 'Now, braces still on', 'The spaces have been set orthodontically and the braces are still in place. If it would help, we can remove the brackets from these teeth before the appointment; please have your office call us.'],
+        ['debond', 'Right after braces come off', 'The braces are scheduled to come off soon, and we would like the bonding completed shortly after that visit.'],
+        ['done', 'Treatment is finished', 'Orthodontic treatment is complete and retainers have been delivered. We will make new retainers once the bonding is finished.']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['sizes', 'Space sizes on request', 'We are glad to send the measured space for each tooth if that would be helpful.'],
+        ['retainer', 'Call us when done', 'Please let us know when the bonding is complete so we can adjust or remake the retainers.']] }
+    ],
+    build(c) {
+      const why = joinList(c.words('reason')) || 'to complete the esthetic result';
+      return [
+        'We are referring ' + c.first + ' to your office for cosmetic bonding in coordination with their orthodontic treatment.',
+        'We are requesting bonding of ' + c.teeth + ' ' + why + '.',
+        c.word('timing')
+        , c.notes('note'), 'Please send a note when treatment is complete to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'cavity', label: 'Evaluation for cavity', subject: 'Referral for Evaluation of Possible Decay', to: ['Dentist', 'Pediatric Dentistry'], teeth: TEETH_OPTIONAL,
+    blurb: 'Ask the dentist to check a suspicious spot.',
+    opts: [
+      { key: 'surface', label: 'Surface', multi: true, choices: [
+        ['m', 'Mesial', 'mesial'], ['d', 'Distal', 'distal'], ['o', 'Occlusal', 'occlusal'], ['b', 'Buccal / facial', 'buccal'], ['l', 'Lingual', 'lingual']] },
+      { key: 'how', label: 'How we saw it', choices: [
+        ['clinical', 'Looking in the mouth', 'on clinical examination'],
+        ['xray', 'On an x-ray', 'on a radiograph taken in our office'],
+        ['both', 'Both', 'on clinical examination and on a radiograph taken in our office']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['wire', 'We can remove the wire', 'We are happy to remove the archwire or a bracket before the appointment if that would help; please have your office call us.'],
+        ['image', 'Image enclosed', 'The image is enclosed for your review.'],
+        ['pain', 'Patient has symptoms', '{First} reports sensitivity in the area.'],
+        ['hold', 'Ortho continues', 'Orthodontic treatment will continue as planned unless you advise otherwise.']] }
+    ],
+    build(c) {
+      const surf = joinList(c.words('surface'));
+      const where = c.teeth ? 'on ' + (surf ? 'the ' + surf + ' surface' + (c.words('surface').length > 1 ? 's' : '') + ' of ' : '') + c.teeth : '';
+      return [
+        'We are referring ' + c.first + ' to your office for the evaluation of possible decay noted during their orthodontic treatment.',
+        'We noted an area of concern ' + ([where, c.word('how')].filter(Boolean).join(' ') || 'at a recent visit') + '.',
+        c.notes('note'), 'Please send your findings and a note of any treatment provided to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'radiographic', label: 'Radiographic evaluation', subject: 'Referral for Radiographic Evaluation', to: ['Dentist', 'Oral Surgery', 'Endodontics'], teeth: TEETH_OPTIONAL,
+    blurb: 'Ask for a finding on an x-ray to be evaluated.',
+    opts: [
+      { key: 'finding', label: 'What we saw', choices: [
+        ['lucent', 'Radiolucent area', 'A radiolucent area'],
+        ['opaque', 'Radiopaque area', 'A radiopaque area'],
+        ['mixed', 'Mixed area', 'An area of mixed radiolucency and radiopacity']] },
+      { key: 'region', label: 'Region (if not tied to a tooth)', choices: [
+        ['ur', 'Upper right', 'in the upper right'], ['ua', 'Upper front', 'in the upper anterior region'], ['ul', 'Upper left', 'in the upper left'],
+        ['lr', 'Lower right', 'in the lower right'], ['la', 'Lower front', 'in the lower anterior region'], ['ll', 'Lower left', 'in the lower left']] },
+      { key: 'image', label: 'Seen on', choices: [
+        ['pano', 'Panoramic x-ray', 'a panoramic radiograph'],
+        ['cbct', 'CBCT', 'a CBCT scan'],
+        ['ceph', 'Ceph', 'a cephalometric radiograph'],
+        ['pa', 'Periapical', 'a periapical radiograph']] },
+      { key: 'urgency', label: 'How soon', choices: [
+        ['soon', 'As soon as possible', 'We recommend that ' + '{first}' + ' be seen at your earliest convenience.'],
+        ['routine', 'Routine', 'This can be evaluated at ' + '{first}' + '’s next available appointment.']] },
+      { key: 'symptoms', label: 'Symptoms', choices: [
+        ['asym', 'None', '{First} reports no symptoms in the area.'],
+        ['sym', 'Has symptoms', '{First} reports symptoms in the area.']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['image', 'Image enclosed', 'The image is enclosed for your review.'],
+        ['hold', 'Ortho on hold there', 'Tooth movement in this area is on hold until we hear from you.']] }
+    ],
+    build(c) {
+      const where = c.teeth ? 'near ' + c.teeth : (c.word('region') || '');
+      return [
+        'We are referring ' + c.first + ' to your office for the evaluation of a radiographic finding noted on imaging taken in our office.',
+        (c.word('finding') || 'A radiographic finding') + ' was noted' + (where ? ' ' + where : '') + ' on ' + (c.word('image') || 'a radiograph') + '. We have not made a diagnosis and defer to your evaluation.',
+        [c.word('symptoms'), c.word('urgency')].filter(Boolean).join(' '),
+        c.notes('note'),
+        'Please send your findings and recommendations to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'tads', label: 'TAD placement', subject: 'Referral for Placement of Temporary Anchorage Devices (TADs)', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_OPTIONAL,
+    blurb: 'Ask a surgeon or periodontist to place TADs.', teethHint: 'Click the teeth each TAD goes next to or between.',
+    opts: [
+      { key: 'count', label: 'How many', choices: [
+        ['1', '1', 'one temporary anchorage device (TAD)'], ['2', '2', 'two temporary anchorage devices (TADs)'],
+        ['3', '3', 'three temporary anchorage devices (TADs)'], ['4', '4', 'four temporary anchorage devices (TADs)']] },
+      { key: 'site', label: 'Where', multi: true, choices: [
+        ['buccal', 'Buccal, between the roots', 'on the buccal side between the roots'],
+        ['palatal', 'Palatal, between the roots', 'on the palatal side between the roots'],
+        ['paramedian', 'Palate, beside the midline', 'in the anterior palate beside the midline'],
+        ['izc', 'Infrazygomatic crest', 'at the infrazygomatic crest'],
+        ['shelf', 'Buccal shelf', 'at the mandibular buccal shelf'],
+        ['anterior', 'Front, between the incisors', 'between the roots of the incisors']] },
+      { key: 'purpose', label: 'What they are for', multi: true, choices: [
+        ['space', 'Closing space', 'space closure'],
+        ['distal', 'Distalization', 'distalization of the posterior teeth'],
+        ['mesial', 'Protraction', 'protraction of the posterior teeth'],
+        ['intrudeP', 'Molar intrusion', 'intrusion of the posterior teeth'],
+        ['intrudeA', 'Front intrusion', 'intrusion of the anterior teeth'],
+        ['traction', 'Pulling an impacted tooth', 'traction of an impacted tooth']] },
+      { key: 'size', label: 'Size', choices: [
+        ['s6', '6 mm', 'We suggest a length of 6 mm.'], ['s8', '8 mm', 'We suggest a length of 8 mm.'], ['s10', '10 mm', 'We suggest a length of 10 mm.'],
+        ['yours', 'Their choice', 'We leave the diameter and length to your judgment.']] },
+      { key: 'load', label: 'When we will use them', choices: [
+        ['now', 'Right away', 'We plan to load the TADs at the next orthodontic visit, so please let us know as soon as they are in place.'],
+        ['wait', 'After two weeks', 'We plan to load the TADs about two weeks after placement.']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['supply', 'We send the TADs', 'We will send the TADs with ' + '{first}' + ' to the appointment.'],
+        ['guide', 'We send a guide', 'A printed surgical guide made from the CBCT will come with ' + '{first}' + ' to the appointment.'],
+        ['cbct', 'CBCT available', 'A CBCT scan taken in our office is available; please let us know if you would like it sent.'],
+        ['head', 'Head must take elastics', 'Please leave the head of each TAD exposed so we can attach elastics or a coil spring.'],
+        ['braces', 'Braces are on', 'The braces are in place; we are happy to remove an archwire before the appointment if that would help.']] }
+    ],
+    build(c) {
+      const many = (c.pick('count') || '2') !== '1';
+      const what = c.word('count') || 'temporary anchorage devices (TADs)';
+      const where = [joinList(c.words('site')), c.teeth ? (c.count === 2 ? 'between ' : 'next to ') + c.teeth : ''].filter(Boolean).join(', ');
+      const why = joinList(c.words('purpose'));
+      const fix = s => many ? s : s.replace('load the TADs', 'load the TAD').replace('as soon as they are in place', 'as soon as it is in place').replace('send the TADs', 'send the TAD').replace('the head of each TAD', 'the head of the TAD');
+      return [
+        'We are referring ' + c.first + ' to your office for the placement of ' + what + ' as part of their comprehensive orthodontic treatment plan.',
+        where || why ? 'We are requesting placement' + (where ? ' ' + where : '') + (why ? (where ? ', ' : ' ') + 'to provide anchorage for ' + why : '') + '.' : '',
+        [c.word('size'), fix(c.word('load'))].filter(Boolean).join(' '),
+        fix(c.notes('note')),
+        'Please send a note of the placement, including the size and position of ' + (many ? 'each TAD' : 'the TAD') + ', to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'marpe', label: 'TADs for MARPE', subject: 'Referral for Placement of MARPE Miniscrews', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_NONE,
+    blurb: 'Ask a surgeon to place the miniscrews for a MARPE expander.',
+    opts: [
+      { key: 'count', label: 'How many miniscrews', choices: [
+        ['4', '4', 'four miniscrews'], ['2', '2', 'two miniscrews'], ['6', '6', 'six miniscrews']] },
+      { key: 'appliance', label: 'The expander', choices: [
+        ['in', 'Already cemented', 'The expander is cemented in place. Please place the miniscrews through the guide slots in the body of the expander.'],
+        ['bring', 'Comes with the patient', 'The expander will come with ' + '{first}' + ' to the appointment. Please seat it on the molar bands and place the miniscrews through the guide slots in its body.'],
+        ['together', 'We come and seat it', 'We would like to coordinate the appointment so that we can seat the expander ourselves just before the miniscrews are placed.']] },
+      { key: 'engage', label: 'How deep', choices: [
+        ['bi', 'Both cortices', 'Please engage both the palatal and the nasal cortex with each miniscrew (bicortical engagement).'],
+        ['yours', 'Their choice', 'We leave the depth of engagement to your judgment.']] },
+      { key: 'length', label: 'Lengths', choices: [
+        ['send', 'We send the screws', 'We will send the miniscrews with ' + '{first}' + '; the lengths were chosen from measurements on the CBCT.'],
+        ['listed', 'Listed below', 'The lengths we measured on the CBCT are listed below.'],
+        ['yours', 'Their choice', 'We leave the lengths of the miniscrews to your judgment.']] },
+      { key: 'reason', label: 'Why MARPE', multi: true, choices: [
+        ['narrow', 'Narrow upper jaw', 'a maxillary transverse deficiency'],
+        ['crossbite', 'Posterior crossbite', 'a posterior crossbite'],
+        ['airway', 'Airway', 'a restricted nasal airway'],
+        ['crowding', 'Crowding', 'crowding']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['noturn', 'Do not turn the screw', 'Please do not activate the expander; we will begin the turns at our office.'],
+        ['cbct', 'CBCT available', 'A CBCT scan taken in our office is available; please let us know if you would like it sent.'],
+        ['see', 'See us right after', 'We would like to see ' + '{first}' + ' within a few days of placement to begin expansion.'],
+        ['suture', 'Suture is still open', 'The midpalatal suture appears patent on the CBCT.']] }
+    ],
+    build(c) {
+      const why = joinList(c.words('reason'));
+      return [
+        'We are referring ' + c.first + ' to your office for the placement of ' + (c.word('count') || 'the miniscrews') + ' for a miniscrew-assisted rapid palatal expander (MARPE) as part of their comprehensive orthodontic treatment plan.',
+        why ? 'The expander is being used to correct ' + why + '.' : '',
+        c.word('appliance'),
+        [c.word('engage'), c.word('length')].filter(Boolean).join(' '),
+        c.notes('note'),
+        'Please send a note of the placement, including the length of each miniscrew, to ' + c.records + '.'
+      ];
+    }
+  }
+];
+const THANKS = 'Thank you for your expertise and collaboration in the comprehensive care of our patient.';
+function letterById(id) { return LETTERS.find(l => l.id === id) || null; }
+
+/* a blank letter in progress (never saved anywhere) */
+function blankDraft(letterId, cfg) {
+  return { letter: letterId || '', first: '', last: '', dob: '', rpPhone: '', docId: '', doc: null, teeth: [], opt: {}, text: '', edited: false,
+    letterhead: (cfg && cfg.letterhead) || OFFICE_DEFAULTS.letterhead, notation: (cfg && cfg.notation) || OFFICE_DEFAULTS.notation, date: '', images: [] };
+}
+/* the choice's words, with the patient's first name filled in */
+function fillName(s, first) { const f = first || 'the patient'; return String(s || '').replace(/\{First\}/g, capFirst(f)).replace(/\{first\}/g, f); }
+function picked(letter, draft, key) {
+  const o = letter.opts.find(x => x.key === key); if (!o) return [];
+  const v = draft.opt[key]; const keys = o.multi ? (Array.isArray(v) ? v : []) : (v ? [v] : []);
+  return o.choices.filter(ch => keys.includes(ch[0]));
+}
+/* The choices are written for the usual case (several teeth out, one tooth uncovered); this makes them agree with how many teeth were picked. */
+const ONE_TOOTH = [['the extractions being completed', 'the extraction being completed'], ['complete the extractions', 'complete the extraction'], ['once the extractions are complete', 'once the extraction is complete'],
+  ['because the primary teeth are retained and the permanent teeth need room', 'because the primary tooth is retained and the permanent tooth needs room'], ['because the third molars lack room', 'because the third molar lacks room'],
+  ['to restore the teeth to their ideal width', 'to restore the tooth to its ideal width'], ['to improve the shape of the teeth', 'to improve the shape of the tooth'], ['remove the brackets from these teeth', 'remove the bracket from this tooth']];
+const MANY_TEETH = [['The tooth appears to be positioned', 'The teeth appear to be positioned'], ['Its exact position is best confirmed', 'Their exact positions are best confirmed'],
+  ['bond a gold chain to the tooth', 'bond a gold chain to each tooth'], ['leave the end of the chain accessible', 'leave the end of each chain accessible'], ['bond a button to the tooth', 'bond a button to each tooth'],
+  ['we will bond one in our office once the tooth is uncovered', 'we will bond them in our office once the teeth are uncovered'], ['Space for the tooth has been opened', 'Space for the teeth has been opened'],
+  ['to begin moving the tooth', 'to begin moving the teeth'], ['because the tooth is impacted or erupting out of position', 'because the teeth are impacted or erupting out of position']];
+function toothCount(s, n) { (n === 1 ? ONE_TOOTH : n > 1 ? MANY_TEETH : []).forEach(([a, b]) => { s = s.split(a).join(b); }); return s; }
+/* the body of the letter as paragraphs (no greeting, no closing) */
+function letterBody(draft, cfg) {
+  const letter = letterById(draft.letter); if (!letter) return [];
+  const first = (draft.first || '').trim() || 'the patient';
+  const n = sortTeeth(draft.teeth).length;
+  const say = s => toothCount(fillName(s, first), n);
+  const c = {
+    first, records: cfg.records,
+    teeth: teethText(draft.teeth, draft.notation),
+    one: n === 1, count: n,
+    pick: key => { const p = picked(letter, draft, key); return p.length ? p[0][0] : ''; },
+    words: key => picked(letter, draft, key).map(ch => say(ch[2])),
+    word: key => { const p = picked(letter, draft, key); return p.length ? say(p[0][2]) : ''; },
+    notes: key => picked(letter, draft, key).map(ch => say(ch[2])).join(' ')
+  };
+  if (letter.teeth === TEETH_REQUIRED && !c.teeth) c.teeth = '[choose the teeth]';
+  return letter.build(c).filter(Boolean).map(capFirst).concat([THANKS]);
+}
+function letterText(draft, cfg) { return letterBody(draft, cfg).join('\n\n'); }
+/* what still has to be filled in before a letter can be printed */
+function draftProblems(draft) {
+  const letter = letterById(draft.letter); const out = [];
+  if (!letter) return ['Pick a letter.'];
+  if (!(draft.first || '').trim() || !(draft.last || '').trim()) out.push('Type the patient’s first and last name.');
+  if (!draft.dob) out.push('Enter the patient’s date of birth.');
+  else if (!validDob(draft.dob)) out.push('The date of birth doesn’t look right.');
+  if (!draft.doc || !(docName(draft.doc) || draft.doc.practice)) out.push('Choose the doctor the letter goes to.');
+  if (letter.teeth === TEETH_REQUIRED && !sortTeeth(draft.teeth).length) out.push('Pick the teeth on the chart.');
+  if (/\[choose the teeth\]/.test(draft.text || '')) out.push('The letter still says “[choose the teeth]”.');
+  return out;
+}
+function validDob(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) return false;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]); const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d && y >= 1900 && dt.getTime() <= Date.now();
+}
+function fmtDob(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? m[2] + '/' + m[3] + '/' + m[1] : ''; }
+function fmtLong(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) return '';
+  return ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][Number(m[2]) - 1] + ' ' + Number(m[3]) + ', ' + m[1];
+}
+
+/* ---------- the doctor directory ---------- */
+const DOC_TYPES = ['Dentist', 'Pediatric Dentistry', 'Oral Surgery', 'Periodontics', 'Endodontics', 'Prosthodontics', 'Orthodontics', 'Physician', 'Other'];
+const DOC_FIELDS = ['type', 'first', 'last', 'practice', 'addr1', 'addr2', 'city', 'email', 'phone', 'salute', 'note'];
+function blankDoc() { return { type: 'Dentist', first: '', last: '', practice: '', addr1: '', addr2: '', city: '', email: '', phone: '', salute: '', note: '', off: false }; }
+function cleanDoc(d) {
+  const o = blankDoc();
+  DOC_FIELDS.forEach(k => { o[k] = String((d && d[k]) == null ? '' : d[k]).replace(/\s+/g, ' ').trim().slice(0, k === 'note' ? 600 : 160); });
+  if (!DOC_TYPES.includes(o.type)) o.type = o.type === 'Out of Town Dentist' ? 'Dentist' : 'Other';
+  o.email = o.email.toLowerCase(); o.off = !!(d && d.off);
+  return o;
+}
+function validEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s || '')); }
+/* "Dr. Shaun Abolverdi" — or nothing when the record is an office, not a person */
+function isOfficeRecord(d) { return !d.last || !d.first || /\b(dental|dentistry|health|center|clinic|college|department|records|group|orthodontics|surgery|out of town)\b/i.test(d.last); }
+function docName(d) { if (!d || isOfficeRecord(d)) return ''; return 'Dr. ' + d.first + ' ' + d.last; }
+function docListName(d) { return d.last && d.first ? d.last + ', ' + d.first : (d.last || d.first || d.practice || '(no name)'); }
+function docSalute(d) {
+  if (d && d.salute) return /^dear\b/i.test(d.salute) ? d.salute.replace(/[,:]\s*$/, '') : 'Dear ' + d.salute.replace(/[,:]\s*$/, '');
+  if (!d || isOfficeRecord(d)) return 'Dear Doctor';
+  return 'Dear Dr. ' + d.last;
+}
+/* the lines of the address block */
+function docBlock(d) {
+  if (!d) return [];
+  const name = docName(d);
+  const practice = d.practice && d.practice.replace(/^dr\.?\s+/i, '').toLowerCase() !== (d.first + ' ' + d.last).toLowerCase() ? d.practice : '';
+  return [name, practice || (name ? '' : d.practice || [d.first, d.last].filter(Boolean).join(' ')), d.addr1, d.addr2, d.city].filter(Boolean);
+}
+function docKey(d) { return [d.last, d.first, d.practice, d.addr1].map(s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')).join('|'); }
+function docMatches(d, q) {
+  q = String(q || '').toLowerCase().trim(); if (!q) return true;
+  const hay = [d.first, d.last, d.practice, d.city, d.email, d.type].join(' ').toLowerCase();
+  return q.split(/\s+/).every(w => hay.includes(w));
+}
+function sortDocs(list) { return list.slice().sort((a, b) => docListName(a).toLowerCase() < docListName(b).toLowerCase() ? -1 : 1); }
+
+/* ---------- import: the cleaned list made from Edge's Professional List report ---------- */
+/* Columns: Type, Last, First, Practice, Address, City/State/Zip, Email, Phone, Edge note */
+function docsFromCSV(text) {
+  const rows = parseCSV(text); const out = []; const seen = new Set(); let skipped = 0;
+  rows.forEach(r => {
+    const get = k => { const key = Object.keys(r).find(h => h.toLowerCase().replace(/[^a-z]/g, '') === k); return key ? r[key] : ''; };
+    const addr = String(get('address')).split(/\s*,\s*(?=(?:suite|ste|unit|#|bldg|building|floor|d\d|\d+(?:st|nd|rd|th) floor))/i);
+    const d = cleanDoc({ type: get('type'), last: get('last'), first: get('first'), practice: get('practice'), addr1: addr[0] || '', addr2: addr.slice(1).join(', '),
+      city: get('citystatezip') || get('city'), email: get('email'), phone: get('phone'), note: get('edgenote') || get('note') });
+    if (!validEmail(d.email)) { if (d.email) d.note = [d.note, 'Email in Edge: ' + d.email].filter(Boolean).join(' · '); d.email = ''; }
+    if (!d.last && !d.first && !d.practice) { skipped++; return; }
+    const k = docKey(d); if (seen.has(k)) { skipped++; return; }
+    seen.add(k); out.push(d);
+  });
+  return { docs: out, skipped };
+}
+function docsToCSV(list) {
+  const head = ['Type', 'Last', 'First', 'Practice', 'Address', 'City/State/Zip', 'Email', 'Phone', 'Salutation', 'Note', 'Hidden'];
+  return [head.join(',')].concat(sortDocs(list).map(d => [d.type, d.last, d.first, d.practice, [d.addr1, d.addr2].filter(Boolean).join(', '), d.city, d.email, d.phone, d.salute, d.note, d.off ? 'yes' : ''].map(csvCell).join(','))).join('\r\n');
+}
+
+/* =====================================================================
+   Firebase backend (the NLO Cases project: same logins, same key ring).
+   What is stored: the doctor directory, one sealed record per doctor
+   ("refDocs"), and the office's letter settings ("refCfg/office"), both
+   encrypted in the browser with the office key. Plain fields on a record:
+   v (key version), rev, by/sid, createdAt/updatedAt — nothing readable.
+   Nothing about a patient or a letter is ever written here.
+   ===================================================================== */
+const FB = {
+  emu: false, app: null, auth: null, db: null, cfg: null,
+  uid: null, me: null, priv: null, ring: null, keys: null, curV: 0, ringV: 0,
+  unsubs: [], pending: 0, onSync: null, queues: {},
+
+  ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
+  del() { return firebase.firestore.FieldValue.delete(); },
+  tsMs(t) { return t && t.toMillis ? t.toMillis() : (t || null); },
+  isOwner() { return !!(FB.me && FB.me.role === 'owner'); },
+
+  available() { return typeof firebase !== 'undefined' && !!firebase.initializeApp; },
+  configured() { return FB.emu || FB_CONFIG.apiKey.indexOf('__') !== 0; },
+  init(emu) {
+    FB.emu = !!emu;
+    FB.cfg = FB.emu ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-nlo-cases', appId: 'demo' } : FB_CONFIG;
+    if (!FB.available() || !FB.configured()) return false;
+    FB.app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB.cfg);
+    FB.auth = firebase.auth(); FB.db = firebase.firestore();
+    if (FB.emu) { FB.auth.useEmulator('http://127.0.0.1:9099', { disableWarnings: true }); FB.db.useEmulator('127.0.0.1', 8080); }
+    return true;
+  },
+  async ready() {
+    // Never keep a session across reloads: the key ring only lives in memory, so a reload means sign in again.
+    try { await FB.auth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { }
+  },
+  busy(n) { FB.pending += n; if (FB.onSync) FB.onSync(); },
+  async track(p) { FB.busy(1); try { return await p; } finally { FB.busy(-1); } },
+
+  /* ---------- sign in (same logins as NLO Cases) ---------- */
+  async emailFor(login) {
+    const s = String(login || '').trim();
+    if (s.includes('@')) return s.toLowerCase();
+    const un = slug(s); if (!un) throw errCode('no-user');
+    const snap = await FB.db.doc('logins/' + un).get();
+    if (!snap.exists) throw errCode('no-user');
+    return snap.data().email;
+  },
+  async signIn(login, pw) {
+    const email = await FB.emailFor(login);
+    const cred = await FB.auth.signInWithEmailAndPassword(email, pw);
+    FB.uid = cred.user.uid;
+    const ms = await FB.db.doc('members/' + FB.uid).get();
+    if (!ms.exists) { await FB.signOut(); throw errCode('not-member'); }
+    const m = ms.data();
+    if (!m.active) { await FB.signOut(); throw errCode('inactive'); }
+    FB.me = Object.assign({ uid: FB.uid }, m);
+    if (m.mustSetup) {
+      if (m.priv) { // set a password already but didn't finish: try it
+        try { await FB.unlockWith(pw, m); await FB.db.doc('members/' + FB.uid).update({ mustSetup: false, boot: FB.del(), lastLogin: FB.ts() }); return { state: 'ok' }; } catch (e) { }
+      }
+      return { state: 'first' };
+    }
+    try { await FB.unlockWith(pw, m); }
+    catch (e) { return { state: m.role === 'owner' ? 'recover' : 'broken' }; }
+    FB.db.doc('members/' + FB.uid).update({ lastLogin: FB.ts() }).catch(() => { });
+    return { state: 'ok' };
+  },
+  async unlockWith(pw, m) {
+    let bytes;
+    try { bytes = await Crypto.pwOpen(pw, m.priv, 'priv:' + FB.uid); }
+    catch (e) { if (!m.privPrev) throw e; bytes = await Crypto.pwOpen(pw, m.privPrev, 'priv:' + FB.uid); }
+    FB.priv = await Crypto.importPriv(bytes);
+    await FB.loadRing(m);
+  },
+  async loadRing(m) {
+    const ring = Crypto.ringFrom(await Crypto.openFrom(FB.priv, m.ring, 'ring:' + FB.uid));
+    FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.ringV = m.ringV || 0;
+    const k = await FB.db.doc('meta/keys').get();
+    FB.curV = k.exists ? k.data().current : 1;
+  },
+  /* first sign-in with a temporary password: choose a real one */
+  async firstSetup(tempPw, newPw) {
+    const m = FB.me; const uid = FB.uid;
+    let ring;
+    try { ring = Crypto.ringFrom(await Crypto.pwOpen(tempPw, m.boot, 'boot:' + uid)); }
+    catch (e) { throw errCode('boot-failed'); }
+    const cur = (await FB.db.doc('meta/keys').get()).data().current;
+    if (!ring[cur]) throw errCode('boot-stale');
+    const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair);
+    const pbytes = await Crypto.privBytes(pair);
+    const priv = await Crypto.pwSeal(newPw, pbytes, 'priv:' + uid);
+    const ringBox = await Crypto.sealTo(pub, Crypto.ringBytes(ring), 'ring:' + uid);
+    await FB.db.doc('members/' + uid).update({ pub, priv, ring: ringBox, ringV: cur });
+    await FB.auth.currentUser.updatePassword(newPw);
+    await FB.db.doc('members/' + uid).update({ mustSetup: false, boot: FB.del(), lastLogin: FB.ts() });
+    FB.priv = await Crypto.importPriv(pbytes); FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.curV = cur; FB.ringV = cur;
+    FB.me = Object.assign({}, FB.me, { mustSetup: false, pub });
+  },
+  /* owner forgot password → reset by email → recovery code restores the key ring */
+  async recover(pw, code) {
+    const uid = FB.uid;
+    const r = (await FB.db.doc('meta/recovery').get()).data();
+    let ring;
+    try {
+      const rpriv = await Crypto.importPriv(await Crypto.pwOpen(normCode(code), r.priv, 'recovery-priv'));
+      ring = Crypto.ringFrom(await Crypto.openFrom(rpriv, r.ring, 'ring:recovery'));
+    } catch (e) { throw errCode('bad-code'); }
+    const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair); const pbytes = await Crypto.privBytes(pair);
+    const priv = await Crypto.pwSeal(pw, pbytes, 'priv:' + uid);
+    const ringBox = await Crypto.sealTo(pub, Crypto.ringBytes(ring), 'ring:' + uid);
+    const v = Math.max.apply(null, Object.keys(ring).map(Number));
+    await FB.db.doc('members/' + uid).update({ pub, priv, privPrev: FB.del(), ring: ringBox, ringV: v, lastLogin: FB.ts() });
+    FB.priv = await Crypto.importPriv(pbytes); FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.ringV = v;
+    FB.curV = (await FB.db.doc('meta/keys').get()).data().current;
+  },
+  async sendReset(email) { await FB.auth.sendPasswordResetEmail(email); },
+  async changePassword(cur, next) {
+    const u = FB.auth.currentUser;
+    await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, cur));
+    const m = (await FB.db.doc('members/' + FB.uid).get()).data();
+    let bytes;
+    try { bytes = await Crypto.pwOpen(cur, m.priv, 'priv:' + FB.uid); }
+    catch (e) { bytes = await Crypto.pwOpen(cur, m.privPrev, 'priv:' + FB.uid); }
+    const priv = await Crypto.pwSeal(next, bytes, 'priv:' + FB.uid);
+    // keep the old sealed copy until the login password has really changed
+    const privPrev = await Crypto.pwSeal(cur, bytes, 'priv:' + FB.uid);
+    await FB.db.doc('members/' + FB.uid).update({ priv, privPrev });
+    await u.updatePassword(next);
+    await FB.db.doc('members/' + FB.uid).update({ privPrev: FB.del() });
+  },
+  async signOut() {
+    FB.stop();
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = null; FB.curV = FB.ringV = 0; FB.queues = {};
+    try { await FB.auth.signOut(); } catch (e) { }
+  },
+  stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
+
+  /* ---------- live data ---------- */
+  async openDoc(id, d) {
+    const key = FB.keys && FB.keys[d.v];
+    if (!key) throw errCode('no-key', 'Missing key version ' + d.v);
+    const data = cleanDoc(await Crypto.openJSON(key, d, 'ref:' + id));
+    return Object.assign(data, { id, rev: d.rev, v: d.v, updatedAt: FB.tsMs(d.updatedAt), by: d.sid || '' });
+  },
+  start(h) {
+    FB.stop();
+    const uid = FB.uid;
+    FB.unsubs.push(FB.db.doc('members/' + uid).onSnapshot(async s => {
+      if (!s.exists || !s.data().active) return h.revoked();
+      const m = s.data();
+      if (m.ringV && m.ringV !== FB.ringV && m.ring) { try { await FB.loadRing(m); h.rekeyed(); } catch (e) { h.error(e); } }
+    }, e => h.revoked(e)));
+    FB.unsubs.push(FB.db.doc('meta/keys').onSnapshot(s => { if (s.exists) FB.curV = s.data().current; }, () => { }));
+    FB.unsubs.push(FB.db.doc('meta/settings').onSnapshot(s => h.settings(s.exists ? s.data() : {}), () => { }));
+    FB.unsubs.push(FB.db.collection('refDocs').onSnapshot(async snap => {
+      const up = [], gone = [];
+      for (const ch of snap.docChanges()) {
+        if (ch.type === 'removed') { gone.push(ch.doc.id); continue; }
+        try { up.push(await FB.openDoc(ch.doc.id, ch.doc.data())); }
+        catch (e) { up.push(Object.assign(blankDoc(), { id: ch.doc.id, locked: true, last: '(locked record)' })); }
+      }
+      h.docs(up, gone);
+    }, e => h.docsError(e)));
+    FB.unsubs.push(FB.db.doc('refCfg/office').onSnapshot(async s => {
+      if (!s.exists) return h.office(null);
+      try { const d = s.data(); h.office(await Crypto.openJSON(FB.keys[d.v], d, 'refcfg:office')); } catch (e) { h.office(null); }
+    }, () => h.office(null)));
+  },
+
+  /* ---------- writes ---------- */
+  plain(data) { const o = {}; DOC_FIELDS.forEach(k => { o[k] = data[k] || ''; }); if (data.off) o.off = true; return o; },
+  async sealed(id, data) {
+    const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], FB.plain(cleanDoc(data)), 'ref:' + id);
+    return { v, iv: box.iv, ct: box.ct, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts() };
+  },
+  /* add a list of doctors; small batches keep each one well inside the rules' lookup limit, a few batches at a time */
+  async addDocs(list, progress) {
+    const PER = 5, LANES = 4; let n = 0; const ids = new Array(list.length);
+    const chunks = []; for (let i = 0; i < list.length; i += PER) chunks.push(i);
+    const lane = async () => {
+      while (chunks.length) {
+        const i = chunks.shift(); const b = FB.db.batch();
+        for (let j = i; j < Math.min(i + PER, list.length); j++) {
+          const ref = FB.db.collection('refDocs').doc();
+          b.set(ref, Object.assign(await FB.sealed(ref.id, list[j]), { rev: 1, createdAt: FB.ts() }));
+          ids[j] = ref.id;
+        }
+        await b.commit(); n += Math.min(PER, list.length - i); if (progress) progress(n, list.length);
+      }
+    };
+    await FB.track(Promise.all(Array.from({ length: Math.min(LANES, chunks.length) }, lane)));
+    return ids;
+  },
+  async addDoc(data) { return (await FB.addDocs([data]))[0]; },
+  /* one person's saves to the same doctor run one after another, never racing each other */
+  saveDoc(id, data) {
+    const run = () => FB._save(id, data, 0);
+    const p = (FB.queues[id] || Promise.resolve()).then(run, run);
+    FB.queues[id] = p.catch(() => { });
+    return p;
+  },
+  async _save(id, data, tries) {
+    const ref = FB.db.doc('refDocs/' + id);
+    try {
+      await FB.track(FB.db.runTransaction(async tx => {
+        const s = await tx.get(ref); if (!s.exists) throw errCode('gone');
+        tx.update(ref, Object.assign(await FB.sealed(id, data), { rev: s.data().rev + 1 }));
+      }));
+    } catch (e) {
+      if (tries < 2 && /permission/i.test(e.code || e.message || '')) {
+        // the office key may have just been changed: refresh it and try again
+        const m = (await FB.db.doc('members/' + FB.uid).get()).data();
+        if (!m || !m.active) throw e;
+        await FB.loadRing(m);
+        await new Promise(r => setTimeout(r, 150 + Math.random() * 350));
+        return FB._save(id, data, tries + 1);
+      }
+      throw e;
+    }
+  },
+  /* owner only (staff hide a doctor instead) */
+  async deleteDoc(id) { await FB.track(FB.db.doc('refDocs/' + id).delete()); },
+  async saveOffice(cfg) {
+    const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], cfg, 'refcfg:office');
+    await FB.track(FB.db.doc('refCfg/office').set({ v, iv: box.iv, ct: box.ct, by: FB.uid, updatedAt: FB.ts() }));
+  },
+  /* after the office key changes: put every record still under an older key under the new one (owner's app does this quietly) */
+  async resealOld(progress) {
+    const snap = await FB.db.collection('refDocs').where('v', '<', FB.curV).get(); let n = 0;
+    for (const d of snap.docs) {
+      try { const data = await FB.openDoc(d.id, d.data()); await FB._save(d.id, data, 0); } catch (e) { }
+      n++; if (progress) progress(n, snap.size);
+    }
+    return snap.size;
+  }
+};
+
+/* =====================================================================
+   Demo backend: made-up doctors, everything in memory, nothing saved.
+   Opened with ?demo. Every name, address and email here is invented
+   (555-01xx numbers and example.com addresses don't belong to anyone).
+   ===================================================================== */
+const DEMO = {
+  me: null, h: null, docs: new Map(), pending: 0, office: null, seq: 0,
+  isOwner() { return true; },
+  async signIn() {
+    DEMO.me = { uid: 'u-amir', staffId: 'amir', name: 'Dr. Akhavan', role: 'owner', active: true };
+    if (!DEMO.docs.size) DEMO.seed();
+    return { state: 'ok' };
+  },
+  async signOut() { DEMO.h = null; },
+  stop() { },
+  seed() {
+    [
+      ['Dentist', 'Jordan', 'Sample', 'Sample Family Dentistry', '100 Example Street', 'Suite 2', 'Gainesville, FL 32607', 'office@samplefamily.example.com', '(352) 555-0111'],
+      ['Dentist', 'Casey', 'Demo', 'Demo Dental Care', '2500 Placeholder Road', '', 'Gainesville, FL 32606', 'frontdesk@demodental.example.com', '(352) 555-0112'],
+      ['Dentist', 'Morgan', 'Testcase', 'Testcase & Associates', '14 Mockingbird Lane', '', 'Alachua, FL 32615', '', '(386) 555-0113'],
+      ['Dentist', '', '', 'Example Dental Group', '700 Main Street', '', 'Ocala, FL 34471', 'info@exampledental.example.com', ''],
+      ['Pediatric Dentistry', 'Riley', 'Placeholder', 'Little Smiles (demo)', '88 Sample Avenue', '', 'Gainesville, FL 32605', 'hello@littlesmiles.example.com', '(352) 555-0114'],
+      ['Oral Surgery', 'Avery', 'Mockley', 'Demo Oral & Facial Surgery', '4100 Example Boulevard', 'Suite 300', 'Gainesville, FL 32608', 'referrals@demoomfs.example.com', '(352) 555-0115'],
+      ['Oral Surgery', 'Quinn', 'Example', 'Example Oral Surgery', '9 Test Court', '', 'Ocala, FL 34474', 'surgery@exampleos.example.com', '(352) 555-0116'],
+      ['Periodontics', 'Harper', 'Sample', 'Sample Periodontics', '310 Placeholder Way', '', 'Gainesville, FL 32607', 'perio@sampleperio.example.com', '(352) 555-0117'],
+      ['Endodontics', 'Rowan', 'Demo', 'Demo Endodontics', '56 Example Circle', '', 'Gainesville, FL 32606', 'endo@demoendo.example.com', '(352) 555-0118'],
+      ['Prosthodontics', 'Skyler', 'Testcase', 'Testcase Prosthodontics', '1200 Mock Street', '', 'Gainesville, FL 32601', '', '(352) 555-0119']
+    ].forEach(r => {
+      const id = 'd' + (++DEMO.seq);
+      DEMO.docs.set(id, Object.assign(cleanDoc({ type: r[0], first: r[1], last: r[2], practice: r[3], addr1: r[4], addr2: r[5], city: r[6], email: r[7], phone: r[8] }), { id, rev: 1, v: 1 }));
+    });
+  },
+  copy(x) { return JSON.parse(JSON.stringify(x)); },
+  start(h) {
+    DEMO.h = h;
+    setTimeout(() => { if (DEMO.h !== h) return; h.settings({ idleMin: 30 }); h.office(DEMO.office); h.docs(Array.from(DEMO.docs.values()).map(DEMO.copy), []); }, 30);
+  },
+  async addDocs(list, progress) {
+    const ids = list.map(d => { const id = 'd' + (++DEMO.seq); DEMO.docs.set(id, Object.assign(cleanDoc(d), { id, rev: 1, v: 1 })); return id; });
+    if (progress) progress(list.length, list.length);
+    if (DEMO.h) DEMO.h.docs(ids.map(id => DEMO.copy(DEMO.docs.get(id))), []);
+    return ids;
+  },
+  async addDoc(d) { return (await DEMO.addDocs([d]))[0]; },
+  async saveDoc(id, data) {
+    const cur = DEMO.docs.get(id); if (!cur) throw errCode('gone');
+    const next = Object.assign(cleanDoc(data), { id, rev: cur.rev + 1, v: 1 }); DEMO.docs.set(id, next);
+    if (DEMO.h) DEMO.h.docs([DEMO.copy(next)], []);
+  },
+  async deleteDoc(id) { DEMO.docs.delete(id); if (DEMO.h) DEMO.h.docs([], [id]); },
+  async saveOffice(cfg) { DEMO.office = DEMO.copy(cfg); if (DEMO.h) DEMO.h.office(DEMO.copy(cfg)); },
+  async resealOld() { return 0; }
+};
+
+/* =====================================================================
+   The page: sign-in (same logins as NLO Cases), the letter builder,
+   the doctor directory and the owner's settings.
+   ===================================================================== */
+let B = null; // backend: FB (live) or DEMO
+const S = {
+  demo: false, emu: false, lastLogin: '', loginPw: '', inApp: false, view: 'write',
+  docs: new Map(), docsReady: false, docsErr: '', office: officeCfg(null), settings: { idleMin: 10 },
+  draft: blankDraft('', null), docQ: '', q: '', typeF: '', showOff: false, lastAct: Date.now(), idleTimer: null, imp: null
+};
+const ACT = {}; // click actions: data-act="name" → ACT.name(target, event)
+const CHG = {}; // change handlers: data-chg="name"
+
+/* ---------- icons ---------- */
+const IC = {
+  pen: '<path d="M4 20h4l10.5-10.5-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  book: '<path d="M5 4.5h11a2.5 2.5 0 012.5 2.5v12.5H7.5A2.5 2.5 0 015 17z"/><path d="M5 17a2.5 2.5 0 012.5-2.5h11"/><path d="M9 8.5h6"/>',
+  gear: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.3"/><path d="M8 10.5V7.8a4 4 0 018 0v2.7"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  next: '<path d="M9 6l6 6-6 6"/>',
+  back: '<path d="M15 6l-6 6 6 6"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  trash: '<path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l1 12.5h9l1-12.5"/>',
+  print: '<path d="M7 9V4.5h10V9"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14.5h10v5H7z"/>',
+  import: '<path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5"/><path d="M4 16.5v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>',
+  download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4 19.5h16"/>',
+  copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>',
+  email: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/>',
+  undo: '<path d="M8.5 6.5L4 11l4.5 4.5"/><path d="M4.5 11h10a5 5 0 010 10h-3"/>',
+  image: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  /* one picture per letter */
+  extraction: '<path d="M8 3.5c1.6 0 2.4.8 4 .8s2.4-.8 4-.8c2.2 0 3.5 1.9 3.5 4.2 0 2.6-1.3 4-1.8 6.2-.5 2.3-.6 6.6-2.4 6.6-1.5 0-1.3-4.5-3.3-4.5s-1.8 4.5-3.3 4.5c-1.8 0-1.9-4.3-2.4-6.600C5.8 11.7 4.5 10.3 4.5 7.7 4.5 5.4 5.8 3.5 8 3.5z"/><path d="M12 9.500v4.500M10 11.500l2-2 2 2"/>',
+  hygiene: '<rect x="3.500" y="13" width="9" height="3.600" rx="1.800" transform="rotate(-45 8 14.800)"/><path d="M13.500 6.500l4 4M15 5l4 4M16.500 3.500l4 4"/><path d="M5 20l2.500-2.500"/>',
+  exposure: '<path d="M8 3.5c1.6 0 2.4.8 4 .8s2.4-.8 4-.8c2.2 0 3.5 1.9 3.5 4.2 0 2.6-1.3 4-1.8 6.2-.5 2.3-.6 6.6-2.4 6.6-1.5 0-1.3-4.5-3.3-4.5s-1.8 4.5-3.3 4.5c-1.8 0-1.9-4.3-2.4-6.600C5.8 11.7 4.5 10.3 4.5 7.7 4.5 5.4 5.8 3.5 8 3.5z"/><path d="M3 8.500c3-3.500 6-5 9-5s6 1.500 9 5" stroke-dasharray="2.200 2"/>',
+  orthognathic: '<path d="M9 3.500c4.500-.5 7.500 2.500 7.500 6 0 1.500-.3 2.300.3 3.300l1.200 2-1.800.7v2c0 1.300-1 2-2.200 2H11.500v1"/><path d="M9 3.500C6 4.500 4.500 7 4.500 10c0 3 2 4.500 2 7v3.500"/><path d="M11 15.500h5" stroke-dasharray="1.600 1.600"/>',
+  bonding: '<path d="M8 3.5c1.6 0 2.4.8 4 .8s2.4-.8 4-.8c2.2 0 3.5 1.9 3.5 4.2 0 2.6-1.3 4-1.8 6.2-.5 2.3-.6 6.6-2.4 6.6-1.5 0-1.3-4.5-3.3-4.5s-1.8 4.5-3.3 4.5c-1.8 0-1.9-4.3-2.4-6.600C5.8 11.7 4.5 10.3 4.5 7.7 4.5 5.4 5.8 3.5 8 3.5z"/><path d="M17 2.500l.7 1.600 1.600.7-1.600.7-.7 1.600-.7-1.600-1.600-.7 1.600-.7z" fill="currentColor" stroke="none"/>',
+  cavity: '<path d="M8 3.5c1.6 0 2.4.8 4 .8s2.4-.8 4-.8c2.2 0 3.5 1.9 3.5 4.2 0 2.6-1.3 4-1.8 6.2-.5 2.3-.6 6.6-2.4 6.6-1.5 0-1.3-4.5-3.3-4.5s-1.8 4.5-3.3 4.5c-1.8 0-1.9-4.3-2.4-6.600C5.8 11.7 4.5 10.3 4.5 7.7 4.5 5.4 5.8 3.5 8 3.5z"/><circle cx="14.500" cy="8.500" r="1.700" fill="currentColor"/>',
+  radiographic: '<rect x="3.500" y="4.500" width="17" height="15" rx="2"/><path d="M8.500 8.500c.8 0 1.200.4 2 .4s1.200-.4 2-.4c1.200 0 1.800 1 1.800 2.200 0 1.300-.6 2-.9 3.100-.2 1.100-.3 3.200-1.200 3.200-.7 0-.6-2.200-1.700-2.200s-1 2.200-1.700 2.200c-.9 0-1-2.100-1.200-3.200-.3-1.100-.9-1.800-.9-3.100 0-1.200.6-2.200 1.800-2.200z"/><circle cx="16.500" cy="15" r="1.900" stroke-dasharray="1.800 1.400"/>',
+  tads: '<path d="M7.500 4.500h9l-1.500 3h-6z"/><path d="M10 7.500h4v3h-4z"/><path d="M10.300 10.500l1.700 10 1.700-10"/><path d="M9.800 13.500l4.400-1M10.300 16.500l3.400-.8"/>',
+  marpe: '<path d="M4 9c0-3 3.500-5 8-5s8 2 8 5v9"/><path d="M4 9v9"/><rect x="8.500" y="10" width="7" height="5" rx="1.200"/><path d="M12 10v5"/><path d="M4 12.500h4.500M15.500 12.500H20"/><path d="M10 15v3.500M14 15v3.500"/>'
+};
+function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
+
+/* ---------- toasts ---------- */
+function toast(msg, opt) {
+  opt = opt || {}; const el = document.createElement('div'); el.className = 'toast' + (opt.bad ? ' bad' : ''); el.setAttribute('role', 'status');
+  el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), opt.ms || 3800);
+}
+function errText(e) {
+  const c = (e && (e.code || e.message)) || '';
+  if (/no-user/.test(c)) return 'No login with that username.';
+  if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return 'Username or password is incorrect.';
+  if (/inactive/.test(c)) return 'This login has been turned off. Ask Dr. A.';
+  if (/not-member/.test(c)) return 'That account isn’t part of the office.';
+  if (/too-many-requests/.test(c)) return 'Too many attempts. Wait a minute and try again.';
+  if (/network|unavailable/.test(c)) return 'Can’t reach the server. Check the internet connection.';
+  if (/weak-password/.test(c)) return 'Password needs at least 8 characters.';
+  if (/boot-failed/.test(c)) return 'That temporary password didn’t work. Ask Dr. A to reissue your login.';
+  if (/boot-stale/.test(c)) return 'This invite expired after a security update. Ask Dr. A to reissue your login.';
+  if (/bad-code/.test(c)) return 'That recovery code didn’t work. Check it and try again.';
+  if (/permission/.test(c)) return 'Not allowed. Your access may have changed.';
+  if (/gone/.test(c)) return 'That doctor is no longer in the directory.';
+  if (/requires-recent-login/.test(c)) return 'Please sign in again, then retry.';
+  return (e && e.message) ? String(e.message).replace(/^Firebase:\s*/, '') : 'Something went wrong.';
+}
+
+/* ---------- boot ---------- */
+function boot() {
+  const qs = new URLSearchParams(location.search);
+  const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  S.demo = qs.has('demo'); S.emu = local && qs.has('emu');
+  try { S.lastLogin = localStorage.getItem('nloLetters.lastLogin') || localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
+  document.addEventListener('click', onClick);
+  document.addEventListener('change', onChange);
+  document.addEventListener('input', onInput);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modalWrap')) closeModal(); });
+  ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { S.lastAct = Date.now(); }, { passive: true }));
+  window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
+  if (S.demo) { B = DEMO; $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo'); lockScreen('login'); return; }
+  B = FB;
+  if (!FB.init(S.emu)) { lockScreen('unconfigured'); return; }
+  FB.onSync = renderSync;
+  FB.ready().then(() => lockScreen('login'));
+  window.addEventListener('online', renderSync); window.addEventListener('offline', renderSync);
+}
+
+/* ---------- lock screens (same logins as NLO Cases) ---------- */
+function lockScreen(mode, info) {
+  info = info || {};
+  $('#lockWrap').classList.remove('hidden'); $('#app').classList.add('hidden');
+  const card = $('#lockCard'); let h = '';
+  const err = info.err ? '<div class="lockErr" role="alert">' + esc(info.err) + '</div>' : '';
+  const ok = info.ok ? '<div class="lockOk" role="status">' + esc(info.ok) + '</div>' : '';
+  if (mode === 'unconfigured') {
+    h = '<h1>Almost ready</h1><div class="lsub">This copy isn’t connected to the office database yet.</div>' +
+      '<p class="desc">To look around with made-up doctors, open the demo.</p><a class="btn btn-pri btn-block" href="?demo">Open the demo</a>';
+  } else if (mode === 'login') {
+    h = '<h1>Sign in</h1><div class="lsub">Next Level Orthodontics · referral letters</div>' + err + ok +
+      '<form id="loginForm" autocomplete="on" style="margin-top:16px">' +
+      '<div class="field"><label for="lgUser">Username</label><input id="lgUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(S.demo ? 'demo' : S.lastLogin) + '" required></div>' +
+      '<div class="field"><label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" ' + (S.demo ? 'value="demo"' : '') + ' required></div>' +
+      '<button class="btn btn-pri btn-block" id="lgBtn" type="submit">Sign in</button></form>' +
+      '<div class="lockFoot">Same login as NLO Cases. Forgot your password? Ask Dr. A to reissue your login.' + (S.demo ? '' : '<br><button class="linkBtn" data-act="forgot" type="button">Dr. A: reset by email</button>') + '</div>';
+  } else if (mode === 'first') {
+    h = '<h1>Welcome, ' + esc(firstName(B.me && B.me.name)) + '</h1><div class="lsub">Choose your own password</div>' + err +
+      '<p class="desc">Only you will know it. Use at least 8 characters. It’s also your NLO Cases password.</p>' +
+      '<form id="firstForm"><div class="field"><label for="fpw1">New password</label><input id="fpw1" type="password" autocomplete="new-password" minlength="8" required></div>' +
+      '<div class="field"><label for="fpw2">Type it again</label><input id="fpw2" type="password" autocomplete="new-password" minlength="8" required></div>' +
+      '<button class="btn btn-pri btn-block" id="fBtn" type="submit">Save and continue</button></form>';
+  } else if (mode === 'recover') {
+    h = '<h1>Unlock with your recovery code</h1><div class="lsub">Your password changed, so the office key needs your recovery code once.</div>' + err +
+      '<form id="recForm" style="margin-top:16px"><div class="field"><label for="recCode">Recovery code</label><input id="recCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required></div>' +
+      '<button class="btn btn-pri btn-block" type="submit">Unlock</button></form>' +
+      '<div class="lockFoot"><button class="linkBtn" data-act="lockSignOut" type="button">Cancel</button></div>';
+  } else if (mode === 'broken') {
+    h = '<h1>Login needs a reset</h1><div class="lsub">Your password was changed outside the app.</div><p class="desc">Ask Dr. A to reissue your login from NLO Cases → Team &amp; security.</p>' +
+      '<button class="btn btn-sec btn-block" data-act="lockSignOut">Back</button>';
+  } else if (mode === 'forgot') {
+    h = '<h1>Reset by email</h1><div class="lsub">For Dr. A’s email login</div>' + err + ok +
+      '<form id="forgotForm" style="margin-top:16px"><div class="field"><label for="fgEmail">Your email</label><input id="fgEmail" type="email" autocomplete="email" required></div>' +
+      '<button class="btn btn-pri btn-block" type="submit">Send reset link</button></form>' +
+      '<p class="desc small" style="margin:14px 0 0">After you pick a new password, sign in with it. You’ll be asked for your recovery code once.</p>' +
+      '<div class="lockFoot"><button class="linkBtn" data-act="toLogin" type="button">Back to sign in</button></div>';
+  }
+  card.innerHTML = h;
+  const f = mode === 'login' && $('#lgUser').value ? $('#lgPw') : $('input:not([type=checkbox])', card);
+  if (f) f.focus();
+  bindLockForms();
+}
+function busyBtn(btn, on, label) { if (!btn) return; if (on) { btn.dataset.l = btn.textContent; btn.textContent = label || 'Working…'; btn.disabled = true; } else { btn.textContent = btn.dataset.l || btn.textContent; btn.disabled = false; } }
+function bindLockForms() {
+  const lf = $('#loginForm');
+  if (lf) lf.onsubmit = async e => {
+    e.preventDefault(); const btn = $('#lgBtn'); const user = $('#lgUser').value.trim(); const pw = $('#lgPw').value;
+    busyBtn(btn, true, 'Signing in…');
+    try {
+      const r = await B.signIn(user, pw);
+      S.lastLogin = user; try { localStorage.setItem('nloLetters.lastLogin', user); } catch (x) { }
+      S.loginPw = pw;
+      if (r.state === 'ok') { S.loginPw = ''; enterApp(); } else lockScreen(r.state);
+    } catch (x) { busyBtn(btn, false); lockScreen('login', { err: errText(x) }); }
+  };
+  const ff = $('#firstForm');
+  if (ff) ff.onsubmit = async e => {
+    e.preventDefault(); const a = $('#fpw1').value, b = $('#fpw2').value;
+    if (a.length < 8) return lockScreen('first', { err: 'Use at least 8 characters.' });
+    if (a !== b) return lockScreen('first', { err: 'The two passwords don’t match.' });
+    if (a === S.loginPw) return lockScreen('first', { err: 'Pick something different from the temporary password.' });
+    busyBtn($('#fBtn'), true, 'Saving…');
+    try { await B.firstSetup(S.loginPw, a); S.loginPw = ''; enterApp(); } catch (x) { lockScreen('first', { err: errText(x) }); }
+  };
+  const rf = $('#recForm');
+  if (rf) rf.onsubmit = async e => {
+    e.preventDefault(); busyBtn($('button[type=submit]', rf), true, 'Unlocking…');
+    try { await B.recover(S.loginPw, $('#recCode').value); S.loginPw = ''; toast('Unlocked. Your recovery code still works — keep it safe.'); enterApp(); }
+    catch (x) { lockScreen('recover', { err: errText(x) }); }
+  };
+  const fg = $('#forgotForm');
+  if (fg) fg.onsubmit = async e => {
+    e.preventDefault();
+    try { await B.sendReset($('#fgEmail').value.trim()); lockScreen('forgot', { ok: 'If that email has a login, a reset link is on its way.' }); }
+    catch (x) { lockScreen('forgot', { err: errText(x) }); }
+  };
+}
+
+/* ---------- enter / leave ---------- */
+function enterApp() {
+  Object.assign(S, { inApp: true, docs: new Map(), docsReady: false, docsErr: '', office: officeCfg(null), view: 'write', docQ: '', q: '', typeF: '', showOff: false, lastAct: Date.now(), imp: null });
+  S.draft = blankDraft('', S.office);
+  $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
+  renderShell(); renderView();
+  B.start({
+    docs(up, gone) {
+      up.forEach(d => S.docs.set(d.id, d)); gone.forEach(id => S.docs.delete(id));
+      S.docsReady = true; S.docsErr = '';
+      if (S.draft.docId && S.docs.has(S.draft.docId)) S.draft.doc = S.docs.get(S.draft.docId);
+      if (S.view === 'doctors') renderView(); else if (S.view === 'write' && S.draft.letter) { renderDocPick(); updatePaper(); }
+      renderNav();
+    },
+    docsError(e) {
+      S.docsReady = true;
+      S.docsErr = /permission/.test((e && e.code) || '') ? 'The office database isn’t ready for the doctor directory yet (Dr. A: publish the updated rules). You can still write a letter by adding the doctor by hand.' : errText(e);
+      if (S.view === 'doctors' || (S.view === 'write' && S.draft.letter)) renderView();
+    },
+    office(saved) {
+      const before = S.office; S.office = officeCfg(saved);
+      if (!S.draft.letter) { S.draft.letterhead = S.office.letterhead; S.draft.notation = S.office.notation; }
+      if (S.view === 'settings' && !$('#setForm:focus-within')) renderView();
+      else if (S.view === 'write' && S.draft.letter && JSON.stringify(before) !== JSON.stringify(S.office)) { regenText(); updatePaper(); }
+    },
+    settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); },
+    revoked() { lockOut('Your access was turned off.'); },
+    rekeyed() { if (S.inApp && isOwner()) setTimeout(() => B.resealOld().catch(() => { }), 1500); },
+    error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
+  });
+  clearInterval(S.idleTimer);
+  S.idleTimer = setInterval(() => {
+    const mins = Number(S.settings.idleMin) || 10;
+    if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
+  }, 15000);
+  if (isOwner()) setTimeout(() => { if (S.inApp) B.resealOld().catch(() => { }); }, 6000);
+}
+async function lockOut(msg) {
+  if (!S.inApp) return;
+  S.inApp = false; clearInterval(S.idleTimer); closeModal();
+  // the letter in progress (the only place a patient's name ever is) goes with the lock
+  Object.assign(S, { docs: new Map(), docsReady: false, draft: blankDraft('', null), imp: null, docQ: '', q: '' });
+  $('#view').innerHTML = ''; $('#topSlot').innerHTML = '';
+  await B.signOut();
+  lockScreen('login', { ok: msg });
+}
+function isOwner() { return B.isOwner(); }
+function liveDocs() { return Array.from(S.docs.values()).filter(d => !d.locked); }
+
+/* ---------- shell ---------- */
+const NAV = [['write', 'Write a letter', 'pen'], ['doctors', 'Doctors', 'book']];
+const TITLES = { write: 'Write a letter', doctors: 'Doctors', settings: 'Settings' };
+function renderShell() {
+  const owner = isOwner();
+  const navBtns = mob => NAV.map(([k, l, i]) => '<button class="navBtn" data-act="nav" data-v="' + k + '" id="' + (mob ? 'm' : '') + 'nav-' + k + '">' + ic(i) + '<span>' + l + '</span><span class="cnt hidden"></span></button>').join('') +
+    (owner ? (mob ? '' : '<div class="navLbl">Office</div>') + '<button class="navBtn" data-act="nav" data-v="settings" id="' + (mob ? 'm' : '') + 'nav-settings">' + ic('gear') + '<span>Settings</span></button>' : '');
+  $('#side').innerHTML = '<div class="sideTop"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Letters</div></div>' +
+    '<nav class="nav" aria-label="Main">' + navBtns(false) + '</nav>' +
+    '<div class="sideFoot"><div class="whoBox"><span class="av">' + esc(initials(B.me.name)) + '</span><div><b>' + esc(B.me.name) + '</b>' + (owner ? 'Owner' : 'Staff') + '</div></div>' +
+    '<a class="sideLink" href="nlo-cases.html">' + ic('next', 14) + 'Open NLO Cases</a>' +
+    '<button class="sideLock" data-act="lock">' + ic('lock', 16) + 'Lock</button><div class="syncLine" id="syncLine"></div></div>';
+  $('#mobTop').innerHTML = '<img src="logo-white.png" alt="NLO"><span class="appTag" style="font-size:11px;letter-spacing:.24em">Letters</span><span style="flex:1"></span>' +
+    '<button class="iconBtn" style="color:#fff" data-act="lock" aria-label="Lock">' + ic('lock') + '</button>';
+  $('#mobNav').innerHTML = navBtns(true);
+  renderSync(); renderNav();
+}
+function renderNav() {
+  const n = liveDocs().filter(d => !d.off).length;
+  ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + 'doctors .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); });
+  $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
+}
+function renderSync() {
+  const el = $('#syncLine'); if (!el) return;
+  let cls = 'ok', t = S.demo ? 'Demo · nothing saved' : 'Live · encrypted';
+  if (!navigator.onLine) { cls = 'bad'; t = 'Offline'; }
+  else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
+  el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
+}
+function renderView() {
+  if (!S.inApp) return;
+  const letter = letterById(S.draft.letter);
+  let right = '';
+  if (S.view === 'doctors') right = '<div class="searchBox">' + ic('search', 16) + '<input id="q" type="search" placeholder="Search doctors, offices, cities" value="' + esc(S.q) + '" aria-label="Search doctors"></div>';
+  $('#topSlot').innerHTML = '<div class="topBar"><h2>' + esc(S.view === 'write' && letter ? letter.label + ' letter' : TITLES[S.view]) + '</h2>' + right + '</div>';
+  const v = $('#view');
+  if (S.view === 'write') { v.innerHTML = letter ? builderHTML() : pickHTML(); if (letter) { renderDocPick(); updatePaper(); } }
+  else if (S.view === 'doctors') { v.innerHTML = doctorsHTML(); const q = $('#q'); if (q && S.qFocus) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
+  else if (S.view === 'settings') v.innerHTML = isOwner() ? settingsHTML() : '';
+  renderNav();
+}
+
+/* ---------- step 0: pick a letter ---------- */
+function pickHTML() {
+  return '<p class="lead">Which letter are you sending?</p><div class="ltGrid">' +
+    LETTERS.map(l => '<button class="ltTile" data-act="pickLetter" data-id="' + l.id + '"><span class="ltIc">' + ic(l.id, 34) + '</span><b>' + esc(l.label) + '</b><span>' + esc(l.blurb) + '</span></button>').join('') +
+    '</div><p class="small muted" style="margin-top:18px">' + ic('lock', 13) + ' The patient’s name and date of birth are never saved. They are gone when you start over, lock, or close the page.</p>';
+}
+
+/* ---------- the builder ---------- */
+function builderHTML() {
+  const d = S.draft, letter = letterById(d.letter);
+  const sec = (n, title, body, extra) => '<section class="bSec"' + (extra || '') + '><h4><span class="bNum">' + n + '</span>' + esc(title) + '</h4>' + body + '</section>';
+  let n = 0;
+  const patient = '<div class="grid2"><div class="field"><label for="ptFirst">First name</label><input id="ptFirst" data-d="first" autocomplete="off" value="' + esc(d.first) + '"></div>' +
+    '<div class="field"><label for="ptLast">Last name</label><input id="ptLast" data-d="last" autocomplete="off" value="' + esc(d.last) + '"></div></div>' +
+    '<div class="grid2"><div class="field"><label for="ptDob">Date of birth</label><input id="ptDob" data-d="dob" type="date" max="' + todayISO() + '" value="' + esc(d.dob) + '"></div>' +
+    '<div class="field"><label for="ptRp">Responsible party phone <span class="opt">optional</span></label><input id="ptRp" data-d="rpPhone" type="tel" autocomplete="off" placeholder="(352) 555-0100" value="' + esc(d.rpPhone) + '"></div></div>';
+  const opts = letter.opts.map(o => '<div class="optGrp"><div class="flabel">' + esc(o.label) + (o.multi ? ' <span class="opt">pick any</span>' : '') + '</div><div class="chips">' +
+    o.choices.map(ch => '<button type="button" class="chip' + (isPicked(o, ch[0]) ? ' on' : '') + '" data-act="opt" data-k="' + o.key + '" data-c="' + ch[0] + '" aria-pressed="' + isPicked(o, ch[0]) + '">' + esc(ch[1]) + '</button>').join('') + '</div></div>').join('');
+  const text = '<div class="field" style="margin-bottom:6px"><textarea id="ltText" rows="11" spellcheck="true" aria-label="Letter wording">' + esc(d.text) + '</textarea>' +
+    '<div class="hint">Change anything you like. <button type="button" class="linkBtn' + (d.edited ? '' : ' hidden') + '" id="resetText" data-act="resetText">Put the suggested wording back</button></div></div>';
+  const look = '<div class="lhGrid">' + LETTERHEADS.map(l => '<button type="button" class="lhOpt' + (d.letterhead === l[0] ? ' on' : '') + '" data-act="letterhead" data-v="' + l[0] + '" aria-pressed="' + (d.letterhead === l[0]) + '"><span class="lhPic lh-' + l[0] + '"><i></i><i></i></span><b>' + esc(l[1]) + '</b></button>').join('') + '</div>' +
+    '<div class="field" style="margin-top:12px"><label for="ltDate">Date on the letter</label><input id="ltDate" data-d="date" type="date" value="' + esc(d.date || todayISO()) + '" style="max-width:200px"></div>' +
+    '<div class="flabel">X-rays or photos to print with the letter <span class="opt">optional</span></div><div id="imgList" class="imgList">' + imagesHTML() + '</div>';
+  return '<div class="bWrap"><div class="formCol">' +
+    '<button class="btn-ghost btn" data-act="startOver" style="margin:0 0 8px -8px">' + ic('back', 15) + 'Different letter</button>' +
+    sec(++n, 'Patient', patient) +
+    sec(++n, 'Doctor it goes to', '<div id="docPick"></div>') +
+    (letter.teeth === TEETH_NONE ? '' : sec(++n, letter.teeth === TEETH_REQUIRED ? 'Teeth' : 'Teeth (if it involves specific teeth)', chartHTML())) +
+    sec(++n, 'Details', opts) +
+    sec(++n, 'Wording', text) +
+    sec(++n, 'Look', look) +
+    '</div><div class="paperCol"><div class="paperBar"><div id="probs" class="probs"></div>' +
+    '<button class="btn btn-pri" data-act="print" id="printBtn">' + ic('print', 17) + 'Print or save as PDF</button></div>' +
+    '<div class="paperScroll"><div id="paper" class="paper"></div></div></div></div>';
+}
+function isPicked(o, c) { const v = S.draft.opt[o.key]; return o.multi ? Array.isArray(v) && v.includes(c) : v === c; }
+function chartHTML() {
+  const d = S.draft;
+  const tooth = id => { const t = TEETH[id]; const kind = t.name.split(' ').slice(-1)[0];
+    return '<button type="button" class="tooth t-' + kind + (t.upper ? ' up' : ' lo') + (d.teeth.includes(id) ? ' on' : '') + '" data-act="tooth" data-id="' + id + '" title="' + esc(capFirst(t.name)) + '" aria-label="' + esc(t.name) + '" aria-pressed="' + d.teeth.includes(id) + '"><span>' + esc(d.notation === 'fdi' ? t.fdi : t.id) + '</span></button>'; };
+  const row = (ids, cls) => '<div class="tRow ' + cls + '">' + ids.map((id, i) => (i === ids.length / 2 ? '<span class="mid"></span>' : '') + tooth(id)).join('') + '</div>';
+  return '<div class="chart" id="chart"><div class="sideLbl"><span>Patient’s right</span><b>Upper teeth</b><span>Patient’s left</span></div>' +
+    row(CHART_ROWS.upper, 'perm') + row(CHART_ROWS.upperPrimary, 'prim') + '<div class="arch"><span></span></div>' + row(CHART_ROWS.lowerPrimary, 'prim') + row(CHART_ROWS.lower, 'perm') +
+    '<div class="sideLbl" style="padding:6px 4px 0"><span></span><b>Lower teeth</b><span></span></div></div>' +
+    '<div class="chartFt"><div id="teethSay" class="teethSay">' + teethSay() + '</div>' +
+    '<div class="seg" role="group" aria-label="Tooth numbering"><button type="button" class="' + (d.notation === 'universal' ? 'on' : '') + '" data-act="notation" data-v="universal">1–32 / A–T</button><button type="button" class="' + (d.notation === 'fdi' ? 'on' : '') + '" data-act="notation" data-v="fdi">FDI</button></div></div>';
+}
+function teethSay() { const t = sortTeeth(S.draft.teeth); return t.length ? '<b>' + t.length + ' picked:</b> ' + esc(teethText(t, S.draft.notation)) + ' <button type="button" class="linkBtn" data-act="clearTeeth">Clear</button>' : '<span class="muted">' + esc((letterById(S.draft.letter) || {}).teethHint || 'Click the teeth. Small letters in the middle rows are baby teeth.') + '</span>'; }
+function imagesHTML() {
+  return S.draft.images.map((im, i) => '<div class="imgChip"><img src="' + im.src + '" alt=""><span>' + esc(im.name) + '</span><button type="button" class="iconBtn" data-act="rmImage" data-i="' + i + '" aria-label="Remove ' + esc(im.name) + '">' + ic('x', 15) + '</button></div>').join('') +
+    '<label class="btn btn-sec btn-sm imgAdd">' + ic('image', 15) + 'Add an image<input type="file" id="imgFile" accept="image/png,image/jpeg" multiple hidden></label>';
+}
+
+/* the doctor picker: search the directory, or add someone new */
+function renderDocPick() {
+  const el = $('#docPick'); if (!el) return;
+  const d = S.draft, letter = letterById(d.letter);
+  if (d.doc) {
+    const doc = d.doc, lines = docBlock(doc);
+    el.innerHTML = '<div class="docCard"><div class="grow"><b>' + esc(lines[0] || '') + '</b>' + lines.slice(1).map(l => '<span>' + esc(l) + '</span>').join('') +
+      (validEmail(doc.email) ? '<span class="docMail">' + ic('email', 14) + esc(doc.email) + ' <button type="button" class="linkBtn" data-act="copyVal" data-v="' + esc(doc.email) + '">Copy</button></span>' : '<span class="docMail none">No email on file — print and fax or mail this one</span>') +
+      '</div><div class="docBtns"><button type="button" class="btn btn-sec btn-sm" data-act="changeDoc">Change</button>' + (d.docId ? '<button type="button" class="btn-ghost btn" data-act="editDoc" data-id="' + esc(d.docId) + '">Edit</button>' : '<button type="button" class="btn-ghost btn" data-act="editHandDoc">Edit</button>') + '</div></div>';
+    return;
+  }
+  const all = liveDocs().filter(x => !x.off);
+  const fit = x => letter.to.includes(x.type) ? 0 : 1;
+  const hits = sortDocs(all.filter(x => docMatches(x, S.docQ))).sort((a, b) => fit(a) - fit(b)).slice(0, 7);
+  const keep = document.activeElement && document.activeElement.id === 'docQ';
+  el.innerHTML = (S.docsErr ? '<div class="note amber">' + esc(S.docsErr) + '</div>' : '') +
+    '<div class="searchBox" style="max-width:none;margin:0 0 8px">' + ic('search', 16) + '<input id="docQ" type="search" autocomplete="off" placeholder="' + (all.length ? 'Type a doctor, office or city' : 'No doctors in the directory yet') + '" value="' + esc(S.docQ) + '" aria-label="Find a doctor"' + (all.length ? '' : ' disabled') + '></div>' +
+    '<div class="docHits" id="docHits">' + (!S.docsReady ? '<div class="small muted" style="padding:8px">Opening the directory…</div>' :
+      hits.map(x => '<button type="button" class="docHit" data-act="pickDoc" data-id="' + esc(x.id) + '"><b>' + esc(docListName(x)) + '</b><span>' + esc([x.practice, x.city].filter(Boolean).join(' · ')) + '</span><span class="badge t-misc">' + esc(x.type) + '</span></button>').join('') ||
+      (all.length ? '<div class="small muted" style="padding:8px">Nobody matches “' + esc(S.docQ) + '”.</div>' : '')) + '</div>' +
+    '<button type="button" class="btn btn-sec btn-sm" data-act="newDoc" style="margin-top:8px">' + ic('plus', 15) + 'Add a doctor who isn’t listed</button>';
+  if (keep) { const q = $('#docQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+
+/* ---------- the letter on paper ---------- */
+function paperHTML(d, cfg) {
+  const letter = letterById(d.letter); if (!letter) return '';
+  const paras = String(d.text || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const name = [d.first, d.last].map(s => (s || '').trim()).filter(Boolean).join(' ');
+  const blank = t => '<span class="blank">' + esc(t) + '</span>';
+  let head = '';
+  if (d.letterhead === 'logo') head = '<div class="lh lh-logo"><img src="nlo-logo-wide.png" alt="' + esc(cfg.practice) + '"><div>' + esc([cfg.addr1, cfg.addr2, cfg.phone].join('  ·  ')) + '</div></div>';
+  else if (d.letterhead === 'side') head = '<div class="lh lh-side"><img src="nlo-logo-wide.png" alt="' + esc(cfg.practice) + '"><div>' + esc(cfg.addr1) + '<br>' + esc(cfg.addr2) + '<br>' + esc(cfg.phone) + '</div></div>';
+  else head = '<div class="lh lh-plain"><span>Blank here for your pre-printed letterhead</span></div>';
+  const to = d.doc ? docBlock(d.doc) : [];
+  return head +
+    '<div class="pDate">' + esc(fmtLong(d.date || todayISO())) + '</div>' +
+    '<div class="pTo">' + (to.length ? to.map(esc).join('<br>') : blank('Doctor’s name and address')) + '</div>' +
+    '<div class="pRe"><div>RE: <b>' + (name ? esc(name) : blank('Patient name')) + '</b></div><div>DOB: ' + (d.dob && validDob(d.dob) ? esc(fmtDob(d.dob)) : blank('date of birth')) + '</div>' +
+    ((d.rpPhone || '').trim() ? '<div>Responsible Party Phone: ' + esc(d.rpPhone.trim()) + '</div>' : '') + '</div>' +
+    '<div class="pSub">Subject: ' + esc(letter.subject) + '</div>' +
+    '<div class="pDear">' + esc(docSalute(d.doc)) + ',</div>' +
+    paras.map(p => '<p>' + esc(p).replace(/\[choose the teeth\]/g, '<span class="blank">choose the teeth</span>').replace(/\n/g, '<br>') + '</p>').join('') +
+    '<div class="pSign"><div>Sincerely,</div><div class="sigGap"></div><div>' + esc(cfg.doctor) + '</div><div>' + esc(cfg.practice) + '</div>' +
+    (d.images.length ? '<div class="pEncl">Enclosure' + (d.images.length > 1 ? 's (' + d.images.length + ')' : '') + '</div>' : '') + '</div>' +
+    d.images.map(im => '<div class="pImg"><img src="' + im.src + '" alt="' + esc(im.name) + '"><div>' + esc(name) + (d.dob && validDob(d.dob) ? ' · DOB ' + esc(fmtDob(d.dob)) : '') + '</div></div>').join('');
+}
+function updatePaper() {
+  const p = $('#paper'); if (!p) return;
+  p.innerHTML = paperHTML(S.draft, S.office);
+  const probs = draftProblems(S.draft), el = $('#probs');
+  if (el) el.innerHTML = probs.length ? '<span class="probN">' + probs.length + '</span>' + esc(probs[0]) : '<span class="probOk">' + ic('check', 15) + 'Ready to print</span>';
+}
+/* the suggested wording follows the clicks until someone types in the box */
+function regenText() {
+  const d = S.draft; if (d.edited) return;
+  d.text = letterText(d, S.office);
+  const ta = $('#ltText'); if (ta && ta.value !== d.text) ta.value = d.text;
+}
+
+/* ---------- Doctors ---------- */
+function doctorsHTML() {
+  const all = liveDocs(), shown = sortDocs(all.filter(d => (S.showOff || !d.off) && (!S.typeF || d.type === S.typeF) && docMatches(d, S.q)));
+  const types = DOC_TYPES.filter(t => all.some(d => d.type === t));
+  const noMail = all.filter(d => !d.off && !validEmail(d.email)).length;
+  let h = (S.docsErr ? '<div class="note amber">' + esc(S.docsErr) + '</div>' : '') +
+    '<div class="filters"><select data-chg="typeF" aria-label="Type"><option value="">All types</option>' + types.map(t => '<option' + (S.typeF === t ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>' +
+    '<label class="chk"><input type="checkbox" data-chg="showOff"' + (S.showOff ? ' checked' : '') + '> Show hidden</label><span style="flex:1"></span>' +
+    (isOwner() ? '<button class="btn btn-sec btn-sm" data-act="importDocs">' + ic('import', 15) + 'Import from Edge</button>' : '') +
+    (all.length ? '<button class="btn btn-sec btn-sm" data-act="exportDocs">' + ic('download', 15) + 'Export</button>' : '') +
+    '<button class="btn btn-pri btn-sm" data-act="newDoc" ' + (S.docsErr ? 'disabled' : '') + '>' + ic('plus', 15) + 'Add a doctor</button></div>';
+  if (!S.docsReady) return h + '<div class="card"><div class="empty">Opening the directory…</div></div>';
+  if (!all.length) return h + '<div class="card"><div class="empty"><b>No doctors yet.</b><br>' + (isOwner() ? 'Use “Import from Edge” to bring in the list exported from Edge, or add them one at a time.' : 'Dr. A can import the list from Edge, or you can add doctors one at a time.') + '</div></div>';
+  h += '<div class="small muted" style="margin:0 2px 8px">' + shown.length + ' of ' + all.length + ' shown' + (noMail ? ' · ' + noMail + ' have no email' : '') + '</div>';
+  h += '<div class="card"><div class="tblWrap"><table class="tbl"><thead><tr><th>Doctor</th><th>Office</th><th>City</th><th>Email</th><th>Type</th></tr></thead><tbody>' +
+    (shown.slice(0, 400).map(d => '<tr class="click' + (d.off ? ' offRow' : '') + '" data-act="editDoc" data-id="' + esc(d.id) + '" tabindex="0"><td class="pt">' + esc(docListName(d)) + (d.off ? ' <span class="badge t-misc">Hidden</span>' : '') + '</td><td>' + esc(d.practice) + '</td><td>' + esc(d.city) + '</td><td>' +
+      (validEmail(d.email) ? esc(d.email) : '<span class="badge t-retx">No email</span>') + '</td><td><span class="badge t-misc">' + esc(d.type) + '</span></td></tr>').join('') || '<tr><td colspan="5"><div class="empty">Nobody matches.</div></td></tr>') +
+    '</tbody></table></div></div>' + (shown.length > 400 ? '<div class="small muted" style="margin-top:8px">Showing the first 400. Search to narrow it down.</div>' : '');
+  return h;
+}
+function docModal(id, opt) {
+  opt = opt || {};
+  const cur = id ? S.docs.get(id) : (opt.doc || blankDoc()); if (!cur) return;
+  const f = (k, label, extra) => '<div class="field"><label for="dc-' + k + '">' + label + '</label><input id="dc-' + k + '" data-k="' + k + '" autocomplete="off" value="' + esc(cur[k] || '') + '" ' + (extra || '') + '></div>';
+  openModal('<h3>' + (id ? 'Edit doctor' : 'Add a doctor') + '</h3><div class="lsub">' + (opt.hand ? 'The directory isn’t available yet, so this doctor is used for this letter only.' : 'Saved to the office’s doctor directory (encrypted).') + '</div>' +
+    '<form id="docForm"><div class="grid3"><div class="field"><label for="dc-type">Type</label><select id="dc-type" data-k="type">' + DOC_TYPES.map(t => '<option' + (cur.type === t ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></div>' +
+    f('first', 'First name') + f('last', 'Last name') + '</div>' +
+    f('practice', 'Office name') + '<div class="grid2">' + f('addr1', 'Address') + f('addr2', 'Suite / line 2') + '</div>' +
+    '<div class="grid2">' + f('city', 'City, state and zip', 'placeholder="Gainesville, FL 32607"') + f('phone', 'Phone', 'type="tel"') + '</div>' +
+    '<div class="grid2">' + f('email', 'Email', 'type="email" inputmode="email"') + f('salute', 'Greeting <span class="opt">optional</span>', 'placeholder="Dear Dr. ' + esc(cur.last || 'Smith') + '"') + '</div>' +
+    '<div class="field"><label for="dc-note">Note for the office <span class="opt">never printed</span></label><input id="dc-note" data-k="note" autocomplete="off" value="' + esc(cur.note || '') + '"></div>' +
+    (id ? '<label class="chk" style="margin-bottom:6px"><input type="checkbox" id="dc-off"' + (cur.off ? ' checked' : '') + '> Hide this doctor from the picker (retired, moved, duplicate)</label>' : '') +
+    '<div class="mFt">' + (id && isOwner() ? '<button type="button" class="btn-ghost btn" data-act="delDoc" data-id="' + esc(id) + '" style="margin-right:auto;color:var(--coral-700)">' + ic('trash', 15) + 'Delete</button>' : '') +
+    '<button type="button" class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="submit">' + (id ? 'Save' : opt.use ? 'Add and use' : 'Add') + '</button></div></form>', w => {
+      $('#docForm', w).onsubmit = async e => {
+        e.preventDefault(); const data = blankDoc();
+        $$('[data-k]', w).forEach(i => { data[i.dataset.k] = i.value; });
+        if ($('#dc-off', w)) data.off = $('#dc-off', w).checked;
+        const clean = cleanDoc(data);
+        if (!clean.last && !clean.practice) return toast('Type a last name or an office name.', { bad: true });
+        if (clean.email && !validEmail(clean.email)) return toast('That email doesn’t look right.', { bad: true });
+        const btn = $('button[type=submit]', w); busyBtn(btn, true, 'Saving…');
+        try {
+          if (opt.hand) { S.draft.doc = clean; S.draft.docId = ''; closeModal(); renderDocPick(); updatePaper(); return; }
+          if (id) { await B.saveDoc(id, clean); toast('Saved'); }
+          else {
+            const dupe = liveDocs().find(x => docKey(x) === docKey(clean));
+            if (dupe) { busyBtn(btn, false); return toast(docListName(dupe) + ' is already in the directory.', { bad: true }); }
+            const nid = await B.addDoc(clean); toast('Added to the directory');
+            if (opt.use) { S.draft.docId = nid; S.draft.doc = Object.assign({ id: nid }, clean); }
+          }
+          closeModal();
+          if (S.view === 'write') { if (id && S.draft.docId === id) S.draft.doc = Object.assign({ id }, clean); renderDocPick(); updatePaper(); } else renderView();
+        } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
+      };
+    });
+}
+
+/* import the list made from Edge's Professional List report (owner) */
+function importModal() {
+  S.imp = null;
+  openModal('<h3>Import doctors from Edge</h3><div class="lsub">Choose the file <b>NLO_Provider_Directory_from_Edge.csv</b>. Doctors already in the directory are skipped, so it is safe to run again.</div>' +
+    '<label class="btn btn-sec">' + ic('import', 16) + 'Choose the file<input type="file" id="impFile" accept=".csv,text/csv" hidden></label>' +
+    '<div id="impInfo" style="margin-top:14px"></div><div class="mFt"><button type="button" class="btn btn-sec" data-act="closeModal">Close</button><button type="button" class="btn btn-pri" id="impGo" data-act="runImport" disabled>Import</button></div>');
+}
+function impInfo() {
+  const el = $('#impInfo'); if (!el || !S.imp) return;
+  const i = S.imp;
+  el.innerHTML = i.err ? '<div class="note amber">' + esc(i.err) + '</div>' :
+    '<div class="impNums"><div><b>' + i.fresh.length + '</b>new</div><div><b>' + i.have + '</b>already here</div><div><b>' + i.skipped + '</b>blank or repeated</div><div><b>' + i.fresh.filter(d => !d.email).length + '</b>new without email</div></div>' +
+    (i.busy ? '<div class="bar"><i id="impBar" style="width:0"></i></div>' : '');
+  const go = $('#impGo'); if (go) go.disabled = !!i.err || !i.fresh.length || !!i.busy;
+}
+
+/* ---------- Settings (owner) ---------- */
+function settingsHTML() {
+  const o = S.office;
+  const f = (k, label, hint) => '<div class="field"><label for="st-' + k + '">' + label + '</label><input id="st-' + k + '" data-k="' + k + '" autocomplete="off" value="' + esc(o[k]) + '">' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>';
+  return '<div class="card" style="max-width:720px"><div class="cardHd"><h3>What every letter says</h3></div><div class="cardBd"><form id="setForm">' +
+    '<div class="grid2">' + f('doctor', 'Signed by') + f('practice', 'Practice name') + '</div>' +
+    '<div class="grid2">' + f('addr1', 'Address') + f('addr2', 'City, state and zip') + '</div>' +
+    '<div class="grid2">' + f('phone', 'Phone') + f('records', 'Where reports should be sent', 'Printed in every letter’s “please send your report to” sentence.') + '</div>' +
+    '<div class="grid2"><div class="field"><label for="st-letterhead">Letterhead to start with</label><select id="st-letterhead" data-k="letterhead">' + LETTERHEADS.map(l => '<option value="' + l[0] + '"' + (o.letterhead === l[0] ? ' selected' : '') + '>' + esc(l[1]) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label for="st-notation">Tooth numbering to start with</label><select id="st-notation" data-k="notation"><option value="universal"' + (o.notation === 'universal' ? ' selected' : '') + '>Universal (1–32, A–T)</option><option value="fdi"' + (o.notation === 'fdi' ? ' selected' : '') + '>FDI (11–48, 51–85)</option></select><div class="hint">Either way the letter also spells the tooth out in words.</div></div></div>' +
+    '<div class="mFt" style="justify-content:flex-start"><button class="btn btn-pri" type="submit">Save</button></div></form></div></div>';
+}
+
+/* ---------- modals ---------- */
+function openModal(html, onReady) {
+  closeModal();
+  const w = document.createElement('div'); w.id = 'modalWrap';
+  w.innerHTML = '<div class="modal" role="dialog" aria-modal="true">' + html + '</div>';
+  document.body.appendChild(w);
+  const f = $('input:not([type=hidden]):not([type=file]),select,textarea', w); if (f) f.focus();
+  if (onReady) onReady(w);
+  return w;
+}
+function closeModal() { const w = $('#modalWrap'); if (w) w.remove(); }
+function confirmBox(title, text, okLabel, danger) {
+  return new Promise(res => {
+    openModal('<h3>' + esc(title) + '</h3><p class="lsub" style="font-size:13.5px;color:var(--grey-600)">' + esc(text) + '</p><div class="mFt"><button class="btn btn-sec" id="cbNo">Cancel</button><button class="btn ' + (danger ? 'btn-danger' : 'btn-pri') + '" id="cbYes">' + esc(okLabel) + '</button></div>', w => {
+      $('#cbNo', w).onclick = () => { closeModal(); res(false); }; $('#cbYes', w).onclick = () => { closeModal(); res(true); }; $('#cbYes', w).focus();
+    });
+  });
+}
+async function copyText(s) {
+  try { await navigator.clipboard.writeText(s); return true; } catch (e) { }
+  try { const t = document.createElement('textarea'); t.value = s; document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; }
+}
+function draftTouched() { const d = S.draft; return !!(d.first || d.last || d.dob || d.doc || d.teeth.length || d.edited || d.images.length || Object.keys(d.opt).length); }
+/* a picture is shrunk in the browser before it goes on the page: big enough to read, small enough to print quickly */
+function readImage(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader(); r.onerror = () => rej(new Error('Couldn’t read ' + file.name));
+    r.onload = () => { const im = new Image(); im.onerror = () => rej(new Error(file.name + ' isn’t a picture this page can open.'));
+      im.onload = () => { const max = 2000, k = Math.min(1, max / Math.max(im.width, im.height)); const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res({ name: file.name, src: c.toDataURL('image/jpeg', 0.9) }); };
+      im.src = r.result; };
+    r.readAsDataURL(file);
+  });
+}
+
+/* ---------- actions ---------- */
+Object.assign(ACT, {
+  nav(t) { S.view = t.dataset.v; S.q = ''; S.qFocus = false; closeModal(); renderView(); window.scrollTo(0, 0); },
+  pickLetter(t) { const keep = S.draft; S.draft = Object.assign(blankDraft(t.dataset.id, S.office), { first: keep.first, last: keep.last, dob: keep.dob, rpPhone: keep.rpPhone, docId: keep.docId, doc: keep.doc }); S.docQ = ''; regenText(); renderView(); window.scrollTo(0, 0); },
+  async startOver() {
+    if (draftTouched() && !(await confirmBox('Start a different letter?', 'What you picked for this letter is cleared. The patient and the doctor stay filled in.', 'Different letter'))) return;
+    const k = S.draft; S.draft = Object.assign(blankDraft('', S.office), { first: k.first, last: k.last, dob: k.dob, rpPhone: k.rpPhone, docId: k.docId, doc: k.doc }); renderView(); window.scrollTo(0, 0);
+  },
+  opt(t) {
+    const letter = letterById(S.draft.letter), o = letter.opts.find(x => x.key === t.dataset.k), c = t.dataset.c, d = S.draft;
+    if (o.multi) { const a = Array.isArray(d.opt[o.key]) ? d.opt[o.key].slice() : []; const i = a.indexOf(c); if (i < 0) a.push(c); else a.splice(i, 1); d.opt[o.key] = o.choices.map(ch => ch[0]).filter(k => a.includes(k)); }
+    else d.opt[o.key] = d.opt[o.key] === c ? '' : c;
+    $$('.chip[data-k="' + o.key + '"]').forEach(b => { const on = isPicked(o, b.dataset.c); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+    regenText(); updatePaper();
+  },
+  tooth(t) {
+    const d = S.draft, id = t.dataset.id, i = d.teeth.indexOf(id);
+    if (i < 0) d.teeth.push(id); else d.teeth.splice(i, 1);
+    t.classList.toggle('on', i < 0); t.setAttribute('aria-pressed', i < 0);
+    $('#teethSay').innerHTML = teethSay(); regenText(); updatePaper();
+  },
+  clearTeeth() { S.draft.teeth = []; $$('.tooth.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#teethSay').innerHTML = teethSay(); regenText(); updatePaper(); },
+  notation(t) {
+    S.draft.notation = t.dataset.v; const sec = $('#chart').closest('.bSec'); const h4 = sec.querySelector('h4').outerHTML; sec.innerHTML = h4 + chartHTML();
+    regenText(); updatePaper(); if (S.draft.edited) toast('The numbers in your edited wording were left as you typed them.');
+  },
+  letterhead(t) { S.draft.letterhead = t.dataset.v; $$('.lhOpt').forEach(b => { const on = b.dataset.v === t.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); updatePaper(); },
+  resetText() { S.draft.edited = false; regenText(); $('#resetText').classList.add('hidden'); updatePaper(); },
+  pickDoc(t) { const doc = S.docs.get(t.dataset.id); if (!doc) return; S.draft.docId = doc.id; S.draft.doc = doc; S.docQ = ''; renderDocPick(); updatePaper(); },
+  changeDoc() { S.draft.docId = ''; S.draft.doc = null; renderDocPick(); updatePaper(); const q = $('#docQ'); if (q) q.focus(); },
+  newDoc() {
+    const hand = !!S.docsErr && S.view === 'write';
+    const seed = blankDoc(); const letter = letterById(S.draft.letter); if (S.view === 'write' && letter) seed.type = letter.to[0];
+    docModal(null, { use: S.view === 'write', hand, doc: seed });
+  },
+  editDoc(t) { docModal(t.dataset.id); },
+  editHandDoc() { docModal(null, { hand: true, doc: S.draft.doc }); },
+  async delDoc(t) {
+    const d = S.docs.get(t.dataset.id); if (!d) return;
+    if (!(await confirmBox('Delete ' + docListName(d) + '?', 'This removes the doctor from the directory for everyone. To keep the record but stop offering it, use “Hide” instead.', 'Delete', true))) return;
+    try { await B.deleteDoc(d.id); if (S.draft.docId === d.id) { S.draft.docId = ''; S.draft.doc = null; } toast('Deleted'); renderView(); } catch (e) { toast(errText(e), { bad: true }); }
+  },
+  importDocs() { importModal(); },
+  async runImport() {
+    const i = S.imp; if (!i || !i.fresh.length || i.busy) return;
+    i.busy = true; impInfo();
+    try {
+      await B.addDocs(i.fresh, (n, tot) => { const b = $('#impBar'); if (b) b.style.width = Math.round(n / tot * 100) + '%'; });
+      toast(i.fresh.length + ' doctors added'); closeModal(); S.imp = null; renderView();
+    } catch (e) { i.busy = false; i.err = errText(e) + ' Some doctors may have been added; choose the file again to add the rest.'; impInfo(); }
+  },
+  exportDocs() {
+    const blob = new Blob(['﻿' + docsToCSV(liveDocs())], { type: 'text/csv' }); const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'NLO_doctor_directory_' + todayISO() + '.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  },
+  rmImage(t) { S.draft.images.splice(Number(t.dataset.i), 1); $('#imgList').innerHTML = imagesHTML(); updatePaper(); },
+  async print() {
+    const probs = draftProblems(S.draft);
+    if (probs.length && !(await confirmBox('Print it anyway?', probs.join(' '), 'Print anyway'))) return;
+    document.body.classList.add('printing');
+    const title = document.title; document.title = [letterById(S.draft.letter).label + ' letter', (S.draft.last || '').trim(), (S.draft.first || '').trim()].filter(Boolean).join(' - ');
+    const imgs = $$('#paper img'); await Promise.all(imgs.map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+    window.print(); document.title = title;
+    setTimeout(() => document.body.classList.remove('printing'), 500);
+  },
+  closeModal() { closeModal(); },
+  lock() { lockOut('Locked. Sign in to continue.'); },
+  lockSignOut() { B.signOut().then(() => lockScreen('login')); },
+  forgot() { lockScreen('forgot'); },
+  toLogin() { lockScreen('login'); },
+  copyVal(t) { copyText(t.dataset.v).then(ok => toast(ok ? 'Copied' : 'Couldn’t copy — select it and copy by hand', ok ? {} : { bad: true })); }
+});
+Object.assign(CHG, {
+  typeF(t) { S.typeF = t.value; S.qFocus = false; renderView(); },
+  showOff(t) { S.showOff = t.checked; S.qFocus = false; renderView(); }
+});
+function onClick(e) {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  if (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'button' && t.type !== 'submit')) return;
+  if (ACT[t.dataset.act]) ACT[t.dataset.act](t, e);
+}
+async function onChange(e) {
+  const t = e.target;
+  if (t.dataset && t.dataset.chg && CHG[t.dataset.chg]) return CHG[t.dataset.chg](t, e);
+  if (t.id === 'imgFile') {
+    for (const f of Array.from(t.files || []).slice(0, 6 - S.draft.images.length)) { try { S.draft.images.push(await readImage(f)); } catch (x) { toast(x.message, { bad: true }); } }
+    t.value = ''; if ($('#imgList')) { $('#imgList').innerHTML = imagesHTML(); updatePaper(); } return;
+  }
+  if (t.id === 'impFile' && t.files && t.files[0]) {
+    try {
+      const r = docsFromCSV(await t.files[0].text()); const have = new Set(liveDocs().map(docKey));
+      const fresh = r.docs.filter(d => !have.has(docKey(d)));
+      S.imp = { fresh, have: r.docs.length - fresh.length, skipped: r.skipped, err: r.docs.length ? '' : 'No doctors were found in that file. It should be the CSV with the columns Type, Last, First, Practice, Address, City/State/Zip, Email, Phone.' };
+    } catch (x) { S.imp = { fresh: [], have: 0, skipped: 0, err: 'That file couldn’t be read.' }; }
+    impInfo();
+  }
+}
+function onInput(e) {
+  const t = e.target;
+  if (t.id === 'q') { S.q = t.value; S.qFocus = true; renderView(); return; }
+  if (t.id === 'docQ') { S.docQ = t.value; renderDocPick(); return; }
+  if (t.id === 'ltText') { S.draft.text = t.value; S.draft.edited = t.value !== letterText(S.draft, S.office); $('#resetText').classList.toggle('hidden', !S.draft.edited); updatePaper(); return; }
+  if (t.dataset && t.dataset.d && $('#paper')) { S.draft[t.dataset.d] = t.value; if (t.dataset.d === 'first') regenText(); updatePaper(); }
+}
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'setForm') return;
+  e.preventDefault(); const cfg = {}; $$('[data-k]', e.target).forEach(i => { cfg[i.dataset.k] = i.value.trim(); });
+  if (!validEmail(cfg.records)) return toast('“Where reports should be sent” needs to be an email address.', { bad: true });
+  const btn = $('button[type=submit]', e.target); busyBtn(btn, true, 'Saving…');
+  try { await B.saveOffice(officeCfg(cfg)); toast('Saved'); } catch (x) { toast(errText(x), { bad: true }); }
+  busyBtn(btn, false);
+});
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+</script>
+<script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
+</body>
+</html>

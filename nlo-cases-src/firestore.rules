@@ -414,6 +414,37 @@ service cloud.firestore {
     // Each person's copy of the A/R key ring is sealed to their own key pair (arAccess/<their uid>): these rules
     // decide who may read A/R at all, and only those people can open what they read. Reports from Edge and the
     // notes on each account are sealed in the browser; every save of an account keeps the copy it replaced.
+    // ---------- NLO Letters (referral letters; same office, same logins, same key ring) ----------
+    // The doctor directory: one record per doctor, sealed in the browser with the office key. Nothing about a
+    // patient or a letter is stored. Anyone in the office can add or correct a doctor (each save is the next
+    // version, signed with who made it); only the owner can delete one (staff hide a doctor instead).
+    match /refDocs/{id} {
+      function okRef() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'rev', 'by', 'sid', 'createdAt', 'updatedAt'])
+          && d.v == curV() && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 20000
+          && d.rev is int && d.by == request.auth.uid && d.sid == mySid()
+          && d.updatedAt == request.time;
+      }
+      allow read: if isMember();
+      allow create: if isMember() && okRef() && request.resource.data.rev == 1
+        && request.resource.data.createdAt == request.time;
+      allow update: if isMember() && okRef() && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner();
+    }
+    // What every letter is signed with (the owner's Settings), sealed the same way.
+    match /refCfg/{key} {
+      function okCfg() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'by', 'updatedAt'])
+          && d.v == curV() && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 20000
+          && d.by == request.auth.uid && d.updatedAt == request.time;
+      }
+      allow read: if isMember();
+      allow create, update: if isOwner() && key == 'office' && okCfg();
+      allow delete: if false;
+    }
     function arGrant() { return /databases/$(db)/documents/arAccess/$(request.auth.uid); }
     function isAR() { return isMember() && (isOwner() || exists(arGrant())); }
     function arCurV() { return get(/databases/$(db)/documents/meta/arKeys).data.current; }
