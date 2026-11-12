@@ -284,7 +284,9 @@ function builderHTML() {
     '<button class="btn-ghost btn" data-act="startOver" style="margin:0 0 8px -8px">' + ic('back', 15) + 'Different letter</button>' +
     sec(++n, 'Patient', patient) +
     sec(++n, 'Doctor it goes to', '<div id="docPick"></div>') +
-    (letter.teeth === TEETH_NONE ? '' : sec(++n, letter.teeth === TEETH_REQUIRED ? 'Teeth' : 'Teeth (if it involves specific teeth)', chartHTML())) +
+    (letter.teeth === TEETH_NONE ? '' : sec(++n, letter.teethTitle || (letter.teeth === TEETH_REQUIRED ? 'Teeth' : 'Teeth (if it involves specific teeth)'), chartHTML('teeth'))) +
+    (letter.teeth2 ? sec(++n, letter.teeth2.title, chartHTML('teeth2')) : '') +
+    (letter.sites ? sec(++n, letter.sites.title, siteChartHTML()) : '') +
     sec(++n, 'Details', opts) +
     sec(++n, 'Wording', text) +
     sec(++n, 'Look', look) +
@@ -293,18 +295,50 @@ function builderHTML() {
     '<div class="paperScroll"><div id="paper" class="paper"></div></div></div></div>';
 }
 function isPicked(o, c) { const v = S.draft.opt[o.key]; return o.multi ? Array.isArray(v) && v.includes(c) : v === c; }
-function chartHTML() {
-  const d = S.draft;
-  const tooth = id => { const t = TEETH[id]; const kind = t.name.split(' ').slice(-1)[0];
-    return '<button type="button" class="tooth t-' + kind + (t.upper ? ' up' : ' lo') + (d.teeth.includes(id) ? ' on' : '') + '" data-act="tooth" data-id="' + id + '" title="' + esc(capFirst(t.name)) + '" aria-label="' + esc(t.name) + '" aria-pressed="' + d.teeth.includes(id) + '"><span>' + esc(d.notation === 'fdi' ? t.fdi : t.id) + '</span></button>'; };
+/* one tooth chart; set = 'teeth' (what the letter is about) or 'teeth2' (a letter's second list, e.g. teeth to remove with an exposure) */
+function chartHTML(set) {
+  const d = S.draft, letter = letterById(d.letter), adult = set === 'teeth' && letter.adultOnly;
+  const tooth = id => { const t = TEETH[id]; const kind = t.name.split(' ').slice(-1)[0], on = d[set].includes(id);
+    return '<button type="button" class="tooth t-' + kind + (t.upper ? ' up' : ' lo') + (on ? ' on' : '') + '" data-act="tooth" data-set="' + set + '" data-id="' + id + '" title="' + esc(capFirst(t.name)) + '" aria-label="' + esc(t.name) + '" aria-pressed="' + on + '"><span>' + esc(d.notation === 'fdi' ? t.fdi : t.id) + '</span></button>'; };
   const row = (ids, cls) => '<div class="tRow ' + cls + '">' + ids.map((id, i) => (i === ids.length / 2 ? '<span class="mid"></span>' : '') + tooth(id)).join('') + '</div>';
-  return '<div class="chart" id="chart"><div class="sideLbl"><span>Patient’s right</span><b>Upper teeth</b><span>Patient’s left</span></div>' +
-    row(CHART_ROWS.upper, 'perm') + row(CHART_ROWS.upperPrimary, 'prim') + '<div class="arch"><span></span></div>' + row(CHART_ROWS.lowerPrimary, 'prim') + row(CHART_ROWS.lower, 'perm') +
+  return '<div class="chart" id="chart-' + set + '"><div class="sideLbl"><span>Patient’s right</span><b>Upper teeth</b><span>Patient’s left</span></div>' +
+    row(CHART_ROWS.upper, 'perm') + (adult ? '' : row(CHART_ROWS.upperPrimary, 'prim')) + '<div class="arch"><span></span></div>' + (adult ? '' : row(CHART_ROWS.lowerPrimary, 'prim')) + row(CHART_ROWS.lower, 'perm') +
     '<div class="sideLbl" style="padding:6px 4px 0"><span></span><b>Lower teeth</b><span></span></div></div>' +
-    '<div class="chartFt"><div id="teethSay" class="teethSay">' + teethSay() + '</div>' +
+    '<div class="chartFt"><div id="teethSay-' + set + '" class="teethSay">' + teethSay(set) + '</div>' +
+    (set === 'teeth' ? '<div class="seg" role="group" aria-label="Tooth numbering"><button type="button" class="' + (d.notation === 'universal' ? 'on' : '') + '" data-act="notation" data-v="universal">1–32 / A–T</button><button type="button" class="' + (d.notation === 'fdi' ? 'on' : '') + '" data-act="notation" data-v="fdi">FDI</button></div>' : '') + '</div>';
+}
+function teethSay(set) {
+  const letter = letterById(S.draft.letter) || {}, t = sortTeeth(S.draft[set]);
+  const hint = set === 'teeth2' ? letter.teeth2.hint : (letter.teethHint || 'Click the teeth. Small letters in the middle rows are baby teeth.');
+  return t.length ? '<b>' + t.length + ' picked:</b> ' + esc(teethText(t, S.draft.notation)) + ' <button type="button" class="linkBtn" data-act="clearTeeth" data-set="' + set + '">Clear</button>' : '<span class="muted">' + esc(hint) + '</span>';
+}
+/* TAD sites: both arches drawn flat, with a spot to click between each pair of neighbouring teeth — outside the arch for buccal,
+   inside it for palatal (upper) and lingual (lower). The teeth themselves are only there to show where you are. */
+function siteChartHTML() {
+  const d = S.draft;
+  const teeth = ids => '<div class="sRow sTeeth"><span class="sLbl"></span>' + ids.map((id, i) => { const t = TEETH[id], kind = t.name.split(' ').slice(-1)[0];
+    return '<span class="sTooth t-' + kind + (t.upper ? ' up' : ' lo') + (i === 8 ? ' midL' : '') + '" style="grid-column:' + (2 * i + 2) + ' / span 2">' + esc(d.notation === 'fdi' ? t.fdi : t.id) + '</span>'; }).join('') + '</div>';
+  const dots = (gaps, side, label) => '<div class="sRow sDots"><span class="sLbl">' + label + '</span>' + gaps.map((g, i) => { const id = side + ':' + g, on = d.sites.includes(id);
+    return '<button type="button" class="sDot' + (on ? ' on' : '') + '" style="grid-column:' + (2 * i + 3) + ' / span 2" data-act="site" data-id="' + id + '" title="' + esc(capFirst(siteText(id, d.notation))) + '" aria-label="' + esc(siteText(id, d.notation)) + '" aria-pressed="' + on + '"><i></i></button>'; }).join('') + '</div>';
+  return '<div class="chart sChart" id="chart-sites"><div class="sideLbl"><span>Patient’s right</span><b>Upper teeth</b><span>Patient’s left</span></div>' +
+    dots(SITE_ROWS.upper, 'B', 'Buccal') + teeth(CHART_ROWS.upper) + dots(SITE_ROWS.upper, 'L', 'Palatal') +
+    '<div class="arch"><span></span></div>' +
+    dots(SITE_ROWS.lower, 'L', 'Lingual') + teeth(CHART_ROWS.lower) + dots(SITE_ROWS.lower, 'B', 'Buccal') +
+    '<div class="sideLbl" style="padding:6px 4px 0"><span></span><b>Lower teeth</b><span></span></div></div>' +
+    '<div class="chartFt"><div id="sitesSay" class="teethSay">' + sitesSay() + '</div>' +
     '<div class="seg" role="group" aria-label="Tooth numbering"><button type="button" class="' + (d.notation === 'universal' ? 'on' : '') + '" data-act="notation" data-v="universal">1–32 / A–T</button><button type="button" class="' + (d.notation === 'fdi' ? 'on' : '') + '" data-act="notation" data-v="fdi">FDI</button></div></div>';
 }
-function teethSay() { const t = sortTeeth(S.draft.teeth); return t.length ? '<b>' + t.length + ' picked:</b> ' + esc(teethText(t, S.draft.notation)) + ' <button type="button" class="linkBtn" data-act="clearTeeth">Clear</button>' : '<span class="muted">' + esc((letterById(S.draft.letter) || {}).teethHint || 'Click the teeth. Small letters in the middle rows are baby teeth.') + '</span>'; }
+function sitesSay() {
+  const t = sortSites(S.draft.sites);
+  return t.length ? '<b>' + t.length + ' marked:</b> ' + esc(t.map(id => siteShort(id, S.draft.notation)).join(', ')) + ' <button type="button" class="linkBtn" data-act="clearSites">Clear</button>' : '<span class="muted">' + esc(letterById(S.draft.letter).sites.hint) + '</span>';
+}
+/* marking a spot keeps "How many in all" in step with the chart (it can still be raised by hand for places picked as words) */
+function syncSiteCount() {
+  const letter = letterById(S.draft.letter), o = letter.opts.find(x => x.key === 'count'); if (!o) return;
+  const n = sortSites(S.draft.sites).length + (Array.isArray(S.draft.opt.site) ? S.draft.opt.site.length : 0);
+  S.draft.opt.count = o.choices.some(ch => ch[0] === String(n)) ? String(n) : '';
+  $$('.chip[data-k="count"]').forEach(b => { const on = isPicked(o, b.dataset.c); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+}
 function imagesHTML() {
   return S.draft.images.map((im, i) => '<div class="imgChip"><img src="' + im.src + '" alt=""><span>' + esc(im.name) + '</span><button type="button" class="iconBtn" data-act="rmImage" data-i="' + i + '" aria-label="Remove ' + esc(im.name) + '">' + ic('x', 15) + '</button></div>').join('') +
     '<label class="btn btn-sec btn-sm imgAdd">' + ic('image', 15) + 'Add an image<input type="file" id="imgFile" accept="image/png,image/jpeg" multiple hidden></label>';
@@ -350,7 +384,7 @@ function paperHTML(d, cfg) {
     '<div class="pTo">' + (to.length ? to.map(esc).join('<br>') : blank('Doctor’s name and address')) + '</div>' +
     '<div class="pRe"><div>RE: <b>' + (name ? esc(name) : blank('Patient name')) + '</b></div><div>DOB: ' + (d.dob && validDob(d.dob) ? esc(fmtDob(d.dob)) : blank('date of birth')) + '</div>' +
     ((d.rpPhone || '').trim() ? '<div>Responsible Party Phone: ' + esc(d.rpPhone.trim()) + '</div>' : '') + '</div>' +
-    '<div class="pSub">Subject: ' + esc(letter.subject) + '</div>' +
+    '<div class="pSub">Subject: ' + esc(letterSubject(d)) + '</div>' +
     '<div class="pDear">' + esc(docSalute(d.doc)) + ',</div>' +
     paras.map(p => '<p>' + esc(p).replace(/\[choose the teeth\]/g, '<span class="blank">choose the teeth</span>').replace(/\n/g, '<br>') + '</p>').join('') +
     '<div class="pSign"><div>Sincerely,</div><div class="sigGap"></div><div>' + esc(cfg.doctor) + '</div><div>' + esc(cfg.practice) + '</div>' +
@@ -479,7 +513,7 @@ async function copyText(s) {
   try { await navigator.clipboard.writeText(s); return true; } catch (e) { }
   try { const t = document.createElement('textarea'); t.value = s; document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; }
 }
-function draftTouched() { const d = S.draft; return !!(d.first || d.last || d.dob || d.doc || d.teeth.length || d.edited || d.images.length || Object.keys(d.opt).length); }
+function draftTouched() { const d = S.draft; return !!(d.first || d.last || d.dob || d.doc || d.teeth.length || d.teeth2.length || d.sites.length || d.edited || d.images.length || Object.keys(d.opt).length); }
 /* a picture is shrunk in the browser before it goes on the page: big enough to read, small enough to print quickly */
 function readImage(file) {
   return new Promise((res, rej) => {
@@ -505,17 +539,26 @@ Object.assign(ACT, {
     if (o.multi) { const a = Array.isArray(d.opt[o.key]) ? d.opt[o.key].slice() : []; const i = a.indexOf(c); if (i < 0) a.push(c); else a.splice(i, 1); d.opt[o.key] = o.choices.map(ch => ch[0]).filter(k => a.includes(k)); }
     else d.opt[o.key] = d.opt[o.key] === c ? '' : c;
     $$('.chip[data-k="' + o.key + '"]').forEach(b => { const on = isPicked(o, b.dataset.c); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+    if (letter.sites && o.key === 'site') syncSiteCount();
     regenText(); updatePaper();
   },
   tooth(t) {
-    const d = S.draft, id = t.dataset.id, i = d.teeth.indexOf(id);
-    if (i < 0) d.teeth.push(id); else d.teeth.splice(i, 1);
+    const d = S.draft, set = t.dataset.set, id = t.dataset.id, i = d[set].indexOf(id);
+    if (i < 0) d[set].push(id); else d[set].splice(i, 1);
     t.classList.toggle('on', i < 0); t.setAttribute('aria-pressed', i < 0);
-    $('#teethSay').innerHTML = teethSay(); regenText(); updatePaper();
+    $('#teethSay-' + set).innerHTML = teethSay(set); regenText(); updatePaper();
   },
-  clearTeeth() { S.draft.teeth = []; $$('.tooth.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#teethSay').innerHTML = teethSay(); regenText(); updatePaper(); },
+  site(t) {
+    const d = S.draft, id = t.dataset.id, i = d.sites.indexOf(id);
+    if (i < 0) d.sites.push(id); else d.sites.splice(i, 1);
+    t.classList.toggle('on', i < 0); t.setAttribute('aria-pressed', i < 0);
+    $('#sitesSay').innerHTML = sitesSay(); syncSiteCount(); regenText(); updatePaper();
+  },
+  clearSites() { S.draft.sites = []; $$('.sDot.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#sitesSay').innerHTML = sitesSay(); syncSiteCount(); regenText(); updatePaper(); },
+  clearTeeth(t) { const set = t.dataset.set; S.draft[set] = []; $$('#chart-' + set + ' .tooth.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#teethSay-' + set).innerHTML = teethSay(set); regenText(); updatePaper(); },
   notation(t) {
-    S.draft.notation = t.dataset.v; const sec = $('#chart').closest('.bSec'); const h4 = sec.querySelector('h4').outerHTML; sec.innerHTML = h4 + chartHTML();
+    S.draft.notation = t.dataset.v;
+    ['teeth', 'teeth2', 'sites'].forEach(set => { const c = $('#chart-' + set); if (!c) return; const sec = c.closest('.bSec'); const h4 = sec.querySelector('h4').outerHTML; sec.innerHTML = h4 + (set === 'sites' ? siteChartHTML() : chartHTML(set)); });
     regenText(); updatePaper(); if (S.draft.edited) toast('The numbers in your edited wording were left as you typed them.');
   },
   letterhead(t) { S.draft.letterhead = t.dataset.v; $$('.lhOpt').forEach(b => { const on = b.dataset.v === t.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); updatePaper(); },

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-yQxa1M5cEuZdLgY5WO5zKVojeHwTayM9GuOJGOKDByo=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-YEqcmPToLJgp7NBg8CfPPAXGh3C31wEWEZD7ZllyUII=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Letters</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -518,8 +518,8 @@ ol.steps li{margin-bottom:6px}
 .tRow.prim .tooth.t-molar{width:26px}
 .tRow.perm.up,.tRow:first-of-type{align-items:flex-end}
 .tooth:hover{border-color:var(--blue);background:var(--blue-100)}
-.tooth.on{background:var(--coral-600);border-color:var(--coral-700);border-style:solid;color:#fff}
-.arch{display:flex;align-items:center;gap:8px;font-family:var(--fd);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-400);padding:0 4px;min-width:440px}
+.tooth.on,.tRow.prim .tooth.on{background:var(--coral-600);border-color:var(--coral-700);border-style:solid;color:#fff}
+.arch{margin:5px 0;display:flex;align-items:center;gap:8px;font-family:var(--fd);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-400);padding:0 4px;min-width:440px}
 .arch span{flex:1;border-top:1.5px solid var(--grey-200);margin:2px 0}
 .chartFt{display:flex;gap:12px;align-items:flex-start;margin-top:10px}
 .teethSay{flex:1;font-size:12.5px;color:var(--grey-600);line-height:1.45}
@@ -527,6 +527,18 @@ ol.steps li{margin-bottom:6px}
 .seg{display:inline-flex;border:1.5px solid var(--grey-200);border-radius:99px;overflow:hidden;flex:none}
 .seg button{padding:5px 11px;font-size:11.5px;font-weight:700;color:var(--grey-500)}
 .seg button.on{background:var(--navy);color:#fff}
+
+/* TAD sites: teeth as markers, a round spot between each pair on the buccal and the lingual side */
+.sChart .sRow{display:grid;grid-template-columns:54px repeat(32,minmax(11px,1fr));align-items:center;min-width:470px}
+.sLbl{font-family:var(--fd);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-500)}
+.sTooth{height:30px;margin:0 1px;border:1.5px solid var(--grey-200);background:#fff;color:var(--grey-500);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.sTooth.up{border-radius:5px 5px 10px 10px} .sTooth.lo{border-radius:10px 10px 5px 5px}
+.sTooth.midL{box-shadow:-4px 0 0 -2.5px var(--grey-400)}
+.sDots{height:24px}
+.sDot{justify-self:center;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.sDot i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--grey-300);background:#fff;transition:all .1s}
+.sDot:hover i{width:15px;height:15px;border-color:var(--blue);background:var(--blue-100)}
+.sDot.on i{width:16px;height:16px;border-color:var(--coral-700);background:var(--coral-600);box-shadow:0 0 0 3px var(--coral-100)}
 
 /* letterhead choices + images */
 .lhGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -908,6 +920,9 @@ const LETTERS = [
   {
     id: 'exposure', label: 'Exposure', subject: 'Referral for Surgical Exposure', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_REQUIRED,
     blurb: 'Ask a surgeon to uncover an impacted tooth.',
+    // Exposure is of adult teeth (the chart leaves the baby teeth out); teeth to take out at the same visit, baby or adult, are picked on a second chart.
+    teethTitle: 'Teeth to uncover', adultOnly: true, teethHint: 'Click the impacted teeth. Baby teeth to remove go on the next chart.',
+    teeth2: { title: 'Teeth to remove at the same visit', hint: 'Optional. Click any baby or adult teeth the surgeon should extract.', subject: 'Referral for Surgical Exposure and Extraction' },
     opts: [
       { key: 'side', label: 'Where the tooth sits', choices: [
         ['buccal', 'Buccal / labial', 'The tooth appears to be positioned on the buccal (cheek) side.'],
@@ -931,7 +946,8 @@ const LETTERS = [
       return [
         'We are referring ' + c.first + ' to your office for the evaluation and surgical exposure of ' + c.teeth + ' as part of their comprehensive orthodontic treatment plan.',
         [c.word('side'), c.word('how')].filter(Boolean).join(' '),
-        c.word('chain')
+        c.word('chain'),
+        c.teeth2 ? 'As part of the same plan, we are also requesting the extraction of ' + c.teeth2 + ' at the same visit.' : ''
         , c.notes('note'), 'Please send your operative report and any relevant post-operative imaging to ' + c.records + '.'
       ];
     }
@@ -1064,19 +1080,17 @@ const LETTERS = [
     }
   },
   {
-    id: 'tads', label: 'TAD placement', subject: 'Referral for Placement of Temporary Anchorage Devices (TADs)', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_OPTIONAL,
-    blurb: 'Ask a surgeon or periodontist to place TADs.', teethHint: 'Click the teeth each TAD goes next to or between.',
+    id: 'tads', label: 'TAD placement', subject: 'Referral for Placement of Temporary Anchorage Devices (TADs)', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_NONE,
+    blurb: 'Ask a surgeon or periodontist to place TADs.',
+    // where the TADs go is marked on a picture of both arches: a spot between two teeth, on the buccal or the lingual side
+    sites: { title: 'Where the TADs go', hint: 'Click a spot between two teeth: the outer rows are buccal, the inner rows are palatal (upper) and lingual (lower).' },
     opts: [
-      { key: 'count', label: 'How many', choices: [
-        ['1', '1', 'one temporary anchorage device (TAD)'], ['2', '2', 'two temporary anchorage devices (TADs)'],
-        ['3', '3', 'three temporary anchorage devices (TADs)'], ['4', '4', 'four temporary anchorage devices (TADs)']] },
-      { key: 'site', label: 'Where', multi: true, choices: [
-        ['buccal', 'Buccal, between the roots', 'on the buccal side between the roots'],
-        ['palatal', 'Palatal, between the roots', 'on the palatal side between the roots'],
+      { key: 'site', label: 'Other places', multi: true, choices: [
         ['paramedian', 'Palate, beside the midline', 'in the anterior palate beside the midline'],
         ['izc', 'Infrazygomatic crest', 'at the infrazygomatic crest'],
-        ['shelf', 'Buccal shelf', 'at the mandibular buccal shelf'],
-        ['anterior', 'Front, between the incisors', 'between the roots of the incisors']] },
+        ['shelf', 'Buccal shelf', 'at the mandibular buccal shelf']] },
+      { key: 'count', label: 'How many in all', choices: [
+        ['1', '1', 'one'], ['2', '2', 'two'], ['3', '3', 'three'], ['4', '4', 'four'], ['5', '5', 'five'], ['6', '6', 'six']] },
       { key: 'purpose', label: 'What they are for', multi: true, choices: [
         ['space', 'Closing space', 'space closure'],
         ['distal', 'Distalization', 'distalization of the posterior teeth'],
@@ -1098,14 +1112,17 @@ const LETTERS = [
         ['braces', 'Braces are on', 'The braces are in place; we are happy to remove an archwire before the appointment if that would help.']] }
     ],
     build(c) {
-      const many = (c.pick('count') || '2') !== '1';
-      const what = c.word('count') || 'temporary anchorage devices (TADs)';
-      const where = [joinList(c.words('site')), c.teeth ? (c.count === 2 ? 'between ' : 'next to ') + c.teeth : ''].filter(Boolean).join(', ');
+      const places = c.sites.concat(c.words('site'));
+      const n = Number(c.pick('count')) || c.sites.length || 0, many = n !== 1;
+      const what = n ? NUM_WORDS[n] + ' temporary anchorage device' + (many ? 's (TADs)' : ' (TAD)') : 'temporary anchorage devices (TADs)';
+      const where = places.length === 1 ? 'We are requesting placement ' + places[0] + '.'
+        : places.length ? 'We are requesting placement at the following sites: ' + places.map((x, i) => '(' + (i + 1) + ') ' + x.replace(/^on the (\w+) side between /, '$1, between ')).join('; ') + '.' : '';
       const why = joinList(c.words('purpose'));
       const fix = s => many ? s : s.replace('load the TADs', 'load the TAD').replace('as soon as they are in place', 'as soon as it is in place').replace('send the TADs', 'send the TAD').replace('the head of each TAD', 'the head of the TAD');
       return [
         'We are referring ' + c.first + ' to your office for the placement of ' + what + ' as part of their comprehensive orthodontic treatment plan.',
-        where || why ? 'We are requesting placement' + (where ? ' ' + where : '') + (why ? (where ? ', ' : ' ') + 'to provide anchorage for ' + why : '') + '.' : '',
+        where,
+        why ? (many ? 'The TADs' : 'The TAD') + ' will provide anchorage for ' + why + '.' : '',
         [c.word('size'), fix(c.word('load'))].filter(Boolean).join(' '),
         fix(c.notes('note')),
         'Please send a note of the placement, including the size and position of ' + (many ? 'each TAD' : 'the TAD') + ', to ' + c.records + '.'
@@ -1158,7 +1175,7 @@ function letterById(id) { return LETTERS.find(l => l.id === id) || null; }
 
 /* a blank letter in progress (never saved anywhere) */
 function blankDraft(letterId, cfg) {
-  return { letter: letterId || '', first: '', last: '', dob: '', rpPhone: '', docId: '', doc: null, teeth: [], opt: {}, text: '', edited: false,
+  return { letter: letterId || '', first: '', last: '', dob: '', rpPhone: '', docId: '', doc: null, teeth: [], teeth2: [], sites: [], opt: {}, text: '', edited: false,
     letterhead: (cfg && cfg.letterhead) || OFFICE_DEFAULTS.letterhead, notation: (cfg && cfg.notation) || OFFICE_DEFAULTS.notation, date: '', images: [] };
 }
 /* the choice's words, with the patient's first name filled in */
@@ -1177,16 +1194,39 @@ const MANY_TEETH = [['The tooth appears to be positioned', 'The teeth appear to 
   ['we will bond one in our office once the tooth is uncovered', 'we will bond them in our office once the teeth are uncovered'], ['Space for the tooth has been opened', 'Space for the teeth has been opened'],
   ['to begin moving the tooth', 'to begin moving the teeth'], ['because the tooth is impacted or erupting out of position', 'because the teeth are impacted or erupting out of position']];
 function toothCount(s, n) { (n === 1 ? ONE_TOOTH : n > 1 ? MANY_TEETH : []).forEach(([a, b]) => { s = s.split(a).join(b); }); return s; }
+/* ---------- TAD sites: a spot between two neighbouring teeth, on the buccal (B) or the lingual / palatal (L) side ---------- */
+/* id = side + ':' + the two teeth as they sit in the chart row, e.g. "B:3-4", "L:8-9" (across the upper midline), "B:30-29" */
+const NUM_WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const SITE_ROWS = { upper: CHART_ROWS.upper.slice(0, -1).map((a, i) => a + '-' + CHART_ROWS.upper[i + 1]), lower: CHART_ROWS.lower.slice(0, -1).map((a, i) => a + '-' + CHART_ROWS.lower[i + 1]) };
+const SITE_ORDER = SITE_ROWS.upper.map(g => 'B:' + g).concat(SITE_ROWS.upper.map(g => 'L:' + g), SITE_ROWS.lower.map(g => 'L:' + g), SITE_ROWS.lower.map(g => 'B:' + g));
+function siteParts(id) {
+  if (!SITE_ORDER.includes(id)) return null;
+  const side = id[0], pair = id.slice(2).split('-'), a = TEETH[pair[0]], b = TEETH[pair[1]];
+  return { side, a, b, upper: a.upper, sideName: side === 'B' ? 'buccal' : a.upper ? 'palatal' : 'lingual' };
+}
+function sortSites(ids) { return Array.from(new Set((ids || []).filter(id => SITE_ORDER.includes(id)))).sort((x, y) => SITE_ORDER.indexOf(x) - SITE_ORDER.indexOf(y)); }
+/* "on the buccal side between #3 (upper right first molar) and #4 (upper right second premolar)" */
+function siteText(id, notation) {
+  const s = siteParts(id); if (!s) return '';
+  return 'on the ' + s.sideName + ' side between ' + toothLabel(s.a.id, notation) + ' (' + s.a.name + ') and ' + toothLabel(s.b.id, notation) + ' (' + s.b.name + ')';
+}
+/* a short form for the screen: "Buccal 3–4" */
+function siteShort(id, notation) { const s = siteParts(id); if (!s) return ''; return capFirst(s.sideName) + ' ' + toothLabel(s.a.id, notation).slice(1) + '–' + toothLabel(s.b.id, notation).slice(1); }
+/* the teeth the letter is about; a letter for adult teeth only never carries a baby tooth */
+function mainTeeth(letter, draft) { return sortTeeth(draft.teeth).filter(id => !(letter.adultOnly && TEETH[id].primary)); }
+function letterSubject(draft) { const l = letterById(draft.letter); if (!l) return ''; return l.teeth2 && sortTeeth(draft.teeth2).length ? l.teeth2.subject : l.subject; }
 /* the body of the letter as paragraphs (no greeting, no closing) */
 function letterBody(draft, cfg) {
   const letter = letterById(draft.letter); if (!letter) return [];
   const first = (draft.first || '').trim() || 'the patient';
-  const n = sortTeeth(draft.teeth).length;
+  const n = mainTeeth(letter, draft).length;
   const say = s => toothCount(fillName(s, first), n);
   const c = {
     first, records: cfg.records,
-    teeth: teethText(draft.teeth, draft.notation),
+    teeth: teethText(mainTeeth(letter, draft), draft.notation),
+    teeth2: letter.teeth2 ? teethText(draft.teeth2, draft.notation) : '',
     one: n === 1, count: n,
+    sites: letter.sites ? sortSites(draft.sites).map(id => siteText(id, draft.notation)) : [],
     pick: key => { const p = picked(letter, draft, key); return p.length ? p[0][0] : ''; },
     words: key => picked(letter, draft, key).map(ch => say(ch[2])),
     word: key => { const p = picked(letter, draft, key); return p.length ? say(p[0][2]) : ''; },
@@ -1204,7 +1244,13 @@ function draftProblems(draft) {
   if (!draft.dob) out.push('Enter the patient’s date of birth.');
   else if (!validDob(draft.dob)) out.push('The date of birth doesn’t look right.');
   if (!draft.doc || !(docName(draft.doc) || draft.doc.practice)) out.push('Choose the doctor the letter goes to.');
-  if (letter.teeth === TEETH_REQUIRED && !sortTeeth(draft.teeth).length) out.push('Pick the teeth on the chart.');
+  if (letter.teeth === TEETH_REQUIRED && !mainTeeth(letter, draft).length) out.push('Pick the teeth on the chart.');
+  if (letter.teeth2 && sortTeeth(draft.teeth2).some(id => draft.teeth.includes(id))) out.push('A tooth is marked both to uncover and to remove.');
+  if (letter.sites) {
+    const marked = sortSites(draft.sites).length, other = picked(letter, draft, 'site').length, n = Number((picked(letter, draft, 'count')[0] || [])[0]) || 0;
+    if (!marked && !other) out.push('Mark where the TADs go.');
+    else if (n && n < marked) out.push('More places are marked than the number of TADs picked.');
+  }
   if (/\[choose the teeth\]/.test(draft.text || '')) out.push('The letter still says “[choose the teeth]”.');
   return out;
 }
@@ -1851,7 +1897,9 @@ function builderHTML() {
     '<button class="btn-ghost btn" data-act="startOver" style="margin:0 0 8px -8px">' + ic('back', 15) + 'Different letter</button>' +
     sec(++n, 'Patient', patient) +
     sec(++n, 'Doctor it goes to', '<div id="docPick"></div>') +
-    (letter.teeth === TEETH_NONE ? '' : sec(++n, letter.teeth === TEETH_REQUIRED ? 'Teeth' : 'Teeth (if it involves specific teeth)', chartHTML())) +
+    (letter.teeth === TEETH_NONE ? '' : sec(++n, letter.teethTitle || (letter.teeth === TEETH_REQUIRED ? 'Teeth' : 'Teeth (if it involves specific teeth)'), chartHTML('teeth'))) +
+    (letter.teeth2 ? sec(++n, letter.teeth2.title, chartHTML('teeth2')) : '') +
+    (letter.sites ? sec(++n, letter.sites.title, siteChartHTML()) : '') +
     sec(++n, 'Details', opts) +
     sec(++n, 'Wording', text) +
     sec(++n, 'Look', look) +
@@ -1860,18 +1908,50 @@ function builderHTML() {
     '<div class="paperScroll"><div id="paper" class="paper"></div></div></div></div>';
 }
 function isPicked(o, c) { const v = S.draft.opt[o.key]; return o.multi ? Array.isArray(v) && v.includes(c) : v === c; }
-function chartHTML() {
-  const d = S.draft;
-  const tooth = id => { const t = TEETH[id]; const kind = t.name.split(' ').slice(-1)[0];
-    return '<button type="button" class="tooth t-' + kind + (t.upper ? ' up' : ' lo') + (d.teeth.includes(id) ? ' on' : '') + '" data-act="tooth" data-id="' + id + '" title="' + esc(capFirst(t.name)) + '" aria-label="' + esc(t.name) + '" aria-pressed="' + d.teeth.includes(id) + '"><span>' + esc(d.notation === 'fdi' ? t.fdi : t.id) + '</span></button>'; };
+/* one tooth chart; set = 'teeth' (what the letter is about) or 'teeth2' (a letter's second list, e.g. teeth to remove with an exposure) */
+function chartHTML(set) {
+  const d = S.draft, letter = letterById(d.letter), adult = set === 'teeth' && letter.adultOnly;
+  const tooth = id => { const t = TEETH[id]; const kind = t.name.split(' ').slice(-1)[0], on = d[set].includes(id);
+    return '<button type="button" class="tooth t-' + kind + (t.upper ? ' up' : ' lo') + (on ? ' on' : '') + '" data-act="tooth" data-set="' + set + '" data-id="' + id + '" title="' + esc(capFirst(t.name)) + '" aria-label="' + esc(t.name) + '" aria-pressed="' + on + '"><span>' + esc(d.notation === 'fdi' ? t.fdi : t.id) + '</span></button>'; };
   const row = (ids, cls) => '<div class="tRow ' + cls + '">' + ids.map((id, i) => (i === ids.length / 2 ? '<span class="mid"></span>' : '') + tooth(id)).join('') + '</div>';
-  return '<div class="chart" id="chart"><div class="sideLbl"><span>Patient’s right</span><b>Upper teeth</b><span>Patient’s left</span></div>' +
-    row(CHART_ROWS.upper, 'perm') + row(CHART_ROWS.upperPrimary, 'prim') + '<div class="arch"><span></span></div>' + row(CHART_ROWS.lowerPrimary, 'prim') + row(CHART_ROWS.lower, 'perm') +
+  return '<div class="chart" id="chart-' + set + '"><div class="sideLbl"><span>Patient’s right</span><b>Upper teeth</b><span>Patient’s left</span></div>' +
+    row(CHART_ROWS.upper, 'perm') + (adult ? '' : row(CHART_ROWS.upperPrimary, 'prim')) + '<div class="arch"><span></span></div>' + (adult ? '' : row(CHART_ROWS.lowerPrimary, 'prim')) + row(CHART_ROWS.lower, 'perm') +
     '<div class="sideLbl" style="padding:6px 4px 0"><span></span><b>Lower teeth</b><span></span></div></div>' +
-    '<div class="chartFt"><div id="teethSay" class="teethSay">' + teethSay() + '</div>' +
+    '<div class="chartFt"><div id="teethSay-' + set + '" class="teethSay">' + teethSay(set) + '</div>' +
+    (set === 'teeth' ? '<div class="seg" role="group" aria-label="Tooth numbering"><button type="button" class="' + (d.notation === 'universal' ? 'on' : '') + '" data-act="notation" data-v="universal">1–32 / A–T</button><button type="button" class="' + (d.notation === 'fdi' ? 'on' : '') + '" data-act="notation" data-v="fdi">FDI</button></div>' : '') + '</div>';
+}
+function teethSay(set) {
+  const letter = letterById(S.draft.letter) || {}, t = sortTeeth(S.draft[set]);
+  const hint = set === 'teeth2' ? letter.teeth2.hint : (letter.teethHint || 'Click the teeth. Small letters in the middle rows are baby teeth.');
+  return t.length ? '<b>' + t.length + ' picked:</b> ' + esc(teethText(t, S.draft.notation)) + ' <button type="button" class="linkBtn" data-act="clearTeeth" data-set="' + set + '">Clear</button>' : '<span class="muted">' + esc(hint) + '</span>';
+}
+/* TAD sites: both arches drawn flat, with a spot to click between each pair of neighbouring teeth — outside the arch for buccal,
+   inside it for palatal (upper) and lingual (lower). The teeth themselves are only there to show where you are. */
+function siteChartHTML() {
+  const d = S.draft;
+  const teeth = ids => '<div class="sRow sTeeth"><span class="sLbl"></span>' + ids.map((id, i) => { const t = TEETH[id], kind = t.name.split(' ').slice(-1)[0];
+    return '<span class="sTooth t-' + kind + (t.upper ? ' up' : ' lo') + (i === 8 ? ' midL' : '') + '" style="grid-column:' + (2 * i + 2) + ' / span 2">' + esc(d.notation === 'fdi' ? t.fdi : t.id) + '</span>'; }).join('') + '</div>';
+  const dots = (gaps, side, label) => '<div class="sRow sDots"><span class="sLbl">' + label + '</span>' + gaps.map((g, i) => { const id = side + ':' + g, on = d.sites.includes(id);
+    return '<button type="button" class="sDot' + (on ? ' on' : '') + '" style="grid-column:' + (2 * i + 3) + ' / span 2" data-act="site" data-id="' + id + '" title="' + esc(capFirst(siteText(id, d.notation))) + '" aria-label="' + esc(siteText(id, d.notation)) + '" aria-pressed="' + on + '"><i></i></button>'; }).join('') + '</div>';
+  return '<div class="chart sChart" id="chart-sites"><div class="sideLbl"><span>Patient’s right</span><b>Upper teeth</b><span>Patient’s left</span></div>' +
+    dots(SITE_ROWS.upper, 'B', 'Buccal') + teeth(CHART_ROWS.upper) + dots(SITE_ROWS.upper, 'L', 'Palatal') +
+    '<div class="arch"><span></span></div>' +
+    dots(SITE_ROWS.lower, 'L', 'Lingual') + teeth(CHART_ROWS.lower) + dots(SITE_ROWS.lower, 'B', 'Buccal') +
+    '<div class="sideLbl" style="padding:6px 4px 0"><span></span><b>Lower teeth</b><span></span></div></div>' +
+    '<div class="chartFt"><div id="sitesSay" class="teethSay">' + sitesSay() + '</div>' +
     '<div class="seg" role="group" aria-label="Tooth numbering"><button type="button" class="' + (d.notation === 'universal' ? 'on' : '') + '" data-act="notation" data-v="universal">1–32 / A–T</button><button type="button" class="' + (d.notation === 'fdi' ? 'on' : '') + '" data-act="notation" data-v="fdi">FDI</button></div></div>';
 }
-function teethSay() { const t = sortTeeth(S.draft.teeth); return t.length ? '<b>' + t.length + ' picked:</b> ' + esc(teethText(t, S.draft.notation)) + ' <button type="button" class="linkBtn" data-act="clearTeeth">Clear</button>' : '<span class="muted">' + esc((letterById(S.draft.letter) || {}).teethHint || 'Click the teeth. Small letters in the middle rows are baby teeth.') + '</span>'; }
+function sitesSay() {
+  const t = sortSites(S.draft.sites);
+  return t.length ? '<b>' + t.length + ' marked:</b> ' + esc(t.map(id => siteShort(id, S.draft.notation)).join(', ')) + ' <button type="button" class="linkBtn" data-act="clearSites">Clear</button>' : '<span class="muted">' + esc(letterById(S.draft.letter).sites.hint) + '</span>';
+}
+/* marking a spot keeps "How many in all" in step with the chart (it can still be raised by hand for places picked as words) */
+function syncSiteCount() {
+  const letter = letterById(S.draft.letter), o = letter.opts.find(x => x.key === 'count'); if (!o) return;
+  const n = sortSites(S.draft.sites).length + (Array.isArray(S.draft.opt.site) ? S.draft.opt.site.length : 0);
+  S.draft.opt.count = o.choices.some(ch => ch[0] === String(n)) ? String(n) : '';
+  $$('.chip[data-k="count"]').forEach(b => { const on = isPicked(o, b.dataset.c); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+}
 function imagesHTML() {
   return S.draft.images.map((im, i) => '<div class="imgChip"><img src="' + im.src + '" alt=""><span>' + esc(im.name) + '</span><button type="button" class="iconBtn" data-act="rmImage" data-i="' + i + '" aria-label="Remove ' + esc(im.name) + '">' + ic('x', 15) + '</button></div>').join('') +
     '<label class="btn btn-sec btn-sm imgAdd">' + ic('image', 15) + 'Add an image<input type="file" id="imgFile" accept="image/png,image/jpeg" multiple hidden></label>';
@@ -1917,7 +1997,7 @@ function paperHTML(d, cfg) {
     '<div class="pTo">' + (to.length ? to.map(esc).join('<br>') : blank('Doctor’s name and address')) + '</div>' +
     '<div class="pRe"><div>RE: <b>' + (name ? esc(name) : blank('Patient name')) + '</b></div><div>DOB: ' + (d.dob && validDob(d.dob) ? esc(fmtDob(d.dob)) : blank('date of birth')) + '</div>' +
     ((d.rpPhone || '').trim() ? '<div>Responsible Party Phone: ' + esc(d.rpPhone.trim()) + '</div>' : '') + '</div>' +
-    '<div class="pSub">Subject: ' + esc(letter.subject) + '</div>' +
+    '<div class="pSub">Subject: ' + esc(letterSubject(d)) + '</div>' +
     '<div class="pDear">' + esc(docSalute(d.doc)) + ',</div>' +
     paras.map(p => '<p>' + esc(p).replace(/\[choose the teeth\]/g, '<span class="blank">choose the teeth</span>').replace(/\n/g, '<br>') + '</p>').join('') +
     '<div class="pSign"><div>Sincerely,</div><div class="sigGap"></div><div>' + esc(cfg.doctor) + '</div><div>' + esc(cfg.practice) + '</div>' +
@@ -2046,7 +2126,7 @@ async function copyText(s) {
   try { await navigator.clipboard.writeText(s); return true; } catch (e) { }
   try { const t = document.createElement('textarea'); t.value = s; document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; }
 }
-function draftTouched() { const d = S.draft; return !!(d.first || d.last || d.dob || d.doc || d.teeth.length || d.edited || d.images.length || Object.keys(d.opt).length); }
+function draftTouched() { const d = S.draft; return !!(d.first || d.last || d.dob || d.doc || d.teeth.length || d.teeth2.length || d.sites.length || d.edited || d.images.length || Object.keys(d.opt).length); }
 /* a picture is shrunk in the browser before it goes on the page: big enough to read, small enough to print quickly */
 function readImage(file) {
   return new Promise((res, rej) => {
@@ -2072,17 +2152,26 @@ Object.assign(ACT, {
     if (o.multi) { const a = Array.isArray(d.opt[o.key]) ? d.opt[o.key].slice() : []; const i = a.indexOf(c); if (i < 0) a.push(c); else a.splice(i, 1); d.opt[o.key] = o.choices.map(ch => ch[0]).filter(k => a.includes(k)); }
     else d.opt[o.key] = d.opt[o.key] === c ? '' : c;
     $$('.chip[data-k="' + o.key + '"]').forEach(b => { const on = isPicked(o, b.dataset.c); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+    if (letter.sites && o.key === 'site') syncSiteCount();
     regenText(); updatePaper();
   },
   tooth(t) {
-    const d = S.draft, id = t.dataset.id, i = d.teeth.indexOf(id);
-    if (i < 0) d.teeth.push(id); else d.teeth.splice(i, 1);
+    const d = S.draft, set = t.dataset.set, id = t.dataset.id, i = d[set].indexOf(id);
+    if (i < 0) d[set].push(id); else d[set].splice(i, 1);
     t.classList.toggle('on', i < 0); t.setAttribute('aria-pressed', i < 0);
-    $('#teethSay').innerHTML = teethSay(); regenText(); updatePaper();
+    $('#teethSay-' + set).innerHTML = teethSay(set); regenText(); updatePaper();
   },
-  clearTeeth() { S.draft.teeth = []; $$('.tooth.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#teethSay').innerHTML = teethSay(); regenText(); updatePaper(); },
+  site(t) {
+    const d = S.draft, id = t.dataset.id, i = d.sites.indexOf(id);
+    if (i < 0) d.sites.push(id); else d.sites.splice(i, 1);
+    t.classList.toggle('on', i < 0); t.setAttribute('aria-pressed', i < 0);
+    $('#sitesSay').innerHTML = sitesSay(); syncSiteCount(); regenText(); updatePaper();
+  },
+  clearSites() { S.draft.sites = []; $$('.sDot.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#sitesSay').innerHTML = sitesSay(); syncSiteCount(); regenText(); updatePaper(); },
+  clearTeeth(t) { const set = t.dataset.set; S.draft[set] = []; $$('#chart-' + set + ' .tooth.on').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); $('#teethSay-' + set).innerHTML = teethSay(set); regenText(); updatePaper(); },
   notation(t) {
-    S.draft.notation = t.dataset.v; const sec = $('#chart').closest('.bSec'); const h4 = sec.querySelector('h4').outerHTML; sec.innerHTML = h4 + chartHTML();
+    S.draft.notation = t.dataset.v;
+    ['teeth', 'teeth2', 'sites'].forEach(set => { const c = $('#chart-' + set); if (!c) return; const sec = c.closest('.bSec'); const h4 = sec.querySelector('h4').outerHTML; sec.innerHTML = h4 + (set === 'sites' ? siteChartHTML() : chartHTML(set)); });
     regenText(); updatePaper(); if (S.draft.edited) toast('The numbers in your edited wording were left as you typed them.');
   },
   letterhead(t) { S.draft.letterhead = t.dataset.v; $$('.lhOpt').forEach(b => { const on = b.dataset.v === t.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); updatePaper(); },
