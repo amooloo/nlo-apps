@@ -538,8 +538,8 @@ ol.steps li{margin-bottom:6px}
 .probN{flex:none;min-width:20px;height:20px;border-radius:99px;background:var(--amber);color:var(--navy-900);font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
 .probOk{display:inline-flex;align-items:center;gap:6px;color:var(--mint-700)}
 .paperScroll{max-height:calc(100vh - 96px);overflow:auto;border-radius:8px;background:var(--grey-200);padding:16px}
-.paper{background:#fff;box-shadow:var(--sh-md);margin:0 auto;width:100%;max-width:8.5in;min-height:11in;padding:.75in .95in .9in;font-family:Aptos,Calibri,"Helvetica Neue",Arial,sans-serif;font-size:11.5pt;line-height:1.42;color:#111}
-.paper p{margin:0 0 .9em}
+.paper{background:#fff;box-shadow:var(--sh-md);margin:0 auto;width:100%;max-width:8.5in;min-height:11in;padding:.75in .95in .9in;font-family:Aptos,Calibri,"Helvetica Neue",Arial,sans-serif;font-size:11pt;line-height:1.38;color:#111}
+.paper p{margin:0 0 .75em}
 .paper .lh{margin-bottom:.26in}
 .paper .lh-logo{text-align:center;border-bottom:1.5pt solid #111;padding-bottom:.14in}
 .paper .lh-logo img{height:.5in;width:auto;display:block;margin:0 auto .09in}
@@ -548,7 +548,7 @@ ol.steps li{margin-bottom:6px}
 .paper .lh-side img{height:.42in;width:auto}
 .paper .lh-side div{font-size:9pt;text-align:right;line-height:1.35;color:#333}
 .paper .lh-plain{height:1.35in;border:1.5px dashed var(--grey-300);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--grey-400);font-size:10pt}
-.paper .pDate{margin-bottom:1.1em}
+.paper .pDate{margin-bottom:.9em}
 .paper .pTo{margin-bottom:.4em;min-height:3em}
 .paper .pRe{margin:0 0 .9em 50%}
 .paper .pRe div{white-space:nowrap}
@@ -572,7 +572,7 @@ ol.steps li{margin-bottom:6px}
 @media (max-width:600px){ .paper{padding:.5in .45in;font-size:10.5pt} .paper .pRe{margin-left:30%} .lhGrid{grid-template-columns:1fr} }
 
 /* printing: only the letter, on plain letter paper */
-@page{size:letter;margin:.75in .95in .85in}
+@page{size:letter;margin:.65in .95in .7in}
 @media print{
   html,body{background:#fff !important}
   #lockWrap,#side,#topSlot,.mobBar,.mobNav,#toasts,#demoBar,#modalWrap,.formCol,.paperBar,.lead,.ltGrid{display:none !important}

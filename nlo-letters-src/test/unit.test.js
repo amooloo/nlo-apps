@@ -55,7 +55,7 @@ L.LETTERS.forEach(letter => {
   });
   ok(letter.opts.every(o => new Set(o.choices.map(c => c[0])).size === o.choices.length), letter.id + ' choice keys are unique');
 });
-eq(L.LETTERS.map(l => l.id), ['extraction', 'hygiene', 'exposure', 'orthognathic', 'bonding', 'cavity', 'radiolucency'], 'the seven letters Dr. A asked for');
+eq(L.LETTERS.map(l => l.id), ['extraction', 'hygiene', 'exposure', 'orthognathic', 'bonding', 'cavity', 'radiolucency', 'tads', 'marpe'], 'the nine letters Dr. A asked for');
 d = draft('cavity', { teeth: ['30'], opt: { surface: ['m', 'o'], how: 'xray' } });
 ok(L.letterBody(d, cfg)[1] === 'We noted an area of concern on the mesial and occlusal surfaces of #30 (lower right first molar) on a radiograph taken in our office.', 'cavity: surfaces + tooth + how :: ' + L.letterBody(d, cfg)[1]);
 d = draft('radiolucency', { opt: { finding: 'lucent', region: 'lr', image: 'pano' } });
@@ -78,6 +78,19 @@ d = draft('bonding', { teeth: ['7'], opt: { reason: ['peg'], timing: 'during' } 
 ok(/restore the tooth to its ideal width/.test(body[1]) && /remove the bracket from this tooth/.test(body[2]), 'bonding, one tooth');
 d = draft('radiolucency', { opt: { symptoms: 'asym', urgency: 'routine' } });
 ok(L.letterBody(d, cfg)[2] === 'Avery reports no symptoms in the area. This can be evaluated at Avery’s next available appointment.', 'radiolucency: symptoms are one or the other');
+
+// ---- TADs and MARPE ----
+d = draft('tads', { teeth: ['3', '4'], opt: { count: '1', site: ['buccal'], purpose: ['intrudeP'], size: 's8', load: 'now', note: ['supply', 'head'] } }); body = L.letterBody(d, cfg);
+eq(body[0], 'We are referring Avery to your office for the placement of one temporary anchorage device (TAD) as part of their comprehensive orthodontic treatment plan.', 'TAD opening');
+eq(body[1], 'We are requesting placement on the buccal side between the roots, between #3 (upper right first molar) and #4 (upper right second premolar), to provide anchorage for intrusion of the posterior teeth.', 'TAD site: two teeth → between them');
+ok(/length of 8 mm\. We plan to load the TAD at the next orthodontic visit, so please let us know as soon as it is in place\./.test(body[2]) && /send the TAD with Avery/.test(body[3]) && /head of the TAD exposed/.test(body[3]) && /position of the TAD, to/.test(body[4]), 'one TAD: singular throughout :: ' + body.join(' | '));
+d = draft('tads', { teeth: ['3'], opt: { count: '2', load: 'wait', note: ['supply'] } }); body = L.letterBody(d, cfg);
+ok(/two temporary anchorage devices \(TADs\)/.test(body[0]) && body[1] === 'We are requesting placement next to #3 (upper right first molar).' && /load the TADs about two weeks/.test(body[2]) && /send the TADs with/.test(body[3]) && /each TAD/.test(body[4]), 'two TADs, one tooth → next to it :: ' + body.join(' | '));
+d = draft('tads', { opt: { purpose: ['space'] } });
+eq(L.letterBody(d, cfg)[1], 'We are requesting placement to provide anchorage for space closure.', 'TADs: purpose alone');
+d = draft('marpe', { opt: { count: '4', appliance: 'in', engage: 'bi', length: 'send', reason: ['narrow', 'airway'], note: ['noturn', 'see'] } }); body = L.letterBody(d, cfg);
+eq(body[0], 'We are referring Avery to your office for the placement of four miniscrews for a miniscrew-assisted rapid palatal expander (MARPE) as part of their comprehensive orthodontic treatment plan.', 'MARPE opening');
+ok(body[1] === 'The expander is being used to correct a maxillary transverse deficiency and a restricted nasal airway.' && /through the guide slots/.test(body[2]) && /bicortical engagement\)\. We will send the miniscrews with Avery/.test(body[3]) && /do not activate the expander/.test(body[4]) && /length of each miniscrew/.test(body[5]), 'MARPE body :: ' + body.join(' | '));
 
 // ---- problems before printing ----
 eq(L.draftProblems(L.blankDraft('', cfg)), ['Pick a letter.'], 'nothing picked');

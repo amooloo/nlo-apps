@@ -1,5 +1,5 @@
 /* =====================================================================
-   The letters themselves: the seven referral letters, the teeth, the
+   The letters themselves: the nine referral letters, the teeth, the
    doctor directory's shape and the Edge import. Pure functions — no
    page, no network — so every sentence can be tested without a browser.
    ===================================================================== */
@@ -297,6 +297,95 @@ const LETTERS = [
         'Please send your findings and recommendations to ' + c.records + '.'
       ];
     }
+  },
+  {
+    id: 'tads', label: 'TAD placement', subject: 'Referral for Placement of Temporary Anchorage Devices (TADs)', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_OPTIONAL,
+    blurb: 'Ask a surgeon or periodontist to place TADs.', teethHint: 'Click the teeth each TAD goes next to or between.',
+    opts: [
+      { key: 'count', label: 'How many', choices: [
+        ['1', '1', 'one temporary anchorage device (TAD)'], ['2', '2', 'two temporary anchorage devices (TADs)'],
+        ['3', '3', 'three temporary anchorage devices (TADs)'], ['4', '4', 'four temporary anchorage devices (TADs)']] },
+      { key: 'site', label: 'Where', multi: true, choices: [
+        ['buccal', 'Buccal, between the roots', 'on the buccal side between the roots'],
+        ['palatal', 'Palatal, between the roots', 'on the palatal side between the roots'],
+        ['paramedian', 'Palate, beside the midline', 'in the anterior palate beside the midline'],
+        ['izc', 'Infrazygomatic crest', 'at the infrazygomatic crest'],
+        ['shelf', 'Buccal shelf', 'at the mandibular buccal shelf'],
+        ['anterior', 'Front, between the incisors', 'between the roots of the incisors']] },
+      { key: 'purpose', label: 'What they are for', multi: true, choices: [
+        ['space', 'Closing space', 'space closure'],
+        ['distal', 'Distalization', 'distalization of the posterior teeth'],
+        ['mesial', 'Protraction', 'protraction of the posterior teeth'],
+        ['intrudeP', 'Molar intrusion', 'intrusion of the posterior teeth'],
+        ['intrudeA', 'Front intrusion', 'intrusion of the anterior teeth'],
+        ['traction', 'Pulling an impacted tooth', 'traction of an impacted tooth']] },
+      { key: 'size', label: 'Size', choices: [
+        ['s6', '6 mm', 'We suggest a length of 6 mm.'], ['s8', '8 mm', 'We suggest a length of 8 mm.'], ['s10', '10 mm', 'We suggest a length of 10 mm.'],
+        ['yours', 'Their choice', 'We leave the diameter and length to your judgment.']] },
+      { key: 'load', label: 'When we will use them', choices: [
+        ['now', 'Right away', 'We plan to load the TADs at the next orthodontic visit, so please let us know as soon as they are in place.'],
+        ['wait', 'After two weeks', 'We plan to load the TADs about two weeks after placement.']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['supply', 'We send the TADs', 'We will send the TADs with ' + '{first}' + ' to the appointment.'],
+        ['guide', 'We send a guide', 'A printed surgical guide made from the CBCT will come with ' + '{first}' + ' to the appointment.'],
+        ['cbct', 'CBCT available', 'A CBCT scan taken in our office is available; please let us know if you would like it sent.'],
+        ['head', 'Head must take elastics', 'Please leave the head of each TAD exposed so we can attach elastics or a coil spring.'],
+        ['braces', 'Braces are on', 'The braces are in place; we are happy to remove an archwire before the appointment if that would help.']] }
+    ],
+    build(c) {
+      const many = (c.pick('count') || '2') !== '1';
+      const what = c.word('count') || 'temporary anchorage devices (TADs)';
+      const where = [joinList(c.words('site')), c.teeth ? (c.count === 2 ? 'between ' : 'next to ') + c.teeth : ''].filter(Boolean).join(', ');
+      const why = joinList(c.words('purpose'));
+      const fix = s => many ? s : s.replace('load the TADs', 'load the TAD').replace('as soon as they are in place', 'as soon as it is in place').replace('send the TADs', 'send the TAD').replace('the head of each TAD', 'the head of the TAD');
+      return [
+        'We are referring ' + c.first + ' to your office for the placement of ' + what + ' as part of their comprehensive orthodontic treatment plan.',
+        where || why ? 'We are requesting placement' + (where ? ' ' + where : '') + (why ? (where ? ', ' : ' ') + 'to provide anchorage for ' + why : '') + '.' : '',
+        [c.word('size'), fix(c.word('load'))].filter(Boolean).join(' '),
+        fix(c.notes('note')),
+        'Please send a note of the placement, including the size and position of ' + (many ? 'each TAD' : 'the TAD') + ', to ' + c.records + '.'
+      ];
+    }
+  },
+  {
+    id: 'marpe', label: 'TADs for MARPE', subject: 'Referral for Placement of MARPE Miniscrews', to: ['Oral Surgery', 'Periodontics'], teeth: TEETH_NONE,
+    blurb: 'Ask a surgeon to place the miniscrews for a MARPE expander.',
+    opts: [
+      { key: 'count', label: 'How many miniscrews', choices: [
+        ['4', '4', 'four miniscrews'], ['2', '2', 'two miniscrews'], ['6', '6', 'six miniscrews']] },
+      { key: 'appliance', label: 'The expander', choices: [
+        ['in', 'Already cemented', 'The expander is cemented in place. Please place the miniscrews through the guide slots in the body of the expander.'],
+        ['bring', 'Comes with the patient', 'The expander will come with ' + '{first}' + ' to the appointment. Please seat it on the molar bands and place the miniscrews through the guide slots in its body.'],
+        ['together', 'We come and seat it', 'We would like to coordinate the appointment so that we can seat the expander ourselves just before the miniscrews are placed.']] },
+      { key: 'engage', label: 'How deep', choices: [
+        ['bi', 'Both cortices', 'Please engage both the palatal and the nasal cortex with each miniscrew (bicortical engagement).'],
+        ['yours', 'Their choice', 'We leave the depth of engagement to your judgment.']] },
+      { key: 'length', label: 'Lengths', choices: [
+        ['send', 'We send the screws', 'We will send the miniscrews with ' + '{first}' + '; the lengths were chosen from measurements on the CBCT.'],
+        ['listed', 'Listed below', 'The lengths we measured on the CBCT are listed below.'],
+        ['yours', 'Their choice', 'We leave the lengths of the miniscrews to your judgment.']] },
+      { key: 'reason', label: 'Why MARPE', multi: true, choices: [
+        ['narrow', 'Narrow upper jaw', 'a maxillary transverse deficiency'],
+        ['crossbite', 'Posterior crossbite', 'a posterior crossbite'],
+        ['airway', 'Airway', 'a restricted nasal airway'],
+        ['crowding', 'Crowding', 'crowding']] },
+      { key: 'note', label: 'Also say', multi: true, choices: [
+        ['noturn', 'Do not turn the screw', 'Please do not activate the expander; we will begin the turns at our office.'],
+        ['cbct', 'CBCT available', 'A CBCT scan taken in our office is available; please let us know if you would like it sent.'],
+        ['see', 'See us right after', 'We would like to see ' + '{first}' + ' within a few days of placement to begin expansion.'],
+        ['suture', 'Suture is still open', 'The midpalatal suture appears patent on the CBCT.']] }
+    ],
+    build(c) {
+      const why = joinList(c.words('reason'));
+      return [
+        'We are referring ' + c.first + ' to your office for the placement of ' + (c.word('count') || 'the miniscrews') + ' for a miniscrew-assisted rapid palatal expander (MARPE) as part of their comprehensive orthodontic treatment plan.',
+        why ? 'The expander is being used to correct ' + why + '.' : '',
+        c.word('appliance'),
+        [c.word('engage'), c.word('length')].filter(Boolean).join(' '),
+        c.notes('note'),
+        'Please send a note of the placement, including the length of each miniscrew, to ' + c.records + '.'
+      ];
+    }
   }
 ];
 const THANKS = 'Thank you for your expertise and collaboration in the comprehensive care of our patient.';
@@ -332,7 +421,8 @@ function letterBody(draft, cfg) {
   const c = {
     first, records: cfg.records,
     teeth: teethText(draft.teeth, draft.notation),
-    one: n === 1,
+    one: n === 1, count: n,
+    pick: key => { const p = picked(letter, draft, key); return p.length ? p[0][0] : ''; },
     words: key => picked(letter, draft, key).map(ch => say(ch[2])),
     word: key => { const p = picked(letter, draft, key); return p.length ? say(p[0][2]) : ''; },
     notes: key => picked(letter, draft, key).map(ch => say(ch[2])).join(' ')
