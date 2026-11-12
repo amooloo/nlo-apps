@@ -68,6 +68,15 @@ def build_payload(case, analysis, vertebrae_unchecked=0, earlier=None):
                          sd_off=_num(m.get("z"))))
     calls = [dict(title=str(s.get("title") or ""), call=str(s.get("call") or ""), detail=str(s.get("detail") or ""))
              for s in a.get("summary") or [] if not (s.get("key") == "cvm" and "cvm" in skipped)]
+    A = a.get("andrews")
+    if A and A.get("rows"):
+        t = A.get("turned") or {}
+        how = ("incisors as traced" if A.get("incisors") != "e1" else "incisors first set upright over their roots"
+               + "".join(f", {k} turned {v['deg']}° {v['way']}" for k, v in t.items()))
+        calls.append(dict(title="Andrews' Six Elements",
+                          call=str(A.get("shorthand") or ""),
+                          detail="Distances from Andrews' goals (R = ahead, B = behind, G = on the goal): " + " · ".join(f"{r['name']}: {r['call']}" for r in A["rows"]) + f" · {how}"
+                          + (f" · {A['heights']['call']}" if A.get("heights") else "")))
     notes = []
     if not any(r["unit"] == "mm" for r in rows):
         notes.append("The x-ray has no pixel size: millimetre values are missing.")

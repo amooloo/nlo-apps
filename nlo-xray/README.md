@@ -85,6 +85,25 @@ Panoramic x-rays are next; this first version reads lateral cephs.
    corners - a front corner behind a back one, an upper corner below the lower border, a deepest point off the
    border) are named in a note, *Check the vertebra points*, and nothing is measured from them until they are
    moved: no shape, and no Mito bone age (nor one outside 4-25 years).
+   **Andrews · Six Elements** (its own card, since 1.11 - for surgical cases): how far the jaws and the chin are
+   from Andrews' goals, in his shorthand (**B4** = 4 mm behind / black, **R3** = 3 mm ahead / red, **G** = on the
+   goal), each on a small ruler with what it would take to reach the goal:
+   - **Maxilla (Element II)**: the upper incisor's FA point to GALL.
+   - **Mandible (Element II)**: the lower incisors against where they would couple with upper incisors on GALL.
+   - **Chin (Element V)**: pogonion to **Will's plane** (square to the occlusal plane through the lower incisor's
+     FA point).
+   - **Front of the maxilla, height (Element IV)**: the upper FA point against the lower border of the upper lip
+     at rest (**L3** = 3 mm below it, **S2** = 2 mm above) - only as good as the lips were at rest on the x-ray.
+   - **Occlusal plane (Element IV)** to the true horizontal (harmony 2-10°), and the **face heights**: middle
+     (G'-Sn), lower (Sn-Me') and back (Po-Go) side by side.
+   The switch at the top says which incisors the jaws are judged from: **Incisors set upright first** (the
+   default) turns each incisor about its root to the office's norm - U1-SN and IMPA from Settings → Norms - as
+   Andrews judges the jaws from Element I incisors, and says by how much; **As traced** takes them as they are,
+   for a ceph taken after decompensation. The choice is kept with the x-ray. With *Lines* on, the x-ray shows
+   Will's plane, the lip line and the incisors set upright (white dashes). The five values are also in
+   *Measurements* (and so in the comparison, the print and the AI summary). They are distances from Andrews'
+   goals, each jaw on its own - not a surgical plan; jaw widths (Element III) and the occlusion (Element VI) are
+   not on a lateral ceph.
    **AI summary** (the card under the Summary, since 1.10): **Write AI summary** has the office's AISA write a
    paragraph for the chart from this tracing's numbers - skeletal class and the jaw behind it, vertical pattern,
    incisors, soft tissue, growth stage and, when the patient has an earlier traced x-ray, what changed and over how
@@ -328,6 +347,26 @@ both numbers are settings), never ahead of G'. The upper incisor's FA point: the
 the crown (the textbook incisor along the doctor's U1 axis, at its length). Upper incisor to GALL: + = ahead;
 goal 0 (± 2 mm, the app's band). The viewer draws GALL, FFA and FA, and shades the upper incisor by the same call:
 see-through red ahead of GALL, green on it (within the band), dark behind it.
+**Andrews' Six Elements, read for surgery** (`andrews_six`, `andrews_report`, `andrews_view` in
+`xray/analysis.py`; Andrews LF, Andrews WA, *The six elements of orofacial harmony*, Andrews J Orthod Orofac
+Harmony 2000;1:13-22, and W. A. Andrews' summaries of the goals). Everything is measured in GALL's frame (the
+x-ray's own horizontal and vertical). *Element I incisors*: Andrews judges the jaws from incisors with roots
+centred over basal bone and crowns inclined to couple, placed with templates; the app's stand-in turns each traced
+incisor about its centre of resistance (0.35 of the tooth's length from the apex: a third of the way down the root
+from the crest) until U1-SN and IMPA read the norms in Settings - or takes them as traced. *Element II, maxilla*:
+the FA point of that upper incisor to GALL (as traced it equals *Upper incisor to GALL*). *Element II, mandible*:
+its distance from where the lower incisors would couple with upper incisors on GALL = the maxilla's distance minus
+(overjet - the coupled overjet), overjet being upper tip ahead of lower tip along the true horizontal and the
+coupled overjet 2.5 mm (Settings → Norms). *Element IV*: the upper FA point against stomion superius, vertically
+(Andrews: level with the lower border of the upper lip in repose); the occlusal plane (molar contact to the incisor
+overlap, as traced) to the true horizontal, in harmony 2-10° (norm 6 ± 4; Andrews' usual goal is 7°); the face
+heights G'-Sn, Sn-Me' and Po-Go, vertically (Andrews: middle, lower and posterior heights in harmony - his posterior
+height runs to soft-tissue gonion, the app's to bony gonion); the lower FA point to menton is shown without a call
+(Andrews sets it against half the ramus from the top of the condyle to gonion, and the condyle is not traced).
+*Element V*: bony pogonion to Will's plane, the line square to the occlusal plane through the lower incisor's FA
+point, measured along the occlusal plane. The lower FA point: 16.25 mm from the apex and 2.6 mm labial on the
+21 mm textbook incisor, scaled to the traced length. The ± 2 mm bands are the app's own (Settings → Norms). Elements
+III and VI are not read.
 **Outlines** (`xray/outlines.py`): curves through dots (centripetal Catmull-Rom). The profile is followed on the
 x-ray from one soft-tissue point to the next - the cheapest path through the strongest edges in a corridor round the
 line joining them (on a copy at about 0.2 mm a pixel), kept only where its edge stands well above the corridor's

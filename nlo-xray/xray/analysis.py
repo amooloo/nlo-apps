@@ -30,10 +30,12 @@ DEFAULT_NORMS = {
     "LowShareS": (50.0, 3.0), "LipShare": (33.3, 3.0), "Interlabial": (2.0, 2.0), "U1Expo": (2.0, 2.0),
     # Andrews: the upper incisor's FA point on the GALL line (the ± 2 mm band is the app's own)
     "U1_GALL": (0.0, 2.0),
+    # Andrews' Six Elements, read for surgery (the bands are the app's own; the occlusal plane's 2-10° is Andrews')
+    "A_E2_Mx": (0.0, 2.0), "A_E2_Md": (0.0, 2.0), "A_E4_Mx": (0.0, 2.0), "A_OP": (6.0, 4.0), "A_E5": (0.0, 2.0),
 }
 
 # millimetre values with a direction (shown with + / -); the others are sizes
-SIGNED = {"Wits", "U1_NA_mm", "L1_NB_mm", "E_Ls", "E_Li", "U1Expo", "U1_GALL"}
+SIGNED = {"Wits", "U1_NA_mm", "L1_NB_mm", "E_Ls", "E_Li", "U1Expo", "U1_GALL", "A_E2_Mx", "A_E2_Md", "A_E4_Mx", "A_E5"}
 
 DEFAULT_CUTOFFS = {
     "anb_class2_above": 4.0,     # ANB above this -> Class II
@@ -44,7 +46,13 @@ DEFAULT_CUTOFFS = {
     # Andrews' GALL: through the forehead's FA point, moved forward this much for each degree of forehead
     # inclination beyond gall_from_deg, never ahead of glabella (Andrews' Six Elements, Element II)
     "gall_from_deg": 7.0, "gall_mm_per_deg": 0.6,
+    # Andrews' Six Elements: the overjet (upper tip ahead of the lower tip, along the true horizontal) at which the
+    # incisors count as coupled, for where the mandible belongs once the maxilla is on GALL
+    "andrews_overjet": 2.5,
 }
+
+ANDREWS = "Andrews - Six Elements"
+ANDREWS_KEYS = {"A_E2_Mx": "e2_mx", "A_E2_Md": "e2_md", "A_E4_Mx": "e4_mx", "A_OP": "op", "A_E5": "e5"}
 
 # key, label, group, unit, landmarks needed, needs mm, description
 MEASURES = [
@@ -106,6 +114,24 @@ MEASURES = [
      "vertical through the forehead's FA point (half way up the forehead, between its top and glabella), moved forward "
      "0.6 mm for each degree of forehead inclination beyond 7°, never ahead of glabella (both numbers: Settings -> "
      "Norms). 0 = touching GALL, the goal; + = ahead of it."),
+    ("A_E2_Mx", "Maxilla to GALL (Element II)", ANDREWS, MM, ("Tr", "Gs", "U1A", "U1T"), True,
+     "Andrews' Element II: the upper incisor's FA point to GALL, with the incisor as chosen in the Andrews card - as "
+     "traced, or first set upright over its root to the office's norm (an 'Element I' incisor). 0 = on GALL, the "
+     "goal; + = the maxilla is ahead of it (Andrews' red), - = behind it (black)."),
+    ("A_E2_Md", "Mandible to its goal (Element II)", ANDREWS, MM, ("Tr", "Gs", "U1A", "U1T", "L1A", "L1T"), True,
+     "Andrews' Element II: where the lower incisors are against where they would couple with upper incisors on "
+     "GALL (overjet as set in Settings -> Norms). + = the mandible is ahead of that (red), - = behind it (black)."),
+    ("A_E4_Mx", "Upper incisor FA to the lip line (Element IV)", ANDREWS, MM, ("Stms", "U1A", "U1T"), True,
+     "Andrews' Element IV, front of the maxilla: the upper incisor's FA point against the lower border of the upper "
+     "lip at rest (stomion superius), vertically. 0 = level, the goal; + = the FA point is below the lip line, "
+     "- = above it. Only as good as the lips were at rest on the x-ray."),
+    ("A_OP", "Occlusal plane to true horizontal (Element IV)", ANDREWS, DEG, ("MOL", "U1T", "L1T"), False,
+     "The occlusal plane (molar contact to the incisor overlap) against the x-ray's own horizontal, + = lower in "
+     "front. Andrews: in harmony between about 2° and 10°, 7° the usual goal."),
+    ("A_E5", "Pogonion to Will's plane (Element V)", ANDREWS, MM, ("L1A", "L1T", "Pog", "MOL", "U1T"), True,
+     "Andrews' Element V: bony pogonion to Will's plane - the line square to the occlusal plane through the lower "
+     "incisor's FA point (the incisor as chosen in the Andrews card). 0 = on it, the goal; + = the chin is ahead of "
+     "it (red), - = behind it (black)."),
     ("U1_SN", "U1 to SN", "Teeth", DEG, ("U1A", "U1T", "S", "N"), False,
      "Upper incisor long axis to the SN line (posterior-inferior angle)."),
     ("U1_NA_deg", "U1 to NA (angle)", "Teeth", DEG, ("U1A", "U1T", "N", "A"), False,
@@ -210,6 +236,162 @@ def andrews_gall(p, mm, profile=None, cut=None):
     fa = np.asarray(p["U1A"], float) + 19.25 * k * ax + 3.2 * k * lab
     return dict(fi=fi, ffa=ffa, fa=fa, x_gall=x_gall, shift=shift, capped=capped, dist=(float(fa @ h) - x_gall) * mm,
                 h=h, v=v)
+
+
+# Where an incisor turns when it is set upright for the 'Element I' read: about its centre of resistance, taken a
+# third of the way down the root from the alveolar crest - 0.35 of the tooth's length from the apex.
+_CR = 0.35
+
+
+def _fa_point(apex, tip, length, along, across):
+    """An incisor's FA point - the middle of the labial surface of its crown - on the textbook tooth carried along
+    the traced axis (canonical pixels)."""
+    a, t = np.asarray(apex, float), np.asarray(tip, float)
+    ax = g.unit(t - a)
+    lab = np.array([-ax[1], ax[0]])
+    if lab[0] < 0:
+        lab = -lab
+    k = g.dist(a, t) / length
+    return a + along * k * ax + across * k * lab
+
+
+def _turned(p, apex, tip, key, target):
+    """The incisor turned about its centre of resistance until measurement `key` reads `target`: (apex, tip, the
+    reading as traced, degrees turned) - or None when the points do not allow it."""
+    try:
+        now = _compute(key, p, None)
+    except (KeyError, ValueError, ZeroDivisionError):
+        return None
+    a, t = np.asarray(p[apex], float), np.asarray(p[tip], float)
+    c = a + _CR * (t - a)
+
+    def at(deg):
+        r = math.radians(deg)
+        R = np.array([[math.cos(r), -math.sin(r)], [math.sin(r), math.cos(r)]])
+        q = dict(p)
+        q[apex], q[tip] = c + R @ (a - c), c + R @ (t - c)
+        return q
+    try:
+        slope = _compute(key, at(1.0), None) - now          # +1 or -1: which way the reading goes
+    except (ValueError, ZeroDivisionError):
+        return None
+    if abs(slope) < 0.5:
+        return None
+    deg = max(-45.0, min(45.0, (target - now) / slope))
+    q = at(deg)
+    return q[apex], q[tip], now, deg
+
+
+def andrews_six(p, mm, gall, norms=None, cut=None, incisors="e1"):
+    """Andrews' Six Elements as far as a lateral ceph shows them, read for surgery (canonical points p in pixels; mm:
+    mm per pixel; gall: andrews_gall's result). Elements III (jaw widths) and VI (occlusion) are not on a lateral ceph.
+
+    incisors = 'e1': the incisors are first set upright over their roots - turned about the centre of resistance to
+    the office's norms for U1-SN and IMPA - standing in for Andrews' Element I incisors (roots centred over basal
+    bone, crowns inclined to couple), which he places with templates; 'traced': as they are on the x-ray (a ceph
+    taken after pre-surgical decompensation).
+    Element II: the upper incisor's FA point to GALL (the maxilla), and the lower incisors against where they
+    would couple with upper incisors on GALL (the mandible). Element IV: the upper FA point against the upper lip's
+    lower border at rest; the occlusal plane to the true horizontal; middle, lower and posterior face heights.
+    Element V: pogonion to Will's plane (square to the occlusal plane through the lower incisor's FA point).
+    + = ahead of the goal (Andrews' red), - = behind it (black); heights + = below the lip line. Returns dict or None."""
+    need = ("U1A", "U1T", "L1A", "L1T", "MOL")
+    if not mm or gall is None or any(c not in p for c in need):
+        return None
+    norms = norms or {k: dict(mean=m, sd=s) for k, (m, s) in DEFAULT_NORMS.items()}
+    cut = cut or DEFAULT_CUTOFFS
+    h, v = gall["h"], gall["v"]
+    q = dict(p)
+    turned = {}
+    if incisors == "e1":
+        for apex, tip, key, name in (("U1A", "U1T", "U1_SN", "upper"), ("L1A", "L1T", "IMPA", "lower")):
+            r = _turned(p, apex, tip, key, norms[key]["mean"]) if key in norms else None
+            if r:
+                q[apex], q[tip] = r[0], r[1]
+                # + = the crown goes forward
+                fwd = float((np.asarray(r[1], float) - np.asarray(p[tip], float)) @ h)
+                turned[name] = dict(key=key, was=round(r[2], 1), to=round(norms[key]["mean"], 1),
+                                    deg=round(abs(r[3]), 1), way="forward" if fwd > 0 else "back")
+    try:
+        fa_u = _fa_point(q["U1A"], q["U1T"], 24.5, 19.25, 3.2)
+        fa_l = _fa_point(q["L1A"], q["L1T"], 21.0, 16.25, 2.6)
+        op_a, op_b = occlusal_plane(p)                     # the occlusal plane as traced
+        d = g.unit(g.vec(op_a, op_b))
+    except ValueError:
+        return None
+    if d[0] < 0:
+        d = -d
+    e2_mx = (float(fa_u @ h) - gall["x_gall"]) * mm
+    overjet = float((np.asarray(q["U1T"], float) - np.asarray(q["L1T"], float)) @ h) * mm
+    e2_md = e2_mx - (overjet - cut["andrews_overjet"])
+    out = dict(incisors=incisors, turned=turned, e2_mx=e2_mx, e2_md=e2_md, overjet=overjet,
+               op=math.degrees(math.atan2(-float(d @ v), float(d @ h))), e4_mx=None, e5=None, heights=None,
+               fa_u=fa_u, fa_l=fa_l, d=d, q=q)
+    if "Stms" in p:
+        out["e4_mx"] = float((np.asarray(p["Stms"], float) - fa_u) @ v) * mm
+    if "Pog" in p:
+        out["e5"] = float((np.asarray(p["Pog"], float) - fa_l) @ d) * mm
+    out["fa_me"] = g.dist(fa_l, p["Me"]) * mm if "Me" in p else None
+    if all(c in p for c in ("Gs", "Sn", "Mes")):
+        up = lambda a, b: float((np.asarray(p[a], float) - np.asarray(p[b], float)) @ v) * mm   # noqa: E731
+        out["heights"] = dict(middle=up("Gs", "Sn"), lower=up("Sn", "Mes"),
+                              posterior=up("Po", "Go") if "Po" in p and "Go" in p else None)
+    return out
+
+
+def _code(v, band):
+    """Andrews' shorthand for a distance from a goal: G on it, R3 = 3 mm ahead (red), B4 = 4 mm behind (black)."""
+    if abs(v) <= band:
+        return "G"
+    return f"{'R' if v > 0 else 'B'}{abs(v):.0f}"
+
+
+def andrews_report(A, norms=None):
+    """What the Andrews card shows: each element with its value, Andrews' shorthand, a plain call and how far the
+    goal is - distances from his goals, not a surgical plan."""
+    if A is None:
+        return None
+    norms = norms or {k: dict(mean=m, sd=s) for k, (m, s) in DEFAULT_NORMS.items()}
+    band = lambda k: norms[k]["sd"]                                                 # noqa: E731
+    rows = []
+
+    def ap(key, nkey, name, v, ahead, behind, fix_ahead, fix_behind):
+        if v is None:
+            return
+        b = band(nkey)
+        on = abs(v) <= b
+        rows.append(dict(key=key, name=name, value=round(v, 1), unit=MM, code=_code(v, b), level="ok" if on else "warn",
+                         call="on the goal" if on else f"{abs(v):.1f} mm {ahead if v > 0 else behind}",
+                         to_goal="" if on else f"{fix_ahead if v > 0 else fix_behind} {abs(v):.1f} mm"))
+    ap("e2_mx", "A_E2_Mx", "Maxilla (Element II)", A["e2_mx"], "ahead of GALL", "behind GALL", "back", "forward")
+    ap("e2_md", "A_E2_Md", "Mandible (Element II)", A["e2_md"], "ahead of its goal", "behind its goal", "back", "forward")
+    ap("e5", "A_E5", "Chin (Element V)", A["e5"], "ahead of Will's plane", "behind Will's plane", "back", "forward")
+    if A["e4_mx"] is not None:
+        v, b = A["e4_mx"], band("A_E4_Mx")
+        on = abs(v) <= b
+        rows.append(dict(key="e4_mx", name="Front of the maxilla, height (Element IV)", value=round(v, 1), unit=MM,
+                         code=_code(v, b).replace("R", "L").replace("B", "S"), level="ok" if on else "warn",
+                         call="FA point level with the lip line" if on else
+                         f"FA point {abs(v):.1f} mm {'below' if v > 0 else 'above'} the lip line",
+                         to_goal="" if on else f"{'up' if v > 0 else 'down'} {abs(v):.1f} mm"))
+    n = norms["A_OP"]
+    lo, hi = n["mean"] - n["sd"], n["mean"] + n["sd"]
+    v = A["op"]
+    rows.append(dict(key="op", name="Occlusal plane (Element IV)", value=round(v, 1), unit=DEG, code="",
+                     level="ok" if lo <= v <= hi else "warn",
+                     call=f"in harmony ({lo:g}-{hi:g}°)" if lo <= v <= hi else
+                     f"{'steep' if v > hi else 'flat'} (harmony {lo:g}-{hi:g}°)", to_goal=""))
+    H = A["heights"]
+    heights = None
+    if H:
+        heights = {k: (round(x, 1) if x is not None else None) for k, x in H.items()}
+        m, lw = H["middle"], H["lower"]
+        heights["lower_vs_middle"] = round(lw - m, 1)
+        heights["call"] = ("middle and lower heights in harmony" if abs(lw - m) <= 0.1 * m else
+                           f"lower height {abs(lw - m):.1f} mm {'longer' if lw > m else 'shorter'} than the middle")
+    return dict(incisors=A["incisors"], turned=A["turned"], overjet=round(A["overjet"], 1), rows=rows, heights=heights,
+                fa_me=round(A["fa_me"], 1) if A.get("fa_me") is not None else None,
+                shorthand=" · ".join(f"{r['name'].split(' (')[0].split(',')[0]} {r['code']}" for r in rows if r["code"]))
 
 
 def occlusal_plane(p):
@@ -324,7 +506,7 @@ def _wits_norm_key(sex):
     return "Wits_M" if s == "M" else "Wits_F" if s == "F" else "Wits_U"
 
 
-def measure(landmarks, mm_per_px=None, facing=None, sex=None, settings=None, profile=None):
+def measure(landmarks, mm_per_px=None, facing=None, sex=None, settings=None, profile=None, andrews_incisors="e1"):
     """All measurements. Returns a list of dicts (key, label, group, unit, value, norm, z, missing, note, desc).
     profile: the soft-tissue profile, image pixels (for the forehead's FA point)."""
     pts = {k: v for k, v in (landmarks or {}).items() if v is not None}
@@ -336,6 +518,7 @@ def measure(landmarks, mm_per_px=None, facing=None, sex=None, settings=None, pro
         sx = 1.0 if facing != "left" else -1.0
         prof = np.array([[sx * float(x), -float(y)] for x, y in profile])
     gall = andrews_gall(p, mm_per_px, prof, cutoffs_from(settings))
+    six = andrews_six(p, mm_per_px, gall, norms, cutoffs_from(settings), andrews_incisors)
     out = []
     for key, label, group, unit, needs, needs_mm, desc in MEASURES:
         row = dict(key=key, label=label, group=group, unit=unit, desc=desc, value=None, norm=None, z=None,
@@ -352,6 +535,20 @@ def measure(landmarks, mm_per_px=None, facing=None, sex=None, settings=None, pro
                 row["note"] = "forehead top below glabella" if mm_per_px else "needs calibration"
             else:
                 row["value"] = round(gall["fi"] if key == "FI" else gall["dist"], 1)
+        elif key in ANDREWS_KEYS:
+            if key == "A_OP":
+                try:
+                    d = g.unit(g.vec(*occlusal_plane(p)))
+                    d = -d if d[0] < 0 else d
+                    row["value"] = round(math.degrees(math.atan2(-float(d[1]), float(d[0]))), 1)
+                except ValueError:
+                    row["note"] = "points overlap"
+            elif six is None or six.get(ANDREWS_KEYS[key]) is None:
+                row["note"] = "needs the GALL line" if key != "A_E4_Mx" and gall is None else "not available"
+            else:
+                row["value"] = round(six[ANDREWS_KEYS[key]], 1)
+            if row["value"] is not None and row["norm"] and row["norm"]["sd"] > 0:
+                row["z"] = round((row["value"] - row["norm"]["mean"]) / row["norm"]["sd"], 2)
         else:
             try:
                 row["value"] = round(_compute(key, p, mm_per_px if needs_mm else None), 1)
@@ -550,11 +747,45 @@ def gall_drawing(landmarks, mm_per_px=None, facing=None, settings=None, profile=
                 shift=round(G["shift"], 1), capped=G["capped"], dist=round(G["dist"], 1))
 
 
-def analyze(landmarks, mm_per_px=None, facing=None, sex=None, settings=None, cvm_marks=None, age=None, profile=None):
-    """Everything the case view shows: measurements, CVM (three methods), the summary, the GALL line."""
+def andrews_view(landmarks, mm_per_px=None, facing=None, settings=None, profile=None, incisors="e1"):
+    """The Andrews card and what the viewer draws for it (image pixels): the report, the FA points, Will's plane, the
+    lip line and - when they were turned - the incisors set upright. None without the GALL line or a pixel size."""
     pts = {k: v for k, v in (landmarks or {}).items() if v is not None}
     facing = facing or g.facing_of(pts) or "right"
-    rows = measure(pts, mm_per_px, facing, sex, settings, profile)
+    p = g.to_canonical(pts, facing)
+    sx = 1.0 if facing != "left" else -1.0
+    prof = np.array([[sx * float(x), -float(y)] for x, y in profile]) if profile is not None and len(profile) >= 3 else None
+    cut, norms = cutoffs_from(settings), norms_from(settings)
+    A = andrews_six(p, mm_per_px, andrews_gall(p, mm_per_px, prof, cut), norms, cut, incisors)
+    if A is None:
+        return None
+    rep_ = andrews_report(A, norms)
+    img = lambda q: [round(sx * float(q[0]), 1), round(-float(q[1]), 1)]       # noqa: E731
+    d = A["d"]
+    n = np.array([-d[1], d[0]])
+    n = n if n[1] >= 0 else -n                               # up, square to the occlusal plane
+    fa_l = A["fa_l"]
+    span = g.dist(p["L1A"], p["L1T"])
+    low = float((np.asarray(p["Me"], float) - fa_l) @ n) if "Me" in p else -1.6 * span
+    draw = dict(fa_u=img(A["fa_u"]), fa_l=img(fa_l), wills=[img(fa_l + 0.35 * span * n), img(fa_l + (low - 0.15 * span) * n)])
+    if "Stms" in p:
+        s0 = np.asarray(p["Stms"], float)
+        draw["lip"] = [img(s0 - np.array([0.2 * span, 0.0])), img(np.array([float(A["fa_u"][0]) + 0.5 * span, float(s0[1])]))]
+    if A["turned"]:
+        draw["ghost"] = {k: [img(A["q"][a]), img(A["q"][t])] for k, a, t in (("upper", "U1A", "U1T"), ("lower", "L1A", "L1T"))
+                         if k in A["turned"] and A["turned"][k]["deg"] >= 0.5}
+    rep_["draw"] = draw
+    return rep_
+
+
+def analyze(landmarks, mm_per_px=None, facing=None, sex=None, settings=None, cvm_marks=None, age=None, profile=None,
+            andrews_incisors="e1"):
+    """Everything the case view shows: measurements, CVM (three methods), the summary, the GALL line, Andrews' Six
+    Elements."""
+    pts = {k: v for k, v in (landmarks or {}).items() if v is not None}
+    facing = facing or g.facing_of(pts) or "right"
+    rows = measure(pts, mm_per_px, facing, sex, settings, profile, andrews_incisors)
     cvm = cvm_stage(g.to_canonical(pts, facing), mm_per_px, (settings or {}).get("cvm"), cvm_marks, age, sex)
     return dict(facing=facing, measurements=rows, cvm=cvm, summary=summarize(rows, sex, settings, cvm),
-                gall=gall_drawing(pts, mm_per_px, facing, settings, profile))
+                gall=gall_drawing(pts, mm_per_px, facing, settings, profile),
+                andrews=andrews_view(pts, mm_per_px, facing, settings, profile, andrews_incisors))

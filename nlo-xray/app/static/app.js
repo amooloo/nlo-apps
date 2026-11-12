@@ -652,6 +652,7 @@
     renderTrace();
     renderSummary();
     renderAi();
+    renderAndrews();
     renderCvm();
     renderMeasures();
   }
@@ -1173,6 +1174,52 @@
     }
   }
 
+  // ------------------------------------------------------------------ Andrews' Six Elements, read for surgery
+  // Distances from Andrews' goals on the lateral ceph: the maxilla and the mandible front to back (Element II), the
+  // front of the maxilla's height and the occlusal plane (Element IV), the chin (Element V) - in his shorthand
+  // (R3 = 3 mm ahead / red, B4 = 4 mm behind / black, G = on the goal), each on a ruler. The incisors are first set
+  // upright over their roots (Element I) or taken as traced: the doctor's switch, kept with the x-ray.
+  function renderAndrews() {
+    const el = $('#andBody'), A = S.analysis && S.analysis.andrews;
+    if (!A) {
+      $('#andSub').textContent = '';
+      el.innerHTML = '<p class="empty">For surgical cases: how far the jaws and the chin are from Andrews\' goals. Needs the pixel size, the incisors, the molar contact and the forehead points (top of the forehead and soft-tissue glabella) for the GALL line.</p>';
+      return;
+    }
+    $('#andSub').textContent = A.shorthand;
+    const tw = (t, name) => t ? `${name} incisor turned ${t.deg}° ${t.way} (${t.key === 'U1_SN' ? 'U1-SN' : 'IMPA'} ${t.was}° → ${t.to}°)` : '';
+    const turned = A.incisors === 'e1' ? [tw(A.turned.upper, 'upper'), tw(A.turned.lower, 'lower')].filter(Boolean).join(', ') : '';
+    const R = 14;                                            // the ruler runs from -14 to +14 mm
+    const pct = (v) => 50 + 50 * Math.max(-R, Math.min(R, v)) / R;
+    const row = (r) => {
+      const mm = r.unit === 'mm';
+      const cls = !r.code ? 'plain' : r.code === 'G' ? '' : /^[RL]/.test(r.code) ? 'red' : 'black';
+      const m = (S.analysis.measurements || []).find((q) => q.key === { e2_mx: 'A_E2_Mx', e2_md: 'A_E2_Md', e5: 'A_E5', e4_mx: 'A_E4_Mx', op: 'A_OP' }[r.key]) || {};
+      const nm = m.norm || { mean: 0, sd: 2 };
+      const rule = mm
+        ? `<div class="andRule"><span class="end" style="left:0">${r.key === 'e4_mx' ? 'above' : 'behind'}</span><span class="end" style="right:0">${r.key === 'e4_mx' ? 'below' : 'ahead'}</span>
+            <span class="band" style="left:${pct(nm.mean - nm.sd)}%;width:${pct(nm.mean + nm.sd) - pct(nm.mean - nm.sd)}%"></span><span class="goal" style="left:${pct(nm.mean)}%"></span>
+            <span class="mk" style="left:${pct(r.value)}%;background:${r.level === 'ok' ? 'var(--mint-700)' : r.value > 0 ? 'var(--coral-700)' : 'var(--navy-900)'}"></span></div>` : '';
+      return `<div class="andRow"><div class="andCode ${cls}">${esc(r.code || r.value + '°')}</div>
+        <div class="t">${esc(r.name)}</div>
+        <div class="c">${esc(r.call)}${r.to_goal ? ` <span>· to the goal: ${esc(r.to_goal)}</span>` : ''}</div>${rule}</div>`;
+    };
+    const H = A.heights;
+    const hmax = H ? Math.max(H.middle, H.lower, H.posterior || 0, 1) : 1;
+    const hrow = (name, v) => v == null ? '' : `<span>${name}</span><span class="bar" style="width:${Math.max(4, 100 * v / hmax)}%"></span><span class="n">${v} mm</span>`;
+    el.innerHTML = `<div class="andSw" role="group" aria-label="Incisors"><button type="button" data-inc="e1" class="${A.incisors === 'e1' ? 'on' : ''}">Incisors set upright first</button><button type="button" data-inc="traced" class="${A.incisors !== 'e1' ? 'on' : ''}">As traced</button></div>
+      <p class="hint" style="margin:0 0 6px">${A.incisors === 'e1' ? (turned ? esc(turned.charAt(0).toUpperCase() + turned.slice(1)) + ', about the root - as before the jaws are judged (Element I).' : 'The incisors are already at the norm inclination.') : 'The incisors as they are on the x-ray - for a ceph taken after decompensation.'} Overjet then ${A.overjet} mm.</p>
+      ${A.rows.map(row).join('')}
+      ${H ? `<div class="andRow" style="display:block"><div class="t">Face heights (Element IV)</div><div class="c" style="margin:2px 0 4px">${esc(H.call.charAt(0).toUpperCase() + H.call.slice(1))}</div>
+        <div class="andH">${hrow('Middle (G\'-Sn)', H.middle)}${hrow('Lower (Sn-Me\')', H.lower)}${hrow('Back (Po-Go)', H.posterior)}</div>
+        ${A.fa_me != null ? `<p class="hint">Lower incisor FA to menton ${A.fa_me} mm - Andrews sets it against half the ramus from the top of the condyle to gonion, which is not traced here.</p>` : ''}</div>` : ''}
+      <p class="hint" style="margin-top:8px">Distances from Andrews' goals on this x-ray, each jaw on its own - not a surgical plan: moving the maxilla up or down turns the mandible, and Andrews sets GALL on the patient by eye. Jaw widths (Element III) and the occlusion (Element VI) are not on a lateral ceph. The lines are on the x-ray with <i>Lines</i> on.</p>`;
+    for (const b of $$('#andBody [data-inc]')) b.onclick = async () => {
+      if (b.classList.contains('on')) return;
+      try { await flushSave(); applyServer(await api(`/api/cases/${enc(S.case.id)}`, { method: 'PATCH', body: { andrews: { incisors: b.dataset.inc } } }), false); } catch (e) { toast(e.message, true); }
+    };
+  }
+
   // ------------------------------------------------------------------ CVM: pictures, the doctor's picks, three methods
   // Simple schematic shapes drawn here (front of the vertebra to the right).
   function bodyPath(shape, concave, x, y, s = 1) {
@@ -1648,6 +1695,42 @@
         c2.strokeText(t, x + 7 * K, y + 12 * K);
         c2.fillStyle = '#F6AF24';
         c2.fillText(t, x + 7 * K, y + 12 * K);
+      }
+    }
+    // Andrews' Six Elements (with the lines): Will's plane - square to the occlusal plane through the lower incisor's FA
+    // point, where pogonion belongs -, the lip line the upper FA point is judged against, and the incisors set upright
+    const andr = S.analysis && S.analysis.andrews && S.analysis.andrews.draw;
+    if (andr && (S.lines || opts.print)) {
+      const P = (q) => scr({ x: q[0], y: q[1] });
+      const seg = (a, b) => { const [x1, y1] = P(a), [x2, y2] = P(b); c2.beginPath(); c2.moveTo(x1, y1); c2.lineTo(x2, y2); c2.stroke(); };
+      c2.strokeStyle = '#64F4C9';
+      c2.lineWidth = 1.3 * K;
+      c2.globalAlpha = 0.9;
+      c2.setLineDash([7 * K, 5 * K]);
+      seg(andr.wills[0], andr.wills[1]);
+      if (andr.lip) { c2.setLineDash([3 * K, 3 * K]); seg(andr.lip[0], andr.lip[1]); }
+      if (andr.ghost) {
+        c2.strokeStyle = '#FFFFFF';
+        c2.setLineDash([2 * K, 4 * K]);
+        c2.lineWidth = 2 * K;
+        for (const gq of Object.values(andr.ghost)) seg(gq[0], gq[1]);
+      }
+      c2.setLineDash([]);
+      c2.globalAlpha = 1;
+      {
+        const [x, y] = P(andr.wills[1]);
+        c2.font = `700 ${11 * K}px Montserrat, system-ui, sans-serif`;
+        c2.lineWidth = 3 * K;
+        c2.strokeStyle = 'rgba(11,20,36,.85)';
+        c2.strokeText('Will\'s', x + 6 * K, y - 4 * K);
+        c2.fillStyle = '#64F4C9';
+        c2.fillText('Will\'s', x + 6 * K, y - 4 * K);
+      }
+      {
+        const [x, y] = P(andr.fa_l);
+        c2.strokeStyle = '#64F4C9';
+        c2.lineWidth = 1.6 * K;
+        c2.beginPath(); c2.moveTo(x - 5 * K, y); c2.lineTo(x + 5 * K, y); c2.moveTo(x, y - 5 * K); c2.lineTo(x, y + 5 * K); c2.stroke();
       }
     }
     // the nasion-rod ruler the pixel size was measured on: its marks circled
@@ -2708,6 +2791,7 @@
         <div class="row2">${cut('fma_low_below', 'Low angle when FMA is below (°)')}${cut('fma_high_above', 'High angle when FMA is above (°)')}</div>
         <div class="row2">${cut('sngogn_low_below', 'Low angle when SN-GoGn is below (°)')}${cut('sngogn_high_above', 'High angle when SN-GoGn is above (°)')}</div>
         <div class="row2">${cut('gall_from_deg', 'GALL: moves forward beyond a forehead inclination of (°)')}${cut('gall_mm_per_deg', '... by this much per degree (mm)')}</div>
+        <div class="row2">${cut('andrews_overjet', 'Andrews, mandible: the incisors couple at an overjet of (mm)')}<div></div></div>
         <p class="hint">Andrews: GALL runs through the forehead's FA point and moves forward with forehead inclination, never ahead of glabella. 7° and 0.6 mm is the rule taught in his course; his 2008 study (Angle Orthod 78:662) found the incisors about 0.5 mm further forward for each degree beyond 7.5°.</p>`;
       foot.innerHTML = '<button class="small" id="nReset" type="button">Back to defaults</button><button class="primary" id="nSave" type="button">Save</button>';
       $('#nReset').onclick = async () => { await saveSettings({ norms: {}, cutoffs: {} }); renderSettings(); };

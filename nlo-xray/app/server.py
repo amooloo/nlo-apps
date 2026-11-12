@@ -448,7 +448,8 @@ def _analysis(case, settings=None):
     prof = next((o for o in outl if o["key"] == "profile"), None)
     dense = outlines_mod.spline(prof["xy"]).tolist() if prof and len(prof["xy"]) >= 2 else None
     a = analyze(pts, cal.get("mm_per_px"), case.get("facing"), (case.get("patient") or {}).get("sex"),
-                effective_settings(settings), cvm_marks=(case.get("cvm") or {}).get("marks"), age=age, profile=dense)
+                effective_settings(settings), cvm_marks=(case.get("cvm") or {}).get("marks"), age=age, profile=dense,
+                andrews_incisors=(case.get("andrews") or {}).get("incisors") or "e1")
     a["age"] = age
     a["outlines"] = outl
     a["calibration_check"] = _calibration_check(pts, cal.get("mm_per_px"))
@@ -760,6 +761,10 @@ def _patch_case(cid, body):
         for code in list(case.get("landmarks", {})):
             if GROUP_OF.get(code) in sk:
                 case["landmarks"].pop(code, None)
+    if "andrews" in body:                          # the Andrews card: the incisors set upright first, or as traced
+        inc = (body["andrews"] or {}).get("incisors")
+        if inc in ("e1", "traced"):
+            case["andrews"] = dict(incisors=inc)
     if "cvm_marks" in body:
         cv = case.setdefault("cvm", {})
         marks = dict(cv.get("marks") or {})
