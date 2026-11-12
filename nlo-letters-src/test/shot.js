@@ -18,9 +18,11 @@ const { routes, watch } = require('./helpers');
     if (await p.locator('.tooth').count()) for (const t of ['6', '11']) await p.click('.tooth[data-set=teeth][data-id="' + t + '"]');
     if (await p.locator('.tooth[data-set=teeth2]').count()) for (const t of ['C', 'H']) await p.click('.tooth[data-set=teeth2][data-id="' + t + '"]');
     if (id === 'exposure') await p.screenshot({ path: path.join(out, '5-exposure.png'), fullPage: true });
-    if (id === 'exposure') { // the "Help me choose" guide: labial → apical to the junction → well above it → closed
+    if (id === 'exposure') { // the "Help me choose" guide: labial → (over the lateral root → flap; back) clear of it → apical to the junction → well above it → closed
       await p.click('[data-act=exposureHelp]'); await p.screenshot({ path: path.join(out, '7-help-q1.png') });
-      await p.click('.helpA[data-i="0"]'); await p.click('.helpA[data-i="1"]'); await p.screenshot({ path: path.join(out, '7-help-q3.png') });
+      await p.click('.helpA[data-i="0"]'); await p.screenshot({ path: path.join(out, '7-help-q2.png') });
+      await p.click('.helpA[data-i="0"]'); await p.screenshot({ path: path.join(out, '7-help-lateral.png') }); await p.click('[data-act=helpBack]');
+      await p.click('.helpA[data-i="1"]'); await p.click('.helpA[data-i="1"]'); await p.screenshot({ path: path.join(out, '7-help-q3.png') });
       await p.click('.helpA[data-i="1"]'); await p.screenshot({ path: path.join(out, '7-help-result.png') }); await p.click('#helpUse');
       const o = await p.evaluate(() => JSON.stringify(S.draft.opt)); if (o !== '{"how":"closed","side":"buccal","chain":"chain"}') throw new Error('helper filled in ' + o);
     }

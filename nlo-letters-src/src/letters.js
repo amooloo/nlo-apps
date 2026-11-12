@@ -429,7 +429,10 @@ const EXPOSURE_TREE = {
     ['Labial', 'On the cheek / lip side of the ridge', 'labial'],
     ['Mid-alveolar', 'In the centre of the ridge', 'r:mid'],
     ['Palatal', 'On the palate side', 'palatal']] },
-  labial: { q: 'Where is the crown compared with the mucogingival junction?', a: [
+  labial: { q: 'Is the crown sitting mesially, over the root of the lateral incisor?', a: [
+    ['Yes', 'On top of the lateral incisor root', 'r:apfLat'],
+    ['No', 'Clear of the lateral incisor root', 'mgj']] },
+  mgj: { q: 'Where is the crown compared with the mucogingival junction?', a: [
     ['Coronal to it', 'Toward the biting edge, under attached gingiva', 'gingiva'],
     ['Apical to it', 'Above the junction, under loose mucosa', 'height']] },
   gingiva: { q: 'After uncovering the crown, would 2–3 mm of attached gingiva be left?', a: [
@@ -446,6 +449,7 @@ const EXPOSURE_RESULTS = {
   mid: { how: 'closed', side: '', why: 'A crown in the centre of the ridge needs a lot of bone removed to leave it open, so it is covered again and pulled in with a chain.' },
   ging: { how: 'ging', side: 'buccal', why: 'The crown is low and enough attached gingiva will remain, so a simple window is enough.' },
   apfThin: { how: 'apf', side: 'buccal', why: 'A window would leave too little attached gingiva, so the gingiva is moved up with the flap instead.' },
+  apfLat: { how: 'apf', side: 'buccal', why: 'A crown lying over the lateral incisor root is hard to move through the bone unless it is completely uncovered, so it is exposed with an apically positioned flap and moved away from the lateral root first.' },
   apf: { how: 'apf', side: 'buccal', why: 'The crown is just above the junction, so a flap brings attached gingiva up onto the tooth.' },
   high: { how: 'closed', side: 'buccal', why: 'A flap moved this far up tends to be unstable and the tooth can re-intrude after treatment, so the tooth is covered and pulled in with a chain.' },
   palOpen: { how: 'open', side: 'palatal', why: 'A shallow palatal crown can be left uncovered and will often erupt on its own before you bond it.' },
