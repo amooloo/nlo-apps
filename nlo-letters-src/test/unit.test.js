@@ -55,13 +55,13 @@ L.LETTERS.forEach(letter => {
   });
   ok(letter.opts.every(o => new Set(o.choices.map(c => c[0])).size === o.choices.length), letter.id + ' choice keys are unique');
 });
-eq(L.LETTERS.map(l => l.id), ['extraction', 'hygiene', 'exposure', 'orthognathic', 'bonding', 'cavity', 'radiolucency', 'tads', 'marpe'], 'the nine letters Dr. A asked for');
+eq(L.LETTERS.map(l => l.id), ['extraction', 'hygiene', 'exposure', 'orthognathic', 'bonding', 'cavity', 'radiographic', 'tads', 'marpe'], 'the nine letters Dr. A asked for');
 d = draft('cavity', { teeth: ['30'], opt: { surface: ['m', 'o'], how: 'xray' } });
 ok(L.letterBody(d, cfg)[1] === 'We noted an area of concern on the mesial and occlusal surfaces of #30 (lower right first molar) on a radiograph taken in our office.', 'cavity: surfaces + tooth + how :: ' + L.letterBody(d, cfg)[1]);
-d = draft('radiolucency', { opt: { finding: 'lucent', region: 'lr', image: 'pano' } });
-ok(L.letterBody(d, cfg)[1].startsWith('A radiolucent area was noted in the lower right on a panoramic radiograph.') && /have not made a diagnosis/.test(L.letterBody(d, cfg)[1]), 'radiolucency: region when no tooth; no diagnosis offered');
-d = draft('radiolucency', { teeth: ['19'], opt: { region: 'lr' } });
-ok(/noted near #19 \(lower left first molar\)/.test(L.letterBody(d, cfg)[1]), 'radiolucency: a picked tooth wins over the region');
+d = draft('radiographic', { opt: { finding: 'lucent', region: 'lr', image: 'pano' } });
+ok(L.letterBody(d, cfg)[1].startsWith('A radiolucent area was noted in the lower right on a panoramic radiograph.') && /have not made a diagnosis/.test(L.letterBody(d, cfg)[1]), 'radiographic evaluation: region when no tooth; no diagnosis offered');
+d = draft('radiographic', { teeth: ['19'], opt: { region: 'lr' } });
+ok(/noted near #19 \(lower left first molar\)/.test(L.letterBody(d, cfg)[1]), 'radiographic evaluation: a picked tooth wins over the region');
 d = draft('hygiene', { first: '' });
 ok(L.letterBody(d, cfg)[0].includes('the patient’s oral hygiene'), 'no first name yet → “the patient”');
 
@@ -76,8 +76,8 @@ d.teeth = ['6', '11']; body = L.letterBody(d, cfg);
 ok(/The teeth appear/.test(body[1]) && /chain to each tooth/.test(body[2]) && /end of each chain/.test(body[2]) && /Space for the teeth has/.test(body[3]) && /moving the teeth\.$/.test(body[3]), 'exposure, two teeth :: ' + body.join(' | '));
 d = draft('bonding', { teeth: ['7'], opt: { reason: ['peg'], timing: 'during' } }); body = L.letterBody(d, cfg);
 ok(/restore the tooth to its ideal width/.test(body[1]) && /remove the bracket from this tooth/.test(body[2]), 'bonding, one tooth');
-d = draft('radiolucency', { opt: { symptoms: 'asym', urgency: 'routine' } });
-ok(L.letterBody(d, cfg)[2] === 'Avery reports no symptoms in the area. This can be evaluated at Avery’s next available appointment.', 'radiolucency: symptoms are one or the other');
+d = draft('radiographic', { opt: { symptoms: 'asym', urgency: 'routine' } });
+ok(L.letterBody(d, cfg)[2] === 'Avery reports no symptoms in the area. This can be evaluated at Avery’s next available appointment.', 'radiographic evaluation: symptoms are one or the other');
 
 // ---- TADs and MARPE ----
 d = draft('tads', { teeth: ['3', '4'], opt: { count: '1', site: ['buccal'], purpose: ['intrudeP'], size: 's8', load: 'now', note: ['supply', 'head'] } }); body = L.letterBody(d, cfg);

@@ -20,7 +20,7 @@ const { routes, watch } = require('./helpers');
       const chips = p.locator('.chip[data-k=' + key + ']'); const multi = await p.evaluate(k => letterById(S.draft.letter).opts.find(o => o.key === k).multi, key);
       const n = multi ? Math.min(3, await chips.count()) : 1; for (let i = 0; i < n; i++) await chips.nth(i).click();
     }
-    if (id === 'radiolucency') {
+    if (id === 'radiographic') {
       // a made-up "x-ray" (a grey box) to check the enclosure page
       const png = await p.evaluate(() => { const c = document.createElement('canvas'); c.width = 900; c.height = 500; const g = c.getContext('2d'); g.fillStyle = '#333'; g.fillRect(0, 0, 900, 500); g.fillStyle = '#bbb'; g.font = '40px sans-serif'; g.fillText('made-up x-ray', 300, 260); return c.toDataURL('image/png').split(',')[1]; });
       await p.setInputFiles('#imgFile', { name: 'pano.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') }); await p.waitForSelector('.imgChip');

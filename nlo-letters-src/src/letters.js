@@ -262,7 +262,7 @@ const LETTERS = [
     }
   },
   {
-    id: 'radiolucency', label: 'Radiolucency', subject: 'Referral for Evaluation of a Radiographic Finding', to: ['Dentist', 'Oral Surgery', 'Endodontics'], teeth: TEETH_OPTIONAL,
+    id: 'radiographic', label: 'Radiographic evaluation', subject: 'Referral for Radiographic Evaluation', to: ['Dentist', 'Oral Surgery', 'Endodontics'], teeth: TEETH_OPTIONAL,
     blurb: 'Ask for a finding on an x-ray to be evaluated.',
     opts: [
       { key: 'finding', label: 'What we saw', choices: [
