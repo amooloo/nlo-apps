@@ -268,9 +268,38 @@ def _close(mesh, A, mask, r):
     return ~geodesic_dilate(mesh, A, ~grown, r)
 
 
+def _join_open(loops, closed_mm=2.0, reach_mm=20.0):
+    """A contour that runs into the scan's edge comes back as open chains, not loops. Where the scan stops right at
+    the last molars (a tooth's label on the very edge on both sides) the retainer's outline is two chains - the cheek
+    side and the tongue side - meeting at the edge behind each molar. Taken as "2 loops", the first alone became the
+    line: the cheek side, closed by a straight chord from molar to molar across the tongue space, the whole tongue-side
+    line lost (a lower, 11/12/2026) - and a windowed outline looked "cut into pieces". Open chains are joined end to
+    nearest end (within reach_mm) into loops; closed ones are left as they are. Longest first."""
+    loops = [np.asarray(l, float) for l in loops if len(l) >= 2]
+    gap = lambda l: float(np.linalg.norm(l[0] - l[-1]))
+    closed = [l for l in loops if gap(l) <= closed_mm]
+    opened = sorted((l for l in loops if gap(l) > closed_mm), key=len, reverse=True)
+    while opened:
+        cur = opened.pop(0)
+        while opened:
+            d_self = gap(cur)
+            best = None
+            for i, l in enumerate(opened):
+                for rev in (False, True):
+                    d = float(np.linalg.norm(cur[-1] - (l[-1] if rev else l[0])))
+                    if best is None or d < best[0]:
+                        best = (d, i, rev)
+            if best[0] > reach_mm or best[0] >= d_self:
+                break
+            l = opened.pop(best[1])
+            cur = np.vstack([cur, l[::-1] if best[2] else l])
+        closed.append(cur)
+    return sorted(closed, key=len, reverse=True)
+
+
 def _loop(mesh, A, covered, iters=4):
     loops = margin_contour(mesh, smooth_field(A, covered.astype(float), iters), 0.5)
-    return loops
+    return _join_open(loops) if len(loops) > 1 else loops
 
 
 def _tidy(loop, mesh_f, step=0.5, snap_mm=4.0):
@@ -958,6 +987,11 @@ def _phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, 
             res.setdefault("warnings", []).append(
                 f"only {thin:.1f} mm of flange is left under the cutouts on the tongue side - narrower than the {min_bridge:.0f} mm "
                 f"we aim for, the retainer may be weak there. The cutouts were made: keep them, or switch this arch to block-out")
+            # ... but with no flange at all the windows run out to the scan's edge and the retainer is in pieces: nothing
+            # to keep. (Before the open outline was joined, 11/12/2026, this case showed as "2 loops".) A traced outline
+            # is still the doctor's own
+            if bridge_avail < 1.0 and not np.isfinite(traced_left):
+                res["cutout_failed"] = True
     if method == "cott" and segs:
         for sd, g in segs.items():
             on_side = np.sign(V[:, 0] - c[0]) == sd
