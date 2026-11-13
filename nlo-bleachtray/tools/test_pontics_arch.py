@@ -164,6 +164,9 @@ def main():
     check("the pontic's top is in the model, the air above it is not", bool(tip[0]) and not bool(tip[1]), tip.tolist())
     # nothing of a pontic hangs under the model's floor (z = 0), and behind the last molars the line is on their margin
     check("no pontic reaches under the model's floor", float(pm.bounds[0][2]) >= -1e-3, round(float(pm.bounds[0][2]), 2))
+    gb = rep.get("gap_beams") or []
+    print("   gap beams:", gb)
+    check("the space that holds the pontic gets no beam", len(gb) >= 1 and all(b.get("skipped") for b in gb), gb)
     dr = [r for r in (rep.get("distal_round") or []) if not r.get("incomplete")]
     print("   distal:", [(r["side"], r.get("hug_points"), r.get("hug_mm")) for r in dr])
     check("behind a whole last molar the margin step ran without an error", all("hug_points" in r and "hug_error" not in r for r in dr), dr)
