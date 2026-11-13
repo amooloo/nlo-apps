@@ -1064,7 +1064,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         try:
             from .interprox import gap_beams
             seats = [trimesh.transform_points(np.asarray(q["m"], float)[:3, 3][None], T_total)[0] for q in (P.get("pontics") or []) if isinstance(q, dict) and q.get("m") is not None]
-            bsolids, beams = gap_beams(mesh_f, labels, info, skip_xy=np.array(seats) if seats else None,
+            bsolids, beams = gap_beams(mesh_f, labels, info, arch=arch, skip_xy=np.array(seats) if seats else None,
                                        drop_mm=float(P.get("gap_beam_drop") if P.get("gap_beam_drop") is not None else 1.5), log=lambda m: log(f"[{name}] {m}"))
             if beams:
                 rep["gap_beams"] = beams
