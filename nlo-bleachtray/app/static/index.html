@@ -289,6 +289,12 @@
   .ibtn{width:24px;height:24px;min-height:0;padding:0;border-radius:50%;border:1.5px solid var(--grey-200);background:#fff;color:var(--grey-600);font-weight:700;font-size:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
   .ibtn:hover{background:var(--grey-100)} .ibtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
   .phelp{display:none;margin-top:8px} .phelp.on{display:block}
+  .qg{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;align-items:center;margin-top:6px}
+  .qg .k{white-space:nowrap;font-weight:600;color:var(--ink,#1f2a44)} .qg .k .key{font-weight:600}
+  .qg .d{line-height:1.25} .qg .sep{grid-column:1/-1;border-top:1px solid rgba(0,0,0,.08);margin:2px 0}
+  .qdot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px;margin-right:2px}
+  .qring{display:inline-block;width:8px;height:8px;border-radius:50%;border:2px solid #1f2a44;vertical-align:-1px;margin-right:2px}
+  .phelp details{margin-top:8px} .phelp summary{cursor:pointer;font-weight:600}
   .szrow{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11.5px;color:var(--grey-500)} .szrow input[type=range]{width:110px;margin:0} .szrow b{color:var(--navy);font-variant-numeric:tabular-nums;min-width:30px}
   .pchip{position:absolute;top:64px;right:12px;z-index:2;display:none;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.94);border:1px solid var(--grey-200);box-shadow:var(--sh-sm);color:var(--navy);font-weight:600;font-size:12px;cursor:pointer;backdrop-filter:blur(6px)}
   .pchip.on{display:inline-flex} .pchip:hover{background:var(--grey-100)}
@@ -890,6 +896,35 @@ const PANELS = {
   braces: { group: 'seg', title: 'Braces — take off what the app missed, keep what is not a bracket', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the band)', 'brush'], ['notbracket', 'Not a bracket', 'Tooth or gum the app took for a bracket: left as scanned on the next run (on a mouthguard it is kept out of the band). Saved with the case, to teach the detector', 'eraser']],
             sets: ['takeoff', 'notbracket'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard band; blue = marked not a bracket. Hold <kbd class="key">Shift</kbd> and drag; rotate with the mouse otherwise. <b>Take off</b> over anything that was missed: on a retainer it comes off and the enamel is rebuilt, on a mouthguard it joins the band. <b>Not a bracket</b> over anything taken for one that is not: on a retainer the braces are taken off the scan as scanned again, leaving those areas as they were scanned; on a mouthguard the band leaves them out. The strokes are kept with the case and saved with its lesson. <b>Scan as scanned</b> (below) shows the scan exactly as it came with what comes off marked, to fix the outline before it is cut.' },
 };
+// The help behind "?" - short: a symbol or a key on the left, what it does on the right (the doctor, 11/12/2026:
+// "instructions are WAY too wordy - use symbols and icons"). The full wording stays under "More detail".
+const QK = { S: '<kbd class="key">⇧ Shift</kbd>', dot: c => `<span class="qdot" style="background:${c}"></span>`, ring: '<span class="qring"></span>' };
+const QLOOP = ['⟲ closed loop', 'paints everything inside it'];
+const QUICK = {
+  clean: [[`${QK.S} + drag`, 'cut away what is not the arch'], ['Erase', 'take a stroke back (before Apply)'], QLOOP, ['↩ Bring back', 'the scan as it was before the first cut'], ['🖱 drag', 'rotate']],
+  seg: [[`${QK.S} + drag`, '<b>Tooth</b>: paint tooth (start on a tooth = its colour) · <b>Gum</b>: paint gum'], QLOOP, 'sep',
+        [`${QK.ring} ring`, 'a split between two teeth'],
+        [`${QK.S} + click`, `where teeth touch → ${QK.dot('#f5c518')} new split`],
+        [`${QK.S} + click ${QK.ring}`, '✕ no split: two colours become one tooth'],
+        [`${QK.S} + drag ${QK.ring}`, 'move the split'],
+        ['click again / ⌫', 'undo a dot or a ✕'], ['🖱 drag', 'rotate']],
+  res: [[`${QK.dot('#e0245e')} red`, 'the reservoir now'], [`${QK.S} + drag`, '<b>Paint</b> adds · <b>Erase</b> removes'], QLOOP, ['↔ 1 mm', 'always stays off the gum line'], ['🖱 drag', 'rotate']],
+  block: [[`${QK.S} + click`, '<b>Outline</b>: corner by corner; click the first dot to close → inside is filled'], ['Esc', 'drop an unfinished outline'],
+          [`${QK.S} + drag`, '<b>Block out</b>: brush over the undercut · <b>Clear</b>: brush it away'],
+          [`${QK.dot('#b7e4c7')} pale green`, 'already applied'], ['🖱 drag', 'rotate']],
+  p1: [[`${QK.S} + click`, `<b>Cutout outline</b>: dots along the cutout edge, ${QK.dot('#f59e0b')} start → ${QK.dot('#3b82f6')} end. One outline per side`],
+       [`${QK.S} + drag dot`, 'bend the curve'], [`${QK.S} + click curve`, 'add a dot'], [`${QK.S} + click dot`, 'delete that dot'], ['⌫', 'undo the last dot'],
+       [`${QK.S} + drag model`, 'draw freehand'], ['pale', `applied · ${QK.S} + click to edit`], 'sep',
+       ['Cutout span', `${QK.S} + click the two ends of the cutout`], ['Ends here', `${QK.S} + click where the retainer stops`], ['6 is here', `${QK.S} + click the first molar if the count is wrong`]],
+  teeth: [['click a badge', 'pick the right number: 1–8 or A–E'], ['→', 'the rest of that side is counted from it'], ['× not a tooth', 'makes it gum'], ['auto', "the app's count back"], [`${QK.dot('#f59e0b')} orange`, 'set by hand']],
+  pontic: [['click <b>+</b>', 'pontic in a missing tooth\'s space'], [`${QK.S} + click gum`, 'pontic anywhere'],
+           ['drag ➜ arrows', `move: ${QK.dot('#e0245e')} along arch · ${QK.dot('#3b82f6')} out/in · ${QK.dot('#22c55e')} up/down`],
+           ['drag ◠ arcs', `${QK.dot('#22c55e')} turn · ${QK.dot('#3b82f6')} tip · ${QK.dot('#e0245e')} torque`],
+           ['sliders', 'width · height · thickness · into gum'], [`${QK.S} + drag pontic`, 'slide it along the surface'], ['Delete', 'remove the selected one'], ['✕', 'not on whitening trays or mouthguards']],
+  braces: [[`${QK.dot('#9ca3af')} grey`, 'enamel rebuilt'], [`${QK.dot('#f59e0b')} orange`, 'under the mouthguard band'], [`${QK.dot('#3b82f6')} blue`, 'marked not a bracket'],
+           [`${QK.S} + drag`, '<b>Take off</b>: what was missed · <b>Not a bracket</b>: what was taken by mistake'], QLOOP, ['🖱 drag', 'rotate']],
+};
+const quickHtml = t => { const q = QUICK[t]; return q ? '<div class="qg">' + q.map(r => r === 'sep' ? '<div class="sep"></div>' : `<div class="k">${r[0]}</div><div class="d">${r[1]}</div>`).join('') + '</div>' : ''; };
 const tabMode = { clean: 'cut', seg: 'tooth', res: 'reservoir', block: 'outline', braces: 'takeoff', p1: 'p1path', teeth: 'number', pontic: 'pontic' };
 const ICONS = {
   brush: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M14 3l7 7-8.5 8.5a3 3 0 0 1-4.2 0L7 17.2a3 3 0 0 1 0-4.2L14 3z"/><path d="M11 16c-2 0-3 1-3.5 3.5S5 21 3 21c1.5-1 2-2 2-3.5S6 14 8 14"/></svg>',
@@ -926,7 +961,7 @@ function renderPanel(){
   box.innerHTML = `<div class="phead"><div class="seg">${P.modes.map(([m, lab, tip, ic]) => `<button class="${tabMode[tab] === m ? 'on' : ''}" data-mode="${m}" title="${tip}">${ic ? ICONS[ic] : ''}${lab}</button>`).join('')}</div>
       <span class="sp"></span><button class="ibtn ${helpOpen.brush ? 'on' : ''}" id="brushhelp" title="What this tab does">?</button><button class="ibtn" id="brushhide" title="Hide this box - the Brush chip brings it back">&ndash;</button></div>
     <div class="szrow" ${tab === 'teeth' || tab === 'pontic' ? 'style="display:none"' : ''}>Brush <input type="range" id="radius" min="0.5" max="5" step="0.25" value="${brushR}" title="Brush radius"> <b id="rv">${brushR}</b> mm</div>
-    <div class="hint phelp ${helpOpen.brush ? 'on' : ''}" id="brushhelptext"><b>${P.title}.</b> ${P.hint} ${tab === 'pontic' ? '' : '<b>Outline instead of filling:</b> a stroke that comes back onto itself paints everything inside the loop.'}</div>
+    <div class="hint phelp ${helpOpen.brush ? 'on' : ''}" id="brushhelptext"><b>${P.title}</b>${quickHtml(tab) ? quickHtml(tab) + `<details><summary>More detail</summary>${P.hint}</details>` : ` ${P.hint}`}</div>
     ${tab === 'pontic' ? ponticPanelHtml() : ''}
     ${tab === 'braces' ? `<label class="ck" style="margin-top:8px;display:block" title="Shows the scan exactly as it came, with what comes off marked orange (blue = marked Not a bracket). Paint on it: Take off adds to the outline, Not a bracket takes away from it, and Apply takes the braces off again from this scan as marked. Nothing is lost: the scan as scanned is always kept with the case."><input type="checkbox" id="rawview" ${rawView ? 'checked' : ''}> <b>Scan as scanned</b>, with what comes off marked - fix the outline here</label>` : ''}
     <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="primary small" id="rerun">Apply &amp; re-run</button><button class="small" id="clearfix">Clear</button>${tab === 'p1' ? '<button class="small" id="p1undo" title="Takes away the last dot of the outline you worked on last - one dot at a time (Backspace does the same). To take away any other dot, hold Shift and click it">Undo last dot</button>' : ''}${tab === 'clean' && curScans[scanIdx] && curScans[scanIdx].cut ? '<button class="small" id="uncut" title="Puts the scan back as it was before the first cut and re-makes its models">Bring back what was cut</button>' : ''}</div>
