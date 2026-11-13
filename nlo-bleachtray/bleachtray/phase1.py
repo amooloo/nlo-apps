@@ -557,6 +557,31 @@ def _phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, 
     r_cent = {int(t): float(np.linalg.norm(V[labels == t][:, :2].mean(0) - c)) for t in np.unique(labels[tooth])}
     r_near = np.array([r_cent.get(int(t), 0.0) for t in near_all]) if len(tv_all) else np.zeros(len(V))
     fac_v = np.linalg.norm(V[:, :2] - c, axis=1) > r_near
+    # ... seen from above, which fails under a tooth that leans out: the cheek-side gum below a flared lateral lies
+    # nearer the arch centre than the crown's middle, counted as "tongue side", and - inside the plate's outline from
+    # above - was covered: a lobe of line hanging down the cheek side below that tooth (an upper, 11/13/2026: "what's
+    # going on with this trimline"). Gum that hangs, along the surface, from a crown's outward-facing gum line and
+    # faces outward itself is cheek side, wherever it lies from above
+    try:
+        import scipy.sparse.csgraph as _csg
+        from .segment import _edge_lengths_graph
+        _nrm = np.asarray(mesh_f.vertex_normals, float)
+        _rad = V[:, :2] - c
+        _rad = _rad / (np.linalg.norm(_rad, axis=1, keepdims=True) + 1e-9)
+        n_out = (_nrm[:, :2] * _rad).sum(1)
+        _e = A.tocoo()
+        _on = np.zeros(len(V), bool); _on[_e.row[tooth[_e.row] & ~tooth[_e.col]]] = True          # the teeth's gum-line vertices
+        _src = np.where(_on)[0]
+        if len(_src):
+            _dg, _pred, _from = _csg.dijkstra(_edge_lengths_graph(mesh_f, A, np.ones(len(V), bool)), directed=False, indices=_src,
+                                              min_only=True, return_predecessors=True, limit=8.0)
+            _ok = ~tooth & np.isfinite(_dg) & (_from >= 0)
+            _hung = _ok & ~fac_v & (n_out[np.where(_from >= 0, _from, 0)] > 0.35) & (n_out > 0.2)
+            if _hung.any():
+                fac_v = fac_v | _hung
+                res["cheek_gum_under_leaning_teeth"] = int(_hung.sum())
+    except Exception:  # noqa
+        pass
     # --- the cheek side and round the last molars: the retainer's band, buccal_mm onto the gum
     covered = tooth | (~tooth & (dist <= buccal_mm))
     # --- tongue side
@@ -737,6 +762,34 @@ def _phase1_trimline(mesh_f, A, labels, info, margin_f, edge_zone, ring_center, 
         space |= between
         res.setdefault("spaces", []).append(f"{patient_side(side, arch)}{pos}")
     covered |= space          # the body spans the space as the first trim does (the window is cut out of it)
+    # ... and any other room between two teeth next to each other on a side (a diastema; a space whose teeth were
+    # counted on from the first molar, so no position is "missing" in it): the gum between them is covered too. Left
+    # out, the 1.25 mm round each crown did not meet across a 3 mm space and the outline ran into it as a cleft with a
+    # lobe of line hanging down the cheek side (an upper, 11/13/2026: "what's going on with this trimline")
+    try:
+        from scipy.spatial import cKDTree as _KD
+        from shapely.geometry import MultiPoint as _MP
+        for side in (-1, 1):
+            row = sorted(p_ for (s_, p_) in by if s_ == side)
+            for pa, pb in zip(row, row[1:]):
+                a_, b_ = by[(side, pa)], by[(side, pb)]
+                ma, mb = labels == a_, labels == b_
+                if ma.sum() < 30 or mb.sum() < 30:
+                    continue
+                gap_mm = float(_KD(V[ma][:, :2]).query(V[mb][:, :2])[0].min())
+                if gap_mm < 1.0 or gap_mm > 14.0:
+                    continue
+                hull = _MP(np.vstack([V[ma][:, :2], V[mb][:, :2]])).convex_hull
+                lo_ = float(np.percentile(side * ang_v[ma], 97)); hi_ = float(np.percentile(side * ang_v[mb], 3))
+                if hi_ - lo_ < 0.005:
+                    continue
+                between = (~tooth & np.isin(near_all, [a_, b_]) & shapely.contains_xy(hull, V[:, 0], V[:, 1])
+                           & (side * ang_v > lo_) & (side * ang_v < hi_))
+                if between.sum() >= 5 and not (between & ~covered).sum() == 0:
+                    covered |= between
+                    res.setdefault("gaps_covered", []).append(dict(side=patient_side(side, arch), between=[int(pa), int(pb)], gap_mm=round(gap_mm, 1)))
+    except Exception:  # noqa
+        pass
     # the windows, seen from above (CUTT): each side's chosen crowns (the top crown_mm of their labels - a label can run
     # onto the gum) and the crest of any space, cut_palatal_mm out - where the plate must reach and what the opening
     # keeps its bridge from (the window's own edge on the palate hugs the gum, below)
