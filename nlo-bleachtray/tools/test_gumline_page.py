@@ -78,22 +78,58 @@ def main():
         # Shift-drag it 14 px in each direction until one paints something (towards the gum or the tooth)
         moved = None
         for dx, dy in ((0, 14), (0, -14), (14, 0), (-14, 0)):
-            page.keyboard.down("Shift"); page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + dx / 2, y + dy / 2); page.mouse.move(x + dx, y + dy); page.mouse.up(); page.keyboard.up("Shift"); time.sleep(0.5)
+            page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + dx / 2, y + dy / 2); page.mouse.move(x + dx, y + dy); page.mouse.up(); time.sleep(0.5)
             g2 = page.evaluate("window.__view.gumline()")
             if g2["loops"][li]["dots"][k]["moved"] and (g2["mine"]["tooth"] + g2["mine"]["gum"]) > 0:
                 moved = g2; break
             page.keyboard.press("Backspace"); time.sleep(0.3)
-        check("Shift-drag moves a dot and the surface beside the line is repainted", moved is not None, page.evaluate("window.__view.gumline().mine"))
+        check("a plain drag (no Shift) moves a dot and the surface beside the line is repainted", moved is not None, page.evaluate("window.__view.gumline().mine"))
         if moved:
             d0, d1 = g["loops"][li]["dots"][k]["p"], moved["loops"][li]["dots"][k]["p"]
             check(f"... the dot went with the mouse ({math.dist(d0, d1):.2f} mm)", 0.15 < math.dist(d0, d1) < 6)
-            check("... and the edit shows in the count line", "gum line: 1 dot moved" in page.text_content("#fixcount"), page.text_content("#fixcount"))
+            check("... and the edit shows in the count line", "gum line changed (1 dot)" in page.text_content("#fixcount"), page.text_content("#fixcount"))
             if shot:
                 page.screenshot(path=shot.replace(".png", "_2.png"))
             page.keyboard.press("Backspace"); time.sleep(0.4)
             g3 = page.evaluate("window.__view.gumline()")
             check("Backspace takes the move back, paint and all", g3["mine"] == dict(tooth=0, gum=0) and not any(d["moved"] for L in g3["loops"] for d in L["dots"]), g3["mine"])
-            page.keyboard.down("Shift"); page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + dx / 2, y + dy / 2); page.mouse.move(x + dx, y + dy); page.mouse.up(); page.keyboard.up("Shift"); time.sleep(0.5)
+            page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + dx / 2, y + dy / 2); page.mouse.move(x + dx, y + dy); page.mouse.up(); time.sleep(0.5)
+            # drawing: a stroke from one dot's place to another's, bowed 12 px to one side, takes the line's place between them
+            page.keyboard.press("Backspace"); time.sleep(0.4)
+            same = sorted([v for v in vis if v[0] == li], key=lambda v: v[1])
+            runs = [(a, b) for i, a in enumerate(same) for b in same[i + 3:] if 3 <= b[1] - a[1] <= 25 and math.hypot(b[2] - a[2], b[3] - a[3]) > 18]
+            check("(two dots of one line in view to draw between)", bool(runs), [(v[0], v[1]) for v in same][:20])
+            if runs:
+                a, b = runs[len(runs) // 2]
+                nx, ny = -(b[3] - a[3]), (b[2] - a[2]); nl = math.hypot(nx, ny); nx, ny = nx / nl, ny / nl
+                drawn = None
+                for sgn in (1, -1):
+                    pt = lambda t: (a[2] + (b[2] - a[2]) * t + nx * sgn * 12 * math.sin(math.pi * t), a[3] + (b[3] - a[3]) * t + ny * sgn * 12 * math.sin(math.pi * t))
+                    # first stroke: from the line to half way, let go off the line - nothing changes yet, the line waits
+                    page.keyboard.down("Shift"); page.mouse.move(a[2], a[3]); page.mouse.down()
+                    for i in range(1, 7):
+                        page.mouse.move(*pt(i / 12))
+                    page.mouse.up(); page.keyboard.up("Shift"); time.sleep(0.4)
+                    half = (page.evaluate("window.__view.gumPending()"), page.evaluate("window.__view.gumline().mine"))
+                    # second stroke: starts anywhere near, is joined to the first, and ends back on the line
+                    page.keyboard.down("Shift"); page.mouse.move(*pt(6 / 12)); page.mouse.down()
+                    for i in range(7, 12):
+                        page.mouse.move(*pt(i / 12))
+                    page.mouse.move(b[2], b[3]); page.mouse.up(); page.keyboard.up("Shift"); time.sleep(0.6)
+                    g4 = page.evaluate("window.__view.gumline()")
+                    nm = sum(1 for d in g4["loops"][li]["dots"] if d["moved"])
+                    if half[0] >= 3 and half[1] == dict(tooth=0, gum=0) and nm >= 2 and (g4["mine"]["tooth"] + g4["mine"]["gum"]) > 0 and page.evaluate("window.__view.gumPending()") == 0:
+                        drawn = (g4, nm); break
+                    page.keyboard.press("Escape"); page.keyboard.press("Backspace"); time.sleep(0.3)
+                check("Shift-draw from the line in two strokes (the second joins the first): back on the line, the drawing becomes the line", drawn is not None, page.evaluate("window.__view.gumline().mine"))
+                if drawn:
+                    check(f"... as dots of its own ({drawn[1]}), and the surface between old and new line is repainted", drawn[1] >= 2)
+                    if shot:
+                        page.screenshot(path=shot.replace(".png", "_3.png"))
+                    page.keyboard.press("Backspace"); time.sleep(0.4)
+                    g5 = page.evaluate("window.__view.gumline()")
+                    check("... and Backspace takes the whole stroke back", g5["mine"] == dict(tooth=0, gum=0) and sum(L["n"] for L in g5["loops"]) == nd, (g5["mine"], sum(L["n"] for L in g5["loops"]), nd))
+            page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + dx / 2, y + dy / 2); page.mouse.move(x + dx, y + dy); page.mouse.up(); time.sleep(0.5)
             n0 = seen["n"]
             page.click("#rerun")
             t0 = time.time()
