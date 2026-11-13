@@ -890,7 +890,7 @@ let resMesh = null, resHeat = null;   // the Reservoirs view: its mesh and its h
 const PANELS = {
   clean:  { group: 'seg', title: 'Scan clean-up — cut away what is not the arch', modes: [['cut', 'Cut away', 'Tongue, cheek, a flap, the pad behind the last molar: that part of the scan is deleted before the model is built', 'brush'], ['uncut', 'Erase', 'Painted too much? Paint over it again with this to take the cut stroke back (before Apply)', 'eraser']],
             sets: ['cut'], hint: 'Hold <kbd class="key">Shift</kbd> and drag over what the scanner caught that is not the arch; rotate with the mouse otherwise. <b>Erase</b> takes a stroke back where you paint over it, before Apply. The painted part leaves the scan file itself - every model from it, every later re-run; <b>Bring back what was cut</b> (shown once something has been cut away) puts the scan back as it was before the first cut and re-makes its models.' },
-  seg:    { group: 'seg', title: 'Segmentation — fix tooth / gum labels', modes: [['tooth', 'Tooth', 'Paints what the stroke starts on. Start on a tooth and the stroke is that tooth\'s colour (over the neighbour\'s bleed, or over gum, it is that tooth); start on gum - no colour - and the stroke is gum', 'brush'], ['gum', 'Gum', 'Gum, whatever the stroke starts on', 'eraser'], ['gumline', 'Gum line', 'The line where tooth meets gum, found by the app, with dots on it: hold Shift and drag a dot to where the gum line really is - what lies on the tooth side of the line becomes tooth, the rest gum', 'poly'], ['contact', 'Contact', 'The splits the app made show as rings. Shift-click where two teeth touch and no ring is: a split goes there (a yellow dot). Shift-click a ring: no split there - the two colours become one tooth. Shift-drag a ring or a dot to move the split. Click a dot again to take it away', 'dot']],
+  seg:    { group: 'seg', title: 'Segmentation — fix tooth / gum labels', modes: [['tooth', 'Tooth', 'Paints what the stroke starts on. Start on a tooth and the stroke is that tooth\'s colour (over the neighbour\'s bleed, or over gum, it is that tooth); start on gum - no colour - and the stroke is gum', 'brush'], ['gum', 'Gum', 'Gum, whatever the stroke starts on', 'eraser'], ['gumline', 'Gum line', 'The line where tooth meets gum, found by the app, with dots on it: drag a dot to move it. Or hold Shift, press on the pink line and draw the real gum line - stop anywhere, the next stroke carries on from there - and when the drawing comes back onto the pink line it takes the place of that stretch. What lies on the tooth side of the line becomes tooth, the rest gum', 'poly'], ['contact', 'Contact', 'The splits the app made show as rings. Shift-click where two teeth touch and no ring is: a split goes there (a yellow dot). Shift-click a ring: no split there - the two colours become one tooth. Shift-drag a ring or a dot to move the split. Click a dot again to take it away', 'dot']],
             sets: ['add', 'remove', 'relabel', 'contact', 'uncontact', 'nosplit', 'unnosplit'], hint: 'Each tooth has its own colour, gum is plain. Hold <kbd class="key">Shift</kbd> and drag to repaint; rotate with the mouse otherwise. <b>Tooth</b> paints the colour of the tooth the stroke starts on: where one colour has run over onto the next tooth, start on the right tooth and paint over the bleed - it is that tooth again, with a clean split; started on gum it paints plain tooth, for the app to sort. <b>Contact</b> is a dot, not a brush. Every split the app made between two colours shows as a <b>ring</b> on the cheek side, where it is easiest to see (look from the front for the incisors). Three things to do with it: where one colour runs across two teeth and no ring is, Shift-click where the teeth touch - a <b>yellow dot</b> puts the split there; where one tooth has two colours, Shift-click the ring between them - it gets a cross, <b>no split</b> there, and the two colours are one tooth after Apply; where a split sits in the wrong place, Shift-drag the ring (or a dot) to where the teeth really meet. Teeth that already have their own colour need nothing, and teeth with a space between them never do - most arches need no dots, a crowded one two or three. Click a dot or a crossed ring again to take it back, Backspace takes the last one back; applied dots show pale. The dots are kept with the scan, and a corrected case that is sent or saved as a lesson teaches the model where teeth meet.' },
   res:    { group: 'scan', title: 'Reservoirs — paint or erase', modes: [['reservoir', 'Paint', 'A reservoir here: on a tooth the automatic one skipped (behind the 5s, a tooth set back for recession) or a part it missed. Still 1 mm off the gum line and 0.4 mm off the edge', 'brush'], ['noreservoir', 'Erase', 'No reservoir here (recession, an exposed root, a crown margin) - the reservoir ends at the edge of your stroke, with its 0.6 mm slope on the side you kept', 'eraser']],
             sets: ['reservoir', 'noreservoir'], hint: 'The red is the reservoir as it is now. Hold <kbd class="key">Shift</kbd> and drag: <b>Paint</b> adds reservoir (it shows in the same red), <b>Erase</b> takes it away (the bare model shows through); rotate with the mouse otherwise. Paint on gum is ignored; the reservoir always stays a millimetre off the gum line. Kept for every model made from this scan and every re-run.' },
@@ -918,7 +918,10 @@ const QUICK = {
         [`${QK.S} + drag ${QK.ring}`, 'move the split'],
         ['click again / ⌫', 'undo a dot or a ✕'], 'sep',
         ['<b>Gum line</b>', `the ${QK.dot('#db2777')} line where tooth meets gum, found by the app`],
-        [`${QK.S} + drag a dot`, 'move the gum line there'], [`${QK.S} + click the line`, 'add a dot'], [`${QK.S} + click a dot`, 'remove it'], ['⌫', 'undo the last move'], ['🖱 drag', 'rotate']],
+        ['🖱 drag a dot', 'move it (no Shift)'],
+        [`${QK.S} + draw`, 'start on the pink line and draw the real gum line; the next stroke carries on from where you stopped'],
+        ['back on the line', 'the drawn line replaces that stretch, as dots'],
+        [`${QK.S} + click`, 'a straight piece to that point'], ['⌫ / Esc', 'undo the last stroke or move / drop the line being drawn'], ['Alt + click a dot', 'remove it'], ['🖱 drag elsewhere', 'rotate']],
   res: [[`${QK.dot('#e0245e')} red`, 'the reservoir now'], [`${QK.S} + drag`, '<b>Paint</b> adds · <b>Erase</b> removes'], QLOOP, ['↔ 1 mm', 'always stays off the gum line'], ['🖱 drag', 'rotate']],
   block: [[`${QK.S} + click`, '<b>Outline</b>: corner by corner; click the first dot to close → inside is filled'], ['Esc', 'drop an unfinished outline'],
           [`${QK.S} + drag`, '<b>Block out</b>: brush over the undercut · <b>Clear</b>: brush it away'],
@@ -3482,11 +3485,11 @@ const glGroup = new THREE.Group(); groups.seg.add(glGroup);
 let gl = null;          // { loops: [{ dots: [{ p:[x,y,z], lab, moved, p0 }], closed, sign }], hist: [] }
 let glDrag = null;      // { li, k, ev, moved }
 let glMine = { tooth: new Map(), gum: new Set() };   // what the line painted (to take back before it paints again)
-const GL_STEP = 0.3, GL_PICK = 0.9, GL_ON_CURVE = 0.8, GL_EPS = 0.16, GL_MAX_GAP = 2.6, GL_MIN_LOOP = 8;
+const GL_STEP = 0.3, GL_PICK = 0.8, GL_START = 2.0, GL_SNAP = 1.0, GL_ON_CURVE = 0.8, GL_EPS = 0.16, GL_MAX_GAP = 2.6, GL_MIN_LOOP = 8;
 const glOn = () => tab === 'seg' && modeNow() === 'gumline' && !!segPos;
 const glVec = d => new THREE.Vector3(d.p[0], d.p[1], d.p[2]);
 function glTakeBack(){
-  glMine.tooth.forEach((lab, i) => { edits.add.delete(i); edits.relabel.delete(lab * REL + i); });
+  glMine.tooth.forEach((lab, i) => { edits.add.delete(i); edits.relabel.delete(lab * REL + i); relabelOf.delete(i); });   // (relabelOf is what labelNow reads)
   glMine.gum.forEach(i => edits.remove.delete(i));
   glMine = { tooth: new Map(), gum: new Set() };
 }
@@ -3556,7 +3559,21 @@ function glCurve(L){
   if (!L.closed) { pts.push(cv.getPoint(1)); tan.push(cv.getTangent(1)); hot.push(mv(m - 2) || mv(m - 1)); lab.push(L.dots[m - 1].lab); }
   return { pts, tan, hot, lab };
 }
-// the moved stretches repaint what lies beside them: tooth side -> that tooth, gum side -> gum
+// the gum-ward direction at points of a line: across the line, in the surface there
+function glGumDirs(pts, tan, sign){
+  const nrm = segMesh.geometry.getAttribute('normal'), nv = new THREE.Vector3();
+  return pts.map((q, j) => { const i = nearestVertex(q); nv.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i)); return new THREE.Vector3().crossVectors(nv, tan[j]).normalize().multiplyScalar(sign[j]); });
+}
+// the lines as they were found: what a moved line is compared with
+function glBaseOf(loops){
+  const P = [], T = [], SG = [], lab = []; for (const L of loops) { const C = glCurve(L); C.pts.forEach((q, j) => { P.push(q); T.push(C.tan[j]); SG.push(L.sign); lab.push(C.lab[j]); }); }
+  const G = glGumDirs(P, T, SG), px = new Float32Array(P.length * 3), gx = new Float32Array(P.length * 3);
+  P.forEach((q, j) => { px[j*3] = q.x; px[j*3+1] = q.y; px[j*3+2] = q.z; gx[j*3] = G[j].x; gx[j*3+1] = G[j].y; gx[j*3+2] = G[j].z; });
+  return { px, gx, lab, n: P.length };
+}
+// the moved stretches repaint the strip between the line as it was found and the line as it is now: a vertex that
+// was on the gum side of the old line and is on the tooth side of the new one becomes that tooth, and the other way
+// round gum. (Judged against the new line alone, gum a few millimetres off a sharply bent line came out "tooth".)
 function glRepaint(){
   glTakeBack();
   if (!gl) { paintColors(); updateFixCount(); return; }
@@ -3564,21 +3581,25 @@ function glRepaint(){
   for (const L of gl.loops) { const C = glCurve(L); for (let j = 0; j < C.pts.length; j++) { P.push(C.pts[j]); T.push(C.tan[j]); H.push(C.hot[j]); LB.push(C.lab[j]); SG.push(L.sign); }
     for (const d of L.dots) if (d.moved && d.p0) reach = Math.max(reach, Math.hypot(d.p[0] - d.p0[0], d.p[1] - d.p0[1], d.p[2] - d.p0[2])); }
   if (!H.some(Boolean)) { paintColors(); updateFixCount(); return; }
+  if (!gl.base) gl.base = glBaseOf(gl.loops);
   const R = Math.min(8, Math.max(1.5, reach + 1.0)), R2 = R * R;
   const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
   P.forEach((q, j) => { if (!H[j]) return; lo[0] = Math.min(lo[0], q.x - R); lo[1] = Math.min(lo[1], q.y - R); lo[2] = Math.min(lo[2], q.z - R); hi[0] = Math.max(hi[0], q.x + R); hi[1] = Math.max(hi[1], q.y + R); hi[2] = Math.max(hi[2], q.z + R); });
-  const nrm = segMesh.geometry.getAttribute('normal'), g = new THREE.Vector3(), nv = new THREE.Vector3();
   const px = new Float32Array(P.length * 3); P.forEach((q, j) => { px[j*3] = q.x; px[j*3+1] = q.y; px[j*3+2] = q.z; });
+  const hotIdx = []; H.forEach((h, j) => { if (h) hotIdx.push(j); });
+  const Gh = glGumDirs(hotIdx.map(j => P[j]), hotIdx.map(j => T[j]), hotIdx.map(j => SG[j])), gOf = new Map(); hotIdx.forEach((j, k) => gOf.set(j, Gh[k]));
+  const B = gl.base;
   for (let i = 0; i < segLabels.length; i++) {
     const x = segPos[i*3], y = segPos[i*3+1], z = segPos[i*3+2];
     if (x < lo[0] || x > hi[0] || y < lo[1] || y > hi[1] || z < lo[2] || z > hi[2]) continue;
     let bj = -1, bd = R2; for (let j = 0; j < P.length; j++) { const dx = px[j*3] - x, dy = px[j*3+1] - y, dz = px[j*3+2] - z, d = dx*dx + dy*dy + dz*dz; if (d < bd) { bd = d; bj = j; } }
     if (bj < 0 || !H[bj]) continue;
-    nv.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i)); g.crossVectors(nv, T[bj]).multiplyScalar(SG[bj]);
-    const side = (x - px[bj*3]) * g.x + (y - px[bj*3+1]) * g.y + (z - px[bj*3+2]) * g.z;      // > 0: gum side
+    const g = gOf.get(bj), side = (x - px[bj*3]) * g.x + (y - px[bj*3+1]) * g.y + (z - px[bj*3+2]) * g.z;      // > 0: gum side of the line now
+    let b0 = -1, b0d = 1e9; for (let j = 0; j < B.n; j++) { const dx = B.px[j*3] - x, dy = B.px[j*3+1] - y, dz = B.px[j*3+2] - z, d = dx*dx + dy*dy + dz*dz; if (d < b0d) { b0d = d; b0 = j; } }
+    const side0 = (x - B.px[b0*3]) * B.gx[b0*3] + (y - B.px[b0*3+1]) * B.gx[b0*3+1] + (z - B.px[b0*3+2]) * B.gx[b0*3+2];   // ... of the line as found
     const now = labelNow(i);
-    if (side > 0.03 && now !== 0) { if (segLabels[i] !== 0) { edits.remove.add(i); glMine.gum.add(i); } }
-    else if (side < -0.03 && now === 0 && !edits.remove.has(i) && !edits.cut.has(i)) { const lb = LB[bj] > 0 ? LB[bj] : 0;
+    if (side > 0.03 && side0 < 0.05 && now !== 0) { if (segLabels[i] !== 0) { edits.remove.add(i); glMine.gum.add(i); } }
+    else if (side < -0.03 && side0 > -0.05 && now === 0 && !edits.remove.has(i) && !edits.cut.has(i)) { const lb = B.lab[b0] > 0 ? B.lab[b0] : LB[bj] > 0 ? LB[bj] : 0;   // the tooth it lay under on the line as found
       edits.add.add(i); if (lb) edits.relabel.add(lb * REL + i); glMine.tooth.set(i, lb); }
   }
   paintColors(); updateFixCount();
@@ -3586,61 +3607,123 @@ function glRepaint(){
 function glSync(){
   if (!glOn()) { drawGl(); return; }
   // found again whenever nothing on it has been moved (the brush may have changed the labels since)
-  if (!gl || !glMoved()) { glMine = { tooth: new Map(), gum: new Set() }; gl = { loops: glDetect(), hist: [] }; }
+  if (!gl || !glTouched()) { glMine = { tooth: new Map(), gum: new Set() }; gl = { loops: glDetect(), hist: [], base: null }; gl.base = glBaseOf(gl.loops); }
   drawGl();
 }
-const glSnap = () => gl.loops.map(L => ({ closed: L.closed, sign: L.sign, dots: L.dots.map(d => ({ p: d.p.slice(), p0: d.p0 ? d.p0.slice() : null, lab: d.lab, moved: d.moved })) }));
+const glSnap = () => gl.loops.map(L => ({ closed: L.closed, sign: L.sign, dots: L.dots.map(d => ({ p: d.p.slice(), p0: d.p0 ? d.p0.slice() : null, lab: d.lab, moved: d.moved, mine: d.mine })) }));
 function glDotNear(p){ let best = null, bd = GL_PICK; gl.loops.forEach((L, li) => L.dots.forEach((d, k) => { const dd = glVec(d).distanceTo(p); if (dd < bd) { bd = dd; best = { li, k }; } })); return best; }
+// The way it is worked (the doctor, 11/13/2026: "you click on the existing gum line and then you can draw a line from
+// there to any point, and the next line will connect to it, and then you can adjust them still by one dot ... move
+// them by just clicking and dragging (no Shift), but if you hold down Shift you can start drawing a line"):
+//   plain drag on a dot        moves it
+//   Shift + draw (or click)    starts on the gum line and runs to wherever it is let go; the next stroke (or click)
+//                              carries on from there; when one comes back onto the gum line the drawn line takes the
+//                              place of the stretch between its two ends, as dots that can be dragged like the rest
+// plain press on a dot: true when it took the press (the view must not turn)
+function glDotDown(ev){
+  if (!glOn()) return false; if (!gl) glSync(); const h = dotHit(ev); if (!h || !gl) return false;
+  const on = glDotNear(h.p); if (!on) return false;
+  glDrag = { kind: 'dot', li: on.li, k: on.k, ev, moved: false, snap: glSnap(), alt: ev.altKey }; controls.enabled = false; drawGl(); return true;
+}
 function glDown(ev){
   if (!gl) glSync(); const h = dotHit(ev); if (!h || !gl) return;
-  const on = glDotNear(h.p);
-  if (on) { glDrag = { li: on.li, k: on.k, ev, moved: false, snap: glSnap() }; controls.enabled = false; drawGl(); return; }
-  // on the line between two dots: a new dot there, to drag
-  let best = null, bd = GL_ON_CURVE;
-  gl.loops.forEach((L, li) => { const C = glCurve(L), m = L.dots.length, nseg = L.closed ? m : m - 1; C.pts.forEach((q, j) => { const d = q.distanceTo(h.p); if (d < bd) { bd = d; best = { li, at: Math.min(nseg - 1, Math.floor(j / 10)) + 1, q, lab: C.lab[j] }; } }); });
-  if (!best) return;
-  const snap = glSnap(); gl.loops[best.li].dots.splice(best.at, 0, { p: best.q.toArray(), p0: best.q.toArray(), lab: best.lab, moved: false });
-  glDrag = { li: best.li, k: best.at, ev, moved: false, snap, fresh: true }; controls.enabled = false; drawGl();
+  if (!gl.pend) {       // a line starts on the gum line
+    const n = glNearest(h.p); if (!n || n.d > GL_START) { showErr('Start on the gum line: hold Shift and press on the pink line, then draw.', 4000); return; }
+    gl.pend = { li: n.li, pts: [n.q.clone()], marks: [] };
+  }
+  const P = gl.pend; P.marks.push(P.pts.length);          // (Backspace takes this stroke back)
+  glDrag = { kind: 'draw', ev, drawing: false, first: h.p.clone() }; controls.enabled = false;
+  if (P.pts.length > 1 || h.p.distanceTo(P.pts[0]) > 0.3) P.pts.push(h.p.clone());      // joined to where the last one ended
+  drawGl();
 }
 function glMove(ev){
   const d = glDrag; if (!d) return;
-  if (!d.moved && Math.hypot(ev.clientX - d.ev.clientX, ev.clientY - d.ev.clientY) < 4) return;
+  const far = Math.hypot(ev.clientX - d.ev.clientX, ev.clientY - d.ev.clientY) >= 4;
+  if (d.kind === 'draw') { if (!d.drawing) { if (!far) return; d.drawing = true; }
+    const P = gl.pend, h = dotHit(ev); if (P && h && h.p.distanceTo(P.pts[P.pts.length - 1]) >= 0.25) { P.pts.push(h.p.clone()); drawGl(); } return; }
+  if (!d.moved && !far) return;
   const h = dotHit(ev); if (!h) return;
   d.moved = true; const dot = gl.loops[d.li].dots[d.k]; dot.p = h.p.toArray(); dot.moved = true; drawGl();
 }
+// where a point lies on the lines: the line, its place along it in dots (2.3 = a third of the way from dot 2 to 3),
+// the point on the line and the tooth there
+function glNearest(p){
+  let best = null, bd = 1e9;
+  gl.loops.forEach((L, li) => { const C = glCurve(L); C.pts.forEach((q, j) => { const d = q.distanceTo(p); if (d < bd) { bd = d; best = { li, u: j / 10, q, lab: C.lab[j], d }; } }); });
+  return best;
+}
+// a drawn stroke takes the place of the line between its two ends (the short way round)
+function glDrawn(pts){
+  let len = 0; for (let i = 1; i < pts.length; i++) len += pts[i].distanceTo(pts[i-1]);
+  if (len < 1.0) return false;
+  let A = glNearest(pts[0]), B = glNearest(pts[pts.length - 1]);
+  if (!A || !B || A.d > 5 || B.d > 5) return false;
+  if (A.li !== B.li) { const L = gl.loops[A.li], C = glCurve(L); let bd = 1e9; C.pts.forEach((q, j) => { const d = q.distanceTo(pts[pts.length - 1]); if (d < bd) { bd = d; B = { li: A.li, u: j / 10, q, lab: C.lab[j], d }; } }); if (B.d > 5) return false; }
+  const L = gl.loops[A.li], m = L.dots.length; let S = pts, ua = A.u, ub = B.u;
+  if (L.closed) { let span = ((ub - ua) % m + m) % m; if (span > m / 2) { S = pts.slice().reverse(); const t = ua; ua = ub; ub = t; span = m - span; }
+    const r = Math.floor(ua) % m; L.dots = L.dots.slice(r).concat(L.dots.slice(0, r)); ua -= Math.floor(ua); ub = ua + span; }
+  else if (ub < ua) { S = pts.slice().reverse(); const t = ua; ua = ub; ub = t; }
+  // the stroke as dots: the points that carry its shape, none further apart than on the found line
+  const keep = p1Simplify(S, GL_EPS + 0.06), nd = []; let last = null;
+  const put = v => { const n0 = glNearestOn(A.li, v); nd.push({ p: v.toArray(), p0: n0.q.toArray(), lab: n0.lab, moved: true }); last = v; };
+  for (const v of keep) { if (last) { const gap = v.distanceTo(last), k = Math.floor(gap / GL_MAX_GAP); for (let i = 1; i <= k; i++) put(new THREE.Vector3().lerpVectors(last, v, i / (k + 1))); } put(v); }
+  const first = Math.floor(ua) + 1, lastK = Math.min(m - 1, Math.floor(ub));     // the dots the stroke passes
+  L.dots.splice(first, Math.max(0, lastK - first + 1), ...nd);
+  return true;
+}
+// (the old line of one loop, before the stroke's dots go in: for each new dot the place it came from and its tooth)
+let glOld = null;
+function glNearestOn(li, p){ if (!glOld || glOld.li !== li) glOld = { li, C: glCurve(gl.loops[li]) }; let bq = null, bd = 1e9, bl = 0; glOld.C.pts.forEach((q, j) => { const d = q.distanceTo(p); if (d < bd) { bd = d; bq = q; bl = glOld.C.lab[j]; } }); return { q: bq, lab: bl }; }
 function glUp(){
   const d = glDrag; glDrag = null; controls.enabled = true; if (!d || !gl) return;
+  if (d.kind === 'draw') {
+    const P = gl.pend; if (!P) { drawGl(); return; }
+    // back on the gum line (the same one, away from where it started): the drawn line takes that stretch's place
+    const end = P.pts[P.pts.length - 1]; let len = 0; for (let i = 1; i < P.pts.length; i++) len += P.pts[i].distanceTo(P.pts[i-1]);
+    const C = glCurve(gl.loops[P.li]); let bd = 1e9; C.pts.forEach(q => { bd = Math.min(bd, q.distanceTo(end)); });
+    if (P.pts.length >= 3 && len >= 1.0 && bd <= GL_SNAP && end.distanceTo(P.pts[0]) > 0.8) {
+      const snap = glSnap(); glOld = null; const ok = glDrawn(P.pts); glOld = null; gl.pend = null;
+      if (ok) { gl.hist.push(snap); if (gl.hist.length > 60) gl.hist.shift(); glRepaint(); }
+    }
+    drawGl(); updateFixCount(); return;
+  }
   const L = gl.loops[d.li];
   if (!d.moved) {
-    if (d.fresh) { /* a dot put on the line and not dragged: it stays, changing nothing */ gl.hist.push(d.snap); drawGl(); return; }
-    if (L.dots.length <= 3) { drawGl(); return; }
-    // a click on a dot takes it away; the line closes over the gap, so its neighbours count as moved
+    if (!d.alt || L.dots.length <= 3) { drawGl(); return; }
+    // Alt + click on a dot takes it away; the line closes over the gap, so its neighbours count as moved
     const m = L.dots.length; L.dots.splice(d.k, 1); const a = L.dots[(d.k - 1 + (m - 1)) % (m - 1)], b = L.dots[d.k % (m - 1)]; if (a) a.moved = true; if (b) b.moved = true;
   }
   gl.hist.push(d.snap); if (gl.hist.length > 60) gl.hist.shift();
   glRepaint(); drawGl();
 }
-function glUndo(){ if (!gl || !gl.hist.length) return false; gl.loops = gl.hist.pop(); glRepaint(); drawGl(); return true; }
+function glUndo(){
+  if (gl && gl.pend) { const P = gl.pend, at = P.marks.pop(); if (at === undefined || at <= 1) gl.pend = null; else P.pts.length = at; drawGl(); updateFixCount(); return true; }   // the line being drawn: its last stroke
+  if (!gl || !gl.hist.length) return false; gl.loops = gl.hist.pop(); glRepaint(); drawGl(); return true; }
 const glMoved = () => gl ? gl.loops.reduce((a, L) => a + L.dots.filter(d => d.moved).length, 0) : 0;
+const glTouched = () => gl ? !!gl.pend || gl.loops.some(L => L.dots.some(d => d.moved || d.mine)) : false;
 // (drawn on the surface, hidden behind it: the tongue-side line must not show through the teeth)
 const glMats = { line: new THREE.MeshBasicMaterial({ color: 0xdb2777 }), dot: new THREE.MeshBasicMaterial({ color: 0xffffff }), rim: new THREE.MeshBasicMaterial({ color: 0x9d174d }),
-                 moved: new THREE.MeshBasicMaterial({ color: 0xf59e0b }), held: new THREE.MeshBasicMaterial({ color: 0xfde047 }) };
+                 moved: new THREE.MeshBasicMaterial({ color: 0xf59e0b }), held: new THREE.MeshBasicMaterial({ color: 0xfde047 }), draw: new THREE.MeshBasicMaterial({ color: 0x1d4ed8, depthTest: false }) };
 function drawGl(){
   for (const c of [...glGroup.children]) { glGroup.remove(c); if (c.geometry !== p1DotGeo) c.geometry.dispose(); }
   if (!gl || !glOn()) { requestRender(); return; }
   if (glGroup.parent !== groups.seg) groups.seg.add(glGroup);
   gl.loops.forEach((L, li) => {
     const C = glCurve(L); if (C.pts.length >= 2) { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(C.pts, L.closed, 'catmullrom', 0.1), C.pts.length, 0.09, 6, L.closed), glMats.line); m.renderOrder = 8; glGroup.add(m); }
-    L.dots.forEach((d, k) => { const held = glDrag && glDrag.li === li && glDrag.k === k;
+    L.dots.forEach((d, k) => { const held = glDrag && glDrag.kind === 'dot' && glDrag.li === li && glDrag.k === k;
       const rim = new THREE.Mesh(p1DotGeo, glMats.rim); rim.scale.setScalar(held ? 0.5 : 0.3); rim.position.set(d.p[0], d.p[1], d.p[2]); rim.renderOrder = 9; glGroup.add(rim);
       const m = new THREE.Mesh(p1DotGeo, held ? glMats.held : d.moved ? glMats.moved : glMats.dot); m.scale.setScalar(held ? 0.44 : 0.25); m.position.copy(rim.position); m.material.polygonOffset = true; m.material.polygonOffsetFactor = -4; m.material.polygonOffsetUnits = -4; m.renderOrder = 10; glGroup.add(m); });
   });
+  if (gl.pend) { const pts = gl.pend.pts;
+    if (pts.length >= 2) { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.05), pts.length * 2, 0.11, 6, false), glMats.draw); m.renderOrder = 11; glGroup.add(m); }
+    for (const v of [pts[0], pts[pts.length - 1]]) { const m = new THREE.Mesh(p1DotGeo, glMats.draw); m.scale.setScalar(0.4); m.position.copy(v); m.renderOrder = 12; glGroup.add(m); } }
   requestRender();
 }
 window.addEventListener('keydown', ev => {
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
   if (!glOn()) return;
   if ((ev.key === 'Backspace' || (ev.key === 'z' && (ev.ctrlKey || ev.metaKey))) && glUndo()) ev.preventDefault();
+  if (ev.key === 'Escape' && gl && gl.pend) { gl.pend = null; drawGl(); updateFixCount(); ev.preventDefault(); }
 });
 window.addEventListener('keydown', ev => {
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
@@ -3649,6 +3732,7 @@ window.addEventListener('keydown', ev => {
 });
 canvas.addEventListener('pointerdown', ev => {
   // the pontic's gizmo works with a plain drag, and a plain click on a pontic picks it
+  if (!ev.shiftKey && ev.button === 0 && typeof glDotDown === 'function' && glOn() && glDotDown(ev)) return;
   if (!ev.shiftKey && ev.button === 0 && tab === 'pontic' && brushOn()) { if (gizmoDown(ev)) return; const id = ponticHitAt(ev); if (id && id !== ponticSel) { ponticSel = id; drawPontics(); drawBadges(); renderPanel(); } }
 });
 canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && brushOn()){ if (isDotMode(modeNow())) { dotDown(ev); return; } if (modeNow() === 'outline') { outlineClick(ev); return; } if (modeNow() === 'p1path') { p1PathDown(ev); return; } if (modeNow() === 'gumline') { glDown(ev); return; } if (modeNow() === 'pontic') { ponticDown(ev); return; } painting = true; controls.enabled = false; startStroke(ev); paintAt(ev); } });
@@ -3676,7 +3760,8 @@ function updateFixCount(){
   const dotWord = (k, n) => { const un = k.startsWith('un'); const nm = dotName[un ? k.slice(2) : k]; return `${n} ${nm}${n > 1 ? 's' : ''}${un ? ' taken away' : ''}`; };
   const here = mine.filter(k => edits[k].size).map(k => (k in dotName || k.slice(2) in dotName) ? dotWord(k, edits[k].size) : `${edits[k].size} ${words[k]} (vertices)`);
   if (tab === 'teeth') { const n = Object.keys(toothIds).length; if (n) here.unshift(`${n} tooth number${n > 1 ? 's' : ''} given`); }
-  if (tab === 'seg' && typeof glMoved === 'function' && glMoved()) here.unshift(`gum line: ${glMoved()} dot${glMoved() > 1 ? 's' : ''} moved`);
+  if (tab === 'seg' && typeof glMoved === 'function' && glMoved()) here.unshift(`gum line changed (${glMoved()} dot${glMoved() > 1 ? 's' : ''})`);
+  if (tab === 'seg' && typeof gl !== 'undefined' && gl && gl.pend) here.unshift('gum line: a line is being drawn - bring it back onto the pink line to finish (Esc drops it)');
   if (tab === 'block' && outl && outl.pts.length) here.unshift(`outline: ${outl.pts.length} corner${outl.pts.length > 1 ? 's' : ''} - click the first dot to close`);
   else if (tab === 'block' && outlines.length) here.unshift(`${outlines.length} outline${outlines.length > 1 ? 's' : ''}`);
   if (tab === 'pontic') { if (pontics.length) here.unshift(`${pontics.length} pontic${pontics.length > 1 ? 's' : ''} (${pontics.map(p => p.slot).join(', ')})${ponticsDirty ? ' - changed, Apply makes the model with them' : ' applied'}`); else if (ponticsDirty) here.unshift('pontics cleared - Apply makes the model without them'); }
@@ -3749,7 +3834,7 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
-window.__view = { hitPoint: (x, y) => { const h = hitAt({ clientX: x, clientY: y }); return h ? h.point.toArray() : null; }, gumline: () => gl ? { loops: gl.loops.map(L => ({ closed: L.closed, sign: L.sign, n: L.dots.length, dots: L.dots.map(d => ({ p: d.p, moved: d.moved, lab: d.lab })) })), mine: { tooth: glMine.tooth.size, gum: glMine.gum.size } } : null, camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
+window.__view = { gumPending: () => gl && gl.pend ? gl.pend.pts.length : 0, hitPoint: (x, y) => { const h = hitAt({ clientX: x, clientY: y }); return h ? h.point.toArray() : null; }, gumline: () => gl ? { loops: gl.loops.map(L => ({ closed: L.closed, sign: L.sign, n: L.dots.length, dots: L.dots.map(d => ({ p: d.p, moved: d.moved, lab: d.lab })) })), mine: { tooth: glMine.tooth.size, gum: glMine.gum.size } } : null, camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   stroke3d: (mode, pts) => { const before = Object.values(edits).reduce((a, e) => a + e.size, 0); stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
