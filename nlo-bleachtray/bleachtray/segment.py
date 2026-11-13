@@ -806,6 +806,7 @@ def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.
         bi = np.clip(np.digitize(tv, bins) - 1, 0, len(bins) - 1)
         width = np.zeros(len(bins))
         z_low = np.full(len(bins), np.nan)
+        z_top = np.full(len(bins), np.nan)
         edge_frac = np.zeros(len(bins))
         counts = np.bincount(bi, minlength=len(bins))
         for b in range(len(bins)):
@@ -813,11 +814,13 @@ def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.
             if sel.sum() >= 3:
                 width[b] = np.percentile(wv[sel], 95) - np.percentile(wv[sel], 5)
                 z_low[b] = np.percentile(zv[sel], 5)
+                z_top[b] = np.percentile(zv[sel], 95)
                 if edge_zone is not None:
                     edge_frac[b] = float(edge_zone[mt][sel].mean())
         if len(width) >= 5:
             width = np.array([np.median(width[max(0, i - 1):i + 2]) for i in range(len(width))])
             z_low = np.array([np.nanmedian(zz) if np.isfinite(zz).any() else np.nan for zz in (z_low[max(0, i - 1):i + 2] for i in range(len(z_low)))])
+            z_top = np.array([np.nanmedian(zz) if np.isfinite(zz).any() else np.nan for zz in (z_top[max(0, i - 1):i + 2] for i in range(len(z_top)))])
         half = bins >= -2.0
         if not half.any():
             continue
@@ -838,7 +841,12 @@ def round_distal(loop, mesh, labels, info, edge_zone=None, radius=3.0, window=6.
         mid = np.abs(bins) <= 2.0
         if mid.any() and np.isfinite(z_low[mid]).any():
             z_gum = float(np.nanmedian(z_low[mid]))
-            climbed = np.where(z_low[b_max:] > z_gum + 2.5)[0]
+            # ... and the crown itself has come down: on a lower 7 the gum climbs towards the ramus along the crown, the
+            # label's low edge with it, while the occlusal table carries on at its level for another 2-3 mm - the rule
+            # ended the tooth there, and the model's end was cut through the back of the molar (11/12/2026). A label on
+            # the pad lies under the occlusal level
+            z_occ = float(np.nanmedian(z_top[mid])) if np.isfinite(z_top[mid]).any() else np.inf
+            climbed = np.where((z_low[b_max:] > z_gum + 2.5) & ~(z_top[b_max:] >= z_occ - 1.0))[0]
             if len(climbed):
                 rules["gum"] = round(float(bins[b_max + climbed[0]]) - t_max, 2)
                 t_tooth = min(t_tooth, float(bins[b_max + climbed[0]]))
