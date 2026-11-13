@@ -1078,7 +1078,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             try:
                 from .pontic import build_pontics
                 pm, pinfo = build_pontics(P["pontics"], T_total, mesh_f, fuse=bool(P.get("fuse_blockout", True)), radius=float(P.get("fuse_radius") or 0.6),
-                                          overlap=float(P.get("fuse_overlap") or 0.2), floor_z=0.0, log=lambda m: log(f"[{name}] {m}"))
+                                          overlap=float(P.get("fuse_overlap") or 0.2), floor_z=0.0, labels=labels, log=lambda m: log(f"[{name}] {m}"))
                 rep["pontics"] = pinfo
                 if pinfo.get("dropped"):
                     rep.setdefault("warnings", []).append(f"pontic{'s' if len(pinfo['dropped']) > 1 else ''} {', '.join(pinfo['dropped'])} could not be made - open the Pontics tab and place {'them' if len(pinfo['dropped']) > 1 else 'it'} again")

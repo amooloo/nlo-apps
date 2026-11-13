@@ -135,6 +135,27 @@ def main():
     vt = np.asarray(pm.vertices)[np.argmax(np.asarray(pm.vertices)[:, 2])]
     tip = out.contains(np.array([[vt[0], vt[1], vt[2] - 0.6], [vt[0], vt[1], vt[2] + 0.6]]))
     check("the pontic's top is in the model, the air above it is not", bool(tip[0]) and not bool(tip[1]))
+    # a build-up mirrored from the patient's own tooth (11/13/2026): a lopsided dome labelled as tooth 3 on a flat scan
+    from bleachtray.pontic import mirror_shape, norm_src, build_pontics as _bp
+    g = np.linspace(-12, 12, 97); gx, gy = np.meshgrid(g, g); r2 = ((gx - 4) / 4.0) ** 2 + (gy / 3.0) ** 2
+    gz = np.where(r2 < 1, 8.0 * np.sqrt(np.clip(1 - r2, 0, 1)) * (1 + 0.15 * (gx - 4)), 0.0)       # taller on its +x side
+    Vs = np.column_stack([gx.ravel(), gy.ravel(), gz.ravel()]); n = len(g)
+    idx = np.arange(n * n).reshape(n, n); q = np.stack([idx[:-1, :-1], idx[:-1, 1:], idx[1:, 1:], idx[1:, :-1]], -1).reshape(-1, 4)
+    Fs = np.vstack([q[:, [0, 1, 2]], q[:, [0, 2, 3]]]); labs = np.where(r2.ravel() < 1, 3, 0)
+    Msrc = np.eye(4); Msrc[:3, 3] = [4.0, 0.0, -1.0]
+    src = norm_src(dict(tooth=3, m=Msrc.tolist(), w0=8.0, h0=9.0, t0=6.0))
+    check("mirror: a source tooth is kept, a bad one is not", src is not None and norm_src(dict(tooth=0, m=Msrc.tolist(), w0=8, h0=9, t0=6)) is None and norm_src(dict(tooth=3, m=Msrc.tolist(), w0=80, h0=9, t0=6)) is None)
+    ms = mirror_shape(src, Vs, Fs, labs)
+    top = np.asarray(ms.vertices)[np.argmax(np.asarray(ms.vertices)[:, 2])]
+    check("mirror: the tooth comes back closed, right side out", ms.is_watertight and ms.volume > 50, (ms.is_watertight, round(float(ms.volume), 1)))
+    check("mirror: its tall side is on the other side now", top[0] < -0.5, top.round(2).tolist())
+    Mt = np.eye(4); Mt[:3, 3] = [-4.0, 0.0, -1.0]
+    spec = dict(id="b1", n=8, slot="R1", w=8.0, h=9.0, t=6.0, sink=1, m=Mt.tolist(), bu=True, tooth=5, src=dict(tooth=3, m=Msrc.tolist(), w0=8.0, h0=9.0, t0=6.0))
+    surf = trimesh.Trimesh(Vs, Fs, process=False)
+    pm2, inf2 = _bp([spec], np.eye(4), surf, fuse=False, labels=labs)
+    check("mirror: built as a build-up from the scan's own tooth", pm2 is not None and inf2["buildups"] == 1 and inf2["pontics"][0].get("mirrored_from") == 3 and abs(float(pm2.bounds[:, 0].mean()) + 4.0) < 1.0, inf2)
+    pm3, inf3 = _bp([spec], np.eye(4), surf, fuse=False, labels=None)
+    check("mirror: without the tooth colours it is dropped, not swapped for a library tooth", pm3 is None and inf3.get("dropped") == ["b1"], inf3)
     print()
     print("ALL OK" if not fails else f"{len(fails)} FAILED: {fails}")
     return 0 if not fails else 1
