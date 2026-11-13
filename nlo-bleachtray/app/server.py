@@ -744,8 +744,8 @@ def _scan_params(job, scan):
     per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") == "TT"
                 else job["params"].get("p1") if scan.get("tag") == "P1" else None) or {}
     params.update({k: v for k, v in per_type.items() if v is not None})
-    if scan.get("tag") == "P1":
-        # Phase I by block-out needs the bite: the case's other arch, as scanned (the scanners export the two in occlusion)
+    if scan.get("tag") in ("P1", "WT"):
+        # Phase I by block-out needs the bite, and a whitening tray's reservoirs are checked against it (11/13/2026): the case's other arch, as scanned (the scanners export the two in occlusion)
         other = next((sc for sc in job["scans"] if sc.get("arch") and sc.get("arch") != scan.get("arch") and sc.get("path") != scan.get("path")), None)
         params["opposing_scan"] = (_raw_scan_for(other) or other["path"]) if other else None
     params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))

@@ -18,7 +18,7 @@ TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this muc
 ASSET_DIR_BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 
 DEFAULTS = dict(
-    reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=0.6, reservoir_max_position=5,   # setback: the reservoir stops this far short of the gum line (was 0.5; 1 mm is the usual lab rule)
+    reservoir_height=0.5, reservoir_setback=1.25, reservoir_interprox=1.25, reservoir_incisal_lower=1.0, reservoir_bite_clear=1.5, reservoir_feather=0.6, reservoir_max_position=5,   # setback / interprox: the reservoir stops this far short of the gum line / of the neighbouring teeth (the doctor, 11/13/2026: 1 to 1.5 mm from both)
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
     blockout=False, blockout_depth=0.75,          # automatic interproximal fill (a wedge under every contact, the way aligner labs do it): off by default here, on for the retainer in the app
     fill_reach=1.25, fill_top=20.0,  # the fill: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how far up from the papilla (20 = to the contact)
@@ -693,12 +693,45 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if len(fidx):
             force_on = np.zeros(len(mesh.vertices), bool); force_on[fidx] = True
             log(f"[{name}] reservoir added on the {len(fidx)} painted vertices ({int((force_on & (labels > 0)).sum())} on teeth)")
+    # the bite (11/13/2026): a lower's reservoirs stop further from the incisal edge - the upper teeth close over it -
+    # and with the case's other arch at hand (scanned in occlusion) no reservoir where its teeth come within
+    # reservoir_bite_clear of this arch's
+    bite_off = None
+    if not MG and P["reservoir_height"] > 0 and P["reservoir_max_position"] > 0:
+        from .reservoir import bite_keep_off
+        opp_r = None
+        if P.get("opposing_scan") and os.path.exists(str(P["opposing_scan"])):
+            try:
+                opp_r = load_scan(str(P["opposing_scan"]))
+                opp_r.apply_transform(T_rough)
+            except Exception as ex:  # noqa
+                log(f"[{name}] the opposing arch could not be read ({ex}) - the reservoirs are not checked against the bite")
+        try:
+            bite_off, binfo = bite_keep_off(mesh, labels, opp_r, clear_mm=float(P.get("reservoir_bite_clear") or 1.5))
+        except Exception as ex:  # noqa
+            bite_off, binfo = None, dict(checked=False, why=f"the bite check failed ({str(ex)[:60]})")
+        rep["reservoir_bite"] = binfo
     if MG or P["reservoir_height"] <= 0:
         d = np.zeros(len(mesh.vertices))
     else:
         d = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
                                    feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
-                                   setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=0.0, force_on=force_on)   # the erased patch is the doctor's line: the reservoir ends there (its 0.6 mm slope on the kept side); the leeway is for root the app found on its own
+                                   setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=0.0, force_on=force_on,
+                                   interprox=float(P.get("reservoir_interprox") or 0.0) or None,
+                                   incisal=(float(P.get("reservoir_incisal_lower") or 0.0) or None) if arch_hint == "lower" else None, bite_off=bite_off)
+        if rep.get("reservoir_bite", {}).get("checked"):
+            # how much the bite took: the same reservoir without it
+            d0 = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
+                                        feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
+                                        setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=0.0, force_on=force_on,
+                                        interprox=float(P.get("reservoir_interprox") or 0.0) or None,
+                                        incisal=(float(P.get("reservoir_incisal_lower") or 0.0) or None) if arch_hint == "lower" else None)
+            took = (d0 > 0.05) & ~(d > 0.05)
+            hit = sorted({int(t) for t in np.unique(labels[took]) if t > 0 and (took & (labels == t)).sum() >= 15})
+            rep["reservoir_bite"].update(trimmed_vertices=int(took.sum()), trimmed_teeth=[[int(info[t][0]), int(info[t][1])] for t in hit if t in info])
+            log(f"[{name}] bite check: " + (f"the reservoir is kept off the bite on {len(hit)} teeth" if hit else "the opposing teeth do not reach the reservoirs"))
+        elif rep.get("reservoir_bite"):
+            log(f"[{name}] bite not checked for the reservoirs: {rep['reservoir_bite'].get('why')}")   # the erased patch is the doctor's line: the reservoir ends there (its 0.6 mm slope on the kept side); the leeway is for root the app found on its own
     mesh_r = apply_displacement(mesh, d)
     if P.get("periphery_smooth", True):
         mesh_r = smooth_periphery(mesh_r, labels, A, start=2.0, full=P["facial_offset"], iters=int(P.get("periphery_iters", 30)), mu=float(P.get("periphery_mu", -0.52)))
