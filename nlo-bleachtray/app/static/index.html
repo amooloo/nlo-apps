@@ -422,6 +422,7 @@
           <span class="tab" data-tab="pontic" title="Step 6 - a tooth shape where a tooth is missing, or a build-up over a worn or chipped tooth (retainers, templates)"><i>6</i>Pontics &amp; build-ups</span>
           <label><input type="checkbox" id="showtl" checked> trim line</label>
           <label title="A PLY carries the scanner's colour; off = the white stone-model look"><input type="checkbox" id="showcol"> colour</label>
+          <label id="showbiteL" style="display:none" title="The opposing arch over this one (when the case has both arches scanned with a bite): a pontic or build-up turns red where it runs into the opposing teeth"><input type="checkbox" id="showbite"> bite</label>
         </div>
         <div class="brush" id="brush"></div>
         <button class="pchip" id="brushchip" title="Show the brush tools">&#9998; Brush &#9656;</button>
@@ -2553,7 +2554,7 @@ async function loadSeg(id, k=0){
   try { teethInfo = await (await fetch(`/api/jobs/${id}/teeth?scan=${k}`)).json(); } catch (e) {}
   // the pontics kept for this scan (the page's own, changed and not applied, win) and the scan's rough-frame transform
   ponticInfo = { T_rough: null, gaps: [], made: null }; setRough(null);
-  try { const pi = await (await fetch(`/api/jobs/${id}/pontics?scan=${k}`, NOCACHE)).json(); ponticInfo = pi; setRough(pi.T_rough);
+  try { const pi = await (await fetch(`/api/jobs/${id}/pontics?scan=${k}`, NOCACHE)).json(); ponticInfo = pi; setRough(pi.T_rough); bite.ctx = { id, k }; biteClear();
     if (!ponticsDirty) { pontics = (pi.pontics || []).map(p => Object.assign({ sink: PONTIC_SINK }, p, { home: (p.m || []).map(r => r.slice()) })); if (!pontics.some(p => p.id === ponticSel)) ponticSel = null; } } catch (e) {}
   await loadPonticLib();
   // each tooth's middle and the arch's centre, for the Teeth tab's badges
@@ -2868,24 +2869,87 @@ async function ponticGeo(n){
   const r = await fetch(`/api/pontics/${n}.stl`); if (!r.ok) throw new Error(`shape #${n} not on the server (update the app)`);
   ponticGeos[n] = parseSTL(await r.arrayBuffer()); return ponticGeos[n];
 }
+// The bite on the Pontics & build-ups step (the doctor, 11/13/2026: "can it show occlusion? so if the build-up or
+// pontic runs into the opposing arch"): the case's other arch, as scanned - the scanners export the two in occlusion
+// when a bite scan was taken - drawn see-through over this one, and every pontic / build-up painted red where it
+// stands inside the opposing teeth, with the depth (or the clearance) in the box. The opposing arch is kept as a height
+// map over this arch (0.3 mm cells: the lowest point of the opposing surface over each), so a check is a look-up.
+const bite = { on: false, ctx: null, key: null, mesh: null, grid: null, why: '', res: {} };
+const biteMat = new THREE.MeshStandardMaterial({ color: 0x7dd3fc, roughness: .6, metalness: 0, transparent: true, opacity: .32, side: THREE.DoubleSide, depthWrite: false });
+const BITE_CELL = 0.3, BITE_RED = new THREE.Color(0xef4444);
+function biteClear(){ if (bite.mesh) { groups.seg.remove(bite.mesh); bite.mesh.geometry.dispose(); } bite.mesh = null; bite.grid = null; bite.key = null; bite.res = {}; bite.why = ''; }
+function biteAt(x, y){
+  const G = bite.grid; if (!G) return Infinity;
+  const i = Math.floor((x - G.x0) / BITE_CELL), j = Math.floor((y - G.y0) / BITE_CELL); if (i < 0 || j < 0 || i >= G.nx || j >= G.ny) return Infinity;
+  let h = G.h[j * G.nx + i]; if (h < 1e8) return h;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const a = i + di, b = j + dj; if (a < 0 || b < 0 || a >= G.nx || b >= G.ny) continue; const v = G.h[b * G.nx + a]; if (v < h) h = v; }
+  return h < 1e8 ? h : Infinity;
+}
+async function biteLoad(){
+  const c = bite.ctx; if (!c || !segPos) return false;
+  const key = c.id + ':' + c.k; if (bite.key === key && bite.grid) return true;
+  biteClear();
+  let buf; try { const r = await fetch(`/api/jobs/${c.id}/opposing?scan=${c.k}`, NOCACHE); if (!r.ok) { bite.why = r.status === 404 ? 'No opposing arch in this case - the bite needs both arches (scanned with a bite) in the same case.' : 'The opposing arch could not be read.'; return false; } buf = await r.arrayBuffer(); } catch (e) { bite.why = 'The opposing arch could not be read.'; return false; }
+  if (bite.ctx !== c) return false;
+  const dv = new DataView(buf), nV = dv.getUint32(0, true), nF = dv.getUint32(4, true); const V = new Float32Array(buf.slice(8, 8 + nV * 12)), F = new Uint32Array(buf.slice(8 + nV * 12, 8 + nV * 12 + nF * 12));
+  // into the frame the page draws in
+  const e = TR.elements; for (let i = 0; i < nV; i++) { const x = V[i*3], y = V[i*3+1], z = V[i*3+2]; V[i*3] = e[0]*x + e[4]*y + e[8]*z + e[12]; V[i*3+1] = e[1]*x + e[5]*y + e[9]*z + e[13]; V[i*3+2] = e[2]*x + e[6]*y + e[10]*z + e[14]; }
+  // the height map over this arch's teeth (+ 4 mm)
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, nT = 0;
+  for (let i = 0; i < segLabels.length; i++) { if (!segLabels[i]) continue; nT++; const x = segPos[i*3], y = segPos[i*3+1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (!nT) { bite.why = 'No teeth found on this scan yet.'; return false; }
+  x0 -= 4; y0 -= 4; x1 += 4; y1 += 4; const nx = Math.ceil((x1 - x0) / BITE_CELL), ny = Math.ceil((y1 - y0) / BITE_CELL), h = new Float32Array(nx * ny).fill(1e9); let inBox = 0;
+  for (let i = 0; i < nV; i++) { const a = Math.floor((V[i*3] - x0) / BITE_CELL), b = Math.floor((V[i*3+1] - y0) / BITE_CELL); if (a < 0 || b < 0 || a >= nx || b >= ny) continue; inBox++; const z = V[i*3+2], q = b * nx + a; if (z < h[q]) h[q] = z; }
+  bite.grid = { x0, y0, nx, ny, h };
+  // in occlusion? an opposing arch that is nowhere near, or that stands well inside this arch's own teeth, was not scanned with a bite
+  let through = 0; for (let i = 0; i < segLabels.length; i++) if (segLabels[i] && segPos[i*3+2] - biteAt(segPos[i*3], segPos[i*3+1]) > 0.75) through++;
+  if (inBox < 200 || through > Math.max(30, 0.003 * nT)) { bite.grid = null; bite.why = inBox < 200 ? 'The other arch is nowhere near this one - the two scans are not in occlusion (no bite scan).' : 'The upper and lower scans are not in occlusion with each other (no bite scan in the case).'; return false; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(V, 3)); g.setIndex(new THREE.BufferAttribute(F, 1)); g.computeVertexNormals();
+  bite.mesh = new THREE.Mesh(g, biteMat); bite.mesh.renderOrder = 6; bite.mesh.raycast = () => {};      // (looked through, never clicked)
+  groups.seg.add(bite.mesh); bite.key = key; return true;
+}
+async function biteSet(on){
+  bite.on = !!on; const box = $('#showbite'); if (box) box.checked = bite.on;
+  if (bite.on) { const ok = await biteLoad(); if (!ok) { bite.on = false; if (box) box.checked = false; if (bite.why) showErr(bite.why, 8000); } }
+  if (bite.mesh) bite.mesh.visible = bite.on && tab === 'pontic';
+  await drawPontics(); renderPanel();
+}
+// one pontic against the bite: its own geometry with the vertices inside the opposing teeth painted red -> { geo, deep (mm
+// into the opposing teeth, 0 when clear), clear (mm of room, when clear) }
+const _bv = new THREE.Vector3();
+function biteCheck(g, M){
+  const P = g.getAttribute('position'), n = P.count, col = new Float32Array(n * 3).fill(1); let deep = 0, clear = Infinity, hit = 0;
+  for (let i = 0; i < n; i++) { _bv.fromBufferAttribute(P, i).applyMatrix4(M); const d = _bv.z - biteAt(_bv.x, _bv.y); if (d > 0) { hit++; if (d > deep) deep = d; col[i*3] = BITE_RED.r; col[i*3+1] = BITE_RED.g; col[i*3+2] = BITE_RED.b; } else if (-d < clear) clear = -d; }
+  const geo = g.clone(); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return { geo, deep: hit ? deep : 0, clear: hit ? 0 : clear };
+}
+const biteText = r => !r ? '' : r.deep > 0.05 ? `<b style="color:#dc2626">● bites ${r.deep.toFixed(1)} mm into the opposing teeth</b>` : (r.clear < 50 ? `<b style="color:#15803d">✓ ${r.clear.toFixed(1)} mm clear of the bite</b>` : `<b style="color:#15803d">✓ clear of the bite</b>`);
+function biteRead(){ const el = document.getElementById('biteread'); if (el) el.innerHTML = bite.on && ponticSel ? biteText(bite.res[ponticSel]) : ''; }
 // the pontics on screen: one mesh each, its matrix = T_rough x frame x scale (the shape is scaled about its seat)
 let ponticDrawSeq = 0;
 async function drawPontics(){
   const seq = ++ponticDrawSeq;      // (two draws in flight - a slider and a badge click - must not both add their meshes)
-  while (ponticGroup.children.length) { const c = ponticGroup.children[0]; ponticGroup.remove(c); }
-  ponticGroup.visible = tab === 'pontic';
+  while (ponticGroup.children.length) { const c = ponticGroup.children[0]; ponticGroup.remove(c); if (c.userData.own) { c.geometry.dispose(); c.material.dispose(); } }
+  ponticGroup.visible = tab === 'pontic'; bite.res = {};
+  { const L = $('#showbiteL'); if (L) L.style.display = tab === 'pontic' ? '' : 'none'; if (bite.mesh) bite.mesh.visible = bite.on && tab === 'pontic'; }
   if (!segPos || !pontics.length) { requestRender(); return; }
   await loadPonticLib(); if (seq !== ponticDrawSeq) return;
   for (const p of pontics) {
     const s = shapeOfP(p); if (!s) continue;
     let g; try { g = p.src ? mirrorGeo(p.src) : await ponticGeo(p.n); } catch (e) { showErr(e.message); continue; }
     if (seq !== ponticDrawSeq) return;
-    const mesh = new THREE.Mesh(g, p.id === ponticSel ? ponticMats.sel : ponticMats.on);
     const S = new THREE.Matrix4().makeScale(p.w / s.w0 * (p.mirror && !p.src ? -1 : 1), p.t / s.t0, p.h / s.h0);
-    mesh.matrixAutoUpdate = false; mesh.matrix.copy(TR).multiply(ponticMat4(p)).multiply(S); mesh.userData.pontic = p.id;
+    const MM = TR.clone().multiply(ponticMat4(p)).multiply(S);
+    let mesh;
+    if (bite.on && bite.grid) {     // against the bite: its own copy, red where it is inside the opposing teeth
+      const r = biteCheck(g, MM); bite.res[p.id] = { deep: r.deep, clear: r.clear };
+      const mat = (p.id === ponticSel ? ponticMats.sel : ponticMats.on).clone(); mat.vertexColors = true;
+      mesh = new THREE.Mesh(r.geo, mat); mesh.userData.own = true;
+    } else mesh = new THREE.Mesh(g, p.id === ponticSel ? ponticMats.sel : ponticMats.on);
+    mesh.matrixAutoUpdate = false; mesh.matrix.copy(MM); mesh.userData.pontic = p.id;
     ponticGroup.add(mesh);
   }
-  buildGizmo();
+  buildGizmo(); biteRead();
   requestRender();
 }
 // every tooth's middle in arch order (by its angle round the arch's centre), with its number, for the spaces and the frames
@@ -2988,6 +3052,7 @@ function ponticPanelHtml(){
       (p.src ? '' : `<div class="pontrow" style="grid-template-columns:62px 1fr"><span>Shape</span><select id="pontshape" title="The library shape: its own tooth by default; a shape from the other side is mirrored">${groupsL}</select></div>`) +
       row('w', 'Width', PONTIC_LIM.w, 0.1, ' mm') + row('h', 'Height', PONTIC_LIM.h, 0.1, ' mm') + row('t', 'Thickness', PONTIC_LIM.t, 0.1, ' mm') + row('sink', p.bu ? 'Into tooth' : 'Into gum', PONTIC_LIM.sink, 0.25, ' mm') +
       (o => `<div class="pontoff" title="Since the pontic was placed: drag the arrows (mm) and the arcs (degrees) on it"><span>along <b>${fmtOff(o.x, 'mm')}</b> · out <b>${fmtOff(o.y, 'mm')}</b> · up <b>${fmtOff(o.z, 'mm')}</b> mm</span><span>turn <b>${fmtOff(o.turn, 'deg')}</b> · tip <b>${fmtOff(o.tip, 'deg')}</b> · torque <b>${fmtOff(o.torque, 'deg')}</b></span><button class="small" id="pontreset" title="Back to where it was placed" ${Object.values(o).some(v => Math.abs(v) > 0.049) ? '' : 'disabled'}>Reset position</button></div>`)(ponticOffsets(p)) +
+      `<div id="biteread" style="margin-top:6px;font-size:11.5px">${bite.on ? biteText(bite.res[p.id]) : ''}</div>` +
       `<div style="margin-top:6px;display:flex;gap:6px;align-items:center"><button class="small" id="pontdel" title="Take this pontic away (Delete key does the same)">Delete ${esc(p.slot)}</button><span class="hint" style="margin:0">${s ? esc(s.name) : ''} · drag its arrows and arcs; Shift-drag it to carry it</span></div>` : '');
 }
 function wirePonticPanel(box){
@@ -3904,6 +3969,7 @@ function updateFixCount(){
 }
 const editsPayload = () => JSON.stringify(allEdits());
 $('#showcol').onchange = () => { if (segMesh) paintColors(); };
+$('#showbite').onchange = ev => biteSet(ev.target.checked);
 // the processing log can be copied whole (the page is plain http on the LAN, where the clipboard API is off:
 // the old select-and-copy route is used then), saved as a text file, or selected with one click
 let curJobName = '';
@@ -3959,7 +4025,7 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
-window.__view = { editsJson: () => editsPayload(), gumPending: () => gl && gl.pend ? gl.pend.pts.length : 0, hitPoint: (x, y) => { const h = hitAt({ clientX: x, clientY: y }); return h ? h.point.toArray() : null; }, gumline: () => gl ? { loops: gl.loops.map(L => ({ closed: L.closed, sign: L.sign, n: L.dots.length, dots: L.dots.map(d => ({ p: d.p, moved: d.moved, lab: d.lab })) })), mine: { tooth: glMine.tooth.size, gum: glMine.gum.size } } : null, camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
+window.__view = { bite: () => ({ on: bite.on, loaded: !!bite.grid, why: bite.why, res: bite.res }), editsJson: () => editsPayload(), gumPending: () => gl && gl.pend ? gl.pend.pts.length : 0, hitPoint: (x, y) => { const h = hitAt({ clientX: x, clientY: y }); return h ? h.point.toArray() : null; }, gumline: () => gl ? { loops: gl.loops.map(L => ({ closed: L.closed, sign: L.sign, n: L.dots.length, dots: L.dots.map(d => ({ p: d.p, moved: d.moved, lab: d.lab })) })), mine: { tooth: glMine.tooth.size, gum: glMine.gum.size } } : null, camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   stroke3d: (mode, pts) => { const before = Object.values(edits).reduce((a, e) => a + e.size, 0); stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },

@@ -90,7 +90,7 @@ def main():
         browser = pw.chromium.launch(**kw)
         page = browser.new_page(viewport=dict(width=1400, height=900))
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
-        page.on("console", lambda msg: errors.append(f"console.{msg.type}: {msg.text}") if msg.type == "error" and "favicon" not in msg.text and "404" not in msg.text else None)
+        page.on("console", lambda msg: errors.append(f"console.{msg.type}: {msg.text}") if msg.type == "error" and "favicon" not in msg.text and "404" not in msg.text and "No opposing arch" not in msg.text else None)
         page.goto(f"http://127.0.0.1:{PORT}/", wait_until="load")
         page.wait_for_function("window.__appReady === true", timeout=20000)
         page.wait_for_selector(f".job[data-id='{JID}']", timeout=15000)
@@ -149,6 +149,11 @@ def main():
         page.mouse.up(); time.sleep(0.3)
         off1 = page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow())")
         check("dragging the arrow moved the pontic along the arch, in 0.1 mm steps, the others untouched", abs(off1["x"]) > 0.5 and abs(off1["x"] * 10 - round(off1["x"] * 10)) < 1e-6 and abs(off1["y"]) < 1e-6 and abs(off1["z"]) < 1e-6, off1)
+        # the bite (11/13/2026): offered on this step; a case with one arch says so and unticks itself
+        page.check("#showbite"); time.sleep(1.0)
+        bt = page.evaluate("window.__view.bite()")
+        check("bite: on this step there is a bite tick; with no opposing arch in the case it says so and stays off", page.locator("#showbiteL").is_visible() and not bt["on"] and "opposing arch" in bt["why"] and not page.is_checked("#showbite"), bt)
+        page.evaluate("document.querySelectorAll('.err, #err').forEach(e => e.click && 0)")
         # no jitter (11/13/2026): a steady drag out along the arrow never steps back, and holding still holds
         ax, ay = handle("tx", 0); bx, by = handle("tx", 1); d = ((ax - bx), (ay - by)); L = (d[0] ** 2 + d[1] ** 2) ** 0.5
         page.mouse.move(ax, ay); page.mouse.down(); seq = []
