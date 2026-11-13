@@ -100,6 +100,13 @@ def main():
     check("build_pontics: one made, the unknown shape dropped and named", fused is not None and info["count"] == 1 and info.get("dropped") == ["bad"], info)
     check("build_pontics: watertight after fusing, with a collar and a foot", fused.is_watertight and info["pontics"][0]["fused"].get("fused") == 1, info["pontics"][0].get("fused"))
     check("build_pontics: the entry says what it is", info["pontics"][0]["shape"] == "UR second premolar" and info["pontics"][0]["slot"] == "R5", info["pontics"][0])
+    # a build-up (11/13/2026): the same crown marked `bu` stands over a tooth - kept through norm_spec, counted as a
+    # build-up, and joined without the foot a pontic gets (nothing filled down to the gum under it)
+    bsp = norm_spec(dict(spec, id="b1", bu=True, tooth=7))
+    check("norm_spec: a build-up keeps its mark and its tooth; a pontic has neither", bsp is not None and bsp.get("bu") is True and bsp.get("tooth") == 7 and "bu" not in sp, bsp)
+    fb, ib = build_pontics([dict(spec, id="b1", bu=True, tooth=7)], T_total, surf, log=print)
+    check("build_pontics: a build-up is made, counted and named as one", fb is not None and ib["count"] == 1 and ib["buildups"] == 1 and ib["pontics"][0].get("bu") is True and info["buildups"] == 0, ib)
+    check("... without a pontic's foot under it (less volume than the same crown as a pontic)", abs(fb.volume) < abs(fused.volume) - 1.0, (round(abs(fb.volume), 1), round(abs(fused.volume), 1)))
 
     # into a body the way build_body does: the surface closed below the floor, the pontic unioned in
     import manifold3d as m3

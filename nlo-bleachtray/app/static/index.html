@@ -419,7 +419,7 @@
           <span class="tab off" data-tab="p1" title="Only on a Phase I case"><i>4</i>Phase I</span>
           <span class="tab" data-tab="res" title="Step 4 - paint or erase reservoirs"><i>4</i>Reservoirs</span>
           <span class="tab" data-tab="block" title="Step 5 - fill an undercut for thermoforming"><i>5</i>Block-outs</span>
-          <span class="tab" data-tab="pontic" title="Step 6 - a tooth shape where a tooth is missing (retainers)"><i>6</i>Pontics</span>
+          <span class="tab" data-tab="pontic" title="Step 6 - a tooth shape where a tooth is missing, or a build-up over a worn or chipped tooth (retainers, templates)"><i>6</i>Pontics &amp; build-ups</span>
           <label><input type="checkbox" id="showtl" checked> trim line</label>
           <label title="A PLY carries the scanner's colour; off = the white stone-model look"><input type="checkbox" id="showcol"> colour</label>
         </div>
@@ -856,7 +856,7 @@ function allEdits(){
     const k = curScans.findIndex(sc => fileKeyOf(sc) === key); if (k < 0) continue;
     const e = editsByFile[key] || Object.fromEntries(EDIT_KEYS.map(x => [x, new Set()]));
     // the pontics of a file whose list changed go as the whole list (the server replaces what it kept; [] clears)
-    const pb = ponticsByFile[key]; const pon = pb && pb.dirty ? pb.list.map(p => ({ id: p.id, n: p.n, slot: p.slot, w: p.w, h: p.h, t: p.t, sink: p.sink, mirror: !!p.mirror, m: p.m })) : undefined;
+    const pb = ponticsByFile[key]; const pon = pb && pb.dirty ? pb.list.map(p => ({ id: p.id, n: p.n, slot: p.slot, w: p.w, h: p.h, t: p.t, sink: p.sink, mirror: !!p.mirror, m: p.m, bu: p.bu ? true : undefined, tooth: p.bu ? p.tooth : undefined })) : undefined;
     // the traced cutout outlines go as the whole set the page holds for the file (the applied ones that were not
     // cleared, plus the new ones), so the server replaces what it kept; the key is left out when nothing changed
     const p1all = (e.p1paths && e.p1paths.length) || e.p1pathClear ? ((e.p1pathClear ? [] : (p1AppliedByFile[key] || [])).concat(e.p1paths || [])).map(o => o.slice()) : undefined;
@@ -900,7 +900,7 @@ const PANELS = {
             sets: ['p1span', 'unp1span', 'p1end', 'unp1end', 'p1six', 'unp1six'], hint: '<b>Cutout outline</b> (the easiest way): hold <kbd class="key">Shift</kbd> and click a few dots along the cutout\'s edge on one side - the distal of the 2 (where it starts), round the tongue side of the C/D area as far onto the gum as the cutout should go, and on the E or the 5 (where it ends). The app draws a <b>smooth curve</b> through the dots: the <b>amber</b> dot is the start, the <b>blue</b> dot the end. There is nothing to finish - the right and the left are two outlines of their own, and a dot belongs to the side it is clicked on. To shape it: <b>Shift-drag a dot</b> and the curve bends with it; <b>Shift-click the curve</b> to put a dot in between; <b>Shift-click a dot</b> to delete that one dot; <b>Undo last dot</b> (or Backspace) takes the last one back. Shift-drag on the bare model draws the line freehand and turns it into dots. The app cuts out everything between the curve and the cheek side and joins both ends to the trim line; the 2 and the teeth behind the last dot stay whole. An applied outline shows pale - Shift-click on it and it is dots again. <b>6 is here</b>: Shift-click the first molar on a side when the app has it wrong (a space between the front teeth counted as a tooth gone makes the 6 a "7", and the retainer stops short of it): that tooth is the 6, the side is counted from it - 7 behind it, and in front of it one less per tooth, with a space of 4.5 mm or more between two teeth counted as a tooth gone (the D across the E\'s space stays the 4). <b>Cutout span</b>: Shift-click the near end and the far end of the cutout on a side (anywhere across the arch - on a tooth or on the gum) and the cutout runs between the two dots, mesio-distal, whatever stands there; without dots on a side the app uses its own extent (the lateral\'s distal face to a quarter into the E). <b>Ends here</b>: one dot per side where the retainer stops - nothing is covered behind it; without one the app leaves the 12-year molars out by itself. Dots show pale once applied; click one to take it away, hold <kbd class="key">Shift</kbd> and drag one to move it. Kept with the scan for every re-run.' },
   teeth:  { group: 'seg', title: 'Teeth — the number of every tooth', modes: [['number', 'Number', 'Click a tooth\'s badge and pick its number (1-8, or A-E for a primary tooth); the other teeth on that side are counted from it. × = not a tooth', 'dot']],
             sets: [], hint: 'Every tooth carries a badge with the number the app gave it (counted from the midline). Click a badge and pick the right number - <b>Perm</b> 1-8 or <b>Primary</b> A-E - and the rest of that side is counted from it (one more going back, one less going forward), so one click puts a whole side right; <b>× not a tooth</b> makes a label gum again; <b>auto</b> gives the app\'s count back. Badges given by hand show orange. Apply &amp; re-run makes the models with these numbers; they are kept with the scan.' },
-  pontic: { group: 'seg', title: 'Pontics — a tooth shape where a tooth is missing', modes: [['pontic', 'Place', 'Click a + badge in a space where a tooth is missing, or Shift-click the gum where the pontic goes; then drag the arrows and arcs on it', 'dot']],
+  pontic: { group: 'seg', title: 'Pontics & build-ups — a tooth shape in a space, or over a worn or chipped tooth', modes: [['pontic', 'Place', 'Click a + badge in a space where a tooth is missing, or Shift-click the gum where the pontic goes. Shift-click a tooth for a build-up over it. Then drag the arrows and arcs on it', 'dot']],
             sets: [], hint: 'Where a tooth is missing the app offers a <b>+</b> badge in the space (from the tooth numbers: a space of 5 mm or more counts as a tooth gone - or give the numbers on the Teeth tab): click it and a pontic stands there - the missing tooth\'s own shape from Dr. Brenes\' library, as wide as the room between the neighbours less 0.6 mm, as tall as the neighbours, its base 2 mm into the gum. Or hold <kbd class="key">Shift</kbd> and click the gum anywhere - a pontic stands there. Then move it like a tooth in a setup: <b>drag the arrows</b> on its axes - red along the arch, blue out / in, green up / down (0.1 mm steps) - and <b>drag the arcs</b> to turn it round its long axis (green), tip it mesio-distally (blue) or torque it (red), 1 degree steps; the handle under the mouse turns yellow, and the chips at the arrows say how far it has moved since it was placed. Set its <b>Width / Height / Thickness</b> and how far <b>into the gum</b> it sits with the sliders, or pick another <b>Shape</b> (one from the other side is mirrored); <b>Reset position</b> puts it back where it was placed; hold Shift and drag the pontic itself to carry it along the surface. <b>Delete</b> (or the Delete key) takes the selected one away. The model is built with the pontic fused into the ridge and filled under its contour (a thermoformed sheet must not get under it), so the retainer carries a tooth-shaped pocket there for the lab to fill. Apply &amp; re-run makes the models with them; they are kept with the scan. Not on a whitening tray or a mouthguard.' },
   braces: { group: 'seg', title: 'Braces — take off what the app missed, keep what is not a bracket', modes: [['takeoff', 'Take off', 'A bit of bracket, wire or tie the app missed: it is cut out and the enamel underneath rebuilt on the next run (on a mouthguard the brackets stay - the painted part joins the band)', 'brush'], ['notbracket', 'Not a bracket', 'Tooth or gum the app took for a bracket: left as scanned on the next run (on a mouthguard it is kept out of the band). Saved with the case, to teach the detector', 'eraser']],
             sets: ['takeoff', 'notbracket'], hint: 'Grey = enamel already rebuilt where brackets came off; orange = under the mouthguard band; blue = marked not a bracket. Hold <kbd class="key">Shift</kbd> and drag; rotate with the mouse otherwise. <b>Take off</b> over anything that was missed: on a retainer it comes off and the enamel is rebuilt, on a mouthguard it joins the band. <b>Not a bracket</b> over anything taken for one that is not: on a retainer the braces are taken off the scan as scanned again, leaving those areas as they were scanned; on a mouthguard the band leaves them out. The strokes are kept with the case and saved with its lesson. <b>Scan as scanned</b> (below) shows the scan exactly as it came with what comes off marked, to fix the outline before it is cut.' },
@@ -931,7 +931,7 @@ const QUICK = {
        [`${QK.S} + drag model`, 'draw freehand'], ['pale', `applied · ${QK.S} + click to edit`], 'sep',
        ['Cutout span', `${QK.S} + click the two ends of the cutout`], ['Ends here', `${QK.S} + click where the retainer stops`], ['6 is here', `${QK.S} + click the first molar if the count is wrong`]],
   teeth: [['click a badge', 'pick the right number: 1–8 or A–E'], ['→', 'the rest of that side is counted from it'], ['× not a tooth', 'makes it gum'], ['auto', "the app's count back"], [`${QK.dot('#f59e0b')} orange`, 'set by hand']],
-  pontic: [['click <b>+</b>', 'pontic in a missing tooth\'s space'], [`${QK.S} + click gum`, 'pontic anywhere'],
+  pontic: [['click <b>+</b>', 'pontic in a missing tooth\'s space'], [`${QK.S} + click gum`, 'pontic anywhere'], [`${QK.S} + click a tooth`, '▲ build-up: the library crown over a worn or chipped tooth'],
            ['drag ➜ arrows', `move: ${QK.dot('#e0245e')} along arch · ${QK.dot('#3b82f6')} out/in · ${QK.dot('#22c55e')} up/down`],
            ['drag ◠ arcs', `${QK.dot('#22c55e')} turn · ${QK.dot('#3b82f6')} tip · ${QK.dot('#e0245e')} torque`],
            ['sliders', 'width · height · thickness · into gum'], [`${QK.S} + drag pontic`, 'slide it along the surface'], ['Delete', 'remove the selected one'], ['✕', 'not on whitening trays or mouthguards']],
@@ -1314,6 +1314,7 @@ function renderSetup(){
         <select data-arch="${i}"><option value="" ${!p.arch?'selected':''}>Arch: auto-detect</option><option value="upper" ${p.arch==='upper'?'selected':''}>Upper (maxilla)</option><option value="lower" ${p.arch==='lower'?'selected':''}>Lower (mandible)</option></select>
         <label class="ck"><input type="checkbox" data-wt="${i}" ${p.wt?'checked':''}> Whitening tray</label>
         <label class="ck"><input type="checkbox" data-tt="${i}" ${p.tt?'checked':''}> Retainer (TT)</label>
+        <label class="ck" title="A model to form a template over: worn or chipped teeth are built up from the tooth library (Pontics &amp; build-ups step: Shift-click a tooth). No reservoirs, a retainer's trim line"><input type="checkbox" data-tp="${i}" ${p.tp?'checked':''}> Template (build-ups)</label>
         ${p.arch === 'lower' ? '' : `<label class="ck" title="Sports mouthguard (upper only) with the braces on: brackets stay under smooth shields, the trim line runs deep into the vestibule with notches at the frena and 6 mm onto the palate"><input type="checkbox" data-mg="${i}" ${p.mg?'checked':''}> Mouthguard (MG)</label>`}
         <label class="ck" title="Phase I retainer (mixed dentition, SOP-LAB-008 / 009): the incisors and the E/6 segments are covered, the Cs and Ds come out - by cutouts (CUTT: the model is scooped there so the Trimlign's bur reaches the line) or by block-out (BOTT: one smooth block per side over the C/Ds built into the model, 2 mm of room round the teeth, on top as thick as the bite allows). Nothing over the 12-year molars. The line hugs the gingival margins; upper: a plate behind the incisors, open behind the Es; lower: a lingual flange."><input type="checkbox" data-p1="${i}" ${p.p1?'checked':''}> Phase I (P1)</label>
         <label class="ck" title="Tick only for a scan taken with brackets on (eval appointment): brackets, wire and ties are found and taken off and the enamel rebuilt before the tray is made. Never done on its own - leave it off for a plain scan." style="margin-left:10px;color:#b45309"><input type="checkbox" data-br="${i}" ${p.braces?'checked':''}> Braces on — take them off first</label>
@@ -1333,7 +1334,8 @@ function renderSetup(){
   document.querySelectorAll('[data-wt]').forEach(e => e.onchange = () => { pending[+e.dataset.wt].wt = e.checked; if (e.checked) notP1(+e.dataset.wt); else setupCount(); });
   document.querySelectorAll('[data-tt]').forEach(e => e.onchange = () => { pending[+e.dataset.tt].tt = e.checked; if (e.checked) notP1(+e.dataset.tt); else setupCount(); });
   document.querySelectorAll('[data-mg]').forEach(e => e.onchange = () => { pending[+e.dataset.mg].mg = e.checked; if (e.checked) notP1(+e.dataset.mg); else setupCount(); });
-  document.querySelectorAll('[data-p1]').forEach(e => e.onchange = () => { const p = pending[+e.dataset.p1]; p.p1 = e.checked; if (e.checked) { p.wt = false; p.tt = false; p.mg = false; } renderSetup(); });
+  document.querySelectorAll('[data-tp]').forEach(e => e.onchange = () => { pending[+e.dataset.tp].tp = e.checked; if (e.checked) notP1(+e.dataset.tp); else setupCount(); });
+  document.querySelectorAll('[data-p1]').forEach(e => e.onchange = () => { const p = pending[+e.dataset.p1]; p.p1 = e.checked; if (e.checked) { p.wt = false; p.tt = false; p.mg = false; p.tp = false; } renderSetup(); });
   document.querySelectorAll('[data-p1m]').forEach(e => e.onchange = () => { pending[+e.dataset.p1m].p1_method = e.value; renderSetup(); });
   document.querySelectorAll('[data-chip]').forEach(e => { const inp = e.querySelector('input'); inp.onchange = () => { const p = pending[+e.dataset.chip], t = e.dataset.tooth;
     p.p1_teeth = inp.checked ? [...new Set([...p.p1_teeth, t])] : p.p1_teeth.filter(x => x !== t); e.classList.toggle('on', inp.checked); e.classList.toggle('off', !inp.checked); }; });
@@ -1346,8 +1348,8 @@ function renderSetup(){
   setupCount();
 }
 function setupCount(){
-  const nModels = pending.reduce((a, p) => a + ((p.wt ? 1 : 0) + (p.tt ? 1 : 0) + (p.mg ? 1 : 0) + (p.p1 ? 1 : 0) || 1), 0);
-  const what = pending.map(p => [p.wt ? 'whitening' : '', p.tt ? 'retainer' : '', p.mg ? 'mouthguard' : '', p.p1 ? (p.p1_method === 'bott' ? 'Phase I block-out' : 'Phase I cutouts') : ''].filter(Boolean).join(' + ') || 'plain model');
+  const nModels = pending.reduce((a, p) => a + ((p.wt ? 1 : 0) + (p.tt ? 1 : 0) + (p.mg ? 1 : 0) + (p.tp ? 1 : 0) + (p.p1 ? 1 : 0) || 1), 0);
+  const what = pending.map(p => [p.wt ? 'whitening' : '', p.tt ? 'retainer' : '', p.mg ? 'mouthguard' : '', p.tp ? 'template' : '', p.p1 ? (p.p1_method === 'bott' ? 'Phase I block-out' : 'Phase I cutouts') : ''].filter(Boolean).join(' + ') || 'plain model');
   $('#startcase').textContent = `Start — make ${nModels} model${nModels > 1 ? 's' : ''}` + (new Set(what).size === 1 ? ` (${what[0]})` : '');
 }
 // ---------- Made recently? (the doctor, 10/29/2026: "if someone is adding the same person, please add a warning that
@@ -1428,7 +1430,7 @@ $('#startcase').onclick = async () => {
   if (currentJob && !confirmLeave('Starting a new case')) return;
   if (currentJob) { forgetEdits(); pendingAdj = {}; pendingMark = {}; }     // (said yes: not asked again when the new case opens)
   files = pending.map(p => p.file);
-  $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null, p.mg ? 'MG' : null, p.p1 ? 'P1' : null].filter(Boolean), braces: !!p.braces })));
+  $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null, p.mg ? 'MG' : null, p.tp ? 'TP' : null, p.p1 ? 'P1' : null].filter(Boolean), braces: !!p.braces })));
   // the Phase I choice (how, which teeth) is a case setting: one per case, from the first scan that makes one
   const p1 = pending.find(p => p.p1);
   P1_CHOICE = p1 ? { p1_method: p1.p1_method || 'cott', p1_teeth: p1.p1_teeth } : null;
@@ -1973,7 +1975,7 @@ function renderReview(id, j){
   // (the mouthguard: the fifth icon in the model row; a Phase I case is a case of its own - it offers only the Phase I
   // retainer for the other arch, never a whitening tray or a retainer, and the others never offer Phase I)
   const isP1 = (j.scans || []).some(s => s.tag === 'P1');
-  const addable = archesIn.flatMap(a => (isP1 ? [['P1', 'Phase I retainer']] : [['WT', 'whitening tray'], ['TT', 'retainer']]).filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));
+  const addable = archesIn.flatMap(a => (isP1 ? [['P1', 'Phase I retainer']] : [['WT', 'whitening tray'], ['TT', 'retainer'], ['TP', 'template']]).filter(([t]) => !have.has(`${a}|${t}`)).map(([t, lab]) => ({ a, t, lab })));
   const addLine = addable.length ? `<div class="hint" style="margin-top:8px">Also make from the scan${archesIn.length > 1 ? 's' : ''} already here: ` +
     addable.map(o => `<button class="small addmodel" data-arch="${o.a}" data-make="${o.t}" style="margin:3px 4px 0 0">+ ${o.lab} ${o.a}</button>`).join('') + `</div>` : '';
   const wireAdd = () => box.querySelectorAll('.addmodel').forEach(b => b.onclick = async () => {
@@ -2075,19 +2077,20 @@ let loadSeq = 0;
 // is there but greyed out. Clicking one shows that model in every tab.
 function renderModelToggle(id, j){
   const scans = j.scans || []; const box = $('#modeltog');
-  const words = { WT: 'whitening tray', TT: 'retainer', MG: 'mouthguard', P1: 'Phase I retainer' };
+  const words = { WT: 'whitening tray', TT: 'retainer', MG: 'mouthguard', P1: 'Phase I retainer', TP: 'template' };
   const slots = [['upper', 'WT'], ['upper', 'TT'], ['lower', 'WT'], ['lower', 'TT'], ['upper', 'MG']];   // the mouthguard: upper only, always shown
   if (scans.some(s => s.arch === 'lower' && s.tag === 'MG')) slots.push(['lower', 'MG']);               // (an older case that has one)
   for (const a of ['upper', 'lower']) if (scans.some(s => s.arch === a && s.tag === 'P1')) slots.push([a, 'P1']);   // a Phase I case: its icons, only when it has them
+  for (const a of ['upper', 'lower']) if (scans.some(s => s.arch === a && s.tag === 'TP')) slots.push([a, 'TP']);   // a template model: its icon only when the case has one
   for (const a of ['upper', 'lower']) if (scans.some(s => s.arch === a && !s.tag)) slots.push([a, null]);
   const hasUpper = scans.some(s => s.arch === 'upper');
   const canAsk = (j.review || 'review') === 'review' || j.review === 'sent';
   box.innerHTML = slots.map(([a, t]) => {
     const k = scans.findIndex(s => s.arch === a && (t ? s.tag === t : !s.tag));
-    const ic = t === 'MG' ? 'mg' : t ? `${t.toLowerCase()}_${a}` : `arch_${a}`;
+    const ic = t === 'MG' ? 'mg' : t === 'TP' ? `arch_${a}` : t ? `${t.toLowerCase()}_${a}` : `arch_${a}`;   // (the template: the plain arch icon)
     const name = `${a[0].toUpperCase() + a.slice(1)} ${t ? words[t] : 'model'}`;
     const ghost = k < 0 && t === 'MG' && a === 'upper' && hasUpper && canAsk;   // not made yet: grey, a click asks
-    return `<button class="mbtn ${k === scanIdx ? 'on' : ''} ${ghost ? 'ghost' : ''}" data-scan="${k}" ${ghost ? 'data-ask="upper"' : ''} ${k < 0 && !ghost ? 'disabled' : ''} title="${name}${ghost ? ' — not made yet: click to add one' : (k < 0 ? ' — not in this case' : '')}"><span class="ic" style="--m:url(/static/img/ic_${ic}.png)"></span>${t === 'MG' || !t ? `<span class="badge">${a === 'upper' ? 'U' : 'L'}</span>` : ''}</button>`;
+    return `<button class="mbtn ${k === scanIdx ? 'on' : ''} ${ghost ? 'ghost' : ''}" data-scan="${k}" ${ghost ? 'data-ask="upper"' : ''} ${k < 0 && !ghost ? 'disabled' : ''} title="${name}${ghost ? ' — not made yet: click to add one' : (k < 0 ? ' — not in this case' : '')}"><span class="ic" style="--m:url(/static/img/ic_${ic}.png)"></span>${t === 'MG' || !t ? `<span class="badge">${a === 'upper' ? 'U' : 'L'}</span>` : t === 'TP' ? '<span class="badge" title="Template">T</span>' : ''}</button>`;
   }).join('');
   box.classList.toggle('on', scans.length > 0); $('#viewpick').classList.toggle('on', scans.length > 0);
   box.querySelectorAll('.mbtn:not([disabled]):not([data-ask])').forEach(b => b.onclick = () => { if (+b.dataset.scan === scanIdx) return; scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
@@ -2149,7 +2152,7 @@ async function loadResult(id, j){
                   r.label_error ? `base not engraved: ${r.label_error}` : '',
                   (r.gap_beams || []).some(b => !b.skipped) ? `beam across the missing tooth's space` : '',
                   r.reservoir_bite ? (r.reservoir_bite.checked ? ((r.reservoir_bite.trimmed_teeth || []).length ? `bite checked: reservoir kept ${r.reservoir_bite.clear_mm} mm off the opposing teeth on ${r.reservoir_bite.trimmed_teeth.length} ${r.reservoir_bite.trimmed_teeth.length === 1 ? 'tooth' : 'teeth'}` : 'bite checked: the opposing teeth do not reach the reservoirs') : `reservoirs not checked against the bite (${r.reservoir_bite.why})`) : '',
-                  (r.pontics || {}).count ? `${r.pontics.count} pontic${r.pontics.count > 1 ? 's' : ''}: ${(r.pontics.pontics || []).map(x => `${x.slot || x.id} (${x.shape}, ${x.w} × ${x.h} × ${x.t} mm)`).join(', ')}` : ((r.pontics || {}).skipped ? `pontics left off the ${r.pontics.skipped}` : ((r.pontics || {}).error ? `pontics: ${r.pontics.error}` : '')),
+                  (r.pontics || {}).count ? `${(n => n ? `${n} pontic${n > 1 ? 's' : ''}` : '')(r.pontics.count - (r.pontics.buildups || 0))}${r.pontics.buildups && r.pontics.count > r.pontics.buildups ? ' + ' : ''}${r.pontics.buildups ? `${r.pontics.buildups} build-up${r.pontics.buildups > 1 ? 's' : ''}` : ''}: ${(r.pontics.pontics || []).map(x => `${x.bu ? '▲ ' : ''}${x.slot || x.id} (${x.shape}, ${x.w} × ${x.h} × ${x.t} mm)`).join(', ')}` : ((r.pontics || {}).skipped ? `pontics left off the ${r.pontics.skipped}` : ((r.pontics || {}).error ? `pontics: ${r.pontics.error}` : '')),
                   bo.contacts_filled || bo.gap_faces ? `${bo.contacts_filled || 0} of ${bo.contacts || 0} contacts filled${bo.gap_faces ? `, ${bo.gap_faces} face${bo.gap_faces > 1 ? 's' : ''} next to a gap` : ''} (${bo.volume_ml} mL${bo.painted_spots ? `, + ${bo.painted_spots} painted` : ''})` : (bo.spots ? `${bo.spots} painted block-out${bo.spots > 1 ? 's' : ''} (${bo.volume_ml} mL${bo.proud_mm ? `, wall ${bo.proud_mm > 0 ? '+' : ''}${bo.proud_mm} mm` : ''})` : (bo.error ? `block-out: ${bo.error}` : ''))].filter(Boolean);
   // braces off: a rebuilt patch over most of a tooth (brackets, wire and ties run together on crowded teeth) is a guess
   const big = (ap.used && !mg && ap.large_patches) || [];
@@ -2263,7 +2266,7 @@ function markMap(){
   for (const a in pendingMark) m[a] = pendingMark[a] === 'auto' ? null : Object.assign({ frame: 'output' }, pendingMark[a]);
   return m;
 }
-const trayLetter = () => { const t = ((curScans[curScanIdx] || {}).tag || ''); return t === 'TT' ? 'R' : t === 'MG' ? 'G' : t === 'P1' ? 'P' : 'W'; };
+const trayLetter = () => { const t = ((curScans[curScanIdx] || {}).tag || ''); return t === 'TT' ? 'R' : t === 'MG' ? 'G' : t === 'P1' ? 'P' : t === 'TP' ? 'T' : 'W'; };
 function markText(mode){
   // no tray letter (W / R) on the model any more: the material says which it is, and the base carries it (the doctor, 10/22/2026)
   const f = $('#pfirst').value.trim(), l = $('#plast').value.trim();
@@ -2977,12 +2980,12 @@ function removePontic(id){ const k = pontics.findIndex(p => p.id === id); if (k 
 // the box's controls for the pontics of this scan
 function ponticPanelHtml(){
   const p = ponticNow(); const s = p ? ponticShape(p.n) : null;
-  const chips = pontics.map(q => `<button data-sel="${q.id}" class="${q.id === ponticSel ? 'on' : ''}" title="${esc(q.slot)} - ${esc((ponticShape(q.n) || {}).name || '')}">${esc(q.slot || q.id)}</button>`).join('');
+  const chips = pontics.map(q => `<button data-sel="${q.id}" class="${q.id === ponticSel ? 'on' : ''}" title="${esc(q.slot)} - ${esc((ponticShape(q.n) || {}).name || '')}${q.bu ? ' (build-up on the tooth)' : ''}">${q.bu ? '▲ ' : ''}${esc(q.slot || q.id)}</button>`).join('');
   const groupsL = ['UR', 'UL', 'LL', 'LR'].map(g => `<optgroup label="${g}">${(ponticLib || []).filter(x => (x.arch === 'upper' ? 'U' : 'L') + x.side === g).map(x => `<option value="${x.n}" ${p && p.n === x.n ? 'selected' : ''}>#${x.n} ${esc(x.name)}</option>`).join('')}</optgroup>`).join('');
   const row = (k, lab, lim, step, unit) => `<div class="pontrow"><span>${lab}</span><input type="range" data-k="${k}" min="${lim[0]}" max="${lim[1]}" step="${step}" value="${p ? p[k] : lim[0]}"><b>${p ? p[k].toFixed(k === 'sink' ? 2 : 1) : '-'}${unit}</b></div>`;
-  return `<div class="pontlist" id="pontlist">${chips}<button data-addhint="1" title="Click a + badge in a space, or hold Shift and click the gum where the pontic goes">${pontics.length ? '+ add: a badge, or Shift-click the gum' : 'None yet: click a + badge on the model, or Shift-click the gum'}</button></div>` +
+  return `<div class="pontlist" id="pontlist">${chips}<button data-addhint="1" title="Click a + badge in a space, or hold Shift and click the gum where the pontic goes">${pontics.length ? '+ add: a badge, Shift-click the gum (pontic) or a tooth (build-up)' : 'None yet: + badge or Shift-click the gum = pontic · Shift-click a tooth = build-up'}</button></div>` +
     (p ? `<div class="pontrow" style="grid-template-columns:62px 1fr"><span>Shape</span><select id="pontshape" title="The library shape: its own tooth by default; a shape from the other side is mirrored">${groupsL}</select></div>` +
-      row('w', 'Width', PONTIC_LIM.w, 0.1, ' mm') + row('h', 'Height', PONTIC_LIM.h, 0.1, ' mm') + row('t', 'Thickness', PONTIC_LIM.t, 0.1, ' mm') + row('sink', 'Into gum', PONTIC_LIM.sink, 0.25, ' mm') +
+      row('w', 'Width', PONTIC_LIM.w, 0.1, ' mm') + row('h', 'Height', PONTIC_LIM.h, 0.1, ' mm') + row('t', 'Thickness', PONTIC_LIM.t, 0.1, ' mm') + row('sink', p.bu ? 'Into tooth' : 'Into gum', PONTIC_LIM.sink, 0.25, ' mm') +
       (o => `<div class="pontoff" title="Since the pontic was placed: drag the arrows (mm) and the arcs (degrees) on it"><span>along <b>${fmtOff(o.x, 'mm')}</b> · out <b>${fmtOff(o.y, 'mm')}</b> · up <b>${fmtOff(o.z, 'mm')}</b> mm</span><span>turn <b>${fmtOff(o.turn, 'deg')}</b> · tip <b>${fmtOff(o.tip, 'deg')}</b> · torque <b>${fmtOff(o.torque, 'deg')}</b></span><button class="small" id="pontreset" title="Back to where it was placed" ${Object.values(o).some(v => Math.abs(v) > 0.049) ? '' : 'disabled'}>Reset position</button></div>`)(ponticOffsets(p)) +
       `<div style="margin-top:6px;display:flex;gap:6px;align-items:center"><button class="small" id="pontdel" title="Take this pontic away (Delete key does the same)">Delete ${esc(p.slot)}</button><span class="hint" style="margin:0">${s ? esc(s.name) : ''} · drag its arrows and arcs; Shift-drag it to carry it</span></div>` : '');
 }
@@ -3008,8 +3011,62 @@ function ponticDown(ev){
   const onP = ponticHitAt(ev);
   if (onP) { ponticSel = onP; ponticDrag = { id: onP, moved: false }; controls.enabled = false; drawPontics(); drawBadges(); renderPanel(); return; }
   const hit = hitAt(ev); if (!hit) return;
-  addPonticAt(hit.point.clone(), null);
+  // on a tooth: a build-up over it; on the gum: a pontic there
+  const lab = hit.face && segLabels ? (segLabels[hit.face.a] || segLabels[hit.face.b] || segLabels[hit.face.c]) : 0;
+  if (lab > 0) addBuildupAt(lab); else addPonticAt(hit.point.clone(), null);
 }
+// A build-up (the doctor, 11/13/2026: "use the tooth library to create build-ups for worn-down dentition or chipped
+// teeth so it can be printed and used as a template"): the library's crown for that tooth stood over the tooth itself -
+// as wide as the tooth, 1.5 mm longer than the tooth is now, no thicker than the tooth by more than 0.3 mm, along the tooth's own lean, its seat 1 mm under the tooth's gum line. It only adds: the
+// model is the scanned tooth and the crown together. Moved and sized like a pontic.
+const BUILDUP_SINK = 1.0, BUILDUP_ADD = 1.5;
+async function addBuildupAt(l){
+  await loadPonticLib(); if (!ponticLib || !ponticLib.length) { showErr('The tooth library is not on the server - run the update on the lab PC.'); return; }
+  const had = pontics.find(q => q.bu && +q.tooth === +l); if (had) { ponticSel = had.id; await drawPontics(); drawBadges(); renderPanel(); return; }
+  const arch = teethInfo.arch || (curScans[scanIdx] || {}).arch || 'upper';
+  const c = toothCent[l]; if (!c) { showErr('That tooth is too small to build up - check its colour on the Segmentation step.'); return; }
+  const num = toothNumbers()[l], pos = num && num.pos ? num.pos : 1;
+  const side = sideOf(l) || ((c[0] > archCent[0]) === (arch === 'lower') ? 'R' : 'L');
+  const n = universalOf(arch, side, pos), s = ponticShape(n); if (!s) { showErr(`No shape for ${side}${pos} in the library.`); return; }
+  const ord = archOrder(), k = ord.findIndex(o => +o.l === +l), a = k > 0 ? ord[k - 1] : null, b = k >= 0 && k + 1 < ord.length ? ord[k + 1] : null;
+  let X = a && b ? new THREE.Vector3(b.c[0] - a.c[0], b.c[1] - a.c[1], 0) : new THREE.Vector3(-(c[1] - archCent[1]), c[0] - archCent[0], 0);
+  if (X.lengthSq() < 1e-6) X.set(1, 0, 0); X.normalize();
+  // the tooth's own lean: from the middle of its gum-side third to the middle of its top third (no further than 35 degrees off upright)
+  const zs = []; for (let i = 0; i < segLabels.length; i++) if (segLabels[i] === +l) zs.push(segPos[i*3+2]);
+  zs.sort((p, q) => p - q); const zlo = zs[Math.floor(zs.length * 0.05)], zhi = zs[zs.length - 1], z1 = zlo + (zhi - zlo) / 3, z2 = zhi - (zhi - zlo) / 3;
+  const bot = new THREE.Vector3(), top = new THREE.Vector3(); let nb = 0, nt = 0;
+  for (let i = 0; i < segLabels.length; i++) { if (segLabels[i] !== +l) continue; const z = segPos[i*3+2]; if (z <= z1) { bot.x += segPos[i*3]; bot.y += segPos[i*3+1]; bot.z += z; nb++; } else if (z >= z2) { top.x += segPos[i*3]; top.y += segPos[i*3+1]; top.z += z; nt++; } }
+  let Z = new THREE.Vector3(0, 0, 1);
+  if (nb >= 10 && nt >= 10) { bot.multiplyScalar(1 / nb); top.multiplyScalar(1 / nt); const ax = top.clone().sub(bot); if (ax.z > 0.5) { ax.normalize(); if (ax.z < 0.82) { const hxy = Math.hypot(ax.x, ax.y), f = Math.sqrt(1 - 0.82 * 0.82) / hxy; ax.set(ax.x * f, ax.y * f, 0.82); } Z = ax; } }
+  else bot.set(c[0], c[1], zlo);
+  X.addScaledVector(Z, -X.dot(Z)).normalize();
+  let Y = new THREE.Vector3().crossVectors(Z, X); const out = new THREE.Vector3(c[0] - archCent[0], c[1] - archCent[1], 0);
+  if (Y.dot(out) < 0) { X.negate(); Y.negate(); }
+  // the tooth's width and thickness in that frame
+  // (of the crown above its gum-side third, and without the stray 2 % at either end: a label runs a little onto the
+  // neighbours and the gum, and the plain extent of a central came out 13 mm wide)
+  const sxs = [], sys = [];
+  for (let i = 0; i < segLabels.length; i++) { if (segLabels[i] !== +l || segPos[i*3+2] < z1) continue; const dx = segPos[i*3] - c[0], dy = segPos[i*3+1] - c[1], dz = segPos[i*3+2] - c[2]; sxs.push(dx * X.x + dy * X.y + dz * X.z); sys.push(dx * Y.x + dy * Y.y + dz * Y.z); }
+  sxs.sort((p, q) => p - q); sys.sort((p, q) => p - q);
+  const pct = (A, f) => A.length ? A[Math.min(A.length - 1, Math.max(0, Math.round(f * (A.length - 1))))] : 0;
+  const smin = pct(sxs, 0.02), smax = pct(sxs, 0.98), ymin = pct(sys, 0.02), ymax = pct(sys, 0.98);
+  const w = clampTo(smax - smin, PONTIC_LIM.w);
+  // 1.5 mm longer than the tooth is now, to start from (the Height slider takes it from there; the library's own
+  // proportion made a wide central 16 mm tall)
+  const h = clampTo((zhi - zlo) + BUILDUP_ADD + BUILDUP_SINK, PONTIC_LIM.h);
+  const t = clampTo(Math.min(s.t0 * (w / s.w0), ymax - ymin + 0.3), PONTIC_LIM.t);
+  // the seat: on the tooth's axis, 1 mm under its gum line, at the crown's middle along the arch
+  const seat = bot.clone().addScaledVector(Z, (zlo - bot.z) / Z.z - BUILDUP_SINK);
+  const mid = new THREE.Vector3(c[0], c[1], c[2]).addScaledVector(X, (smin + smax) / 2).sub(seat);
+  seat.addScaledVector(X, mid.dot(X));
+  const M = new THREE.Matrix4().makeBasis(X, Y, Z); M.setPosition(seat);
+  const Mraw = TRinv.clone().multiply(M);
+  const id = 'b' + Date.now().toString(36);
+  pontics.push({ id, n, slot: `${side}${pos}`, w: +w.toFixed(1), h: +h.toFixed(1), t: +t.toFixed(1), sink: BUILDUP_SINK, mirror: false, m: mat4Rows(Mraw), home: mat4Rows(Mraw), bu: true, tooth: +l });
+  ponticSel = id; ponticsDirty = true;
+  await drawPontics(); drawBadges(); renderPanel();
+}
+
 function ponticMove(ev){
   if (!ponticDrag) return; const p = pontics.find(q => q.id === ponticDrag.id); if (!p) return;
   const hit = hitAt(ev); if (!hit) return;
@@ -3764,7 +3821,7 @@ function updateFixCount(){
   if (tab === 'seg' && typeof gl !== 'undefined' && gl && gl.pend) here.unshift('gum line: a line is being drawn - bring it back onto the pink line to finish (Esc drops it)');
   if (tab === 'block' && outl && outl.pts.length) here.unshift(`outline: ${outl.pts.length} corner${outl.pts.length > 1 ? 's' : ''} - click the first dot to close`);
   else if (tab === 'block' && outlines.length) here.unshift(`${outlines.length} outline${outlines.length > 1 ? 's' : ''}`);
-  if (tab === 'pontic') { if (pontics.length) here.unshift(`${pontics.length} pontic${pontics.length > 1 ? 's' : ''} (${pontics.map(p => p.slot).join(', ')})${ponticsDirty ? ' - changed, Apply makes the model with them' : ' applied'}`); else if (ponticsDirty) here.unshift('pontics cleared - Apply makes the model without them'); }
+  if (tab === 'pontic') { if (pontics.length) here.unshift(`${(nb => [pontics.length - nb ? `${pontics.length - nb} pontic${pontics.length - nb > 1 ? 's' : ''}` : '', nb ? `${nb} build-up${nb > 1 ? 's' : ''}` : ''].filter(Boolean).join(' + '))(pontics.filter(p => p.bu).length)} (${pontics.map(p => (p.bu ? '▲' : '') + p.slot).join(', ')})${ponticsDirty ? ' - changed, Apply makes the model with them' : ' applied'}`); else if (ponticsDirty) here.unshift('pontics cleared - Apply makes the model without them'); }
   if (tab === 'p1') {
     const live = p1Live();
     if (live) here.unshift(`${live} applied outline${live > 1 ? 's' : ''} (pale) - Shift-click on one to change it`);
@@ -3834,7 +3891,7 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
-window.__view = { gumPending: () => gl && gl.pend ? gl.pend.pts.length : 0, hitPoint: (x, y) => { const h = hitAt({ clientX: x, clientY: y }); return h ? h.point.toArray() : null; }, gumline: () => gl ? { loops: gl.loops.map(L => ({ closed: L.closed, sign: L.sign, n: L.dots.length, dots: L.dots.map(d => ({ p: d.p, moved: d.moved, lab: d.lab })) })), mine: { tooth: glMine.tooth.size, gum: glMine.gum.size } } : null, camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
+window.__view = { editsJson: () => editsPayload(), gumPending: () => gl && gl.pend ? gl.pend.pts.length : 0, hitPoint: (x, y) => { const h = hitAt({ clientX: x, clientY: y }); return h ? h.point.toArray() : null; }, gumline: () => gl ? { loops: gl.loops.map(L => ({ closed: L.closed, sign: L.sign, n: L.dots.length, dots: L.dots.map(d => ({ p: d.p, moved: d.moved, lab: d.lab })) })), mine: { tooth: glMine.tooth.size, gum: glMine.gum.size } } : null, camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   stroke3d: (mode, pts) => { const before = Object.values(edits).reduce((a, e) => a + e.size, 0); stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
