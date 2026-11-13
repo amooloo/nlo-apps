@@ -80,10 +80,10 @@ def root_exposure(mesh, labels, info, aux, A, arch="upper", max_position=5, stri
     return out, detail
 
 
-def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, feather=1.0,
+def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25, feather=1.0,
                            max_position=5, edge_clearance=0.4, edge_feather=0.6, edge_normal_z=0.6,
                            edge_band=0.3, facial_only=True, exclude_occlusal=True, setback_extra=None,
-                           keep_off=None, keep_off_clearance=1.0, force_on=None):
+                           keep_off=None, keep_off_clearance=1.0, force_on=None, interprox=None, incisal=None, bite_off=None):
     """Return per-vertex displacement magnitude (mm) along vertex normals.
 
     labels: per-vertex tooth id (0 = gingiva); info: id -> (side, position from midline)
@@ -94,6 +94,13 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
     (interproximal) and from the facial-lingual transition. Full height is reached `feather` /
     `edge_feather` mm further in. `keep_off`: boolean per-vertex mask painted by the user (a
     recession, a restoration): no reservoir there nor within `keep_off_clearance` mm of it.
+    `interprox`: the reservoir also stops this far (mm, along the surface) short of the neighbouring teeth - the line
+    where two crowns meet - so every tooth carries its own island with twice that between two of them (the doctor,
+    11/13/2026: "about 1 to 1.5 mm from the gingival margin and the interproximals"); None = `edge_clearance` only.
+    `incisal`: the reservoir stops this far short of the incisal edge / the cusp ridges (None = `edge_clearance`): on a
+    lower the upper teeth close over the top of the facial faces, so its reservoirs are kept shorter.
+    `bite_off`: per-vertex mask of where the opposing teeth come too close (bite_keep_off) - no reservoir there, feathered
+    at its edge; the doctor's own paint (`force_on`) wins over it.
     `force_on`: boolean per-vertex mask painted by the user: a reservoir HERE, on whatever tooth
     (beyond `max_position` too, on the part a recession set-back or a keep-off took away) - still
     `setback` mm off the gum line and `edge_clearance` off the incisal edge, feathered at the paint's
@@ -171,6 +178,15 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
         d = geodesic_from_boundary(mesh, A, m)
         d_rim[m] = d[m]
     d_gum = geodesic_from_boundary(mesh, A, tooth_mask)  # distance from the gum line, on teeth
+    # distance from the neighbouring teeth (over this tooth and the gum between them)
+    d_nb = np.full(n, np.inf)
+    if interprox:
+        for tid in sel_ids:
+            m = region & (labels == tid)
+            if m.sum() < 10:
+                continue
+            d = geodesic_from_boundary(mesh, A, (labels == tid) | (labels == 0))
+            d_nb[m] = d[m]
     sb = np.full(n, float(setback))
     for tid, extra in (setback_extra or {}).items():
         if extra and extra > 0:
@@ -193,6 +209,22 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
             fe_gum[m] = max(0.4, float(feather) * k); fe_rim[m] = max(0.3, float(edge_feather) * k)
     w = _smoothstep((d_rim - edge_clearance) / np.maximum(fe_rim, 1e-6))
     w *= _smoothstep((d_gum - sb) / np.maximum(fe_gum, 1e-6))
+    d_inc = None
+    if incisal and float(incisal) > edge_clearance and edge_zone.any():
+        d_inc = geodesic_from_boundary(mesh, A, ~edge_zone)      # distance from the incisal edge / cusp zone, outside it
+        d_inc[edge_zone] = 0.0
+        w *= _smoothstep((d_inc - float(incisal)) / np.maximum(fe_rim, 1e-6))
+    d_bite = None
+    if bite_off is not None and np.asarray(bite_off).any():
+        bo = np.asarray(bite_off, bool)
+        if force is not None:
+            bo = bo & ~force
+        if bo.any():
+            d_bite = geodesic_from_boundary(mesh, A, ~bo)
+            d_bite[bo] = 0.0
+            w *= _smoothstep(d_bite / np.maximum(fe_rim, 1e-6))
+    if interprox:
+        w *= _smoothstep((np.minimum(d_nb, 1e3) - float(interprox)) / np.maximum(fe_rim, 1e-6))
     d_off = None
     if keep_off is not None and np.asarray(keep_off).any():
         off = np.asarray(keep_off, bool)
@@ -213,6 +245,12 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
     w[~region] = 0.0
     w[d_rim < edge_clearance] = 0.0
     w[d_gum < sb] = 0.0
+    if interprox:
+        w[d_nb < float(interprox)] = 0.0
+    if d_inc is not None:
+        w[d_inc < float(incisal)] = 0.0
+    if d_bite is not None:
+        w[d_bite <= 0.0] = 0.0
     if d_off is not None:
         w[d_off < keep_off_clearance] = 0.0
     return height * w
@@ -253,3 +291,35 @@ def smooth_periphery(mesh, labels, A, start=2.0, full=4.5, iters=30, lam=0.5, mu
         V = V + (w * mu)[:, None] * (Dinv @ (A @ V) - V)
     out = mesh.copy(); out.vertices = V
     return out
+
+
+def bite_keep_off(mesh, labels, opposing, clear_mm=1.5, through_mm=0.75):
+    """Where the opposing teeth come within `clear_mm` of this arch's teeth: a reservoir there (0.5 mm of bump under a
+    tray, the other arch in its own tray) is bitten into (the doctor, 11/13/2026: "check the occlusion making sure the
+    patient is not biting into the reservoirs"). `opposing`: the case's other arch in this mesh's frame - the scanners
+    export the two in occlusion, but only when a bite scan was taken: an opposing arch that passes more than
+    `through_mm` through this one's teeth is not in occlusion with it and is not used.
+    -> (mask or None, info)."""
+    from scipy.spatial import cKDTree
+    V = np.asarray(mesh.vertices, float)
+    tooth = np.asarray(labels) > 0
+    if opposing is None or not tooth.any():
+        return None, dict(checked=False, why="no opposing arch in the case")
+    O = np.asarray(opposing.vertices, float)
+    ON = np.asarray(opposing.vertex_normals, float)
+    lo, hi = V[tooth].min(0) - 6.0, V[tooth].max(0) + 6.0
+    near = ((O >= lo) & (O <= hi)).all(1)
+    O, ON = O[near], ON[near]
+    if len(O) < 200:
+        return None, dict(checked=False, why="the opposing arch is nowhere near this one - the two scans are not in occlusion (no bite scan)")
+    idx = np.where(tooth)[0]
+    d, j = cKDTree(O).query(V[idx])
+    # a vertex inside the opposing arch: its nearest point there lies straight behind that surface (p - q along -n_q)
+    along = ((V[idx] - O[j]) * ON[j]).sum(1)
+    inside = (along < -through_mm) & (along < -0.7 * d)
+    if inside.sum() > max(30, 0.003 * len(idx)):
+        return None, dict(checked=False, through_mm=round(float(np.percentile(-along[inside], 90)), 1),
+                          why="the upper and lower scans are not in occlusion with each other (no bite scan in the case)")
+    mask = np.zeros(len(V), bool)
+    mask[idx[d < clear_mm]] = True
+    return mask, dict(checked=True, clear_mm=float(clear_mm), vertices=int(mask.sum()), closest_mm=round(float(d.min()), 2))
