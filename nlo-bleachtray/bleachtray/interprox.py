@@ -333,7 +333,7 @@ def contact_fills(mesh, labels, info, centre_xy, top=20.0, proud=0.0, reach=1.25
     return trimesh.util.concatenate(solids), info_out
 
 
-def gap_beams(mesh, labels, info, skip_xy=None, min_gap=2.5, drop_mm=1.5, min_height=1.5, width_frac=0.5,
+def gap_beams(mesh, labels, info, skip_xy=None, arch=None, min_gap=2.5, drop_mm=1.5, min_height=1.0, want_height=2.5, min_drop=0.5, width_frac=0.5,
               width_min=3.5, width_max=6.0, into_crown=0.8, log=print):
     """A reinforcing beam over an edentulous ridge. Across a missing tooth a retainer is a shallow strip of sheet over
     the ridge between two deep boxes (the crowns) - it flexes and cracks there (the doctor, 11/12/2026: "that becomes
@@ -343,8 +343,9 @@ def gap_beams(mesh, labels, info, skip_xy=None, min_gap=2.5, drop_mm=1.5, min_he
     bite. The sheet formed over it is a box section the depth of the crowns, joined to both.
     The spaces are found here, between teeth next to each other on a side whose crowns stand `min_gap` or more apart
     (the count of the teeth may have been changed by hand since the pipeline listed its gaps).
-    `skip_xy`: points (pontic seats) - a gap that holds one is left to the pontic. A ridge standing closer than
-    `min_height` to the beam's top gets none. `mesh` in the model's frame (z up). -> (list of meshes, [info])."""
+    `skip_xy`: points (pontic seats) - a gap that holds one is left to the pontic. Where the fixed drop would leave
+    the beam under `want_height` over the ridge its top comes up, to `min_drop` under the occlusal level at most; a ridge
+    still closer than `min_height` to the beam's top gets none. `mesh` in the model's frame (z up). -> (list of meshes, [info])."""
     V = np.asarray(mesh.vertices, float)
     labels = np.asarray(labels)
     solids, made = [], []
@@ -380,12 +381,21 @@ def gap_beams(mesh, labels, info, skip_xy=None, min_gap=2.5, drop_mm=1.5, min_he
             if ((q @ d > s0) & (q @ d < s1) & (np.abs(q @ n) < 6.0)).any():
                 made.append(dict(side=side, after_position=pos, skipped="a pontic stands in this space"))
                 continue
-        z_top = min(float(np.percentile(V[ma][:, 2], 90)), float(np.percentile(V[mb][:, 2], 90))) - drop_mm
+        z_occ = min(float(np.percentile(V[ma][:, 2], 90)), float(np.percentile(V[mb][:, 2], 90)))
         ridge = lane & (labels == 0) & (s_all > s0) & (s_all < s1)
         if ridge.sum() < 10:
             continue
-        z_ridge = float(np.percentile(V[ridge, 2], 90))
-        z_low = float(V[ridge, 2].min()) - 1.0
+        # the ridge's height: its crest along the middle of the span (the papillae against the two teeth stand higher)
+        core = ridge & (s_all > s0 + 0.2 * (s1 - s0)) & (s_all < s1 - 0.2 * (s1 - s0))
+        z_ridge = float(np.percentile(V[core if core.sum() >= 10 else ridge, 2], 75))
+        # its foot goes a little into the crest only (the fuse fills what air is left under its edges): taken down to the
+        # lowest gum in its lane it came out of the model's side where the ridge falls away to the cheek
+        z_low = max(z_ridge - 1.5, 0.0)
+        # short crowns or a high ridge: the top comes up towards the occlusal level (never closer than min_drop) so the
+        # beam still stands want_height over the ridge - with the fixed drop a 5.6 mm space got none, "the ridge stands
+        # 1.3 mm under the beam's top" (the doctor, 11/12/2026: "it did not fill it with a beam")
+        drop = float(min(drop_mm, max(min_drop, z_occ - z_ridge - want_height)))
+        z_top = z_occ - drop
         h = z_top - z_ridge
         if h < min_height:
             made.append(dict(side=side, after_position=pos, skipped=f"the ridge stands {max(h, 0.0):.1f} mm under the beam's top - no room for one"))
@@ -422,7 +432,8 @@ def gap_beams(mesh, labels, info, skip_xy=None, min_gap=2.5, drop_mm=1.5, min_he
         beam.apply_transform(T)
         solids.append(beam)
         made.append(dict(side=side, after_position=pos, length_mm=round(length - 2 * into_crown, 1), width_mm=round(w, 1), height_mm=round(h, 1),
-                         top_under_teeth_mm=float(drop_mm), volume_ml=round(float(abs(beam.volume)) / 1000.0, 3)))
+                         top_under_teeth_mm=round(drop, 1), volume_ml=round(float(abs(beam.volume)) / 1000.0, 3)))
         if log:
-            log(f"gap beam on the {'left' if side < 0 else 'right'} behind position {pos}: {length - 2 * into_crown:.1f} mm long, {w:.1f} wide, {h:.1f} mm over the ridge")
+            pat_right = (side > 0) if arch == "lower" else (side < 0)
+            log(f"gap beam on the patient's {'right' if pat_right else 'left'} behind position {pos}: {length - 2 * into_crown:.1f} mm long, {w:.1f} wide, {h:.1f} mm over the ridge")
     return solids, made
