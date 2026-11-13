@@ -37,6 +37,7 @@ DEFAULTS = dict(
     mouthguard=False,      # sports mouthguard: brackets stay under a smooth shield, the line runs into the vestibule with frenum notches, a flange onto the palate
     mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_smooth=6.0, mg_clearance=1.0, mg_band_smooth=1.25,
     distal_round=3.0,      # mm: corner radius of the trim line round the last tooth; it never goes past that tooth, dips behind it are lifted, and a tooth the scan cut through gets the line 2 mm short of the edge, over the tooth; 0 = off
+    gap_beam=True, gap_beam_drop=1.5,   # a reinforcing bar on the ridge across a missing tooth's space (retainers), its top this far under the neighbours' occlusal level
     distal_hug=True,       # behind the last molar the line runs on that tooth's own gum margin instead of trimline_offset onto the tissue behind it (which the relief cuts away)
     distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
     distal_relief=2.0,     # mm: the model behind the last molar (retromolar pad / tuberosity) is lowered to this far below the trim line so the trimmer reaches the distal surface; 0 = off
@@ -1056,6 +1057,35 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 log(f"[{name}] pontics skipped: {ex}")
                 rep["pontics"] = dict(count=0, error=str(ex)[:160], asked=len(P["pontics"]))
                 rep.setdefault("warnings", []).append(f"the pontics could not be made ({str(ex)[:80]}) - this model has none; re-run the case")
+    # a beam over an edentulous ridge (11/12/2026): the retainer is a shallow strip there and breaks; a bar stood on the
+    # ridge between the two neighbours makes it a box section. On a retainer only (not a whitening tray, a mouthguard or
+    # a Phase I, whose windows have their own block-out); a space that holds a pontic is left to the pontic
+    if P.get("gap_beam", True) and not MG and not P1 and not P["reservoir_height"] > 0:
+        try:
+            from .interprox import gap_beams
+            seats = [trimesh.transform_points(np.asarray(q["m"], float)[:3, 3][None], T_total)[0] for q in (P.get("pontics") or []) if isinstance(q, dict) and q.get("m") is not None]
+            bsolids, beams = gap_beams(mesh_f, labels, info, skip_xy=np.array(seats) if seats else None,
+                                       drop_mm=float(P.get("gap_beam_drop") if P.get("gap_beam_drop") is not None else 1.5), log=lambda m: log(f"[{name}] {m}"))
+            if beams:
+                rep["gap_beams"] = beams
+            if bsolids:
+                if P.get("fuse_blockout", True):
+                    from .fuse import fuse_many
+                    fused = []
+                    for b_ in bsolids:
+                        m_, _fi = fuse_many(b_, mesh_f, radius=float(P.get("fuse_radius") or 0.6), overlap=float(P.get("fuse_overlap") or 0.2), foot_mm=3.0, log=None)
+                        fused.append(m_ if m_ is not None else b_)
+                    bsolids = fused
+                beam = trimesh.util.concatenate(bsolids) if len(bsolids) > 1 else bsolids[0]
+                extra_solids.append(beam)
+                # shown with the block-outs on the page
+                shown = trimesh.util.concatenate([trimesh.load(bo_path), beam]) if os.path.exists(bo_path) else beam
+                shown.export(bo_path)
+                bo_ = rep.setdefault("blockout", {})
+                bo_["spots"] = int(bo_.get("spots", 0) or 0) + len(bsolids)
+        except Exception as ex:  # noqa
+            log(f"[{name}] gap beam skipped: {ex}")
+            rep.setdefault("warnings", []).append(f"the beam over the missing tooth's space could not be made ({str(ex)[:80]}) - the retainer is thin there")
     # mouthguard: the brackets stay on the model under smooth convex caps with `mg_clearance` mm of room, so
     # the sheet forms over a band instead of locking into the bracket undercuts (mesh_f keeps the scan's
     # vertex order, so the appliance mask applies as it is)

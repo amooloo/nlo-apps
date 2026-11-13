@@ -331,3 +331,98 @@ def contact_fills(mesh, labels, info, centre_xy, top=20.0, proud=0.0, reach=1.25
     if not solids:
         return None, info_out
     return trimesh.util.concatenate(solids), info_out
+
+
+def gap_beams(mesh, labels, info, skip_xy=None, min_gap=2.5, drop_mm=1.5, min_height=1.5, width_frac=0.5,
+              width_min=3.5, width_max=6.0, into_crown=0.8, log=print):
+    """A reinforcing beam over an edentulous ridge. Across a missing tooth a retainer is a shallow strip of sheet over
+    the ridge between two deep boxes (the crowns) - it flexes and cracks there (the doctor, 11/12/2026: "that becomes
+    the weak part of the retainer ... fill it / reinforce it with a beam"; a pontic "is not always the best option").
+    On the model a bar is stood on the ridge from one neighbour's face to the other's: straight sides, a round top,
+    `width_frac` of the narrower crown wide, its top `drop_mm` under the lower neighbour's occlusal level - out of the
+    bite. The sheet formed over it is a box section the depth of the crowns, joined to both.
+    The spaces are found here, between teeth next to each other on a side whose crowns stand `min_gap` or more apart
+    (the count of the teeth may have been changed by hand since the pipeline listed its gaps).
+    `skip_xy`: points (pontic seats) - a gap that holds one is left to the pontic. A ridge standing closer than
+    `min_height` to the beam's top gets none. `mesh` in the model's frame (z up). -> (list of meshes, [info])."""
+    V = np.asarray(mesh.vertices, float)
+    labels = np.asarray(labels)
+    solids, made = [], []
+    pairs = []
+    for sd in (-1, 1):
+        row = sorted((int(ps), int(t)) for t, (s_, ps) in info.items() if int(s_) == sd)
+        pairs += [(sd, pa, a, b) for (pa, a), (pb, b) in zip(row, row[1:])]
+    for side, pos, a, b in pairs:
+        ma, mb = labels == a, labels == b
+        if ma.sum() < 50 or mb.sum() < 50:
+            continue
+        if float(cKDTree(V[ma][:, :2]).query(V[mb][:, :2])[0].min()) < min_gap:
+            continue
+        ca, cb = V[ma][:, :2].mean(0), V[mb][:, :2].mean(0)
+        d = cb - ca
+        L = float(np.linalg.norm(d))
+        if L < 1e-6:
+            continue
+        d /= L
+        n = np.array([-d[1], d[0]])
+        bl = lambda m: float(np.percentile((V[m][:, :2] - ca) @ n, 95) - np.percentile((V[m][:, :2] - ca) @ n, 5))
+        w = float(np.clip(width_frac * min(bl(ma), bl(mb)), width_min, width_max))
+        s_all, u_all = (V[:, :2] - ca) @ d, (V[:, :2] - ca) @ n
+        lane = np.abs(u_all) <= 0.5 * w
+        if (lane & ma).sum() < 10 or (lane & mb).sum() < 10:
+            continue
+        s0 = float(np.percentile(s_all[lane & ma], 98)) - into_crown        # inside a's face
+        s1 = float(np.percentile(s_all[lane & mb], 2)) + into_crown         # inside b's face
+        if s1 - s0 < min_gap:
+            continue
+        if skip_xy is not None and len(skip_xy):
+            q = np.asarray(skip_xy, float)[:, :2] - ca
+            if ((q @ d > s0) & (q @ d < s1) & (np.abs(q @ n) < 6.0)).any():
+                made.append(dict(side=side, after_position=pos, skipped="a pontic stands in this space"))
+                continue
+        z_top = min(float(np.percentile(V[ma][:, 2], 90)), float(np.percentile(V[mb][:, 2], 90))) - drop_mm
+        ridge = lane & (labels == 0) & (s_all > s0) & (s_all < s1)
+        if ridge.sum() < 10:
+            continue
+        z_ridge = float(np.percentile(V[ridge, 2], 90))
+        z_low = float(V[ridge, 2].min()) - 1.0
+        h = z_top - z_ridge
+        if h < min_height:
+            made.append(dict(side=side, after_position=pos, skipped=f"the ridge stands {max(h, 0.0):.1f} mm under the beam's top - no room for one"))
+            continue
+        r = min(0.5 * w, 0.8 * h)                       # the round of the top
+        length = s1 - s0
+        mid = ca + d * (0.5 * (s0 + s1))
+        R = np.eye(4); R[:2, 0] = d; R[:2, 1] = n       # x along the beam, y across
+        parts = []
+        box = trimesh.creation.box(extents=(length, w, (z_top - r) - z_low))
+        box.apply_translation((0, 0, 0.5 * ((z_top - r) + z_low)))
+        parts.append(box)
+        # the top: a slab narrowed by the round, and a cylinder along each shoulder
+        if w - 2 * r > 0.05:
+            slab = trimesh.creation.box(extents=(length, w - 2 * r, r))
+            slab.apply_translation((0, 0, z_top - 0.5 * r))
+            parts.append(slab)
+        for sgn in ((-1, 1) if w - 2 * r > 0.05 else (0,)):
+            cyl = trimesh.creation.cylinder(radius=r, height=length, sections=48)
+            cyl.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, (0, 1, 0)))
+            cyl.apply_translation((0, sgn * (0.5 * w - r), z_top - r))
+            parts.append(cyl)
+        try:
+            import manifold3d as m3
+            man = None
+            for p_ in parts:
+                mm = m3.Manifold(m3.Mesh(vert_properties=np.asarray(p_.vertices, np.float32), tri_verts=np.asarray(p_.faces, np.uint32)))
+                man = mm if man is None else man + mm
+            out = man.to_mesh()
+            beam = trimesh.Trimesh(np.asarray(out.vert_properties)[:, :3], np.asarray(out.tri_verts), process=False)
+        except Exception:  # noqa
+            beam = trimesh.util.concatenate(parts)
+        T = R.copy(); T[:2, 3] = mid
+        beam.apply_transform(T)
+        solids.append(beam)
+        made.append(dict(side=side, after_position=pos, length_mm=round(length - 2 * into_crown, 1), width_mm=round(w, 1), height_mm=round(h, 1),
+                         top_under_teeth_mm=float(drop_mm), volume_ml=round(float(abs(beam.volume)) / 1000.0, 3)))
+        if log:
+            log(f"gap beam on the {'left' if side < 0 else 'right'} behind position {pos}: {length - 2 * into_crown:.1f} mm long, {w:.1f} wide, {h:.1f} mm over the ridge")
+    return solids, made

@@ -1516,6 +1516,30 @@ async function p1SetArchMethod(id, arch, how){
   if (!resp.ok) { showErr('Could not re-make the arch: ' + (j.detail || resp.status)); return; }
   forgetEdits(); $('#dl').innerHTML = ''; selectJob(id);
 }
+// a reinforcing beam over a missing tooth's space (11/12/2026): made by itself on a retainer; the switch re-makes the
+// case with or without it (a space that holds a pontic never gets one)
+function beamHtml(id, r){
+  const bs = r.gap_beams || []; const off = (r.params || {}).gap_beam === false;
+  if (!bs.length && !off) return '';
+  const made = bs.filter(b => !b.skipped), skipped = bs.filter(b => b.skipped);
+  const what = off ? 'switched off for this case' : made.length ? made.map(b => `${b.length_mm} mm long, ${b.width_mm} wide, ${b.height_mm} mm over the ridge`).join(' · ') : skipped.map(b => b.skipped).join(' · ');
+  return `<div class="hint" id="beamswitch" style="margin-top:8px">Beam across the missing tooth's space${r.arch ? ', ' + r.arch : ''}: `
+    + `<button class="small${off ? '' : ' primary'}" id="beamOn" ${off ? '' : 'disabled'} title="Stands a bar on the ridge between the two teeth beside the space, so the retainer is a box there and not a thin strip">Beam${off ? '' : ' ✓'}</button> `
+    + `<button class="small${off ? ' primary' : ''}" id="beamOff" ${off ? 'disabled' : ''} title="Re-makes the case without the beam (use a pontic instead, or leave the space as it is)">No beam${off ? ' ✓' : ''}</button>`
+    + ` <span>${what}</span></div>`;
+}
+async function setBeam(id, on){
+  const pr = params(); pr.gap_beam = !!on;
+  const fd = new FormData(); fd.append('edits', editsPayload()); fd.append('params', JSON.stringify(pr));
+  const resp = await fetch(`/api/jobs/${id}/rerun`, { method: 'POST', body: fd }); const j = await resp.json().catch(() => ({}));
+  if (!resp.ok) { showErr('Could not re-make the case: ' + (j.detail || resp.status)); return; }
+  forgetEdits(); $('#dl').innerHTML = ''; selectJob(id);
+}
+function wireBeam(id, r){
+  const a = $('#beamOn'), b = $('#beamOff');
+  if (a) a.onclick = () => { a.disabled = true; setBeam(id, true); };
+  if (b) b.onclick = () => { b.disabled = true; setBeam(id, false); };
+}
 function wireP1Choice(id, r){
   const k = $('#p1keep'), b = $('#p1toBott'), c = $('#p1toCott');
   if (k) k.onclick = () => { try { localStorage.setItem(p1KeepKey(id, r.arch), String(r.phase1.thin_flange_mm)); } catch (e) {} const box = $('#p1choice'); if (box) box.remove(); };
@@ -2071,6 +2095,7 @@ async function loadResult(id, j){
                   recTeeth.length ? `reservoir kept off exposed root on ${recTeeth.map(t => (t.side < 0 ? 'L' : 'R') + t.position).join(', ')}` : '',
                   (r.renumbered || []).length ? `a missing tooth allowed for in the numbering (${[...new Set((r.renumbered || []).map(c => c.side < 0 ? 'left' : 'right'))].join(' and ')} side — see the log)` : '',
                   r.label_error ? `base not engraved: ${r.label_error}` : '',
+                  (r.gap_beams || []).some(b => !b.skipped) ? `beam across the missing tooth's space` : '',
                   (r.pontics || {}).count ? `${r.pontics.count} pontic${r.pontics.count > 1 ? 's' : ''}: ${(r.pontics.pontics || []).map(x => `${x.slot || x.id} (${x.shape}, ${x.w} × ${x.h} × ${x.t} mm)`).join(', ')}` : ((r.pontics || {}).skipped ? `pontics left off the ${r.pontics.skipped}` : ((r.pontics || {}).error ? `pontics: ${r.pontics.error}` : '')),
                   bo.contacts_filled || bo.gap_faces ? `${bo.contacts_filled || 0} of ${bo.contacts || 0} contacts filled${bo.gap_faces ? `, ${bo.gap_faces} face${bo.gap_faces > 1 ? 's' : ''} next to a gap` : ''} (${bo.volume_ml} mL${bo.painted_spots ? `, + ${bo.painted_spots} painted` : ''})` : (bo.spots ? `${bo.spots} painted block-out${bo.spots > 1 ? 's' : ''} (${bo.volume_ml} mL${bo.proud_mm ? `, wall ${bo.proud_mm > 0 ? '+' : ''}${bo.proud_mm} mm` : ''})` : (bo.error ? `block-out: ${bo.error}` : ''))].filter(Boolean);
   // braces off: a rebuilt patch over most of a tooth (brackets, wire and ties run together on crowded teeth) is a guess
@@ -2078,8 +2103,8 @@ async function loadResult(id, j){
   const warns = (r.warnings || []).concat(big.length ? [`braces: ${big.length} rebuilt area${big.length > 1 ? 's cover' : ' covers'} most of a tooth (${big.join(', ')} mm², red on the Braces tab) — the enamel there is a guess (crowded teeth: brackets and wire run together); check those teeth before printing`] : []);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : '<span style="color:var(--err)">NOT watertight</span>'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s` + (extras.length ? `<br><span style="color:var(--teal, #0d9488)">${extras.join(' · ')}</span>` : '')
     + (warns.length ? `<br><span style="color:var(--err);font-weight:600">&#9888; ${warns.join(' · ')}</span>` : '')
-    + p1ChoiceHtml(id, r);
-  wireP1Choice(id, r);
+    + p1ChoiceHtml(id, r) + beamHtml(id, r);
+  wireP1Choice(id, r); wireBeam(id, r);
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
   // result: the arch body and the base as two pieces, so the arch can be moved on the base
