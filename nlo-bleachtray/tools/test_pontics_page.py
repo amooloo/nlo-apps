@@ -149,6 +149,17 @@ def main():
         page.mouse.up(); time.sleep(0.3)
         off1 = page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow())")
         check("dragging the arrow moved the pontic along the arch, in 0.1 mm steps, the others untouched", abs(off1["x"]) > 0.5 and abs(off1["x"] * 10 - round(off1["x"] * 10)) < 1e-6 and abs(off1["y"]) < 1e-6 and abs(off1["z"]) < 1e-6, off1)
+        # no jitter (11/13/2026): a steady drag out along the arrow never steps back, and holding still holds
+        ax, ay = handle("tx", 0); bx, by = handle("tx", 1); d = ((ax - bx), (ay - by)); L = (d[0] ** 2 + d[1] ** 2) ** 0.5
+        page.mouse.move(ax, ay); page.mouse.down(); seq = []
+        for k in range(1, 31):
+            page.mouse.move(ax + 2 * k * d[0] / L, ay + 2 * k * d[1] / L); seq.append(page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow()).x"))
+        for k in range(4):
+            page.mouse.move(ax + 60 * d[0] / L + (k % 2) * 0.2, ay + 60 * d[1] / L); seq.append(page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow()).x"))
+        page.mouse.up(); time.sleep(0.3)
+        dif = [round(seq[i + 1] - seq[i], 3) for i in range(len(seq) - 1)]; sg = 1 if seq[-1] > seq[0] else -1
+        check("a steady drag along an arrow never steps back (no jitter)", abs(seq[-1] - seq[0]) > 1.0 and all(x * sg >= -1e-6 for x in dif) and all(abs(x) < 0.8 for x in dif) and all(abs(x) < 1e-6 for x in dif[-3:]), dif)
+        off1 = page.evaluate("window.__view.ponticOffsets(window.__view.ponticNow())")
         check("the chips say so (blue for plus / brown for minus, green for nothing)", page.locator(".gchip").count() == 3 and page.locator(".gchip.zero").count() == 2 and page.locator(".gchip.plus, .gchip.minus").count() == 1, page.locator(".gchip").all_text_contents())
         check("the frame moved along its own X only (raw coordinates)", abs(np.linalg.norm((np.asarray(page.evaluate("window.__view.ponticNow().m"), float) @ np.array([0, 0, 0, 1]))[:3] - M3[:3, 3]) - abs(off1["x"])) < 0.05, "")
         # drag the green arc: the pontic turns round its long axis, 1 degree steps
