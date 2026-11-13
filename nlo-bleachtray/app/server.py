@@ -77,7 +77,7 @@ def _print_root(cfg=None):
 
 def _scan_tag(sc):
     """WT / TT / MG / P1 for a model: what the case was set up with, else from its preset or kind."""
-    return sc.get("tag") or ("MG" if sc.get("preset") == "mouthguard" else "P1" if str(sc.get("preset") or "").startswith("phase1")
+    return sc.get("tag") or ("TP" if sc.get("preset") == "template" else "MG" if sc.get("preset") == "mouthguard" else "P1" if str(sc.get("preset") or "").startswith("phase1")
                              else "TT" if (sc.get("kind") or "T").upper().startswith("A") else "WT")
 
 
@@ -470,16 +470,16 @@ def _backfill_case(d):
         except Exception:
             continue
         name = fn[: -len("_report.json")]
-        tag = name.rsplit("_", 1)[-1] if name.rsplit("_", 1)[-1] in ("WT", "TT", "MG", "P1", "MODEL") else None
+        tag = name.rsplit("_", 1)[-1] if name.rsplit("_", 1)[-1] in ("WT", "TT", "MG", "P1", "TP", "MODEL") else None
         p = rep.get("params") or {}
         params = params or {k: v for k, v in p.items() if k not in ("keep_off_idx", "blockout_idx", "force_on_idx", "shield_idx")}
         # the scan this model was made from: the one whose name stem matches, else the only one
         stem = name[: -len(tag) - 1] if tag else name
         cand = [sc for sc in scans_on_disk if stem.lower() in sc.lower().replace(" ", "_")] or scans_on_disk
         kind = p.get("kind") or ("A" if tag in ("TT", "P1") else "T")
-        preset_of = {"TT": "aligner_high", "MG": "mouthguard", "P1": ("phase1_bott" if p.get("p1_method") == "bott" else "phase1")}
+        preset_of = {"TT": "aligner_high", "TP": "template", "MG": "mouthguard", "P1": ("phase1_bott" if p.get("p1_method") == "bott" else "phase1")}
         scans.append(dict(path=cand[0], name=name, filename=cand[0].split("_", 1)[-1] if "_" in cand[0] else cand[0], arch=rep.get("arch"),
-                          preset=preset_of.get(tag, "bleaching"), tag=tag, kind=kind, stage=p.get("stage", {"TT": 1, "MG": 2, "P1": 3}.get(tag, 0)),
+                          preset=preset_of.get(tag, "bleaching"), tag=tag, kind=kind, stage=p.get("stage", {"TT": 1, "MG": 2, "P1": 3, "TP": 4}.get(tag, 0)),
                           titan_basename=rep.get("titan_basename"), has_report=True))
         first_name = first_name or rep.get("name")
     if not scans:
@@ -741,7 +741,7 @@ def _scan_params(job, scan):
     if scan.get("preset"):
         params.update(PRESETS.get(scan["preset"], {}))
     # the page's per-type settings (whitening tray / retainer) sit on top of the preset
-    per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") == "TT"
+    per_type = (job["params"].get("wt") if scan.get("tag") == "WT" else job["params"].get("tt") if scan.get("tag") in ("TT", "TP")
                 else job["params"].get("p1") if scan.get("tag") == "P1" else None) or {}
     params.update({k: v for k, v in per_type.items() if v is not None})
     if scan.get("tag") in ("P1", "WT"):
@@ -1720,7 +1720,8 @@ def _group_uploads(items):
 def _variants_from_makes(makes, preset):
     """Per-file choice from the page ("WT", "TT", both or none) -> variant tuples."""
     wt = "bleaching_3_3" if preset == "bleaching_3_3" else "bleaching"
-    table = {"WT": (wt, "WT", "T", 0), "TT": ("aligner_high", "TT", "A", 1), "MG": ("mouthguard", "MG", "T", 2), "P1": ("phase1", "P1", "A", 3)}
+    table = {"WT": (wt, "WT", "T", 0), "TT": ("aligner_high", "TT", "A", 1), "MG": ("mouthguard", "MG", "T", 2), "P1": ("phase1", "P1", "A", 3),
+             "TP": ("template", "TP", "A", 4)}       # a template model (11/13/2026): worn or chipped teeth built up from the tooth library, the template formed over it
     out = [table[t] for t in (makes or []) if t in table]
     return out or [("plain_model", "MODEL", "T", 0)]
 
@@ -1850,7 +1851,7 @@ async def add_model(jid: str, arch: str = Form(...), make: str = Form(...)):
         raise HTTPException(409, "the case is still being processed - add it when it is done")
     make = (make or "").upper()
     src = next((sc for sc in job["scans"] if sc.get("arch") == arch), None)
-    if src is None or make not in ("WT", "TT", "MG", "P1"):
+    if src is None or make not in ("WT", "TT", "MG", "P1", "TP"):
         raise HTTPException(400, "no such scan in this case")
     if make == "MG" and arch == "lower":
         raise HTTPException(400, "a mouthguard is made for the upper only")
@@ -2779,7 +2780,7 @@ def job_pieces(jid: str):
         raise HTTPException(404)
     from bleachtray.printfolder import model_filename
     first, last = job["params"].get("patient_first") or "", job["params"].get("patient_last") or ""
-    words = {"WT": "Whitening tray", "TT": "Retainer", "MG": "Mouthguard", "P1": "Phase I retainer"}
+    words = {"WT": "Whitening tray", "TT": "Retainer", "MG": "Mouthguard", "P1": "Phase I retainer", "TP": "Template"}
     out = []
     sent_pieces = job.get("order_pieces") or []
     sent_scans = job.get("sent_scans")

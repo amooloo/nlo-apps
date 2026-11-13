@@ -67,8 +67,16 @@ def norm_spec(p):
         if not (2.0 <= w <= 16.0 and 2.0 <= h <= 20.0 and 2.0 <= t <= 16.0):
             return None
         sink = min(6.0, max(0.0, float(p.get("sink") or 0.0)))     # (the page's own number: the seat's depth under the gum; the frame already has it)
-        return dict(id=str(p.get("id") or f"p{n}"), n=n, slot=str(p.get("slot") or ""), w=round(w, 2), h=round(h, 2), t=round(t, 2), sink=round(sink, 2),
-                    mirror=bool(p.get("mirror", False)), m=[[round(float(x), 5) for x in row] for row in m.tolist()])
+        out = dict(id=str(p.get("id") or f"p{n}"), n=n, slot=str(p.get("slot") or ""), w=round(w, 2), h=round(h, 2), t=round(t, 2), sink=round(sink, 2),
+                   mirror=bool(p.get("mirror", False)), m=[[round(float(x), 5) for x in row] for row in m.tolist()])
+        # a build-up (11/13/2026): the same library crown stood over a worn or chipped tooth instead of in a space
+        if p.get("bu"):
+            out["bu"] = True
+            try:
+                out["tooth"] = int(p.get("tooth") or 0)
+            except Exception:
+                out["tooth"] = 0
+        return out
     except Exception:
         return None
 
@@ -115,10 +123,17 @@ def build_pontics(specs, T_total, surface, fuse=True, radius=0.6, overlap=0.2, f
         seat = (np.asarray(T_total, float) @ np.asarray(spec["m"], float))[:3, 3] if T_total is not None else np.asarray(spec["m"], float)[:3, 3]
         entry = dict(id=spec["id"], n=spec["n"], shape=s["name"], slot=spec["slot"], w=spec["w"], h=spec["h"], t=spec["t"], mirror=spec["mirror"],
                      seat=[round(float(x), 2) for x in seat], volume_ml=round(float(abs(m.volume)) / 1000.0, 3))
+        if spec.get("bu"):
+            entry["bu"] = True; entry["tooth"] = spec.get("tooth", 0)
         if fuse:
             try:
                 from .fuse import fuse_many
-                m2, finfo = fuse_many(m, surface, radius=radius, overlap=overlap, foot_mm=foot_mm, reach_below=foot_mm, foot_drop_mm=foot_drop_mm, floor_z=floor_z, log=None)
+                if spec.get("bu"):
+                    # a build-up stands on its own tooth: joined to it with a small fillet, nothing filled down to the
+                    # gum under it (a template must show the tooth's own shape there, not a block-out)
+                    m2, finfo = fuse_many(m, surface, radius=min(radius, 0.3), overlap=overlap, foot_mm=0.0, reach_below=0.0, floor_z=floor_z, log=None)
+                else:
+                    m2, finfo = fuse_many(m, surface, radius=radius, overlap=overlap, foot_mm=foot_mm, reach_below=foot_mm, foot_drop_mm=foot_drop_mm, floor_z=floor_z, log=None)
                 entry["fused"] = dict(fillet_mm3=finfo.get("fillet_mm3"), fused=finfo.get("fused"), failed=finfo.get("failed"))
                 if finfo.get("errors"):
                     entry["fused"]["errors"] = finfo["errors"]
@@ -139,9 +154,10 @@ def build_pontics(specs, T_total, surface, fuse=True, radius=0.6, overlap=0.2, f
         pieces.append(m)
         info["pontics"].append(entry)
         if log:
-            log(f"pontic {spec['slot'] or spec['id']}: {s['name']} (#{spec['n']}{', mirrored' if spec['mirror'] else ''}), {spec['w']} x {spec['h']} x {spec['t']} mm (w x h x t)"
+            log(f"{'build-up' if spec.get('bu') else 'pontic'} {spec['slot'] or spec['id']}: {s['name']} (#{spec['n']}{', mirrored' if spec['mirror'] else ''}), {spec['w']} x {spec['h']} x {spec['t']} mm (w x h x t)"
                 + (f" - fused, {entry['fused'].get('fillet_mm3', 0)} mm3 of fillet" if entry.get("fused") and "error" not in entry["fused"] else ""))
     info["count"] = len(pieces)
+    info["buildups"] = sum(1 for e in info["pontics"] if e.get("bu"))
     if not pieces:
         return None, info
     return (trimesh.util.concatenate(pieces) if len(pieces) > 1 else pieces[0]), info
