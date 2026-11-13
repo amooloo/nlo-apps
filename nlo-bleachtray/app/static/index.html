@@ -856,7 +856,7 @@ function allEdits(){
     const k = curScans.findIndex(sc => fileKeyOf(sc) === key); if (k < 0) continue;
     const e = editsByFile[key] || Object.fromEntries(EDIT_KEYS.map(x => [x, new Set()]));
     // the pontics of a file whose list changed go as the whole list (the server replaces what it kept; [] clears)
-    const pb = ponticsByFile[key]; const pon = pb && pb.dirty ? pb.list.map(p => ({ id: p.id, n: p.n, slot: p.slot, w: p.w, h: p.h, t: p.t, sink: p.sink, mirror: !!p.mirror, m: p.m, bu: p.bu ? true : undefined, tooth: p.bu ? p.tooth : undefined })) : undefined;
+    const pb = ponticsByFile[key]; const pon = pb && pb.dirty ? pb.list.map(p => ({ id: p.id, n: p.n, slot: p.slot, w: p.w, h: p.h, t: p.t, sink: p.sink, mirror: !!p.mirror, m: p.m, bu: p.bu ? true : undefined, tooth: p.bu ? p.tooth : undefined, src: p.bu && p.src ? p.src : undefined })) : undefined;
     // the traced cutout outlines go as the whole set the page holds for the file (the applied ones that were not
     // cleared, plus the new ones), so the server replaces what it kept; the key is left out when nothing changed
     const p1all = (e.p1paths && e.p1paths.length) || e.p1pathClear ? ((e.p1pathClear ? [] : (p1AppliedByFile[key] || [])).concat(e.p1paths || [])).map(o => o.slice()) : undefined;
@@ -2877,11 +2877,11 @@ async function drawPontics(){
   if (!segPos || !pontics.length) { requestRender(); return; }
   await loadPonticLib(); if (seq !== ponticDrawSeq) return;
   for (const p of pontics) {
-    const s = ponticShape(p.n); if (!s) continue;
-    let g; try { g = await ponticGeo(p.n); } catch (e) { showErr(e.message); continue; }
+    const s = shapeOfP(p); if (!s) continue;
+    let g; try { g = p.src ? mirrorGeo(p.src) : await ponticGeo(p.n); } catch (e) { showErr(e.message); continue; }
     if (seq !== ponticDrawSeq) return;
     const mesh = new THREE.Mesh(g, p.id === ponticSel ? ponticMats.sel : ponticMats.on);
-    const S = new THREE.Matrix4().makeScale(p.w / s.w0 * (p.mirror ? -1 : 1), p.t / s.t0, p.h / s.h0);
+    const S = new THREE.Matrix4().makeScale(p.w / s.w0 * (p.mirror && !p.src ? -1 : 1), p.t / s.t0, p.h / s.h0);
     mesh.matrixAutoUpdate = false; mesh.matrix.copy(TR).multiply(ponticMat4(p)).multiply(S); mesh.userData.pontic = p.id;
     ponticGroup.add(mesh);
   }
@@ -2979,12 +2979,13 @@ function nudgePontic(p, dx, dy, dz, turn, tilt, torque){
 function removePontic(id){ const k = pontics.findIndex(p => p.id === id); if (k < 0) return; pontics.splice(k, 1); if (ponticSel === id) ponticSel = pontics.length ? pontics[pontics.length - 1].id : null; ponticsDirty = true; drawPontics(); drawBadges(); renderPanel(); }
 // the box's controls for the pontics of this scan
 function ponticPanelHtml(){
-  const p = ponticNow(); const s = p ? ponticShape(p.n) : null;
-  const chips = pontics.map(q => `<button data-sel="${q.id}" class="${q.id === ponticSel ? 'on' : ''}" title="${esc(q.slot)} - ${esc((ponticShape(q.n) || {}).name || '')}${q.bu ? ' (build-up on the tooth)' : ''}">${q.bu ? '▲ ' : ''}${esc(q.slot || q.id)}</button>`).join('');
+  const p = ponticNow(); const s = shapeOfP(p);
+  const chips = pontics.map(q => `<button data-sel="${q.id}" class="${q.id === ponticSel ? 'on' : ''}" title="${esc(q.slot)} - ${esc((shapeOfP(q) || {}).name || '')}${q.bu ? ' (build-up on the tooth)' : ''}">${q.bu ? '▲ ' : ''}${esc(q.slot || q.id)}</button>`).join('');
   const groupsL = ['UR', 'UL', 'LL', 'LR'].map(g => `<optgroup label="${g}">${(ponticLib || []).filter(x => (x.arch === 'upper' ? 'U' : 'L') + x.side === g).map(x => `<option value="${x.n}" ${p && p.n === x.n ? 'selected' : ''}>#${x.n} ${esc(x.name)}</option>`).join('')}</optgroup>`).join('');
   const row = (k, lab, lim, step, unit) => `<div class="pontrow"><span>${lab}</span><input type="range" data-k="${k}" min="${lim[0]}" max="${lim[1]}" step="${step}" value="${p ? p[k] : lim[0]}"><b>${p ? p[k].toFixed(k === 'sink' ? 2 : 1) : '-'}${unit}</b></div>`;
   return `<div class="pontlist" id="pontlist">${chips}<button data-addhint="1" title="Click a + badge in a space, or hold Shift and click the gum where the pontic goes">${pontics.length ? '+ add: a badge, Shift-click the gum (pontic) or a tooth (build-up)' : 'None yet: + badge or Shift-click the gum = pontic · Shift-click a tooth = build-up'}</button></div>` +
-    (p ? `<div class="pontrow" style="grid-template-columns:62px 1fr"><span>Shape</span><select id="pontshape" title="The library shape: its own tooth by default; a shape from the other side is mirrored">${groupsL}</select></div>` +
+    (p ? (p.bu ? `<div class="pontrow" style="grid-template-columns:62px 1fr"><span>From</span><span class="seg" id="busrc" style="display:inline-flex"><button data-src="lib" class="small ${p.src ? '' : 'on'}" title="The library's crown for this tooth">Library</button><button data-src="mir" class="small ${p.src ? 'on' : ''}" title="The patient's own tooth from the other side of the arch, mirrored, at its own size">⇄ Other side</button></span></div>` : '') +
+      (p.src ? '' : `<div class="pontrow" style="grid-template-columns:62px 1fr"><span>Shape</span><select id="pontshape" title="The library shape: its own tooth by default; a shape from the other side is mirrored">${groupsL}</select></div>`) +
       row('w', 'Width', PONTIC_LIM.w, 0.1, ' mm') + row('h', 'Height', PONTIC_LIM.h, 0.1, ' mm') + row('t', 'Thickness', PONTIC_LIM.t, 0.1, ' mm') + row('sink', p.bu ? 'Into tooth' : 'Into gum', PONTIC_LIM.sink, 0.25, ' mm') +
       (o => `<div class="pontoff" title="Since the pontic was placed: drag the arrows (mm) and the arcs (degrees) on it"><span>along <b>${fmtOff(o.x, 'mm')}</b> · out <b>${fmtOff(o.y, 'mm')}</b> · up <b>${fmtOff(o.z, 'mm')}</b> mm</span><span>turn <b>${fmtOff(o.turn, 'deg')}</b> · tip <b>${fmtOff(o.tip, 'deg')}</b> · torque <b>${fmtOff(o.torque, 'deg')}</b></span><button class="small" id="pontreset" title="Back to where it was placed" ${Object.values(o).some(v => Math.abs(v) > 0.049) ? '' : 'disabled'}>Reset position</button></div>`)(ponticOffsets(p)) +
       `<div style="margin-top:6px;display:flex;gap:6px;align-items:center"><button class="small" id="pontdel" title="Take this pontic away (Delete key does the same)">Delete ${esc(p.slot)}</button><span class="hint" style="margin:0">${s ? esc(s.name) : ''} · drag its arrows and arcs; Shift-drag it to carry it</span></div>` : '');
@@ -3000,6 +3001,7 @@ function wirePonticPanel(box){
     b.textContent = v.toFixed(k === 'sink' ? 2 : 1) + ' mm';
   });
   const sel = box.querySelector('#pontshape'); if (sel) sel.onchange = () => { const n = +sel.value; const s = ponticShape(n); if (!s) return; p.n = n; const slotSide = (p.slot || '')[0]; p.mirror = !!slotSide && s.side !== slotSide; ponticChanged(); renderPanel(); };
+  box.querySelectorAll('#busrc button').forEach(b => b.onclick = () => setBuildupMirror(p, b.dataset.src === 'mir'));
   const rst = box.querySelector('#pontreset'); if (rst) rst.onclick = () => resetPontic(p);
   const del = box.querySelector('#pontdel'); if (del) del.onclick = () => removePontic(p.id);
 }
@@ -3020,19 +3022,49 @@ function ponticDown(ev){
 // as wide as the tooth, 1.5 mm longer than the tooth is now, no thicker than the tooth by more than 0.3 mm, along the tooth's own lean, its seat 1 mm under the tooth's gum line. It only adds: the
 // model is the scanned tooth and the crown together. Moved and sized like a pontic.
 const BUILDUP_SINK = 1.0, BUILDUP_ADD = 1.5;
-async function addBuildupAt(l){
-  await loadPonticLib(); if (!ponticLib || !ponticLib.length) { showErr('The tooth library is not on the server - run the update on the lab PC.'); return; }
-  const had = pontics.find(q => q.bu && +q.tooth === +l); if (had) { ponticSel = had.id; await drawPontics(); drawBadges(); renderPanel(); return; }
-  const arch = teethInfo.arch || (curScans[scanIdx] || {}).arch || 'upper';
-  const c = toothCent[l]; if (!c) { showErr('That tooth is too small to build up - check its colour on the Segmentation step.'); return; }
-  const num = toothNumbers()[l], pos = num && num.pos ? num.pos : 1;
-  const side = sideOf(l) || ((c[0] > archCent[0]) === (arch === 'lower') ? 'R' : 'L');
-  const n = universalOf(arch, side, pos), s = ponticShape(n); if (!s) { showErr(`No shape for ${side}${pos} in the library.`); return; }
+// A build-up from the patient's own tooth (the doctor chose "offer both", 11/13/2026): the same tooth on the other side
+// of the arch, mirrored, instead of the library's crown. Its shape is the tooth's label on the scan in that tooth's own
+// frame with X turned round; the pipeline makes the same shape from the same label and frame (pontic.mirror_shape).
+const mirrorGeos = {};
+function otherSideTooth(l){
+  const nums = toothNumbers(), me = nums[l], sd = sideOf(l); if (!me || !me.pos || !sd) return null;
+  for (const k in nums) if (+k !== +l && nums[k] && nums[k].pos === me.pos && sideOf(k) && sideOf(k) !== sd && toothCent[k]) return +k;
+  return null;
+}
+function mirrorGeo(src){
+  const key = src.tooth + ':' + src.m.flat().map(v => (+v).toFixed(3)).join(',') + ':' + segLabels.length;
+  if (mirrorGeos[key]) return mirrorGeos[key];
+  const F = segMesh.geometry.index.array, Ms = new THREE.Matrix4(); Ms.set(...src.m.flat());
+  const inv = TR.clone().multiply(Ms).invert(), v = new THREE.Vector3(), out = [];
+  const put = i => { v.set(segPos[i*3], segPos[i*3+1], segPos[i*3+2]).applyMatrix4(inv); out.push(-v.x, v.y, v.z); };
+  for (let f = 0; f < F.length; f += 3) { const a = F[f], b = F[f+1], c = F[f+2]; if (segLabels[a] !== src.tooth || segLabels[b] !== src.tooth || segLabels[c] !== src.tooth) continue; put(a); put(c); put(b); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3)); g.computeVertexNormals();
+  for (const k in mirrorGeos) delete mirrorGeos[k];     // (one scan's worth: the labels may have been repainted)
+  mirrorGeos[key] = g; return g;
+}
+const shapeOfP = p => p && p.src ? { w0: p.src.w0, h0: p.src.h0, t0: p.src.t0, name: "the other side's tooth, mirrored" } : (p ? ponticShape(p.n) : null);
+function setBuildupMirror(p, on){
+  if (!p || !p.bu) return;
+  if (!on) { if (!p.src) return; if (p.lib) { p.w = p.lib.w; p.h = p.lib.h; p.t = p.lib.t; } delete p.src; delete p.lib; ponticChanged(); renderPanel(); return; }
+  if (p.src) return;
+  const o = otherSideTooth(p.tooth); if (!o) { showErr('No matching tooth on the other side to mirror - the library shape stays.'); return; }
+  const f = toothFrame(o); if (!f) { showErr('The tooth on the other side is too small to mirror.'); return; }
+  const r1 = x => +x.toFixed(1), w0 = r1(clampTo(f.w, PONTIC_LIM.w)), t0 = r1(clampTo(f.tk, PONTIC_LIM.t)), h0 = r1(clampTo(f.len + BUILDUP_SINK, PONTIC_LIM.h));
+  p.lib = { w: p.w, h: p.h, t: p.t };
+  p.src = { tooth: o, m: mat4Rows(TRinv.clone().multiply(f.M)), w0, h0, t0 };
+  p.w = w0; p.h = h0; p.t = t0; p.mirror = false;       // its own size, 1 : 1
+  ponticChanged(); renderPanel();
+}
+// a tooth's own frame: X along the arch, Y facial, Z along the tooth's lean (no further than 35 degrees off upright), the
+// origin ("seat") on its axis 1 mm under its gum line at the crown's middle; with its width, thickness and length there
+function toothFrame(l){
+  const c = toothCent[l]; if (!c || !segLabels) return null;
   const ord = archOrder(), k = ord.findIndex(o => +o.l === +l), a = k > 0 ? ord[k - 1] : null, b = k >= 0 && k + 1 < ord.length ? ord[k + 1] : null;
   let X = a && b ? new THREE.Vector3(b.c[0] - a.c[0], b.c[1] - a.c[1], 0) : new THREE.Vector3(-(c[1] - archCent[1]), c[0] - archCent[0], 0);
   if (X.lengthSq() < 1e-6) X.set(1, 0, 0); X.normalize();
-  // the tooth's own lean: from the middle of its gum-side third to the middle of its top third (no further than 35 degrees off upright)
+  // the tooth's own lean: from the middle of its gum-side third to the middle of its top third
   const zs = []; for (let i = 0; i < segLabels.length; i++) if (segLabels[i] === +l) zs.push(segPos[i*3+2]);
+  if (zs.length < 30) return null;
   zs.sort((p, q) => p - q); const zlo = zs[Math.floor(zs.length * 0.05)], zhi = zs[zs.length - 1], z1 = zlo + (zhi - zlo) / 3, z2 = zhi - (zhi - zlo) / 3;
   const bot = new THREE.Vector3(), top = new THREE.Vector3(); let nb = 0, nt = 0;
   for (let i = 0; i < segLabels.length; i++) { if (segLabels[i] !== +l) continue; const z = segPos[i*3+2]; if (z <= z1) { bot.x += segPos[i*3]; bot.y += segPos[i*3+1]; bot.z += z; nb++; } else if (z >= z2) { top.x += segPos[i*3]; top.y += segPos[i*3+1]; top.z += z; nt++; } }
@@ -3050,17 +3082,27 @@ async function addBuildupAt(l){
   sxs.sort((p, q) => p - q); sys.sort((p, q) => p - q);
   const pct = (A, f) => A.length ? A[Math.min(A.length - 1, Math.max(0, Math.round(f * (A.length - 1))))] : 0;
   const smin = pct(sxs, 0.02), smax = pct(sxs, 0.98), ymin = pct(sys, 0.02), ymax = pct(sys, 0.98);
-  const w = clampTo(smax - smin, PONTIC_LIM.w);
-  // 1.5 mm longer than the tooth is now, to start from (the Height slider takes it from there; the library's own
-  // proportion made a wide central 16 mm tall)
-  const h = clampTo((zhi - zlo) + BUILDUP_ADD + BUILDUP_SINK, PONTIC_LIM.h);
-  const t = clampTo(Math.min(s.t0 * (w / s.w0), ymax - ymin + 0.3), PONTIC_LIM.t);
   // the seat: on the tooth's axis, 1 mm under its gum line, at the crown's middle along the arch
   const seat = bot.clone().addScaledVector(Z, (zlo - bot.z) / Z.z - BUILDUP_SINK);
   const mid = new THREE.Vector3(c[0], c[1], c[2]).addScaledVector(X, (smin + smax) / 2).sub(seat);
   seat.addScaledVector(X, mid.dot(X));
   const M = new THREE.Matrix4().makeBasis(X, Y, Z); M.setPosition(seat);
-  const Mraw = TRinv.clone().multiply(M);
+  return { X, Y, Z, seat, M, w: smax - smin, tk: ymax - ymin, len: zhi - zlo };
+}
+async function addBuildupAt(l){
+  await loadPonticLib(); if (!ponticLib || !ponticLib.length) { showErr('The tooth library is not on the server - run the update on the lab PC.'); return; }
+  const had = pontics.find(q => q.bu && +q.tooth === +l); if (had) { ponticSel = had.id; await drawPontics(); drawBadges(); renderPanel(); return; }
+  const arch = teethInfo.arch || (curScans[scanIdx] || {}).arch || 'upper';
+  const c = toothCent[l], f = toothFrame(l); if (!c || !f) { showErr('That tooth is too small to build up - check its colour on the Segmentation step.'); return; }
+  const num = toothNumbers()[l], pos = num && num.pos ? num.pos : 1;
+  const side = sideOf(l) || ((c[0] > archCent[0]) === (arch === 'lower') ? 'R' : 'L');
+  const n = universalOf(arch, side, pos), s = ponticShape(n); if (!s) { showErr(`No shape for ${side}${pos} in the library.`); return; }
+  const w = clampTo(f.w, PONTIC_LIM.w);
+  // 1.5 mm longer than the tooth is now, to start from (the Height slider takes it from there; the library's own
+  // proportion made a wide central 16 mm tall)
+  const h = clampTo(f.len + BUILDUP_ADD + BUILDUP_SINK, PONTIC_LIM.h);
+  const t = clampTo(Math.min(s.t0 * (w / s.w0), f.tk + 0.3), PONTIC_LIM.t);
+  const Mraw = TRinv.clone().multiply(f.M);
   const id = 'b' + Date.now().toString(36);
   pontics.push({ id, n, slot: `${side}${pos}`, w: +w.toFixed(1), h: +h.toFixed(1), t: +t.toFixed(1), sink: BUILDUP_SINK, mirror: false, m: mat4Rows(Mraw), home: mat4Rows(Mraw), bu: true, tooth: +l });
   ponticSel = id; ponticsDirty = true;
