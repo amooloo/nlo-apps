@@ -1055,6 +1055,7 @@ def _run(job):
             else:
                 rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
                               label_override=override, log=log, progress=progress, feat_cache=job.setdefault("feat_cache", {}))
+            _stamp_build(job["dir"], scan["name"], rep)
             scan["arch"] = rep["arch"]; scan["report"] = rep
         reports = [sc["report"] for sc in job["scans"] if sc.get("report")]
         job["report"] = reports[0]
@@ -1592,7 +1593,7 @@ def _build_info():
     # figure there never matched the release note, 10/21/2026)
     rels = ["app/server.py", "app/tracker.py", "app/static/index.html", "run_app.py"] + [f"bleachtray/{m}.py" for m in (
         "appliance", "basebuild", "blockout", "colour", "engrave", "features", "interprox", "learn", "mesh_utils", "mouthguard",
-        "orderfolder", "orient", "phase1", "pipeline", "printfolder", "register", "reservoir", "segment", "server_presets", "solid", "watch")]
+        "orderfolder", "orient", "phase1", "pipeline", "pontic", "fuse", "printfolder", "register", "reservoir", "segment", "server_presets", "solid", "watch")]
     for rel in rels:
         fp = os.path.join(ROOT, *rel.split("/"))
         try:
@@ -1605,6 +1606,22 @@ def _build_info():
 
 
 BUILD = _build_info()
+
+
+def _stamp_build(jdir, name, rep):
+    """Which version of the app made this model - in the report and its file, so a re-run after an update knows the
+    model is from before it (and a case opened again from Past cases still knows)."""
+    try:
+        rep["app_build"] = BUILD.get("build")
+        rp = os.path.join(jdir, f"{name}_report.json")
+        if os.path.isfile(rp):
+            with open(rp) as fh:
+                d = json.load(fh)
+            d["app_build"] = rep["app_build"]
+            with open(rp, "w") as fh:
+                json.dump(d, fh, indent=1, default=float)
+    except Exception:  # noqa
+        pass
 
 
 @app.get("/api/version")
@@ -1942,6 +1959,11 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
                 only.add(k)
             if moved and not typed and not brushed and not stale_bo and sc.get("report") and sc.get("arch") in fast_arches:
                 fast.add(k)
+        if not only and job.get("reports"):
+            # nothing painted or changed - but a model made by another version of the app is made again: after an
+            # update "Apply & re-run" is how the staff get the fix onto an open case, and it answered "Nothing to apply
+            # - paint something first" (the doctor, 11/12/2026). A model this version made is left alone
+            only = {k for k, sc in enumerate(job["scans"]) if (sc.get("report") or {}).get("app_build") != BUILD.get("build")}
         if not only:
             only = None if not job.get("reports") else set()   # nothing changed: nothing to do
     if only is not None and not only:
