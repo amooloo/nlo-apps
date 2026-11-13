@@ -2993,6 +2993,28 @@ def teeth_of(jid: str, scan: int = 0):
     return {"teeth": rep_.get("teeth") or {}, "ids": pe.get("tooth_ids") or {}, "arch": sc.get("arch")}
 
 
+@app.get("/api/jobs/{jid}/opposing")
+def opposing_of(jid: str, scan: int = 0):
+    """The case's other arch as scanned, in this scan's own coordinates (the scanners export the two in occlusion), for the
+    page's bite view on the Pontics & build-ups step: uint32 nV, uint32 nF, float32 V[nV*3], uint32 F[nF*3]. 404 when the
+    case holds no scan of the other arch."""
+    job = JOBS.get(jid)
+    if not job or not (0 <= scan < len(job["scans"])):
+        raise HTTPException(404)
+    sc = job["scans"][scan]
+    other = next((o for o in job["scans"] if o.get("arch") and o.get("arch") != sc.get("arch") and o.get("path") != sc.get("path")), None)
+    if other is None:
+        raise HTTPException(404, "no opposing arch in this case")
+    from bleachtray.mesh_utils import load_scan
+    try:
+        m = load_scan(_raw_scan_for(other) or other["path"])
+    except Exception:
+        raise HTTPException(500, "the opposing arch could not be read")
+    V = np.asarray(m.vertices, dtype=np.float32); F = np.asarray(m.faces, dtype=np.uint32)
+    buf = io.BytesIO(); buf.write(struct.pack("<II", len(V), len(F))); buf.write(V.tobytes()); buf.write(F.tobytes())
+    return Response(buf.getvalue(), media_type="application/octet-stream", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/jobs/{jid}/pontics")
 def pontics_of(jid: str, scan: int = 0):
     """The Pontics tab: the pontics kept for a scan (each a frame in the scan's own coordinates plus sizes) and the
