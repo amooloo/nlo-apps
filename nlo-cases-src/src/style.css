@@ -626,6 +626,9 @@ td.stg{min-width:150px}
 .flag.ship{background:var(--amber);color:var(--navy-900);box-shadow:inset 0 0 0 1px var(--amber-600)}
 .flag.rec{background:var(--coral-100);color:var(--coral-700)}
 .flag.ready{background:var(--mint-100);color:var(--mint-700)}
+.flag.ipr{background:var(--coral-100);color:var(--coral-700);vertical-align:1px}
+.cfIpr{margin-top:10px;font-size:13.5px;color:var(--navy)}
+.cfIpr .h5n{font-weight:500;color:var(--grey-500);font-size:12px}
 a.flag.trk{background:var(--blue-100);color:var(--blue-700);text-decoration:none}
 a.flag.trk:hover{background:var(--blue);color:#fff}
 /* Dental Monitoring on an Oliv patient's row and card (29 Oct 2026) */

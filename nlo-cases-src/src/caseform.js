@@ -293,7 +293,7 @@ function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v =
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'scanOnFile', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'zoomUrl', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'zoomUrl', 'tracking', 'labRef', 'atTemplates', 'iprSet', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
   'scanStU', 'scanStL', 'scanStNone'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
@@ -626,7 +626,9 @@ function caseFormHTML(c, isNew) {
       '<div class="field"' + (oneArch(c) === 'L' ? ' style="display:none"' : '') + '><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
       '<div class="field"' + (oneArch(c) === 'U' ? ' style="display:none"' : '') + '><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
-      '<h5>Attachment templates <span class="h5n">asked again when the TxP is approved</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) + '</div>' +
+      '<h5>Attachment templates <span class="h5n">asked again when the TxP is approved</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) +
+      // is there IPR in this set — a tick is enough (Amir, 14 Nov 2026); asked with the counts when the TxP is approved too
+      '<label class="gateRow cfIpr"><input type="checkbox" id="cf-iprSet" data-was="' + esc(c.iprSet || '') + '"' + (c.iprSet === 'yes' ? ' checked' : '') + '>IPR in this set <span class="h5n">tick if the plan has any</span></label></div>' +
     // in-house: the patient's treatment Start and Expected removal (on the initial set, or while the patient has none; see txOf)
     '<div class="cfSec" data-step="case"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Treatment <span class="h5n">the patient’s start and expected removal — for the treatment graph</span></h5>' +
       '<div class="txFromRow" id="cf-txFromRow" hidden><span class="small muted" id="cf-txFrom"></span><button type="button" class="btn btn-sec btn-sm" id="cf-txChange">Change</button></div>' +
@@ -761,6 +763,10 @@ function readCaseForm(root) {
   const num = id => { const v = parseInt(($(id, root) || {}).value, 10); return o.type === 'nla' && v > 0 ? Math.min(v, 99) : ''; };
   o.atTemplates = o.type === 'nla' ? atFor(pressed(root, 'atTemplates')[0] || '', o.treatArch) : '';
   o.alU = o.treatArch === 'L' ? '' : num('#cf-alU'); o.alL = o.treatArch === 'U' ? '' : num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
+  // IPR in this set: 'yes' ticked; 'no' once it was answered — saved before, the box touched, or a new case entered with its counts;
+  // '' while nobody has been asked (an older case edited for something else doesn't turn into "no IPR")
+  const ib = $('#cf-iprSet', root);
+  o.iprSet = o.type !== 'nla' || !ib ? '' : ib.checked ? 'yes' : (ib.dataset.was || ib.dataset.touched === '1' || (root.id === 'ncForm' && o.aligners)) ? 'no' : '';
   // the stage the patient is in at the scan (a set that isn't a first set): a number per treated arch, or Not wearing aligners
   // ('' when it isn't asked — a first set, another kind of case — see FORM_KEYS)
   const stAsk = scanStAsked(o), stNo = $('#cf-scanStNone', root), stN = id => stVal(($(id, root) || {}).value);
@@ -1093,6 +1099,7 @@ function wireCaseForm(root, isNew) {
     const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
     if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   }, { signal: off.signal });
+  if ($r('#cf-iprSet')) $r('#cf-iprSet').addEventListener('change', e => { e.target.dataset.touched = '1'; });
   $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; alSecSync(); zoomNoteSync(); }); // (Assigned to: marked by its tiles)
   // MARPE: entering the Zoom call's date moves the case to Zoom call scheduled (Amir, 29 Oct 2026: "when you enter Zoom date, it should
   // already move it to the step that says Zoom scheduled") — the Stage menu follows the date while it's before that step and nobody
