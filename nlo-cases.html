@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-K0QPgSn8wpV7+QWRMSCaOCcqRbpW9x5xHIrrNwyEJoU=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-PZbv1W004JzmM3MD0yOxHmatagdwHpLCp/8guD32o2s=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -640,6 +640,9 @@ td.stg{min-width:150px}
 .flag.ship{background:var(--amber);color:var(--navy-900);box-shadow:inset 0 0 0 1px var(--amber-600)}
 .flag.rec{background:var(--coral-100);color:var(--coral-700)}
 .flag.ready{background:var(--mint-100);color:var(--mint-700)}
+.flag.ipr{background:var(--coral-100);color:var(--coral-700);vertical-align:1px}
+.cfIpr{margin-top:10px;font-size:13.5px;color:var(--navy)}
+.cfIpr .h5n{font-weight:500;color:var(--grey-500);font-size:12px}
 a.flag.trk{background:var(--blue-100);color:var(--blue-700);text-decoration:none}
 a.flag.trk:hover{background:var(--blue);color:#fff}
 /* Dental Monitoring on an Oliv patient's row and card (29 Oct 2026) */
@@ -5326,7 +5329,8 @@ function alignerTotalHTML(c, inForm) {
   const counts = one === 'U' ? 'the upper count' : one === 'L' ? 'the lower count' : 'the upper and lower counts';
   return '<div class="alThis">' + (me.n ? '<b>' + me.n + '</b> aligners in this set' + (inForm ? '' : arches + ' · ' + esc(me.l)) + (est != null ? ' <span class="alEst">est. ' + money(est) + '</span>' : '')
       : '<span class="muted">' + (inForm ? 'Enter ' + alAskText(c) + ' from Titan.' : 'Aligners in this set not entered yet — they’re asked when the TxP is approved (or add ' + counts + ' from Titan with Edit).') + '</span>') + '</div>' +
-    (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when the TxP is approved</span>') + '</div>') +
+    (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when the TxP is approved</span>') + '</div>' +
+      '<div class="alAt alIpr">IPR in this set: ' + (c.iprSet === 'yes' ? '<span class="flag ipr">' + ic('check', 13) + 'IPR</span>' : c.iprSet === 'no' ? '<b>No IPR</b>' : '<span class="muted">not answered yet — asked when the TxP is approved</span>') + '</div>') +
     '<div class="alSum"><span class="alT">Patient total: <b>' + total + '</b> aligners' + (estAll != null && total ? ' <span class="alEst">est. ' + money(estAll) + '</span>' : '') + '</span>' + (sets.length > 1 || inForm ? parts : '') + '</div>' +
     (missing ? '<div class="small muted">' + missing + ' set' + (missing > 1 ? 's have' : ' has') + ' no count yet, so the total may be low.</div>' : '') +
     (est == null && isOwner() && me.n ? '<div class="small muted">Set the cost per aligner in Team &amp; security to see an estimated cost.</div>' : '') + wait +
@@ -5880,7 +5884,7 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', zoomUrl: 'Zoom link', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', scanStU: 'stage at scan', scanStL: 'stage at scan', scanStNone: 'stage at scan', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
+const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', zoomUrl: 'Zoom link', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', scanStU: 'stage at scan', scanStL: 'stage at scan', scanStNone: 'stage at scan', atTemplates: 'attachment templates', iprSet: 'IPR in this set', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -6039,7 +6043,7 @@ function renderDrawer() {
     // a Specialty case once it has shipped: Specialty's remake deadlines and how to claim one (warranty.js)
     wtySecHTML(c) +
     (c.type === 'nla' ? dsec('tx', 'Treatment', txSumHTML(c), '<div id="txBox">' + txBoxHTML(c) + '</div>') : '') +
-    (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') + labCountsHint(c, true) : 'Aligner counts not entered yet',
+    (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') + (c.iprSet === 'yes' ? ' <span class="flag ipr">' + ic('check', 12) + 'IPR</span>' : c.iprSet === 'no' ? ' · no IPR' : '') + labCountsHint(c, true) : 'Aligner counts not entered yet',
       labCountsNote(c) + '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
     // (retainers & whitening trays: the bag label, which then offers to complete the case (Amir, 2 Oct 2026), is Print labels in the header)
     (hasTeeth ? dsec('teeth', 'Tooth chart', oneLine(teethSummary(c.teeth)), '<div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div>') : '') +
@@ -6297,7 +6301,8 @@ function stageGateModal(c, to, needs, extra, via) {
     (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan' + (one ? ' · ' + esc(treatArchLabel(one).toLowerCase()) : '') + '</span></b><div class="alRow">' +
       (one === 'L' ? '' : '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>') +
       (one === 'U' ? '' : '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>') + '</div>' +
-      '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', atOptsFor(one), atFor(c.atTemplates, one), false) + '</div>' : '') +
+      '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', atOptsFor(one), atFor(c.atTemplates, one), false) +
+      '<label class="gateRow" style="margin-top:8px"><input type="checkbox" id="gIpr"' + (c.iprSet === 'yes' ? ' checked' : '') + '>IPR in this set <span class="h5n">tick if the plan has any</span></label></div>' : '') +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
       const go = $('#gGo', w), zd = $('#gZoomDate', w), zu = $('#gZoomUrl', w), al = $('#gAl', w);
       const n = id => { const el = $(id, w); return el ? Math.min(99, Math.max(0, parseInt(el.value, 10) || 0)) : 0; }; // (an untreated arch has no field)
@@ -6315,7 +6320,7 @@ function stageGateModal(c, to, needs, extra, via) {
         if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
         if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; add.zoomAt = Date.now();
           const u = zu ? zoomLinkFrom(zu.value) : ''; if (u !== zoomSaved(c)) add.zoomUrl = u; } // (the link only when it's new or changed)
-        if (al) { const u = n('#gAlU'), l = n('#gAlL'); add.alU = u || ''; add.alL = l || ''; add.aligners = u + l || ''; add.atTemplates = atV(); }
+        if (al) { const u = n('#gAlU'), l = n('#gAlL'); add.alU = u || ''; add.alL = l || ''; add.aligners = u + l || ''; add.atTemplates = atV(); add.iprSet = $('#gIpr', w) && $('#gIpr', w).checked ? 'yes' : 'no'; }
         closeModal(); moveStage(c.id, to, add, needs, via);
       };
     });
@@ -7303,7 +7308,7 @@ const STK_NO_SEC = ['stage', 'notes', 'history'];
 const STK_SEC_F = {
   lab: ['labOrd', 'labNot', 'labRef', 'labHold'], marpe: ['records', 'zoomDate', 'zoomTime', 'zoomUrl'],
   details: ['assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate', 'deliveryTime', 'tracking', 'carrier', 'labRef', 'chart', 'shipToPatient'],
-  tx: ['txStart', 'txEnd'], aligners: ['alU', 'alL', 'aligners', 'atTemplates', 'treatArch'], instr: ['instructions', 'goals', 'instrPicks', 'instrOther'],
+  tx: ['txStart', 'txEnd'], aligners: ['alU', 'alL', 'aligners', 'atTemplates', 'iprSet', 'treatArch'], instr: ['instructions', 'goals', 'instrPicks', 'instrOther'],
   teeth: ['teeth', 'teethNote'], ipr: ['ipr', 'iprSnap'], wty: ['invDate', 'noGuarantee'], rx: ['rx'], rxRet: ['rxRet'], rxMet: ['rxMet'], rxFun: ['rxFun']
 };
 
@@ -7897,7 +7902,7 @@ function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v =
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'scanOnFile', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'zoomUrl', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'zoomUrl', 'tracking', 'labRef', 'atTemplates', 'iprSet', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun',
   'scanStU', 'scanStL', 'scanStNone'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
@@ -8230,7 +8235,9 @@ function caseFormHTML(c, isNew) {
       '<div class="field"' + (oneArch(c) === 'L' ? ' style="display:none"' : '') + '><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
       '<div class="field"' + (oneArch(c) === 'U' ? ' style="display:none"' : '') + '><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
-      '<h5>Attachment templates <span class="h5n">asked again when the TxP is approved</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) + '</div>' +
+      '<h5>Attachment templates <span class="h5n">asked again when the TxP is approved</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) +
+      // is there IPR in this set — a tick is enough (Amir, 14 Nov 2026); asked with the counts when the TxP is approved too
+      '<label class="gateRow cfIpr"><input type="checkbox" id="cf-iprSet" data-was="' + esc(c.iprSet || '') + '"' + (c.iprSet === 'yes' ? ' checked' : '') + '>IPR in this set <span class="h5n">tick if the plan has any</span></label></div>' +
     // in-house: the patient's treatment Start and Expected removal (on the initial set, or while the patient has none; see txOf)
     '<div class="cfSec" data-step="case"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Treatment <span class="h5n">the patient’s start and expected removal — for the treatment graph</span></h5>' +
       '<div class="txFromRow" id="cf-txFromRow" hidden><span class="small muted" id="cf-txFrom"></span><button type="button" class="btn btn-sec btn-sm" id="cf-txChange">Change</button></div>' +
@@ -8365,6 +8372,10 @@ function readCaseForm(root) {
   const num = id => { const v = parseInt(($(id, root) || {}).value, 10); return o.type === 'nla' && v > 0 ? Math.min(v, 99) : ''; };
   o.atTemplates = o.type === 'nla' ? atFor(pressed(root, 'atTemplates')[0] || '', o.treatArch) : '';
   o.alU = o.treatArch === 'L' ? '' : num('#cf-alU'); o.alL = o.treatArch === 'U' ? '' : num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
+  // IPR in this set: 'yes' ticked; 'no' once it was answered — saved before, the box touched, or a new case entered with its counts;
+  // '' while nobody has been asked (an older case edited for something else doesn't turn into "no IPR")
+  const ib = $('#cf-iprSet', root);
+  o.iprSet = o.type !== 'nla' || !ib ? '' : ib.checked ? 'yes' : (ib.dataset.was || ib.dataset.touched === '1' || (root.id === 'ncForm' && o.aligners)) ? 'no' : '';
   // the stage the patient is in at the scan (a set that isn't a first set): a number per treated arch, or Not wearing aligners
   // ('' when it isn't asked — a first set, another kind of case — see FORM_KEYS)
   const stAsk = scanStAsked(o), stNo = $('#cf-scanStNone', root), stN = id => stVal(($(id, root) || {}).value);
@@ -8697,6 +8708,7 @@ function wireCaseForm(root, isNew) {
     const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
     if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   }, { signal: off.signal });
+  if ($r('#cf-iprSet')) $r('#cf-iprSet').addEventListener('change', e => { e.target.dataset.touched = '1'; });
   $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; alSecSync(); zoomNoteSync(); }); // (Assigned to: marked by its tiles)
   // MARPE: entering the Zoom call's date moves the case to Zoom call scheduled (Amir, 29 Oct 2026: "when you enter Zoom date, it should
   // already move it to the step that says Zoom scheduled") — the Stage menu follows the date while it's before that step and nobody
