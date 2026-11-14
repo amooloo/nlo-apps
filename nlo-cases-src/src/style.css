@@ -681,7 +681,6 @@ td.shipCol .flags{margin-top:0}
 .tsvg .tms{fill:var(--navy)}
 .tsvg .tjs{fill:#fff;stroke:var(--navy);stroke-width:1.2}
 .portals{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 4px}
-.portals .titanHint{flex-basis:100%}.portals .titanHint:empty{display:none}
 .portals .small{flex-basis:100%}
 a.btn{text-decoration:none}
 .cfMore{margin-top:10px;border-top:1px solid var(--grey-100);padding-top:10px}
@@ -980,6 +979,22 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none
 .ccK{font-family:var(--fd);font-weight:500;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber-700)}
 .ccK span{margin-left:8px;font-family:var(--fb);font-weight:500;font-size:11.5px;letter-spacing:0;text-transform:none;color:var(--grey-500)}
 .ccV{margin-top:2px;font-size:16.5px;font-weight:600;line-height:1.4;color:var(--navy-900);white-space:pre-wrap;overflow-wrap:anywhere}
+/* Dr. A's instructions: a navy box under the chief concern, never folded (Amir, 14 Nov 2026) */
+.drBox{background:var(--navy);color:#fff;border-radius:14px;padding:14px 18px 16px;margin:0 0 14px;box-shadow:inset 5px 0 0 var(--mint),var(--sh-md)}
+.drHd{display:flex;align-items:center;gap:8px;min-height:28px}
+.drIc{flex:none;display:inline-flex;color:var(--mint)}
+.drK{font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--mint)}
+.drN{flex:none;min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:rgba(255,255,255,.14);color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.drHd .stkHd{margin-left:auto}
+.drHd .stkAdd{color:rgba(255,255,255,.6);opacity:.7}
+.drV,.drL li{font-size:17px;font-weight:600;line-height:1.4;color:#fff;overflow-wrap:anywhere}
+.drV{margin-top:6px;white-space:pre-wrap}
+.drL{list-style:none;margin:8px 0 0;padding:0;counter-reset:dr}
+.drL li{position:relative;padding:7px 0 7px 36px;counter-increment:dr}
+.drL li+li{border-top:1px solid rgba(255,255,255,.12)}
+.drL li::before{content:counter(dr);position:absolute;left:0;top:7px;width:24px;height:24px;border-radius:50%;background:var(--mint);color:var(--navy-900);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.drBox.flash{animation:none;box-shadow:inset 5px 0 0 var(--mint),0 0 0 3px var(--mint-600)}
+@media (hover:hover){ .drHd .stkAdd:hover{color:var(--navy);background:#fff;opacity:1} }
 .ccBox.none{background:var(--grey-50);box-shadow:inset 4px 0 0 var(--grey-300)}
 .ccBox.none .ccIc,.ccBox.none .ccK{color:var(--grey-500)}
 .ccBox.none .ccV{font-size:14px;color:var(--grey-600)}

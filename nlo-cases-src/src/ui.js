@@ -686,29 +686,16 @@ function copyPtName(c, where) {
   if (!c || !c.patient) return;
   copyText(c.patient).then(ok => toast(ok ? (PH.hide ? 'Copied the patient’s name' : 'Copied “' + c.patient + '”') + ' — paste it in ' + (where || 'the portal’s search') : 'Couldn’t copy the name — type it in ' + (where ? where.replace(/’s search$/, '') : 'the portal'), ok ? {} : { bad: true }));
 }
-/* "Open Titan (app)" on an in-house case (Amir, 6 Nov 2026: "is there anyway it can also (in addition) to the web version, open the
-   software version"): a web page can't start a program, but it can open a link of a kind the computer knows. The NLO Titan
-   Launcher (lab/nlo-titan-launcher.ps1, a one-time setup per office PC — Team & security → Titan app, or the hint under the
-   button) teaches Windows "nlo-titan:" and answers nlo-titan:open?name=… by putting the patient's name on the clipboard and
-   bringing Titan to the front (starting it if needed). The name is copied here too, like the portals. A computer that doesn't know
-   the link does nothing (the browser keeps focus), so after 1.5 s the hint under the buttons says how to set it up. */
-const TITAN_APP = { scheme: 'nlo-titan', t: 0 };
-function titanAppUrl(c, app) { return TITAN_APP.scheme + ':open?name=' + encodeURIComponent(c.patient || '') + (c.chart ? '&chart=' + encodeURIComponent(c.chart) : '') + (app === 'ea' ? '&app=ea' : ''); }
-// app: 'ea' for Titan EA (the early adopter version, installed beside the regular one in this office — Amir, 6 Nov 2026); the
-// launcher opens the regular Titan where EA isn't set up
-function titanAppOpen(c, app) {
-  if (!c) return;
-  copyPtName(c, 'Titan’s search');
-  const left = { v: false }, on = () => { left.v = true; };
-  window.addEventListener('blur', on); document.addEventListener('visibilitychange', on);
-  const hint = $('#titanAppHint'); if (hint) hint.innerHTML = '<span class="muted">Opening Titan on this computer…</span>';
-  try { location.href = titanAppUrl(c, app); } catch (e) { }
-  clearTimeout(TITAN_APP.t);
-  TITAN_APP.t = setTimeout(() => {
-    window.removeEventListener('blur', on); document.removeEventListener('visibilitychange', on);
-    const h = $('#titanAppHint'); if (!h) return;
-    h.innerHTML = left.v || !document.hasFocus() ? '' : '<span style="color:var(--amber-700)">Titan didn’t open? This computer doesn’t know the link yet — a one-time setup: <a href="#" data-act="titanAppHow">how to set it up</a>.</span>';
-  }, 1500);
+/* Dr. A's instructions at the top of the case panel (Amir, 14 Nov 2026: "make the Dr. instructions more prominent when you click on
+   a case so it can pop"): a navy box under the chief concern, never folded — it was a folded section far down the panel. The
+   instructions are saved joined with "; " (the tiles, the goals, Make it clear's steps) or on lines of their own (older cases):
+   one line each here. Its stickers stay (s:instr, stickers.js). */
+function drLines(v) { return String(v || '').split(/\s*\n+\s*|\s*;\s+/).map(x => x.trim()).filter(Boolean); }
+function drBoxHTML(c) {
+  const L = drLines(c && c.instructions); if (!L.length) return '';
+  return '<section class="drBox" data-ds="instr" role="note" aria-label="Dr. A’s instructions"><div class="drHd"><span class="drIc">' + ic('edit', 18) + '</span><span class="drK">Dr. A’s instructions</span>' +
+    (L.length > 1 ? '<span class="drN">' + L.length + '</span>' : '') + stkHdHTML('instr', 'Dr. A’s instructions') + '</div>' +
+    (L.length > 1 ? '<ol class="drL">' + L.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>' : '<div class="drV">' + esc(L[0]) + '</div>') + '</section>';
 }
 /* while a MARPE case is gathering its records: what's still missing, or that both are on file */
 function recFlag(c) {
@@ -1708,16 +1695,15 @@ function renderDrawer() {
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
     // the patient's chief concern stands out at the top, never folded (Amir, 3 Oct 2026: "needs to be a little bit highlighted more")
     (cc ? '<div class="ccBox' + (ccNone ? ' none' : '') + '" role="note" aria-label="Patient’s chief concern"><span class="ccIc">' + ic('chat', 20) + '</span><div class="ccB"><div class="ccK">Patient’s chief concern' + (ccLater(c) ? '<span>from last visit</span>' : '') + '</div><div class="ccV">' + esc(ccNone ? 'None' : cc) + '</div></div></div>' : '') +
+    // Dr. A's instructions stand out right under it, never folded, one line each (Amir, 14 Nov 2026: "more prominent … so it can pop")
+    drBoxHTML(c) +
     // the lab's own link to this patient's plan (from its email), then the company portals
     // in-house: the case's own Titan link first (when saved), then Titan's web version and its beta
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
       (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
       (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') +
-      // in-house: the Titan program on this computer too (Amir, 6 Nov 2026) — see titanAppOpen
-      (c.type === 'nla' ? '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" title="Opens the Titan program on this computer and copies the patient’s name (a one-time setup per computer)">' + ic('next', 15) + 'Open Titan (app)</button>' +
-        '<button type="button" class="btn btn-sec btn-sm" data-act="titanApp" data-app="ea" title="Opens the Titan EA (early adopter) program on this computer — the regular one where EA isn’t set up — and copies the patient’s name">' + ic('next', 15) + 'Open Titan EA (app)</button>' : '') +
       (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
-      '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span>' + (c.type === 'nla' ? '<span id="titanAppHint" class="small titanHint"></span>' : '') + '</div>' : '') +
+      '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span>' + '</div>' : '') +
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
     '<div class="dsList">' +
     // the step's station icon moves while the case is at Printing, Thermoforming or Trimming (lab.js labStepIcon; Amir, 7 Oct 2026)
@@ -1755,7 +1741,6 @@ function renderDrawer() {
     (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') + labCountsHint(c, true) : 'Aligner counts not entered yet',
       labCountsNote(c) + '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
     // (retainers & whitening trays: the bag label, which then offers to complete the case (Amir, 2 Oct 2026), is Print labels in the header)
-    (c.instructions ? dsec('instr', 'Dr. A’s instructions', oneLine(c.instructions), txt(c.instructions)) : '') +
     (hasTeeth ? dsec('teeth', 'Tooth chart', oneLine(teethSummary(c.teeth)), '<div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div>') : '') +
     // one IPR section: the IPR Tracker's chart for this chart # (the typed "IPR & spacing" and "From the IPR Tracker" were the same thing twice)
     (iprLive(c) || String(c.ipr || '').trim() ? dsec('ipr', 'IPR & spacing', iprSumHTML(c), '<div id="iprBox">' + iprBoxHTML(c) + '</div>', '', iprPinned(c)) : '') +
@@ -2432,8 +2417,6 @@ function onClick(e) {
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'zoomJoin': break; // a MARPE case's Join Zoom: the link itself opens the call in a new tab (and doesn't open the case)
     case 'portal': copyPtName(findCase(S.openId)); break; // the link itself opens the portal in a new tab
-    case 'titanApp': titanAppOpen(findCase(S.openId), t.dataset.app); break;
-    case 'titanAppHow': e.preventDefault(); titanSetupModal(); break;
     // an Oliv patient's row or card: the link itself opens Dental Monitoring in a new tab (and doesn't open the case)
     case 'dmLink': copyPtName(findCase(id), 'Dental Monitoring’s search'); break;
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;

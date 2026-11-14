@@ -303,7 +303,7 @@ function stkFlash(s) {
   const open = k => { const sec = $('#drawer .ds[data-ds=' + k + ']'); if (sec && !sec.classList.contains('open')) { dsShow(sec, true); (S.dsTog = S.dsTog || new Map()).set(k, true); dsAllSync(); } return sec; };
   if (s.on.startsWith('n:')) { noteFlash(s.on.slice(2)); return; }
   setTimeout(() => {
-    if (s.on.startsWith('s:')) { const sec = open(s.on.slice(2)); flash(sec && $('.dsHd', sec)); return; }
+    if (s.on.startsWith('s:')) { const sec = open(s.on.slice(2)); flash(sec ? $('.dsHd', sec) : $('#drawer .drBox[data-ds=' + s.on.slice(2) + ']')); return; } // (Dr. A's instructions are a box at the top, not a folded section)
     if (s.k && $('#drawer .stepStk[data-k="' + s.k + '"]')) { open('stage'); flash($('#drawer .stepStk[data-k="' + s.k + '"]')); return; }
     open('history'); let n = 0; const sel = '#histBox .hist[data-w="' + s.on + '"]';
     const look = () => { const el = $(sel); if (el) flash(el); else if (++n < 30 && S.openId) setTimeout(look, 150); }; look();
