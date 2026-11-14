@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-QhgBfmxMlFJSMBTM2E206vi4mmwsPcFhgLrFJPMyo/s=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-K0QPgSn8wpV7+QWRMSCaOCcqRbpW9x5xHIrrNwyEJoU=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -696,6 +696,7 @@ td.shipCol .flags{margin-top:0}
 .tsvg .tjs{fill:#fff;stroke:var(--navy);stroke-width:1.2}
 .portals{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 4px}
 .portals .small{flex-basis:100%}
+.pTag{flex:none;display:inline-flex;align-items:center;justify-content:center;height:20px;padding:0 7px 0 6px;margin-left:-2px;border-radius:6px;background:var(--amber);color:var(--navy-900);font-family:var(--fb);font-size:12.5px;font-weight:800;font-style:italic;letter-spacing:.02em;text-transform:none;line-height:1}
 a.btn{text-decoration:none}
 .cfMore{margin-top:10px;border-top:1px solid var(--grey-100);padding-top:10px}
 /* New case in steps (Amir, 6 Oct 2026): a row of step names, one step's sections at a time, Back / Next / Create case */
@@ -2105,7 +2106,7 @@ const SCAN_SITE = { 'Allied Star': { l: 'AS Connect (US & Canada)', u: 'https://
 const DM_URL = 'https://dental-monitoring.com/doctor/login';
 function dmOn(c) { return !!c && c.type === 'oliv'; }
 const PORTALS = {
-  nla: [{ l: 'Titan (web)', u: 'https://client.titandentaldesign.com/Live/index.html' }, { l: 'Titan EA (web)', u: 'https://client.titandentaldesign.com/EA/index.html' }],
+  nla: [{ l: 'Titan (web)', u: 'https://client.titandentaldesign.com/Live/index.html' }, { l: 'Titan EA (web)', tag: 'EA', u: 'https://client.titandentaldesign.com/EA/index.html' }],
   oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: DM_URL }],
   invisalign: [{ l: 'Invisalign Doctor Site', u: 'https://vip.invisalign.com/' }],
   angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/cas/login?service=https://iortho.angelalign.com/OPM/shiro-cas' }],
@@ -6002,7 +6003,7 @@ function renderDrawer() {
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
       (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
       (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') +
-      (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+      (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + (p.tag ? '<span class="pTag" aria-hidden="true">' + esc(p.tag) + '</span>' : ic('next', 15)) + 'Open ' + esc(p.l) + '</a>').join('') + /* (Titan EA: a bold italic EA mark instead of the arrow, to tell it from the regular one — Amir, 14 Nov 2026) */
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span>' + '</div>' : '') +
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
     '<div class="dsList">' +

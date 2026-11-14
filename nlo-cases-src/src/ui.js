@@ -1702,7 +1702,7 @@ function renderDrawer() {
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
       (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
       (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') +
-      (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+      (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + (p.tag ? '<span class="pTag" aria-hidden="true">' + esc(p.tag) + '</span>' : ic('next', 15)) + 'Open ' + esc(p.l) + '</a>').join('') + /* (Titan EA: a bold italic EA mark instead of the arrow, to tell it from the regular one — Amir, 14 Nov 2026) */
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span>' + '</div>' : '') +
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
     '<div class="dsList">' +
