@@ -229,6 +229,11 @@ its length. **The trim line moves with it** (typically 0.6-1.2 mm towards the te
 old detection ran onto the gum): look at the trim line on a few cases and re-set the trim-line offset if needed before
 this replaces the released version. Switch it off on a PC with the environment variable `NLO_GUMLINE=0`.
 
+The map is only on the PC where the case was opened in the AS Connect desktop software. When people export on other PCs
+than the one Tray Maker runs on, share each of those PCs' `Connect\\storage\\cases` folders read-only and list them in the
+environment variable `NLO_AS_STORAGE` on the Tray Maker PC, with `;` between them (e.g.
+`\\\\DRDESK\\ASConnect\\storage\\cases;\\\\FRONT1\\ASConnect\\storage\\cases`). Tray Maker only reads there.
+
 ## Printing (print folder + PreForm)
 
 Two things leave the app when a case is **sent**:

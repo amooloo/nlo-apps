@@ -202,14 +202,30 @@ def _a3d_count(path):
 def scanner_tooth_mask(raw_vertices, storage=None, tol=0.02, log=None):
     """The scanner's tooth mask for these raw scan points (in the scan's own coordinates), or None. The stored scan of
     the same arch is found by content: same points, wherever the export was saved and whatever it was named."""
+    # one folder or several (a list, or one string with ; between them): this PC's own AS Connect storage and, where
+    # the office shares them, the storage folders of the other PCs people export from (read only - nothing is written)
     storage = storage or os.environ.get("NLO_AS_STORAGE") or AS_STORAGE
-    if not os.path.isdir(storage):
-        return None
+    folders = [f.strip() for f in (storage.split(";") if isinstance(storage, str) else list(storage)) if f and f.strip()]
+    if AS_STORAGE not in folders:
+        folders.append(AS_STORAGE)
     P = np.asarray(raw_vertices, float)
     probe = P[:: max(1, len(P) // 400)]
-    files = glob.glob(os.path.join(storage, "*", "model", "*.a3d"))
+    files = []
+    for folder in folders:
+        try:
+            if os.path.isdir(folder):
+                files += glob.glob(os.path.join(folder, "*", "model", "*.a3d"))
+        except OSError:
+            pass          # a shared folder that is switched off or unreachable right now
+    if not files:
+        return None
     # most recent first: the scan in hand is usually one of the latest cases
-    files.sort(key=lambda p: -os.path.getmtime(p))
+    def _when(p):
+        try:
+            return -os.path.getmtime(p)
+        except OSError:
+            return 0.0
+    files.sort(key=_when)
     for f in files:
         base = os.path.basename(f).lower()
         if base not in ("upper.a3d", "lower.a3d"):
