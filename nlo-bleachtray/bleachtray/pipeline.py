@@ -541,6 +541,15 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         # (a Phase I scan: the mixed dentition's widths behind the incisors - C, D, E - so a 10-11 mm E is one tooth)
         labels = separate_teeth(mesh, mask, p_ip, A, aux, f"{arch_hint}_mixed" if P1 else arch_hint, log=log)
         mask = labels > 0          # separation may have dropped soft tissue mistaken for a tooth
+        # permanent dentition: the gum line cut along the sulcus, tooth borders along the embrasures, and - for an
+        # AS Connect scan still in the scanner's storage on this PC - the scanner's own tooth/gum map (see gumline.py).
+        # Phase I and the mouthguard keep the first-pass detection: this step is only proven on permanent teeth.
+        if P.get("gumline_refine", True) and os.environ.get("NLO_GUMLINE", "1") != "0" and not P1 and not MG:   # (NLO_GUMLINE=0 switches it off on a PC)
+            from .gumline import improve
+            raw_v = np.asarray(raw.vertices) if len(raw.vertices) == len(mesh.vertices) else None
+            labels, rep["gumline"] = improve(mesh, labels, A, aux, p_tooth, arch_hint, raw_vertices=raw_v, storage=P.get("as_storage"),
+                                             use_scanner=bool(P.get("use_scanner_map", True)), log=lambda m: log(f"[{name}] {m}"))
+            mask = labels > 0
         if feat_cache is not None:
             feat_cache[lkey] = labels
     info, cents, center, contact = order_teeth(mesh, labels, aux)

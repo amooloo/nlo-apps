@@ -212,6 +212,20 @@ The starting set ships with the app as `assets\base_training.npz` - per arch the
 the model learns from (numbers only: no scans, no names), so nothing has to be downloaded for retraining to work.
 Full base cases under `training\_base\` (scan + labels) take precedence when present.
 
+## Sharper gum line (test branch `tray-maker-gumline`)
+
+On permanent-dentition trays and retainers the tooth detection gets a second pass (`bleachtray/gumline.py`): the gum line
+is cut along the gingival sulcus, the border between two teeth settles in the crease between them, and - when the scan
+is an AS Connect scan still in the scanner's storage on this PC
+(`C:\Users\Public\Documents\Alliedstar\Connect\storage\cases`) - the scanner's own tooth/gum map adds tooth surface the
+detection missed. Phase I cases and mouthguards are not touched. It adds about a second.
+
+Checked against Titan's own tooth shells on four cases (112 teeth): teeth with less than 0.85 overlap went from 36
+(detection alone) to 6 (second pass) to 2 (with the scanner's map); gum line within 0.5 mm of Titan's on 72% -> 97% of
+its length. **The trim line moves with it** (typically 0.6-1.2 mm towards the teeth on the first case tried, because the
+old detection ran onto the gum): look at the trim line on a few cases and re-set the trim-line offset if needed before
+this replaces the released version. Switch it off on a PC with the environment variable `NLO_GUMLINE=0`.
+
 ## Printing (print folder + PreForm)
 
 Two things leave the app when a case is **sent**:
