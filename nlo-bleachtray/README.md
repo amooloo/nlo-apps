@@ -229,10 +229,18 @@ its length. **The trim line moves with it** (typically 0.6-1.2 mm towards the te
 old detection ran onto the gum): look at the trim line on a few cases and re-set the trim-line offset if needed before
 this replaces the released version. Switch it off on a PC with the environment variable `NLO_GUMLINE=0`.
 
-The map is only on the PC where the case was opened in the AS Connect desktop software. When people export on other PCs
-than the one Tray Maker runs on, share each of those PCs' `Connect\\storage\\cases` folders read-only and list them in the
-environment variable `NLO_AS_STORAGE` on the Tray Maker PC, with `;` between them (e.g.
-`\\\\DRDESK\\ASConnect\\storage\\cases;\\\\FRONT1\\ASConnect\\storage\\cases`). Tray Maker only reads there.
+The map is only on the PC where the case was opened in the AS Connect desktop software. When people open cases on
+other PCs than the one Tray Maker runs on, run this **once on each of those PCs** (open PowerShell, paste, Enter):
+
+    [Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/tray-maker-gumline/nlo-bleachtray/as_sync_install.ps1' -UseBasicParsing).Content
+
+It sets up a Windows task under that person's login that copies each case's scan and tooth map (4 small files, cases
+from the last 30 days) every 2 minutes to `<shared drive>\clinical\3D printing\AS Connect maps\<PC name>\cases`.
+Tray Maker looks there by itself (whatever letter the shared drive has on its PC; `NLO_AS_MAPS` names the folder
+outright if needed). AS Connect is not touched and nothing is written on that PC. It only runs while someone is logged
+in there, and a case opened seconds before it is uploaded to Tray Maker may not have arrived yet - that tray is then
+made the old way. Remove it with `Unregister-ScheduledTask -TaskName 'NLO AS Connect maps' -Confirm:$false`.
+(Sharing each PC's `Connect\storage\cases` folder and listing them in `NLO_AS_STORAGE`, `;` between them, also works.)
 
 ## Printing (print folder + PreForm)
 

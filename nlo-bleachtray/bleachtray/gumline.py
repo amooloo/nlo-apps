@@ -199,6 +199,30 @@ def _a3d_count(path):
         return -1
 
 
+MAPS_FOLDER = os.path.join("clinical", "3D printing", "AS Connect maps")
+
+
+def shared_map_folders():
+    """Case folders copied to the office's shared drive by the other PCs (as_sync_install.ps1 on each of them): one
+    sub-folder per PC under <shared drive>\\clinical\\3D printing\\AS Connect maps. Found by looking, since the shared
+    drive has a different letter on different PCs. NLO_AS_MAPS names the folder outright."""
+    roots = []
+    named = os.environ.get("NLO_AS_MAPS")
+    if named:
+        roots.append(named)
+    else:
+        for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
+            roots.append(letter + ":\\" + MAPS_FOLDER)
+    out = []
+    for root in roots:
+        try:
+            if os.path.isdir(root):
+                out += [c for c in glob.glob(os.path.join(root, "*", "cases")) if os.path.isdir(c)]
+        except OSError:
+            pass
+    return out
+
+
 def scanner_tooth_mask(raw_vertices, storage=None, tol=0.02, log=None):
     """The scanner's tooth mask for these raw scan points (in the scan's own coordinates), or None. The stored scan of
     the same arch is found by content: same points, wherever the export was saved and whatever it was named."""
@@ -208,6 +232,10 @@ def scanner_tooth_mask(raw_vertices, storage=None, tol=0.02, log=None):
     folders = [f.strip() for f in (storage.split(";") if isinstance(storage, str) else list(storage)) if f and f.strip()]
     if AS_STORAGE not in folders:
         folders.append(AS_STORAGE)
+    # and what the other PCs have copied to the shared drive
+    for f in shared_map_folders():
+        if f not in folders:
+            folders.append(f)
     P = np.asarray(raw_vertices, float)
     probe = P[:: max(1, len(P) // 400)]
     files = []
