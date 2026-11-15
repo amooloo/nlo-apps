@@ -2,7 +2,7 @@
 #
 # Run ONCE on every PC where cases are opened in AS Connect (not needed on the Tray Maker PC itself, harmless there).
 # Open PowerShell (Start, type "powershell", Enter), paste this line and press Enter:
-#   [Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/tray-maker-gumline/nlo-bleachtray/as_sync_install.ps1' -UseBasicParsing).Content
+#   [Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/as_sync_install.ps1' -UseBasicParsing).Content
 #
 # What it does: sets up a Windows task, under your own login, that every 2 minutes copies the scan and its tooth/gum
 # map (4 small files per case, cases from the last 30 days) from this PC's AS Connect folder to
