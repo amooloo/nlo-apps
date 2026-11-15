@@ -218,7 +218,10 @@ On permanent-dentition trays and retainers the tooth detection gets a second pas
 is cut along the gingival sulcus, the border between two teeth settles in the crease between them, and - when the scan
 is an AS Connect scan still in the scanner's storage on this PC
 (`C:\Users\Public\Documents\Alliedstar\Connect\storage\cases`) - the scanner's own tooth/gum map adds tooth surface the
-detection missed. Phase I cases and mouthguards are not touched. It adds about a second.
+detection missed. Mouthguards are not touched. It adds about a second.
+
+Phase I: when the scanner's map is at hand it becomes the tooth outline (it stays off the gum in the open spaces of a
+mixed dentition); the split into teeth is unchanged. Tried on one case only, judged by eye - no answer key yet.
 
 Checked against Titan's own tooth shells on four cases (112 teeth): teeth with less than 0.85 overlap went from 36
 (detection alone) to 6 (second pass) to 2 (with the scanner's map); gum line within 0.5 mm of Titan's on 72% -> 97% of

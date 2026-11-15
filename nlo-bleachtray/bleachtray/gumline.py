@@ -261,6 +261,40 @@ def add_scanner_map(mesh, labels, scanner_mask, A, reach_mm=2.5, min_verts=400):
     return out, int(len(idx))
 
 
+def same_points(mesh, raw_vertices):
+    """True when the mesh in hand is the raw scan point for point, only turned (not a cleaned or rebuilt copy)."""
+    Vm, Pr = np.asarray(mesh.vertices), np.asarray(raw_vertices, float)
+    if len(Vm) != len(Pr):
+        return False
+    k = slice(None, None, max(1, len(Pr) // 3000))
+    a, b = Pr[k] - Pr[k].mean(0), Vm[k] - Vm[k].mean(0)
+    U, _, Vt = np.linalg.svd(a.T @ b)
+    R = Vt.T @ np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))]) @ U.T
+    return bool(np.median(np.linalg.norm(a @ R.T - b, axis=1)) <= 0.01)
+
+
+def scanner_outline(mesh, raw_vertices, A, first_mask, storage=None, log=print):
+    """Phase I: the scanner's own tooth map as the tooth outline (it stays off the gum in the open spaces of a mixed
+    dentition, where the detection does not). Returns the cleaned mask, or None when there is no map for this scan or
+    it disagrees wildly with the detection (then the detection stands)."""
+    from .segment import clean_mask
+    try:
+        if raw_vertices is None or not same_points(mesh, raw_vertices):
+            return None
+        sm = scanner_tooth_mask(raw_vertices, storage=storage, log=log)
+        if sm is None:
+            return None
+        sm = clean_mask(sm, A)
+        both = int((sm & first_mask).sum())
+        if sm.sum() < 2000 or both < 0.5 * sm.sum() or sm.sum() < 0.4 * first_mask.sum():
+            log("scanner's map does not match the detection on this scan - detection kept")
+            return None
+        return sm
+    except Exception as ex:  # noqa
+        log(f"scanner map skipped: {ex}")
+        return None
+
+
 def improve(mesh, labels, A, aux, p_tooth, arch, raw_vertices=None, storage=None, use_scanner=True, log=print):
     """First-pass labels in, improved labels out, plus a small report. Never raises: on any problem the labels that
     came in are returned."""
@@ -283,13 +317,7 @@ def improve(mesh, labels, A, aux, p_tooth, arch, raw_vertices=None, storage=None
         log(f"gum-line refinement skipped: {ex}")
     if use_scanner and raw_vertices is not None and len(raw_vertices) == len(labels):
         try:
-            # the raw points must be the same points as the mesh in hand, only turned (not a cleaned or rebuilt copy)
-            Vm, Pr = np.asarray(mesh.vertices), np.asarray(raw_vertices, float)
-            k = slice(None, None, max(1, len(Pr) // 3000))
-            a, b = Pr[k] - Pr[k].mean(0), Vm[k] - Vm[k].mean(0)
-            U, _, Vt = np.linalg.svd(a.T @ b)
-            R = Vt.T @ np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))]) @ U.T
-            if np.median(np.linalg.norm(a @ R.T - b, axis=1)) > 0.01:
+            if not same_points(mesh, raw_vertices):
                 raise ValueError("the mesh is no longer the scan point for point")
             sm = scanner_tooth_mask(raw_vertices, storage=storage, log=log)
             if sm is not None:

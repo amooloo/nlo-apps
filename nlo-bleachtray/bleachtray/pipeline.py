@@ -538,6 +538,14 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         thr = float(P["tooth_threshold"]) if P.get("tooth_threshold") else tooth_threshold(models)
         # the gum line follows the gingival crease through the model's unsure band (see snap_to_crease)
         mask = clean_mask(snap_to_crease(mesh, A, smooth_field(A, p_tooth, 4), aux["Hs"], thr=thr), A)
+        # Phase I: where the scanner's own tooth map is at hand (AS Connect storage on this PC), it is the tooth outline
+        if P1 and P.get("use_scanner_map", True) and os.environ.get("NLO_GUMLINE", "1") != "0":
+            from .gumline import scanner_outline
+            sm = scanner_outline(mesh, np.asarray(raw.vertices), A, mask, storage=P.get("as_storage"), log=lambda m: log(f"[{name}] {m}"))
+            if sm is not None:
+                rep["gumline"] = dict(phase1_scanner_outline=True, tooth_points_before=int(mask.sum()), tooth_points_after=int(sm.sum()))
+                log(f"[{name}] Phase I: tooth outline taken from the scanner's map ({int(mask.sum()) - int(sm.sum())} points of gum dropped)")
+                mask = sm
         # (a Phase I scan: the mixed dentition's widths behind the incisors - C, D, E - so a 10-11 mm E is one tooth)
         labels = separate_teeth(mesh, mask, p_ip, A, aux, f"{arch_hint}_mixed" if P1 else arch_hint, log=log)
         mask = labels > 0          # separation may have dropped soft tissue mistaken for a tooth
