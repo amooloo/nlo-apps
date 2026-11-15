@@ -212,6 +212,38 @@ The starting set ships with the app as `assets\base_training.npz` - per arch the
 the model learns from (numbers only: no scans, no names), so nothing has to be downloaded for retraining to work.
 Full base cases under `training\_base\` (scan + labels) take precedence when present.
 
+## Sharper gum line (released 11/15/2026)
+
+On permanent-dentition trays and retainers the tooth detection gets a second pass (`bleachtray/gumline.py`): the gum line
+is cut along the gingival sulcus, the border between two teeth settles in the crease between them, and - when the scan
+is an AS Connect scan whose tooth map is at hand (in the scanner's storage on this PC,
+`C:\Users\Public\Documents\Alliedstar\Connect\storage\cases`, or copied to the shared drive by another PC - see below) -
+the scanner's own tooth/gum map adds tooth surface the detection missed. Mouthguards are not touched. It adds about a
+second.
+
+Phase I: when the scanner's map is at hand it becomes the tooth outline (it stays off the gum in the open spaces of a
+mixed dentition); the split into teeth is unchanged. Tried on one case only, judged by eye - no answer key yet.
+
+Checked against Titan's own tooth shells on four cases (112 teeth): teeth with less than 0.85 overlap went from 36
+(detection alone) to 6 (second pass) to 2 (with the scanner's map); gum line within 0.5 mm of Titan's on 72% -> 97% of
+its length. **The trim line moves with it** (typically 0.6-1.2 mm towards the teeth on the first case tried, because the
+old detection ran onto the gum). Tried as a test version on the lab PC on 11/14/2026 (trim line and split into teeth
+judged right on a permanent-dentition case) and made the released version on 11/15/2026 - if a trim line ever sits too
+close to the teeth, re-set the trim-line offset. Switch it off on a PC with the environment variable `NLO_GUMLINE=0`.
+
+The map is only on the PC where the case was opened in the AS Connect desktop software. When people open cases on
+other PCs than the one Tray Maker runs on, run this **once on each of those PCs** (open PowerShell, paste, Enter):
+
+    [Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/as_sync_install.ps1' -UseBasicParsing).Content
+
+It sets up a Windows task under that person's login that copies each case's scan and tooth map (4 small files, cases
+from the last 30 days) every 2 minutes to `<shared drive>\clinical\3D printing\AS Connect maps\<PC name>\cases`.
+Tray Maker looks there by itself (whatever letter the shared drive has on its PC; `NLO_AS_MAPS` names the folder
+outright if needed). AS Connect is not touched and nothing is written on that PC. It only runs while someone is logged
+in there, and a case opened seconds before it is uploaded to Tray Maker may not have arrived yet - that tray is then
+made the old way. Remove it with `Unregister-ScheduledTask -TaskName 'NLO AS Connect maps' -Confirm:$false`.
+(Sharing each PC's `Connect\storage\cases` folder and listing them in `NLO_AS_STORAGE`, `;` between them, also works.)
+
 ## Printing (print folder + PreForm)
 
 Two things leave the app when a case is **sent**:
