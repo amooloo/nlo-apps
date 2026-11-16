@@ -559,7 +559,7 @@ def smooth_solids(solids, sigma=1.25, spacing=0.2, keep_pts=None, pad=0.8, log=N
 
 
 def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, window_mm=6.0, step_mm=2.0,
-                   reach_mm=2.0, off_band_mm=6.0, smooth=1.25, uniform=True, uniform_pct=50.0, log=None):
+                   reach_mm=2.0, off_band_mm=6.0, smooth=1.25, uniform=True, uniform_pct=50.0, taper=6.0, line=None, log=None):
     """One continuous block-out band over brackets, wire and tubes, from the last appliance on one side
     round to the last on the other - not a cap over each bracket with bare tooth between them (the doctor,
     10/19/2026: the mouthguard's block-out must be continuous). A spine runs through the bracket centres
@@ -574,7 +574,11 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
     segments"): the brackets' reach round the spine - how far out, up and down each piece goes, the `uniform_pct`
     percentile over the pieces - is one cross-section swept along the whole spine, with the tooth / gum surface across
     its height, so the stretches over the wire are as thick and as tall as the caps over the brackets; a bracket bigger
-    than that still gets its own room. Returns (list of solids, info)."""
+    than that still gets its own room.
+    `taper` (the doctor, 11/16/2026: "make the block-out taper gingivally so it does not create huge undercuts"): the
+    band's gum-side face is not a ledge hanging over the gum - it runs down as a ramp onto the gum `taper` mm below the
+    band (the cheek-side gum under it joins each window's hull), never closer than 1 mm to the trim line (`line`,
+    N x 3, in the mesh's frame). 0 = the band ends at its own height, as before. Returns (list of solids, info)."""
     import trimesh
     from scipy.spatial import cKDTree
     from .mesh_utils import connected_components
@@ -641,6 +645,7 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
         ring |= (A @ ring.astype(float) > 0)
     surf = ~appliance & ((d_all < reach_mm) | (ring & (d_all < off_band_mm)))
     prof = None
+    n_foot = 0
     if uniform:
         # each piece's reach from its spine point: out along the push, up and down (z); a robust size per piece, then
         # the `uniform_pct` percentile over the pieces is the band's cross-section all the way round
@@ -659,6 +664,18 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
             # hair beyond, the skirt) - only what faces out and lies just inside the spine, never the far side of a tooth
             surf |= (~appliance & (facing > 0.3) & (d_all < off_band_mm + 2.0) & (dz_all >= prof["bottom"] - skirt)
                      & (dz_all <= prof["top"] + skirt) & (dn_all > -3.0) & (dn_all < prof["out"]))
+            if taper and taper > 0:
+                # the ramp's foot: the cheek-side gum from the band's lower edge down `taper` mm, where it lies inside
+                # the band's outer face (gum further out than that is no undercut) and clear of the trim line
+                foot = (~appliance & (facing > 0.2) & (d_all < off_band_mm + taper + 2.0) & (dz_all < prof["bottom"] - skirt)
+                        & (dz_all >= prof["bottom"] - taper) & (dn_all > -(3.0 + taper)) & (dn_all < prof["out"]))   # (the front gum falls away inward under proclined teeth: further in than beside the band)
+                if line is not None and len(line) >= 3 and foot.any():
+                    Lz = np.asarray(line, float)
+                    fi = np.where(foot)[0]
+                    _, jl = cKDTree(Lz[:, :2]).query(V[fi, :2])
+                    foot[fi[V[fi, 2] < Lz[jl, 2] + 1.0]] = False
+                n_foot = int(foot.sum())
+                surf |= foot
     a_idx = np.where(app_band)[0]; f_idx = np.where(surf)[0]
     hulls = []
     half = 0.5 * window_mm
@@ -714,11 +731,13 @@ def appliance_band(mesh_f, appliance, A, ring_center, clearance=1.0, skirt=1.0, 
     info = dict(caps=len(hulls) + len(extra), band=True, band_length_mm=round(float(s_len[-1]), 1), brackets_on_band=int(len(S)),
                 separate_caps=len(extra), volume_ml=round((uvol if uvol is not None else vol) / 1000.0, 2), clearance_mm=clearance,
                 uniform=({k: round(v, 2) for k, v in prof.items()} if prof else None),
+                taper_mm=(float(taper) if prof is not None and taper and taper > 0 and n_foot else 0.0),
                 smooth=(sinfo if smooth and smooth > 0 else None))
     if uvol is not None:
         info["union_volume_ml"] = round(uvol / 1000.0, 2)
     if log:
         log(f"brackets and wire under one continuous band: {info['band_length_mm']:.0f} mm round the arch through {len(S)} brackets / tubes, "
             f"{clearance:.1f} mm clearance ({info['volume_ml']:.2f} mL)" + (f", one even cross-section {prof['out']:.1f} mm out, {prof['top'] - prof['bottom']:.1f} mm tall" if prof else "") + (f"; {len(extra)} cap{'s' if len(extra) != 1 else ''} over appliance away from the wire (palate / tongue side)" if extra else "")
+            + (f"; tapered {taper:.1f} mm down onto the gum" if info.get("taper_mm") else "")
             + (f"; rounded off over {2 * sinfo['sigma_mm']:.1f} mm" if sm is not None else (f"; not rounded off ({sinfo.get('error')})" if smooth and smooth > 0 else "")))
     return solids, info

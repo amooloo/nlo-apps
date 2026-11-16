@@ -35,7 +35,7 @@ DEFAULTS = dict(
     hug_rim=0.5,           # mm: ... but never closer than this to the trim line, seen from above (the line is never cut)
     periphery_smooth=True, # smooth the scan surface beyond 2 mm from the gum line (ragged cheek/lip tissue)
     mouthguard=False,      # sports mouthguard: brackets stay under a smooth shield, the line runs into the vestibule with frenum notches, a flange onto the palate
-    mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_smooth=6.0, mg_clearance=1.0, mg_band_smooth=1.25,
+    mg_inset=1.5, mg_min_depth=3.0, mg_max_depth=14.0, mg_palate=6.0, mg_distal=2.5, mg_notch_top=2.5, mg_notch_width=6.0, mg_smooth=6.0, mg_clearance=1.0, mg_band_smooth=1.25, mg_band_taper=6.0,   # mg_band_taper: the bracket band runs down onto the gum this far below itself instead of hanging over it (0 = off)
     distal_round=3.0,      # mm: corner radius of the trim line round the last tooth; it never goes past that tooth, dips behind it are lifted, and a tooth the scan cut through gets the line 2 mm short of the edge, over the tooth; 0 = off
     gap_beam=True, gap_beam_drop=1.5,   # a reinforcing bar on the ridge across a missing tooth's space (retainers), its top this far under the neighbours' occlusal level
     distal_hug=True,       # behind the last molar the line runs on that tooth's own gum margin instead of trimline_offset onto the tissue behind it (which the relief cuts away)
@@ -507,7 +507,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         if cached is not None:
             mesh_c, appliance, ainfo, feats_clean, feats_orig = cached
             if ainfo.get("used"):
-                rep["appliances"] = {k: v for k, v in ainfo.items() if k != "passes"}
+                rep["appliances"] = {k: v for k, v in ainfo.items() if k != "passes" and not str(k).startswith("_")}   # (_mask0: a per-vertex array, not for the report)
             if feat_cache is not None:
                 feat_cache[(scan_path, "orig_feats")] = feats_orig
             if label_override is not None and len(label_override) == len(mesh_orig.vertices):
@@ -538,7 +538,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                 feat_cache[ckey] = cached
         mesh, appliance, ainfo, feats_pre = cached
         if ainfo.get("used"):
-            rep["appliances"] = {k: v for k, v in ainfo.items() if k != "passes"}
+            rep["appliances"] = {k: v for k, v in ainfo.items() if k != "passes" and not str(k).startswith("_")}   # (_mask0: a per-vertex array, not for the report)
         if feats_pre is not None and feat_cache is not None and scan_path not in feat_cache:
             feat_cache[scan_path] = feats_pre      # the features of the mesh the pipeline goes on with
     # features are the same for the same scan, so re-runs (brush fixes, base nudges) reuse them
@@ -1195,7 +1195,8 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             # one continuous band over brackets and wire round the arch (caps over each bracket left bare tooth
             # between them for the sheet to lock onto); caps only when there are too few pieces for a band
             caps, sinfo = appliance_band(mesh_f, mg_appliance, A, rc_f, clearance=float(P.get("mg_clearance", 1.0)),
-                                         smooth=float(P.get("mg_band_smooth", 1.25)), log=lambda m: log(f"[{name}] {m}"))
+                                         smooth=float(P.get("mg_band_smooth", 1.25)), taper=float(P.get("mg_band_taper", 6.0)),
+                                         line=(margin_f if gum_line_f is not None else None), log=lambda m: log(f"[{name}] {m}"))
             rep["shields"] = sinfo
             if caps:
                 after_solids.extend(caps)          # after the outline cut: the band stands out past the crowns
@@ -1285,6 +1286,17 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             tv = np.asarray(mesh_f.vertices)[np.asarray(labels) > 0][:, :2]
             if len(tv):
                 parts.append(footprint(tv, rim=rim))
+            # ... and, under a mouthguard, the gum the guard covers: between the gum line and the guard's line the gum
+            # bulges out over the roots, further out than the line below it seen from above - walls at the line plus a
+            # rim shaved those bulges flat (vertical strips under the bracket band, a patient's upper, 11/16/2026).
+            # Every scan point on the teeth's side of the line (not below it: the ragged rim still goes), plus the rim
+            if gum_line_f is not None:
+                from scipy.spatial import cKDTree as _KD
+                Lm = np.asarray(margin_f, float); Vm = np.asarray(mesh_f.vertices)
+                dxy, jl = _KD(Lm[:, :2]).query(Vm[:, :2])
+                cov = (dxy < float(P.get("mg_keep_reach", 4.0))) & (Vm[:, 2] >= Lm[jl, 2] - 0.2)
+                if cov.sum() >= 50:
+                    parts.append(footprint(Vm[cov][:, :2], rim=rim))
             if parts:
                 hug_keep = shapely.union_all(parts)
             if hug_keep is None or len(tv) == 0:
