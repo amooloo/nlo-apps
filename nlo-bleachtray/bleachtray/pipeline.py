@@ -63,6 +63,41 @@ def adjust_matrix(adj, pivot):
     return T
 
 
+def _plain(o, path="", found=None):
+    """A report made of plain Python values: numpy arrays -> lists, numpy numbers -> numbers, numpy keys -> plain keys.
+    `found` collects where an array was sitting, for the log."""
+    if isinstance(o, dict):
+        out = {}
+        for k, v in o.items():
+            k2 = k.item() if isinstance(k, np.generic) else (k if isinstance(k, (str, int, float, bool)) or k is None else str(k))
+            out[k2] = _plain(v, f"{path}.{k2}" if path else str(k2), found)
+        return out
+    if isinstance(o, (list, tuple, set, frozenset)):
+        return [_plain(v, path, found) for v in o]
+    if isinstance(o, np.ndarray):
+        if found is not None:
+            found.append(f"{path} ({'x'.join(str(n) for n in o.shape)})")
+        return _plain(o.tolist(), path, None)
+    if isinstance(o, np.generic):
+        return o.item()
+    return o
+
+
+def write_report(path, rep, log=print):
+    """Write the model's report. A finished model must never be lost to a value json cannot write (a mouthguard over
+    brackets, 11/16/2026: 'Object of type ndarray is not JSON serializable' after the model was already built), so the
+    report is made plain first - in place, the page gets the same report - and anything still unknown is written as text."""
+    found = []
+    clean = _plain(rep, found=found)
+    rep.clear(); rep.update(clean)
+    if found:
+        log("report: raw arrays written as lists - " + ", ".join(found[:6]))
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(rep, f, indent=2, default=str)
+    os.replace(tmp, path)
+
+
 def write_pts(path, pts):
     """Trimlign/Titan polyline: CRLF line endings, 7 significant digits, exactly like Titan's export."""
     with open(path, "w", newline="") as f:
@@ -1318,8 +1353,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     stl_path, margin_f, model_out = _finish_model(out_dir, name, P, rep, body, margin_f, outline, scan_res_path, log=log)
     margin_n = trimline_normals(model_out, margin_f, rep, log=lambda m: log(f"[{name}] {m}"))
     rep["elapsed_s"] = round(time.time() - t0, 2)
-    with open(os.path.join(out_dir, f"{name}_report.json"), "w") as f:
-        json.dump(rep, f, indent=2)
+    write_report(os.path.join(out_dir, f"{name}_report.json"), rep, log=log)
     # debug state for the UI / verification
     np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
              T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, T_adj=T_adj, p_tooth=p_tooth,
@@ -1665,8 +1699,7 @@ def replace_placement(out_dir, name, params, rep, adjust, log=print, progress=No
     np.savez(st_path, **st)
     rep["elapsed_s"] = round(time.time() - t0, 2)
     rep["steps"] = [("moved on the base" if not from_plain else "moved on the base, marked again", rep["elapsed_s"])]
-    with open(os.path.join(out_dir, f"{name}_report.json"), "w") as f:
-        json.dump(rep, f, indent=2)
+    write_report(os.path.join(out_dir, f"{name}_report.json"), rep, log=log)
     prog(1.0, "done")
     log(f"[{name}] moved in {rep['elapsed_s']} s -> {stl_path}")
     return rep
