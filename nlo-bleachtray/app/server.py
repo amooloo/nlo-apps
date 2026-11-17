@@ -777,7 +777,26 @@ def _scan_params(job, scan):
     return params
 
 
+def _share_map_roots():
+    """The other PCs' scanner maps by the share's network name (\\\\server\\share\\clinical\\3D printing\\AS Connect maps),
+    worked out from the print folder beside it: gumline looks under every drive letter, and a mapped letter is not
+    there when the app runs in another Windows session than the one that mapped it. Called before every run (the print
+    folder is a setting). Never raises."""
+    try:
+        from bleachtray import gumline
+        import ntpath
+        for root in {_print_root(), _to_unc(_print_root())}:
+            if not root:
+                continue
+            maps = ntpath.join(ntpath.dirname(root.rstrip("\\/")), "AS Connect maps")
+            if maps.startswith("\\\\") and maps not in gumline.EXTRA_MAP_ROOTS:
+                gumline.EXTRA_MAP_ROOTS.append(maps)
+    except Exception:
+        pass
+
+
 def _run(job):
+    _share_map_roots()
     job["status"] = "running"
     job["log"] = job.get("log") or []
     job["started"] = time.time()
