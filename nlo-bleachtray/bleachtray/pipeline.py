@@ -575,8 +575,9 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         mask = clean_mask(snap_to_crease(mesh, A, smooth_field(A, p_tooth, 4), aux["Hs"], thr=thr), A)
         # Phase I: where the scanner's own tooth map is at hand (AS Connect storage on this PC), it is the tooth outline
         if P1 and P.get("use_scanner_map", True) and os.environ.get("NLO_GUMLINE", "1") != "0":
-            from .gumline import scanner_outline
-            sm = scanner_outline(mesh, np.asarray(raw.vertices), A, mask, storage=P.get("as_storage"), log=lambda m: log(f"[{name}] {m}"))
+            from .gumline import scanner_outline, map_wait_deadline
+            sm = scanner_outline(mesh, np.asarray(raw.vertices), A, mask, storage=P.get("as_storage"), log=lambda m: log(f"[{name}] {m}"),
+                                 wait_until=map_wait_deadline(name))
             if sm is not None:
                 rep["gumline"] = dict(phase1_scanner_outline=True, tooth_points_before=int(mask.sum()), tooth_points_after=int(sm.sum()))
                 log(f"[{name}] Phase I: tooth outline taken from the scanner's map ({int(mask.sum()) - int(sm.sum())} points of gum dropped)")
@@ -588,10 +589,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         # AS Connect scan still in the scanner's storage on this PC - the scanner's own tooth/gum map (see gumline.py).
         # Phase I and the mouthguard keep the first-pass detection: this step is only proven on permanent teeth.
         if P.get("gumline_refine", True) and os.environ.get("NLO_GUMLINE", "1") != "0" and not P1 and not MG:   # (NLO_GUMLINE=0 switches it off on a PC)
-            from .gumline import improve
+            from .gumline import improve, map_wait_deadline
             raw_v = np.asarray(raw.vertices) if len(raw.vertices) == len(mesh.vertices) else None
             labels, rep["gumline"] = improve(mesh, labels, A, aux, p_tooth, arch_hint, raw_vertices=raw_v, storage=P.get("as_storage"),
-                                             use_scanner=bool(P.get("use_scanner_map", True)), log=lambda m: log(f"[{name}] {m}"))
+                                             use_scanner=bool(P.get("use_scanner_map", True)), log=lambda m: log(f"[{name}] {m}"),
+                                             wait_until=map_wait_deadline(name))
             mask = labels > 0
         if feat_cache is not None:
             feat_cache[lkey] = labels

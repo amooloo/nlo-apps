@@ -221,6 +221,13 @@ is an AS Connect scan whose tooth map is at hand (in the scanner's storage on th
 the scanner's own tooth/gum map adds tooth surface the detection missed. Mouthguards are not touched. It adds about a
 second.
 
+A scan uploaded within about two minutes of being opened in AS Connect on another PC is ahead of its own map (the other
+PCs copy theirs to the shared drive every 2 minutes). Such a scan - one whose AS Connect export time, in its file name,
+is less than 2½ minutes old - waits for the map, looking every 5 seconds, and carries on without it after that. The log
+says "waiting up to N s", then "scanner's map arrived after N s" or "no scanner map for this scan ... looked in ...".
+Older exports, scans from another scanner and mouthguards never wait; `NLO_MAP_WAIT=0` switches the wait off on a PC.
+The shared folder is looked for under every drive letter and by the share's network name (from the print folder).
+
 Phase I: when the scanner's map is at hand it becomes the tooth outline (it stays off the gum in the open spaces of a
 mixed dentition); the split into teeth is unchanged. Tried on one case only, judged by eye - no answer key yet.
 

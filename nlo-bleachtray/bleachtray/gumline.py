@@ -15,7 +15,7 @@ overlap, gum line within 0.5 mm on 96.8% of its length; with step 3: 2 teeth und
 The .a3d / .vertex_type layout was worked out from the files themselves; it is not a published format, so every read is
 checked (sizes must add up) and a mismatch simply means "no scanner map".
 """
-import os, glob
+import os, glob, re, time
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.csgraph as csg
@@ -213,17 +213,86 @@ def shared_map_folders():
     else:
         for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
             roots.append(letter + ":\\" + MAPS_FOLDER)
-    out = []
+        # and by the share's network name (set by the app from its print folder): a mapped letter is only there in
+        # the Windows session that mapped it, the network name always is
+        roots += [r for r in EXTRA_MAP_ROOTS if r not in roots]
+    out, seen = [], set()
     for root in roots:
         try:
             if os.path.isdir(root):
-                out += [c for c in glob.glob(os.path.join(root, "*", "cases")) if os.path.isdir(c)]
+                for c in glob.glob(os.path.join(root, "*", "cases")):
+                    key = os.path.normcase(os.path.join(os.path.basename(os.path.dirname(c)), "cases"))   # the PC's name
+                    if os.path.isdir(c) and key not in seen:      # (the same share reached by letter and by name: once)
+                        seen.add(key)
+                        out.append(c)
         except OSError:
             pass
     return out
 
 
-def scanner_tooth_mask(raw_vertices, storage=None, tol=0.02, log=None):
+# ---- waiting for the map of a scan that was exported a moment ago
+# The other PCs copy their maps to the shared drive every 2 minutes (as_sync_install.ps1). A scan uploaded within that
+# time is ahead of its own map (the doctor, 11/17/2026: exported 9:48:58, made 9:49:30 - without the map; made again
+# ten minutes later - with it). So a scan whose AS Connect export time is that fresh waits for the map to arrive.
+EXTRA_MAP_ROOTS = []           # "AS Connect maps" folders by network name (the app adds the one beside its print folder)
+MAP_COPY_EVERY_S = 120.0       # how often the other PCs copy
+MAP_WAIT_SLACK_S = 30.0        # the copy itself, and clocks a little apart
+MAP_POLL_S = 5.0
+_EXPORT_STAMP = re.compile(r"(?<!\d)(20\d{6})_(\d{2})-(\d{2})-(\d{2})(?!\d)")     # AS Connect: <name>_20261117_09-48-58_upper
+
+
+def map_wait_deadline(name, now=None):
+    """Until when (time.time()) it is worth waiting for the scanner map of the scan called `name`, or None. Only a scan
+    AS Connect exported within the last copy interval waits: an older export's map is already there or never will be,
+    and a scan from another scanner has no such time in its name. NLO_MAP_WAIT=0 switches the wait off on a PC."""
+    if os.environ.get("NLO_MAP_WAIT", "1") == "0":
+        return None
+    m = _EXPORT_STAMP.search(str(name or ""))
+    if not m:
+        return None
+    try:
+        exported = time.mktime(time.strptime(m.group(1) + m.group(2) + m.group(3) + m.group(4), "%Y%m%d%H%M%S"))
+    except (ValueError, OverflowError):
+        return None
+    now = time.time() if now is None else now
+    until = exported + MAP_COPY_EVERY_S + MAP_WAIT_SLACK_S
+    if until <= now or exported > now + 60.0:        # exported long ago / a clock that is far off: no wait
+        return None
+    return min(until, now + MAP_COPY_EVERY_S + MAP_WAIT_SLACK_S)
+
+
+def scanner_tooth_mask(raw_vertices, storage=None, tol=0.02, log=None, wait_until=None, _sleep=time.sleep, _now=time.time):
+    """The scanner's tooth mask for these raw scan points, or None (see _scanner_tooth_mask_once). With `wait_until`
+    (map_wait_deadline) and other PCs sharing their maps, a map that is not there yet is looked for again every few
+    seconds until then: only files that are new or have changed since the last look are opened."""
+    seen = {}
+    sm = _scanner_tooth_mask_once(raw_vertices, storage=storage, tol=tol, log=log, seen=seen)
+    if sm is not None:
+        return sm
+    waited = 0.0
+    if wait_until is not None and shared_map_folders():
+        t0 = _now()
+        if wait_until > t0:
+            if log:
+                log(f"scanner's map is not on the shared drive yet (this scan was exported a moment ago) - waiting up to {int(round(wait_until - t0))} s for it")
+            while _now() < wait_until:
+                _sleep(min(MAP_POLL_S, max(0.5, wait_until - _now())))
+                sm = _scanner_tooth_mask_once(raw_vertices, storage=storage, tol=tol, log=log, seen=seen)
+                if sm is not None:
+                    if log:
+                        log(f"scanner's map arrived after {int(round(_now() - t0))} s")
+                    return sm
+            waited = _now() - t0
+    if log:
+        n = len(shared_map_folders())
+        where = f"this PC's AS Connect folder and {n} other PC{'s' if n != 1 else ''} on the shared drive" if n else "this PC's AS Connect folder (no other PC's maps were found on the shared drive)"
+        log(f"no scanner map for this scan{f' after waiting {int(round(waited))} s' if waited else ''} - looked in {where}; our own detection is used")
+    return None
+
+
+def _scanner_tooth_mask_once(raw_vertices, storage=None, tol=0.02, log=None, seen=None):
+
+
     """The scanner's tooth mask for these raw scan points (in the scan's own coordinates), or None. The stored scan of
     the same arch is found by content: same points, wherever the export was saved and whatever it was named."""
     # one folder or several (a list, or one string with ; between them): this PC's own AS Connect storage and, where
@@ -258,6 +327,15 @@ def scanner_tooth_mask(raw_vertices, storage=None, tol=0.02, log=None):
         base = os.path.basename(f).lower()
         if base not in ("upper.a3d", "lower.a3d"):
             continue
+        if seen is not None:           # (a second look while waiting: a file already turned down is not opened again)
+            try:
+                st = os.stat(f); vt_ = f[:-4] + ".vertex_type"
+                sig = (st.st_mtime, st.st_size, os.path.getsize(vt_) if os.path.isfile(vt_) else -1)
+            except OSError:
+                continue
+            if seen.get(f) == sig:
+                continue
+            seen[f] = sig
         nv = _a3d_count(f)
         if nv < 0.6 * len(P) or nv > 4 * len(P):      # (our loader may have thinned a dense scan)
             continue
@@ -317,7 +395,7 @@ def same_points(mesh, raw_vertices):
     return bool(np.median(np.linalg.norm(a @ R.T - b, axis=1)) <= 0.01)
 
 
-def scanner_outline(mesh, raw_vertices, A, first_mask, storage=None, log=print):
+def scanner_outline(mesh, raw_vertices, A, first_mask, storage=None, log=print, wait_until=None):
     """Phase I: the scanner's own tooth map as the tooth outline (it stays off the gum in the open spaces of a mixed
     dentition, where the detection does not). Returns the cleaned mask, or None when there is no map for this scan or
     it disagrees wildly with the detection (then the detection stands)."""
@@ -325,7 +403,7 @@ def scanner_outline(mesh, raw_vertices, A, first_mask, storage=None, log=print):
     try:
         if raw_vertices is None or not same_points(mesh, raw_vertices):
             return None
-        sm = scanner_tooth_mask(raw_vertices, storage=storage, log=log)
+        sm = scanner_tooth_mask(raw_vertices, storage=storage, log=log, wait_until=wait_until)
         if sm is None:
             return None
         sm = clean_mask(sm, A)
@@ -339,7 +417,7 @@ def scanner_outline(mesh, raw_vertices, A, first_mask, storage=None, log=print):
         return None
 
 
-def improve(mesh, labels, A, aux, p_tooth, arch, raw_vertices=None, storage=None, use_scanner=True, log=print):
+def improve(mesh, labels, A, aux, p_tooth, arch, raw_vertices=None, storage=None, use_scanner=True, log=print, wait_until=None):
     """First-pass labels in, improved labels out, plus a small report. Never raises: on any problem the labels that
     came in are returned."""
     from .segment import order_teeth, edentulous_gaps, number_by_type
@@ -363,7 +441,7 @@ def improve(mesh, labels, A, aux, p_tooth, arch, raw_vertices=None, storage=None
         try:
             if not same_points(mesh, raw_vertices):
                 raise ValueError("the mesh is no longer the scan point for point")
-            sm = scanner_tooth_mask(raw_vertices, storage=storage, log=log)
+            sm = scanner_tooth_mask(raw_vertices, storage=storage, log=log, wait_until=wait_until)
             if sm is not None:
                 labels, added = add_scanner_map(mesh, labels, sm, A)
                 rep.update(scanner_map=True, scanner_points_added=added)
