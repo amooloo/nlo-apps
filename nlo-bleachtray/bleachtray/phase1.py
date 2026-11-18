@@ -138,7 +138,7 @@ def count_from_six(V, labels, seq, six_k, gap_tooth_mm=GAP_TOOTH_MM, tooth_width
     return new, gaps
 
 
-def anchor_six(V, labels, info, contact, arch="lower", seven_arc_mm=None, tip_share=0.45, molar_mm2=50.0, log=None):
+def anchor_six(V, labels, info, contact, arch="lower", seven_arc_mm=None, tip_share=0.45, molar_mm2=50.0, ghost_share=0.6, log=None):
     """Phase I: the count on each side is anchored on the first molar, not only on the midline. Counted from the
     midline with every space of 2.5 mm or more taken for a tooth already gone, a 3.9 mm space behind a lateral made
     the first molar a "7" - and the retainer stopped at the E and left the 6 bare (Josiah's lower, 10/27/2026). In
@@ -166,6 +166,31 @@ def anchor_six(V, labels, info, contact, arch="lower", seven_arc_mm=None, tip_sh
     for t in cent:
         xy = V[labels == t][:, :2]
         area[t] = float(len(np.unique(np.floor(xy / 0.5).astype(np.int64), axis=0))) * 0.25     # footprint seen from above, mm2
+    top = {t: float(np.percentile(V[labels == t][:, 2], 95)) for t in cent}
+
+    def _seq_arc(side):
+        q = [t for p, t in sorted((p, t) for t, (s, p) in info.items() if s == side and t in cent)]
+        a, last = [], contact
+        for t in q:
+            a.append((a[-1] if a else 0.0) + float(np.linalg.norm(cent[t] - last))); last = cent[t]
+        return q, a
+
+    def _a_tooth(q, t):
+        """Is the smallest label between the 2 and the E a tooth after all? A bump of gum over an erupting tip is
+        small beside the side's teeth AND stands lower than both its neighbours; a label the size of the others, or
+        standing as tall as a neighbour, is a tooth."""
+        others = [area[u] for u in q[:-1] if u != t]
+        k = q.index(t)
+        return (area[t] >= ghost_share * float(np.median(others))
+                or top[t] >= min(top[q[k - 1]], top[q[k + 1]]) - 1.0)
+
+    # a side that plainly has its seven teeth (1 to 7) tells where the other side's 6 and 7 stand along the arch
+    whole = {}
+    for side in (-1, 1):
+        q, a = _seq_arc(side)
+        if len(q) == 7 and area[q[-1]] >= molar_mm2 and area[q[-2]] >= molar_mm2 and (
+                a[-1] >= seven_arc_mm or _a_tooth(q, min(q[2:-2], key=lambda t: area[t]))):
+            whole[side] = (a[-2], a[-1])
     for side in (-1, 1):
         seq = [t for p, t in sorted((p, t) for t, (s, p) in info.items() if s == side and t in cent)]
         n = len(seq)
@@ -193,14 +218,35 @@ def anchor_six(V, labels, info, contact, arch="lower", seven_arc_mm=None, tip_sh
             if last_is_7:
                 notes.append(f"{patient_side(side, arch)}: the last tooth is a 7 ({arc[-1]:.0f} mm of arch from the midline)")
             else:
-                # six teeth at most in front of the 6: the smallest label between the 2 and the E is not a tooth
+                # six teeth at most in front of the 6: the smallest label between the 2 and the E is not a tooth -
+                # when it is small. A bump of gum over an erupting tip is a fraction of its neighbours; a label the
+                # size of the teeth round it is a tooth, and then the side simply has its seven teeth, 1 to 7, in a
+                # short arch: a late mixed dentition with the 7s through, the last molar 45 mm from the midline, lost
+                # its lower right canine (35 mm2) as "gum" - and lost it again after the doctor split the teeth by
+                # hand (a lower, 11/18/2026)
                 ghost = min(seq[2:-2], key=lambda t: area[t])
+                if _a_tooth(seq, ghost):
+                    ghost = None
+                    last_is_7 = True
+                    notes.append(f"{patient_side(side, arch)}: seven whole teeth on the side (the smallest between the 2 and the last molar is "
+                                 f"{min(area[t] for t in seq[2:-2]):.0f} mm2 seen from above, a tooth) - the last is the 7, though only "
+                                 f"{arc[-1]:.0f} mm of arch from the midline")
+            if n == 7 and not last_is_7:
                 labels[labels == ghost] = 0
                 info.pop(ghost, None)
                 seq = [t for t in seq if t != ghost]
                 n = len(seq)
                 notes.append(f"{patient_side(side, arch)}: seven teeth counted in front of a molar only {arc[-1]:.0f} mm of arch from the midline - the smallest "
                              f"between the 2 and the E ({area[ghost]:.0f} mm2 seen from above) is gum, not a tooth")
+        elif n in (5, 6) and -side in whole and area[seq[-2]] >= molar_mm2:
+            # fewer teeth on this side, but the other side has its 7: a last molar standing where the other side's 7
+            # stands (nearer to it along the arch than to the other side's 6), behind another molar, is this side's 7 -
+            # a tooth is missing in front (an E out, the 5 not through), not the 12-year molar
+            a6, a7 = whole[-side]
+            if abs(arc[-1] - a7) < abs(arc[-1] - a6) and abs(arc[-2] - a6) < abs(arc[-2] - a7):
+                last_is_7 = True
+                notes.append(f"{patient_side(side, arch)}: the last tooth is a 7 ({arc[-1]:.0f} mm of arch from the midline, where the other "
+                             f"side's 7 stands at {a7:.0f} mm and its 6 at {a6:.0f}) - a tooth is missing in front of the 6")
         six_k = n - 2 if last_is_7 else n - 1          # index of the 6 in seq
         gaps = tooth_gaps(V, labels, seq)
         spaced = [k for k in range(2, six_k) if gaps[k] >= GAP_TOOTH_MM]      # a space behind the C or further back
