@@ -80,10 +80,87 @@ def root_exposure(mesh, labels, info, aux, A, arch="upper", max_position=5, stri
     return out, detail
 
 
+def _signed_from_mask(mesh, A, mask):
+    """Signed surface distance (mm) from the edge of a painted / computed patch: positive outside it, negative inside,
+    zero half-way along the edges that cross its border - so the border can be drawn between the vertices."""
+    import scipy.sparse.csgraph as csg
+    from .segment import _edge_lengths_graph
+    mask = np.asarray(mask, bool)
+    G = _edge_lengths_graph(mesh, A, np.ones(len(mask), bool))
+    d_out = csg.dijkstra(G, directed=False, indices=np.where(mask)[0], min_only=True)
+    d_in = csg.dijkstra(G, directed=False, indices=np.where(~mask)[0], min_only=True) if (~mask).any() else np.full(len(mask), 1e3)
+    d_out[~np.isfinite(d_out)] = 1e3; d_in[~np.isfinite(d_in)] = 1e3
+    return d_out - d_in
+
+
+def _gum_distance(mesh, A, tooth_mask):
+    """Distance (mm, along the tooth surface) from the gum line, on teeth. The gum line runs between the last tooth
+    vertex and the first gum vertex, so the count starts half-way along the edges that cross it - not at the tooth
+    vertices themselves, which stand anywhere from nothing to a whole triangle above the line (measured from them the
+    reservoir's gum-side line took over that staircase)."""
+    import scipy.sparse as sp
+    import scipy.sparse.csgraph as csg
+    n = len(tooth_mask)
+    e = mesh.edges_unique
+    w = np.linalg.norm(mesh.vertices[e[:, 0]] - mesh.vertices[e[:, 1]], axis=1)
+    ta, tb = tooth_mask[e[:, 0]], tooth_mask[e[:, 1]]
+    cross = ta != tb
+    if not cross.any():
+        return np.full(n, np.inf) * tooth_mask
+    tv = np.where(ta[cross], e[cross, 0], e[cross, 1])           # the tooth end of every crossing edge
+    seed = np.full(n, np.inf); np.minimum.at(seed, tv, 0.5 * w[cross])
+    src = np.where(np.isfinite(seed))[0]
+    both = ta & tb
+    r = np.r_[e[both, 0], e[both, 1], np.full(len(src), n), src]
+    c = np.r_[e[both, 1], e[both, 0], src, np.full(len(src), n)]
+    G = sp.coo_matrix((np.r_[w[both], w[both], seed[src], seed[src]], (r, c)), shape=(n + 1, n + 1)).tocsr()
+    d = csg.dijkstra(G, directed=False, indices=n)[:n]
+    d[~tooth_mask] = 0.0
+    return d
+
+
+def _even_out(mesh, A, s, sigma=0.45, free=None):
+    """Smooth the edge field by `sigma` mm along the surface (one implicit diffusion step with the cotangent Laplacian:
+    it goes by the triangles' real sizes and angles, so an uneven triangulation does not drag the line about the way
+    plain neighbour-averaging does). Only the vertices round the outline are solved for (or those of `free`); the
+    rest keep their value."""
+    import scipy.sparse as sp
+    from scipy.sparse.linalg import spsolve
+    from .mesh_utils import cot_laplacian
+    n = len(s)
+    if free is None:
+        free = np.abs(s) < EDGE_CLIP - 1e-9
+        if not free.any():
+            return s
+        for _ in range(4):                            # a few rings of the saturated field round them, so the band has room
+            free = free | (A @ free.astype(float) > 0)
+    elif not np.asarray(free).any():
+        return s
+    try:
+        L, area = cot_laplacian(mesh)
+        W = sp.diags(L.diagonal()) - L
+        W.data = np.clip(W.data, 0.0, None)           # (an edge with a negative weight - two obtuse corners facing it - is left out)
+        L = (sp.diags(np.asarray(W.sum(1)).ravel()) - W).tocsr()
+        K = (sp.diags(area) + (0.5 * float(sigma) ** 2) * L).tocsr()
+        fi = np.where(free)[0]; bi = np.where(~free)[0]
+        rhs = area[fi] * s[fi] - K[fi][:, bi] @ s[bi]
+        sol = np.asarray(spsolve(K[fi][:, fi].tocsc(), rhs)).ravel()
+        if not np.isfinite(sol).all():
+            raise ValueError("solve")
+        out = s.copy(); out[fi] = np.clip(sol, -EDGE_CLIP, EDGE_CLIP)
+        return out
+    except Exception:  # noqa
+        return smooth_field(A, s, 6) if A is not None else s
+
+
+EDGE_CLIP = 1.5       # the edge field is kept within +-this (mm) of the outline: all the bump's profile needs
+
+
 def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25, feather=1.0,
                            max_position=5, edge_clearance=0.4, edge_feather=0.6, edge_normal_z=0.6,
                            edge_band=0.3, facial_only=True, exclude_occlusal=True, setback_extra=None,
-                           keep_off=None, keep_off_clearance=1.0, force_on=None, interprox=None, incisal=None, bite_off=None):
+                           keep_off=None, keep_off_clearance=1.0, force_on=None, interprox=None, incisal=None, bite_off=None,
+                           edge=0.3, outline_smooth=0.7, return_field=False):
     """Return per-vertex displacement magnitude (mm) along vertex normals.
 
     labels: per-vertex tooth id (0 = gingiva); info: id -> (side, position from midline)
@@ -91,20 +168,26 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25,
     The bump covers the facial surface of each selected tooth and stops short of every rim of that
     surface: `setback` mm from the gum line (plus `setback_extra[tooth]` mm where root is exposed),
     and `edge_clearance` mm from the incisal edge / cusp ridges, from the neighbouring teeth
-    (interproximal) and from the facial-lingual transition. Full height is reached `feather` /
-    `edge_feather` mm further in. `keep_off`: boolean per-vertex mask painted by the user (a
+    (interproximal) and from the facial-lingual transition. `keep_off`: boolean per-vertex mask painted by the user (a
     recession, a restoration): no reservoir there nor within `keep_off_clearance` mm of it.
     `interprox`: the reservoir also stops this far (mm, along the surface) short of the neighbouring teeth - the line
     where two crowns meet - so every tooth carries its own island with twice that between two of them (the doctor,
     11/13/2026: "about 1 to 1.5 mm from the gingival margin and the interproximals"); None = `edge_clearance` only.
     `incisal`: the reservoir stops this far short of the incisal edge / the cusp ridges (None = `edge_clearance`): on a
     lower the upper teeth close over the top of the facial faces, so its reservoirs are kept shorter.
-    `bite_off`: per-vertex mask of where the opposing teeth come too close (bite_keep_off) - no reservoir there, feathered
-    at its edge; the doctor's own paint (`force_on`) wins over it.
+    `bite_off`: per-vertex mask of where the opposing teeth come too close (bite_keep_off) - no reservoir there;
+    the doctor's own paint (`force_on`) wins over it.
     `force_on`: boolean per-vertex mask painted by the user: a reservoir HERE, on whatever tooth
     (beyond `max_position` too, on the part a recession set-back or a keep-off took away) - still
-    `setback` mm off the gum line and `edge_clearance` off the incisal edge, feathered at the paint's
-    own edge; paint on gingiva is ignored.
+    `setback` mm off the gum line and `edge_clearance` off the incisal edge; paint on gingiva is ignored.
+
+    The outline (the doctor, 11/19/2026: "the reservoir needs to be smooth all around ... when I cut the trays afterwards
+    I want to be able to see that line clearly"): all the limits above are combined into ONE edge field - how far (mm,
+    along the surface) a point lies inside the reservoir's outline, negative outside it. The field is smoothed
+    (by `outline_smooth` mm along the surface), so the outline is one even curve instead of a staircase along the scan's triangles, and
+    the bump rises to its full height within `edge` mm of that outline - a step that shows on the print, not a long
+    feathered slope (`feather` / `edge_feather` are no longer used). `return_field` -> (displacement, edge field): the
+    field is what refine_reservoir_edge resolves with small triangles.
     """
     n = len(mesh.vertices)
     tooth_mask = labels > 0
@@ -119,7 +202,7 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25,
     sel_ids = sorted(set(sel_ids) | set(forced_ids))
     sel = np.isin(labels, sel_ids)
     if not sel.any():
-        return np.zeros(n)
+        return (np.zeros(n), np.full(n, -EDGE_CLIP)) if return_field else np.zeros(n)
     nrm = mesh.vertex_normals
     z = mesh.vertices[:, 2]
     out_dir = aux["out_dir"]
@@ -177,7 +260,7 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25,
             continue
         d = geodesic_from_boundary(mesh, A, m)
         d_rim[m] = d[m]
-    d_gum = geodesic_from_boundary(mesh, A, tooth_mask)  # distance from the gum line, on teeth
+    d_gum = _gum_distance(mesh, A, tooth_mask)  # distance from the gum line, on teeth
     # distance from the neighbouring teeth (over this tooth and the gum between them)
     d_nb = np.full(n, np.inf)
     if interprox:
@@ -195,65 +278,126 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25,
         sb[force] = float(setback)             # the paint overrides a recession set-back, never the gum line itself
         if keep_off is not None:
             keep_off = np.asarray(keep_off, bool) & ~force
-    # a short clinical crown (a young patient, gum still high - 4-5 mm of premolar face) has little room
-    # between the gum set-back and the incisal clearance: the ramps shorten there, in proportion, so the
-    # reservoir still reaches its height on the tooth instead of being all ramp
-    fe_gum = np.full(n, float(feather)); fe_rim = np.full(n, float(edge_feather))
-    for tid in sel_ids:
-        m = region & (labels == tid)
-        if m.sum() < 10:
-            continue
-        room = float(np.percentile(d_gum[m], 98)) - float(sb[m].min())      # usable height above the set-back
-        if room < 5.0:
-            k = max(0.4, room / 5.0)
-            fe_gum[m] = max(0.4, float(feather) * k); fe_rim[m] = max(0.3, float(edge_feather) * k)
-    w = _smoothstep((d_rim - edge_clearance) / np.maximum(fe_rim, 1e-6))
-    w *= _smoothstep((d_gum - sb) / np.maximum(fe_gum, 1e-6))
-    d_inc = None
+    # the edge field: the tightest of the limits, each as "mm inside its own line"
+    s = np.minimum(d_rim - edge_clearance, d_gum - sb)
     if incisal and float(incisal) > edge_clearance and edge_zone.any():
         d_inc = geodesic_from_boundary(mesh, A, ~edge_zone)      # distance from the incisal edge / cusp zone, outside it
         d_inc[edge_zone] = 0.0
-        w *= _smoothstep((d_inc - float(incisal)) / np.maximum(fe_rim, 1e-6))
-    d_bite = None
+        s = np.minimum(s, d_inc - float(incisal))
+    if interprox:
+        s = np.minimum(s, np.minimum(d_nb, 1e3) - float(interprox))
+    hard_off = ~region
     if bite_off is not None and np.asarray(bite_off).any():
         bo = np.asarray(bite_off, bool)
         if force is not None:
             bo = bo & ~force
         if bo.any():
-            d_bite = geodesic_from_boundary(mesh, A, ~bo)
-            d_bite[bo] = 0.0
-            w *= _smoothstep(d_bite / np.maximum(fe_rim, 1e-6))
-    if interprox:
-        w *= _smoothstep((np.minimum(d_nb, 1e3) - float(interprox)) / np.maximum(fe_rim, 1e-6))
-    d_off = None
+            s = np.minimum(s, _signed_from_mask(mesh, A, bo))
+            hard_off = hard_off | bo
     if keep_off is not None and np.asarray(keep_off).any():
         off = np.asarray(keep_off, bool)
-        d_off = geodesic_from_boundary(mesh, A, ~off)     # distance from the painted patch, outside it
-        d_off[off] = 0.0
-        w *= _smoothstep((d_off - keep_off_clearance) / max(feather, 1e-6))
-    w[~region] = 0.0
-    # smooth the weight field so the bump has no steps, renormalise its plateau, then re-impose the
-    # clearances exactly (smoothing creeps a few edges outward)
-    w = smooth_field(A, w, 3)
-    # each tooth reaches full height on its own plateau (a small premolar is not held down by the big
-    # incisors next to it); a tooth whose weights stay low is lifted at most 1.7x, so a sliver stays a sliver
-    for tid in sel_ids:
-        m = region & (labels == tid) & (w > 0)
-        if m.sum() >= 10:
-            w[m] = w[m] / max(float(np.percentile(w[m], 97)), 0.6, 1e-6)
-    w = np.clip(w, 0, 1)
-    w[~region] = 0.0
-    w[d_rim < edge_clearance] = 0.0
-    w[d_gum < sb] = 0.0
-    if interprox:
-        w[d_nb < float(interprox)] = 0.0
-    if d_inc is not None:
-        w[d_inc < float(incisal)] = 0.0
-    if d_bite is not None:
-        w[d_bite <= 0.0] = 0.0
-    if d_off is not None:
-        w[d_off < keep_off_clearance] = 0.0
-    return height * w
+        s = np.minimum(s, _signed_from_mask(mesh, A, off) - keep_off_clearance)     # from the painted patch, outside it
+        hard_off = hard_off | off
+    s[~region] = -EDGE_CLIP
+    s = np.clip(s, -EDGE_CLIP, EDGE_CLIP)
+    # one even outline: the distances are measured along the scan's triangle edges and the gum line / the paint follow
+    # its vertices, so the raw line wobbles by a triangle; smoothing the field evens it out (the field is clipped to
+    # the same reach either side of the outline, so the line is evened where it is, not moved), never onto what is off limits.
+    if outline_smooth and float(outline_smooth) > 0:
+        s = _even_out(mesh, A, s, sigma=float(outline_smooth))
+    s[hard_off] = np.minimum(s[hard_off], -1e-3)
+    w = _smoothstep(s / max(float(edge), 1e-6))
+    d_out = height * w
+    return (d_out, s) if return_field else d_out
+
+
+def reservoir_profile(s, height, edge=0.3):
+    """The bump's height (mm) for an edge-field value: 0 on the outline, full height `edge` mm inside it."""
+    return float(height) * _smoothstep(np.asarray(s, float) / max(float(edge), 1e-6))
+
+
+def refine_edge_band(V, F, s, attrs=(), lo=-0.06, hi=0.36, max_edge=0.08, max_levels=5, max_faces_added=600_000):
+    """Small triangles where the reservoir's side wall is: every triangle that the band lo < s < hi passes through is
+    split until its edges are no longer than `max_edge` mm (the scan's own triangles are 0.2-0.5 mm on a flat facial
+    face - too big to hold a clean 0.3 mm step, the outline printed as a row of facets). Triangles next to a split one
+    are divided to match, so the surface stays closed (no T-junctions). New vertices are appended: the first len(V)
+    stay what and where they were, so everything indexed by the scan's vertices still applies.
+    `attrs`: per-vertex arrays carried to the new vertices (averaged). -> V, F, s, attrs, levels done."""
+    V = np.asarray(V, float); F = np.asarray(F, np.int64); s = np.asarray(s, float)
+    attrs = [np.asarray(a, float) for a in attrs]
+    f0 = len(F); levels = 0
+    for _ in range(int(max_levels)):
+        fs = s[F]
+        band = (fs.min(1) < hi) & (fs.max(1) > lo)
+        if not band.any():
+            break
+        E = np.stack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]], axis=1)             # (m, 3, 2)
+        L = np.linalg.norm(V[E[:, :, 0]] - V[E[:, :, 1]], axis=2)
+        todo = band & (L.max(1) > max_edge)
+        if not todo.any() or len(F) + 3 * int(todo.sum()) - f0 > max_faces_added:
+            break
+        Es = np.sort(E.reshape(-1, 2), axis=1)
+        key = Es[:, 0] * np.int64(len(V)) + Es[:, 1]
+        uk, eid = np.unique(key, return_inverse=True)
+        eid = eid.reshape(-1, 3)
+        marked = np.zeros(len(uk), bool)
+        marked[eid[todo].ravel()] = True
+        while True:                                  # two split edges on a triangle: split its third too (keeps the shapes sound)
+            cnt = marked[eid].sum(1)
+            two = cnt == 2
+            if not two.any():
+                break
+            marked[eid[two].ravel()] = True
+        cnt = marked[eid].sum(1)
+        ue = np.column_stack([uk // len(V), uk % len(V)])[marked]
+        new_id = np.full(len(uk), -1, np.int64); new_id[marked] = len(V) + np.arange(int(marked.sum()))
+        V = np.vstack([V, 0.5 * (V[ue[:, 0]] + V[ue[:, 1]])])
+        s = np.concatenate([s, 0.5 * (s[ue[:, 0]] + s[ue[:, 1]])])
+        attrs = [np.concatenate([a, 0.5 * (a[ue[:, 0]] + a[ue[:, 1]])]) for a in attrs]
+        M = new_id[eid]                              # (m, 3) midpoint of each face edge, -1 = not split
+        out = [F[cnt == 0]]
+        r = cnt == 3
+        if r.any():
+            a, b, c = F[r, 0], F[r, 1], F[r, 2]; m0, m1, m2 = M[r, 0], M[r, 1], M[r, 2]
+            out += [np.column_stack([a, m0, m2]), np.column_stack([m0, b, m1]), np.column_stack([m2, m1, c]), np.column_stack([m0, m1, m2])]
+        for k in range(3):                           # one split edge: the triangle is cut in two through its far corner
+            g = (cnt == 1) & (M[:, k] >= 0)
+            if g.any():
+                a, b, c = F[g, k], F[g, (k + 1) % 3], F[g, (k + 2) % 3]; mm = M[g, k]
+                out += [np.column_stack([a, mm, c]), np.column_stack([mm, b, c])]
+        F = np.vstack(out)
+        levels += 1
+    return V, F, s, attrs, levels
+
+
+def refine_reservoir_edge(mesh_disp, normals, d, s, height, edge=0.3, max_edge=0.1, polish=0.15):
+    """The model's surface with the reservoirs' side walls in small triangles.
+    `mesh_disp`: the surface with the reservoirs already raised by `d` along `normals` (both per vertex, in that
+    mesh's frame); `s`: the edge field from reservoir_displacement. The bump is taken off, the band round the outline
+    is subdivided (refine_edge_band) and the bump put back from the field, now resolved on the small triangles.
+    The field is then evened once more on the small triangles (`polish` mm): between the scan's vertices it was a
+    straight-line blend, so the outline had a corner on every edge of the scan's triangles it crossed - 0.2 to 0.5 mm
+    apart on a flat tooth face - and is now one curve.
+    -> (trimesh, info). Vertices 0..n-1 are the scan's own, in their order; away from the outline they are exactly
+    where they were in `mesh_disp`, on the reservoir's side wall they follow the evened field (hundredths of a mm)."""
+    import trimesh
+    V = np.asarray(mesh_disp.vertices, float); N = np.asarray(normals, float); d = np.asarray(d, float)
+    if len(s) != len(V) or len(N) != len(V) or not (d > 1e-4).any():
+        return mesh_disp, dict(refined=False)
+    V0 = V - N * d[:, None]
+    V1, F1, s1, (N1,), levels = refine_edge_band(V0, np.asarray(mesh_disp.faces), s, attrs=(N,), lo=-0.2 * edge, hi=1.2 * edge, max_edge=max_edge)
+    if levels == 0:
+        return mesh_disp, dict(refined=False)
+    N1 = N1 / np.maximum(np.linalg.norm(N1, axis=1, keepdims=True), 1e-9)
+    if polish and polish > 0:
+        near = (s1 > -0.25 - 0.2 * edge) & (s1 < 0.25 + 1.2 * edge)
+        s1 = _even_out(trimesh.Trimesh(V1, F1, process=False), None, s1, sigma=float(polish), free=near)
+        s1[:len(V)][np.asarray(s) <= -1e-3 + 1e-12] = np.minimum(s1[:len(V)], s)[np.asarray(s) <= -1e-3 + 1e-12]   # what was off limits stays off
+    d1 = reservoir_profile(s1, height, edge)
+    far = np.ones(len(d1), bool); far[:len(V)] = ~((np.asarray(s) > -0.25 - 0.2 * edge) & (np.asarray(s) < 0.25 + 1.2 * edge))
+    d1[:len(V)][far[:len(V)]] = d[far[:len(V)]]      # away from the outline the scan's vertices stay exactly where the rest of the work put them
+    out = trimesh.Trimesh(V1 + N1 * d1[:, None], F1, process=False)
+    return out, dict(refined=True, levels=int(levels), faces_before=int(len(mesh_disp.faces)), faces_after=int(len(F1)), edge_mm=float(max_edge))
 
 
 def apply_displacement(mesh, d):

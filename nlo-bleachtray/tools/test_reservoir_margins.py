@@ -41,13 +41,22 @@ kw = dict(height=0.5, feather=0.6, max_position=5, exclude_occlusal=False)
 
 check("the defaults: 1.25 mm off the gum line and off the next tooth", DEFAULTS["reservoir_setback"] == 1.25 and DEFAULTS["reservoir_interprox"] == 1.25, (DEFAULTS["reservoir_setback"], DEFAULTS["reservoir_interprox"]))
 d0 = reservoir_displacement(mesh, labels, info, aux, A, setback=1.25, **kw)
-d1 = reservoir_displacement(mesh, labels, info, aux, A, setback=1.25, interprox=1.25, **kw)
+d1, s1 = reservoir_displacement(mesh, labels, info, aux, A, setback=1.25, interprox=1.25, return_field=True, **kw)
 on0, on1 = d0 > 0.02, d1 > 0.02
 mid = labels == 2
-gap_x = lambda on: float(V[on & (labels == 3)][:, 0].min() - V[on & mid][:, 0].max())
+def gap_x(on, s_field=None):
+    """Bare tooth between the middle tooth's island and the next one's. With the edge field: measured to the outline
+    itself (where the field crosses zero along the row at mid height), not to the nearest grid point 0.25 mm inside."""
+    if s_field is None:
+        return float(V[on & (labels == 3)][:, 0].min() - V[on & mid][:, 0].max())
+    row = np.where(np.isclose(V[:, 2], 4.0))[0]; row = row[np.argsort(V[row, 0])]
+    x, f = V[row, 0], s_field[row]
+    cross = [x[i] + (x[i + 1] - x[i]) * f[i] / (f[i] - f[i + 1]) for i in range(len(row) - 1) if (f[i] > 0) != (f[i + 1] > 0)]
+    left = max(c for c in cross if c < 4.0); right = min(c for c in cross if c > 4.0)
+    return float(right - left)
 check("the reservoir reaches its height on each tooth", all(d1[labels == t].max() > 0.45 for t in (1, 2, 3)), [round(float(d1[labels == t].max()), 2) for t in (1, 2, 3)])
 check("... and starts 1.25 mm above the gum line", 1.2 <= float(V[on1][:, 2].min()) <= 1.6, float(V[on1][:, 2].min()))
-check(f"between two teeth: {gap_x(on1):.2f} mm of bare tooth (was {gap_x(on0):.2f})", 2.4 <= gap_x(on1) <= 3.2 and gap_x(on0) < 1.5)
+check(f"between two teeth: {gap_x(on1, s1):.2f} mm of bare tooth (was {gap_x(on0):.2f})", 2.4 <= gap_x(on1, s1) <= 3.2 and gap_x(on0) < 1.5)
 top = lambda d: float(V[(d > 0.02)][:, 2].max())
 d2 = reservoir_displacement(mesh, labels, info, aux, A, setback=1.25, interprox=1.25, incisal=1.0, **kw)
 check(f"a lower's reservoir stops further from the incisal edge (top at z {top(d2):.2f}, was {top(d1):.2f})", top(d2) <= top(d1) - 0.2)
