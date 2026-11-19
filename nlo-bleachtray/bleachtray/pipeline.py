@@ -7,7 +7,7 @@ from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
 from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads, tooth_threshold, snap_to_crease,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
                       bridge_embrasures, geodesic_dilate, cap_distal, round_distal, edentulous_gaps, number_by_type)
-from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure, refine_reservoir_edge
+from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure, refine_reservoir_edge, groove_params
 from .solid import horseshoe_outline, build_body, add_base
 
 # Titan/Trimlign placement convention measured from a Titan export (see notes):
@@ -18,7 +18,7 @@ TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this muc
 ASSET_DIR_BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 
 DEFAULTS = dict(
-    reservoir_height=0.5, reservoir_setback=1.25, reservoir_interprox=1.25, reservoir_incisal_lower=1.0, reservoir_bite_clear=1.5, reservoir_feather=0.6, reservoir_edge=0.3, reservoir_edge_tri=0.1, reservoir_max_position=5,   # setback / interprox: the reservoir stops this far short of the gum line / of the neighbouring teeth (the doctor, 11/13/2026: 1 to 1.5 mm from both)
+    reservoir_height=0.5, reservoir_setback=1.25, reservoir_interprox=1.25, reservoir_incisal_lower=1.0, reservoir_bite_clear=1.5, reservoir_feather=0.6, reservoir_edge=0.3, reservoir_edge_tri=0.1, reservoir_groove=False, reservoir_groove_width=0.5, reservoir_groove_depth=0.25, reservoir_groove_gap=0.2, reservoir_max_position=5,   # setback / interprox: the reservoir stops this far short of the gum line / of the neighbouring teeth (the doctor, 11/13/2026: 1 to 1.5 mm from both)
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
     blockout=False, blockout_depth=0.75,          # automatic interproximal fill (a wedge under every contact, the way aligner labs do it): off by default here, on for the retainer in the app
     fill_reach=1.25, fill_top=20.0,  # the fill: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how far up from the papilla (20 = to the contact)
@@ -770,15 +770,27 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # surface is subdivided by before it is built (refine_reservoir_edge)
     res_edge = float(P.get("reservoir_edge") or 0.3)
     res_s = None
+    # the seal groove (a test option, off unless switched on in Settings): a shallow trough just outside the
+    # reservoir's gum-side line, so the tray gets a bead that presses on the enamel there
+    groove = res_groove = None
+    if P.get("reservoir_groove") and not MG and P["reservoir_height"] > 0:
+        groove = dict(width=float(P.get("reservoir_groove_width") or 0.5), depth=float(P.get("reservoir_groove_depth") or 0.25), gap=float(P.get("reservoir_groove_gap") or 0.2))
     if MG or P["reservoir_height"] <= 0:
         d = np.zeros(len(mesh.vertices))
     else:
-        d, res_s = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
+        _res = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
                                    feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
                                    setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=0.0, force_on=force_on,
                                    interprox=float(P.get("reservoir_interprox") or 0.0) or None,
                                    incisal=(float(P.get("reservoir_incisal_lower") or 0.0) or None) if arch_hint == "lower" else None, bite_off=bite_off,
-                                   edge=res_edge, return_field=True)
+                                   edge=res_edge, return_field=True, groove=groove)
+        d, res_s = _res[0], _res[1]
+        if groove:
+            gp_ = groove_params(groove, P["reservoir_setback"])
+            res_groove = dict(w=_res[2], gp=gp_)
+            n_g = int((d < -0.02).sum())
+            rep["reservoir_groove"] = dict(on=True, width=round(gp_["width"], 2), depth=round(gp_["depth"], 2), gap=round(gp_["gap"], 2), vertices=n_g)
+            log(f"[{name}] seal groove: {gp_['width']:.2f} mm wide, {gp_['depth']:.2f} mm deep, {gp_['gap']:.2f} mm below the reservoirs' gum-side line")
         if rep.get("reservoir_bite", {}).get("checked"):
             # how much the bite took: the same reservoir without it
             d0 = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
@@ -803,7 +815,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     scan_res = mesh_r.copy()
     if res_s is not None and (d > 1e-3).any():
         try:
-            scan_res, _ri = refine_reservoir_edge(mesh_r, np.asarray(mesh.vertex_normals), d, res_s, P["reservoir_height"], edge=res_edge, max_edge=float(P.get("reservoir_edge_tri") or 0.1))
+            scan_res, _ri = refine_reservoir_edge(mesh_r, np.asarray(mesh.vertex_normals), d, res_s, P["reservoir_height"], edge=res_edge, max_edge=float(P.get("reservoir_edge_tri") or 0.1), groove=res_groove)
             scan_res = scan_res.copy()
         except Exception as ex:  # noqa
             log(f"[{name}] the reservoir outline could not be refined on the scan export ({ex})")
@@ -1326,7 +1338,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         try:
             R_ = (T_adj @ T_place @ T_tilt @ T_ref)[:3, :3]
             mesh_body, rinfo = refine_reservoir_edge(mesh_f, np.asarray(mesh.vertex_normals) @ R_.T, d, res_s, P["reservoir_height"], edge=res_edge,
-                                                     max_edge=float(P.get("reservoir_edge_tri") or 0.1))
+                                                     max_edge=float(P.get("reservoir_edge_tri") or 0.1), groove=res_groove)
             rep["reservoir_outline"] = rinfo
             if rinfo.get("refined"):
                 log(f"[{name}] reservoir outline refined: {rinfo['faces_after'] - rinfo['faces_before']} small triangles added along it")

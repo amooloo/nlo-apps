@@ -552,6 +552,19 @@
         </svg></div>
         <div class="stepper"><button data-step="-0.05" data-for="res_ip">−</button><input type="number" id="res_ip" step="0.05" min="0" max="3" value="1.25"><button data-step="0.05" data-for="res_ip">+</button></div>
       </div>
+      <div class="scard"><div class="sLab">Seal groove (test) <span class="info" title="A test option, off by default. On: a shallow rounded groove is cut into the model just below each reservoir, on the gum side only. The tray forms a small bead there that presses on the enamel. It stays on for every whitening tray until you switch it off here.">i</span></div>
+        <div class="sPic" data-img="reservoir_seal_groove"><svg viewBox="0 0 120 72">
+          <path d="M60 8 C72 6 82 12 84 22 L88 46 C90 60 76 68 60 66 C44 64 38 54 36 44 L34 22 C34 12 48 10 60 8 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M40 12 C50 14 70 14 80 12 L82 32 C80 36 40 36 38 32 Z" fill="#FFC8BF" opacity=".75"/>
+          <path d="M26 50 Q60 42 98 50 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+          <path d="M42 40 Q60 43 78 40" fill="none" stroke="#1D3EA9" stroke-width="2.4" stroke-linecap="round"/>
+        </svg></div>
+        <select id="res_groove" style="width:100%;margin:0 0 6px"><option value="0">Off</option><option value="1">On — groove below each reservoir (gum side)</option></select>
+        <div class="sLab" style="margin-top:4px">Width (mm)</div>
+        <div class="stepper"><button data-step="-0.1" data-for="res_groove_w">−</button><input type="number" id="res_groove_w" step="0.1" min="0.2" max="1" value="0.5"><button data-step="0.1" data-for="res_groove_w">+</button></div>
+        <div class="sLab" style="margin-top:4px">Depth (mm)</div>
+        <div class="stepper"><button data-step="-0.05" data-for="res_groove_d">−</button><input type="number" id="res_groove_d" step="0.05" min="0.05" max="0.5" value="0.25"><button data-step="0.05" data-for="res_groove_d">+</button></div>
+      </div>
       <div class="scard"><div class="sLab">Exposed root <span class="info" title="Recession is the doctor's call: by default the reservoir simply stays 1 mm off the gum line everywhere and root is handled with Erase in the Reservoirs tab (the reservoir ends at the edge of the stroke). Switched on, the app looks for root showing on each reservoir tooth and keeps the reservoir above it plus the leeway - it also fires on a gum line the model drew too low, so it is off until the gum line is right.">i</span></div>
         <select id="rec_auto" style="width:100%;margin:0 0 6px"><option value="0">Off — I erase recession myself (Reservoirs tab)</option><option value="1">On — find root and keep the reservoir above it</option></select>
         <div class="sLab" style="margin-top:4px">Leeway above found root (mm) <span class="info" title="Only when the switch above is on: the reservoir stays this much further up from the root the app found, on top of the usual distance to the gum. An erased patch is not affected - the reservoir ends exactly at the edge of the stroke.">i</span></div>
@@ -1442,7 +1455,7 @@ let P1_CHOICE = null, CUR_P1 = null;     // the choice made in the pop-up for th
 function params(){ return {
   tracker_case: (TRACKER && TRACKER.case) || '',
   // per model type: the whitening tray gets reservoirs and its own line, the retainer its line onto the gum
-  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, reservoir_interprox: +$('#res_ip').value, recession_auto: $('#rec_auto').value === '1', recession_leeway: +$('#rec_lee').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, blockout: false, blockout_proud: +$('#blockout_proud').value || 0 },
+  wt: { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, reservoir_setback: +$('#res_sb').value, reservoir_interprox: +$('#res_ip').value, reservoir_groove: $('#res_groove').value === '1', reservoir_groove_width: +$('#res_groove_w').value || 0.5, reservoir_groove_depth: +$('#res_groove_d').value || 0.25, recession_auto: $('#rec_auto').value === '1', recession_leeway: +$('#rec_lee').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, blockout: false, blockout_proud: +$('#blockout_proud').value || 0 },
   tt: { reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, bridge_radius: Math.max(+$('#bridge').value, +$('#bridge').value ? 4 : 0), blockout: $('#blockout').value !== '0', blockout_depth: 0.75, fill_reach: +$('#fill_reach').value || 1.25, fill_top: +$('#fill_top').value || 20, blockout_proud: +$('#blockout_proud').value || 0 },
   // the Phase I retainer: the retainer's line on the cheek side; how (cutouts / block-out) and which teeth from the New case pop-up
   p1: Object.assign({ reservoir_height: 0, reservoir_max_position: 0, trimline_offset: +$('#tt_off').value, blockout: false }, P1_CHOICE || (CUR_P1 || {})),
@@ -1453,7 +1466,7 @@ function params(){ return {
   patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null,
   order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust_by_arch: adjustMap(), mark_by_arch: markMap() }; }
 // ---------- settings panel ----------
-const SETTING_IDS = ['res_n','res_h','res_sb','res_ip','rec_auto','rec_lee','tl_off','tt_off','blockout','fill_reach','fill_top','blockout_proud','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
+const SETTING_IDS = ['res_n','res_h','res_sb','res_ip','res_groove','res_groove_w','res_groove_d','rec_auto','rec_lee','tl_off','tt_off','blockout','fill_reach','fill_top','blockout_proud','bridge','rim','floor_below','distal_keep','level','base','tooth_mark','engrave','engrave_text','preset','arch'];
 const SETTING_DEFAULTS = {};
 const SETTING_MIGRATE = { blockout: v => (v === '0' ? '0' : '1') };   // the old "deeper than x mm" choices all mean On
 SETTING_IDS.forEach(id => { SETTING_DEFAULTS[id] = $('#' + id).value; });
@@ -1483,6 +1496,7 @@ function summarizeSettings(){
   if (diff('tl_off')) bits.push(+$('#tl_off').value ? `whitening line ${$('#tl_off').value} mm` : 'whitening line at the gum');
   if (diff('tt_off')) bits.push(`retainer line ${$('#tt_off').value} mm`);
   if (diff('res_sb') || diff('rec_lee') || diff('res_ip')) bits.push(`gum distance ${$('#res_sb').value} mm, next tooth ${$('#res_ip').value} mm, root leeway ${$('#rec_lee').value} mm`);
+  if ($('#res_groove').value === '1') bits.push(`seal groove ON (${$('#res_groove_w').value} × ${$('#res_groove_d').value} mm)`);
   if (diff('rec_auto')) bits.push($('#rec_auto').value === '1' ? 'finds exposed roots' : 'no root detection');
   if (diff('blockout')) bits.push($('#blockout').value === '0' ? 'no block-out' : `block-out > ${$('#blockout').value} mm`);
   if (diff('rim') || diff('floor_below')) bits.push(`base ${$('#rim').value} / ${$('#floor_below').value} mm`);
@@ -2152,6 +2166,7 @@ async function loadResult(id, j){
                   (r.renumbered || []).length ? `a missing tooth allowed for in the numbering (${[...new Set((r.renumbered || []).map(c => c.side < 0 ? 'left' : 'right'))].join(' and ')} side — see the log)` : '',
                   r.label_error ? `base not engraved: ${r.label_error}` : '',
                   (r.gap_beams || []).some(b => !b.skipped) ? `beam across the missing tooth's space` : '',
+                  (r.reservoir_groove || {}).on ? `seal groove below the reservoirs: ${r.reservoir_groove.width} mm wide, ${r.reservoir_groove.depth} mm deep (test option — Settings)` : '',
                   r.reservoir_bite ? (r.reservoir_bite.checked ? ((r.reservoir_bite.trimmed_teeth || []).length ? `bite checked: reservoir kept ${r.reservoir_bite.clear_mm} mm off the opposing teeth on ${r.reservoir_bite.trimmed_teeth.length} ${r.reservoir_bite.trimmed_teeth.length === 1 ? 'tooth' : 'teeth'}` : 'bite checked: the opposing teeth do not reach the reservoirs') : `reservoirs not checked against the bite (${r.reservoir_bite.why})`) : '',
                   (r.pontics || {}).count ? `${(n => n ? `${n} pontic${n > 1 ? 's' : ''}` : '')(r.pontics.count - (r.pontics.buildups || 0))}${r.pontics.buildups && r.pontics.count > r.pontics.buildups ? ' + ' : ''}${r.pontics.buildups ? `${r.pontics.buildups} build-up${r.pontics.buildups > 1 ? 's' : ''}` : ''}: ${(r.pontics.pontics || []).map(x => `${x.bu ? '▲ ' : ''}${x.slot || x.id} (${x.shape}, ${x.w} × ${x.h} × ${x.t} mm)`).join(', ')}` : ((r.pontics || {}).skipped ? `pontics left off the ${r.pontics.skipped}` : ((r.pontics || {}).error ? `pontics: ${r.pontics.error}` : '')),
                   bo.contacts_filled || bo.gap_faces ? `${bo.contacts_filled || 0} of ${bo.contacts || 0} contacts filled${bo.gap_faces ? `, ${bo.gap_faces} face${bo.gap_faces > 1 ? 's' : ''} next to a gap` : ''} (${bo.volume_ml} mL${bo.painted_spots ? `, + ${bo.painted_spots} painted` : ''})` : (bo.spots ? `${bo.spots} painted block-out${bo.spots > 1 ? 's' : ''} (${bo.volume_ml} mL${bo.proud_mm ? `, wall ${bo.proud_mm > 0 ? '+' : ''}${bo.proud_mm} mm` : ''})` : (bo.error ? `block-out: ${bo.error}` : ''))].filter(Boolean);
@@ -4025,7 +4040,7 @@ $('#learnnow').onclick = async () => {
   refreshLearn();
 };
 refreshJobs(); refreshLearn(); showTab('result'); setInterval(refreshJobs, 10000); setInterval(refreshLearn, 60000);
-window.__view = { bite: () => ({ on: bite.on, loaded: !!bite.grid, why: bite.why, res: bite.res }), editsJson: () => editsPayload(), gumPending: () => gl && gl.pend ? gl.pend.pts.length : 0, hitPoint: (x, y) => { const h = hitAt({ clientX: x, clientY: y }); return h ? h.point.toArray() : null; }, gumline: () => gl ? { loops: gl.loops.map(L => ({ closed: L.closed, sign: L.sign, n: L.dots.length, dots: L.dots.map(d => ({ p: d.p, moved: d.moved, lab: d.lab })) })), mine: { tooth: glMine.tooth.size, gum: glMine.gum.size } } : null, camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
+window.__view = { params: () => params(), bite: () => ({ on: bite.on, loaded: !!bite.grid, why: bite.why, res: bite.res }), editsJson: () => editsPayload(), gumPending: () => gl && gl.pend ? gl.pend.pts.length : 0, hitPoint: (x, y) => { const h = hitAt({ clientX: x, clientY: y }); return h ? h.point.toArray() : null; }, gumline: () => gl ? { loops: gl.loops.map(L => ({ closed: L.closed, sign: L.sign, n: L.dots.length, dots: L.dots.map(d => ({ p: d.p, moved: d.moved, lab: d.lab })) })), mine: { tooth: glMine.tooth.size, gum: glMine.gum.size } } : null, camera, controls, requestRender, markFrame, labelAt: (x, y) => pickAt({ clientX: x, clientY: y }), project: (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [v.x, v.y]; }, seg: () => segMesh, segData: () => ({ labels: segLabels, pos: segPos, paint: segPaint }),
   strokes: (mode, ids) => { ids.forEach(i => { if (mode === 'reservoir') { edits.reservoir.add(i); edits.noreservoir.delete(i); } else edits[mode].add(i); }); paintColors(); paintResColors(); updateFixCount(); },
   stroke3d: (mode, pts) => { const before = Object.values(edits).reduce((a, e) => a + e.size, 0); stroke = { mode, pts: [], set: new Set(), last: null }; for (const q of pts) { const p = new THREE.Vector3(q[0], q[1], q[2]); if (stroke.last) { const d = stroke.last.distanceTo(p), step = brushR * 0.5; for (let t = step; t < d; t += step) paintBall(new THREE.Vector3().lerpVectors(stroke.last, p, t / d), mode); } paintBall(p, mode); stroke.pts.push(p); stroke.last = p; } finishStroke(); paintColors(); paintResColors(); updateFixCount(); return Object.values(edits).reduce((a, e) => a + e.size, 0) - before; },
   ringPoint: deg => { const v = new THREE.Vector3(pivot[0] + RING_R * Math.cos(deg * Math.PI / 180), pivot[1] + RING_R * Math.sin(deg * Math.PI / 180), 1.5).applyMatrix4(baseGroup.matrix).project(camera); return [v.x, v.y]; },
