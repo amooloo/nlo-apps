@@ -1306,7 +1306,25 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         except Exception as ex:  # noqa
             hug_keep = None
             log(f"[{name}] walls under the scan's edge skipped: {ex}")
-    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status,
+    # where the scan stops on a tooth's own surface (the back of a last molar the scanner did not reach round): the
+    # bay in the scan's edge is closed with a patch of surface before the wall is dropped from the edge - in place of a
+    # ribbed strip of wall on the tooth, inside the trim line. Only the copy the body is built from: the scan itself
+    # (and every per-point list that goes with it) stays as scanned
+    mesh_b = mesh_f
+    if P.get("fill_edge_bays", True):
+        try:
+            from .solid import fill_edge_bays
+            mb, einfo = fill_edge_bays(mesh_f, labels, margin_f, log=lambda m: log(f"[{name}] {m}"))
+            if mb is not None:
+                mesh_b = mb
+                rep["edge_on_teeth"] = einfo
+                log(f"[{name}] the scan ends on a tooth in {einfo['bays']} place{'s' if einfo['bays'] != 1 else ''} (up to "
+                    f"{max(b['rise_mm'] for b in einfo['detail']):.1f} mm above the trim line): the gap closed with a smooth patch - "
+                    f"the tooth there was not scanned, so the patch is a guess (rescan round the back of the last molar if the fit there matters)")
+        except Exception as ex:  # noqa
+            mesh_b = mesh_f
+            log(f"[{name}] scan edge on a tooth: step skipped ({ex})")
+    body, body_method = build_body(mesh_b, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status,
                                    extra_after=after_solids, hug=hug_keep is not None, hug_keep=hug_keep, info=rep)
     rep["body_method"] = body_method
     if fill_at is not None and (len(extras_status) <= fill_at or extras_status[fill_at] != "merged"):

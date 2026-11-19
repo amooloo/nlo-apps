@@ -575,3 +575,217 @@ def add_base(body, base_manifold=None):
             out = from_manifold(u)
             return out, "union"
     return trimesh.util.concatenate([body, load_base(manifold=False)]), "concat"
+
+
+
+
+
+def fill_edge_bays(mesh, labels, line, rise=1.0, below=1.0, max_chord=14.0, h=0.3, log=None, _slivers=True):
+    """Where the scan stops ON a tooth (the scanner did not reach round the back of the last molar: the scan's edge
+    climbs the tooth's distal face, above the trim line) the model's wall there was the scan's ragged edge dropped
+    straight down - a ribbed vertical strip on the tooth, inside the trim line (a patient's upper 7, 11/19/2026).
+    Each such bay of the edge is closed with a patch of surface: from the scan's edge down to a straight line between
+    the bay's two ends (`below` mm under the trim line), leaving the tooth without a crease (a least-bending surface:
+    the scan's edge and the ring of scan behind it held, and the straight line held). The wall then starts under the
+    trim line, as everywhere else.
+    The tooth below the scan's edge is still not scanned - the patch is a fair guess at it, not the tooth.
+    `labels` > 0 marks tooth; `line` is the trim line (N x 3) in the mesh's frame.
+    Returns (mesh with the patches' points and faces added at its end - or None when there is no such bay - and info)."""
+    import trimesh
+    import scipy.sparse as sp
+    import scipy.sparse.linalg as spla
+    from scipy.spatial import cKDTree
+    V = np.asarray(mesh.vertices, float); Fm = np.asarray(mesh.faces); labels = np.asarray(labels); L3 = np.asarray(line, float)
+    loops = boundary_loops(mesh)
+    if not loops or len(L3) < 3:
+        return None, dict(bays=0)
+    loop = np.asarray(loops[0]); n = len(loop)
+    P = V[loop]
+    dxy, jl = cKDTree(L3[:, :2]).query(P[:, :2])
+    above = np.where(dxy < 4.0, P[:, 2] - L3[jl, 2], -9.0)
+    start = int(np.argmin(above))                       # turn the loop so it starts at a low point: no bay wraps round
+    loop = np.roll(loop, -start); above = np.roll(above, -start)
+    hi = above > -0.2
+    nbrs = mesh.vertex_neighbors
+    # which way the mesh's faces run along a boundary edge (u, v): the patch's faces must run it the other way
+    edge_dir = {}
+    for f in Fm[np.isin(Fm, loop).sum(1) >= 2]:
+        for u, v in ((f[0], f[1]), (f[1], f[2]), (f[2], f[0])):
+            edge_dir[(int(u), int(v))] = True
+    newV, newF, bays = [], [], []
+    nv = len(V)
+    sliver_v = []                                       # first pass: points of slivers of scan hanging past the edge inside a bay
+    i = 0
+    while i < n:
+        if not hi[i]:
+            i += 1; continue
+        j = i
+        while j + 1 < n and hi[j + 1]:
+            j += 1
+        a, b = i, j
+        i = j + 1
+        peak = float(above[a:b + 1].max())
+        if peak < rise:
+            continue
+        for _ in range(40):                              # on along the edge both ways until it is `below` under the line
+            if a == 0 or above[a] <= -below:
+                break
+            a -= 1
+        for _ in range(40):
+            if b == n - 1 or above[b] <= -below:
+                break
+            b += 1
+        run = [int(v) for v in loop[a:b + 1]]
+        R = V[run]; N = len(run)
+        chord = float(np.linalg.norm(R[-1] - R[0]))
+        if N < 12 or chord < 1.0 or chord > max_chord or (labels[run] > 0).mean() < 0.3:
+            continue
+        try:
+            flip = bool(edge_dir.get((run[0], run[1])) and not edge_dir.get((run[1], run[0])))
+            # a slit in the scan's edge inside the bay (a hair-thin gap running up into the tooth: its two sides are
+            # close together, the way round it long) is zipped shut first - ribs dropped from both its sides crossed
+            # and left a crumpled spot. Only a gap: a sliver of scan standing out past the edge turns the other way
+            c0 = R.mean(0); _, _, vt = np.linalg.svd(R - c0, full_matrices=False)
+            uvr = (R - c0) @ vt[:2].T
+            area2 = lambda q: float(np.sum(q[:, 0] * np.roll(q[:, 1], -1) - np.roll(q[:, 0], -1) * q[:, 1]))
+            s0 = np.sign(area2(uvr))
+            segr = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(R, axis=0), axis=1))]
+            zips, keep_i, ii = [], [], 0
+            while ii < N:
+                keep_i.append(ii)
+                best = None
+                for jj in range(min(N - 1, ii + 60), ii + 4, -1):
+                    dd = float(np.linalg.norm(R[jj] - R[ii])); arc_ = segr[jj] - segr[ii]
+                    if dd < 0.8 and arc_ > 4 * dd and arc_ < 8.0:
+                        best = jj; break
+                if best is None:
+                    ii += 1; continue
+                if np.sign(area2(uvr[ii:best + 1])) != s0:
+                    # the other way round: a sliver of scan hanging past the edge (a hair-thin tab, 0.3 mm wide and
+                    # 1.5 mm long on the upper 7 this was written for). Ribs dropped round it crossed and left a
+                    # crumpled spot: the sliver is taken off the copy the body is built from, and the bay found again
+                    mid = 0.5 * (R[ii] + R[best]); tip = R[ii + 1:best].mean(0) - mid
+                    sliver_v.append((mid, tip / max(np.linalg.norm(tip), 1e-9), list(run[ii + 1:best]),
+                                     float(np.linalg.norm(R[ii + 1:best] - mid, axis=1).max()) + 0.4))
+                    ii = best; continue
+                u, v = ii, best
+                while v - u > 1:
+                    zips.append((run[u], run[u + 1], run[v])); u += 1
+                    if v - u > 1:
+                        zips.append((run[u], run[v - 1], run[v])); v -= 1
+                ii = best
+            if sliver_v and _slivers:
+                continue                                 # (this pass only collects the slivers)
+            if zips:
+                zt = np.array(zips)
+                newF.extend((zt[:, ::-1] if flip else zt).tolist())
+                run = [run[k] for k in keep_i]; R = V[run]; N = len(run)
+                if N < 8:
+                    continue
+            # ribs: from each edge point to its foot on the straight line between the bay's ends
+            seg = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(R, axis=0), axis=1))]
+            sarc = seg / seg[-1]
+            foot = R[0] + (R[-1] - R[0]) * sarc[:, None]
+            rib = np.linalg.norm(foot - R, axis=1)
+            K = max(3, int(np.ceil(rib.max() / h)) + 1)
+            f = np.linspace(0, 1, K)
+            G = R[:, None, :] + (foot - R)[:, None, :] * f[None, :, None]            # N x K x 3 (level 0 = the scan's edge)
+            # ids: level 0 are the scan's own vertices; the two end ribs have no length: all their levels are the end vertex
+            gid = np.zeros((N, K), int)
+            pts = []
+            for ii in range(N):
+                for kk in range(K):
+                    if kk == 0 or ii in (0, N - 1):
+                        gid[ii, kk] = run[ii]
+                    else:
+                        gid[ii, kk] = nv + len(newV) + len(pts); pts.append(G[ii, kk])
+            pts = np.array(pts)
+            tris = []
+            for ii in range(N - 1):
+                for kk in range(K - 1):
+                    q = (gid[ii, kk], gid[ii + 1, kk], gid[ii + 1, kk + 1], gid[ii, kk + 1])
+                    for t in ((q[0], q[1], q[2]), (q[0], q[2], q[3])):
+                        if len(set(t)) == 3:
+                            tris.append(t)
+            tris = np.array(tris)
+            # run the scan's edge the other way than the scan's own faces do
+            if flip:
+                tris = tris[:, ::-1]
+            # least-bending patch: its inner points free; the scan's edge, the ring of scan behind it and the straight line held
+            base = nv + len(newV)
+            free_ids = [int(g) for g in np.unique(gid) if g >= base and g not in set(gid[:, K - 1])]
+            if len(free_ids) < 4:
+                continue
+            X = {}                                              # id -> position (the patch's points and what they hang on)
+            for g, p_ in zip(range(base, base + len(pts)), pts):
+                X[g] = p_
+            adj = {}
+            def link(u, v):
+                adj.setdefault(u, set()).add(v); adj.setdefault(v, set()).add(u)
+            for t in tris:
+                link(int(t[0]), int(t[1])); link(int(t[1]), int(t[2])); link(int(t[2]), int(t[0]))
+            for v in run[1:-1]:
+                for q in nbrs[v]:
+                    link(v, int(q))
+            for t in zips:
+                link(int(t[0]), int(t[1])); link(int(t[1]), int(t[2])); link(int(t[2]), int(t[0]))
+            for g in adj:
+                if g not in X:
+                    X[g] = V[g]
+            ids = sorted(X); pos = {g: k for k, g in enumerate(ids)}
+            Xa = np.array([X[g] for g in ids])
+            rows_for = free_ids + run[1:-1]
+            ri, ci, wv = [], [], []
+            for r_, g in enumerate(rows_for):
+                nbk = [pos[q] for q in adj[g]]
+                ri += [r_] * (len(nbk) + 1); ci += [pos[g]] + nbk; wv += [1.0] + [-1.0 / len(nbk)] * len(nbk)
+            Lm = sp.csr_matrix((wv, (ri, ci)), shape=(len(rows_for), len(ids)))
+            fr = np.array([pos[g] for g in free_ids]); fx = np.setdiff1d(np.arange(len(ids)), fr)
+            Af = Lm[:, fr]
+            sol = spla.spsolve((Af.T @ Af + 1e-9 * sp.eye(len(fr))).tocsc(), Af.T @ (-(Lm[:, fx] @ Xa[fx])))
+            sol = np.asarray(sol).reshape(len(fr), 3)
+            flat0 = np.array([X[g] for g in free_ids])
+            move = sol - flat0
+            far = np.linalg.norm(move, axis=1)
+            if not np.isfinite(sol).all():
+                continue
+            lim = 0.35 * chord                                   # never wild: a patch that swells further than this is scaled back
+            if far.max() > lim:
+                move *= lim / far.max()
+            pts[np.array(free_ids) - base] = flat0 + move
+            newV.extend(pts); newF.extend(tris.tolist())
+            bays.append(dict(at=[round(float(v), 1) for v in R[int(np.argmax(above[a:b + 1]))]], rise_mm=round(peak, 1),
+                             mouth_mm=round(chord, 1), points=len(pts), swell_mm=round(float(min(far.max(), lim)), 2), slits=int(len(zips) > 0)))
+        except Exception as ex:  # noqa
+            if log:
+                log(f"scan edge on a tooth: a bay left as it was ({ex})")
+    if sliver_v and _slivers:
+        # each sliver: everything joined to its edge points that lies past its neck (the line between the two points
+        # where the edge pinches), on the sliver's side
+        sv = np.zeros(len(V), bool)
+        for mid, dirn, seeds, reach in sliver_v:
+            stack = [int(v) for v in seeds]; seen = set(stack)
+            while stack:
+                v = stack.pop()
+                sv[v] = True
+                for q in nbrs[v]:
+                    q = int(q)
+                    if q not in seen and (V[q] - mid) @ dirn > 0.0 and np.linalg.norm(V[q] - mid) < reach:
+                        seen.add(q); stack.append(q)
+        keepf = ~sv[Fm].any(1)
+        cut = trimesh.Trimesh(V, Fm[keepf], process=False)
+        used = np.zeros(len(V), bool); used[cut.faces.ravel()] = True
+        lab2 = np.where(used, labels, 0)
+        if len(boundary_loops(cut)) == len(loops):       # (taking it off must not open a hole or split the scan)
+            deeper = _slivers - 1 if isinstance(_slivers, int) and not isinstance(_slivers, bool) else 2      # (a sliver behind a sliver: three rounds at most)
+            out, info = fill_edge_bays(cut, lab2, line, rise=rise, below=below, max_chord=max_chord, h=h, log=log, _slivers=deeper if deeper > 0 else False)
+            if out is not None:
+                info["sliver_points_taken_off"] = int(sv.sum()) + int(info.get("sliver_points_taken_off", 0))
+                return out, info
+        return fill_edge_bays(mesh, labels, line, rise=rise, below=below, max_chord=max_chord, h=h, log=log, _slivers=False)
+    if not bays:
+        return None, dict(bays=0)
+    out = trimesh.Trimesh(np.vstack([V, np.array(newV)]), np.vstack([Fm, np.array(newF)]), process=False)
+    if len(boundary_loops(out)) > len(loops):                    # a patch that left a hole of its own: not used
+        return None, dict(bays=0, error="patch left the edge open")
+    return out, dict(bays=len(bays), detail=bays)
