@@ -6,6 +6,7 @@ afterwards I want to be able to see that line clearly. Right now I think the tri
 
     python tools/test_reservoir_outline.py            (the wall: seconds)
     python tools/test_reservoir_outline.py --arch     (plus a synthetic full arch through the whole pipeline: minutes)
+    python tools/test_reservoir_outline.py --arch --groove     (the same arch with the seal groove switched on)
 """
 import os, sys, tempfile
 import numpy as np, trimesh
@@ -147,6 +148,34 @@ flatm = trimesh.Trimesh(V, F, process=False)
 same, ri0 = refine_reservoir_edge(flatm, N, np.zeros(len(V)), s, 0.5)
 check("no reservoir: the mesh is handed back untouched", same is flatm and not ri0.get("refined"))
 
+# the seal groove (a test option): a shallow trough just below the reservoir, gum side only
+from bleachtray.reservoir import groove_params, groove_profile
+G = dict(width=0.5, depth=0.25, gap=0.2)
+dg, sg, gw = reservoir_displacement(mesh, labels, info, aux, A, return_field=True, groove=G, **kw)
+gp = groove_params(G, 1.25)
+check("groove off (the default): nothing is cut into the model", float(d.min()) >= 0.0 and DEFAULTS.get("reservoir_groove") is False)
+check("groove on: the reservoirs themselves are unchanged", np.allclose(np.maximum(dg, 0), d) and np.allclose(sg, s))
+cut = dg < -0.02
+check(f"groove on: a trough {-dg.min():.2f} mm deep on every tooth", all((dg[labels == t] < -0.15).any() for t in (1, 2, 3)) and -dg.min() <= 0.2501, float(dg.min()))
+gdist = to_gum(V[cut])
+check(f"... between the reservoir and the gum line, never closer than 0.15 mm to the gum line (closest {gdist.min():.2f})", gdist.min() >= 0.15 and np.all(sg[cut] < -0.15) and np.all(sg[cut] > -0.75), (float(gdist.min()), float(sg[cut].min()), float(sg[cut].max())))
+midc = cut & (labels == 2)
+check("... on the gum side only: none beside the island or above it", midc.any() and V[midc, 2].max() < 3.2 and np.abs(V[midc, 0]).max() < 3.2, (float(V[midc, 2].max()), float(np.abs(V[midc, 0]).max())))
+check("... and it runs the width of the island (at least 3.5 mm on the middle tooth)", np.ptp(V[midc, 0]) > 3.5, float(np.ptp(V[midc, 0])))
+check("a groove too big for the space is made to fit", groove_params(dict(width=1.0, depth=0.25, gap=0.5), 1.0)["lo"] >= -0.8501 and groove_params(dict(width=1.0, depth=9, gap=0.5), 1.0)["depth"] <= 0.5)
+mdg = trimesh.Trimesh(V + N * dg[:, None], F, process=False)
+outg, rig = refine_reservoir_edge(mdg, N, dg, sg, 0.5, edge=0.3, max_edge=0.08, groove=dict(w=gw, gp=gp))
+Vg = np.asarray(outg.vertices); Fg = np.asarray(outg.faces)
+Eg, cg = edge_use(Fg)
+check(f"groove on: the trough is in small triangles too ({len(out.faces)} -> {len(Fg)}), the surface closed", rig.get("groove") and len(Fg) > len(out.faces) and cg.max() == 2)
+plainx = trimesh.Trimesh(V, F, process=False)
+_, dist, _ = trimesh.proximity.closest_point(plainx, Vg[len(V):][::7])
+side = Vg[len(V):][::7][:, 1]                                 # the wall faces -y: +y is into the tooth
+into = (side > 1e-4) & (Vg[len(V):][::7][:, 2] < 7.0)
+check(f"... and it goes into the tooth by the set depth (deepest {dist[into].max():.2f} mm), the reservoir still stands 0.5 mm proud", into.any() and 0.2 < dist[into].max() <= 0.26 and abs(dist[~into].max() - 0.5) < 0.02, (float(dist[into].max()) if into.any() else None, float(dist[~into].max())))
+_, ri_off = refine_reservoir_edge(md, N, d, s, 0.5, edge=0.3, max_edge=0.08, groove=None)
+check("groove off: the refined model is the same as before", not ri_off.get("groove") and ri_off.get("faces_after") == ri.get("faces_after"))
+
 if "--arch" in sys.argv:
     # a synthetic full upper arch (the pontic library's teeth on a gum ridge - no patient data) as a whitening tray
     sys.path.insert(0, HERE)
@@ -161,6 +190,8 @@ if "--arch" in sys.argv:
     raw = load_scan(scan)
     lab_raw = lab[cKDTree(np.asarray(sheet.vertices)).query(np.asarray(raw.vertices))[1]]
     params = dict(DEFAULTS); params.update(arch="upper", add_base=False, engrave=False, tooth_mark=False, patient_first="Synthetic", patient_last="Arch")
+    if "--groove" in sys.argv:
+        params.update(reservoir_groove=True)
     rep = process(scan, outd, name="synthetic_upper", params=params, models=load_models(), label_override=lab_raw, log=print, feat_cache={})
     ro = rep.get("reservoir_outline") or {}
     print("   report:", ro, "reservoir vertices:", rep.get("reservoir_vertices"))
@@ -170,6 +201,12 @@ if "--arch" in sys.argv:
     check("arch: the model carries the small triangles", len(body.faces) > ro.get("faces_before", 0) + 0.5 * (ro.get("faces_after", 0) - ro.get("faces_before", 0)), len(body.faces))
     sr = trimesh.load(os.path.join(outd, "synthetic_upper_scan_with_reservoirs_NOBASE_not_for_trimlign.stl"))
     check("arch: the scan-with-reservoirs export is refined too", len(sr.faces) > len(raw.faces) + 1000, (len(sr.faces), len(raw.faces)))
+    if "--groove" in sys.argv:
+        rg = rep.get("reservoir_groove") or {}
+        print("   groove:", rg)
+        check("arch: the seal groove is reported and cut", rg.get("on") and rg.get("vertices", 0) > 50 and ro.get("groove"), rg)
+    else:
+        check("arch: no groove unless switched on", "reservoir_groove" not in rep and not ro.get("groove"))
     check("arch: no warning about the outline", not any("outline" in w.lower() for w in rep.get("warnings") or []), rep.get("warnings"))
     print("   output folder:", outd)
 

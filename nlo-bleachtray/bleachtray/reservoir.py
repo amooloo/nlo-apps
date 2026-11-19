@@ -160,7 +160,7 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25,
                            max_position=5, edge_clearance=0.4, edge_feather=0.6, edge_normal_z=0.6,
                            edge_band=0.3, facial_only=True, exclude_occlusal=True, setback_extra=None,
                            keep_off=None, keep_off_clearance=1.0, force_on=None, interprox=None, incisal=None, bite_off=None,
-                           edge=0.3, outline_smooth=0.7, return_field=False):
+                           edge=0.3, outline_smooth=0.7, return_field=False, groove=None):
     """Return per-vertex displacement magnitude (mm) along vertex normals.
 
     labels: per-vertex tooth id (0 = gingiva); info: id -> (side, position from midline)
@@ -188,7 +188,13 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25,
     the bump rises to its full height within `edge` mm of that outline - a step that shows on the print, not a long
     feathered slope (`feather` / `edge_feather` are no longer used). `return_field` -> (displacement, edge field): the
     field is what refine_reservoir_edge resolves with small triangles.
-    """
+
+    `groove` (a test option, off by default; the doctor, 11/19/2026: "would it theoretically get a better seal if you
+    add a bit of indentation into the model around the edges of the reservoir?"): dict(depth, width, gap) in mm - a
+    shallow rounded groove cut INTO the tooth just outside the reservoir's gum-side line, so the sheet forms a small
+    bead there that presses on the enamel. Gum side only: it fades out where the outline turns up toward the next
+    tooth. The groove is subtracted from the returned displacement (negative values), and with `return_field` a third
+    value is returned: its per-vertex weight (0..1), which refine_reservoir_edge needs."""
     n = len(mesh.vertices)
     tooth_mask = labels > 0
     force = None
@@ -300,6 +306,12 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25,
         hard_off = hard_off | off
     s[~region] = -EDGE_CLIP
     s = np.clip(s, -EDGE_CLIP, EDGE_CLIP)
+    gw = None
+    if groove:
+        # where the gum line is what stops the reservoir: there the edge field IS the gum field; where another limit
+        # (the next tooth, the bite, an erased patch) is the tighter one the groove fades out within 0.3 mm
+        gw = 1.0 - _smoothstep((np.clip(d_gum - sb, -EDGE_CLIP, EDGE_CLIP) - s) / 0.3)
+        gw[hard_off | ~tooth_mask] = 0.0
     # one even outline: the distances are measured along the scan's triangle edges and the gum line / the paint follow
     # its vertices, so the raw line wobbles by a triangle; smoothing the field evens it out (the field is clipped to
     # the same reach either side of the outline, so the line is evened where it is, not moved), never onto what is off limits.
@@ -308,7 +320,29 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.25,
     s[hard_off] = np.minimum(s[hard_off], -1e-3)
     w = _smoothstep(s / max(float(edge), 1e-6))
     d_out = height * w
+    if groove:
+        gp = groove_params(groove, setback)
+        d_out = d_out - groove_profile(s, gw, gp)
+        return (d_out, s, gw) if return_field else d_out
     return (d_out, s) if return_field else d_out
+
+
+def groove_params(groove, setback=1.25):
+    """The seal groove's size, made to fit between the reservoir's line and the gum line: at least 0.15 mm of
+    untouched tooth is left next to the gum line (the gap to the reservoir gives way first, then the width)."""
+    width = float(np.clip(groove.get("width", 0.5), 0.2, 1.0)); depth = float(np.clip(groove.get("depth", 0.25), 0.05, 0.5))
+    gap = float(np.clip(groove.get("gap", 0.2), 0.0, 1.0))
+    room = max(float(setback) - 0.15, 0.25)
+    gap = min(gap, max(room - width, 0.0)); width = min(width, room - gap)
+    return dict(width=width, depth=depth, gap=gap, lo=-(gap + width), hi=-gap)
+
+
+def groove_profile(s, gw, gp):
+    """Depth (mm, positive = into the tooth) of the seal groove for an edge-field value: a rounded trough between
+    gp['hi'] and gp['lo'] mm outside the reservoir's outline, times its gum-side weight."""
+    s = np.asarray(s, float)
+    x = (s - 0.5 * (gp["lo"] + gp["hi"])) / max(0.5 * gp["width"], 1e-6)
+    return gp["depth"] * np.asarray(gw, float) * np.where(np.abs(x) < 1.0, 0.5 * (1.0 + np.cos(np.pi * np.clip(x, -1, 1))), 0.0)
 
 
 def reservoir_profile(s, height, edge=0.3):
@@ -370,7 +404,7 @@ def refine_edge_band(V, F, s, attrs=(), lo=-0.06, hi=0.36, max_edge=0.08, max_le
     return V, F, s, attrs, levels
 
 
-def refine_reservoir_edge(mesh_disp, normals, d, s, height, edge=0.3, max_edge=0.1, polish=0.15):
+def refine_reservoir_edge(mesh_disp, normals, d, s, height, edge=0.3, max_edge=0.1, polish=0.15, groove=None):
     """The model's surface with the reservoirs' side walls in small triangles.
     `mesh_disp`: the surface with the reservoirs already raised by `d` along `normals` (both per vertex, in that
     mesh's frame); `s`: the edge field from reservoir_displacement. The bump is taken off, the band round the outline
@@ -379,25 +413,39 @@ def refine_reservoir_edge(mesh_disp, normals, d, s, height, edge=0.3, max_edge=0
     straight-line blend, so the outline had a corner on every edge of the scan's triangles it crossed - 0.2 to 0.5 mm
     apart on a flat tooth face - and is now one curve.
     -> (trimesh, info). Vertices 0..n-1 are the scan's own, in their order; away from the outline they are exactly
-    where they were in `mesh_disp`, on the reservoir's side wall they follow the evened field (hundredths of a mm)."""
+    where they were in `mesh_disp`, on the reservoir's side wall they follow the evened field (hundredths of a mm).
+    `groove`: dict(w=per-vertex weight from reservoir_displacement, gp=groove_params(...)) when `d` includes the seal
+    groove - its trough gets the small triangles too and is cut again from the evened field."""
     import trimesh
     V = np.asarray(mesh_disp.vertices, float); N = np.asarray(normals, float); d = np.asarray(d, float)
     if len(s) != len(V) or len(N) != len(V) or not (d > 1e-4).any():
         return mesh_disp, dict(refined=False)
+    gp = gwv = None
+    if groove and groove.get("w") is not None and len(groove["w"]) == len(V) and (np.asarray(groove["w"]) > 0.02).any():
+        gp, gwv = groove["gp"], np.asarray(groove["w"], float)
     V0 = V - N * d[:, None]
-    V1, F1, s1, (N1,), levels = refine_edge_band(V0, np.asarray(mesh_disp.faces), s, attrs=(N,), lo=-0.2 * edge, hi=1.2 * edge, max_edge=max_edge)
+    low = -0.25 - 0.2 * edge if gp is None else gp["lo"] - 0.25           # how far outside the outline the surface is reworked
+    V1, F1, s1, at, levels = refine_edge_band(V0, np.asarray(mesh_disp.faces), s, attrs=(N,) if gp is None else (N, gwv), lo=-0.2 * edge, hi=1.2 * edge, max_edge=max_edge)
+    N1 = at[0]; gw1 = at[1] if gp is not None else None
+    if gp is not None:
+        # the trough: small triangles where the groove is (the field is set out of reach elsewhere)
+        f = np.where(gw1 > 0.02, s1, 9.0)
+        V1, F1, _f, (N1, s1, gw1), lv2 = refine_edge_band(V1, F1, f, attrs=(N1, s1, gw1), lo=gp["lo"] - 0.05, hi=gp["hi"] + 0.05, max_edge=max_edge)
+        levels = max(levels, lv2)
     if levels == 0:
         return mesh_disp, dict(refined=False)
     N1 = N1 / np.maximum(np.linalg.norm(N1, axis=1, keepdims=True), 1e-9)
     if polish and polish > 0:
-        near = (s1 > -0.25 - 0.2 * edge) & (s1 < 0.25 + 1.2 * edge)
+        near = (s1 > low) & (s1 < 0.25 + 1.2 * edge)
         s1 = _even_out(trimesh.Trimesh(V1, F1, process=False), None, s1, sigma=float(polish), free=near)
         s1[:len(V)][np.asarray(s) <= -1e-3 + 1e-12] = np.minimum(s1[:len(V)], s)[np.asarray(s) <= -1e-3 + 1e-12]   # what was off limits stays off
     d1 = reservoir_profile(s1, height, edge)
-    far = np.ones(len(d1), bool); far[:len(V)] = ~((np.asarray(s) > -0.25 - 0.2 * edge) & (np.asarray(s) < 0.25 + 1.2 * edge))
+    if gp is not None:
+        d1 = d1 - groove_profile(s1, np.clip(gw1, 0.0, 1.0), gp)
+    far = np.ones(len(d1), bool); far[:len(V)] = ~((np.asarray(s) > low) & (np.asarray(s) < 0.25 + 1.2 * edge))
     d1[:len(V)][far[:len(V)]] = d[far[:len(V)]]      # away from the outline the scan's vertices stay exactly where the rest of the work put them
     out = trimesh.Trimesh(V1 + N1 * d1[:, None], F1, process=False)
-    return out, dict(refined=True, levels=int(levels), faces_before=int(len(mesh_disp.faces)), faces_after=int(len(F1)), edge_mm=float(max_edge))
+    return out, dict(refined=True, levels=int(levels), faces_before=int(len(mesh_disp.faces)), faces_after=int(len(F1)), edge_mm=float(max_edge), groove=gp is not None)
 
 
 def apply_displacement(mesh, d):
