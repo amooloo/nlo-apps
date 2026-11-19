@@ -7,7 +7,7 @@ from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
 from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads, tooth_threshold, snap_to_crease,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
                       bridge_embrasures, geodesic_dilate, cap_distal, round_distal, edentulous_gaps, number_by_type)
-from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure
+from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery, root_exposure, refine_reservoir_edge
 from .solid import horseshoe_outline, build_body, add_base
 
 # Titan/Trimlign placement convention measured from a Titan export (see notes):
@@ -18,7 +18,7 @@ TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this muc
 ASSET_DIR_BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 
 DEFAULTS = dict(
-    reservoir_height=0.5, reservoir_setback=1.25, reservoir_interprox=1.25, reservoir_incisal_lower=1.0, reservoir_bite_clear=1.5, reservoir_feather=0.6, reservoir_max_position=5,   # setback / interprox: the reservoir stops this far short of the gum line / of the neighbouring teeth (the doctor, 11/13/2026: 1 to 1.5 mm from both)
+    reservoir_height=0.5, reservoir_setback=1.25, reservoir_interprox=1.25, reservoir_incisal_lower=1.0, reservoir_bite_clear=1.5, reservoir_feather=0.6, reservoir_edge=0.3, reservoir_edge_tri=0.1, reservoir_max_position=5,   # setback / interprox: the reservoir stops this far short of the gum line / of the neighbouring teeth (the doctor, 11/13/2026: 1 to 1.5 mm from both)
     recession_auto=False, recession_leeway=1.0,  # off by default: recession is handled with Erase in the Reservoirs tab (the doctor's call); on = exposed root found on a tooth keeps the reservoir that much further up, plus this leeway
     blockout=False, blockout_depth=0.75,          # automatic interproximal fill (a wedge under every contact, the way aligner labs do it): off by default here, on for the retainer in the app
     fill_reach=1.25, fill_top=20.0,  # the fill: how far out of the embrasure it goes (the notch is filled where it is narrower than twice this), how far up from the papilla (20 = to the contact)
@@ -765,21 +765,27 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         except Exception as ex:  # noqa
             bite_off, binfo = None, dict(checked=False, why=f"the bite check failed ({str(ex)[:60]})")
         rep["reservoir_bite"] = binfo
+    # the reservoir's outline is one smooth line and its side a short step (reservoir_edge mm), so the line shows on
+    # the printed model and the tray can be cut by it (the doctor, 11/19/2026); res_s is the edge field the model's
+    # surface is subdivided by before it is built (refine_reservoir_edge)
+    res_edge = float(P.get("reservoir_edge") or 0.3)
+    res_s = None
     if MG or P["reservoir_height"] <= 0:
         d = np.zeros(len(mesh.vertices))
     else:
-        d = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
+        d, res_s = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
                                    feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
                                    setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=0.0, force_on=force_on,
                                    interprox=float(P.get("reservoir_interprox") or 0.0) or None,
-                                   incisal=(float(P.get("reservoir_incisal_lower") or 0.0) or None) if arch_hint == "lower" else None, bite_off=bite_off)
+                                   incisal=(float(P.get("reservoir_incisal_lower") or 0.0) or None) if arch_hint == "lower" else None, bite_off=bite_off,
+                                   edge=res_edge, return_field=True)
         if rep.get("reservoir_bite", {}).get("checked"):
             # how much the bite took: the same reservoir without it
             d0 = reservoir_displacement(mesh, labels, info, aux, A, height=P["reservoir_height"], setback=P["reservoir_setback"],
                                         feather=P["reservoir_feather"], max_position=P["reservoir_max_position"],
                                         setback_extra=extra_sb, keep_off=keep_off, keep_off_clearance=0.0, force_on=force_on,
                                         interprox=float(P.get("reservoir_interprox") or 0.0) or None,
-                                        incisal=(float(P.get("reservoir_incisal_lower") or 0.0) or None) if arch_hint == "lower" else None)
+                                        incisal=(float(P.get("reservoir_incisal_lower") or 0.0) or None) if arch_hint == "lower" else None, edge=res_edge)
             took = (d0 > 0.05) & ~(d > 0.05)
             hit = sorted({int(t) for t in np.unique(labels[took]) if t > 0 and (took & (labels == t)).sum() >= 15})
             rep["reservoir_bite"].update(trimmed_vertices=int(took.sum()), trimmed_teeth=[[int(info[t][0]), int(info[t][1])] for t in hit if t in info])
@@ -795,6 +801,13 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # "scan with reservoirs" in the ORIGINAL scanner coordinates: drop-in replacement for the raw
     # scan in OrthoFactory / Titan (they do their own basing + trim path)
     scan_res = mesh_r.copy()
+    if res_s is not None and (d > 1e-3).any():
+        try:
+            scan_res, _ri = refine_reservoir_edge(mesh_r, np.asarray(mesh.vertex_normals), d, res_s, P["reservoir_height"], edge=res_edge, max_edge=float(P.get("reservoir_edge_tri") or 0.1))
+            scan_res = scan_res.copy()
+        except Exception as ex:  # noqa
+            log(f"[{name}] the reservoir outline could not be refined on the scan export ({ex})")
+            scan_res = mesh_r.copy()
     scan_res.apply_transform(np.linalg.inv(T_rough))
     scan_res_path = os.path.join(out_dir, f"{name}_scan_with_reservoirs_NOBASE_not_for_trimlign.stl")
     scan_res.export(scan_res_path)
@@ -1306,7 +1319,22 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         except Exception as ex:  # noqa
             hug_keep = None
             log(f"[{name}] walls under the scan's edge skipped: {ex}")
-    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status,
+    # the reservoirs' side walls in small triangles (the scan's own are too big to hold the step: the outline printed as
+    # a row of facets); the scan's vertices keep their numbers, the new ones come after them
+    mesh_body = mesh_f
+    if res_s is not None and (d > 1e-3).any() and len(d) == len(mesh_f.vertices):
+        try:
+            R_ = (T_adj @ T_place @ T_tilt @ T_ref)[:3, :3]
+            mesh_body, rinfo = refine_reservoir_edge(mesh_f, np.asarray(mesh.vertex_normals) @ R_.T, d, res_s, P["reservoir_height"], edge=res_edge,
+                                                     max_edge=float(P.get("reservoir_edge_tri") or 0.1))
+            rep["reservoir_outline"] = rinfo
+            if rinfo.get("refined"):
+                log(f"[{name}] reservoir outline refined: {rinfo['faces_after'] - rinfo['faces_before']} small triangles added along it")
+        except Exception as ex:  # noqa
+            mesh_body = mesh_f
+            rep["reservoir_outline"] = dict(refined=False, error=str(ex)[:160])
+            log(f"[{name}] the reservoir outline could not be refined ({ex}) - built on the scan's own triangles")
+    body, body_method = build_body(mesh_body, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)), extra_solids=extra_solids, extras_status=extras_status,
                                    extra_after=after_solids, hug=hug_keep is not None, hug_keep=hug_keep, info=rep)
     rep["body_method"] = body_method
     if fill_at is not None and (len(extras_status) <= fill_at or extras_status[fill_at] != "merged"):
