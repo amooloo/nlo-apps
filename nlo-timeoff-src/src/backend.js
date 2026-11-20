@@ -490,6 +490,32 @@ const FB = {
       for (const d of snap.docs) { try { list.push(await FB.openHR(d.id, d.data())); } catch (e) { list.push({ sid: d.id, locked: true }); } }
       h.hr(list);
     }, e => h.loadError(e)));
+    // the Time Clock's pay periods, and the time off handed to its Payroll page (the people who approve work it out)
+    if (hr) {
+      FB.unsubs.push(FB.doc('meta/tc').onSnapshot(s => h.tcSet(s.exists ? s.data() : null), () => h.tcSet(null)));
+      FB.leaveListen(h);
+    }
+  },
+  /* tcLeave: each pay period's time off as handed over (read so an unchanged one isn't written again). Until the database's
+     rules know it, reading is refused: tried again every 5 minutes, and nothing is handed over meanwhile. */
+  leaveListen(h) {
+    let off = null, timer = 0, done = false;
+    const go = () => {
+      off = FB.db.collection('tcLeave').onSnapshot(snap => {
+        const m = new Map();
+        snap.docs.forEach(d => { const x = d.data(); m.set(d.id, Object.assign({}, x, { upto: FB.tsMs(x.upto) || 0, hrUp: FB.tsMs(x.hrUp) || 0, at: FB.tsMs(x.at) || 0 })); });
+        h.leave(m, snap.metadata.hasPendingWrites);
+      }, e => { h.leave(null, false, e); if (!done) timer = setTimeout(go, 5 * 60000); });
+    };
+    go();
+    FB.unsubs.push(() => { done = true; clearTimeout(timer); if (off) off(); });
+  },
+  /* one pay period's time off for the Time Clock (tcLeave/{a}) — Dr. A's screen only (the rules say the same). upto / hrUp: the
+     newest request change and HR record change it was worked out from (the rules never let either move back, so an older copy
+     of Time Off can't write over a newer answer) */
+  async saveLeave(a, d, upto, hrUp) {
+    const T = ms => firebase.firestore.Timestamp.fromMillis(Math.max(0, ms || 0));
+    await FB.track(FB.doc('tcLeave/' + a).set({ v: d.v, a: d.a, z: d.z, rows: d.rows, wait: d.wait, ids: d.ids || [], odd: d.odd, upto: T(upto), hrUp: T(hrUp), by: FB.uid, bsid: FB.me.staffId, at: FB.ts() }));
   },
   lockedRaw: new Map(),
   reqChain: Promise.resolve(),

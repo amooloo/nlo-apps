@@ -45,6 +45,10 @@ print('built the page', len(out), 'bytes')
 
 # ---- the alert script: its instructions first, then the shared arithmetic (engine.js), then the rest of the script
 s = (root / 'robot' / 'script.js').read_text()
+# (the page says when the script running is older than the one it goes with: the two must agree)
+import re as _re
+_sv = _re.search(r"var VERSION = '(\d+)';", s).group(1)
+assert ("const ALERT_V = " + _sv + ";") in (src / 'views.js').read_text(), 'robot/script.js VERSION and views.js ALERT_V differ'
 head_end = s.index('*/') + 2
 head, rest = s[:head_end], s[head_end:]
 engine = (src / 'engine.js').read_text()

@@ -419,6 +419,113 @@ function payPeriod(L, from, to) {
   o.days = o.days.size; return o;
 }
 
+/* ---------- the Time Clock's pay periods, and each one's time off for its Payroll page ----------
+   Amir, 20 Nov 2026: time-off requests on the Time Clock's Payroll page, "also would show if there are pending requests
+   that have not been approved … so when you are running the payroll to know what else to add", and "it only should show
+   the days for that specific pay period". The Time Clock's pay periods: two weeks from its anchor day (meta/tc.pay),
+   payroll on the period's last Friday (or the first Friday after it ends). */
+const PAY_FIRST = '2026-10-11'; // the Time Clock's first pay period: nothing is handed over for earlier ones
+const LEAVE_KINDS = ['vac', 'sick', 'free', 'unpaid']; // (vacation, sick, paid from no balance, unpaid)
+function payPeriodAt(iso, anchor) {
+  if (!isISO(anchor) || !isISO(iso)) return null;
+  const a = addDays(anchor, Math.floor(daysBetween(anchor, iso) / 14) * 14); return [a, addDays(a, 13)];
+}
+function payDayOf(z) { const d = weekday(z); return d === 5 ? z : d === 6 ? addDays(z, -1) : d === 0 ? addDays(z, -2) : addDays(z, 5 - d); }
+/* the period whose payroll is next to enter: until its payroll Friday has passed, the one that ended (as the Time Clock does) */
+function payPeriodToEnter(iso, anchor) {
+  const cur = payPeriodAt(iso, anchor); if (!cur) return null;
+  const prev = payPeriodAt(addDays(cur[0], -1), anchor);
+  return payDayOf(prev[1]) >= iso ? prev : cur;
+}
+/* One person's time off in the pay period a–z, counting only the days inside it:
+   row — what their approved time off comes to, from the balances it came out of (as Team → Payroll counts it): hours of
+     vacation, sick leave, paid from no balance (personal days, bereavement) and unpaid, and each day's;
+     null when nothing approved touches the period
+   wait — each request still waiting that has office days in the period: those days and hours, which balance it asks for
+     (b), and what they'd come to if it were approved (on its own, the others as they are)
+   ids — the requests approved or waiting whose dates touch the period (the Time Clock looks out for any of them changing,
+     even to dates outside it)
+   p: their HR record (null: none — counted as asked); on salary for the whole period: nothing (not hours for payroll).
+   Each day's line says full: true when its time off comes to a full day (the policy's day) — so the Time Clock can point out
+   a day off with time worked on it. A row's hours are its days' hours added up, day by day (as the Time Clock adds them). */
+function leaveIn(p, reqs, pol, closed, a, z) {
+  const out = { row: null, wait: [], ids: [] };
+  if (p && typeOn(p, a) === 'SAL' && typeOn(p, z) === 'SAL') return out;
+  const inP = d => d >= a && d <= z;
+  out.ids = reqs.filter(x => (x.status === 'approved' || x.status === 'pending') && isISO(x.start) && isISO(x.end) && x.end >= a && x.start <= z).map(x => x.id).filter(Boolean);
+  const tally = () => ({ vac: 0, sick: 0, free: 0, unpaid: 0 });
+  // hours h of kind k (vac, sick, free, unpaid) on day d: added to the total o, and to that day's line (days, when kept)
+  const add = (o, days, d, k, h) => {
+    if (!(h > 0)) return;
+    o[k] = round2(o[k] + h);
+    if (days) { const e = days.get(d) || { d }; e[k] = round2((e[k] || 0) + h); days.set(d, e); }
+  };
+  // what the ledger took, in the period (only request id's when id is given)
+  const fromLedger = (L, id, o, days) => {
+    for (const e of L.entries) {
+      if (!inP(e.date) || (id && e.id !== id)) continue;
+      if (e.k === 'take') { add(o, days, e.date, e.b, e.paid); add(o, days, e.date, 'unpaid', e.unpaid); }
+      else if (e.k === 'free' && !e.sal) add(o, days, e.date, 'free', e.h); // (on salary that day: not hours for payroll)
+      else if (e.k === 'unpaid') add(o, days, e.date, 'unpaid', e.h);
+    }
+  };
+  // a request's days in the period, as asked (no HR record, or days the ledger doesn't hold)
+  const asked = (x, o, days, only) => reqDays(x, closed, pol).filter(d => inP(d.date) && (!only || only(d))).forEach(d => {
+    const b = bucketOf(x, pol); add(o, days, d.date, b === 'none' ? 'free' : b, d.h);
+  });
+  const appr = reqs.filter(x => x.status === 'approved' && isISO(x.start) && isISO(x.end) && x.end >= a && x.start <= z);
+  if (appr.length) {
+    const row = tally(), days = new Map();
+    if (p) {
+      fromLedger(ledger(p, reqs, pol, closed, z), '', row, days);
+      // (days on or before the opening balance, or taken off by the old app, aren't in the ledger: counted as asked)
+      const asOf = p.open && isISO(p.open.asOf) ? p.open.asOf : '', settled = new Set(p.settled || []);
+      appr.forEach(x => { if (settled.has(x.id)) asked(x, row, days); else if (asOf) asked(x, row, days, d => d.date <= asOf); });
+    } else appr.forEach(x => asked(x, row, days));
+    row.days = Array.from(days.values()).sort((x, y) => x.d < y.d ? -1 : x.d > y.d ? 1 : 0);
+    row.days.forEach(e => { const h = LEAVE_KINDS.reduce((n, k) => n + (e[k] || 0), 0); if (h >= polOn(pol, e.d).day - 0.001) e.full = true; });
+    LEAVE_KINDS.forEach(k => { row[k] = row.days.reduce((n, e) => round2(n + (e[k] || 0)), 0); });
+    if (row.days.length) out.row = row;
+  }
+  for (const x of reqs) {
+    if (x.status !== 'pending' || !isISO(x.start) || !isISO(x.end) || x.end < a || x.start > z) continue;
+    const ds = reqDays(x, closed, pol).filter(d => inP(d.date)); if (!ds.length) continue; // (only closed days in the period)
+    const w = Object.assign({ id: x.id, b: bucketOf(x, pol), days: ds.map(d => d.date), h: round2(ds.reduce((n, d) => n + d.h, 0)), part: PART[x.part] ? x.part : 'full' }, tally());
+    if (w.part === 'time' && okWindow(x.from, x.to)) { w.from = x.from; w.to = x.to; }
+    if (p) fromLedger(ledger(p, reqs.filter(r => r.id !== x.id).concat([Object.assign({}, x, { status: 'approved' })]), pol, closed, z), x.id, w);
+    else asked(x, w);
+    out.wait.push(w);
+  }
+  out.wait.sort((x, y) => x.days[0] < y.days[0] ? -1 : x.days[0] > y.days[0] ? 1 : x.id < y.id ? -1 : 1);
+  return out;
+}
+/* everyone's time off in the pay period a–z, as handed to the Time Clock (tcLeave/{a}): { v, a, z, rows: { sid: row (and
+   nohr: no HR record — counted as asked) }, wait: [{ sid, … }], ids: the requests touching it, odd: requests touching it that
+   couldn't be opened here (one starting up to 120 days before it — a long leave — or in it) }.
+   people: [{ sid, p (HR record or null), reqs }]; locked: [{ status, startMs }] (the ones this login couldn't open).
+   v: what this copy of Time Off writes (LEAVE_V) — a copy that finds one from a newer Time Off leaves it as it is. */
+const LEAVE_V = 2;
+function leaveDocOf(people, locked, pol, closed, a, z) {
+  const rows = {}, wait = [], ids = new Set();
+  people.forEach(x => {
+    if (!x.reqs || !x.reqs.length) return;
+    const o = leaveIn(x.p || null, x.reqs, pol, closed, a, z);
+    if (o.row) rows[x.sid] = x.p ? o.row : Object.assign(o.row, { nohr: true });
+    o.wait.forEach(w => wait.push(Object.assign({ sid: x.sid }, w)));
+    o.ids.forEach(id => ids.add(id));
+  });
+  wait.sort((x, y) => x.days[0] < y.days[0] ? -1 : x.days[0] > y.days[0] ? 1 : x.sid < y.sid ? -1 : x.sid > y.sid ? 1 : x.id < y.id ? -1 : 1);
+  const lo = dayStartMs(addDays(a, -120)), hi = dayStartMs(addDays(z, 1));
+  const odd = (locked || []).filter(r => (r.status === 'approved' || r.status === 'pending') && r.startMs >= lo && r.startMs < hi).length;
+  const sorted = {}; Object.keys(rows).sort().forEach(k => { sorted[k] = rows[k]; });
+  return { v: LEAVE_V, a, z, rows: sorted, wait, ids: Array.from(ids).sort().slice(0, 200), odd };
+}
+/* the same, as text with its keys in order — to tell whether a handed-over copy says something different */
+function leaveKey(d) {
+  const st = v => Array.isArray(v) ? '[' + v.map(st).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + st(v[k])).join(',') + '}' : JSON.stringify(v);
+  return st({ v: d.v, a: d.a, z: d.z, rows: d.rows || {}, wait: d.wait || [], ids: d.ids || [], odd: d.odd || 0 });
+}
+
 /* =====================================================================
    The old Time-Off app (Google Sheet): reading its rows, and what its
    6 AM script took off, so the move can say exactly what changes.

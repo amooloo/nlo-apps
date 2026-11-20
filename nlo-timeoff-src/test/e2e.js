@@ -60,7 +60,9 @@ async function arm(p) {
       putHR: sid => B.putHR(sid, d => { d.hire = '2000-01-01'; }, 'edit'),
       approvePerk: id => B.savePerk(id, c => { c.decision = { s: 'approved', by: meSid(), at: Date.now(), note: '' }; return { status: 'approved' }; }, { a: 'approve' }),
       formEdit: id => B.savePerk(id, c => { c.f = Object.assign({}, c.f, { where: 'Changed afterwards' }); }, { a: 'edit' }),
-      formFile: id => B.savePerk(id, c => { c.decision = { s: 'approved', by: meSid(), at: Date.now(), note: '' }; return { status: 'approved' }; }, { a: 'file' })
+      formFile: id => B.savePerk(id, c => { c.decision = { s: 'approved', by: meSid(), at: Date.now(), note: '' }; return { status: 'approved' }; }, { a: 'file' }),
+      readLeave: a => FB.doc('tcLeave/' + a).get(),
+      writeLeave: a => FB.doc('tcLeave/' + a).set({ v: 2, a, z: addDays(a, 13), rows: {}, wait: [], ids: [], odd: 0, upto: firebase.firestore.Timestamp.fromMillis(Date.now() - 60000), hrUp: firebase.firestore.Timestamp.fromMillis(Date.now() - 60000), by: FB.uid, bsid: meSid(), at: FB.ts() })
     };
   });
 }
@@ -218,11 +220,38 @@ const nextOffice = (p, from) => p.evaluate(f => {
   check(await tryIt(riley, 'readMine', 'riley') === 'ok' && await tryIt(riley, 'readMine', 'sarah') === 'permission-denied', 'her own copy opens; someone else’s is refused');
   check(await tryIt(sarah, 'putHR', 'riley') === 'permission-denied', 'Sarah changing an HR record: refused (Dr. A only)');
 
+  console.log('\n# The Time Clock’s Payroll page: each pay period’s time off, handed over by Dr. A’s Time Off (20 Nov 2026)');
+  // the Time Clock's pay periods (as Dr. A sets them in the Time Clock): two weeks from a Sunday
+  const anchor = await owner.evaluate(() => addDays(todayISO(), -weekday(todayISO()) - 7));
+  const iv = n => ({ integerValue: String(n) });
+  await fetch(FS + 'meta/tc', { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { wk: iv(0), ot: iv(40), thr: { arrayValue: { values: [iv(36), iv(38)] } },
+    early: { stringValue: '' }, late: { stringValue: '' }, shift: iv(0), brk: iv(20), days: { arrayValue: { values: [1, 2, 3, 4].map(iv) } }, pay: { stringValue: anchor }, at: { timestampValue: new Date().toISOString() } } }) });
+  const per = await owner.evaluate(([d, an]) => payPeriodAt(d, an), [d1, anchor]);
+  const wantH = await owner.evaluate(([id, a, z]) => reqDays(S.reqs.get(id), S.closed, S.pol).filter(d => d.date >= a && d.date <= z).reduce((n, d) => n + d.h, 0), [rid, per[0], per[1]]);
+  const num = v => Number(v && (v.doubleValue != null ? v.doubleValue : v.integerValue));
+  const leaveRow = async (a, sid) => { const d = await fsDoc('tcLeave/' + a); const r = d && d.fields.rows.mapValue.fields && d.fields.rows.mapValue.fields[sid]; return { d, r: r && r.mapValue.fields }; };
+  let lv = null; for (let i = 0; i < 80; i++) { lv = await leaveRow(per[0], 'riley'); if (lv.r && num(lv.r.vac) === wantH) break; await sleep(250); }
+  check(!!(lv.r && num(lv.r.vac) === wantH), 'Time Off hands the Time Clock the pay period with Riley’s vacation (' + per.join(' – ') + '): ' + wantH + ' h, only its days inside the period — ' + JSON.stringify(lv.r || null).slice(0, 200));
+  check(lv.d && !/Beach|sister|Sarah|Covering|Vacation/.test(JSON.stringify(lv.d.fields)), '…the hours by balance and the days only: no note, no kind of time off beyond the balance, no who covers');
+  const ups = (await fsDocs('toReq')).map(d => Date.parse(d.fields.updatedAt.timestampValue)), upto = Date.parse(lv.d.fields.upto.timestampValue);
+  check(upto === Math.max(...ups), '…worked out from the newest change to a request (upto)');
+  check(lv.d.fields.by.stringValue === await owner.evaluate(() => FB.uid), '…written by Dr. A’s Time Off (it’s pay: only his screen sends it)');
+  const hups = (await fsDocs('toHR')).map(d => Date.parse(d.fields.updatedAt.timestampValue));
+  check(Date.parse(lv.d.fields.hrUp.timestampValue) === (hups.length ? Math.max(...hups) : 0), '…and from the newest HR record change (hrUp)');
+  check((lv.d.fields.ids.arrayValue.values || []).some(v => v.stringValue === rid), '…listing the requests it counts (so the Time Clock can tell when one of them moves)');
+  check(await tryIt(sarah, 'writeLeave', per[0]) === 'permission-denied', 'Sarah (approves) sending one: refused — only Dr. A’s Time Off');
+  const pers = (await fsDocs('tcLeave')).map(idOf).sort();
+  check(pers.length >= 4 && pers.every(a => /^\d{4}-\d{2}-\d{2}$/.test(a)) && pers.includes(per[0]), 'each pay period has its own record, from the first to 3 ahead (' + pers.length + ')');
+  check(await tryIt(riley, 'readLeave', per[0]) === 'permission-denied' && await tryIt(riley, 'writeLeave', per[0]) === 'permission-denied', 'staff can’t read or write it');
+  check(await tryIt(sarah, 'readLeave', per[0]) === 'ok', 'Sarah (approves) reads it');
+
   console.log('\n# Riley cancels her approved time off (it hasn’t started)');
   await riley.click('#side [data-act=nav][data-v=mine]'); await riley.click('.reqRow[data-id="' + rid + '"]'); await riley.waitForSelector('#drawer [data-act=cancelReq]');
   await riley.click('#drawer [data-act=cancelReq]'); await riley.click('#cbYes'); check(await toast(riley, /^Cancelled/), 'Cancelled'); await saved(riley);
   check((await fsDoc('toReq/' + rid)).fields.status.stringValue === 'cancelled' && !(await fsDoc('toOut/' + rid)), 'cancelled; off Who’s out');
   check((await fsDocs('outbox')).length === outbox0 + 2, 'the front desk is told the block isn’t needed');
+  { let r = null; for (let i = 0; i < 80; i++) { r = await leaveRow(per[0], 'riley'); if (!r.r) break; await sleep(250); }
+    check(!r.r && Date.parse(r.d.fields.upto.timestampValue) > upto, 'the Time Clock’s copy follows: her time off is out of that pay period'); }
   // time off that has started can't be cancelled by the person
   const yd = await owner.evaluate(() => { let d = addDays(todayISO(), -1); for (let i = 0; i < 10 && !isOfficeDay(d, S.closed); i++) d = addDays(d, -1); return d; });
   const sickId = await owner.evaluate(async d => { const id = B.newReqId(); await B.saveReq(id, c => { Object.assign(c, { type: 'sick', paid: true, start: d, end: d, part: 'full', cover: '', note: '', at: Date.now(), events: [{ a: 'record', by: meSid(), at: Date.now() }], decision: { s: 'approved', by: meSid(), at: Date.now(), note: '' } }); return { status: 'approved' }; }, { create: { sid: 'riley' }, a: 'record' }); return id; }, yd);

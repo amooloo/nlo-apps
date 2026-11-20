@@ -355,5 +355,83 @@ console.log('\n# paid holidays (Payroll → Holidays)');
   eq('…the default is 8.5 hours', TCE.HOL_H, 8.5);
 }
 
+console.log('\n# time off from NLO Time Off on Payroll (tcLeave, 20 Nov 2026): read as it’s checked, only the days in the period');
+{
+  const a = '2026-11-08', z = '2026-11-21';
+  const D = {
+    v: 1, a, z, odd: 1, upto: 1795000000000, at: 1795000001000, by: 'u', bsid: 'amir',
+    rows: {
+      gwen: { vac: 8.5, sick: 4.25, free: 0, unpaid: 0, days: [{ d: '2026-11-19', vac: 8.5 }, { d: '2026-11-10', sick: 4.25 }, { d: '2026-11-24', vac: 8.5 }, { d: '2026-11-19', vac: 1 }] },
+      kim: { vac: 6.83, sick: 0, free: 0, unpaid: 1.67, days: [{ d: '2026-11-09', vac: 6.83, unpaid: 1.67 }] },
+      nora: { vac: 0, sick: 8.5, free: 0, unpaid: 0, nohr: true, days: [{ d: '2026-11-12', sick: 8.5 }] },
+      zero: { vac: 0, sick: 0, free: 0, unpaid: 0, days: [] }, bad1: { vac: -3, sick: 'x', free: 1e9, unpaid: null, days: [] }, '': { vac: 5 }, odd: 'nope'
+    },
+    wait: [{ id: 'q1', sid: 'gwen', b: 'vac', days: ['2026-11-16'], h: 8.5, part: 'full', vac: 8.5, sick: 0, free: 0, unpaid: 0 },
+      { id: 'q2', sid: 'kim', b: 'vac', days: ['2026-11-19', '2026-11-23'], h: 17, part: 'time', from: '14:00', to: '15:30', vac: 0, sick: 0, free: 0, unpaid: 8.5 },
+      { id: 'q3', sid: 'lee', b: 'sick', days: ['2026-11-30'], h: 8.5, part: 'full', sick: 8.5 }, { id: 'q4', sid: '', days: ['2026-11-16'] }, null, 'x']
+  };
+  const L = TCE.leaveClean(D, a, z);
+  eq('only this period’s record (a and z must match)', [TCE.leaveClean(D, '2026-11-22', '2026-12-05'), TCE.leaveClean(Object.assign({}, D, { z: '2026-11-20' }), a, z), TCE.leaveClean(null, a, z)], [null, null, null]);
+  eq('the people with time off (nobody with nothing, nothing that isn’t a person or a number)', Object.keys(L.rows), ['gwen', 'kim', 'nora']);
+  eq('each day inside the period once, in order (Nov 24 is the next period’s)', L.rows.gwen.days, [{ d: '2026-11-10', sick: 4.25 }, { d: '2026-11-19', vac: 8.5 }]);
+  eq('…hours by kind, no HR record marked', [L.rows.kim.vac, L.rows.kim.unpaid, L.rows.nora.nohr, L.rows.gwen.nohr], [6.83, 1.67, true, false]);
+  eq('waiting: the ones with days in the period (only those days), checked', L.wait.map(w => [w.id, w.days, w.part, w.from || '', w.unpaid]), [['q1', ['2026-11-16'], 'full', '', 0], ['q2', ['2026-11-19'], 'time', '14:00', 8.5]]);
+  eq('…when it was worked out, and what couldn’t be opened', [L.upto, L.at, L.odd], [1795000000000, 1795000001000, 1]);
+  eq('hours as the page counts them (ms): paid time off is vacation + sick + other paid', TCE.leaveMs(L.rows.kim), { vac: Math.round(6.83 * H), sick: 0, free: 0, unpaid: Math.round(1.67 * H), paid: Math.round(6.83 * H) });
+  eq('…none: zeros', TCE.leaveMs(null), { vac: 0, sick: 0, free: 0, unpaid: 0, paid: 0 });
+  eq('what a waiting request would come to', [TCE.leaveSplitText(L.wait[0]), TCE.leaveSplitText({ vac: 6.83, unpaid: 1.67, h: 8.5 }), TCE.leaveSplitText({ h: 2 })], ['8.5 h vacation', '6.83 h vacation + 1.67 h unpaid', '2 h']);
+  eq('…and when', [TCE.leaveDaysText(L.wait[0]), TCE.leaveDaysText(L.wait[1]), TCE.leaveDaysText({ days: ['2026-11-16', '2026-11-17'], part: 'am' }), TCE.leaveDaysText({ days: ['2026-11-16', '2026-11-17'], part: 'time', from: '08:00', to: '09:30' })],
+    ['Mon, Nov 16', 'Thu, Nov 19, 2:00 PM–3:30 PM', 'Mon, Nov 16 – Tue, Nov 17 (2 days), mornings', 'Mon, Nov 16 – Tue, Nov 17 (2 days), 8:00 AM–9:30 AM each day']);
+  // what changed in Time Off since it was worked out: a request that starts before the period ends (or the day after, to spare)
+  const ch = TCE.leaveChanges([
+    { sid: 'kim', status: 'pending', rev: 1, startMs: TCE.dayStart('2026-11-17'), at: 1795000000500 },
+    { sid: 'gwen', status: 'approved', rev: 3, startMs: TCE.dayStart('2026-11-02'), at: 1795000000900 },
+    { sid: 'lee', status: 'pending', rev: 1, startMs: TCE.dayStart('2026-11-30'), at: 1795000000600 },   // (after the period)
+    { sid: 'amy', status: 'cancelled', rev: 2, startMs: TCE.dayStart('2026-11-12'), at: 1794999999000 }, // (before it was worked out)
+    { sid: 'ann', status: 'denied', rev: 2, startMs: TCE.dayStart('2026-11-12'), at: 1795000000700 },
+    { sid: 'bo', status: 'pending', rev: 2, startMs: TCE.dayStart('2026-11-20'), at: 1795000000800 }
+  ], 1795000000000, z);
+  eq('changed since: in order, only what could touch the period', ch.map(c => c.sid + ': ' + c.text), ['kim: asked for time off from Tue, Nov 17 (waiting for approval)', 'ann: time off from Thu, Nov 12 not approved', 'bo: changed a request from Fri, Nov 20 (waiting for approval)', 'gwen: time off from Mon, Nov 2 approved']);
+  eq('…the waiting ones marked', ch.filter(c => c.wait).map(c => c.sid), ['kim', 'bo']);
+  // holidays: paid time off counts as time in the period (someone on vacation the whole two weeks still gets the holiday)
+  const HOL2 = { '2026-11-26': { n: 'Thanksgiving', h: 8.5 } };
+  eq('a holiday for someone whose only time in the period is paid time off', TCE.holidayMs(HOL2, '2026-11-22', '2026-12-05', false, 0 + TCE.leaveMs({ vac: 34 }).paid), 8.5 * H);
+  // the review (20 Nov): each person's hours are their days' hours, added up here; a whole day marked; the requests listed
+  const D2 = TCE.leaveClean({ v: 2, a, z, rows: { x: { vac: 99, unpaid: 3, days: [{ d: '2026-11-10', vac: 4.25 }, { d: '2026-11-11', vac: 4.25, full: true }, { d: '2026-11-12', full: true }] }, y: { vac: 8.5, days: [] } },
+    wait: [], ids: ['q1', 5, 'x'.repeat(50), 'q2'], odd: 0, upto: 1795000000000, hrUp: 1795000000200, at: 1795000001000 }, a, z);
+  eq('hours: the days’ hours added up, not what the record says (and a row with no days in the period isn’t one)', [Object.keys(D2.rows), D2.rows.x.vac, D2.rows.x.unpaid, D2.rows.x.days], [['x'], 8.5, 0, [{ d: '2026-11-10', vac: 4.25 }, { d: '2026-11-11', vac: 4.25, full: true }]]);
+  eq('…the requests it counts or lists, the HR records’ time, the version', [D2.ids, D2.hrUp, D2.v], [['q1', 'q2'], 1795000000200, 2]);
+  eq('as of: the newest change it was worked out from, or when it was sent', [TCE.leaveAsOf(D2), TCE.leaveAsOf({ upto: 0, hrUp: 0, at: 30 }), TCE.leaveAsOf(null)], [1795000000200, 30, 0]);
+  // a holiday here that Time Off counted as an office day: the holiday pays the day; a whole day off with time worked: said so
+  const R = { vac: 0, sick: 0, free: 0, unpaid: 0, days: [{ d: '2026-11-10', vac: 8.5, full: true }, { d: '2026-11-11', vac: 3, unpaid: 5.5, full: true }, { d: '2026-11-12', vac: 8.5, full: true }, { d: '2026-11-16', sick: 4.25 }] };
+  const HD = [{ day: '2026-11-11', n: 'Veterans Day', h: 8.5 }, { day: '2026-11-12', n: '', h: 4.25 }];
+  const adj = TCE.leaveAdjust(R, HD, { '2026-11-10': 2 * H, '2026-11-16': 4 * H, '2026-11-11': 3 * H });
+  eq('the holiday pays the day: what was unpaid first, then the balances — a half-day holiday only half', adj.cut, [{ d: '2026-11-11', n: 'Veterans Day', h: 8.5, took: { unpaid: 5.5, vac: 3 } }, { d: '2026-11-12', n: '', h: 4.25, took: { vac: 4.25 } }]);
+  eq('…the time off counted: the rest, added up again', [adj.lr.days, adj.lr.vac, adj.lr.sick, adj.lr.unpaid], [[{ d: '2026-11-10', vac: 8.5, full: true }, { d: '2026-11-12', vac: 4.25 }, { d: '2026-11-16', sick: 4.25 }], 12.75, 4.25, 0]);
+  eq('…a whole day off with time worked: both stay, and it’s said (not a part day, not a holiday)', adj.both, [{ d: '2026-11-10', ms: 2 * H, h: 8.5 }]);
+  const same = TCE.leaveAdjust(R, [], {});
+  eq('no holidays to pay them: as it came (nothing cut)', [same.lr === R, same.cut, same.both], [true, [], []]);
+  eq('…nothing at all: nothing', TCE.leaveAdjust(null, HD, {}), { lr: null, cut: [], both: [] });
+  eq('what each says', [TCE.leaveCutText(adj.cut[0]), TCE.leaveBothText(adj.both[0])],
+    ['Wed, Nov 11 (Veterans Day) is a holiday here but an office day in Time Off: its 3 h vacation + 5.5 h unpaid isn’t counted (the holiday pays the day) — add it to Time Off’s closed days, so the balance isn’t charged',
+      'worked 2 h on Tue, Nov 10, a whole day off in Time Off (8.5 h) — both are counted: check which is right']);
+  // one person's numbers, as the page and the email work them out
+  const pp0 = { reg: 0, ot: 0, weeks: [] }, LD = { rows: { x: { vac: 8.5, sick: 0, free: 0, unpaid: 0, days: [{ d: '2026-11-11', vac: 8.5, full: true }] }, u: { vac: 0, sick: 0, free: 0, unpaid: 8.5, days: [{ d: '2026-11-11', unpaid: 8.5, full: true }] } },
+    wait: [{ id: 'q9', sid: 'x', days: ['2026-11-16'], h: 8.5 }] }, HOLD = { '2026-11-11': { n: 'Veterans Day', h: 8.5 } };
+  const fx = TCE.leaveFor(LD, 'x', false, pp0, HOLD, a, z);
+  eq('on vacation over a holiday, nothing worked: the holiday (their time off made them eligible), not the vacation too', [fx.hol, fx.lv.vac, fx.cut.length, fx.wait.map(w => w.id)], [8.5 * H, 0, 1, ['q9']]);
+  const fu = TCE.leaveFor(LD, 'u', false, pp0, HOLD, a, z);
+  eq('…unpaid only, nothing worked: no holiday, and the unpaid day stays as it is', [fu.hol, fu.lv.unpaid, fu.cut.length], [0, 8.5 * H, 0]);
+  const fs = TCE.leaveFor(LD, 'x', true, pp0, HOLD, a, z);
+  eq('…salaried: none of it', [fs.hol, fs.lv.paid, fs.wait.length, fs.cut.length], [0, 0, 0, 0]);
+  const pw = { reg: 6 * H, ot: 0, weeks: [{ w: { days: [{ iso: '2026-11-11', ms: 0 }, { iso: '2026-11-12', ms: 6 * H }] } }] };
+  eq('…the time worked each day', TCE.workedDays(pw), { '2026-11-12': 6 * H });
+  // changed since: a request it counts that moved out of the period, and the HR record of someone in it
+  const ch2 = TCE.leaveChanges([{ id: 'qM', sid: 'kim', status: 'approved', rev: 4, startMs: TCE.dayStart('2026-12-14'), at: 1795000000500 }, { id: 'qN', sid: 'lee', status: 'pending', rev: 2, startMs: TCE.dayStart('2026-12-14'), at: 1795000000600 }],
+    1795000000000, z, ['qM'], [{ sid: 'kim', at: 1795000000700 }, { sid: 'zoe', at: 1795000000800 }, { sid: 'gwen', at: 1794000000000 }], 1795000000000, sid => sid === 'kim' || sid === 'gwen');
+  eq('changed since: one it counts, moved out of the period; the HR record of someone in it (not someone else’s, not an older one)', ch2.map(c => c.sid + ': ' + c.text),
+    ['kim: time off from Mon, Dec 14 approved', 'kim: HR record changed (it can change which balance the time off comes from)']);
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

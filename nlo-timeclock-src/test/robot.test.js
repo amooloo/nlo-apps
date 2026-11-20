@@ -123,7 +123,7 @@ const tsMs = s => Date.parse(s);
     ok('the alerts sent are noted, each by email and push as chosen', sent1.length === 4 && sent1.every(x => x.st === 'sent') &&
       sent1.find(x => x.type === 'home').ch === '2' && sent1.find(x => x.type === 'ot').ch === '3', sent1.map(x => [x.type, x.st, x.ch]));
     const beat = (await list('tcBeat'))[0] || {};
-    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '6' && beat.err === '' && beat.id === su.localId, beat);
+    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '7' && beat.err === '' && beat.id === su.localId, beat);
 
     console.log('\n# each alert once');
     const r2 = A.run('check_(true)');
@@ -187,7 +187,7 @@ const tsMs = s => Date.parse(s);
     ok('ntfy can’t be reached: Dr. A’s test still goes, by email and through ntfy’s email address, nothing to report', ra === '1 alert sent' && away.mail.length === 2 && away.mail[0].to === 'dr.test@example.com' &&
       pm1.subject === 'Test alert from NLO Time Clock' && /^Dr\. A asked for a test at .*the time clock’s alerts reach you here/.test(pm1.body) && pm1.name === 'NLO Time Clock' && !pm1.attachments && pushes().length === pAway, [ra, away.mail.map(m => m.to + ' / ' + m.subject)]);
     ok('…noted as sent both ways', (s => s.st === 'sent' && s.ch === '3')(await sentFor(tA)), await sentFor(tA));
-    ok('…the check-in shows no problem (version 6)', (b => b.err === '' && b.ver === '6')((await list('tcBeat'))[0] || {}), (await list('tcBeat'))[0]);
+    ok('…the check-in shows no problem (version 7)', (b => b.err === '' && b.ver === '7')((await list('tcBeat'))[0] || {}), (await list('tcBeat'))[0]);
     ok('…the log says how the push went', away.logs.some(l => /1 alert sent \(Test alert from NLO Time Clock\); the phone push went through ntfy’s email address/.test(l)), away.logs);
     const restA = Number(away.props.TC_NTFY_REST || 0);
     ok('…and the direct way rests for 3 hours', restA >= tA + 3 * H - 60000 && restA <= Date.now() + 3 * H, (restA - tA) / 60000);
@@ -303,6 +303,83 @@ const tsMs = s => Date.parse(s);
     ok('the holidays can’t be read: the numbers still go, saying to check the Payroll page', /Gwen — 38 h regular, 0 h overtime \(38 h in all\)/.test(hxm.body) && /The holidays couldn’t be read this time \(boom\): see the Payroll page for any holiday hours\./.test(hxm.body), hxm.body);
     await del('meta/tcHol'); await del('tcSent/' + holId);
 
+    console.log('\n# payroll Friday with time off from NLO Time Off (tcLeave, handed over by Time Off; 20 Nov 2026)');
+    {
+      const lvDay = TCE.addDays(pa, 5), lvDay2 = TCE.addDays(pa, 6), lvW = TCE.addDays(pa, 8);
+      await put('tcLeave/' + pa, { v: 1, a: pa, z: pz, odd: 0, upto: new Date(Date.now() - 2 * H), at: new Date(Date.now() - 2 * H), by: 'owner', bsid: 'amir',
+        rows: { gwen: { vac: 8.5, sick: 0, free: 0, unpaid: 0, days: [{ d: lvDay, vac: 8.5 }] }, kim: { vac: 0, sick: 0, free: 0, unpaid: 4, days: [{ d: lvDay2, unpaid: 4 }] },
+          wila: { vac: 17, sick: 0, free: 0, unpaid: 0, days: [{ d: lvDay, vac: 8.5 }, { d: lvDay2, vac: 8.5 }] }, nobody: { vac: 8.5, sick: 0, free: 0, unpaid: 0, days: [{ d: lvDay, vac: 8.5 }] } },
+        wait: [{ id: 'q' + 'a'.repeat(24), sid: 'gwen', b: 'sick', days: [lvW], h: 4.25, part: 'am', vac: 0, sick: 4.25, free: 0, unpaid: 0 }] });
+      const lv = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+      Object.assign(lv.props, A.props);
+      lv.run('check_(true)');
+      const lm = lv.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+      if (process.env.SHOW) console.log(lm.body);
+      ok('paid time off beside the hours worked, added in (never overtime)', /Gwen — 38 h regular, 0 h overtime, 8\.5 h vacation \(46\.5 h in all\)/.test(lm.body), lm.body);
+      ok('…unpaid time off shown, not paid', /Kim — 40 h regular, 0\.5 h overtime \(40\.5 h in all\): 0\.5 h the week of [^;\n]+; and 4 h unpaid time off \(not paid\)/.test(lm.body), lm.body);
+      ok('…someone with no time worked but paid time off is there', /Wila — 0 h regular, 0 h overtime, 17 h vacation \(17 h in all\)/.test(lm.body) && !/nobody/i.test(lm.body), lm.body);
+      ok('…what’s still waiting for approval, apart from the hours', new RegExp('Time off waiting for approval in NLO Time Off \\(not in the hours above\\):\\nGwen: ' + TCE.dayText(lvW) + ', morning — 4\\.25 h sick if approved').test(lm.body), lm.body);
+      ok('…and as of when Time Off worked it out', /Time off from NLO Time Off as of [^\n]+ \(only its days in this period\)\. Anything changed in Time Off after that shows on the Payroll page\./.test(lm.body), lm.body);
+      const lh = lm.htmlBody || '';
+      if (process.env.HTML_OUT) fs.writeFileSync(path.join(process.env.HTML_OUT, 'payroll-timeoff.html'), lh);
+      ok('…as a page: Vacation and Unpaid columns, each person’s total with their paid time off', /Vacation<\/th>/.test(lh) && /Unpaid<\/th>/.test(lh) && !/Sick<\/th>/.test(lh) &&
+        /<b>Gwen<\/b>[^]*?>38<\/td>[^]*?>0<\/td>[^]*?>8\.5<\/td>[^]*?>0<\/td>[^]*?>46\.5<\/td>/.test(lh) && /<b>Wila<\/b>[^]*?>0<\/td>[^]*?>0<\/td>[^]*?>17<\/td>[^]*?>0<\/td>[^]*?>17<\/td>/.test(lh), lh.slice(0, 3000));
+      ok('…the totals with them (paid: 118 + 1 + 25.5 = 144.5; the 4 h unpaid apart), and what’s waiting in a box', /<b>Total<\/b>[^]*?>118<\/td>[^]*?>1<\/td>[^]*?>25\.5<\/td>[^]*?>4<\/td>[^]*?>144\.5<\/td>/.test(lh) && /Time off waiting for approval in NLO Time Off/.test(lh), lh.slice(-3000));
+      // a paid holiday: someone whose only time in the period is paid time off gets it too
+      await put('meta/tcHol', { days: { [hDay]: { n: 'Founders Day', h: 8.5 } }, at: new Date() }); await del('tcSent/' + holId);
+      const lv2 = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+      Object.assign(lv2.props, A.props); lv2.run('check_(true)');
+      const lm2 = lv2.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+      ok('a holiday goes to someone whose time in the period is paid time off', /Wila — 0 h regular, 0 h overtime, 8\.5 h holiday, 17 h vacation \(25\.5 h in all\)/.test(lm2.body), lm2.body);
+      await del('meta/tcHol');
+      // nothing handed over yet, or it can't be read: the numbers still go, saying so
+      await del('tcLeave/' + pa); await del('tcSent/' + holId);
+      const lv3 = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+      Object.assign(lv3.props, A.props); lv3.run('check_(true)');
+      const lm3 = lv3.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+      ok('nothing has come over from Time Off for the period: the email says so', /Gwen — 38 h regular, 0 h overtime \(38 h in all\)/.test(lm3.body) && /No time off has come over from NLO Time Off for this period yet/.test(lm3.body), lm3.body);
+      await del('tcSent/' + holId);
+      const lv4 = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+      Object.assign(lv4.props, A.props); lv4.ctx.leave_ = () => ({ err: 'boom' }); lv4.run('check_(true)');
+      const lm4 = lv4.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+      ok('…or it can’t be read: the numbers still go, saying to look at the Payroll page', /Gwen — 38 h regular/.test(lm4.body) && /The time off from NLO Time Off couldn’t be read this time \(boom\): see the Payroll page\./.test(lm4.body), lm4.body);
+      await del('tcSent/' + holId);
+      const lv5 = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+      Object.assign(lv5.props, A.props); lv5.ctx.leave_ = () => null; lv5.run('check_(true)');
+      const lm5 = lv5.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+      ok('…and with rules older than it, nothing is said about time off at all', /Gwen — 38 h regular/.test(lm5.body) && !/Time Off/.test(lm5.body), lm5.body);
+      await del('tcSent/' + holId);
+      // the review (20 Nov): a holiday here that Time Off counts as an office day, a whole day off with time worked, someone
+      // with no clock settings on leave, and the words for a phone and the alert log
+      const offDay = [3, 2, 1].map(d => TCE.addDays(today, -d)).find(d => d !== hDay); // (a day Kim worked, 13.5 h — not the holiday)
+      await put('roster/tess', { name: 'Tess Tester', role: 'staff', active: true, initials: 'TT' }); // (no clock settings: on leave)
+      await put('roster/uma', { name: 'Uma Tester', role: 'staff', active: true, initials: 'UT' }); // (no clock settings; her only time off is on the holiday)
+      await put('meta/tcHol', { days: { [hDay]: { n: 'Founders Day', h: 8.5 } }, at: new Date() });
+      await put('tcLeave/' + pa, { v: 2, a: pa, z: pz, odd: 0, ids: [], upto: new Date(Date.now() - 2 * H), hrUp: new Date(Date.now() - 3 * H), at: new Date(Date.now() - 2 * H), by: 'owner', bsid: 'amir',
+        rows: { gwen: { vac: 8.5, sick: 0, free: 0, unpaid: 0, days: [{ d: hDay, vac: 8.5, full: true }] }, kim: { vac: 0, sick: 8.5, free: 0, unpaid: 0, days: [{ d: offDay, sick: 8.5, full: true }] },
+          tess: { vac: 17, sick: 0, free: 0, unpaid: 0, days: [{ d: lvDay, vac: 8.5, full: true }, { d: lvDay2, vac: 8.5, full: true }] },
+          uma: { vac: 8.5, sick: 0, free: 0, unpaid: 0, days: [{ d: hDay, vac: 8.5, full: true }] } }, wait: [] });
+      await put('meta/tcAlerts', { emails: ['dr.test@example.com', 'manager@example.com'], topic: 'nlo-clock-test1', route: { payroll: 3 }, digest: '', test: null, at: new Date() });
+      const pushN0 = pushes().length;
+      const rv = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+      Object.assign(rv.props, A.props); rv.run('check_(true)');
+      const rm = rv.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+      if (process.env.SHOW) console.log(rm.body);
+      if (process.env.HTML_OUT) fs.writeFileSync(path.join(process.env.HTML_OUT, 'payroll-review.html'), rm.htmlBody || '');
+      ok('a holiday here that Time Off counted as vacation: the holiday pays the day, not both', /Gwen — 38 h regular, 0 h overtime, 8\.5 h holiday \(46\.5 h in all\)/.test(rm.body), rm.body);
+      ok('…said so, with what to do in Time Off', new RegExp('Time off to check:\\nGwen: ' + TCE.dayText(hDay) + ' \\(Founders Day\\) is a holiday here but an office day in Time Off: its 8\\.5 h vacation isn’t counted \\(the holiday pays the day\\) — add it to Time Off’s closed days').test(rm.body), rm.body);
+      ok('…a whole day off with time worked: both counted, and said so', /Kim — 40 h regular, 0\.5 h overtime, 8\.5 h holiday, 8\.5 h sick \(57\.5 h in all\)/.test(rm.body) && new RegExp('Kim: worked 13\\.5 h on ' + TCE.dayText(offDay) + ', a whole day off in Time Off \\(8\\.5 h\\) — both are counted: check which is right').test(rm.body), rm.body);
+      ok('…someone with no clock settings, on vacation, is there too (with the holiday: her paid time off is time in the period)', /Tess \(off the clock\) — 0 h regular, 0 h overtime, 8\.5 h holiday, 17 h vacation \(25\.5 h in all\)/.test(rm.body), rm.body);
+      ok('…someone whose only time off was the holiday: the holiday, still there', /Uma \(off the clock\) — 0 h regular, 0 h overtime, 8\.5 h holiday \(8\.5 h in all\)/.test(rm.body) && /Uma \(off the clock\): [^\n]+ is a holiday here but an office day in Time Off/.test(rm.body), rm.body);
+      const rp = pushes().slice(pushN0).find(x => /^Payroll: /.test(x.title)) || { message: '' };
+      ok('the phone push: how much paid time off, never what kind', /Gwen — 38 h regular, 0 h overtime, 8\.5 h holiday \(46\.5 h in all\)/.test(rp.message) && /Kim — [^\n]*8\.5 h paid time off \(57\.5 h in all\)/.test(rp.message) &&
+        /Tess \(off the clock\) — [^\n]*17 h paid time off/.test(rp.message) && /Time off to check:/.test(rp.message) && !/vacation|sick/i.test(rp.message), rp.message);
+      const rl = (await list('tcSent')).find(x => x.id === holId) || { text: '' };
+      ok('…nor the alert log every time clock manager sees', /^Payroll: /.test(rl.text) && !/vacation|sick/i.test(rl.text), rl.text);
+      await del('roster/tess'); await del('roster/uma'); await del('meta/tcHol'); await del('tcLeave/' + pa); await del('tcSent/' + holId);
+      await put('meta/tcAlerts', { emails: ['dr.test@example.com', 'manager@example.com'], topic: 'nlo-clock-test1', route: {}, digest: '', test: null, at: new Date() });
+    }
+
     console.log('\n# payroll Friday with Paychex’s IDs: the punch file attached');
     // (the same payroll email again, as if it hadn't gone yet: its entry in the list of alerts sent taken out)
     const payId = pf.ctx.alertId_('payroll|' + pa);
@@ -384,15 +461,15 @@ const tsMs = s => Date.parse(s);
     ok('then: an email of its own, “Time cards: … (for your records)”', tcm.subject === 'Time cards: ' + TCE.dayText(pa) + ' – ' + TCE.dayText(pz) + ' (for your records)' && tcm.to === 'dr.test@example.com' && !/\(\+\d+ more\)/.test(tcm.subject), rc.mail.map(m => m.subject));
     const att = tcm.attachments || [], f1 = att.find(x => x.name === 'time-clock-' + pa + '-to-' + pz + '.csv') || { text: '' }, f2 = att.find(x => x.name === 'time-clock-days-' + pa + '-to-' + pz + '.csv') || { text: '' };
     ok('…the two spreadsheets attached (the Payroll page’s Totals and Every day)', att.length === 2 && f1.type === 'text/csv' && f2.type === 'text/csv', att.map(x => x.name));
-    ok('…spreadsheet-ready: UTF-8 mark, every cell quoted, CR LF', f1.text.charCodeAt(0) === 0xFEFF && f1.text.endsWith('\r\n') && f1.text.split('\r\n')[0] === '\uFEFF"Employee","Period start","Period end","Regular hours","Overtime hours","Holiday hours","Total hours","Pay type","To check","Week of ' + pa + ' regular","Week of ' + pa + ' overtime","Week of ' + TCE.addDays(pa, 7) + ' regular","Week of ' + TCE.addDays(pa, 7) + ' overtime"', f1.text.split('\r\n')[0]);
+    ok('…spreadsheet-ready: UTF-8 mark, every cell quoted, CR LF', f1.text.charCodeAt(0) === 0xFEFF && f1.text.endsWith('\r\n') && f1.text.split('\r\n')[0] === '\uFEFF"Employee","Period start","Period end","Regular hours","Overtime hours","Holiday hours","Vacation hours","Sick hours","Other paid leave hours","Unpaid leave hours","Time off days","Total hours","Pay type","To check","Week of ' + pa + ' regular","Week of ' + pa + ' overtime","Week of ' + TCE.addDays(pa, 7) + ' regular","Week of ' + TCE.addDays(pa, 7) + ' overtime"', f1.text.split('\r\n')[0]);
     const t1rows = f1.text.split('\r\n').slice(1, -1);
     ok('…totals: everyone, by full name, overtime by workweek, the holiday’s hours for those with time (not Wila: none)', t1rows.length === 5 &&
-      t1rows[0] === '"Gwen Tester","' + pa + '","' + pz + '","38","0","8.5","46.5","Hourly","No clock-out ' + TCE.dayText(today) + '","38","0","0","0"' &&
-      t1rows[1] === '"Kim Tester","' + pa + '","' + pz + '","40","0.5","8.5","49","Hourly","","40","0.5","0","0"' &&
-      t1rows[2] === '"Lee Tester","' + pa + '","' + pz + '","40","0.5","8.5","49","Hourly","","40","0.5","0","0"' &&
-      /^"Wila Tester","[^"]+","[^"]+","0","0","0","0","Hourly","No clock-out /.test(t1rows[3]), t1rows);
+      t1rows[0] === '"Gwen Tester","' + pa + '","' + pz + '","38","0","8.5","0","0","0","0","","46.5","Hourly","No clock-out ' + TCE.dayText(today) + '","38","0","0","0"' &&
+      t1rows[1] === '"Kim Tester","' + pa + '","' + pz + '","40","0.5","8.5","0","0","0","0","","49","Hourly","","40","0.5","0","0"' &&
+      t1rows[2] === '"Lee Tester","' + pa + '","' + pz + '","40","0.5","8.5","0","0","0","0","","49","Hourly","","40","0.5","0","0"' &&
+      /^"Wila Tester","[^"]+","[^"]+","0","0","0","0","0","0","0","","0","Hourly","No clock-out /.test(t1rows[3]), t1rows);
     ok('…then everyone’s hours added up, as on the Payroll page (not final while days are incomplete)',
-      t1rows[4] === '"Total","' + pa + '","' + pz + '","118","1","25.5","144.5","","Not final: some days aren’t complete","118","1","0","0"', t1rows[4]);
+      t1rows[4] === '"Total","' + pa + '","' + pz + '","118","1","25.5","0","0","0","0","","144.5","","Not final: some days aren’t complete; No time off has come over from NLO Time Off for this period: none is included","118","1","0","0"', t1rows[4]);
     const d2 = f2.text.split('\r\n');
     ok('…every day: the punches and hours', d2[0] === '\uFEFF"Employee","Date","Day","Punches","Hours","Flags","Corrections"' &&
       d2.includes('"Kim Tester","' + TCE.addDays(today, -2) + '","' + TCE.WD[TCE.dow(TCE.addDays(today, -2))] + '","In 7:00 AM; Out 8:30 PM","13.5","",""') &&
@@ -411,6 +488,30 @@ const tsMs = s => Date.parse(s);
     const rc2 = load(cfg, 'akhavan@example.com', { off: recDue + 20 * 60000 - Date.now() }); // (a second copy of the script, its own memory)
     rc2.run('check_(true)');
     ok('…and not again from a second copy of the script', !rc2.mail.some(m => /^Time cards: /.test(m.subject)), rc2.mail.map(m => m.subject));
+    // the review (20 Nov): the time cards with time off — someone with no clock settings on leave, a holiday Time Off counts as
+    // an office day, a whole day off with time worked, and as of when; the alert log without the kinds
+    {
+      const recId = rc.ctx.alertId_('records|' + pa), offDay = [3, 2, 1].map(d => TCE.addDays(today, -d)).find(d => d !== hDay), lvA = TCE.addDays(pa, 5), lvB = TCE.addDays(pa, 6);
+      await put('roster/tess', { name: 'Tess Tester', role: 'staff', active: true, initials: 'TT' });
+      await put('tcLeave/' + pa, { v: 2, a: pa, z: pz, odd: 0, ids: [], upto: new Date(Date.now() - 2 * H), hrUp: new Date(Date.now() - 3 * H), at: new Date(Date.now() - 2 * H), by: 'owner', bsid: 'amir',
+        rows: { gwen: { vac: 8.5, sick: 0, free: 0, unpaid: 0, days: [{ d: hDay, vac: 8.5, full: true }] }, kim: { vac: 0, sick: 8.5, free: 0, unpaid: 0, days: [{ d: offDay, sick: 8.5, full: true }] },
+          tess: { vac: 17, sick: 0, free: 0, unpaid: 0, days: [{ d: lvA, vac: 8.5, full: true }, { d: lvB, vac: 8.5, full: true }] } }, wait: [] });
+      await del('tcSent/' + recId);
+      const rl = load(cfg, 'records@example.com', { off: recDue + 30 * 60000 - Date.now() });
+      Object.assign(rl.props, pf.props); rl.run('check_(true)');
+      const lm = rl.mail.find(m => /^Time cards: /.test(m.subject)) || { attachments: [], body: '' };
+      if (process.env.SHOW) console.log(lm.body);
+      const lt = ((lm.attachments || []).find(x => x.name === 'time-clock-' + pa + '-to-' + pz + '.csv') || { text: '' }).text.split('\r\n').slice(1, -1);
+      const rowOf = n => lt.find(l => l.startsWith('"' + n + '"')) || '';
+      ok('time cards with time off: someone with no clock settings on vacation (and the holiday, her time off being time in the period)', /^"Tess Tester","[^"]+","[^"]+","0","0","8\.5","17","0","0","0","[^"]+","25\.5","Hourly",""/.test(rowOf('Tess Tester')), lt);
+      ok('…a holiday Time Off counts as an office day: the holiday, not the vacation too, and why', /^"Gwen Tester","[^"]+","[^"]+","38","0","8\.5","0","0","0","0","","46\.5","Hourly","[^"]*is a holiday here but an office day in Time Off/.test(rowOf('Gwen Tester')), rowOf('Gwen Tester'));
+      ok('…a whole day off with time worked: both, and said so', /^"Kim Tester","[^"]+","[^"]+","40","0\.5","8\.5","0","8\.5","0","0","[^"]+","57\.5","Hourly","[^"]*worked 13\.5 h on [^"]*a whole day off in Time Off/.test(rowOf('Kim Tester')), rowOf('Kim Tester'));
+      ok('…the Total row says as of when', /Time off from NLO Time Off as of /.test(rowOf('Total')), rowOf('Total'));
+      ok('…and so does the email', /Time off from NLO Time Off as of [^\n]+ \(only its days in this period\)/.test(lm.body) && /Tess Tester — 0 h regular, 0 h overtime, 8\.5 h holiday, 17 h vacation/.test(lm.body), lm.body);
+      const ll = (await list('tcSent')).find(x => x.id === recId) || { text: '' };
+      ok('…the alert log: never what kind of time off', /^Time cards: /.test(ll.text) && !/vacation|sick/i.test(ll.text), ll.text);
+      await del('roster/tess'); await del('tcLeave/' + pa); await del('tcSent/' + recId);
+    }
     // the next period: nobody has time in it, so nothing to keep
     const pz2 = TCE.addDays(pz, 14), recDue2 = Math.max(TCE.atTime(TCE.addDays(pz2, 1), '07:00'), TCE.atTime(TCE.payDayOf(pz2), '20:00'));
     const rc3 = load(cfg, 'records@example.com', { off: recDue2 + 10 * 60000 - Date.now() });

@@ -28,7 +28,7 @@
    Turn on:  pick "setup" next to Run (top bar), press Run, and allow access.
    Turn off: pick "stop", press Run.
    ===================================================================== */
-var VERSION = '6';
+var VERSION = '7';
 var CONFIG = /*TC_CONFIG*/null; // filled in by NLO Time Clock when you copy the script (Time Clock → Alerts → Get the script)
 
 // where each kind of alert goes when Dr. A hasn't picked: 1 = email, 2 = phone push, 3 = both, 0 = not sent
@@ -187,7 +187,7 @@ function routeOf_(route, type) {
 /* the clock's settings, the names and who's on the clock: read again every 10 minutes (they rarely change).
    names: first names (the alerts); full: full names, "Dr. A" for the owner (the time cards, as the page shows them) */
 function office_(cfg, s, now) {
-  const hit = cacheGet_('office2');
+  const hit = cacheGet_('office3'); // (office3: with act — who's active — for people Time Off has time off for who have no clock settings)
   if (hit && hit.at <= now && now - hit.at < 10 * TCE.MIN) return hit;
   const tc = getDoc_(cfg, s, 'meta/tc', 'settings');
   const roster = query_(cfg, s, 'roster', [], null, ['name', 'active', 'role']).docs; // (not the photos)
@@ -206,8 +206,8 @@ function office_(cfg, s, now) {
   });
   const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.sid < b.sid ? -1 : 1);
   people.sort(byName); all.sort(byName);
-  const o = { at: now, set: tc ? plain_(tc.fields) : null, names, full, people, all };
-  cachePut_('office2', o, 10 * 60);
+  const o = { at: now, set: tc ? plain_(tc.fields) : null, names, full, act: active, people, all };
+  cachePut_('office3', o, 10 * 60);
   return o;
 }
 /* "Robin Tester" → "Robin"; "Dr. Riley Test" → "Riley" */
@@ -308,8 +308,10 @@ function payrollDue_(A, set, props, today, now) {
   if (doneLoad_(props)[alertId_('payroll|' + pay[0]).slice(1, 17)]) return null; // (sent already)
   return pay;
 }
-/* the payroll numbers: each person's regular and overtime hours for the two weeks (overtime counted by workweek), and
-   — when they go by email (mail) — the Paychex punch file attached once Paychex's IDs are in (Settings → Paychex) */
+/* the payroll numbers: each person's regular and overtime hours for the two weeks (overtime counted by workweek), their
+   holiday hours and time off from NLO Time Off, and — when they go by email (mail) — the Paychex punch file attached once
+   Paychex's IDs are in (Settings → Paychex). The email has the time off by kind (vacation, sick…); the words for a phone
+   push and the alert log (pub) only say how much paid time off, never what kind. */
 function payroll_(cfg, s, office, set, P, F, asks, pay, now, mail) {
   const a = pay[0], z = pay[1], to = TCE.dayStart(TCE.addDays(z, 1)), from = TCE.dayStart(a);
   const appr = {};
@@ -317,16 +319,25 @@ function payroll_(cfg, s, office, set, P, F, asks, pay, now, mail) {
   const px = mail ? paychexIds_(cfg, s) : null, pxIn = [], pxNoId = [], pxOpen = [];
   // paid holidays (Payroll → Holidays): their hours go to everyone paid by the hour with time in the period
   const hol = holidays_(cfg, s), hd = hol && hol.days ? TCE.holidaysIn(hol.days, a, z) : [];
-  const lines = [], fix = [], rowsH = [];
+  // time off from NLO Time Off (20 Nov 2026): what it handed over for this period (only its days in the period)
+  const lvR = leave_(cfg, s, a, z), L = lvR && lvR.doc ? lvR.doc : null;
+  const lines = [], pubLines = [], fix = [], rowsH = [], lvCheck = [], pubCheck = [];
   const word = { 'missing-out': 'no clock-out', 'no-return': 'never back from lunch', 'no-in': 'no clock-in', 'lunch-out': 'clocked out from lunch (no Back)' };
-  // everyone on the clock, and anyone else with time in the period (someone who left, or was taken off the clock)
-  (office.all || office.people).forEach(p => {
+  // everyone on the clock, anyone else with time in the period (someone who left, or was taken off the clock), and anyone
+  // Time Off has time off for in it
+  peopleWith_(office, L).forEach(p => {
     const staff = TCE.staffOf(p.staff), list = TCE.entries(P[p.sid] || [], F[p.sid] || []), current = p.staff.on === true && p.active;
-    if (!current && !list.some(e => e.t >= from && e.t < to)) return;
+    const lr = !staff.sal && L && L.rows[p.sid] || null, raw = TCE.leaveMs(lr); // (salaried: Time Off hands none over)
+    if (!current && !list.some(e => e.t >= from && e.t < to) && !(raw.paid + raw.unpaid)) return;
     const pp = TCE.payPeriod(list, set, staff, a, z, now, wk => (appr[wk] && appr[wk][p.sid]) || 0), tot = pp.reg + pp.ot;
     const who = p.name + (!p.active ? ' (left)' : !current ? ' (off the clock)' : '');
     pp.issues.forEach(i => fix.push(who + ': ' + word[i.type] + ' ' + TCE.dayText(i.day)));
-    if (!tot && !pp.issues.length) return; // (no time in this period)
+    // time off (only its days in the period) and holidays: everyone paid by the hour with time in the period — worked, or paid
+    // time off — gets them, and on a holiday the holiday pays the day (as the Payroll page counts it)
+    const V = TCE.leaveFor(L, p.sid, staff.sal, pp, hol && hol.days ? hol.days : {}, a, z), lv = V.lv, hms = hd.length ? V.hol : 0;
+    V.cut.forEach(c => { lvCheck.push(who + ': ' + TCE.leaveCutText(c)); pubCheck.push(who + ': ' + TCE.dayText(c.d) + ' is a holiday here but an office day in Time Off: the time off that day isn’t counted (the holiday pays it) — add the day to Time Off’s closed days'); });
+    V.both.forEach(b => { const t = who + ': ' + TCE.leaveBothText(b); lvCheck.push(t); pubCheck.push(t); });
+    if (!tot && !pp.issues.length && !(lv.paid + lv.unpaid) && !hms) return; // (no time in this period — a holiday their time off made theirs still counts)
     if (px && px.ids && !px.err && !staff.sal) { // (salaried: not in the punch file)
       try {
         const pl = TCE.paychexLines(list, set, a, z, now);
@@ -335,19 +346,24 @@ function payroll_(cfg, s, office, set, P, F, asks, pay, now, mail) {
         if (pl.open.length && px.ids[p.sid]) pxOpen.push(who);
       } catch (e) { px.err = cap_(msg_(e), 80); } // (the punch file never holds up the payroll numbers)
     }
-    const hms = hd.length ? TCE.holidayMs(hol.days, a, z, staff.sal, tot) : 0;
-    // (in all: regular, overtime and holiday as entered — each to the hundredth — added up, as the Payroll page shows it)
+    // (in all: regular, overtime, holiday and paid time off as entered — each to the hundredth — added up, as the Payroll page shows it)
     const otWeeks = pp.ot ? pp.weeks.filter(x => x.ot > 0).map(x => TCE.hText(x.ot) + ' the week of ' + TCE.dayText(x.wkIso)) : [];
-    lines.push(staff.sal ? who + ' (salaried) — ' + TCE.hText(tot) + ', for the record'
-      : who + ' — ' + TCE.hText(pp.reg) + ' regular, ' + TCE.hText(pp.ot) + ' overtime' + (hd.length ? ', ' + TCE.hText(hms) + ' holiday' : '') + ' (' + hSum_([pp.reg, pp.ot, hms]) + ' in all)' +
-        (otWeeks.length ? ': ' + otWeeks.join(', ') : ''));
-    rowsH.push(staff.sal ? { who, sal: true, reg: tot, ot: 0, hol: 0, otWeeks: [] } : { who, sal: false, reg: pp.reg, ot: pp.ot, hol: hms, otWeeks });
+    const lvText = ['vac', 'sick', 'free'].filter(k => lv[k] > 0).map(k => ', ' + TCE.hText(lv[k]) + ' ' + TCE.LEAVE_WORD[k]).join('');
+    const head = who + ' — ' + TCE.hText(pp.reg) + ' regular, ' + TCE.hText(pp.ot) + ' overtime' + (hd.length ? ', ' + TCE.hText(hms) + ' holiday' : '');
+    const tail = ' (' + hSum_([pp.reg, pp.ot, hms, lv.vac, lv.sick, lv.free]) + ' in all)' + (otWeeks.length ? ': ' + otWeeks.join(', ') : '') +
+      (lv.unpaid > 0 ? '; and ' + TCE.hText(lv.unpaid) + ' unpaid time off (not paid)' : '');
+    lines.push(staff.sal ? who + ' (salaried) — ' + TCE.hText(tot) + ', for the record' : head + lvText + tail);
+    pubLines.push(staff.sal ? who + ' (salaried) — ' + TCE.hText(tot) + ', for the record' : head + (lv.paid > 0 ? ', ' + TCE.hText(lv.paid) + ' paid time off' : '') + tail);
+    rowsH.push(staff.sal ? { who, sal: true, reg: tot, ot: 0, hol: 0, lv: TCE.leaveMs(null), otWeeks: [] } : { who, sal: false, reg: pp.reg, ot: pp.ot, hol: hms, lv, otWeeks });
   });
   const holText = hol && hol.err ? '\nThe holidays couldn’t be read this time (' + hol.err + '): see the Payroll page for any holiday hours.'
     : hd.length ? '\n' + (hd.length > 1 ? 'Holidays' : 'Holiday') + ' in this period: ' + hd.map(x => TCE.dayText(x.day) + (x.n ? ' (' + x.n + ')' : '') + ', ' + TCE.hText(Math.round(x.h * TCE.HOUR))).join('; ') +
       '. Everyone paid by the hour with time in the period gets the holiday hours (never part of overtime).' : '';
   const names = {}; office.people.forEach(p => { names[p.sid] = p.name; });
   (asks || []).forEach(r => { if (r.ps.some(q => q.t >= from && q.t < to)) fix.push(names[r.sid] + ' asked for a missed punch: ' + TCE.reqText(r) + ' (not approved yet)'); });
+  // time off still waiting for approval in Time Off (not in the hours), and how current Time Off's numbers are
+  const lvWait = L ? L.wait.map(w => personName_(office, w.sid) + ': ' + TCE.leaveDaysText(w) + ' — ' + TCE.leaveSplitText(w) + ' if approved') : [];
+  const lvNote = leaveNote_(lvR);
   // the punch file: in this email (one of its own then), never on its own — it's "as of" the same moment as the numbers.
   // (Only by email: a push carries the words, so with the numbers going by push only, nothing is said about it.)
   let pxText = '', files = null;
@@ -364,13 +380,17 @@ function payroll_(cfg, s, office, set, P, F, asks, pay, now, mail) {
     if (pxOpen.length) pxText += '\nNot in it yet, on the clock right now: ' + pxOpen.join(', ') + ' (get a new one once they’re done).';
     if (pxNoId.length) pxText += '\nNot in the punch file, with no Paychex worker ID yet (Settings → Paychex): ' + pxNoId.join(', ') + '.';
   }
-  const text = 'Pay period ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + '. The hours to enter (overtime is counted for each workweek, then added up):' + holText + '\n\n' +
-    (lines.length ? lines.join('\n') : 'Nobody has time in this period.') +
-    (fix.length ? '\n\nFix these first (on the Now screen, or in Timesheets):\n' + fix.join('\n') : '') +
-    '\n\nThese are the hours as of ' + TCE.timeText(now) + (to > now ? ' (the period ends ' + TCE.dayText(z) + ')' : '') + '. The Payroll page always has the latest numbers.' +
-    (pxText ? '\n\n' + pxText : '');
-  const o = { key: 'payroll|' + a, type: 'payroll', sid: '', prio: 3, title: 'Payroll: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z), text,
-    html: payrollHtml_(a, z, rowsH, hd, hol, fix, now, to, pxText) };
+  const words = (ls, wait, check) => 'Pay period ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + '. The hours to enter (overtime is counted for each workweek, then added up):' + holText + '\n\n' +
+    (ls.length ? ls.join('\n') : 'Nobody has time in this period.') +
+    (wait.length ? '\n\nTime off waiting for approval in NLO Time Off (not in the hours above):\n' + wait.join('\n') : '') +
+    (check.length ? '\n\nTime off to check:\n' + check.join('\n') : '') +
+    (fix.length ? '\n\nFix these first (on the Now screen, or in Timesheets):\n' + fix.join('\n') : '') + (lvNote ? '\n\n' + lvNote : '') +
+    '\n\nThese are the hours as of ' + TCE.timeText(now) + (to > now ? ' (the period ends ' + TCE.dayText(z) + ')' : '') + '. The Payroll page always has the latest numbers.';
+  const text = words(lines, lvWait, lvCheck) + (pxText ? '\n\n' + pxText : '');
+  // (a push, and the alert log on the Alerts page, which every time clock manager sees: no kinds of time off)
+  const pub = words(pubLines, lvWait.length ? [lvWait.length + (lvWait.length > 1 ? ' requests' : ' request') + ' — see the email or the Payroll page'] : [], pubCheck);
+  const o = { key: 'payroll|' + a, type: 'payroll', sid: '', prio: 3, title: 'Payroll: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z), text, pub,
+    html: payrollHtml_(a, z, rowsH, hd, hol, fix, now, to, pxText, lvWait, lvNote, lvCheck) };
   if (files) o.files = files;
   return o;
 }
@@ -394,6 +414,50 @@ function holidays_(cfg, s) {
   if (r.code === 404 || r.code === 403) return null;
   if (r.code !== 200 || !r.json) return { err: why_(r) };
   return { days: TCE.holClean(plain_(r.json.fields).days) };
+}
+/* the time off NLO Time Off handed over for the pay period a–z (tcLeave/{a}, checked as it's read): { doc }; { none } when
+   nothing has come over yet; null when the database's rules are older than it (the time clock works without it); { err } */
+function leave_(cfg, s, a, z) {
+  let r;
+  try { r = http_(cfg, 'get', root_(cfg) + '/tcLeave/' + a, null, s.tok); } catch (e) { return { err: cap_(msg_(e), 80) }; }
+  if (r.code === 404) return { none: true };
+  if (r.code === 403) return null;
+  if (r.code !== 200 || !r.json) return { err: why_(r) };
+  const doc = TCE.leaveClean(plain_(r.json.fields), a, z);
+  return doc ? { doc } : { err: 'not this period’s' };
+}
+/* everyone a pay period's numbers go through: everyone with clock settings (payroll lists anyone with time in the period, even
+   someone who left), and anyone in the office's list Time Off has time off for in it who has none (on leave, never set up on
+   the clock) */
+function peopleWith_(office, L) {
+  const all = (office.all || office.people).slice(), have = {};
+  all.forEach(p => { have[p.sid] = 1; });
+  if (L) Object.keys(L.rows).concat(L.wait.map(w => w.sid)).forEach(sid => {
+    if (have[sid] || !(office.names && office.names[sid])) return; have[sid] = 1;
+    all.push({ sid, name: office.names[sid], staff: {}, active: !!(office.act && office.act[sid]) });
+  });
+  return all;
+}
+function personName_(office, sid) {
+  const p = (office.all || office.people).filter(x => x.sid === sid)[0];
+  return p ? p.name : (office.names && office.names[sid]) || (office.full && office.full[sid]) || 'Someone';
+}
+/* the same for a spreadsheet's Total row */
+function leaveCsvNote_(lvR) {
+  if (!lvR) return '';
+  if (lvR.err) return 'Time off from NLO Time Off not included (it couldn’t be read)';
+  if (lvR.none) return 'No time off has come over from NLO Time Off for this period: none is included';
+  const t = TCE.leaveAsOf(lvR.doc);
+  return 'Time off from NLO Time Off as of ' + TCE.dayText(TCE.dayOf(t)) + ' ' + TCE.timeText(t);
+}
+/* how current the time off from Time Off is, in words for the emails ('' when the database's rules don't have it yet) */
+function leaveNote_(lvR) {
+  if (!lvR) return '';
+  if (lvR.err) return 'The time off from NLO Time Off couldn’t be read this time (' + lvR.err + '): see the Payroll page.';
+  if (lvR.none) return 'No time off has come over from NLO Time Off for this period yet, so none is in the hours above (it comes over when Dr. A opens Time Off): see the Payroll page.';
+  const L = lvR.doc, t = TCE.leaveAsOf(L);
+  return 'Time off from NLO Time Off as of ' + TCE.dayText(TCE.dayOf(t)) + ', ' + TCE.timeText(t) + ' (only its days in this period). Anything changed in Time Off after that shows on the Payroll page.' +
+    (L.odd ? ' ' + L.odd + (L.odd > 1 ? ' requests' : ' request') + ' near this period couldn’t be opened on the screen that sent it over, so ' + (L.odd > 1 ? 'they aren’t' : 'it isn’t') + ' counted — look in Time Off.' : '');
 }
 /* hours added up as entered (each to the hundredth first): "40.5" (hAdd_), "40.5 h" (hSum_) */
 function hAdd_(list) { const v = Math.round(list.reduce((n, ms) => n + TCE.h2(ms), 0) * 100) / 100; return String(Object.is(v, -0) ? 0 : v); }
@@ -425,10 +489,13 @@ function records_(cfg, s, props, office, set, P, F, asks, rec, now) {
   const a = rec[0], z = rec[1], from = TCE.dayStart(a), to = TCE.dayStart(TCE.addDays(z, 1)), key = 'records|' + a;
   const full = office.full || {}, nameOf = sid => full[sid] || office.names[sid] || 'Someone';
   const asked = (asks || []).filter(r => r.ps.some(q => q.t >= from && q.t < to));
-  // everyone on the clock, and anyone else with time in the period (someone who left, or was taken off the clock)
-  const who = (office.all || office.people).map(p => ({ p, list: TCE.entries(P[p.sid] || [], F[p.sid] || []) }))
-    .filter(x => (x.p.staff.on === true && x.p.active) || x.list.some(e => e.t >= from && e.t < to));
-  if (!who.some(x => x.list.some(e => e.t >= from && e.t < to)) && !asked.length) {
+  // time off from NLO Time Off (20 Nov 2026), as the Payroll page's spreadsheet has it
+  const lvR = leave_(cfg, s, a, z), L = lvR && lvR.doc ? lvR.doc : null;
+  // everyone on the clock, anyone else with time in the period (someone who left, or was taken off the clock), and anyone
+  // Time Off has time off for in it
+  const who = peopleWith_(office, L).map(p => ({ p, list: TCE.entries(P[p.sid] || [], F[p.sid] || []) }))
+    .filter(x => (x.p.staff.on === true && x.p.active) || x.list.some(e => e.t >= from && e.t < to) || (L && (L.rows[x.p.sid] || L.wait.some(w => w.sid === x.p.sid))));
+  if (!who.some(x => x.list.some(e => e.t >= from && e.t < to)) && !asked.length && !(L && Object.keys(L.rows).length)) {
     // nobody has any time in the period (the first one, before the time clock was in use, say): nothing to keep
     const done = doneLoad_(props), stamp = Math.floor(now / TCE.MIN);
     done[alertId_(key).slice(1, 17)] = stamp; doneSave_(props, done, stamp);
@@ -436,28 +503,35 @@ function records_(cfg, s, props, office, set, P, F, asks, rec, now) {
   }
   const appr = {};
   for (let wk = TCE.weekOf(a, set.wk); wk <= z; wk = TCE.addDays(wk, 7)) appr[wk] = approvals_(cfg, s, wk);
-  // paid holidays (Payroll → Holidays): their hours go to everyone paid by the hour with time in the period
+  // paid holidays (Payroll → Holidays): their hours go to everyone paid by the hour with time in the period (worked, or paid
+  // time off); on a holiday the holiday pays the day (as the Payroll page counts it)
   const hol = holidays_(cfg, s), hdays = hol && hol.days ? hol.days : {};
   const rows = who.map(x => {
     const staff = TCE.staffOf(x.p.staff), pp = TCE.payPeriod(x.list, set, staff, a, z, now, wk => (appr[wk] && appr[wk][x.p.sid]) || 0);
+    const V = TCE.leaveFor(L, x.p.sid, staff.sal, pp, hdays, a, z);
     const issues = pp.issues.map(i => (ISSUE_[i.type] || i.type) + ' ' + TCE.dayText(i.day));
     asked.forEach(r => { if (r.sid === x.p.sid) issues.push('Asked for a missed punch (not approved yet)'); });
-    return { name: nameOf(x.p.sid), sal: staff.sal, pp, hol: TCE.holidayMs(hdays, a, z, staff.sal, pp.reg + pp.ot), issues };
+    const notes = V.wait.map(w => 'Waiting for approval in Time Off: ' + TCE.leaveDaysText(w) + ', ' + TCE.leaveSplitText(w) + ' if approved')
+      .concat(V.cut.map(TCE.leaveCutText), V.both.map(TCE.leaveBothText), V.nohr ? ['Time off counted as asked (no HR record in Time Off)'] : []);
+    return { name: nameOf(x.p.sid), sal: staff.sal, pp, hol: V.hol, lv: V.lv, lvDays: V.days, issues, notes };
   }).sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
   const weekCols = rows.length ? rows[0].pp.weeks : [];
-  const totals = [['Employee', 'Period start', 'Period end', 'Regular hours', 'Overtime hours', 'Holiday hours', 'Total hours', 'Pay type', 'To check']
+  const paidOf = r => [r.pp.reg, r.pp.ot, r.hol].concat(r.sal ? [] : [r.lv.vac, r.lv.sick, r.lv.free]);
+  const lvCells = r => r.sal ? ['', '', '', '', ''] : TCE.LEAVE_K.map(k => hNum_(r.lv[k])).concat([(r.lvDays || []).map(d => d.d + ' ' + TCE.LEAVE_K.filter(k => d[k]).map(k => hAdd_([Math.round(d[k] * TCE.HOUR)]) + ' h ' + TCE.LEAVE_WORD[k]).join(' + ')).join('; ')]);
+  const totals = [['Employee', 'Period start', 'Period end', 'Regular hours', 'Overtime hours', 'Holiday hours', 'Vacation hours', 'Sick hours', 'Other paid leave hours', 'Unpaid leave hours', 'Time off days', 'Total hours', 'Pay type', 'To check']
     .concat(flat_(weekCols.map(x => ['Week of ' + x.wkIso + ' regular', 'Week of ' + x.wkIso + ' overtime'])))]
-    .concat(rows.map(r => [r.name, a, z, hNum_(r.pp.reg), hNum_(r.pp.ot), hNum_(r.hol), hAdd_([r.pp.reg, r.pp.ot, r.hol]), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.join('; ')]
+    .concat(rows.map(r => [r.name, a, z, hNum_(r.pp.reg), hNum_(r.pp.ot), hNum_(r.hol)].concat(lvCells(r)).concat([hAdd_(paidOf(r)), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.concat(r.notes).join('; ')])
       .concat(flat_(r.pp.weeks.map(x => [hNum_(x.reg), hNum_(x.ot)])))));
   // the totals, as on the Payroll page: everyone, then (with someone salaried) only the people paid by the hour
   const sal = rows.filter(r => r.sal).map(r => r.name);
   const tot = (rs, label, type, note) => {
     const add = f => hAdd_(rs.map(f));
-    return [label, a, z, add(r => r.pp.reg), add(r => r.pp.ot), add(r => r.hol), hAdd_(flat_(rs.map(r => [r.pp.reg, r.pp.ot, r.hol]))), type,
-      [rs.some(r => r.issues.length) ? 'Not final: some days aren’t complete' : '', note].filter(Boolean).join('; ')]
+    return [label, a, z, add(r => r.pp.reg), add(r => r.pp.ot), add(r => r.hol)].concat(TCE.LEAVE_K.map(k => add(r => r.sal ? 0 : r.lv[k]))).concat(['', hAdd_(flat_(rs.map(paidOf))), type,
+      [rs.some(r => r.issues.length) ? 'Not final: some days aren’t complete' : '', note].filter(Boolean).join('; ')])
       .concat(flat_(weekCols.map((x, i) => [add(r => r.pp.weeks[i].reg), add(r => r.pp.weeks[i].ot)])));
   };
-  if (rows.length) totals.push(tot(rows, 'Total', sal.length ? 'Everyone' : '', sal.length ? 'With ' + sal.join(', ') + ' (salaried)' : ''));
+  const asOf = leaveCsvNote_(lvR);
+  if (rows.length) totals.push(tot(rows, 'Total', sal.length ? 'Everyone' : '', [sal.length ? 'With ' + sal.join(', ') + ' (salaried)' : '', asOf].filter(Boolean).join('; ')));
   if (sal.length && rows.some(r => !r.sal)) totals.push(tot(rows.filter(r => !r.sal), 'Hourly staff', 'Hourly', 'Without ' + sal.join(', ') + ': what goes into Paychex'));
   const days = [['Employee', 'Date', 'Day', 'Punches', 'Hours', 'Flags', 'Corrections']];
   rows.forEach(r => r.pp.weeks.forEach(x => x.w.days.forEach(d => {
@@ -470,26 +544,33 @@ function records_(cfg, s, props, office, set, P, F, asks, rec, now) {
     days.push([r.name, d.iso, TCE.WD[TCE.dow(d.iso)], live.map(e => KSHORT_[e.kind] + ' ' + TCE.timeText(e.t) + whereText_(e)).join('; '), hNum_(d.ms),
       d.flags.map(f => FLAG_[f.type] || f.type).concat(d.issues.map(i => ISSUE_[i.type] || i.type)).concat(d.gaps.map(g => g.min + '-min break paid')).join('; '), fixes.join('; ')]);
   })));
-  const anyHol = rows.some(r => r.hol > 0);
-  const lines = rows.filter(r => r.pp.reg + r.pp.ot > 0 || r.issues.length).map(r => r.name + ' — ' + (r.sal ? TCE.hText(r.pp.reg + r.pp.ot) + ' (salaried, for the record)'
-    : TCE.hText(r.pp.reg) + ' regular, ' + TCE.hText(r.pp.ot) + ' overtime' + (r.hol > 0 ? ', ' + TCE.hText(r.hol) + ' holiday' : '')) + (r.issues.length ? ' · to check: ' + r.issues.join('; ') : ''));
+  const anyHol = rows.some(r => r.hol > 0), anyLv = rows.some(r => !r.sal && r.lv.paid + r.lv.unpaid > 0), lvNote = leaveNote_(lvR);
+  const listed = rows.filter(r => r.pp.reg + r.pp.ot > 0 || r.issues.length || r.notes.length || (!r.sal && r.lv.paid + r.lv.unpaid > 0));
+  // (the words: by kind of time off; pub — the alert log every time clock manager sees — only how much paid time off)
+  const lineOf = (r, kinds) => r.name + ' — ' + (r.sal ? TCE.hText(r.pp.reg + r.pp.ot) + ' (salaried, for the record)'
+    : TCE.hText(r.pp.reg) + ' regular, ' + TCE.hText(r.pp.ot) + ' overtime' + (r.hol > 0 ? ', ' + TCE.hText(r.hol) + ' holiday' : '') +
+      (kinds ? TCE.LEAVE_K.filter(k => r.lv[k] > 0).map(k => ', ' + TCE.hText(r.lv[k]) + ' ' + TCE.LEAVE_WORD[k] + (k === 'unpaid' ? ' (not paid)' : '')).join('')
+        : (r.lv.paid > 0 ? ', ' + TCE.hText(r.lv.paid) + ' paid time off' : '') + (r.lv.unpaid > 0 ? ', ' + TCE.hText(r.lv.unpaid) + ' unpaid (not paid)' : ''))) +
+    (kinds && r.issues.concat(r.notes).length ? ' · to check: ' + r.issues.concat(r.notes).join('; ') : !kinds && r.issues.length ? ' · to check: ' + r.issues.join('; ') : '');
   const name1 = 'time-clock-' + a + '-to-' + z + '.csv', name2 = 'time-clock-days-' + a + '-to-' + z + '.csv';
-  const text = 'The time cards for the pay period ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ', as they stand ' + TCE.dayText(TCE.dayOf(now)) + ' at ' + TCE.timeText(now) + '. Attached:\n' +
-    '• ' + name1 + ': each person’s regular' + (anyHol ? ', overtime and holiday' : ' and overtime') + ' hours (overtime is counted for each workweek)\n' +
+  const words = kinds => 'The time cards for the pay period ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ', as they stand ' + TCE.dayText(TCE.dayOf(now)) + ' at ' + TCE.timeText(now) + '. Attached:\n' +
+    '• ' + name1 + ': each person’s regular' + (anyHol ? ', overtime and holiday' : ' and overtime') + ' hours (overtime is counted for each workweek)' + (anyLv ? ', and their time off from NLO Time Off' : '') + '\n' +
     '• ' + name2 + ': every day: the punches, the hours, anything flagged, and each correction (who made it, when, and why)\n\n' +
-    lines.join('\n') + '\n\n' +
+    listed.map(r => lineOf(r, kinds)).join('\n') + (lvNote ? '\n\n' + lvNote : '') + '\n\n' +
     'Keep this email: it’s this pay period’s record. The Time Clock keeps every punch and correction too, and anything changed later shows there as a correction.';
+  const text = words(true), pub = words(false);
   // the page: the same table as the payroll numbers (with what's still to check), then what's attached
-  const shown = rows.filter(r => r.pp.reg + r.pp.ot > 0 || r.issues.length);
-  const rowsH = shown.map(r => r.sal ? { who: r.name, sal: true, reg: r.pp.reg + r.pp.ot, ot: 0, hol: 0, otWeeks: [] }
-    : { who: r.name, sal: false, reg: r.pp.reg, ot: r.pp.ot, hol: r.hol, otWeeks: r.pp.weeks.filter(x => x.ot > 0).map(x => TCE.hText(x.ot) + ' the week of ' + TCE.dayText(x.wkIso)) });
-  const toCheck = shown.filter(r => r.issues.length).map(r => r.name + ': ' + r.issues.join('; '));
+  const shown = listed;
+  const rowsH = shown.map(r => r.sal ? { who: r.name, sal: true, reg: r.pp.reg + r.pp.ot, ot: 0, hol: 0, lv: TCE.leaveMs(null), otWeeks: [] }
+    : { who: r.name, sal: false, reg: r.pp.reg, ot: r.pp.ot, hol: r.hol, lv: r.lv, otWeeks: r.pp.weeks.filter(x => x.ot > 0).map(x => TCE.hText(x.ot) + ' the week of ' + TCE.dayText(x.wkIso)) });
+  const toCheck = shown.filter(r => r.issues.length || r.notes.length).map(r => r.name + ': ' + r.issues.concat(r.notes).join('; '));
   const html = p_('The time cards for the pay period <b>' + h_(TCE.dayText(a)) + ' – ' + h_(TCE.dayText(z)) + '</b>, as they stand ' + h_(TCE.dayText(TCE.dayOf(now))) + ' at ' + h_(TCE.timeText(now)) + '.') +
     (rowsH.length ? payTbl_(rowsH, anyHol) : p_('Nobody had time in this pay period.')) + (toCheck.length ? box_('warn', 'Still to check', toCheck) : '') +
-    box_('', 'Attached', [name1 + ': each person’s regular' + (anyHol ? ', overtime and holiday' : ' and overtime') + ' hours (overtime is counted for each workweek)',
+    box_('', 'Attached', [name1 + ': each person’s regular' + (anyHol ? ', overtime and holiday' : ' and overtime') + ' hours (overtime is counted for each workweek)' + (anyLv ? ', and their time off from NLO Time Off' : ''),
       name2 + ': every day: the punches, the hours, anything flagged, and each correction (who made it, when, and why)']) +
+    (lvNote ? p_(h_(lvNote), 1) : '') +
     p_('Keep this email: it’s this pay period’s record. The Time Clock keeps every punch and correction too, and anything changed later shows there as a correction.', 1);
-  return { key, type: 'payroll', sid: '', prio: 2, title: 'Time cards: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ' (for your records)', text, html, only: 1,
+  return { key, type: 'payroll', sid: '', prio: 2, title: 'Time cards: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ' (for your records)', text, pub, html, only: 1,
     files: [{ name: name1, text: csvOf_(totals) }, { name: name2, text: csvOf_(days) }] };
 }
 /* where a punch came from, as the Payroll page's spreadsheet says it */
@@ -514,7 +595,8 @@ function csvOf_(rows) { return '\uFEFF' + rows.map(r => r.map(csvCell_).join(','
    person's hours. The email has both: the page, and the words (text) for anything that can't show a page (and the phone
    push, which only ever has the words). Inline styles only — what Gmail and phones keep. */
 var C_ = { navy: '#1B2F4C', navy5: '#5471A0', navyBg: '#E8ECF2', coral: '#D8412E', coralBar: '#FA624D', coralBg: '#FFE7E1', mint: '#1F9E7E',
-  blueBar: '#9DB8E8', blueBg: '#E5EAF8', blue: '#16318C', amber: '#8A5A00', amberBg: '#FEF2D7', grey: '#6B7685', line: '#ECEEF0', zebra: '#F7F8F9', track: '#ECEEF0' };
+  blueBar: '#9DB8E8', blueBg: '#E5EAF8', blue: '#16318C', amber: '#8A5A00', amberBg: '#FEF2D7', grey: '#6B7685', line: '#ECEEF0', zebra: '#F7F8F9', track: '#ECEEF0',
+  mintBar: '#34C49E' };
 function h_(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 var TD_ = 'padding:9px 8px;border-bottom:1px solid ' + C_.line + ';vertical-align:top;';
 function th_(t, right) { return '<th style="padding:9px 8px;text-align:' + (right ? 'right' : 'left') + ';font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#FFFFFF;background:' + C_.navy + '">' + t + '</th>'; }
@@ -526,10 +608,10 @@ function tbl_(head, rows) {
   return '<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;width:100%;font-size:14px;color:' + C_.navy + ';margin:6px 0 14px">' +
     '<tr>' + head.join('') + '</tr>' + rows.join('') + '</table>';
 }
-/* a small bar for a person's hours: regular (navy), overtime (coral), holiday (light blue), out of max (ms) */
-function bar_(reg, ot, hol, max, w) {
+/* a small bar for a person's hours: regular (navy), overtime (coral), holiday (light blue), paid time off (mint), out of max (ms) */
+function bar_(reg, ot, hol, max, w, lv) {
   w = w || 110;
-  const px = ms => Math.round(Math.max(0, ms) / max * w), segs = [[px(reg), C_.navy], [px(ot), C_.coralBar], [px(hol), C_.blueBar]].filter(x => x[0] > 0);
+  const px = ms => Math.round(Math.max(0, ms) / max * w), segs = [[px(reg), C_.navy], [px(ot), C_.coralBar], [px(hol), C_.blueBar], [px(lv || 0), C_.mintBar]].filter(x => x[0] > 0);
   const used = segs.reduce((n, x) => n + x[0], 0);
   if (used < w) segs.push([w - used, C_.track]);
   return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:' + w + 'px"><tr>' +
@@ -545,34 +627,43 @@ function hh_(ms) { return h_(TCE.hText(ms)); }
 /* the payroll numbers as a table: each person's regular, overtime (and holiday) hours, Total = those as entered, added up;
    then the totals — everyone, and (with someone salaried) the people paid by the hour: what goes into Paychex */
 function payTbl_(rows, showHol) {
-  const max = Math.max(80 * TCE.HOUR, ...rows.map(r => r.reg + r.ot + r.hol));
-  const head = [th_('Person'), th_('Regular', 1), th_('Overtime', 1)].concat(showHol ? [th_('Holiday', 1)] : []).concat([th_('Total', 1)]);
+  const lvOf = r => r.lv || TCE.leaveMs(null), paidOf = r => [r.reg, r.ot, r.hol, lvOf(r).vac, lvOf(r).sick, lvOf(r).free];
+  const lk = TCE.LEAVE_K.filter(k => rows.some(r => !r.sal && lvOf(r)[k] > 0)); // (each kind of time off someone has)
+  const max = Math.max(80 * TCE.HOUR, ...rows.map(r => r.reg + r.ot + r.hol + lvOf(r).paid));
+  const head = [th_('Person'), th_('Regular', 1), th_('Overtime', 1)].concat(showHol ? [th_('Holiday', 1)] : []).concat(lk.map(k => th_(LV_HEAD_[k], 1))).concat([th_('Total', 1)]);
   const body = rows.map((r, i) => {
-    const bg = i % 2 ? C_.zebra : '';
+    const bg = i % 2 ? C_.zebra : '', lv = lvOf(r);
     const sub = r.sal ? 'Salaried: for the record' : r.otWeeks.length ? 'Overtime: ' + r.otWeeks.join(', ') : '';
-    return '<tr>' + td_('<b>' + h_(r.who) + '</b><div style="margin-top:5px">' + bar_(r.reg, r.ot, r.hol, max, 110) + '</div>' +
+    return '<tr>' + td_('<b>' + h_(r.who) + '</b><div style="margin-top:5px">' + bar_(r.reg, r.ot, r.hol, max, 110, lv.paid) + '</div>' +
       (sub ? '<div style="font-size:12px;color:' + (r.sal ? C_.grey : C_.coral) + ';margin-top:4px">' + h_(sub) + '</div>' : ''), { bg }) +
       td_(h_(hNum_(r.reg)), { right: 1, bg, color: r.sal ? C_.grey : '' }) +
       td_(r.sal ? '—' : h_(hNum_(r.ot)), { right: 1, bg, color: r.sal ? C_.grey : r.ot > 0 ? C_.coral : '', bold: r.ot > 0 }) +
       (showHol ? td_(r.sal ? '—' : h_(hNum_(r.hol)), { right: 1, bg, color: r.sal ? C_.grey : '' }) : '') +
-      td_(h_(hAdd_([r.reg, r.ot, r.hol])), { right: 1, bold: 1, bg, color: r.sal ? C_.grey : '' }) + '</tr>';
+      lk.map(k => td_(r.sal ? '—' : h_(hNum_(lv[k])), { right: 1, bg, color: r.sal || !lv[k] ? C_.grey : k === 'unpaid' ? C_.amber : '' })).join('') +
+      td_(h_(hAdd_(paidOf(r))), { right: 1, bold: 1, bg, color: r.sal ? C_.grey : '' }) + '</tr>';
   });
   const sal = rows.filter(r => r.sal), hr = rows.filter(r => !r.sal);
   const foot = (rs, label, note, first) => '<tr>' + td_('<b>' + h_(label) + '</b>' + (note ? '<div style="font-size:12px;color:' + C_.grey + ';font-weight:400;margin-top:2px">' + h_(note) + '</div>' : ''), { top: first, size: first ? '15px' : '13.5px' }) +
     td_(h_(hAdd_(rs.map(r => r.reg))), { right: 1, bold: 1, top: first }) + td_(h_(hAdd_(rs.map(r => r.ot))), { right: 1, bold: 1, top: first, color: rs.some(r => r.ot > 0) ? C_.coral : '' }) +
     (showHol ? td_(h_(hAdd_(rs.map(r => r.hol))), { right: 1, bold: 1, top: first }) : '') +
-    td_(h_(hAdd_(flat_(rs.map(r => [r.reg, r.ot, r.hol])))), { right: 1, bold: 1, top: first, size: first ? '15px' : '13.5px' }) + '</tr>';
+    lk.map(k => td_(h_(hAdd_(rs.map(r => r.sal ? 0 : lvOf(r)[k]))), { right: 1, bold: 1, top: first })).join('') +
+    td_(h_(hAdd_(flat_(rs.map(paidOf)))), { right: 1, bold: 1, top: first, size: first ? '15px' : '13.5px' }) + '</tr>';
   if (rows.length) body.push(foot(rows, 'Total', sal.length ? 'Everyone, with ' + sal.map(r => r.who).join(', ') + ' (salaried)' : '', 1));
   if (sal.length && hr.length) body.push(foot(hr, 'Hourly staff', 'What goes into Paychex', 0));
   return tbl_(head, body);
 }
-function payrollHtml_(a, z, rows, hd, hol, fix, now, to, pxText) {
+var LV_HEAD_ = { vac: 'Vacation', sick: 'Sick', free: 'Other paid', unpaid: 'Unpaid' };
+function payrollHtml_(a, z, rows, hd, hol, fix, now, to, pxText, lvWait, lvNote, lvCheck) {
   const showHol = hd.length > 0;
   return p_('Pay period <b>' + h_(TCE.dayText(a)) + ' – ' + h_(TCE.dayText(z)) + '</b> · the hours to enter (overtime is counted for each workweek, then added up)') +
     (hol && hol.err ? box_('warn', 'The holidays couldn’t be read this time (' + hol.err + '): see the Payroll page for any holiday hours.', []) : '') +
     (showHol ? box_('info', (hd.length > 1 ? 'Holidays' : 'Holiday') + ' in this period: ' + hd.map(x => TCE.dayText(x.day) + (x.n ? ' (' + x.n + ')' : '') + ', ' + TCE.hText(Math.round(x.h * TCE.HOUR))).join('; '), ['Everyone paid by the hour with time in the period gets the holiday hours (never part of overtime).']) : '') +
     (rows.length ? payTbl_(rows, showHol) : p_('Nobody has time in this period.')) +
+    (lvWait && lvWait.length ? box_('warn', 'Time off waiting for approval in NLO Time Off (not in the hours above):', lvWait) : '') +
+    (lvCheck && lvCheck.length ? box_('warn', 'Time off to check:', lvCheck) : '') +
     (fix.length ? box_('bad', 'Fix these first (on the Now screen, or in Timesheets):', fix) : '') +
+    (lvNote ? p_(h_(lvNote), 1) : '') +
+    (rows.some(r => !r.sal && r.lv && r.lv.paid + r.lv.unpaid > 0) ? p_('Paid time off (vacation, sick, and other paid: personal days and bereavement) is paid on top of the hours worked and never counts toward overtime; unpaid time off is shown, not paid.', 1) : '') +
     p_('These are the hours as of ' + h_(TCE.timeText(now)) + (to > now ? ' (the period ends ' + h_(TCE.dayText(z)) + ')' : '') + '. The Payroll page always has the latest numbers.', 1) +
     (pxText ? p_(h_(pxText).replace(/\n/g, '<br>'), 1) : '');
 }
@@ -682,7 +773,7 @@ function deliver_(cfg, s, props, alerts, A, now) {
 
 /* claim an alert: { mine, had } to send it (had: channels already sent), { over } when it's done, {} to leave it, { err } */
 function claim_(cfg, s, a, id, now) {
-  const name = docName_(cfg, 'tcSent/' + id), text = cap_(a.title + '\n' + a.text, 600);
+  const name = docName_(cfg, 'tcSent/' + id), text = cap_(a.title + '\n' + (a.pub || a.text), 600); // (every time clock manager sees the log: a.pub when it has words only some should see)
   const r = commit_(cfg, s, [{
     update: { name, fields: { k: sv_(cap_(a.key, 160)), type: sv_(cap_(a.type, 20)), sid: sv_(cap_(a.sid || '', 40)), text: sv_(text), st: sv_('claim'), ch: iv_(0) } },
     currentDocument: { exists: false },
@@ -759,7 +850,7 @@ function pushes_(cfg, props, topic, list, now) {
     for (const g of groups) {
       const one = g.length === 1 ? list[g[0]] : null;
       try {
-        if (one) push_(cfg, topic, one.title, one.text, one.prio);
+        if (one) push_(cfg, topic, one.title, one.pub || one.text, one.prio); // (a.pub: the words for a phone, when the email's say more)
         else push_(cfg, topic, g.length + ' time clock alerts', g.map(i => list[i].title).join('\n'), Math.max.apply(null, g.map(i => list[i].prio || 3)));
         g.forEach(i => { got[i] = true; });
         via = 'ntfy';
@@ -799,7 +890,7 @@ function pushMail_(cfg, topic, list) {
   MailApp.sendEmail({
     to: cfg.ntfyMail.replace('{topic}', topic),
     subject: cap_(one ? one.title : list.length + ' time clock alerts', 200),
-    body: utf8Cap_(one ? one.text : list.map(a => a.title).join('\n'), 3500), // (ntfy keeps 4,096 bytes)
+    body: utf8Cap_(one ? one.pub || one.text : list.map(a => a.title).join('\n'), 3500), // (ntfy keeps 4,096 bytes)
     name: 'NLO Time Clock'
   });
 }

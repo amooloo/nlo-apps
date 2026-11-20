@@ -20,7 +20,7 @@ const DEMO = (() => {
   const D = {
     me: null, mgr: false, kiosk: null, skew: 0, unsubs: [], onSync: null, noIndex: false,
     roster: [], staff: {}, pins: {}, tries: {}, punches: [], fixes: [], ot: [], reqs: [], reqN: {}, mgrs: ['s_morgan'], set: null, alerts: null, kiosks: [], beat: [], sent: [], bots: [],
-    laptops: [], lapReqs: [], offices: [], seen: {}, where: 'office', listeners: []
+    laptops: [], lapReqs: [], offices: [], seen: {}, where: 'office', listeners: [], leave: {}, leaveCh: [], notes: {}
   };
   let seeded = false;
   function seed() {
@@ -85,8 +85,29 @@ const DEMO = (() => {
     // Taylor asked for Wednesday's clock-out at the time clock this morning; Avery left a note when she left
     D.reqs.push({ id: 'r' + '1'.padStart(24, '0'), sid: 's_taylor', ps: [{ k: 'out', t: TCE.atTime(wed, '17:10') }], note: 'Forgot to punch out, left at 5:10', src: 'kiosk', by: 'k_front', at: TCE.atTime(thu, '07:52') + 40000, st: 'open' });
     D.reqs.push({ id: 'r' + '2'.padStart(24, '0'), sid: 's_avery', ps: [], note: 'Left at 1 for a dentist appointment (Morgan knew)', src: 'kiosk', by: 'k_front', at: TCE.atTime(thu, '13:00') + 30000, st: 'open' });
+    // time off from NLO Time Off (20 Nov 2026), as Time Off would hand it over: this pay period (this week and next) — Robin's
+    // vacation next Monday and Tuesday, Jamie's sick morning next Tuesday, Casey's personal day next Monday, Avery's unpaid
+    // hours — and Morgan's vacation day next Tuesday still waiting; the period before — Casey's sick day. Since then, Taylor
+    // asked for next Monday off and Jamie's HR record was changed (only what Time Off's database shows in plain view: whose,
+    // waiting, from when).
+    {
+      const a = TCE.addDays(D.set.pay, 14), z = TCE.addDays(a, 13), n1 = TCE.addDays(a, 8), n2 = TCE.addDays(a, 9), n4 = n2;
+      const at = now - 25 * MIN, row = (o, days) => Object.assign({ vac: 0, sick: 0, free: 0, unpaid: 0, days }, o);
+      const q = n => 'q' + String(n).padStart(24, '0');
+      D.leave[a] = { v: 2, a, z, odd: 0, upto: at, hrUp: now - 3 * TCE.DAY, at, by: 'u_owner', bsid: 's_owner',
+        rows: { s_robin: row({ vac: 17 }, [{ d: n1, vac: 8.5, full: true }, { d: n2, vac: 8.5, full: true }]), s_jamie: row({ sick: 4.25 }, [{ d: n2, sick: 4.25 }]), s_casey: row({ free: 8.5 }, [{ d: n1, free: 8.5, full: true }]), s_avery: row({ unpaid: 5.5 }, [{ d: n2, unpaid: 5.5 }]) },
+        wait: [{ id: q(1), sid: 's_morgan', b: 'vac', days: [n4], h: 8.5, part: 'full', vac: 8.5, sick: 0, free: 0, unpaid: 0 }], ids: [q(1), q(3), q(4), q(5), q(6)] };
+      const pa = D.set.pay, pz = TCE.addDays(pa, 13);
+      D.leave[pa] = { v: 2, a: pa, z: pz, odd: 0, upto: now - 8 * TCE.DAY, hrUp: now - 9 * TCE.DAY, at: now - 8 * TCE.DAY, by: 'u_owner', bsid: 's_owner',
+        rows: { s_casey: row({ sick: 8.5 }, [{ d: TCE.addDays(pa, 2), sick: 8.5, full: true }]) }, wait: [], ids: [q(7)] };
+      D.leaveHR = [{ sid: 's_jamie', at: now - 6 * MIN }]; // (Jamie's HR record changed in Time Off since: the hours may move between balances)
+      // Dr. A's notes for the period before (made up)
+      D.notes[pa] = { t: 'Casey’s sick day (Tuesday) keyed in Paychex by hand.\nReminder: Robin asked for his vacation to be paid with this check.', at: now - 8 * TCE.DAY };
+      D.leaveCh = [{ id: 'q' + '2'.padStart(24, '0'), sid: 's_taylor', status: 'pending', rev: 1, startMs: TCE.dayStart(n1), at: now - 10 * MIN },
+        { id: 'q' + '1'.padStart(24, '0'), sid: 's_morgan', status: 'pending', rev: 1, startMs: TCE.dayStart(n4), at: at - 3 * MIN }];
+    }
     D.kiosks = [{ id: 'k_front', name: 'Front desk', at: now - 30 * TCE.DAY, by: 'u_owner', seen: now - 3 * MIN }];
-    D.beat = [{ id: 'b_demo', box: 'records@ (the office Gmail)', ver: '1', err: '', sent: 0, at: now - 2 * MIN }];
+    D.beat = [{ id: 'b_demo', box: 'records@ (the office Gmail)', ver: String(ALERT_V), err: '', sent: 0, at: now - 2 * MIN }]; // (the script this page goes with)
     const sent = (mins, type, sid, text) => D.sent.push({ id: 'a' + String(D.sent.length).padStart(32, '0'), k: type + '|' + sid, type, sid, text, st: 'sent', ch: 3, at: now - mins * MIN, up: now - mins * MIN });
     sent(400, 'miss', 's_taylor', 'Taylor didn’t clock out ' + TCE.dayText(wed) + '\nTaylor clocked in at 7:50 AM on ' + TCE.dayText(wed, true) + ' and never clocked out. Until a manager adds the clock-out, that shift counts 0 hours.');
     sent(338, 'early', 's_robin', 'Robin clocked in early: 7:21 AM\nRobin clocked in at 7:21 AM on ' + TCE.dayText(thu) + '. The earliest set is 7:30 AM. Flagged on the timesheet.');
@@ -340,6 +361,18 @@ const DEMO = (() => {
       D.px = { cid, ids: Object.assign({}, ids), at: Date.now() };
     },
     async holRulesOk() { return true; },
+    // time off from NLO Time Off (as the rules: only Dr. A — the demo's only one who approves time off — and the alert script)
+    async leaveRulesOk() { await wait(40); return true; },
+    watchLeave(a, on) { let live = true; setTimeout(() => { if (!live) return; if (!isOwner()) on(undefined, errCode('permission-denied', 'Missing or insufficient permissions.')); else on(D.leave[a] ? copy(D.leave[a]) : null); }, 80); return () => { live = false; }; },
+    watchLeaveChanges(since, on) { let live = true; setTimeout(() => { if (live) on(D.leaveCh.filter(x => since > 0 ? x.at > since : x.status === 'pending').map(copy)); }, 90); return () => { live = false; }; },
+    watchLeaveHR(since, on) { let live = true; setTimeout(() => { if (live) on((D.leaveHR || []).filter(x => x.at > since).map(copy)); }, 90); return () => { live = false; }; },
+    // payroll notes (as the rules: Dr. A's own)
+    async loadNote(a) { await wait(50); if (!isOwner()) deny(); const n = D.notes[a]; return { t: n ? n.t : '', at: n ? n.at : 0 }; },
+    async saveNote(a, t, at) {
+      await wait(120); if (!isOwner()) deny();
+      const n = D.notes[a]; if ((n ? n.at : 0) !== (at || 0)) throw errCode('stale', 'Not saved: these notes were changed in another window since this page read them.');
+      const t2 = Math.max(now(), (n ? n.at : 0) + 1); D.notes[a] = { t: String(t).slice(0, 5000), at: t2 }; return t2; // (the demo's clock)
+    },
     async loadHol() { await wait(60); if (!D.mgr) deny(); return { days: TCE.holClean(D.hol && D.hol.days), at: (D.hol && D.hol.at) || 0 }; },
     async saveHol(days, at) {
       await wait(150); if (!isOwner()) deny();

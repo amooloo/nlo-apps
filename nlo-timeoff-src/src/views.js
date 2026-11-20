@@ -760,11 +760,22 @@ function openPersonDrawer(sid, keep) {
 }
 
 /* ---------- Payroll and the year-end list ---------- */
+/* the dates it opens on: the Time Clock's pay period to enter (Amir, 20 Nov 2026 — the same two weeks as the Time Clock's
+   Payroll page), or the month while the Time Clock has no pay periods */
+function payDefault() {
+  const t = todayISO(), pp = S.tcSet ? payPeriodToEnter(t, S.tcSet.pay) : null;
+  return pp ? { from: pp[0], to: pp[1] } : { from: t.slice(0, 8) + '01', to: lastOfMonth(t) };
+}
 function payrollHTML() {
-  const t = todayISO(), f = S.tab.payF || { from: t.slice(0, 8) + '01', to: lastOfMonth(t) };
-  let h = '<div class="card"><div class="cardHd"><h3>Time off in a pay period</h3><span class="sub">Approved time off, from the balances it came out of</span></div><div class="cardBd">' +
+  const f = S.tab.payF || payDefault(), tc = S.tcSet, pp = tc && isISO(f.from) ? payPeriodAt(f.from, tc.pay) : null, isPP = !!(pp && pp[0] === f.from && pp[1] === f.to);
+  let h = '<div class="card"><div class="cardHd"><h3>Time off in a pay period</h3><span class="sub">Approved time off, from the balances it came out of — only the days inside the dates</span></div><div class="cardBd">' +
+    (tc ? '<div class="btnRow" style="margin:0 0 10px;align-items:center"><button class="btn btn-ghost btn-sm" data-act="payPP" data-d="-1" aria-label="Pay period before">' + ic('prev', 15) + '</button>' +
+      '<b class="small">' + (isPP ? 'Pay period ' + esc(fmtRange(f.from, f.to)) + ' · payroll ' + esc(fmtDay(payDayOf(f.to))) : 'Dates of your own') + '</b>' +
+      '<button class="btn btn-ghost btn-sm" data-act="payPP" data-d="1" aria-label="Pay period after">' + ic('next', 15) + '</button>' +
+      (S.tab.payF ? '<button class="btn btn-ghost btn-sm" data-act="payPP" data-d="0">The one to enter</button>' : '') + '</div>' : '') +
     '<div class="grid3"><div class="field"><label for="pfFrom">From</label><input type="date" id="pfFrom" data-chg="payF" value="' + esc(f.from) + '"></div><div class="field"><label for="pfTo">To</label><input type="date" id="pfTo" data-chg="payF" value="' + esc(f.to) + '"></div></div>';
-  const rows = payrollRows(f.from, f.to);
+  const rows = payrollRows(f.from, f.to), wait = payWaiting(f.from, f.to);
+  h += payWaitHTML(wait) + payHandoffHTML(isPP ? f.from : '');
   if (!rows.length) return h + '<div class="empty">No approved time off in that period.</div></div></div>';
   h += '<div class="tblWrap"><table class="tbl"><thead><tr><th>Person</th><th class="num">Vacation</th><th class="num">Sick</th><th class="num">Paid, no balance</th><th class="num">Unpaid</th><th class="num hideM">Days</th></tr></thead><tbody>' +
     rows.map(x => '<tr><td>' + esc(x.name) + (x.pre ? '<div class="small muted">incl. ' + hrs(x.pre) + ' h before the move</div>' : '') + '</td><td class="num">' + hrs(x.vac) + '</td><td class="num">' + hrs(x.sick) + '</td><td class="num">' + hrs(x.free) + '</td><td class="num' + (x.unpaid ? ' coral' : '') + '">' + hrs(x.unpaid) + '</td><td class="num hideM">' + x.days + '</td></tr>').join('') + '</tbody></table></div>' +
@@ -795,12 +806,51 @@ function payrollRows(from, to) {
   }).filter(Boolean);
 }
 CHG.payF = () => { S.tab.payF = { from: $('#pfFrom').value, to: $('#pfTo').value }; renderView(); };
+/* the requests still waiting with office days in the dates: what they'd come to if approved (each on its own) */
+function payWaiting(from, to) {
+  if (!isISO(from) || !isISO(to) || to < from) return [];
+  const people = activeStaff().concat(S.roster.filter(r => !r.active)).map(r => ({ sid: r.sid, p: personOf(r.sid), reqs: reqsOf(r.sid) }));
+  return leaveDocOf(people, [], S.pol, S.closed, from, to).wait;
+}
+const LEAVE_WORD = { vac: 'vacation', sick: 'sick leave', free: 'paid, no balance', unpaid: 'unpaid' };
+function leaveSplit(w) { return ['vac', 'sick', 'free', 'unpaid'].filter(k => w[k] > 0).map(k => hrs(w[k]) + ' h ' + LEAVE_WORD[k]).join(' + ') || hrs(w.h) + ' h'; }
+function payWaitHTML(wait) {
+  if (!wait.length) return '';
+  return '<div class="notice" style="margin:4px 0 12px"><b>' + plural(wait.length, 'request') + ' waiting for approval</b> with days in these dates — not in the hours below:' +
+    '<ul style="margin:6px 0 0;padding-left:18px">' + wait.map(w => '<li>' + esc(staffName(w.sid)) + ': ' + esc(w.days.length > 1 ? fmtDay(w.days[0]) + ' – ' + fmtDay(w.days[w.days.length - 1]) + ' (' + plural(w.days.length, 'day') + ')' : fmtDay(w.days[0])) +
+      (w.part === 'time' && w.from ? ', ' + esc(fmtWindow(w.from, w.to)) : w.part === 'am' ? ', morning' : w.part === 'pm' ? ', afternoon' : '') + ' — if approved, ' + esc(leaveSplit(w)) +
+      ' <button class="linkBtn" data-act="openReq" data-id="' + esc(w.id) + '">Open</button></li>').join('') + '</ul></div>';
+}
+/* the same hours go to the Time Clock's Payroll page (tcLeave), from Dr. A's screen: what's happened to this period's */
+function payHandoffHTML(a) {
+  if (!S.tcSet) return '';
+  const line = (t, warn) => '<p class="small' + (warn ? ' coral' : ' muted') + '" style="margin:0 0 10px">' + t + '</p>';
+  if (S.leaveErr === 'rules') return line('These hours go to the Time Clock’s Payroll page once the database’s rules are updated (the Time Clock’s Payroll page has the steps).');
+  if (!a) return line('Each pay period’s hours, and what’s waiting, go to the Time Clock’s Payroll page (the arrows above step through the pay periods).');
+  const ps = leavePeriods(S.tcSet, todayISO()), d = S.leave && S.leave.get(a), sent = d && d.at ? esc(fmtWhen(d.at)) : '';
+  if (!ps.length) return '';
+  if (a < ps[0][0] || a > ps[ps.length - 1][0]) return line('This pay period isn’t sent to the Time Clock’s Payroll page (it gets ' + esc(fmtRange(ps[0][0], ps[ps.length - 1][1])) + ').');
+  if (!isOwner()) return line(ic('done', 13) + ' The Time Clock’s Payroll page gets these hours from Dr. A’s Time Off, each time it’s open' + (sent ? ' — last sent ' + sent : ' — none sent for this pay period yet') + '.');
+  if (S.payBlock === 'locked') return line('Not sent to the Time Clock’s Payroll page: ' + plural(S.hrLockedN, 'HR record') + ' can’t be opened on this screen. Lock Time Off and sign in again.', true);
+  const st = S.payState && S.payState.get(a);
+  if (st && st.st === 'fight') return line('Another of your screens sent different numbers for this pay period to the Time Clock’s Payroll page. Reload Time Off on your other screens (or close them), then reload this one.', true);
+  if (st && st.st === 'err') return line('Couldn’t send these hours to the Time Clock’s Payroll page (' + esc(st.err) + '). Trying again in a minute.', true);
+  if (st && st.st === 'ok' && d) return line(ic('done', 13) + ' The same hours, and what’s waiting, show on the Time Clock’s Payroll page' + (sent ? ' (sent ' + sent + ')' : '') + '.');
+  return line('Sending these hours to the Time Clock’s Payroll page…');
+}
 function payText(sep) {
-  const f = S.tab.payF || { from: todayISO().slice(0, 8) + '01', to: lastOfMonth(todayISO()) }, rows = payrollRows(f.from, f.to);
+  const f = S.tab.payF || payDefault(), rows = payrollRows(f.from, f.to);
   const head = ['Person', 'Vacation hours', 'Sick hours', 'Paid (no balance) hours', 'Unpaid hours', 'Days'], q = sep === ',' ? csvCell : (v => String(v));
   return ['Time off ' + f.from + ' to ' + f.to].concat([head.map(q).join(sep)]).concat(rows.map(x => [x.name, hrs(x.vac), hrs(x.sick), hrs(x.free), hrs(x.unpaid), x.days].map(q).join(sep))).join('\n');
 }
 Object.assign(ACT, {
+  /* the pay period before or after the one shown (0: the one to enter) */
+  payPP(t) {
+    const d = Number(t.dataset.d), tc = S.tcSet; if (!tc) return;
+    if (!d) { S.tab.payF = null; renderView(); return; }
+    const f = S.tab.payF || payDefault(), cur = payPeriodAt(isISO(f.from) ? f.from : todayISO(), tc.pay), a = addDays(cur[0], 14 * d);
+    S.tab.payF = { from: a, to: addDays(a, 13) }; renderView();
+  },
   payCSV() { if (DEMO_ONLY) { toast('In the app this downloads time-off-payroll.csv (this demo page can’t save files).'); return; } const blob = new Blob([payText(',')], { type: 'text/csv' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'time-off-payroll.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); },
   payCopy() { copyText(payText('\t')).then(ok => toast(ok ? 'Copied — paste it into a spreadsheet' : 'Couldn’t copy', ok ? {} : { bad: true })); }
 });

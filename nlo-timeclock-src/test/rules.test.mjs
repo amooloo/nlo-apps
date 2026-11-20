@@ -157,6 +157,109 @@ await no('…nor someone signed out', getDoc(doc(anon(), 'meta/tcHol')));
 await ok('the rules level for them is readable to staff', getDoc(doc(as('ca'), 'meta/rules_tc_4')));
 await ok('…and to the time clock', getDoc(doc(kiosk('kiosk1'), 'meta/rules_tc_4')));
 await no('…not to a stranger', getDoc(doc(as('stranger'), 'meta/rules_tc_4')));
+
+console.log('\n# time off on Payroll (tcLeave/{first day}): Time Off hands it over, the Payroll page and the payroll email read it (20 Nov 2026)');
+{
+  // a time clock manager who doesn't approve time off (Mo), and a request in Time Off (its plain fields; the rest sealed)
+  await env.withSecurityRulesDisabled(async c => {
+    const db = c.firestore(), T = Timestamp.now();
+    await setDoc(doc(db, 'members/mgr2'), { staffId: 'mo', role: 'staff', active: true, name: 'mo', pub: pub('A') });
+    await setDoc(doc(db, 'roster/mo'), { name: 'mo', initials: 'M', role: 'staff', active: true, username: 'mo', gen: 0 });
+    await setDoc(doc(db, 'tcStaff/mo'), Object.assign(staff(), { at: T, by: 'owner' }));
+    await setDoc(doc(db, 'tcMgrs/mo'), { at: T, by: 'owner' });
+    for (const [id, sid, status] of [['q' + '1'.repeat(24), 'gwen', 'pending'], ['q' + '2'.repeat(24), 'kim', 'approved']])
+      await setDoc(doc(db, 'toReq/' + id), { sid, status, rev: 1, by: 'owner', bsid: 'amir', v: 1, pub: null, startMs: Date.parse('2026-11-16T05:00:00Z'), hr: sealed(), me: null, createdAt: T, updatedAt: T });
+  });
+  const A = '2026-11-08';
+  const leave = (who, o) => Object.assign({ v: 2, a: A, z: '2026-11-21', rows: { gwen: { vac: 8.5, sick: 0, free: 0, unpaid: 0, days: [{ d: '2026-11-19', vac: 8.5, full: true }] } },
+    wait: [{ id: 'q' + '1'.repeat(24), sid: 'gwen', b: 'vac', days: ['2026-11-16'], h: 8.5, part: 'full', vac: 8.5, sick: 0, free: 0, unpaid: 0 }], ids: ['q' + '1'.repeat(24)], odd: 0,
+    upto: ago(120), hrUp: ago(600), by: who[0], bsid: who[1], at: serverTimestamp() }, o || {});
+  const DRA = ['owner', 'amir'], SARAH = ['fc', 'sarah'], TINA = ['hr2', 'tina'], GWEN = ['ca', 'gwen'], MO = ['mgr2', 'mo'];
+  await ok('Dr. A’s Time Off hands a pay period over', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA)));
+  await no('…not an approver’s (Sarah): it’s pay, so only Dr. A’s screen writes it', setDoc(doc(as('fc'), 'tcLeave/' + A), leave(SARAH)));
+  await no('…nor one who only approves time off (Tina)', setDoc(doc(as('hr2'), 'tcLeave/' + A), leave(TINA)));
+  await no('…never staff', setDoc(doc(as('ca'), 'tcLeave/' + A), leave(GWEN)));
+  await no('…nor a time clock manager who doesn’t approve time off', setDoc(doc(as('mgr2'), 'tcLeave/' + A), leave(MO)));
+  await no('…nor the alert script', setDoc(doc(as('bot1'), 'tcLeave/' + A), leave(['bot1', ''])));
+  await no('…nor the time clock', setDoc(doc(kiosk('kiosk1'), 'tcLeave/' + A), leave(['kiosk1', ''])));
+  await no('…nor someone who left', setDoc(doc(as('gone'), 'tcLeave/' + A), leave(['gone', 'lee'])));
+  await no('…nor in someone else’s name', setDoc(doc(as('fc'), 'tcLeave/' + A), leave(['owner', 'amir'])));
+  await no('…nor as another staff id', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(['owner', 'sarah'])));
+  await no('…not with the page’s own clock for “saved”', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { at: now() })));
+  await no('…not under an id that isn’t its first day', setDoc(doc(as('owner'), 'tcLeave/2026-11-09'), leave(DRA)));
+  await no('…not under an id that isn’t a day', setDoc(doc(as('owner'), 'tcLeave/latest'), leave(DRA, { a: 'latest' })));
+  await no('…not with a last day that isn’t a day', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { z: 'Nov 21' })));
+  await no('…not with an extra field', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { note: 'x' })));
+  await no('…not rows that aren’t a map', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { rows: [1] })));
+  await no('…not more than 60 waiting', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { wait: Array.from({ length: 61 }, () => ({ sid: 'gwen' })) })));
+  await no('…not a list of requests that isn’t a list', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { ids: 'q1' })));
+  await no('…nor one of more than 200', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { ids: Array.from({ length: 201 }, (x, i) => 'q' + i) })));
+  await no('…not without the list', setDoc(doc(as('owner'), 'tcLeave/' + A), (({ ids, ...x }) => x)(leave(DRA))));
+  await no('…not without when it was worked out from', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { upto: 5 })));
+  await no('…nor without the HR records’ time', setDoc(doc(as('owner'), 'tcLeave/' + A), (({ hrUp, ...x }) => x)(leave(DRA))));
+  await no('…not worked out from changes still to come (that would hold the period still)', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { upto: Timestamp.fromMillis(Date.now() + 3600000) })));
+  await no('…nor HR records still to come', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { hrUp: Timestamp.fromMillis(Date.now() + 3600000) })));
+  await no('…never back to older changes (an older copy of Time Off)', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { upto: ago(180) })));
+  await no('…nor to older HR records', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { hrUp: ago(700) })));
+  await ok('…the same ones again (a change to the office’s closed days, say)', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { rows: {} })));
+  await ok('…or newer ones', setDoc(doc(as('owner'), 'tcLeave/' + A), leave(DRA, { upto: ago(1), hrUp: ago(2) })));
+  await ok('Dr. A reads it (Payroll)', getDoc(doc(as('owner'), 'tcLeave/' + A)));
+  await ok('…and the people who approve', getDoc(doc(as('fc'), 'tcLeave/' + A)));
+  await ok('…and Time Off lists them (to tell what’s already there)', getDocs(collection(as('hr2'), 'tcLeave')));
+  await ok('the alert script reads it (the payroll email)', getDoc(doc(as('bot1'), 'tcLeave/' + A)));
+  await no('a time clock manager who doesn’t approve time off doesn’t (the kinds of time off are Time Off’s)', getDoc(doc(as('mgr2'), 'tcLeave/' + A)));
+  await no('…nor staff', getDoc(doc(as('ca'), 'tcLeave/' + A)));
+  await no('…nor staff listing them', getDocs(collection(as('ca'), 'tcLeave')));
+  await no('…nor the time clock', getDoc(doc(kiosk('kiosk1'), 'tcLeave/' + A)));
+  await no('…nor a stranger', getDoc(doc(as('stranger'), 'tcLeave/' + A)));
+  await no('…nor someone signed out', getDoc(doc(anon(), 'tcLeave/' + A)));
+  await no('an approver can’t take one away', deleteDoc(doc(as('fc'), 'tcLeave/' + A)));
+  await ok('Dr. A can', deleteDoc(doc(as('owner'), 'tcLeave/' + A)));
+  // the Payroll page's "changed since" for HR records: whose and when (the record itself is sealed)
+  await ok('Dr. A lists the HR records changed since (plain view: whose, when)', getDocs(query(collection(as('owner'), 'toHR'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  await ok('…and so do the people who approve', getDocs(query(collection(as('fc'), 'toHR'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  await no('…not a time clock manager who doesn’t approve', getDocs(query(collection(as('mgr2'), 'toHR'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  await no('…nor the alert script', getDocs(query(collection(as('bot1'), 'toHR'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  // the Payroll page's "changed in Time Off since": Dr. A (and the people who approve) list the requests' plain fields; the
+  // alert script still reads nothing of Time Off itself — only what Time Off handed over
+  await no('the alert script still can’t list Time Off’s requests', getDocs(query(collection(as('bot1'), 'toReq'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  await no('…or read one', getDoc(doc(as('bot1'), 'toReq/q' + '1'.repeat(24))));
+  await no('a time clock manager who doesn’t approve can’t list them', getDocs(query(collection(as('mgr2'), 'toReq'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  await ok('Dr. A can (the Payroll page’s “changed since”)', getDocs(query(collection(as('owner'), 'toReq'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  await no('…staff only their own', getDocs(query(collection(as('ca'), 'toReq'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  await no('…and the time clock not at all', getDocs(query(collection(kiosk('kiosk1'), 'toReq'), where('updatedAt', '>', Timestamp.fromMillis(0)))));
+  // the payroll notes (Amir, 20 Nov 2026: "leave a place to write notes for each payroll"): Dr. A's own
+  const note = (who, o) => Object.assign({ t: 'Kim’s 2 h training keyed by hand in Paychex.', by: who, at: serverTimestamp() }, o || {});
+  await ok('payroll notes: Dr. A writes his notes for a pay period', setDoc(doc(as('owner'), 'tcPayNote/' + A), note('owner')));
+  await ok('…reads them', getDoc(doc(as('owner'), 'tcPayNote/' + A)));
+  await ok('…lists them', getDocs(collection(as('owner'), 'tcPayNote')));
+  await ok('…changes them (empty too)', setDoc(doc(as('owner'), 'tcPayNote/' + A), note('owner', { t: '' })));
+  await ok('…up to 5,000 characters', setDoc(doc(as('owner'), 'tcPayNote/' + A), note('owner', { t: 'x'.repeat(5000) })));
+  await no('…not more', setDoc(doc(as('owner'), 'tcPayNote/' + A), note('owner', { t: 'x'.repeat(5001) })));
+  await no('…not notes that aren’t text', setDoc(doc(as('owner'), 'tcPayNote/' + A), note('owner', { t: 5 })));
+  await no('…not with an extra field', setDoc(doc(as('owner'), 'tcPayNote/' + A), note('owner', { sid: 'kim' })));
+  await no('…not in someone else’s name', setDoc(doc(as('owner'), 'tcPayNote/' + A), note('fc')));
+  await no('…not with the page’s own clock for “saved”', setDoc(doc(as('owner'), 'tcPayNote/' + A), note('owner', { at: now() })));
+  await no('…not under an id that isn’t a day', setDoc(doc(as('owner'), 'tcPayNote/latest'), note('owner')));
+  await no('a time clock manager can’t read them', getDoc(doc(as('mgr2'), 'tcPayNote/' + A)));
+  await no('…or list them', getDocs(collection(as('mgr2'), 'tcPayNote')));
+  await no('…or write them', setDoc(doc(as('mgr2'), 'tcPayNote/' + A), note('mgr2')));
+  await no('nor someone who approves time off', getDoc(doc(as('fc'), 'tcPayNote/' + A)));
+  await no('…writing them either', setDoc(doc(as('fc'), 'tcPayNote/' + A), note('fc')));
+  await no('nor the alert script (they go in no email)', getDoc(doc(as('bot1'), 'tcPayNote/' + A)));
+  await no('nor staff', getDoc(doc(as('ca'), 'tcPayNote/' + A)));
+  await no('nor the time clock', getDoc(doc(kiosk('kiosk1'), 'tcPayNote/' + A)));
+  await no('nor a stranger', getDoc(doc(as('stranger'), 'tcPayNote/' + A)));
+  await no('a manager can’t take them away', deleteDoc(doc(as('mgr2'), 'tcPayNote/' + A)));
+  await ok('Dr. A can', deleteDoc(doc(as('owner'), 'tcPayNote/' + A)));
+  await ok('the rules level for it is readable to staff', getDoc(doc(as('ca'), 'meta/rules_tc_5')));
+  await ok('…and to the time clock', getDoc(doc(kiosk('kiosk1'), 'meta/rules_tc_5')));
+  await no('…not to a stranger', getDoc(doc(as('stranger'), 'meta/rules_tc_5')));
+  await env.withSecurityRulesDisabled(async c => {
+    const db = c.firestore();
+    for (const p of ['members/mgr2', 'roster/mo', 'tcStaff/mo', 'tcMgrs/mo', 'toReq/q' + '1'.repeat(24), 'toReq/q' + '2'.repeat(24)]) await deleteDoc(doc(db, p));
+  });
+}
 await ok('Dr. A can take them all away', deleteDoc(doc(as('owner'), 'meta/tcHol')));
 
 console.log('\n# who manages the time clock: Dr. A, and whoever he adds');

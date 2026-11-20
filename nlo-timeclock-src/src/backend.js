@@ -228,6 +228,57 @@ const FB = {
     }));
   },
 
+  /* ---------- payroll notes (Amir, 20 Nov 2026: "leave a place to write notes for each payroll") ----------
+     tcPayNote/{first day of the pay period}: { t (the notes, up to 5,000 characters), by, at } — Dr. A's own: only he reads
+     or writes them (the rules say the same), and they go nowhere else. The rules that know them: meta/rules_tc_5 (with the
+     time off on Payroll). → { t, at } (at: when they were saved, 0 for never) */
+  async loadNote(a) {
+    const s = await FB.db.doc('tcPayNote/' + a).get(), d = s.exists ? s.data() : null;
+    return { t: d && typeof d.t === 'string' ? d.t : '', at: d ? FB.tsMs(d.at) || 0 : 0 };
+  },
+  /* refused when they were saved again since this page read them (at, as loadNote or the last save gave it: another window,
+     say), so nothing written there is lost → when they were saved (the database's time, for the next save from here) */
+  async saveNote(a, t, at) {
+    if (!FB.isOwner()) throw errCode('permission');
+    const ref = FB.db.doc('tcPayNote/' + a);
+    await FB.track(FB.db.runTransaction(async x => {
+      const s = await x.get(ref);
+      if ((s.exists ? FB.tsMs(s.data().at) || 0 : 0) !== (at || 0)) throw errCode('stale', 'Not saved: these notes were changed in another window since this page read them.');
+      x.set(ref, { t: String(t).slice(0, 5000), by: FB.me.uid, at: FB.ts() });
+    }));
+    const s = await ref.get({ source: 'server' }).catch(() => ref.get());
+    return s.exists ? FB.tsMs(s.data().at) || 0 : 0;
+  },
+
+  /* ---------- time off from NLO Time Off on Payroll (Amir, 20 Nov 2026) ----------
+     Dr. A's Time Off hands each pay period's time off over in tcLeave/{first day}; only Dr. A, the people who approve time
+     off and the alert script read it. The rules that know it: meta/rules_tc_5. */
+  async leaveRulesOk() {
+    try { await FB.db.doc('meta/rules_tc_5').get(); return true; }
+    catch (e) { if (FB.isPerm(e)) return false; throw e; }
+  },
+  /* one pay period's, live: on(doc) — the record as saved (upto and at in ms), or null when there's none yet — or
+     on(undefined, error) (refused: this login doesn't see time off) */
+  watchLeave(a, on) {
+    return FB.db.doc('tcLeave/' + a).onSnapshot(s => {
+      if (!s.exists) { on(null); return; }
+      const d = s.data(); on(Object.assign({}, d, { upto: FB.tsMs(d.upto), at: FB.tsMs(d.at) }));
+    }, e => on(undefined, e));
+  },
+  /* Time Off's requests changed after `since` (ms), live — only what the database shows in plain view: whose, the status, the
+     revision, the first day (ms) and when (the request itself is sealed). since 0 (nothing handed over yet): the ones
+     waiting. on(list) or on(null, error). */
+  watchLeaveChanges(since, on) {
+    const c = FB.db.collection('toReq'), q = since > 0 ? c.where('updatedAt', '>', firebase.firestore.Timestamp.fromMillis(since)) : c.where('status', '==', 'pending');
+    return q.onSnapshot(s => on(s.docs.map(d => { const x = d.data(); return { id: d.id, sid: x.sid, status: x.status, rev: x.rev, startMs: x.startMs, at: FB.tsMs(x.updatedAt) }; })), e => on(null, e));
+  },
+  /* Time Off's HR records changed after `since` (ms), live — plain view only: whose (the record's id) and when. on(list) or
+     on(null, error) */
+  watchLeaveHR(since, on) {
+    return FB.db.collection('toHR').where('updatedAt', '>', firebase.firestore.Timestamp.fromMillis(Math.max(0, since || 0)))
+      .onSnapshot(s => on(s.docs.map(d => ({ sid: d.id, at: FB.tsMs(d.data().updatedAt) }))), e => on(null, e));
+  },
+
   /* ---------- the office lock: where this login is right now ----------
      The office check (url: a workers.dev address) looks at the address the request comes from and writes down, under
      its own login, which network this login is on, with a new one-time punch number (pid) only this page is told; the

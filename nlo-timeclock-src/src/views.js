@@ -300,29 +300,37 @@ VIEWS.pay = () => {
     return payNav(a, z, cur) + '<div class="empty">' + (P.err ? esc(P.err) : 'Reading the period…') + '</div>';
   }
   holNeed(); // (the paid holidays: read with the period, so the totals don't change under the reader's eyes)
+  leaveNeed(a, z); // (time off from NLO Time Off: live, so an approval there shows here at once)
+  noteNeed(a); // (Dr. A's notes for this payroll)
   if (!S.hol || !S.hol.done) return payNav(a, z, cur) + '<div class="empty">Reading the period…</div>';
-  const rows = payRows(a, z, P.data), hd = TCE.holidaysIn(holDays(), a, z), showHol = hd.length > 0;
+  const rows = payRows(a, z, P.data), hd = TCE.holidaysIn(holDays(), a, z), showHol = hd.length > 0, lk = leaveCols(rows);
   const anyIssue = rows.some(r => r.issues.length), live = z >= today, payDay = TCE.payDayOf(z);
   // the two-week totals first (what goes into payroll), then each workweek (overtime is counted by workweek)
   const wkHead = rows.length ? rows[0].weeks.map(x => '<th class="num wkCol" colspan="2">Week of ' + esc(TCE.dayText(x.wkIso)) + (x.partial ? '*' : '') + '</th>').join('') : '';
   const sub = rows.length ? rows[0].weeks.map(() => '<th class="num wkCol">Reg</th><th class="num wkCol">OT</th>').join('') : '';
-  const body = rows.map(r => '<tr' + (r.sal ? ' class="salRow"' : '') + '><td><b class="pt">' + esc(r.name) + '</b>' + (r.sal ? ' ' + chip('Salaried', 'info') : '') + '</td>' +
+  const body = rows.map(r => '<tr' + (r.sal ? ' class="salRow"' : '') + '><td><b class="pt">' + esc(r.name) + '</b>' + (r.sal ? ' ' + chip('Salaried', 'info') : '') + leaveDaysLine(r) + '</td>' +
     '<td class="num big"><b>' + hNum(r.reg) + '</b></td><td class="num big' + (r.ot ? ' bad' : '') + (r.sal ? ' muted' : '') + '"><b>' + (r.sal ? '—' : hNum(r.ot)) + '</b></td>' +
-    (showHol ? '<td class="num big holCol' + (r.sal ? ' muted' : '') + '"><b>' + (r.sal ? '—' : hNum(r.hol)) + '</b></td>' : '') + '<td class="num">' + hStr(paidH(r)) + '</td>' +
-    '<td class="small">' + (r.issues.length ? '<span class="bad">' + esc(r.issues.join('; ')) + '</span>' : r.sal ? '<span class="muted">Salaried: hours for the record, not for pay</span>' : '<span class="ok">Ready</span>') + '</td>' +
+    (showHol ? '<td class="num big holCol' + (r.sal ? ' muted' : '') + '"><b>' + (r.sal ? '—' : hNum(r.hol)) + '</b></td>' : '') +
+    lk.map(k => '<td class="num big lvCol' + (r.sal || !r.lv[k] ? ' muted' : '') + (k === 'unpaid' && r.lv[k] ? ' warnT' : '') + '"><b>' + (r.sal ? '—' : hNum(r.lv[k])) + '</b></td>').join('') + '<td class="num">' + hStr(paidH(r)) + '</td>' +
+    '<td class="small chkCol">' + (r.issues.length ? '<span class="bad">' + esc(r.issues.join('; ')) + '</span>' + leaveNotes(r, true) : r.sal ? '<span class="muted">Salaried: hours for the record, not for pay</span>' : leaveNotes(r) || '<span class="ok">Ready</span>') + '</td>' +
     r.weeks.map(x => x.wkIso > today ? '<td class="num muted wkCol">—</td><td class="num muted wkCol">—</td>' : '<td class="num wkCol">' + hNum(x.reg) + '</td><td class="num wkCol' + (x.ot ? ' bad' : '') + (r.sal ? ' muted' : '') + '">' + (r.sal ? '—' : hNum(x.ot)) + '</td>').join('') + '</tr>').join('');
   return payNav(a, z, cur) +
-    (today === payDay ? '<div class="notice ok">' + ic('done', 16) + ' <b>Payroll day.</b> Each person’s regular' + (showHol ? ', overtime and holiday' : ' and overtime') + ' hours for the two weeks are below' + (live ? ' (so far: the period ends ' + esc(TCE.dayText(z)) + ')' : '') + '.</div>'
+    (today === payDay ? '<div class="notice ok">' + ic('done', 16) + ' <b>Payroll day.</b> Each person’s ' + andList(['regular', 'overtime'].concat(showHol ? ['holiday'] : [], lk.length ? ['time-off'] : [])) + ' hours for the two weeks are below' + (live ? ' (so far: the period ends ' + esc(TCE.dayText(z)) + ')' : '') + '.</div>'
       : z < today && payDay > today ? '<div class="notice info">Payroll for this period is entered ' + esc(TCE.dayText(payDay, true)) + '.</div>'
         : live ? '<div class="notice info">This period isn’t over yet: the hours are so far. Payroll is entered ' + esc(TCE.dayText(payDay, true)) + '.</div>' : '') +
     (anyIssue ? '<div class="notice bad">Some days aren’t complete (time with a missing clock-in or clock-out counts 0 hours, and a missed punch someone asked for counts once approved). Fix them on Now or in Timesheets before running payroll.</div>' : '') +
-    holBarHTML(hd) +
+    holBarHTML(hd) + leaveBarHTML(a, z, rows) +
     '<div class="card"><div class="tblWrap"><table class="tbl pay"><thead><tr><th rowspan="2">Person</th><th class="num" rowspan="2">Regular<br><span class="muted small">2 weeks</span></th><th class="num" rowspan="2">Overtime<br><span class="muted small">2 weeks</span></th>' +
-    (showHol ? '<th class="num holCol" rowspan="2">Holiday<br><span class="muted small">2 weeks</span></th>' : '') + '<th class="num" rowspan="2">Total</th><th rowspan="2">To check</th>' + wkHead + '</tr><tr>' + sub + '</tr></thead><tbody>' +
-    (body || '<tr><td colspan="' + (showHol ? 10 : 9) + '" class="muted">Nobody on the clock.</td></tr>') + '</tbody>' + payFoot(rows, today, showHol) + '</table></div></div>' +
+    (showHol ? '<th class="num holCol" rowspan="2">Holiday<br><span class="muted small">2 weeks</span></th>' : '') +
+    lk.map(k => '<th class="num lvCol" rowspan="2">' + LEAVE_HEAD[k][0] + '<br><span class="muted small">' + LEAVE_HEAD[k][1] + '</span></th>').join('') +
+    '<th class="num" rowspan="2">Total' + (lk.some(k => k !== 'unpaid') ? '<br><span class="muted small">paid</span>' : '') + '</th><th rowspan="2">To check</th>' + wkHead + '</tr><tr>' + sub + '</tr></thead><tbody>' +
+    (body || '<tr><td colspan="' + ((showHol ? 10 : 9) + lk.length) + '" class="muted">Nobody on the clock.</td></tr>') + '</tbody>' + payFoot(rows, today, showHol, lk) + '</table></div></div>' +
     (DEMO_ONLY ? '<p class="muted small" style="margin-top:10px">In the office’s copy, this page also downloads the totals and every day as CSV files, makes the Paychex punch file (<button class="linkBtn" data-act="payPx">see what goes in it</button>) and prints.</p>'
       : '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="payCsv">' + ic('download', 15) + 'Totals (CSV)</button><button class="btn btn-sec btn-sm" data-act="payCsvDays">' + ic('download', 15) + 'Every day (CSV)</button><button class="btn btn-sec btn-sm" data-act="payPx">' + ic('download', 15) + 'Paychex punch file</button><button class="btn btn-sec btn-sm" data-act="payPrint">' + ic('print', 15) + 'Print</button></div>') +
-    '<p class="muted small" style="margin-top:10px">Overtime is worked out by workweek (over ' + S.set.ot + ' hours from ' + TCE.WD[S.set.wk] + ' to ' + TCE.WD[(S.set.wk + 6) % 7] + '), never by pay period.' + (rows.some(r => r.weeks.some(x => x.partial)) ? ' * A workweek that starts or ends outside this period: only its days inside the period are counted here, and its overtime is shown in the period it ends in.' : '') + ' Read ' + esc(agoText(P.at, Date.now())) + ' · <button class="linkBtn" data-act="payReload">read again</button></p>';
+    noteCardHTML(a, z) +
+    '<p class="muted small" style="margin-top:10px">Overtime is worked out by workweek (over ' + S.set.ot + ' hours from ' + TCE.WD[S.set.wk] + ' to ' + TCE.WD[(S.set.wk + 6) % 7] + '), never by pay period.' + (rows.some(r => r.weeks.some(x => x.partial)) ? ' * A workweek that starts or ends outside this period: only its days inside the period are counted here, and its overtime is shown in the period it ends in.' : '') +
+    (lk.length ? ' Time off from NLO Time Off counts only its days inside this period. Paid time off (vacation, sick, and other paid — personal days and bereavement) is paid on top of the hours worked and never counts toward overtime; unpaid time off is shown, not paid.' : '') +
+    ' Read ' + esc(agoText(P.at, Date.now())) + ' · <button class="linkBtn" data-act="payReload">read again</button></p>';
 };
 function payNav(a, z, cur) {
   return '<div class="filters"><div class="wkNav"><button class="iconBtn" data-act="payPrev" aria-label="Period before">' + ic('prev', 18) + '</button><b>' + esc(TCE.dayText(a) + ' – ' + TCE.dayText(z)) + '</b>' +
@@ -332,7 +340,10 @@ function payNav(a, z, cur) {
 function payRows(a, z, data) {
   const now = nowMs(), set = S.set, from = TCE.dayStart(a), to = TCE.dayStart(TCE.addDays(z, 1));
   const ot = new Map(); (data.ot || []).forEach(x => { if (x.sid && x.week) ot.set(x.sid + '_' + x.week, Number(x.hrs) || 0); });
-  const people = Array.from(S.roster.values()).filter(r => S.staff.get(r.sid) && (S.staff.get(r.sid).on || (data.punches || []).some(p => p.sid === r.sid)));
+  // everyone on the clock or with time in the period — and anyone in the office's list Time Off has time off for in it (on
+  // leave the whole period, taken off the clock, or never set up on it)
+  const L = leaveOf(a, z), lsids = new Set(L ? Object.keys(L.rows).concat(L.wait.map(w => w.sid)) : []);
+  const people = Array.from(S.roster.values()).filter(r => (S.staff.get(r.sid) && (S.staff.get(r.sid).on || (data.punches || []).some(p => p.sid === r.sid))) || (lsids.has(r.sid) && !staffOf(r.sid).sal));
   return people.map(r => {
     const P = (data.punches || []).filter(p => p.sid === r.sid).map(p => ({ id: p.id, sid: p.sid, kind: p.kind, at: ms(p.at), src: p.src }));
     const F = (data.fixes || []).filter(f => f.sid === r.sid).map(f => ({ id: f.id, sid: f.sid, op: f.op, ref: f.ref || '', kind: f.kind || '', t: Number(f.t) || 0, why: f.why || '', bsid: f.bsid || '', at: ms(f.at) }));
@@ -340,29 +351,216 @@ function payRows(a, z, data) {
     const pp = TCE.payPeriod(list, set, staff, a, z, now, wk => ot.get(r.sid + '_' + wk) || 0);
     const issues = pp.issues.map(i => (ISSUE[i.type] || i.type) + ' ' + TCE.dayText(i.day));
     reqsOf(r.sid, 'open').forEach(q => { if (q.ps.some(p => p.t >= from && p.t < to)) issues.push('Asked for a missed punch (not approved yet)'); });
-    // paid holidays: everyone paid by the hour with time in the period (never part of overtime)
-    const hol = TCE.holidayMs(holDays(), a, z, staff.sal, pp.reg + pp.ot);
-    return { sid: r.sid, name: nameOf(r.sid), sal: staff.sal, weeks: pp.weeks, list, reg: pp.reg, ot: pp.ot, hol, issues };
-  }).filter(r => r.reg + r.ot > 0 || r.issues.length || (S.staff.get(r.sid) || {}).on);
+    // time off from NLO Time Off (only its days in this period; salaried: none), and the paid holidays — everyone paid by the
+    // hour with time in the period, worked or paid time off (never part of overtime); on a holiday the holiday pays the day
+    const V = TCE.leaveFor(L, r.sid, staff.sal, pp, holDays(), a, z);
+    return { sid: r.sid, name: nameOf(r.sid), sal: staff.sal, weeks: pp.weeks, list, reg: pp.reg, ot: pp.ot, hol: V.hol, issues, lv: V.lv, lvDays: V.days, nohr: V.nohr, wait: V.wait, cut: V.cut, both: V.both };
+  }).filter(r => r.reg + r.ot > 0 || r.issues.length || (S.staff.get(r.sid) || {}).on || r.lv.paid + r.lv.unpaid > 0 || r.wait.length || r.cut.length);
 }
+/* ---------- time off from NLO Time Off (Amir, 20 Nov 2026: the time-off requests on the payroll tab, "also would show if
+   there are pending requests that have not been approved … so when you are running the payroll to know what else to add",
+   and "it only should show the days for that specific pay period") ----------
+   Dr. A's Time Off works each pay period out and hands it over in tcLeave/{first day}: each person's approved time off by
+   balance, and the requests still waiting — the days inside the period only. Read live with the period (an approval in Time
+   Off shows here as soon as Dr. A's Time Off sends it), with what changed in Time Off since it was worked out — only what the
+   database shows in plain view: whose request, its status, its first day, and whose HR record — so the page can say what
+   isn't counted yet. Dr. A and the people who approve time off see it; another manager sees that it isn't on this page.
+   S.leave: { a, z, rules (the rules know it), doc (undefined: reading; null: nothing handed over yet; else TCE.leaveClean's),
+   err ('perm': this login doesn't see it; else the error), ch (changes since, TCE.leaveChanges), offs } */
+const LEAVE_HEAD = { vac: ['Vacation', '2 weeks'], sick: ['Sick', '2 weeks'], free: ['Other paid', 'personal, bereav.'], unpaid: ['Unpaid', 'not paid'] };
+const TIMEOFF_URL = 'nlo-timeoff.html';
+const ALERT_V = 7; // the alert script this page goes with (robot/script.js VERSION): 7 puts the time off in the payroll email
+function leaveStop() { const L = S.leave; if (L && L.offs) L.offs.forEach(f => { try { f(); } catch (e) { } }); S.leave = null; }
+function leaveNeed(a, z) {
+  if (S.leave && S.leave.a === a) return;
+  leaveStop();
+  const L = S.leave = { a, z, rules: undefined, doc: undefined, err: '', ch: [], chOk: false, offs: [], raw: [], hrRaw: [] };
+  const mine = () => S.leave === L;
+  // someone the period counts or lists (an HR record change matters only for them)
+  const inIt = sid => !!(L.doc && (L.doc.rows[sid] || L.doc.wait.some(w => w.sid === sid)));
+  const redo = () => { const D = L.doc; L.ch = TCE.leaveChanges(L.raw, D ? D.upto : 0, z, D ? D.ids : [], D ? L.hrRaw : [], D ? D.hrUp : 0, inIt); };
+  const watch = (name, since, start) => {
+    if (L[name]) { try { L[name](); } catch (e) { } L[name] = null; }
+    if (start) { L[name] = start(since); L.offs.push(() => L[name] && L[name]()); }
+  };
+  (async () => {
+    let ok = true; try { ok = await B.leaveRulesOk(); } catch (e) { } // (offline: try to read it anyway)
+    if (!mine()) return;
+    L.rules = ok; if (!ok) { queueRender(); return; }
+    let upto = -1, hrUp = -1;
+    L.offs.push(B.watchLeave(a, (d, e) => {
+      if (!mine()) return;
+      if (d === undefined) { L.err = e && B.isPerm(e) ? 'perm' : errText(e); L.doc = null; queueRender(); return; }
+      L.doc = d ? TCE.leaveClean(d, a, z) || null : null; L.err = '';
+      const u = L.doc ? L.doc.upto : 0, h = L.doc ? L.doc.hrUp : -2;
+      if (u !== upto) { upto = u; watch('chOff', u, since => B.watchLeaveChanges(since, list => { if (!mine()) return; L.raw = list || []; L.chOk = !!list; redo(); queueRender(); })); }
+      if (h !== hrUp) { hrUp = h; L.hrRaw = []; watch('hrOff', h, L.doc ? since => B.watchLeaveHR(since, list => { if (!mine()) return; L.hrRaw = list || []; redo(); queueRender(); }) : null); }
+      redo(); queueRender();
+    }));
+  })();
+}
+// the time off for the period on screen (null until read, or when this login doesn't see it)
+function leaveOf(a, z) { const L = S.leave; return L && L.a === a && L.z === z && L.doc ? L.doc : null; }
+// which time-off columns the table shows: each kind someone has in this period
+function leaveCols(rows) { return TCE.LEAVE_K.filter(k => rows.some(r => !r.sal && r.lv && r.lv[k] > 0)); }
+function leaveDaysLine(r) {
+  if (r.sal || !r.lvDays || !r.lvDays.length) return '';
+  const kinds = new Set(); r.lvDays.forEach(d => TCE.LEAVE_K.forEach(k => { if (d[k]) kinds.add(k); }));
+  return '<div class="small muted lvDays">Off ' + r.lvDays.map(d => {
+    const ks = TCE.LEAVE_K.filter(k => d[k]), h = ks.reduce((n, k) => n + d[k], 0), extra = [];
+    if (kinds.size > 1) extra.push(ks.map(k => TCE.LEAVE_WORD[k]).join(' + '));
+    if (!d.full) extra.push(hStr(h) + ' h');
+    return esc(TCE.dayText(d.d)) + (extra.length ? ' (' + esc(extra.join(', ')) + ')' : '');
+  }).join(' · ') + '</div>';
+}
+// "To check": short — the boxes above the table say what each is
+function leaveNotes(r, after) {
+  const out = [];
+  if (r.wait && r.wait.length) out.push('<span class="warnT">' + hStr(r.wait.reduce((n, w) => n + w.h, 0)) + ' h time off waiting for approval</span>');
+  if (S.leave && S.leave.ch && S.leave.ch.some(c => c.sid === r.sid)) out.push('<span class="warnT">Changed in Time Off since — not counted yet</span>');
+  (r.cut || []).forEach(c => out.push('<span class="warnT">' + esc(TCE.dayText(c.d)) + ': a holiday here, so its ' + esc(TCE.leaveKindsText(c.took)) + ' isn’t counted</span>'));
+  (r.both || []).forEach(b => out.push('<span class="warnT">Worked ' + esc(TCE.hText(b.ms)) + ' on ' + esc(TCE.dayText(b.d)) + ', a whole day off in Time Off — both counted: check</span>'));
+  if (r.nohr) out.push('<span class="muted">Time off counted as asked (no HR record in Time Off)</span>');
+  return out.length ? (after ? '<br>' : '') + out.join('<br>') : '';
+}
+function leaveBarHTML(a, z, rows) {
+  const L = S.leave; if (!L || L.a !== a) return '';
+  const open = (label, hash) => '<a class="btn btn-sec btn-sm" href="' + TIMEOFF_URL + (hash || '') + '" target="_blank" rel="noopener">' + ic('next', 15) + label + '</a>';
+  if (L.rules === undefined || (L.rules && L.doc === undefined)) return '<div class="holBar lvBar"><span class="muted">Reading the time off from NLO Time Off…</span></div>';
+  if (!L.rules) return B.isOwner() ? '<div class="holBar lvBar"><span class="muted">Time off from NLO Time Off shows here once the database’s rules are updated: <button class="linkBtn" data-act="lvRules">see how</button>.</span></div>' : '';
+  if (L.err === 'perm') return '<div class="notice lvNote">' + ic('info', 16) + ' <span><b>Time off isn’t on this page for you.</b> Only Dr. A and the people who approve time off see it here — the hours below don’t include anyone’s vacation, sick or other time off. Ask Dr. A for it before entering payroll.</span></div>';
+  if (L.err) return '<div class="holBar lvBar notice bad"><span>Couldn’t read the time off from NLO Time Off: ' + esc(L.err) + '</span><button class="btn btn-sec btn-sm" data-act="payReload">' + ic('refresh', 15) + 'Check again</button></div>';
+  const D = L.doc;
+  let h = '';
+  if (!D) {
+    // nothing handed over yet: what's waiting, from the database's plain view, and how to bring it in
+    const w = L.ch.filter(c => c.wait);
+    return '<div class="notice lvNote">' + ic('info', 16) + ' <span><b>Time off for this period hasn’t come over from NLO Time Off yet</b> — the hours below don’t include any. Open Time Off as Dr. A and it comes over by itself.' +
+      (w.length ? ' Waiting for approval there: ' + esc(w.map(c => nameOf(c.sid) + ' ' + c.text.replace(' (waiting for approval)', '')).join('; ')) + '.' : '') + '</span> ' + open('Open Time Off') + '</div>';
+  }
+  if (D.wait.length) h += '<div class="notice lvWait"><b>' + (D.wait.length > 1 ? D.wait.length + ' time-off requests' : 'A time-off request') + ' waiting for approval</b> — not in the hours below:' +
+    '<ul>' + D.wait.map(w => '<li><b>' + esc(nameOf(w.sid)) + '</b>: ' + esc(TCE.leaveDaysText(w)) + ' — ' + esc(TCE.leaveSplitText(w)) + ' if approved</li>').join('') + '</ul>' +
+    '<div class="btnRow" style="margin:8px 0 0">' + open('Approve or decline in Time Off', '#approvals') + '</div></div>';
+  if (L.ch.length) h += '<div class="notice lvWait"><b>Changed in Time Off since ' + esc(leaveWhen(TCE.leaveAsOf(D))) + ' — not counted here yet:</b><ul>' + L.ch.map(c => '<li><b>' + esc(nameOf(c.sid)) + '</b>: ' + esc(c.text) + '</li>').join('') + '</ul>' +
+    '<div class="small" style="margin-top:6px">Open Time Off as Dr. A and the numbers below catch up by themselves.</div><div class="btnRow" style="margin:8px 0 0">' + open('Open Time Off') + '</div></div>';
+  // a holiday here that Time Off counts as an office day: the holiday pays it (see "To check"); the fix is in Time Off
+  const cuts = []; (rows || []).forEach(r => (r.cut || []).forEach(c => { if (!cuts.some(x => x.d === c.d)) cuts.push(c); }));
+  if (cuts.length) h += '<div class="notice lvWait"><b>' + (cuts.length > 1 ? 'Holidays' : 'A holiday') + ' here that Time Off counts as an office day:</b> ' + esc(cuts.map(c => TCE.dayText(c.d) + (c.n ? ' (' + c.n + ')' : '')).join(', ')) +
+    '. Time off on ' + (cuts.length > 1 ? 'them' : 'it') + ' isn’t counted below (the holiday pays the day) — add ' + (cuts.length > 1 ? 'them' : 'it') + ' to Time Off’s closed days (Time Off → Settings) so nobody’s balance is charged for ' + (cuts.length > 1 ? 'them' : 'it') + '.</div>';
+  if (D.odd) h += '<div class="notice bad lvNote">' + plural(D.odd, 'time-off request') + ' near this period couldn’t be opened on the screen that sent the time off over, so ' + (D.odd > 1 ? 'they aren’t' : 'it isn’t') + ' counted — look in Time Off.</div>';
+  const any = Object.keys(D.rows).length;
+  h += '<div class="holBar lvBar"><span class="muted">' + (any ? 'Time off' : 'No approved time off in this period') + ' from NLO Time Off, as of ' + esc(leaveWhen(TCE.leaveAsOf(D))) + (L.ch.length || !L.chOk ? '' : ' (nothing changed there since)') + '.' +
+    (B.isOwner() ? scriptNote() : '') + '</span>' + (L.ch.length ? '' : open('Open Time Off')) + '</div>';
+  return h;
+}
+// the alert script running is older than this page's: its payroll email doesn't have the time off
+function scriptVer() { const b = S.beat.filter(x => nowMs() - x.at < 2 * TCE.DAY).sort((x, y) => y.at - x.at)[0]; const v = b ? parseInt(b.ver, 10) : NaN; return isFinite(v) ? v : 0; }
+function scriptNote() { const v = scriptVer(); return v && v < ALERT_V ? ' The alert script is an older one (version ' + v + '): its payroll email doesn’t have the time off yet — <button class="linkBtn" data-act="go" data-v="alerts">update it in Alerts</button>.' : ''; }
+function andList(xs) { return xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]; }
+function leaveWhen(ms) { if (!ms) return 'a while ago'; const d = TCE.dayOf(ms), t = TCE.dayOf(nowMs()); return (d === t ? 'today' : d === TCE.addDays(t, -1) ? 'yesterday' : TCE.dayText(d)) + ', ' + TCE.timeText(ms); }
+ACT.lvRules = () => openModal('<h3>Time off on Payroll</h3><p class="lsub">Dr. A’s NLO Time Off hands each pay period’s time off to this page — the hours each person’s approved time off comes to, and the requests still waiting. It needs the database’s updated rules first (the same rules, with this added; nothing else changes):</p>' +
+  '<ol class="steps"><li><button class="btn btn-sec btn-sm" data-act="copyRules">' + ic('copy', 15) + 'Copy the new rules</button></li>' +
+  '<li><a class="btn btn-sec btn-sm" href="https://console.firebase.google.com/project/nlo-cases/firestore" target="_blank" rel="noopener">Open the Firebase console</a> → <b>Firestore Database</b> → <b>Rules</b> tab.</li>' +
+  '<li>Select everything in the editor, paste, and press <b>Publish</b>.</li>' +
+  '<li>Open NLO Time Off once (it sends the time off over), then come back here and press <button class="btn btn-pri btn-sm" data-act="lvAgain">' + ic('refresh', 15) + 'Check again</button></li></ol>' +
+  '<div class="mFt"><button class="btn btn-sec" data-act="closeM">Close</button></div>');
+ACT.lvAgain = () => { closeModal(); leaveStop(); renderView(); };
+/* ---------- payroll notes (Amir, 20 Nov 2026: "leave a place to write notes for each payroll") ----------
+   One box per pay period, under the hours, for Dr. A only (tcPayNote/{first day}; the rules say the same): what he did for
+   that payroll — anything keyed in Paychex by hand, a bonus, something to remember next time. It saves itself a moment
+   after he stops typing, and when he leaves the box or the period (a save over one made in another window since is
+   refused, so nothing written there is lost). The notes print with the page; they go nowhere else.
+   S.note: { a, loading, rules, t (as saved), at, draft (what's in the box, when it differs), st: '' | 'typing' | 'saving' |
+   'saved' | 'stale' | 'err', err } */
+const NOTE_MAX = 5000;
+function noteNeed(a) {
+  if (!B.isOwner() || (S.note && S.note.a === a)) return;
+  const N = S.note = { a, loading: true, rules: undefined, t: '', at: 0, draft: null, st: '', err: '' };
+  (async () => {
+    let ok = true; try { ok = await B.leaveRulesOk(); } catch (e) { } // (offline: try to read them anyway)
+    if (S.note !== N) return;
+    if (ok) {
+      try { const d = await B.loadNote(a); if (S.note !== N) return; N.t = d.t; N.at = d.at; }
+      catch (e) { if (S.note !== N) return; if (B.isPerm(e)) ok = false; else N.err = errText(e); }
+    }
+    N.rules = ok; N.loading = false; queueRender();
+  })();
+}
+function noteText(N) { return N.draft != null ? N.draft : N.t; }
+function noteCardHTML(a, z) {
+  if (!B.isOwner()) return '';
+  const N = S.note && S.note.a === a ? S.note : null;
+  if (!N || N.loading) return '<div class="card payNote none"><div class="cardHd"><h3>' + ic('edit', 18) + ' Notes for this payroll</h3></div><div class="cardBd"><p class="muted small">Reading…</p></div></div>';
+  if (!N.rules) return '<div class="card payNote none"><div class="cardHd"><h3>' + ic('edit', 18) + ' Notes for this payroll</h3></div><div class="cardBd"><p class="muted small">A box for your notes on each payroll shows here once the database’s rules are updated: <button class="linkBtn" data-act="lvRules">see how</button>.</p></div></div>';
+  if (N.err && !N.at && N.draft == null && N.st !== 'err') return '<div class="card payNote none"><div class="cardHd"><h3>' + ic('edit', 18) + ' Notes for this payroll</h3></div><div class="cardBd"><p class="small bad">Couldn’t read the notes: ' + esc(N.err) + ' <button class="linkBtn" data-act="noteAgain">Read them again</button></p></div></div>';
+  const t = noteText(N);
+  return '<div class="card payNote' + (t.trim() ? '' : ' none') + '"><div class="cardHd"><h3>' + ic('edit', 18) + ' Notes for this payroll</h3><span class="sub">' + esc(TCE.dayText(a) + ' – ' + TCE.dayText(z)) + ' · only you see these</span></div><div class="cardBd">' +
+    '<textarea id="payNote" rows="4" maxlength="' + NOTE_MAX + '" aria-label="Notes for this payroll" placeholder="Anything about this payroll: hours keyed in Paychex by hand, a bonus, a correction, something to remember next time…">' + esc(t) + '</textarea>' +
+    '<div class="noteSt small muted" id="payNoteSt" aria-live="polite">' + noteStatusHTML(N) + '</div><div class="noteP">' + esc(t) + '</div></div></div>';
+}
+function noteStatusHTML(N) {
+  if (N.st === 'saving') return 'Saving…';
+  if (N.st === 'typing') return 'Not saved yet…';
+  if (N.st === 'stale') return '<span class="bad">' + esc(N.err) + ' Copy what you wrote, then <button class="linkBtn" data-act="noteAgain">read them again</button>.</span>';
+  if (N.st === 'err') return '<span class="bad">Couldn’t save the notes: ' + esc(N.err) + ' <button class="linkBtn" data-act="noteRetry">Try again</button></span>';
+  return N.at ? ic('done', 13) + ' Saved ' + esc(leaveWhen(N.at)) : 'Only you see these. They save by themselves as you type.';
+}
+function noteStatus(N) { if (S.note !== N) return; const el = document.getElementById('payNoteSt'); if (el) el.innerHTML = noteStatusHTML(N); }
+function noteTyped(el) {
+  const N = S.note; if (!N || N.loading || !N.rules) return;
+  N.draft = el.value.slice(0, NOTE_MAX);
+  if (N.st === 'stale') return; // (refused: nothing more is saved from here until they're read again)
+  N.st = N.draft === N.t ? (N.at ? 'saved' : '') : 'typing'; noteStatus(N);
+  clearTimeout(N.timer); N.timer = setTimeout(() => { noteSave(N); }, 1200);
+}
+/* save what's in the box (if it changed) — also after leaving the period: N is the one it was typed in */
+async function noteSave(N) {
+  clearTimeout(N.timer);
+  if (N.draft == null || N.draft === N.t || N.st === 'stale') return;
+  if (N.saving) { N.again = true; return N.saving; }
+  const t = N.draft;
+  N.st = 'saving'; noteStatus(N);
+  N.saving = (async () => {
+    try { N.at = await B.saveNote(N.a, t, N.at); N.t = t; N.err = ''; N.st = N.draft === t ? 'saved' : 'typing'; }
+    catch (e) {
+      N.st = e && e.code === 'stale' ? 'stale' : 'err'; N.err = e && e.code === 'stale' ? e.message : errText(e);
+      if (S.note !== N) toast('The notes for the pay period of ' + TCE.dayText(N.a) + ' weren’t saved: ' + N.err, { bad: true });
+    }
+  })();
+  await N.saving; N.saving = null; noteStatus(N);
+  if (N.again || (N.st === 'typing' && S.note !== N)) { N.again = false; return noteSave(N); }
+  if (N.st === 'typing') { clearTimeout(N.timer); N.timer = setTimeout(() => { noteSave(N); }, 1200); }
+}
+/* leaving the period (or the page): what's typed is saved now; → when it's done (wait: no longer than ms) */
+function noteFlush(ms) {
+  const N = S.note; if (!N) return Promise.resolve();
+  const p = noteSave(N) || Promise.resolve();
+  return ms ? Promise.race([p, new Promise(r => setTimeout(r, ms))]) : p;
+}
+function noteUnsaved() { const N = S.note; return !!(N && N.draft != null && N.draft !== N.t && N.st !== 'stale'); }
+ACT.noteAgain = () => { const a = S.note && S.note.a; S.note = null; if (a) noteNeed(a); renderView(); };
+ACT.noteRetry = () => { const N = S.note; if (N) { N.st = 'typing'; noteSave(N); } };
+
 /* a person's hours as payroll takes them: regular, overtime and holiday, each to the hundredth, then added (Total = what's
    shown beside it, added up) */
-function paidH(r) { return TCE.h2(r.reg) + TCE.h2(r.ot) + TCE.h2(r.hol || 0); }
+function paidH(r) { const v = r.lv || {}; return TCE.h2(r.reg) + TCE.h2(r.ot) + TCE.h2(r.hol || 0) + (r.sal ? 0 : TCE.h2(v.vac || 0) + TCE.h2(v.sick || 0) + TCE.h2(v.free || 0)); }
 /* the totals (Amir, 23 Oct 2026: "total hours for hourly … total hours for overtime and also total hours for everything",
    then "including eve"): Total is everyone on the page, salaried too (their hours are regular, never overtime); when someone
    is salaried, a second line adds up only the people paid by the hour — what the payroll entered in Paychex adds up to.
    Each person's hours as shown, added up. */
 function payTotals(rows, hourlyOnly) {
   const in_ = hourlyOnly ? rows.filter(r => !r.sal) : rows, add = f => in_.reduce((n, r) => n + f(r), 0);
-  return { n: in_.length, open: in_.some(r => r.issues.length), reg: add(r => TCE.h2(r.reg)), ot: add(r => TCE.h2(r.ot)), hol: add(r => TCE.h2(r.hol || 0)), all: add(paidH),
+  const lv = {}; TCE.LEAVE_K.forEach(k => { lv[k] = add(r => r.sal || !r.lv ? 0 : TCE.h2(r.lv[k] || 0)); });
+  return { n: in_.length, open: in_.some(r => r.issues.length), reg: add(r => TCE.h2(r.reg)), ot: add(r => TCE.h2(r.ot)), hol: add(r => TCE.h2(r.hol || 0)), lv, all: add(paidH),
     weeks: (rows[0] ? rows[0].weeks : []).map((x, i) => ({ wkIso: x.wkIso, reg: add(r => TCE.h2(r.weeks[i].reg)), ot: add(r => TCE.h2(r.weeks[i].ot)) })) };
 }
-function payFoot(rows, today, showHol) {
+function payFoot(rows, today, showHol, lk) {
+  lk = lk || [];
   if (!rows.length) return '';
   const sal = rows.filter(r => r.sal).map(r => r.name), otCls = h => (Math.round(h * 100) > 0 ? ' bad' : '');
   const line = (T, label, notes, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td><b class="pt">' + label + '</b></td>' +
     '<td class="num big"><b>' + hStr(T.reg) + '</b></td><td class="num big' + otCls(T.ot) + '"><b>' + hStr(T.ot) + '</b></td>' +
-    (showHol ? '<td class="num big holCol"><b>' + hStr(T.hol) + '</b></td>' : '') + '<td class="num big"><b>' + hStr(T.all) + '</b></td>' +
+    (showHol ? '<td class="num big holCol"><b>' + hStr(T.hol) + '</b></td>' : '') + lk.map(k => '<td class="num big lvCol"><b>' + hStr(T.lv[k]) + '</b></td>').join('') + '<td class="num big"><b>' + hStr(T.all) + '</b></td>' +
     '<td class="small">' + notes.filter(Boolean).join('<br>') + '</td>' +
     T.weeks.map(x => x.wkIso > today ? '<td class="num muted wkCol">—</td><td class="num muted wkCol">—</td>'
       : '<td class="num wkCol"><b>' + hStr(x.reg) + '</b></td><td class="num wkCol' + otCls(x.ot) + '"><b>' + hStr(x.ot) + '</b></td>').join('') + '</tr>';
@@ -644,23 +842,48 @@ function repTableHTML(M) {
   return '<div class="card"><div class="cardHd"><h3>' + ic('people', 18) + ' Each person</h3></div><div class="tblWrap"><table class="tbl pay repTbl"><thead><tr><th>Person</th><th class="num">Avg hours<br><span class="muted small">a full week</span></th><th>Weeks</th><th class="num">Overtime</th>' +
     '<th class="num">Usual<br>clock-in</th><th class="num">Usual<br>clock-out</th><th class="num">Usual<br>lunch</th><th class="num">Days</th><th class="num">Corrections</th><th>Flags</th></tr></thead><tbody>' + body + '</tbody></table></div></div>';
 }
-ACT.payPrev = () => { S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], -14) }; renderView(); };
-ACT.payNext = () => { S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], 14) }; renderView(); };
-ACT.payNow = () => { S.pay = { start: periodOf(TCE.dayOf(nowMs()))[0] }; renderView(); };
-ACT.payReload = () => { S.pay = { start: S.pay.start }; S.hol = null; renderView(); };
+ACT.payPrev = () => { noteFlush(); S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], -14) }; renderView(); };
+ACT.payNext = () => { noteFlush(); S.pay = { start: TCE.addDays(periodOf(S.pay.start)[0], 14) }; renderView(); };
+ACT.payNow = () => { noteFlush(); S.pay = { start: periodOf(TCE.dayOf(nowMs()))[0] }; renderView(); };
+ACT.payReload = () => { noteFlush(); S.pay = { start: S.pay.start }; S.hol = null; S.note = null; leaveStop(); renderView(); };
 ACT.payAnchor = async b => { const v = $('#payAnchor').value; if (!TCE.isISO(v)) { toast('Pick a day.', { bad: true }); return; } await act(b, () => B.saveSettings(Object.assign({}, S.set, { pay: v })), 'Saved.'); };
 ACT.payCsv = () => {
   const [a, z] = periodOf(S.pay.start), rows = payRows(a, z, S.pay.data), wks = rows.length ? rows[0].weeks : [];
-  const head = ['Employee', 'Period start', 'Period end', 'Regular hours', 'Overtime hours', 'Holiday hours', 'Total hours', 'Pay type', 'To check'].concat(wks.flatMap(x => ['Week of ' + x.wkIso + ' regular', 'Week of ' + x.wkIso + ' overtime']));
-  const out = [head].concat(rows.map(r => [r.name, a, z, hNum(r.reg), hNum(r.ot), hNum(r.hol), hStr(paidH(r)), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.join('; ')].concat(r.weeks.flatMap(x => [hNum(x.reg), hNum(x.ot)]))));
+  const head = ['Employee', 'Period start', 'Period end', 'Regular hours', 'Overtime hours', 'Holiday hours'].concat(LEAVE_CSV).concat(['Total hours', 'Pay type', 'To check']).concat(wks.flatMap(x => ['Week of ' + x.wkIso + ' regular', 'Week of ' + x.wkIso + ' overtime']));
+  const out = [head].concat(rows.map(r => [r.name, a, z, hNum(r.reg), hNum(r.ot), hNum(r.hol)].concat(leaveCsv(r)).concat([hStr(paidH(r)), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.concat(leaveCsvNotes(r)).join('; ')]).concat(r.weeks.flatMap(x => [hNum(x.reg), hNum(x.ot)]))));
   // the totals, as on the page: everyone, then (with someone salaried) only the people paid by the hour
-  const sal = rows.filter(r => r.sal).map(r => r.name), tot = (T, label, type, note) => [label, a, z, hStr(T.reg), hStr(T.ot), hStr(T.hol), hStr(T.all), type,
-    [T.open ? 'Not final: some days aren’t complete' : '', note].filter(Boolean).join('; ')].concat(T.weeks.flatMap(x => [hStr(x.reg), hStr(x.ot)]));
-  if (rows.length) out.push(tot(payTotals(rows, false), 'Total', sal.length ? 'Everyone' : '', sal.length ? 'With ' + sal.join(', ') + ' (salaried)' : ''));
+  const sal = rows.filter(r => r.sal).map(r => r.name), tot = (T, label, type, note) => [label, a, z, hStr(T.reg), hStr(T.ot), hStr(T.hol)].concat(TCE.LEAVE_K.map(k => hStr(T.lv[k]))).concat(['', hStr(T.all), type,
+    [T.open ? 'Not final: some days aren’t complete' : '', note].filter(Boolean).join('; ')]).concat(T.weeks.flatMap(x => [hStr(x.reg), hStr(x.ot)]));
+  const asOf = leaveCsvAsOf(a);
+  if (rows.length) out.push(tot(payTotals(rows, false), 'Total', sal.length ? 'Everyone' : '', [sal.length ? 'With ' + sal.join(', ') + ' (salaried)' : '', asOf].filter(Boolean).join('; ')));
   const H = sal.length ? payTotals(rows, true) : null;
   if (H && H.n) out.push(tot(H, 'Hourly staff', 'Hourly', 'Without ' + sal.join(', ') + ': what goes into Paychex'));
   download('time-clock-' + a + '-to-' + z + '.csv', csvOf(out));
 };
+// (the time-off columns of the Totals CSV: each kind's hours, then the days)
+const LEAVE_CSV = ['Vacation hours', 'Sick hours', 'Other paid leave hours', 'Unpaid leave hours', 'Time off days'];
+function leaveCsv(r) {
+  if (r.sal) return ['', '', '', '', ''];
+  return TCE.LEAVE_K.map(k => hNum(r.lv[k])).concat([(r.lvDays || []).map(d => d.d + ' ' + TCE.LEAVE_K.filter(k => d[k]).map(k => hStr(d[k]) + ' h ' + TCE.LEAVE_WORD[k]).join(' + ')).join('; ')]);
+}
+function leaveCsvNotes(r) {
+  const out = (r.wait || []).map(w => 'Waiting for approval in Time Off: ' + TCE.leaveDaysText(w) + ', ' + TCE.leaveSplitText(w) + ' if approved');
+  if (S.leave && S.leave.ch && S.leave.ch.some(c => c.sid === r.sid)) out.push('Changed in Time Off since: not counted yet');
+  (r.cut || []).forEach(c => out.push(TCE.leaveCutText(c)));
+  (r.both || []).forEach(b => out.push(TCE.leaveBothText(b)));
+  if (r.nohr) out.push('Time off counted as asked (no HR record in Time Off)');
+  return out;
+}
+// how current the time off in the numbers is (the spreadsheet's Total row says so)
+function leaveCsvAsOf(a) {
+  const L = S.leave; if (!L || L.a !== a || L.rules === undefined) return '';
+  if (!L.rules) return 'Time off from NLO Time Off not included (the database’s rules don’t have it yet)';
+  if (L.err === 'perm') return 'Time off from NLO Time Off not included (only Dr. A and the people who approve time off see it)';
+  if (L.err) return 'Time off from NLO Time Off not included (it couldn’t be read)';
+  if (L.doc === undefined) return '';
+  if (!L.doc) return 'No time off has come over from NLO Time Off for this period yet: none is included';
+  return 'Time off from NLO Time Off as of ' + TCE.dayText(TCE.dayOf(TCE.leaveAsOf(L.doc))) + ' ' + TCE.timeText(TCE.leaveAsOf(L.doc)) + (L.ch.length ? '; ' + plural(L.ch.length, 'change') + ' in Time Off since, not counted' : '');
+}
 ACT.payCsvDays = () => {
   const [a, z] = periodOf(S.pay.start), rows = payRows(a, z, S.pay.data), out = [['Employee', 'Date', 'Day', 'Punches', 'Hours', 'Flags', 'Corrections']];
   rows.forEach(r => r.weeks.forEach(x => x.w.days.forEach(d => {
@@ -672,7 +895,7 @@ ACT.payCsvDays = () => {
   })));
   download('time-clock-days-' + a + '-to-' + z + '.csv', csvOf(out));
 };
-ACT.payPrint = () => { document.body.classList.add('printPay'); window.print(); setTimeout(() => document.body.classList.remove('printPay'), 500); };
+ACT.payPrint = () => { const n = document.querySelector('#view .payNote .noteP'), x = $('#payNote'); if (n && x) { n.textContent = x.value; n.closest('.payNote').classList.toggle('none', !x.value.trim()); } document.body.classList.add('printPay'); window.print(); setTimeout(() => document.body.classList.remove('printPay'), 500); };
 
 /* ---------- Paychex: the Punch Detail Import (Payroll Center), from the pay period on screen ----------
    S.px: { done, rules, cid, ids, err } — Paychex's company ID and each person's worker ID (meta/tcPx), read when Settings
@@ -898,6 +1121,7 @@ VIEWS.alerts = () => {
     (own ? '<div class="cardBd"><div class="btnRow"><button class="btn btn-pri" data-act="alertsSave">Save</button></div></div>' : '<div class="cardBd"><p class="muted small">Dr. A changes these.</p></div>') + '</div>' +
     '</div><div>' +
     '<div class="card"><div class="cardHd"><h3>' + ic('bell', 18) + ' The alert script</h3></div><div class="cardBd">' + status +
+    (scriptVer() && scriptVer() < ALERT_V ? '<div class="notice" style="margin:10px 0 0">The script running is version ' + scriptVer() + '. This page goes with version ' + ALERT_V + ' — its payroll email has the time off from NLO Time Off. ' + (own ? 'Get the script again (below) and paste it in, as the first time.' : 'Dr. A updates it here.') + '</div>' : '') +
     '<p class="small muted" style="margin-top:8px">A small Google Apps Script checks the clock every 5 minutes (every half hour at night) and sends the alerts. Each alert goes out once.</p>' +
     (own ? '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="getScript">' + ic('download', 15) + (beats.length ? 'Get the script again' : 'Get the script') + '</button><button class="btn btn-ghost" data-act="testAlert">Send a test</button></div>' : '') + '</div></div>' +
     '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent alerts</h3></div><div class="cardBd">' + log + '</div></div>' +

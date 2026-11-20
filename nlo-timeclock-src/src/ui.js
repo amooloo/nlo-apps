@@ -402,6 +402,8 @@ ACT.demoLaptop = async () => { await B.kioskOpen('laptop'); enterKiosk(); };
 async function lockOut(msg) {
   const back = S.fromKiosk && B.kiosk;
   S.timers.forEach(t => clearInterval(t)); S.timers = [];
+  if (typeof leaveStop === 'function') leaveStop(); // (Time Off's: before signing out, so nothing reads on after)
+  if (typeof noteFlush === 'function') { await noteFlush(4000); S.note = null; } // (the payroll notes being typed: saved before signing out)
   closeModal(); B.stop(); await B.signOut(); S.mode = ''; S.fromKiosk = false; S.view = 'now';
   S.px = null; S.pxDraft = null; S.pxFile = null; // (Paychex's IDs, and anything typed there: not for the next person here)
   if (back) { enterKiosk(); return; }
@@ -574,8 +576,12 @@ ACT.doSetup = async b => {
   const team = Array.from(S.roster.values()).filter(r => r.active && r.role !== 'owner').map(r => r.sid);
   if (await act(b, () => B.setupOffice(team), 'The time clock is set up. Next: People (PINs), then Alerts.')) { S.view = 'people'; renderShell(); }
 };
-ACT.go = b => { S.view = b.dataset.v; S.dirty = false; S.pxDraft = null; S.hol = null; S.rep = null; closeModal(); renderView(); window.scrollTo(0, 0); };
+ACT.go = b => { if (typeof noteFlush === 'function') { noteFlush(); S.note = null; } S.view = b.dataset.v; S.dirty = false; S.pxDraft = null; S.hol = null; S.rep = null; if (typeof leaveStop === 'function') leaveStop(); closeModal(); renderView(); window.scrollTo(0, 0); };
 // (data-nodirty: a box on those screens that isn't one of their settings — the code a laptop shows, say)
+// the payroll notes: saved a moment after typing stops, and when the box is left; closing the tab with some not saved asks first
+document.addEventListener('input', e => { if (e.target && e.target.id === 'payNote' && typeof noteTyped === 'function') noteTyped(e.target); });
+document.addEventListener('focusout', e => { if (e.target && e.target.id === 'payNote' && S.note) noteSave(S.note); });
+window.addEventListener('beforeunload', e => { if (typeof noteUnsaved === 'function' && noteUnsaved()) { noteFlush(); e.preventDefault(); e.returnValue = ''; } });
 ['input', 'change'].forEach(ev => document.addEventListener(ev, e => { if (S.mode === 'app' && (S.view === 'settings' || S.view === 'alerts') && e.target.closest && e.target.closest('#view') && !e.target.closest('[data-nodirty]')) S.dirty = true; }));
 document.addEventListener('click', e => { if (S.mode === 'app' && (S.view === 'settings' || S.view === 'alerts') && e.target.closest && e.target.closest('#view .pick')) S.dirty = true; }, true);
 ACT.signOut = () => lockOut('Signed out.');
