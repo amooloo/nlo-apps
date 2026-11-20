@@ -77,6 +77,24 @@ office, on the NLO Cases platform: the same Firebase project (`nlo-cases`), logi
     names the box to shorten only when shortening it would do.
   - Printing: Print fills `#printDoc` and prints only it (print CSS), titled "Form - Name - date" so Save as PDF names
     the file; nothing is printed through a new window (the CSP allows none).
+- The Time Clock's Payroll page (Amir, 20 Nov 2026: time-off requests on the payroll tab, "also would show if there are pending
+  requests that have not been approved", "it only should show the days for that specific pay period"): on Dr. A's screen only
+  (it's pay — the rules say the same; the people who approve see it come over), Time Off works out each of the Time Clock's
+  pay periods (two weeks from `meta/tc.pay`; from its first period, `PAY_FIRST` 2026-10-11, no more than 400 days back, to 3
+  periods ahead) with `leaveDocOf` / `leaveIn` in policy.js — each person's approved time off by balance, as Team → Payroll
+  counts it (a row's hours are its days' hours added up; a day marked `full` when its time off comes to a whole day), and
+  each request still waiting with what it would come to if approved (on its own), counting only the days inside the period,
+  with the requests it counts or lists (`ids`) — and hands it over in `tcLeave/{first day}` (`syncPay` in ui.js: after
+  sign-in and a moment after anything it depends on changes; a period is written when it says something new, or when
+  something that could touch it changed since it was written — a request starting before it ends, one it lists, or the HR
+  record of someone in it; `upto` / `hrUp` = the newest request change and HR record change it was worked out from, never
+  moving back; nothing while a save is still on its way, or while an HR record can't be opened on this screen; a copy from
+  a newer Time Off, `LEAVE_V`, is left alone; two screens that work a period out differently from the same changes: the one
+  that finds the other's answer leaves it and says so, rather than writing back and forth). Only balances and hours go over —
+  never the kind of time off or notes. Team → Payroll opens on the same pay period (the one to enter), steps a period at a
+  time, lists what's waiting, and says what happened to that period's copy (sent, sending, couldn't — or, for an approver,
+  that it comes from Dr. A's Time Off). Needs the rules with `meta/rules_tc_5`; until then nothing is handed over (tried
+  again every 5 minutes) and the tab says so.
 - Approved scrubs orders are emailed by NLO Cases' email robot (`../nlo-cases-src/mail/script.js`, v3 or later) to the
   address in `meta/toMail`. After changing `mail/script.js`, run `node tools/build-mail.js` in `nlo-cases-src` (it needs
   esbuild, aes-js, elliptic and hash.js) and publish `mail/nlo-cases-mail.gs` as `../nlo-cases-mail.gs`.

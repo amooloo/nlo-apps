@@ -261,6 +261,69 @@ eq(A.CELEBRATE.pays, [10, 32.5, 65], 'Celebrate Primary Care: what the practice 
   eq(A.payPeriod(L, '2026-10-16', '2026-10-31'), { vac: 0, sick: 0, free: 0, unpaid: 0, days: 0 }, 'nothing in the second half');
 }
 
+section('The Time Clock’s pay periods, and each one’s time off for its Payroll page (Amir, 20 Nov 2026)');
+{
+  const AN = '2026-10-11'; // (the office's anchor: Sunday Oct 11, two-week periods)
+  eq([A.payPeriodAt('2026-11-20', AN), A.payPeriodAt('2026-11-08', AN), A.payPeriodAt('2026-11-21', AN), A.payPeriodAt('2026-10-10', AN), A.payPeriodAt('2026-11-20', '')],
+    [['2026-11-08', '2026-11-21'], ['2026-11-08', '2026-11-21'], ['2026-11-08', '2026-11-21'], ['2026-09-27', '2026-10-10'], null], 'the period a day is in (before the anchor too); none without an anchor');
+  eq(['2026-11-21', '2026-11-22', '2026-11-26', '2026-11-23'].map(A.payDayOf), ['2026-11-20', '2026-11-20', '2026-11-27', '2026-11-27'], 'payroll Friday: the period’s last Friday (it ends on a Saturday) — or the first Friday after');
+  eq([A.payPeriodToEnter('2026-11-20', AN), A.payPeriodToEnter('2026-11-21', AN), A.payPeriodToEnter('2026-11-22', AN), A.payPeriodToEnter('2026-11-09', AN)],
+    [['2026-11-08', '2026-11-21'], ['2026-11-08', '2026-11-21'], ['2026-11-22', '2026-12-05'], ['2026-11-08', '2026-11-21']], 'the period to enter: on payroll Friday the one it pays; from Sunday the next');
+  const a = '2026-11-08', z = '2026-11-21';
+  // Gwen: Silver (2+ years), 20 h vacation and 10 h sick on Oct 9; Oct 31 adds 5.67 and 2.83
+  const gwen = { hire: '2024-01-15', type: 'FT', open: { asOf: '2026-10-09', vac: 20, sick: 10 } };
+  const gReqs = [
+    R({ id: 'g1', start: '2026-11-02', end: '2026-11-02' }),                                   // (the period before)
+    R({ id: 'g2', type: 'sick', start: '2026-11-10', end: '2026-11-10', part: 'am' }),
+    R({ id: 'g3', type: 'personal', start: '2026-11-11', end: '2026-11-11' }),
+    R({ id: 'g4', start: '2026-11-19', end: '2026-11-24' }),                                   // (runs into the next period)
+    R({ id: 'g5', status: 'pending', start: '2026-11-16', end: '2026-11-16' }),
+    R({ id: 'g6', status: 'pending', type: 'medical', start: '2026-11-17', end: '2026-11-17', part: 'time', from: '14:00', to: '15:30' }),
+    R({ id: 'g7', status: 'denied', start: '2026-11-18', end: '2026-11-18' }),
+    R({ id: 'g8', status: 'pending', start: '2026-11-30', end: '2026-12-01' })                 // (the next period: not here)
+  ];
+  const g = A.leaveIn(gwen, gReqs, pol, closed, a, z);
+  eq(g.row, { vac: 8.5, sick: 4.25, free: 8.5, unpaid: 0, days: [{ d: '2026-11-10', sick: 4.25 }, { d: '2026-11-11', free: 8.5, full: true }, { d: '2026-11-19', vac: 8.5, full: true }] },
+    'approved: only the days inside the period — a morning of sick leave, a personal day (paid, no balance), and Thu Nov 19 of a request that goes on into the next period (full: a whole day off; the morning isn’t)');
+  eq(g.ids, ['g2', 'g3', 'g4', 'g5', 'g6'], 'the requests approved or waiting whose dates touch the period (not the one before, the denied one or the next period’s)');
+  eq(g.wait, [{ id: 'g5', b: 'vac', days: ['2026-11-16'], h: 8.5, part: 'full', vac: 8.5, sick: 0, free: 0, unpaid: 0 }, { id: 'g6', b: 'vac', days: ['2026-11-17'], h: 1.5, part: 'time', vac: 1.5, sick: 0, free: 0, unpaid: 0, from: '14:00', to: '15:30' }],
+    'waiting: each request’s days in the period and what it’d come to if approved — not the denied one, not the one in the next period');
+  const next = A.leaveIn(gwen, gReqs, pol, closed, '2026-11-22', '2026-12-05');
+  eq([next.row && next.row.days, next.wait.map(w => [w.id, w.days])], [[{ d: '2026-11-23', vac: 8.5, full: true }, { d: '2026-11-24', vac: 0.17, unpaid: 8.33, full: true }], [['g8', ['2026-11-30', '2026-12-01']]]],
+    'the next period: the rest of that request (Thanksgiving Wed–Fri closed) — its last day runs past the balance (8.67 h left after Nov 19) — and its own waiting one');
+  // Kim: 4 h of vacation on Oct 9, Bronze; Oct 31 adds 2.83 → 6.83, so a full day on Nov 9 runs short
+  const kim = { hire: '2026-03-02', type: 'FT', open: { asOf: '2026-10-09', vac: 4, sick: 0 } };
+  const kReqs = [R({ id: 'k1', start: '2026-11-09', end: '2026-11-09' }), R({ id: 'k2', status: 'pending', start: '2026-11-19', end: '2026-11-23' })];
+  const k = A.leaveIn(kim, kReqs, pol, closed, a, z);
+  eq(k.row, { vac: 6.83, sick: 0, free: 0, unpaid: 1.67, days: [{ d: '2026-11-09', vac: 6.83, unpaid: 1.67, full: true }] }, 'a balance that runs out: what’s left is paid, the rest unpaid — as Team → Payroll counts it (still a whole day off)');
+  eq(k.wait, [{ id: 'k2', b: 'vac', days: ['2026-11-19'], h: 8.5, part: 'full', vac: 0, sick: 0, free: 0, unpaid: 8.5 }], 'waiting with no balance left: it would be unpaid (only its Thursday is in this period)');
+  // the same numbers as Team → Payroll's (payPeriod on the ledger)
+  const Lk = A.ledger(kim, kReqs, pol, closed, z), pk2 = A.payPeriod(Lk, a, z);
+  eq([k.row.vac, k.row.sick, k.row.free, k.row.unpaid], [pk2.vac, pk2.sick, pk2.free, pk2.unpaid], '…the same hours as Team → Payroll');
+  // on salary: nothing (not hours for payroll); no HR record: as asked
+  eq(A.leaveIn({ hire: '2020-01-01', type: 'SAL' }, [R({ id: 's1', start: '2026-11-10', end: '2026-11-10' }), R({ id: 's2', status: 'pending', start: '2026-11-12', end: '2026-11-12' })], pol, closed, a, z), { row: null, wait: [], ids: [] }, 'on salary: nothing to hand over');
+  const nh = A.leaveIn(null, [R({ id: 'n1', type: 'sick', start: '2026-11-12', end: '2026-11-12' }), R({ id: 'n2', status: 'pending', start: '2026-11-16', end: '2026-11-16', part: 'am' }), R({ id: 'n3', paid: false, start: '2026-11-17', end: '2026-11-17' })], pol, closed, a, z);
+  eq([nh.row, nh.wait], [{ vac: 0, sick: 8.5, free: 0, unpaid: 8.5, days: [{ d: '2026-11-12', sick: 8.5, full: true }, { d: '2026-11-17', unpaid: 8.5, full: true }] }, [{ id: 'n2', b: 'vac', days: ['2026-11-16'], h: 4.25, part: 'am', vac: 4.25, sick: 0, free: 0, unpaid: 0 }]], 'no HR record: counted as asked');
+  eq(A.leaveIn(gwen, [R({ id: 'w1', start: '2026-11-20', end: '2026-11-22' }), R({ id: 'w2', status: 'pending', start: '2026-11-21', end: '2026-11-21' })], pol, closed, a, z), { row: null, wait: [], ids: ['w1', 'w2'] }, 'only days the office is closed in the period: nothing (they’re still watched: a change could move them onto an open day)');
+  // a morning and an afternoon off on the same day: a whole day; a time window that covers the day: a whole day
+  const two = A.leaveIn(gwen, [R({ id: 't1', start: '2026-11-16', end: '2026-11-16', part: 'am' }), R({ id: 't2', type: 'sick', start: '2026-11-16', end: '2026-11-16', part: 'pm' }), R({ id: 't3', start: '2026-11-17', end: '2026-11-17', part: 'time', from: '08:00', to: '16:30' }), R({ id: 't4', start: '2026-11-18', end: '2026-11-18', part: 'time', from: '08:00', to: '12:00' })], pol, closed, a, z);
+  eq(two.row.days, [{ d: '2026-11-16', vac: 4.25, sick: 4.25, full: true }, { d: '2026-11-17', vac: 8.5, full: true }, { d: '2026-11-18', vac: 4 }], 'a whole day off: a morning and an afternoon together, or times that cover the day — not four hours');
+  eq([two.row.vac, two.row.sick], [16.75, 4.25], '…and the row’s hours are its days’ hours added up');
+  // the whole office, as handed over
+  const D = A.leaveDocOf([{ sid: 'gwen', p: gwen, reqs: gReqs }, { sid: 'kim', p: kim, reqs: kReqs }, { sid: 'nora', p: null, reqs: [R({ id: 'n1', start: '2026-11-12', end: '2026-11-12' })] }, { sid: 'amir', p: { hire: '2015-01-01', type: 'SAL' }, reqs: [R({ id: 'x1', start: '2026-11-12', end: '2026-11-12' })] }, { sid: 'lee', p: null, reqs: [] }],
+    [{ status: 'pending', startMs: A.dayStartMs('2026-11-12') }, { status: 'cancelled', startMs: A.dayStartMs('2026-11-12') }, { status: 'approved', startMs: A.dayStartMs('2026-12-01') }], pol, closed, a, z);
+  eq([Object.keys(D.rows), D.rows.nora.nohr, D.rows.gwen.nohr, D.wait.map(w => w.sid + ':' + w.id), D.odd, D.v, D.a, D.z], [['gwen', 'kim', 'nora'], true, undefined, ['gwen:g5', 'gwen:g6', 'kim:k2'], 1, 2, a, z],
+    'everyone: rows by person (no one on salary), the waiting ones in day order, and how many couldn’t be opened here');
+  eq(D.ids, ['g2', 'g3', 'g4', 'g5', 'g6', 'k1', 'k2', 'n1'], '…and every request it counts or lists, in order (none of the salaried one’s)');
+  const lk = [{ status: 'approved', startMs: A.dayStartMs('2026-07-27') }, { status: 'approved', startMs: A.dayStartMs('2026-07-01') }, { status: 'pending', startMs: A.dayStartMs('2026-11-21') }, { status: 'approved', startMs: A.dayStartMs('2026-11-22') }];
+  eq(A.leaveDocOf([], lk, pol, closed, a, z).odd, 2, 'couldn’t be opened: one starting up to 120 days before (a long leave) or in the period — not earlier, not after');
+  const D2 = A.leaveDocOf([{ sid: 'kim', p: kim, reqs: kReqs }, { sid: 'gwen', p: gwen, reqs: gReqs.slice().reverse() }, { sid: 'nora', p: null, reqs: [R({ id: 'n1', start: '2026-11-12', end: '2026-11-12' })] }], [{ status: 'pending', startMs: A.dayStartMs('2026-11-12') }], pol, closed, a, z);
+  eq(A.leaveKey(D2), A.leaveKey(D), 'the same time off reads the same, whatever order it came in');
+  const D3 = A.leaveDocOf([{ sid: 'kim', p: kim, reqs: kReqs.concat([R({ id: 'k3', status: 'pending', start: '2026-11-12', end: '2026-11-12' })]) }, { sid: 'gwen', p: gwen, reqs: gReqs }, { sid: 'nora', p: null, reqs: [R({ id: 'n1', start: '2026-11-12', end: '2026-11-12' })] }], [{ status: 'pending', startMs: A.dayStartMs('2026-11-12') }], pol, closed, a, z);
+  ok(A.leaveKey(D3) !== A.leaveKey(D), '…and a new request waiting reads differently');
+  ok(A.leaveKey(Object.assign({}, D, { ids: D.ids.slice(1) })) !== A.leaveKey(D), '…and so does a different list of requests');
+}
+
 section('The old Sheet’s rows');
 eq([A.legacyType('Sick Leave'), A.legacyType('Personal Day'), A.legacyType('Medical Appointment'), A.legacyType('Jury Duty')], ['sick', 'personal', 'medical', 'other'], 'types');
 eq([A.legacyPart('Full Day'), A.legacyPart('Morning (AM)'), A.legacyPart('Afternoon (PM)'), A.legacyPart('6 Hours'), A.legacyPart('Half Day'), A.legacyPart('')], ['full', 'am', 'pm', 'h6', 'half', 'full'], 'hours');

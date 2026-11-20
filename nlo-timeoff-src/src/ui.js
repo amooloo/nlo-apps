@@ -209,7 +209,8 @@ async function enterApp() {
   Object.assign(S, {
     inApp: true, st: 'opening', view: 'home', tab: {}, q: '', roster: [], team: [], people: new Map(), reqs: new Map(), perks: new Map(), board: [], mine: undefined, hrRecs: new Map(),
     form: null, fm: null, openId: '', openSid: '', month: todayISO().slice(0, 8) + '01', firstLoad: true, loadErr: '', lastAct: Date.now(), day: todayISO(), ver: S.ver + 1, gotReqs: false,
-    imp: null, polEd: null, hrP: null, desk: null, feedInfo: null, accessBusy: '', rotating: null, benAs: '', scrubsMail: null, gotRoster: false, gotHR: false
+    imp: null, polEd: null, hrP: null, desk: null, feedInfo: null, accessBusy: '', rotating: null, benAs: '', scrubsMail: null, gotRoster: false, gotHR: false,
+    tcSet: null, leave: null, leaveErr: '', paySyncing: false, payAgain: false, payState: new Map(), payMine: new Map(), payBlock: '', hrLockedN: 0, payNull: 0
   });
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
@@ -235,8 +236,8 @@ async function enterApp() {
 function startLive() {
   renderShell(); renderView();
   B.start({
-    settings(s) { if (!S.inApp) return; S.settings = Object.assign({ idleMin: 10 }, s || {}); S.pol = policyOf(S.settings); S.scrubs = scrubsOf(S.settings); S.closed = makeClosed(((S.settings.to || {}).closures) || []); S.blackouts = blackoutsOf(S.settings); bump(); queueRender('settings'); },
-    roster(list) { if (!S.inApp) return; S.roster = list; S.gotRoster = true; bump(); queueRender('team'); const wb = $('#side .whoBox'); if (wb && wb.firstElementChild) { wb.firstElementChild.outerHTML = avatarHTML(meSid(), B.me && B.me.name); paintPhotos(wb); } },
+    settings(s) { if (!S.inApp) return; S.settings = Object.assign({ idleMin: 10 }, s || {}); S.pol = policyOf(S.settings); S.scrubs = scrubsOf(S.settings); S.closed = makeClosed(((S.settings.to || {}).closures) || []); S.blackouts = blackoutsOf(S.settings); bump(); queueRender('settings'); paySyncSoon(); },
+    roster(list) { if (!S.inApp) return; S.roster = list; S.gotRoster = true; bump(); queueRender('team'); paySyncSoon(); const wb = $('#side .whoBox'); if (wb && wb.firstElementChild) { wb.firstElementChild.outerHTML = avatarHTML(meSid(), B.me && B.me.name); paintPhotos(wb); } },
     team(sids) { if (!S.inApp) return; S.team = Array.isArray(sids) ? sids.filter(x => typeof x === 'string') : []; queueRender('team'); },
     people(map) { if (!S.inApp) return; S.people = map; queueRender('team'); },
     board(list) { if (!S.inApp) return; S.board = list.filter(x => x && typeof x.sid === 'string' && isISO(x.start) && isISO(x.end)); bump(); queueRender(); },
@@ -245,6 +246,7 @@ function startLive() {
       up.forEach(r => { const o = S.reqs.get(r.id); if (o && o.rev > r.rev) return; S.reqs.set(r.id, normReq(r)); }); gone.forEach(id => S.reqs.delete(id)); // never an older copy over a newer one
       S.gotReqs = true; S.firstLoad = false; S.loadErr = ''; bump(); queueRender();
       if (S.openId) refreshDrawer();
+      paySyncSoon();
     },
     mine(m) { if (!S.inApp) return; S.mine = m && !m.locked ? m : null; bump(); queueRender(); },
     perks(list) {
@@ -253,7 +255,14 @@ function startLive() {
       S.perksOdd = list.filter(x => x && x.locked && x.status !== 'cancelled');
       bump(); queueRender(); if (S.openSid) refreshDrawer();
     },
-    hr(list) { if (!S.inApp) return; S.hrRecs = new Map(list.filter(x => !x.locked).map(x => [x.sid, x])); S.gotHR = true; bump(); queueRender(); if (S.openSid) refreshDrawer(); },
+    hr(list) { if (!S.inApp) return; S.hrRecs = new Map(list.filter(x => !x.locked).map(x => [x.sid, x])); S.hrLockedN = list.filter(x => x.locked).length; S.gotHR = true; bump(); queueRender(); if (S.openSid) refreshDrawer(); paySyncSoon(); },
+    // the Time Clock's pay periods (meta/tc), and the time off already handed to its Payroll page (tcLeave)
+    tcSet(d) { if (!S.inApp) return; S.tcSet = d && isISO(d.pay) ? { pay: d.pay, wk: Number(d.wk) || 0 } : null; queueRender('team'); paySyncSoon(); },
+    leave(m, pending, e) {
+      if (!S.inApp) return;
+      if (!m) { S.leave = null; S.leaveErr = e ? (B.isPerm(e) ? 'rules' : errText(e)) : ''; queueRender('team'); return; }
+      S.leave = m; S.leaveErr = ''; queueRender('team'); if (!pending) paySyncSoon();
+    },
     access(kind) { if (kind === 'off') lockOut('Your approver access was turned off. Sign in again.'); else toast('You can approve time off now — sign in again to see Approvals.', { ms: 9000, action: 'Lock', onAction: () => lockOut('Sign in again to see Approvals.') }); },
     revoked() { lockOut('Your access was turned off.'); },
     rekeyed() { if (S.inApp && isOwner()) setTimeout(ownerUpkeep, 1500); },
@@ -338,7 +347,7 @@ async function upkeep() {
     await ownerUpkeep();
     await shAuto().catch(() => { }); // Staff Hub's start dates, full-/part-time, last days and names (staffhub.js)
   }
-  if (isHR()) await syncFeed(true).catch(() => { });
+  if (isHR()) { await syncFeed(true).catch(() => { }); paySyncSoon(300); }
 }
 async function ownerUpkeep() {
   if (!S.inApp || S.demo || !isOwner() || !isHR()) return;
@@ -404,6 +413,78 @@ async function syncFeed(full, delta) {
   const pending = full && isHR() ? pendingAll().length : Math.max(0, ((cur && cur.pending) || 0) + (delta || 0));
   const next = buildFeed(pending), same = cur && JSON.stringify(Object.assign({}, cur, { syncedAt: '' })) === JSON.stringify(Object.assign({}, next, { syncedAt: '' }));
   if (!same) await B.writeFeed(next);
+}
+
+/* ---------- the Time Clock's Payroll page: each pay period's time off (Amir, 20 Nov 2026) ----------
+   Dr. A's Time Off works out each of the Time Clock's pay periods — what each person's approved time off comes to, by balance,
+   and the requests still waiting, from the days inside the period only (leaveDocOf) — and hands it over in tcLeave/{the
+   period's first day}. Only Dr. A's screen writes it: it's pay, and the rules say the same (the people who approve see it come
+   over). From the Time Clock's first pay period (no more than PAY_BACK days back) to 3 periods ahead. A period is written when
+   it says something new, or when something that could touch it changed since it was written — a request starting before it
+   ends, or one it counts (ids), or the HR record of someone in it — so the Payroll page can tell it's up to date. upto / hrUp:
+   the newest request change and HR record change it was worked out from (the rules never let either move back, so an older
+   copy of the page can't write over a newer answer). Nothing is written until everything is read, while a save is still on its
+   way to the database (its time isn't known yet), or while an HR record can't be opened on this screen (its person would be
+   counted as asked). Two screens that work a period out differently from the same changes: the one that finds the other's
+   leaves it, and says so, rather than writing back and forth.
+   S.payState: Map(first day → { st: 'ok' | 'fight' | 'err', err }), for Team → Payroll's line under the hours. */
+const PAY_BACK = 400, PAY_AHEAD = 3;
+function paySyncSoon(ms) {
+  if (!S.inApp || !isHR() || !isOwner() || !B.saveLeave) return;
+  clearTimeout(S.payT); S.payT = setTimeout(() => { syncPay().catch(() => { }); }, ms == null ? 2500 : ms);
+}
+function leavePeriods(tc, today) {
+  const cur = payPeriodAt(today, tc.pay), back = addDays(today, -PAY_BACK), first = payPeriodAt(back > PAY_FIRST ? back : PAY_FIRST, tc.pay);
+  const out = []; for (let a = first[0]; a <= addDays(cur[0], 14 * PAY_AHEAD) && out.length < 60; a = addDays(a, 14)) out.push([a, addDays(a, 13)]);
+  return out;
+}
+async function syncPay() {
+  if (!S.inApp || !isHR() || !isOwner() || !B.saveLeave || !S.tcSet || !S.leave) return;
+  if (busyNow()) { paySyncSoon(30000); return; }
+  if (S.paySyncing) { S.payAgain = true; return; }
+  if (!S.gotReqs || !S.gotHR || !S.gotRoster) return; // (it comes back here once they're read)
+  const was = S.payBlock;
+  S.payBlock = S.hrLockedN ? 'locked' : '';
+  if (S.payBlock !== was) queueRender('team');
+  if (S.payBlock) return; // (it comes back here when the HR records are read again)
+  const all = Array.from(S.reqs.values()), recs = Array.from(S.hrRecs.values());
+  // (a save on its way: its time comes with the database's copy — looked for again shortly, less often if it stays offline)
+  if (all.some(r => !r.updatedAt) || (!S.demo && recs.some(p => !p.updatedAt))) { S.payNull = (S.payNull || 0) + 1; paySyncSoon(S.payNull > 30 ? 30000 : 2000); return; }
+  S.payNull = 0;
+  S.paySyncing = true;
+  const state = S.payState || (S.payState = new Map()), mineOf = S.payMine || (S.payMine = new Map());
+  let refused = 0;
+  try {
+    const upto = all.reduce((m, r) => Math.max(m, r.updatedAt || 0), 0), hrUp = recs.reduce((m, p) => Math.max(m, p.updatedAt || 0), 0);
+    const people = S.roster.map(r => ({ sid: r.sid, p: personOf(r.sid), reqs: reqsOf(r.sid) })), locked = all.filter(r => r.locked);
+    for (const [a, z] of leavePeriods(S.tcSet, todayISO())) {
+      if (!S.inApp || !isHR() || !isOwner()) return;
+      const next = leaveDocOf(people, locked, S.pol, S.closed, a, z), key = leaveKey(next), have = S.leave && S.leave.get(a);
+      // (worked out elsewhere by a newer Time Off, or from newer changes — this screen gets them in a moment: left as it is)
+      if (have && ((have.v || 0) > LEAVE_V || have.upto > upto || (have.hrUp || 0) > hrUp)) { state.set(a, { st: 'ok' }); continue; }
+      if (have) {
+        const end = dayStartMs(addDays(z, 2)), ids = new Set(have.ids || []); // (a request's first day as the database has it, with a day to spare)
+        const inIt = sid => !!(have.rows && have.rows[sid]) || !!next.rows[sid] || (have.wait || []).some(w => w.sid === sid) || next.wait.some(w => w.sid === sid);
+        const touched = all.some(r => (r.updatedAt || 0) > have.upto && ((r.startMs || 0) < end || ids.has(r.id))) ||
+          recs.some(p => (p.updatedAt || 0) > (have.hrUp || 0) && inIt(p.sid));
+        if (!touched && leaveKey(have) === key) { state.set(a, { st: 'ok' }); continue; }
+        // two screens at odds: this one wrote exactly this, from these same changes, and another one has since written something else
+        const mine = mineOf.get(a);
+        if (mine && mine.key === key && mine.upto === upto && mine.hrUp === hrUp && have.upto === upto && (have.hrUp || 0) === hrUp && leaveKey(have) !== key) { state.set(a, { st: 'fight' }); continue; }
+      }
+      try {
+        await B.saveLeave(a, next, upto, hrUp);
+        mineOf.set(a, { key, upto, hrUp }); state.set(a, { st: 'ok' });
+      } catch (e) {
+        // refused: another screen just handed over one worked out from newer changes (its copy arriving here looks again) — on to the next
+        if (B.isPerm(e)) { state.set(a, { st: 'err', err: 'the database refused it' }); if (++refused >= 3) return; continue; }
+        state.set(a, { st: 'err', err: errText(e) }); paySyncSoon(60000); return; // (offline, say: tried again in a minute)
+      }
+    }
+  } finally {
+    S.paySyncing = false; queueRender('team');
+    if (S.payAgain) { S.payAgain = false; paySyncSoon(500); }
+  }
 }
 
 /* ---------- rendering ---------- */

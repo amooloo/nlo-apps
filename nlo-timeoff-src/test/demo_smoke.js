@@ -162,6 +162,40 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await page.keyboard.press('Escape');
   // payroll and year end
   await page.click('[data-act=tab][data-t=pay]'); await page.waitForTimeout(150); await collect();
+  // (Amir, 20 Nov 2026) it opens on the Time Clock's pay period to enter, steps a period at a time, and lists what's waiting
+  {
+    const want = await E(() => payPeriodToEnter(todayISO(), DEMO.tc.pay));
+    ok(await page.inputValue('#pfFrom') === want[0] && await page.inputValue('#pfTo') === want[1], 'Payroll opens on the Time Clock’s pay period to enter (' + want.join(' – ') + ')');
+    ok(/Pay period .* · payroll /.test(await page.textContent('#view .cardBd')), '…and says so, with its payroll day');
+    await page.click('[data-act=payPP][data-d="-1"]'); await page.waitForTimeout(150);
+    ok(await page.inputValue('#pfFrom') === await E(w => addDays(w, -14), want[0]) && await page.inputValue('#pfTo') === await E(w => addDays(w, -14), want[1]), '‹ goes back one pay period');
+    await page.click('[data-act=payPP][data-d="0"]'); await page.waitForTimeout(150);
+    ok(await page.inputValue('#pfFrom') === want[0], '“The one to enter” comes back to it');
+    // a request waiting with days in a period: listed with what it would come to, and the Time Clock's copy has it
+    await page.waitForTimeout(3500); // (the hand-off waits a moment after the last change)
+    // (Riley asks for the next office day off: one of the pay periods handed over, up to 3 ahead of this one)
+    const per = await E(async () => {
+      const day = nextOfficeDay(addDays(todayISO(), 1), S.closed), now = Date.now();
+      await B.saveReq(window.__smokeReq = B.newReqId(), c => { Object.assign(c, { sid: 'riley', type: 'vac', paid: true, start: day, end: day, part: 'full', cover: '', note: 'demo smoke', by: 'riley', at: now, events: [{ a: 'submit', by: 'riley', at: now }] }); return { status: 'pending' }; }, { create: { sid: 'riley' }, a: 'submit' });
+      return payPeriodAt(day, DEMO.tc.pay);
+    });
+    await page.waitForTimeout(3500); // (the hand-off waits a moment after the last change)
+    ok(!!per, 'the demo has a request waiting');
+    if (per) {
+      await page.fill('#pfFrom', per[0]); await page.dispatchEvent('#pfFrom', 'change'); await page.fill('#pfTo', per[1]); await page.dispatchEvent('#pfTo', 'change'); await page.waitForTimeout(200);
+      ok(/waiting for approval/.test(await page.textContent('#view')) && /if approved, /.test(await page.textContent('#view')), 'its pay period lists the request waiting, and what it’d come to if approved');
+      const doc = await E(a => { const d = DEMO.leave.get(a); return d ? { wait: d.wait.length, rows: Object.keys(d.rows).length, upto: d.upto, z: d.z } : null; }, per[0]);
+      ok(doc && doc.wait >= 1 && doc.z === per[1] && doc.upto > 0, 'the Time Clock’s copy of that period was handed over, with the request waiting (' + JSON.stringify(doc) + ')');
+      ok(/show on the Time Clock’s Payroll page \(sent /.test(await page.textContent('#view')), '…and the tab says so');
+      const n0 = await E(() => DEMO.leave.size);
+      const want2 = await E(() => { const t = todayISO(), cur = payPeriodAt(t, DEMO.tc.pay); const back = addDays(t, -400); return { first: payPeriodAt(back > PAY_FIRST ? back : PAY_FIRST, DEMO.tc.pay)[0], last: addDays(cur[0], 42) }; });
+      ok(n0 >= 4 && (await E(() => Array.from(DEMO.leave.keys()).sort()))[0] === want2.first && (await E(() => Array.from(DEMO.leave.keys()).sort().pop())) === want2.last, 'every pay period from the Time Clock’s first to 3 ahead (' + n0 + ')');
+      // taken back again (the rest of the click-through counts the demo's own requests), and the Time Clock's copy follows
+      await E(() => B.saveReq(window.__smokeReq, () => ({ status: 'cancelled' }), { a: 'cancel' }));
+      await page.waitForTimeout(3500);
+      ok(await E(a => DEMO.leave.get(a).wait.length, per[0]) === 0, '…and once it’s cancelled, the Time Clock’s copy has nothing waiting');
+    }
+  }
   const from = await E(() => addDays(todayISO(), -120)), to = await E(() => addDays(todayISO(), 60));
   await page.fill('#pfFrom', from); await page.dispatchEvent('#pfFrom', 'change'); await page.fill('#pfTo', to); await page.dispatchEvent('#pfTo', 'change'); await page.waitForTimeout(200); await collect();
   await shot('owner-payroll');
@@ -332,6 +366,18 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await page.keyboard.press('Escape');
   const hrW = await E(() => B.putHR('riley', d => { d.hire = '2000-01-01'; }, 'edit').then(() => 'saved', e => e.code));
   ok(hrW === 'permission-denied', '…and saving one anyway is refused');
+  // the Time Clock's Payroll page (review, 20 Nov 2026): only Dr. A's Time Off sends it — it's pay; an approver's says where it comes from
+  await page.click('[data-act=tab][data-t=pay]'); await page.waitForTimeout(200);
+  ok(/The Time Clock’s Payroll page gets these hours from Dr\. A’s Time Off, each time it’s open/.test(await page.textContent('#view')), 'Team → Payroll: the hours go to the Time Clock from Dr. A’s Time Off');
+  const lv0 = await E(() => JSON.stringify(Array.from(DEMO.leave, ([k, v]) => [k, v.at])));
+  const jr = await E(async () => { const id = B.newReqId(), day = nextOfficeDay(addDays(todayISO(), 2), S.closed), now = Date.now();
+    await B.saveReq(id, c => { Object.assign(c, { sid: 'jordan', type: 'vac', paid: true, start: day, end: day, part: 'full', cover: '', note: 'demo smoke', by: 'jordan', at: now, events: [{ a: 'submit', by: 'jordan', at: now }] }); return { status: 'pending' }; }, { a: 'submit', create: { sid: 'jordan' } });
+    return id; });
+  await page.waitForTimeout(3500);
+  ok(await E(() => JSON.stringify(Array.from(DEMO.leave, ([k, v]) => [k, v.at]))) === lv0, '…a change on their screen sends nothing over (Dr. A’s Time Off does, when it’s open)');
+  const lw = await E(() => { const a = Array.from(DEMO.leave.keys())[0], d = DEMO.leave.get(a); return B.saveLeave(a, d, d.upto, d.hrUp).then(() => 'saved', e => e.code); });
+  ok(lw === 'permission-denied', '…and sending it anyway is refused (as the database refuses it)');
+  await E(id => B.saveReq(id, () => ({ status: 'cancelled' }), { a: 'cancel' }), jr);
   const ownOld = await reqOf('jordan', 'approved', 'bereave');
   const moved = await E(id => B.saveReq(id, c => { c.start = addDays(c.start, 7); c.end = addDays(c.end, 7); }, { a: 'rekey' }).then(() => 'saved', e => e.code), ownOld.id);
   const undone = await E(id => B.saveReq(id, () => ({ status: 'archived' }), { a: 'takeback' }).then(() => 'saved', e => e.code), ownOld.id);

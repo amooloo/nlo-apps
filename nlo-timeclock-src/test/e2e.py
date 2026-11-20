@@ -497,6 +497,77 @@ async def steps(b, log):
     await op.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 0"); await op.click('[data-act=closeM]'); await op.wait_for_timeout(300)
     check('…taken off again', await op.locator('table.pay th.holCol').count() == 0 and (((get('meta/tcHol') or {}).get('days') or {}).get('fields') or {}) == {})
 
+    print('\n# Dr. A: time off from NLO Time Off on Payroll (tcLeave, as Time Off hands it over; 20 Nov 2026)')
+    pa = await op.evaluate('S.pay.start'); pz = await op.evaluate('TCE.addDays(S.pay.start, 13)')
+    d1 = await op.evaluate('TCE.addDays(S.pay.start, 4)'); d2 = await op.evaluate('TCE.addDays(S.pay.start, 5)'); dn = await op.evaluate('TCE.addDays(S.pay.start, 15)')
+    ago = lambda s: {'__ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - s))}
+    put('tcLeave/' + pa, {'v': 2, 'a': pa, 'z': pz, 'odd': 0, 'ids': ['q' + 'b' * 24], 'upto': ago(3600), 'hrUp': ago(7200), 'at': ago(3600), 'by': UID['amir'], 'bsid': 'amir',
+        'rows': {'gwen': {'vac': 8.5, 'sick': 0, 'free': 0, 'unpaid': 0, 'days': [{'d': d1, 'vac': 8.5}]}, 'sarah': {'vac': 0, 'sick': 4.25, 'free': 0, 'unpaid': 0, 'days': [{'d': d2, 'sick': 4.25}]}},
+        'wait': [{'id': 'q' + 'b' * 24, 'sid': 'kim', 'b': 'vac', 'days': [d2], 'h': 8.5, 'part': 'full', 'vac': 8.5, 'sick': 0, 'free': 0, 'unpaid': 0}]})
+    # a request in Time Off since then (only its plain fields matter here: Wila asked for a day off in this period), and one
+    # after the period (not this period's business)
+    sealed = {'epk': {'kty': 'EC', 'crv': 'P-256', 'x': 'E' * 43, 'y': 'F' * 43}, 'iv': 'aXY=', 'ct': 'cmluZw=='}
+    ms_of = lambda iso: int(datetime.strptime(iso, '%Y-%m-%d').replace(tzinfo=ZoneInfo('America/New_York')).timestamp() * 1000)
+    put('toReq/q' + 'c' * 24, {'sid': 'wila', 'status': 'pending', 'rev': 1, 'by': UID['wila'], 'bsid': 'wila', 'v': 1, 'pub': None, 'startMs': ms_of(d2), 'hr': sealed, 'me': None, 'createdAt': ago(60), 'updatedAt': ago(60)})
+    put('toReq/q' + 'd' * 24, {'sid': 'gwen', 'status': 'pending', 'rev': 1, 'by': UID['gwen'], 'bsid': 'gwen', 'v': 1, 'pub': None, 'startMs': ms_of(dn), 'hr': sealed, 'me': None, 'createdAt': ago(60), 'updatedAt': ago(60)})
+    await op.click('[data-act=payReload]'); await op.wait_for_selector('table.pay th.lvCol', timeout=15000); await op.wait_for_timeout(800)
+    heads = await op.evaluate("[...document.querySelectorAll('table.pay thead tr:first-child th')].map(t => (t.childNodes[0] || {}).textContent.trim())")
+    check('Payroll: Vacation and Sick columns from Time Off (and not the kinds nobody has)', 'Vacation' in heads and 'Sick' in heads and 'Unpaid' not in heads and 'Other paid' not in heads, heads)
+    rowsT = await op.evaluate("[...document.querySelectorAll('table.pay tbody tr')].map(r => [...r.cells].map(c => c.innerText.trim().replace(/\\s+/g, ' ')))")
+    gw = next((r for r in rowsT if r[0].startswith('Gwen Tester')), [])
+    check('…Gwen’s 8.5 h of vacation beside her hours, its day under her name, in her total', len(gw) > 6 and gw[heads.index('Vacation')] == '8.5' and ('Off ' + await op.evaluate('TCE.dayText(%r)' % d1)) in gw[0], gw)
+    vw = await op.inner_text('#view')
+    check('…Kim’s request still waiting, with what it’d come to (not in the hours)', 'A time-off request waiting for approval' in vw and 'Kim Tester: ' in vw and '8.5 h vacation if approved' in vw, vw[:1500])
+    check('…and what changed in Time Off since (Wila’s new request; not Gwen’s, after the period)', 'Changed in Time Off since' in vw and 'Wila Tester: asked for time off from' in vw and 'Gwen Tester: asked' not in vw, vw[:1800])
+    check('…with a way to Time Off', await op.locator('a[href^="nlo-timeoff.html"]').count() >= 1)
+    async with op.expect_download() as dl: await op.click('[data-act=payCsv]')
+    csv2 = open(await (await dl.value).path(), encoding='utf-8-sig').read()
+    check('…in the Totals CSV too', '"Vacation hours","Sick hours","Other paid leave hours","Unpaid leave hours","Time off days"' in csv2 and re.search(r'"Gwen Tester",[^\n]*"8\.5","0","0","0","' + d1 + r' 8\.5 h vacation"', csv2) is not None, csv2[:900])
+    # Time Off sends a newer copy (Wila's request in it now): the page catches up by itself
+    put('tcLeave/' + pa, {'v': 2, 'a': pa, 'z': pz, 'odd': 0, 'ids': ['q' + 'b' * 24, 'q' + 'c' * 24], 'upto': ago(5), 'hrUp': ago(7200), 'at': ago(5), 'by': UID['amir'], 'bsid': 'amir',
+        'rows': {'gwen': {'vac': 8.5, 'sick': 0, 'free': 0, 'unpaid': 0, 'days': [{'d': d1, 'vac': 8.5}]}, 'sarah': {'vac': 0, 'sick': 4.25, 'free': 0, 'unpaid': 0, 'days': [{'d': d2, 'sick': 4.25}]}},
+        'wait': [{'id': 'q' + 'b' * 24, 'sid': 'kim', 'b': 'vac', 'days': [d2], 'h': 8.5, 'part': 'full', 'vac': 8.5, 'sick': 0, 'free': 0, 'unpaid': 0},
+                 {'id': 'q' + 'c' * 24, 'sid': 'wila', 'b': 'vac', 'days': [d2], 'h': 8.5, 'part': 'full', 'vac': 8.5, 'sick': 0, 'free': 0, 'unpaid': 0}]})
+    await op.wait_for_function("() => !document.querySelector('#view').innerText.includes('Changed in Time Off since')", timeout=10000)
+    vw2 = await op.inner_text('#view')
+    check('Time Off sends a newer copy: the page catches up by itself (2 waiting, nothing changed since)', '2 time-off requests waiting for approval' in vw2 and 'Wila Tester: ' in vw2 and '(nothing changed there since)' in vw2, vw2[:1500])
+    # the review (20 Nov): the HR record of someone in the period changed since, and a request it lists moved out of the period
+    # (only the plain fields: whose and when) — each said so, live
+    put('toHR/gwen', {'v': 1, 'iv': 'aXY=', 'ct': 'Y3Q=', 'rev': 1, 'by': UID['amir'], 'updatedAt': ago(2)})
+    put('toReq/q' + 'b' * 24, {'sid': 'kim', 'status': 'pending', 'rev': 2, 'by': UID['kim'], 'bsid': 'kim', 'v': 1, 'pub': None, 'startMs': ms_of(dn), 'hr': sealed, 'me': None, 'createdAt': ago(600), 'updatedAt': ago(1)})
+    await op.wait_for_function("() => document.querySelector('#view').innerText.includes('HR record changed') && document.querySelector('#view').innerText.includes('Kim Tester: changed a request')", timeout=10000)
+    vw4 = await op.inner_text('#view')
+    check('…the HR record of someone in the period changed since: said so (it can move hours between balances)', 'Gwen Tester: HR record changed' in vw4, vw4[:1800])
+    check('…and a request it lists, moved out of the period: said so too', ('Kim Tester: changed a request from ' + await op.evaluate('TCE.dayText(%r)' % dn)) in vw4, vw4[:1800])
+    for p_ in ('tcLeave/' + pa, 'toReq/q' + 'b' * 24, 'toReq/q' + 'c' * 24, 'toReq/q' + 'd' * 24, 'toHR/gwen'): req('DELETE', FS + '/' + p_)
+    await op.click('[data-act=payReload]'); await op.wait_for_selector('table.pay'); await op.wait_for_timeout(1200)
+    vw3 = await op.inner_text('#view')
+    check('none handed over for the period: the page says so, and how it comes over', 'hasn’t come over from NLO Time Off yet' in vw3 and await op.locator('table.pay th.lvCol').count() == 0, vw3[:800])
+
+    print('\n# Dr. A: notes for this payroll (tcPayNote; Amir, 20 Nov 2026: "leave a place to write notes for each payroll")')
+    await op.wait_for_selector('#payNote')
+    await op.fill('#payNote', 'Kim’s training keyed by hand in Paychex.')
+    await op.wait_for_function("() => /Saved/.test(document.querySelector('#payNoteSt').innerText)", timeout=10000)
+    nt = get('tcPayNote/' + pa) or {}
+    check('Dr. A writes notes for the payroll: in the database a moment after he stops typing (his, saved now)', nt.get('t') == 'Kim’s training keyed by hand in Paychex.' and nt.get('by') == UID['amir'] and bool(nt.get('at')), nt)
+    await op.click('[data-act=payReload]'); await op.wait_for_selector('#payNote'); await op.wait_for_timeout(800)
+    check('…read again: there they are', await op.input_value('#payNote') == 'Kim’s training keyed by hand in Paychex.')
+    # another window changes them since this page read them: a save from here is refused, so nothing written there is lost
+    put('tcPayNote/' + pa, {'t': 'From another window', 'by': UID['amir'], 'at': {'__ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}})
+    QUIET['on'] = True
+    await op.fill('#payNote', 'From this window'); await op.locator('#payNote').blur()
+    await op.wait_for_function("() => /changed in another window/.test(document.querySelector('#payNoteSt').innerText)", timeout=10000)
+    QUIET['on'] = False
+    check('…changed in another window since: not saved over it, and it says so', (get('tcPayNote/' + pa) or {}).get('t') == 'From another window' and 'read them again' in await op.inner_text('#payNoteSt'), await op.inner_text('#payNoteSt'))
+    await op.click('#payNoteSt [data-act=noteAgain]'); await op.wait_for_timeout(800)
+    check('…read again: the other window’s notes', await op.input_value('#payNote') == 'From another window')
+    await sp.click('.navBtn[data-v=pay]'); await sp.wait_for_selector('table.pay'); await sp.wait_for_timeout(800)
+    QUIET['on'] = True
+    r = await sp.evaluate("FB.db.doc('tcPayNote/%s').get().then(() => 'read', e => e.code)" % pa)
+    QUIET['on'] = False
+    check('a manager (Sarah) doesn’t see Dr. A’s notes on Payroll, and the database won’t give them to her', await sp.locator('.payNote').count() == 0 and 'permission' in r, r)
+    req('DELETE', FS + '/tcPayNote/' + pa)
+
     print('\n# Dr. A: Reports')
     await op.click('.navBtn[data-v=reports]'); await op.wait_for_selector('.repTiles')
     rep = await op.inner_text('#view')

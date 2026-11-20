@@ -943,6 +943,44 @@ service cloud.firestore {
       allow create, update: if isOwner() && okHol();
       allow delete: if isOwner();
     }
+    // Time off on Payroll (Amir, 20 Nov 2026: the time-off requests on the Time Clock's Payroll page, "also would show if
+    // there are pending requests that have not been approved … so when you are running the payroll to know what else to
+    // add", and "it only should show the days for that specific pay period"): Dr. A's NLO Time Off — it holds the HR key —
+    // works out each pay period's time off (the hours each person's approved time off comes to, by balance, and the requests
+    // still waiting, from the days inside the period only) and hands it to the Time Clock here, one record per pay period
+    // (id: its first day). It names no kind of time off beyond the balance it comes from, and no notes. Read only by the
+    // people who already see the kinds of time off in Time Off (Dr. A and the people who approve) and by the alert script
+    // (the payroll email); written only by Dr. A — it's pay. upto / hrUp: the newest request change and HR record change it
+    // was worked out from — never later than now, and never moving back, so an older copy of Time Off can't write over a
+    // newer answer. ids: the requests it counts or lists. The rules check the shape; the page and the script check each
+    // value as they read it.
+    match /tcLeave/{id} {
+      function okLeave() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'a', 'z', 'rows', 'wait', 'ids', 'odd', 'upto', 'hrUp', 'by', 'bsid', 'at'])
+          && d.v is int && d.a == id && id.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && d.z is string && d.z.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && d.rows is map && d.rows.size() <= 60 && d.wait is list && d.wait.size() <= 60 && d.ids is list && d.ids.size() <= 200 && d.odd is int
+          && d.upto is timestamp && d.upto <= request.time && d.hrUp is timestamp && d.hrUp <= request.time
+          && d.by == request.auth.uid && d.bsid == mySid() && d.at == request.time;
+      }
+      allow get, list: if isHR() || isTcBot();
+      allow create: if isOwner() && okLeave();
+      allow update: if isOwner() && okLeave() && request.resource.data.upto >= resource.data.upto && request.resource.data.hrUp >= resource.data.hrUp;
+      allow delete: if isOwner();
+    }
+    // Payroll notes (Amir, 20 Nov 2026: "leave a place to write notes for each payroll"): one per pay period (id: its first
+    // day), Dr. A's own — only he reads or writes them, and they go nowhere else (not in the emails or the spreadsheets).
+    match /tcPayNote/{id} {
+      function okNote() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['t', 'by', 'at']) && id.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && d.t is string && d.t.size() <= 5000 && d.by == request.auth.uid && d.at == request.time;
+      }
+      allow get, list: if isOwner();
+      allow create, update: if isOwner() && okNote();
+      allow delete: if isOwner();
+    }
     // each person's clock settings: on the clock, may clock in from home (and on which days), their own earliest
     // clock-in, a weekly cap, salaried (hours kept for the record: no overtime), and when their PIN was last set
     match /tcStaff/{sid} {
@@ -1297,6 +1335,11 @@ service cloud.firestore {
     }
     // (paid holidays, meta/tcHol: the Payroll page offers them once these rules are live)
     match /meta/rules_tc_4 {
+      allow get: if isMember() || isTcDevice() || isLaptop() || isNetBot();
+    }
+    // (time off on Payroll, tcLeave, and the payroll notes, tcPayNote: the Payroll page shows them, and Time Off hands the time
+    // off over, once these rules are live)
+    match /meta/rules_tc_5 {
       allow get: if isMember() || isTcDevice() || isLaptop() || isNetBot();
     }
 

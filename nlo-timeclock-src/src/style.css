@@ -637,6 +637,21 @@ body.demo #kiosk{bottom:31px}
 .holAdd{border-top:1px solid var(--grey-100);padding-top:12px}
 @media print{ body.printPay .holBtn{display:none !important} }
 .holBar.hasHol{background:var(--blue-100)}
+/* time off from NLO Time Off on Payroll (20 Nov 2026): the columns, each person's days, what's waiting or changed since */
+.tbl.pay td.lvCol{color:var(--navy)}
+.tbl.pay th.lvCol{background:var(--mint-100)}
+.tbl.pay td.lvCol.muted{color:var(--grey-500)}
+.tbl.pay .lvDays{margin-top:3px;font-weight:500}
+.tbl.pay td:first-child{min-width:170px}
+.tbl.pay td.chkCol{min-width:210px}
+.warnT{color:var(--amber-700);font-weight:600}
+.notice.lvWait{font-weight:500;font-size:13.5px;padding:11px 14px}
+.notice.lvWait ul{margin:6px 0 0;padding-left:18px}
+.notice.lvWait li{margin:3px 0}
+.notice.lvNote{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:500;font-size:13.5px}
+.notice.lvNote>span{flex:1 1 260px}
+.lvBar a.btn,.lvWait a.btn,.lvNote a.btn{text-decoration:none}
+@media print{ body.printPay .lvBar a.btn,body.printPay .lvWait .btnRow,body.printPay .lvNote a.btn{display:none !important} }
 /* Reports (23 Oct 2026): highlights, the numbers at a glance, the team's weeks, each person */
 .repHi .cardBd{padding-top:6px}
 .repList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
@@ -710,3 +725,10 @@ body.demo #kiosk{bottom:31px}
 #pxCid{max-width:180px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .pxMore{margin-top:8px}
 .pxMore summary{cursor:pointer;color:var(--grey-600);padding:6px 0}
+/* ---------- payroll notes (20 Nov 2026): Dr. A's box under the hours; printed as text (a box would cut it off) ---------- */
+.card.payNote{margin-top:18px}
+.payNote textarea{width:100%;min-height:96px;padding:10px 13px;border:1.5px solid var(--grey-200);border-radius:10px;font:inherit;font-size:14px;line-height:1.5;resize:vertical;outline:none;color:var(--grey-700)}
+.payNote textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.payNote .noteSt{margin-top:6px;min-height:18px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.payNote .noteP{display:none;white-space:pre-wrap;font-size:13px;line-height:1.5}
+@media print{ body.printPay .payNote textarea,body.printPay .payNote .noteSt{display:none !important} body.printPay .payNote .noteP{display:block} body.printPay .payNote.none{display:none !important} }

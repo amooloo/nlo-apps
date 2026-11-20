@@ -510,12 +510,151 @@ const TCE = (() => {
   // a person's holiday time (ms) for a pay period: none when salaried, or with no time worked in the period (worked, ms)
   function holidayMs(days, a, z, sal, worked) { return sal || !(worked > 0) ? 0 : holidaysIn(days, a, z).reduce((n, x) => n + Math.round(x.h * HOUR), 0); }
 
+  /* ---------- time off from NLO Time Off (Amir, 20 Nov 2026: the time-off requests on Payroll, "also would show if there
+     are pending requests that have not been approved … so when you are running the payroll to know what else to add", and
+     "it only should show the days for that specific pay period") ----------
+     tcLeave/{a}: Dr. A's Time Off works each pay period out and hands it over:
+     { v, a, z, rows: { sid: { vac, sick, free, unpaid (hours), days: [{ d, vac?, sick?, free?, unpaid?, full? }], nohr? } },
+     wait: [{ id, sid, b, days, h, vac, sick, free, unpaid, part, from?, to? }], ids, odd, upto, hrUp, by, bsid, at } — only
+     the days inside the period. vac / sick: hours that came out of those balances; free: paid from no balance (personal days,
+     bereavement); unpaid: not paid (including time off past what a balance had). full: that day's time off is a whole day.
+     wait: requests not approved yet, and what each would come to if it were (on its own). nohr: no HR record in Time Off, so
+     counted as asked. ids: the requests it counts or lists. odd: requests near the period the screen that sent it couldn't
+     open. upto / hrUp: the newest request change and HR record change it was worked out from (ms). Checked as it's read
+     (leaveClean): anything that doesn't make sense is left out, and each person's hours are their days' hours added up. Paid
+     time off is paid on top of the hours worked and never counts toward overtime (it isn't time worked); unpaid is shown, never
+     paid. */
+  const LEAVE_K = ['vac', 'sick', 'free', 'unpaid'];
+  const LEAVE_WORD = { vac: 'vacation', sick: 'sick', free: 'other paid', unpaid: 'unpaid' };
+  const LEAVE_PARTS = ['full', 'am', 'pm', 'time', 'h2', 'h4', 'h6', 'half'];
+  function leaveNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 400 ? Math.round(v * 100) / 100 : 0; }
+  const r2 = v => Math.round(v * 100) / 100;
+  // a row's hours: its days' hours, added up day by day (as Time Off adds them)
+  function leaveTotals(o) { LEAVE_K.forEach(k => { o[k] = o.days.reduce((n, e) => r2(n + (e[k] || 0)), 0); }); return o; }
+  const okSidL = s => typeof s === 'string' && s.length > 0 && s.length <= 40;
+  function leaveClean(d, a, z) {
+    if (!d || typeof d !== 'object' || !isISO(a) || !isISO(z) || d.a !== a || d.z !== z) return null;
+    const inP = x => isISO(x) && x >= a && x <= z, rows = {}, wait = [], ms = v => typeof v === 'number' && isFinite(v) && v > 0 ? v : 0;
+    if (d.rows && typeof d.rows === 'object' && !Array.isArray(d.rows)) Object.keys(d.rows).slice(0, 60).forEach(sid => {
+      const r = d.rows[sid]; if (!okSidL(sid) || !r || typeof r !== 'object') return;
+      const o = { days: [], nohr: r.nohr === true };
+      (Array.isArray(r.days) ? r.days : []).slice(0, 31).forEach(x => {
+        if (!x || !inP(x.d) || o.days.some(y => y.d === x.d)) return;
+        const e = { d: x.d }; LEAVE_K.forEach(k => { const v = leaveNum(x[k]); if (v) e[k] = v; });
+        if (x.full === true) e.full = true;
+        if (LEAVE_K.some(k => e[k])) o.days.push(e);
+      });
+      o.days.sort((x, y) => x.d < y.d ? -1 : 1);
+      leaveTotals(o);
+      if (LEAVE_K.some(k => o[k] > 0)) rows[sid] = o;
+    });
+    (Array.isArray(d.wait) ? d.wait : []).slice(0, 60).forEach(w => {
+      if (!w || typeof w !== 'object' || !okSidL(w.sid)) return;
+      const days = (Array.isArray(w.days) ? w.days : []).filter(inP).slice(0, 31).sort(); if (!days.length) return;
+      const o = { id: typeof w.id === 'string' ? w.id.slice(0, 40) : '', sid: w.sid, b: ['vac', 'sick', 'none', 'unpaid'].includes(w.b) ? w.b : 'vac', days, h: leaveNum(w.h),
+        part: LEAVE_PARTS.includes(w.part) ? w.part : 'full' };
+      LEAVE_K.forEach(k => { o[k] = leaveNum(w[k]); });
+      if (o.part === 'time' && okHM(w.from) && okHM(w.to) && w.to > w.from) { o.from = w.from; o.to = w.to; }
+      wait.push(o);
+    });
+    const ids = Array.isArray(d.ids) ? d.ids.filter(x => typeof x === 'string' && x.length > 0 && x.length <= 40).slice(0, 200) : [];
+    return { v: Number.isInteger(d.v) ? d.v : 0, a, z, rows, wait, ids, odd: Number.isInteger(d.odd) && d.odd > 0 ? Math.min(d.odd, 999) : 0,
+      upto: ms(d.upto), hrUp: ms(d.hrUp), at: ms(d.at) };
+  }
+  // when a hand-over's numbers are as of: the newest change in Time Off it was worked out from (or when it was sent)
+  function leaveAsOf(D) { return D ? Math.max(D.upto || 0, D.hrUp || 0) || D.at || 0 : 0; }
+  // a person's time off in a pay period, in ms like the rest (null row: none): { vac, sick, free, unpaid, paid (the first three) }
+  function leaveMs(r) {
+    const o = { vac: 0, sick: 0, free: 0, unpaid: 0 }; if (r) LEAVE_K.forEach(k => { o[k] = Math.round((r[k] || 0) * HOUR); });
+    o.paid = o.vac + o.sick + o.free; return o;
+  }
+  /* a person's time off against this page's holidays and their time worked, day by day (the Payroll page and the email do it
+     the same way):
+     - a holiday here (Payroll → Holidays) that Time Off counted as time off (an office day there): the holiday pays the day,
+       so that day's time off is cut by the holiday's hours — what was unpaid first, then other paid, sick, vacation — and it's
+       said so (cut): until the day is one of Time Off's closed days, Time Off still takes it out of the balance.
+     - a whole day off in Time Off with time worked the same day: both stay as they are, and it's said so (both) — someone has
+       to say which is right.
+     lr: the row (leaveClean's, or null); hd: the holidays to pay them (holidaysIn — none when they don't get them);
+     worked: { day: ms worked }. → { lr: the row as counted (null: nothing left), cut: [{ d, n, h, took: { kind: hours } }],
+     both: [{ d, ms (worked), h (time off) }] } */
+  const CUT_ORDER = ['unpaid', 'free', 'sick', 'vac'];
+  function leaveAdjust(lr, hd, worked) {
+    const out = { lr: lr || null, cut: [], both: [] };
+    if (!lr || !Array.isArray(lr.days) || !lr.days.length) return out;
+    const hol = new Map((hd || []).map(x => [x.day, x]));
+    const days = lr.days.map(e => {
+      const H = hol.get(e.d), dayH = r2(LEAVE_K.reduce((n, k) => n + (e[k] || 0), 0));
+      if (!H) {
+        const w = worked && worked[e.d] > 0 ? worked[e.d] : 0;
+        if (e.full && w) out.both.push({ d: e.d, ms: w, h: dayH });
+        return e;
+      }
+      let left = H.h; const e2 = { d: e.d }, took = {};
+      CUT_ORDER.forEach(k => { const v = e[k] || 0, t = r2(Math.min(v, left)); if (t > 0) { took[k] = t; left = r2(left - t); } if (r2(v - t) > 0) e2[k] = r2(v - t); });
+      out.cut.push({ d: e.d, n: H.n || '', h: r2(dayH - LEAVE_K.reduce((n, k) => n + (e2[k] || 0), 0)), took });
+      return e2;
+    }).filter(e => LEAVE_K.some(k => e[k] > 0));
+    if (!out.cut.length) return out;
+    const r = leaveTotals(Object.assign({}, lr, { days }));
+    out.lr = LEAVE_K.some(k => r[k] > 0) ? r : null;
+    return out;
+  }
+  // the time worked each day of a pay period (payPeriod's workweeks): { day: ms }
+  function workedDays(pp) { const o = {}; ((pp && pp.weeks) || []).forEach(x => x.w.days.forEach(d => { if (d.ms > 0) o[d.iso] = d.ms; })); return o; }
+  /* one person's time off for a pay period's numbers — the Payroll page and the email both use this. L: leaveClean's (or
+     null); pp: payPeriod's; holDays: Payroll → Holidays (holClean's). Their holidays go to them when they're paid by the hour
+     and have time in the period, worked or paid time off as Time Off sent it; on those days the holiday pays the day
+     (leaveAdjust). → { lv: the time off counted (ms, leaveMs), days: its days, cut, both (leaveAdjust), nohr, wait (their
+     requests still waiting), hol: their holiday time (ms) } */
+  function leaveFor(L, sid, sal, pp, holDays, a, z) {
+    const lr0 = !sal && L && L.rows[sid] || null, raw = leaveMs(lr0);
+    const hol = holidayMs(holDays, a, z, sal, pp.reg + pp.ot + raw.paid);
+    const adj = leaveAdjust(lr0, hol > 0 ? holidaysIn(holDays, a, z) : [], workedDays(pp));
+    return { lv: leaveMs(adj.lr), days: adj.lr ? adj.lr.days : [], cut: adj.cut, both: adj.both, nohr: !!(lr0 && lr0.nohr), wait: !sal && L ? L.wait.filter(w => w.sid === sid) : [], hol };
+  }
+  // what a request still waiting would come to if approved: "8.5 h vacation", "6.83 h vacation + 1.67 h unpaid"
+  function leaveSplitText(w) {
+    const parts = LEAVE_K.filter(k => w[k] > 0).map(k => hText(Math.round(w[k] * HOUR)) + ' ' + LEAVE_WORD[k]);
+    return parts.length ? parts.join(' + ') : hText(Math.round((w.h || 0) * HOUR));
+  }
+  // the same for hours by kind ({ vac: 8 } → "8 h vacation")
+  function leaveKindsText(o) { return LEAVE_K.filter(k => o[k] > 0).map(k => hText(Math.round(o[k] * HOUR)) + ' ' + LEAVE_WORD[k]).join(' + '); }
+  // a waiting request's days in the period, and how much of each day: "Mon, Nov 16", "Mon, Nov 16 – Tue, Nov 17 (2 days), mornings"
+  function leaveDaysText(w) {
+    const d = w.days, span = d.length > 1 ? dayText(d[0]) + ' – ' + dayText(d[d.length - 1]) + ' (' + d.length + ' days)' : dayText(d[0]);
+    const part = w.part === 'time' && w.from ? hmText(w.from) + '–' + hmText(w.to) : w.part === 'am' ? 'morning' : w.part === 'pm' ? 'afternoon' : '';
+    return span + (part ? ', ' + part + (d.length > 1 && w.part !== 'time' ? 's' : d.length > 1 ? ' each day' : '') : '');
+  }
+  // the two things leaveAdjust says, in words (the "To check" column, the spreadsheet, the email)
+  function leaveCutText(c) { return dayText(c.d) + (c.n ? ' (' + c.n + ')' : '') + ' is a holiday here but an office day in Time Off: its ' + leaveKindsText(c.took) + ' isn’t counted (the holiday pays the day) — add it to Time Off’s closed days, so the balance isn’t charged'; }
+  function leaveBothText(b) { return 'worked ' + hText(b.ms) + ' on ' + dayText(b.d) + ', a whole day off in Time Off (' + hText(Math.round(b.h * HOUR)) + ') — both are counted: check which is right'; }
+  /* what changed in Time Off after the hand-over was worked out, and could touch the period — plain view only (whose, the
+     status, the revision, the first day (ms), when (ms)), the request itself being sealed:
+     a request changed after upto that starts before the period ends (an earlier one moves the balances), or one the period
+     counts or lists (ids: it may have moved out); the HR record (hr: [{ sid, at }]) of someone in the period changed after
+     hrUp (it can move hours from a balance to unpaid). → [{ sid, text, wait, at }], oldest first */
+  function leaveChanges(list, upto, z, ids, hr, hrUp, inIt) {
+    const end = dayStart(addDays(z, 2)), has = new Set(ids || []); // (a request's first day, as Time Off saves it, with a day to spare)
+    const out = (list || []).filter(x => x && typeof x.sid === 'string' && typeof x.at === 'number' && x.at > upto && typeof x.startMs === 'number' && (x.startMs < end || has.has(x.id)))
+      .map(x => {
+        const from = dayText(dayOf(x.startMs)), st = x.status;
+        return { sid: x.sid, wait: st === 'pending', at: x.at,
+          text: st === 'pending' ? (x.rev === 1 ? 'asked for time off from ' + from : 'changed a request from ' + from) + ' (waiting for approval)'
+            : st === 'approved' ? 'time off from ' + from + ' approved' : st === 'denied' ? 'time off from ' + from + ' not approved'
+              : st === 'cancelled' ? 'time off from ' + from + ' cancelled' : 'time off from ' + from + ' taken back' };
+      });
+    (hr || []).forEach(x => { if (x && typeof x.sid === 'string' && typeof x.at === 'number' && x.at > (hrUp || 0) && (!inIt || inIt(x.sid))) out.push({ sid: x.sid, wait: false, at: x.at, hr: true, text: 'HR record changed (it can change which balance the time off comes from)' }); });
+    return out.sort((x, y) => x.at - y.at);
+  }
+
   return {
     MIN, HOUR, DAY, KINDS, KWORD, OFFICE_TZ, DEFAULTS, WD, WD3, ROUTE, ALERTS,
     setTZ, parts, dayOf, minuteOf, isISO, addDays, dow, daysBetween, dayStart, atTime, okHM, hmText, timeText, dayText,
     weekOf, weekRange, h2, hText, hmDur, settingsOf, staffOf, homeP, entries, sortEntries, reqPunches, withReqs, reqText, reqAlert,
     timeline, shortGaps, worked, week, alertsFor, payWeeks, payPeriodOf, payPeriod, payDayOf, payPeriodToEnter,
     PX_HEAD, paychexLines, paychexCsv, pxHundredths, pxWant, pxTime, pxDate, pxCidOk, pxWidOk,
-    HOL_H, HOL_MAX, holOk, holClean, holidaysIn, holidayMs
+    HOL_H, HOL_MAX, holOk, holClean, holidaysIn, holidayMs,
+    LEAVE_K, LEAVE_WORD, leaveClean, leaveAsOf, leaveMs, leaveAdjust, workedDays, leaveFor, leaveSplitText, leaveKindsText, leaveDaysText, leaveCutText, leaveBothText, leaveChanges
   };
 })();

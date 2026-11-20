@@ -30,6 +30,13 @@ async def kiosk(pg):
     await pg.goto(URL); await pg.wait_for_selector('.demoPick')
     await pg.click('[data-act=demoKiosk]'); await pg.wait_for_selector('.kTile')
 
+# the Payroll table, read by its headers (the Holiday and time-off columns show only when the period has them)
+PAY_ROWS = '''() => { const t = document.querySelector('table.pay'), num = s => Number(String(s).trim()) || 0;
+  const H = [...t.tHead.rows[0].cells].map(c => (c.childNodes[0] || {}).textContent.trim()), ix = n => H.indexOf(n), cell = (r, n) => ix(n) >= 0 ? r.cells[ix(n)].innerText.trim() : '';
+  const row = r => ({ label: r.cells[0].innerText.trim(), sal: r.classList.contains('salRow'), reg: num(cell(r, 'Regular')), ot: num(cell(r, 'Overtime')), hol: cell(r, 'Holiday'),
+    vac: num(cell(r, 'Vacation')), sick: num(cell(r, 'Sick')), free: num(cell(r, 'Other paid')), unpaid: num(cell(r, 'Unpaid')), all: num(cell(r, 'Total')), note: cell(r, 'To check') });
+  return { heads: H, body: [...t.tBodies[0].rows].map(row), foot: t.tFoot ? [...t.tFoot.rows].map(row) : [] }; }'''
+
 async def as_who(pg, who):
     await pg.goto(URL); await pg.wait_for_selector('.demoPick')
     await pg.click(f'[data-act=demoAs][data-who={who}]'); await pg.wait_for_selector('#view .card, #view .notice')
@@ -193,23 +200,37 @@ async def main():
         await pg.click('.navBtn[data-v=pay]'); await pg.wait_for_selector('[data-act=payCsv]')
         async with pg.expect_download() as dl: await pg.click('[data-act=payCsv]')
         csv = open(await (await dl.value).path(), encoding='utf-8-sig').read()
-        check('the payroll CSV: each person’s two-week regular and overtime hours first, and the pay type', csv.startswith('"Employee","Period start","Period end","Regular hours","Overtime hours","Holiday hours","Total hours","Pay type"') and '"Robin Hale"' in csv and '"Salaried (hours for the record)"' in csv, csv[:300])
-        pay = await pg.inner_text('table.pay')
-        check('payroll: Casey’s overtime, and Quinn marked salaried', re.search(r'Casey Park\s+\d+(\.\d+)?\s+0\.5\b', pay) is not None and 'Salaried' in pay, pay[:600])
+        check('the payroll CSV: each person’s two-week regular and overtime hours first, then holiday and time off, and the pay type', csv.startswith('"Employee","Period start","Period end","Regular hours","Overtime hours","Holiday hours","Vacation hours","Sick hours","Other paid leave hours","Unpaid leave hours","Time off days","Total hours","Pay type"') and '"Robin Hale"' in csv and '"Salaried (hours for the record)"' in csv, csv[:300])
         # the totals (23 Oct 2026): Total is everyone (Quinn, salaried, too), then the hourly staff — each person's hours as shown, added up
-        tt = await pg.evaluate('''() => { const t = document.querySelector('table.pay'), num = s => Number(String(s).trim()) || 0;
-          const row = r => ({ label: r.cells[0].innerText.trim(), sal: r.classList.contains('salRow'), reg: num(r.cells[1].innerText), ot: num(r.cells[2].innerText), all: num(r.cells[3].innerText), note: r.cells[4].innerText.trim() });
-          return { body: [...t.tBodies[0].rows].map(row), foot: t.tFoot ? [...t.tFoot.rows].map(row) : [] }; }''')
+        # (20 Nov 2026: with paid time off from NLO Time Off — vacation, sick, other paid; unpaid apart)
+        tt = await pg.evaluate(PAY_ROWS)
         r2 = lambda v: round(v + 1e-9, 2)
         body, foot = tt['body'], tt['foot']
-        check('payroll: each person’s Total is their regular + overtime as shown', all(r2(r['reg'] + r['ot']) == r['all'] for r in body), body)
+        lvp = lambda r: r['vac'] + r['sick'] + r['free']
+        check('payroll: Casey’s overtime, and Quinn marked salaried', any(r['label'].startswith('Casey Park') and r['ot'] == 0.5 for r in body) and any(r['sal'] and 'Quinn' in r['label'] for r in body), body)
+        check('payroll: each person’s Total is their regular + overtime + paid time off as shown', all(r2(r['reg'] + r['ot'] + lvp(r)) == r['all'] for r in body), body)
         ev, hr = body, [r for r in body if not r['sal']]
         check('payroll totals: Total = everyone’s regular, overtime and hours added up, salaried included and said so',
               len(foot) == 2 and foot[0]['label'] == 'Total' and foot[0]['reg'] == r2(sum(r['reg'] for r in ev)) and foot[0]['ot'] == r2(sum(r['ot'] for r in ev))
-              and foot[0]['all'] == r2(foot[0]['reg'] + foot[0]['ot']) and 'Quinn' in foot[0]['note'], foot)
+              and foot[0]['all'] == r2(foot[0]['reg'] + foot[0]['ot'] + lvp(foot[0])) and 'Quinn' in foot[0]['note'], foot)
         check('payroll totals: then the hourly staff only (what goes into Paychex)',
               len(foot) == 2 and foot[1]['label'] == 'Hourly staff' and foot[1]['reg'] == r2(sum(r['reg'] for r in hr)) and foot[1]['ot'] == r2(sum(r['ot'] for r in hr))
-              and foot[1]['all'] == r2(foot[1]['reg'] + foot[1]['ot']) and foot[1]['reg'] < foot[0]['reg'] and 'Paychex' in foot[1]['note'], foot)
+              and foot[1]['all'] == r2(foot[1]['reg'] + foot[1]['ot'] + lvp(foot[1])) and foot[1]['reg'] < foot[0]['reg'] and 'Paychex' in foot[1]['note'], foot)
+        # time off from NLO Time Off (20 Nov 2026): the demo's this period — Robin's vacation, Jamie's sick morning, Casey's
+        # personal day, Avery's unpaid hours, Morgan's day still waiting, Taylor's new request since
+        check('time off: Vacation, Sick, Other paid and Unpaid columns', all(h in tt['heads'] for h in ('Vacation', 'Sick', 'Other paid', 'Unpaid')), tt['heads'])
+        rob = next((r for r in body if r['label'].startswith('Robin Hale')), {})
+        check('…Robin’s 17 h of vacation, his days under his name, in his total', rob.get('vac') == 17 and 'Off ' in rob.get('label', '') and rob.get('all') == r2(rob.get('reg', 0) + rob.get('ot', 0) + 17), rob)
+        check('…Avery’s unpaid hours shown, not in her total', any(r['label'].startswith('Avery') and r['unpaid'] == 5.5 and r['all'] == r2(r['reg'] + r['ot']) for r in body), body)
+        jam = next((r for r in body if r['label'].startswith('Jamie')), {})
+        check('…a whole day off shows only its day; part of a day its hours too (Jamie’s sick morning)', '(4.25 h)' in jam.get('label', '') and ' h)' not in rob.get('label', ''), [rob.get('label'), jam.get('label')])
+        check('…the totals add each kind up', foot[0]['vac'] == 17 and foot[0]['sick'] == 4.25 and foot[0]['free'] == 8.5 and foot[0]['unpaid'] == 5.5, foot)
+        await pg.wait_for_selector('text=Changed in Time Off since'); vw = await pg.inner_text('#view')
+        check('…Morgan’s request waiting, with what it’d come to', 'A time-off request waiting for approval' in vw and 'Morgan Lee:' in vw and '8.5 h vacation if approved' in vw, vw[:1200])
+        check('…what changed in Time Off since, and the way to Time Off', 'Changed in Time Off since' in vw and 'Taylor Brooks: asked for time off from' in vw and await pg.locator('a[href^="nlo-timeoff.html"]').count() >= 2, vw[:1500])
+        jam = next((r for r in (await pg.evaluate(PAY_ROWS))['body'] if r['label'].startswith('Jamie')), {})
+        check('…and an HR record changed there since (someone in this period: the hours may move between balances)', 'Jamie Cruz: HR record changed' in vw and 'Changed in Time Off since — not counted yet' in (jam.get('note') or ''), [vw[:1500], jam.get('note')])
+        check('…in the CSV too', any(l.startswith('"Robin Hale"') and ',"17","0","0","0",' in l for l in csv.splitlines()), [l for l in csv.splitlines() if l.startswith('"Robin')])
         check('the payroll CSV ends with the same two totals', '"Total"' in csv and '"Hourly staff"' in csv and csv.rstrip().splitlines()[-1].startswith('"Hourly staff"'), csv[-400:])
         await shot(pg, 'm2-pay-totals')
         # paid holidays (23 Oct 2026): Dr. A marks a day; everyone paid by the hour with time in the period gets 8.5 h
@@ -218,31 +239,70 @@ async def main():
         check('Holidays: 8.5 hours each unless changed', await pg.input_value('#holH') == '8.5')
         await pg.click('[data-act=holAdd]'); await pg.wait_for_timeout(150)
         check('…a day is needed', await pg.locator('#holModal .holRow').count() == 0 and 'Pick the day' in await pg.inner_text('#toasts'))
-        await pg.fill('#holDay', '2026-10-19'); await pg.fill('#holName', 'Founders Day'); await pg.click('[data-act=holAdd]'); await pg.wait_for_selector('#holModal .holRow')
+        # (the Monday of this pay period: the demo's days move with today's date; the other one, a period well after it)
+        hday = await pg.evaluate('TCE.addDays(S.pay.start, 1)'); hlong = await pg.evaluate('TCE.dayText(%r, true)' % hday); xday = await pg.evaluate('TCE.addDays(S.pay.start, 70)')
+        await pg.fill('#holDay', hday); await pg.fill('#holName', 'Founders Day'); await pg.click('[data-act=holAdd]'); await pg.wait_for_selector('#holModal .holRow')
         hl = await pg.inner_text('#holModal')
-        check('…Monday is a holiday now, 8.5 h', 'Founders Day' in hl and '8.5 h' in hl and 'Monday, Oct 19, 2026' in hl, hl)
-        await pg.fill('#holDay', '2026-12-25'); await pg.fill('#holName', 'Christmas'); await pg.fill('#holH', '8.3'); await pg.click('[data-act=holAdd]'); await pg.wait_for_timeout(200)
+        check('…Monday is a holiday now, 8.5 h', 'Founders Day' in hl and '8.5 h' in hl and hlong + ', ' + hday[:4] in hl, hl)
+        await pg.fill('#holDay', xday); await pg.fill('#holName', 'Christmas'); await pg.fill('#holH', '8.3'); await pg.click('[data-act=holAdd]'); await pg.wait_for_timeout(200)
         check('…hours in quarter hours only', await pg.locator('#holModal .holRow').count() == 1 and 'quarter hours' in await pg.inner_text('#toasts'))
         await pg.fill('#holH', '4'); await pg.click('[data-act=holAdd]'); await pg.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 2")
         await pg.click('[data-act=closeM]'); await pg.wait_for_selector('table.pay th.holCol')
         bar = await pg.inner_text('.holBar')
-        check('the period’s holiday above the table (not Christmas: another period)', 'Holiday:' in bar and 'Monday, Oct 19 (Founders Day), 8.5 h' in bar and 'Christmas' not in bar, bar)
-        th = await pg.evaluate("""() => { const t = document.querySelector('table.pay'), num = s => Number(String(s).trim()) || 0;
-          const row = r => ({ label: r.cells[0].innerText.trim(), sal: r.classList.contains('salRow'), reg: num(r.cells[1].innerText), ot: num(r.cells[2].innerText), hol: r.cells[3].innerText.trim(), all: num(r.cells[4].innerText) });
-          return { body: [...t.tBodies[0].rows].map(row), foot: [...t.tFoot.rows].map(row) }; }""")
+        check('the period’s holiday above the table (not Christmas: another period)', 'Holiday:' in bar and hlong + ' (Founders Day), 8.5 h' in bar and 'Christmas' not in bar, bar)
+        th = await pg.evaluate(PAY_ROWS)
         hb, hf = th['body'], th['foot']
         check('a Holiday column: 8.5 h for everyone paid by the hour, — for Quinn (salaried)', all(r['hol'] == ('—' if r['sal'] else '8.5') for r in hb) and any(r['sal'] for r in hb), hb)
-        check('…each person’s Total is regular + overtime + holiday', all(r2(r['reg'] + r['ot'] + (0 if r['sal'] else 8.5)) == r['all'] for r in hb), hb)
+        check('…each person’s Total is regular + overtime + holiday (+ paid time off)', all(r2(r['reg'] + r['ot'] + lvp(r) + (0 if r['sal'] else 8.5)) == r['all'] for r in hb), hb)
         nh = len([r for r in hb if not r['sal']])
-        check('…the totals add the holiday hours up too (8.5 h × ' + str(nh) + ')', float(hf[0]['hol']) == float(hf[1]['hol']) == r2(8.5 * nh) and hf[0]['all'] == r2(hf[0]['reg'] + hf[0]['ot'] + 8.5 * nh) and hf[1]['all'] == r2(hf[1]['reg'] + hf[1]['ot'] + 8.5 * nh), hf)
+        check('…the totals add the holiday hours up too (8.5 h × ' + str(nh) + ')', float(hf[0]['hol']) == float(hf[1]['hol']) == r2(8.5 * nh) and hf[0]['all'] == r2(hf[0]['reg'] + hf[0]['ot'] + lvp(hf[0]) + 8.5 * nh) and hf[1]['all'] == r2(hf[1]['reg'] + hf[1]['ot'] + lvp(hf[1]) + 8.5 * nh), hf)
         async with pg.expect_download() as dl: await pg.click('[data-act=payCsv]')
         hcsv = open(await (await dl.value).path(), encoding='utf-8-sig').read().splitlines()
         check('…and in the CSV: the Holiday hours column', any(l.startswith('"Robin Hale"') and ',"8.5",' in l for l in hcsv) and any(l.startswith('"Quinn Reyes"') and ',"0",' in l for l in hcsv), hcsv[:3])
         await shot(pg, 'm2-pay-holiday')
         await pg.click('[data-act=holEdit]'); await pg.wait_for_selector('#holModal .holRow')
-        await pg.click('#holModal [data-act=holDel][data-day="2026-10-19"]'); await pg.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 1")
+        await pg.click('#holModal [data-act=holDel][data-day="%s"]' % hday); await pg.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 1")
         await pg.click('[data-act=closeM]'); await pg.wait_for_timeout(200)
         check('taken off: the Holiday column goes away (Christmas stays saved)', await pg.locator('table.pay th.holCol').count() == 0, await pg.inner_text('.holBar'))
+        # the review (20 Nov 2026): a holiday here on a day Time Off counted as time off (an office day there) — the holiday pays the day
+        vday = await pg.evaluate('TCE.addDays(S.pay.start, 8)') # (Robin's first vacation day, and Casey's personal day)
+        await pg.click('[data-act=holEdit]'); await pg.wait_for_selector('#holModal #holDay')
+        await pg.fill('#holDay', vday); await pg.fill('#holName', 'Founders Day'); await pg.fill('#holH', '8.5'); await pg.click('[data-act=holAdd]'); await pg.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 2")
+        await pg.click('[data-act=closeM]'); await pg.wait_for_selector('table.pay th.holCol'); await pg.wait_for_timeout(200)
+        cb = await pg.evaluate(PAY_ROWS); rob2 = next((r for r in cb['body'] if r['label'].startswith('Robin Hale')), {}); cas2 = next((r for r in cb['body'] if r['label'].startswith('Casey')), {}); vw = await pg.inner_text('#view')
+        check('a holiday on a day Time Off counted as vacation: the holiday pays it, not both (Robin: 8.5 h vacation left, 8.5 h holiday)', rob2.get('vac') == 8.5 and rob2.get('hol') == '8.5' and rob2.get('all') == r2(rob2.get('reg', 0) + rob2.get('ot', 0) + 17), rob2)
+        check('…Casey’s personal day that day too (no Other paid left)', cas2.get('free') == 0 and cas2.get('hol') == '8.5', cas2)
+        check('…said so under To check, and above the table with what to do in Time Off', 'a holiday here, so its 8.5 h vacation isn’t counted' in (rob2.get('note') or '') and 'A holiday here that Time Off counts as an office day' in vw and 'add it to Time Off’s closed days' in vw, [rob2.get('note'), vw[:1800]])
+        async with pg.expect_download() as dl: await pg.click('[data-act=payCsv]')
+        ccsv = open(await (await dl.value).path(), encoding='utf-8-sig').read().splitlines()
+        check('…and in the CSV: the rest of his vacation, and why', any(l.startswith('"Robin Hale"') and ',"8.5","0","0","0",' in l and 'is a holiday here but an office day in Time Off' in l for l in ccsv), [l for l in ccsv if l.startswith('"Robin')])
+        check('…the CSV’s Total row says as of when Time Off’s numbers are', any(l.startswith('"Total"') and 'Time off from NLO Time Off as of ' in l and 'in Time Off since, not counted' in l for l in ccsv), [l for l in ccsv if l.startswith('"Total"')])
+        await shot(pg, 'm2-pay-holiday-timeoff')
+        await pg.click('[data-act=holEdit]'); await pg.wait_for_selector('#holModal .holRow')
+        await pg.click('#holModal [data-act=holDel][data-day="%s"]' % vday); await pg.wait_for_function("() => document.querySelectorAll('#holModal .holRow').length === 1")
+        await pg.click('[data-act=closeM]'); await pg.wait_for_timeout(200)
+        cb = await pg.evaluate(PAY_ROWS)
+        check('…taken off again: Robin’s 17 h of vacation back', next((r for r in cb['body'] if r['label'].startswith('Robin Hale')), {}).get('vac') == 17, cb['body'])
+
+        # payroll notes (Amir, 20 Nov 2026: "leave a place to write notes for each payroll"): Dr. A's box under the hours, per period
+        await pg.wait_for_selector('#payNote')
+        check('a notes box for this payroll, under the hours, empty, and saying only he sees it', await pg.input_value('#payNote') == '' and 'Only you see these' in await pg.inner_text('#payNoteSt') and 'NOTES FOR THIS PAYROLL' in (await pg.inner_text('.payNote')).upper(), [await pg.input_value('#payNote'), await pg.inner_text('.payNote')])
+        await pg.fill('#payNote', 'Kim’s 2 h training keyed by hand in Paychex.'); await pg.wait_for_timeout(200)
+        check('…typing: not saved yet', 'Not saved yet' in await pg.inner_text('#payNoteSt'))
+        await pg.wait_for_function("() => /Saved/.test(document.querySelector('#payNoteSt').innerText)", timeout=5000)
+        check('…a moment after typing stops: saved, with when', 'Saved today' in await pg.inner_text('#payNoteSt'))
+        await pg.click('[data-act=payPrev]'); await pg.wait_for_selector('#payNote'); await pg.wait_for_timeout(300)
+        check('the period before has its own notes (the demo’s)', 'Casey’s sick day (Tuesday) keyed in Paychex by hand.' in await pg.input_value('#payNote'), await pg.input_value('#payNote'))
+        await pg.fill('#payNote', 'Edited, then straight on to the next period'); await pg.click('[data-act=payNext]'); await pg.wait_for_selector('#payNote'); await pg.wait_for_timeout(400)
+        check('…back to this one: its notes are still here', await pg.input_value('#payNote') == 'Kim’s 2 h training keyed by hand in Paychex.')
+        await pg.click('[data-act=payPrev]'); await pg.wait_for_selector('#payNote'); await pg.wait_for_timeout(300)
+        check('…and leaving a period right after typing saves what was typed', await pg.input_value('#payNote') == 'Edited, then straight on to the next period', await pg.input_value('#payNote'))
+        await pg.click('[data-act=payNext]'); await pg.wait_for_selector('#payNote'); await pg.wait_for_timeout(300)
+        await pg.evaluate("document.body.classList.add('printPay')"); await pg.emulate_media(media='print')
+        pv = await pg.evaluate("[getComputedStyle(document.querySelector('#payNote')).display, getComputedStyle(document.querySelector('.payNote .noteP')).display, document.querySelector('.payNote .noteP').textContent]")
+        await pg.emulate_media(media='screen'); await pg.evaluate("document.body.classList.remove('printPay')")
+        check('…printed as text (the box itself isn’t)', pv[0] == 'none' and pv[1] == 'block' and pv[2] == 'Kim’s 2 h training keyed by hand in Paychex.', pv)
+        await shot(pg, 'm2-pay-notes')
 
         print('\n# Reports (Dr. A)')
         await pg.click('.navBtn[data-v=reports]'); await pg.wait_for_selector('.repTiles')
@@ -254,12 +314,14 @@ async def main():
         # weeks of history: the demo's Monday to Wednesday copied into the 7 weeks before — Robin clocking in 20 minutes
         # earlier back then, Morgan staying 2 hours later
         await pg.evaluate("""() => {
-          const orig = window._lr = B.loadRange, W = 7 * TCE.DAY, mon = TCE.dayStart('2026-10-19'), thu = TCE.dayStart('2026-10-22');
+          const today = TCE.dayOf(nowMs()), orig = window._lr = B.loadRange, W = 7 * TCE.DAY, mon = TCE.dayStart(TCE.addDays(today, -3)), thu = TCE.dayStart(today); // (the demo's Monday to Wednesday, this week)
           B.loadRange = async (from, to) => {
-            const d = await orig(from, to), base = d.punches.filter(p => p.at >= mon && p.at < thu && !(p.sid === 's_taylor' && p.at >= TCE.dayStart('2026-10-21')));
+            const d = await orig(from, to), base = d.punches.filter(p => p.at >= mon && p.at < thu && !(p.sid === 's_taylor' && p.at >= TCE.dayStart(TCE.addDays(today, -1))));
             const more = [];
+            // (k weeks back at the same time of day in the office — not k × 168 hours, which a clock change in between moves)
+            const back = (ms, k) => { const q = TCE.parts(ms); return TCE.atTime(TCE.addDays(TCE.dayOf(ms), -7 * k), String(q.h).padStart(2, '0') + ':' + String(q.mi).padStart(2, '0')); };
             for (let k = 1; k <= 7; k++) base.forEach(p => {
-              let at = p.at - k * W;
+              let at = back(p.at, k);
               if (k >= 3 && p.sid === 's_robin' && p.kind === 'in') at -= 20 * TCE.MIN;
               if (k >= 3 && p.sid === 's_morgan' && p.kind === 'out') at += 120 * TCE.MIN;
               if (at >= from && at < to) more.push(Object.assign({}, p, { id: 'h' + k + p.id.slice(2), at }));
@@ -352,6 +414,11 @@ async def main():
         await pg.click('[data-act=getScript]'); await pg.click('#modalWrap [data-x=yes]'); await pg.wait_for_selector('[data-act=copyScript]')
         check('Get the script gives the steps', 'script.new' in await pg.inner_text('.modal'))
         await pg.click('[data-act=closeM]')
+        check('the script running is the one this page goes with: nothing to update', 'The script running is version' not in await pg.inner_text('#view'))
+        await pg.evaluate("S.beat.forEach(b => { b.ver = '6'; }); renderView()"); await pg.wait_for_timeout(150)
+        al = await pg.inner_text('#view')
+        check('…an older one (version 6): says its payroll email doesn’t have the time off, and to get the script again', 'The script running is version 6' in al and 'its payroll email has the time off from NLO Time Off' in al and 'Get the script again' in al, al[:1200])
+        await pg.evaluate("S.beat.forEach(b => { b.ver = String(ALERT_V); }); renderView()")
         await shot(pg, 'm3-alerts')
 
         print('\n# a manager who approves time off (not Dr. A)')
@@ -369,6 +436,9 @@ async def main():
         await pg.click('.navBtn[data-v=pay]'); await pg.wait_for_selector('[data-act=holEdit]'); await pg.click('[data-act=holEdit]'); await pg.wait_for_selector('#holModal .lsub')
         check('the holidays: a manager sees them, Dr. A marks them', await pg.locator('#holModal #holDay').count() == 0 and await pg.locator('#holModal [data-act=holDel]').count() == 0 and 'Dr. A marks the holidays.' in await pg.inner_text('#holModal'))
         await pg.click('[data-act=closeM]')
+        await pg.wait_for_selector('.notice.lvNote'); await pg.wait_for_timeout(300); vw = await pg.inner_text('#view')
+        check('a manager doesn’t see Dr. A’s payroll notes', await pg.locator('.payNote').count() == 0)
+        check('time off: a manager who doesn’t approve time off doesn’t see it — and is told the hours don’t include any (amber: it prints)', 'Time off isn’t on this page for you' in vw and 'Only Dr. A and the people who approve time off see it here' in vw and 'Ask Dr. A for it before entering payroll' in vw and await pg.locator('table.pay th.lvCol').count() == 0 and await pg.locator('.lvWait').count() == 0 and await pg.locator('.notice.lvNote.info').count() == 0, vw[:900])
         await pg.click('.navBtn[data-v=pay]'); await pg.wait_for_selector('[data-act=payPx]'); await pg.click('[data-act=payPx]'); await pg.wait_for_selector('.modal:has-text("Paychex punch file")')
         check('a manager can make the punch file', await pg.locator('[data-act=payPxGo]:not([disabled])').count() == 1)
         await pg.click('[data-act=closeM]')

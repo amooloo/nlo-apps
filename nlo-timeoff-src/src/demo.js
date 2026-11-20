@@ -63,6 +63,17 @@ const DEMO = {
     h.settings(DEMO.copy(DEMO.settings)); h.roster(DEMO.roster.map(DEMO.copy)); h.team(DEMO.teamSids());
     h.people(new Map(DEMO.members.filter(m => m.pub).map(m => [m.staffId, { pub: DEMO.copy(m.pub), uid: m.uid }])));
     DEMO.emit();
+    // the Time Clock's pay periods (made up: two weeks from a Sunday three weeks back), and the time off handed to its Payroll page
+    if (DEMO.hrOn() && h.tcSet) { h.tcSet(DEMO.copy(DEMO.tc)); h.leave(new Map(Array.from(DEMO.leave, ([k, v]) => [k, DEMO.copy(v)])), false); }
+  },
+  tc: { wk: 0, pay: addDays(todayISO(), -weekday(todayISO()) - 21) },
+  leave: new Map(),
+  async saveLeave(a, d, upto, hrUp) {
+    await DEMO.wait(60);
+    if (!DEMO.isOwner()) throw errCode('permission-denied'); // (as the rules: Dr. A only)
+    const cur = DEMO.leave.get(a); if (cur && ((upto || 0) < cur.upto || (hrUp || 0) < (cur.hrUp || 0))) throw errCode('permission-denied'); // (never back to older changes)
+    DEMO.leave.set(a, Object.assign(DEMO.copy(d), { upto: upto || 0, hrUp: hrUp || 0, by: DEMO.uid, bsid: DEMO.me.staffId, at: Date.now() }));
+    if (DEMO.h && DEMO.h.leave) DEMO.h.leave(new Map(Array.from(DEMO.leave, ([k, v]) => [k, DEMO.copy(v)])), false);
   },
   mineOf(rec) { return { sid: rec.sid, hire: rec.hire || '', orient: rec.orient || '', type: rec.type || 'FT', typeWas: DEMO.copy(rec.typeWas || []), emp: rec.emp || '', left: rec.left || '', open: DEMO.copy(rec.open || null), adj: DEMO.copy(rec.adj || []), settled: DEMO.copy(rec.settled || []), ben: DEMO.copy(rec.ben || {}), at: Date.now() }; },
   emit() {

@@ -95,6 +95,48 @@ clock … that sends me and multiple people alerts when someone is getting close
   Hours "will print on the check stub"), so the hours are keyed in first and the file can go on top. Paychex's hours
   import (SPI, the 16-column layout) answered "Sorry, import isn't set up for Amir Akhavan DMD PLLC (18122716)", and
   Paychex told Amir it's only for companies over 25 employees: the hours stay keyed by hand from the Payroll page.
+- **Time off from NLO Time Off on Payroll** (Amir, 20 Nov 2026, running payroll: "I don't see any time off request that should
+  be showing up on the payroll tab … I thought I had set it up that way", then "also would show if there are pending requests
+  that have not been approved … so when you are running the payroll to know what else to add", and "it only should show the
+  days for that specific pay period"). NLO Time Off seals everything personal, so it does the arithmetic itself: **Dr. A's
+  Time Off** (only his screen — it's pay; the rules say the same) works out each pay period — what each person's approved
+  time off comes to by balance (vacation, sick, paid from no balance — personal days and bereavement —, unpaid, including
+  time off past what a balance had), and each request still waiting with what it would come to if approved — counting only
+  the days inside the period, and hands it over in `tcLeave/{first day}` (only balances and hours, never the kind of time
+  off or notes). Payroll reads it live with the period: **Vacation / Sick / Other paid / Unpaid** columns when someone has
+  them, each person's days off under their name (a part day with its hours), their **Total now includes paid time off**
+  (unpaid is shown, not paid; time off never counts toward overtime — it isn't time worked), the totals rows and the Totals
+  CSV too (the records email's spreadsheet matches; the Total row says as of when). Everyone in the office's list with time
+  off in the period is there, on the clock or not (someone on leave the whole period, never set up on the clock). Above the
+  table: the requests waiting for approval ("not in the hours below", a link to Time Off's Approvals), and what changed in
+  Time Off since the numbers were worked out — from Time Off's database in plain view (a request's owner, status and first
+  day; whose HR record changed and when — the rest is sealed): a request starting before the period ends, one the period
+  counts or lists (`ids`: even moved out of it), the HR record of someone in it — with "Open Time Off": Time Off sends a
+  fresh copy as soon as it's open on Dr. A's screen, and the page catches up by itself. Only Dr. A and the people who
+  approve time off see it; another manager gets an amber notice (it prints) that the hours don't include time off.
+  **Paid holidays go to anyone paid by the hour with worked time or paid time off in the period** (someone on vacation the
+  whole two weeks gets the holiday). **A holiday here that Time Off counts as an office day** (it isn't one of Time Off's
+  closed days — its own list has New Year's, Memorial Day, July 4, Labor Day, Thanksgiving Wed–Fri, Christmas): the holiday
+  pays the day, so that day's time off isn't counted too (cut by the holiday's hours — unpaid first, then other paid, sick,
+  vacation), and the page says to add the day to Time Off's closed days (Time Off still charges the balance until then).
+  **A whole day off in Time Off with time worked that day**: both are counted, and "To check" says so. `TCE.leaveFor` does
+  all of it for one person, for the page and the alert script alike. The payroll-Friday email and the time cards carry
+  the same (alert script version 7), "as of" when Time Off worked them out (the script reads nothing of Time Off itself, so
+  changes since show only on the Payroll page); the email has the time off by kind and goes to the alert addresses, while a
+  phone push and the alert log (every time clock manager sees it) say only how much paid time off (`pub`). The Alerts page
+  (and Payroll, for Dr. A) says when the script running is older than the page's (`ALERT_V`, kept equal to the script's
+  `VERSION` by build.py). Needs the rules with `meta/rules_tc_5`; until they're published the page says how (Dr. A) and the
+  time clock works as before. An independent review (20 Nov) found, and these were fixed before publishing: approvers'
+  screens could write it (pad hours, or freeze a period with a future `upto`) → Dr. A only, `upto` / `hrUp` never later
+  than now; a holiday paid twice (above); two screens could write back and forth (a version, no writing while an HR record
+  can't be opened, and a screen that finds another's answer from the same changes leaves it and says so); people with only
+  time off were left out; HR record changes and moved requests weren't flagged; sick hours went to phone pushes and the log.
+- **Notes for each payroll** (Amir, 20 Nov 2026: "leave a place to write notes for each payroll"): under the hours on
+  Payroll, a box for each pay period (`tcPayNote/{first day}`: `{ t (≤ 5,000 characters), by, at }`) — Dr. A's only (the rules
+  say the same: no manager, approver, staff or the alert script reads them; they go in no email or spreadsheet). It saves a
+  moment after he stops typing, when he leaves the box, the period or the page (closing the tab with some not saved asks
+  first); a save over notes changed in another window since this page read them is refused and says so (nothing written
+  there is lost). They print with the page, as text. Same rules level as the time off on Payroll (`meta/rules_tc_5`).
 - **Getting close to 40 hours**: "only warning that they are getting close and only approved ot allows them to go over" —
   a pop-up warning at the time clock and on My time from the first heads-up hour (or when 40 h would come today); at or
   over 40 h without approval, a clock-in (or back from lunch) is asked first — "Clock in anyway", never refused — and
@@ -160,7 +202,8 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
   the office. It can't read or change anyone's time. Keep the code private; if it gets out, Set it up again.
 
 ## Files
-- `src/engine.js` — the arithmetic, shared by the page and the alert script: office time (Eastern, DST-safe), punches +
+- `src/engine.js` (20 Nov 2026: the time off from Time Off — `leaveClean`, `leaveFor` (with `leaveAdjust`, `workedDays`),
+  `leaveMs`, `leaveAsOf`, `leaveChanges` and the words for each) — the arithmetic, shared by the page and the alert script: office time (Eastern, DST-safe), punches +
   corrections → work segments, short paid breaks, day and workweek totals, overtime, ETA to overtime, boundary flags,
   alert texts (`alertsFor`), payroll weeks. No DOM, no database, no Intl when `setTZ` is given (the script passes
   Google's `Utilities.formatDate`).
@@ -184,6 +227,14 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
 - `meta/tcAlerts` — where alerts go, Dr. A writes, managers and the script read: `emails` (≤ 10), `topic` (ntfy
   topic, '' = no push), `route` ({type: bits} 1 = email, 2 = push; a missing type uses the script's default),
   `digest` ('HH:MM' daily summary, '' = off), `test` (timestamp: Dr. A asked for a test alert), `at`.
+- `tcLeave/{first day of a pay period}` — the time off NLO Time Off hands over (20 Nov 2026): `{ v (2), a, z, rows: { sid:
+  { vac, sick, free, unpaid (hours), days: [{ d, vac?, sick?, free?, unpaid?, full? }], nohr? } }, wait: [{ id, sid, b, days,
+  h, vac, sick, free, unpaid, part, from?, to? }], ids, odd, upto, hrUp, by, bsid, at }` — only the days inside the period;
+  `full`: a whole day off; `nohr`: no HR record in Time Off (counted as asked); `ids`: the requests it counts or lists (≤ 200);
+  `odd`: requests near the period (up to 120 days before it) the screen that sent it couldn't open; `upto` / `hrUp`: the
+  newest request change and HR record change it was worked out from (never later than now, never moving back). Written only
+  by Dr. A (`isOwner()`), read by the people who approve (`isHR()`) and the alert script; `TCE.leaveClean` checks each value
+  as it's read and adds each person's hours up from their days. Rules level marker `meta/rules_tc_5`.
 - `meta/tcHol` — paid holidays, Dr. A writes, managers and the script read: `days` ({ 'YYYY-MM-DD': { n: name (≤ 40, may
   be ''), h: hours (0.25–24, quarter hours) } }, ≤ 120; the rules check only the shape, so the page and the script check
   each holiday as they read it, TCE.holClean), `at` (a save over a newer one, from another window, is refused).
@@ -255,6 +306,13 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
 
 Corrections a manager makes never alert (early/offday/home only fire for real punches). A missing punch the person has
 already asked for doesn't alert (their request does). Someone salaried gets only the missing-punch alerts.
+
+## Build status (20 Nov 2026: time off from NLO Time Off on Payroll, after the independent review's fixes)
+- Passing: unit 180, rules 529, alert script 133 (version 7: time off in the payroll email and the time cards), end to end
+  126, demo click-through 188; Time Off's unit 334, demo 268, end to end 188, rules 159; the other suites on the shared
+  rules — NLO Cases 346, Leads 77, A/R 97, Inventory 332, CADANCe 87 (the office check's suite not run: nothing there
+  changed). The rules change adds `tcLeave`, `tcPayNote` (the payroll notes) and `meta/rules_tc_5`; every page with the
+  embedded rules rebuilt (NLO Cases, A/R, Inventory, IPR Tracker and CADANCe: only the rules copy and the script hash).
 
 ## Build status (23 Oct 2026, afternoon: payroll totals, paid holidays, Reports)
 - Passing: unit 153, rules 454, alert script 109 (version 6: the emails as tables), end to end 111, demo click-through 162 (the office check's
