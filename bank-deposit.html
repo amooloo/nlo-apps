@@ -335,7 +335,66 @@
     #slip .sig{display:flex;gap:34px;margin-top:44px;font-size:9.5px}
     #slip .sig div{flex:1;border-top:1px solid #000;padding-top:4px}
   }
+
+  /* ---------- bag labels: what goes on the three stickers (screen settings) ---------- */
+  .lblset{margin-top:28px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
+  .lblset summary{
+    cursor:pointer;padding:10px 12px;list-style:none;
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+  }
+  .lblset summary::-webkit-details-marker{display:none}
+  .lblset summary::after{content:"+";font-size:16px;font-weight:500;line-height:1;letter-spacing:0}
+  .lblset[open] summary::after{content:"\2013"}
+  .lblset .lblgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px 10px;padding:4px 12px 10px}
+  .lblset label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none}
+  .lblset label.wide{grid-column:1/-1}
+  .lblset input[type=text]{
+    width:100%;font:inherit;font-size:14px;padding:7px 9px;color:var(--ink);background:var(--surface);
+    border:1px solid var(--line);border-radius:7px;transition:border-color .15s, box-shadow .15s;
+  }
+  .lblset input[type=text]::placeholder{color:var(--muted);opacity:.65}
+  .lblset input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .lblset .hint{padding:0 12px 10px;margin-top:0}
+  @media (max-width:420px){ .lblset .lblgrid{grid-template-columns:1fr} }
+
+  /* ---------- bag labels on paper: Zebra ZD410, 2x4in stock ----------
+     Same trick as the aligner label app: pages are 2in wide x 4in tall (portrait, the
+     printhead's width) and each 4x2 label is rotated 90deg onto its page, so the Zebra
+     driver needs no rotation or scaling. One sticker per page: depositor, bank, totals. */
+  #labels{display:none}
+  @media print{
+    html.lbl-print body > *:not(#labels){display:none!important}
+    html.lbl-print body{width:2in;margin:0!important;padding:0!important;background:#fff}
+    html.lbl-print #labels{display:block!important;margin:0;padding:0}
+    .lbl-page{
+      width:2in;height:4in;margin:0;padding:0;overflow:hidden;position:relative;background:#fff;
+      page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid;
+    }
+    .lbl-page:last-child{page-break-after:auto;break-after:auto}
+    .lbl{
+      width:4in;height:2in;transform:rotate(90deg) translateY(-2in);transform-origin:top left;
+      padding:.14in .2in;box-sizing:border-box;overflow:hidden;position:relative;
+      display:flex;flex-direction:column;justify-content:center;
+      font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;
+      -webkit-font-smoothing:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;text-rendering:geometricPrecision;
+    }
+    .lbl .k{
+      display:flex;justify-content:space-between;align-items:baseline;gap:8pt;
+      font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1pt;
+      padding-bottom:3pt;border-bottom:1.5pt solid #000;margin-bottom:5pt;
+    }
+    .lbl .k .d{letter-spacing:0;text-transform:none;font-weight:600}
+    .lbl .big{font-size:16pt;font-weight:800;line-height:1.15;margin-bottom:3pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .lbl .ln{font-size:10.5pt;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .lbl .ln b{font-weight:700}
+    .lbl .amt{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5pt;padding:2pt 0}
+    .lbl .amt .n{font-variant-numeric:tabular-nums;font-weight:600}
+    .lbl .amt.tot{margin-top:4pt;padding-top:5pt;border-top:2pt solid #000;font-size:17pt;font-weight:800}
+    .lbl .amt.tot .n{font-weight:800}
+  }
 </style>
+<style id="pageRule"></style>
 <style id="nlo-aisa-room">
 /* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: on narrow screens the pinned total's buttons and notes leave it that corner, so Email and Print stay clear (the total itself sits above it). */
 @media screen and (max-width:680px){html.nlo-aisa-on .total .actions,html.nlo-aisa-on .total .note,html.nlo-aisa-on .total #toast{margin-right:calc(var(--nlo-aisa-space) - 20px)}}
@@ -402,6 +461,20 @@
       </div>
       <div class="hint">Optional — checks your count against what the software says you collected.</div>
 
+      <details class="lblset" id="lblset">
+        <summary>Bag label details</summary>
+        <div class="lblgrid">
+          <label class="wide"><span>Practice</span><input type="text" id="lbPractice" autocomplete="off"></label>
+          <label><span>Address</span><input type="text" id="lbAddr1" autocomplete="off"></label>
+          <label><span>City, State ZIP</span><input type="text" id="lbAddr2" autocomplete="off"></label>
+          <label><span>Phone</span><input type="text" id="lbPhone" autocomplete="off"></label>
+          <label><span>Bank</span><input type="text" id="lbBank" autocomplete="off"></label>
+          <label><span>Account name</span><input type="text" id="lbAcctName" autocomplete="off" placeholder="Name on the account"></label>
+          <label><span>Account #</span><input type="text" id="lbAcctNum" autocomplete="off" placeholder="Full number or last 4"></label>
+        </div>
+        <div class="hint">Printed on the depositor and bank stickers. Kept only in this browser — fill it in once.</div>
+      </details>
+
       <div class="total">
         <div class="line">
           <span class="label">Total deposit</span>
@@ -411,6 +484,9 @@
           <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
           <button class="btn btn-ghost" id="mailBtn" onclick="emailDeposit()" title="Email this deposit to Dr. A">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg>Email
+          </button>
+          <button class="btn btn-ghost" onclick="printLabels()" title="Print 3 stickers for the deposit bag on the Zebra: your address, the bank, and the totals">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg><span>Labels</span>
           </button>
           <button class="btn btn-primary" onclick="printSlip()" title="Print the deposit slip (on a phone: share it to Print, Files or Mail)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg><span>Print<span class="long"> slip</span></span>
@@ -468,6 +544,7 @@
 </div>
 
 <div id="slip"></div>
+<div id="labels"></div>
 
 <script>
 (function(){
@@ -974,6 +1051,7 @@
   window.printSlip = function(){
     var s = snapshot();
     if(s.total === 0){ toast('Enter cash or checks first'); return; }
+    labelMode(false);                            /* in case a label print never reported finishing */
     note('print', '');
     sendEmail(s, false);                         /* a printed deposit is emailed to Dr. A too (once) */
     if(isAppleTouch()){ sharePdf(s); return; }   /* the share sheet has Print, Save to Files and Mail */
@@ -995,6 +1073,93 @@
     /* the logo is on the page already, so it's normally ready; if not, print once it is */
     if(logo && !logo.complete){ logo.onload = logo.onerror = go; setTimeout(go, 1200); }
     else go();
+  };
+
+  /* ================= Bag labels (Zebra ZD410) =================
+     Three 4x2in stickers for different spots on the deposit bag: who's depositing (practice
+     address and phone), where it goes (bank and account), and the totals (cash, checks, total).
+     The address and bank fields are the only thing this page keeps, in this browser's
+     localStorage, so they're typed once. Deposits themselves are still never saved. */
+  var LBL_KEY = 'nlo-deposit-labels';
+  var LBL_DEFAULTS = {
+    lbPractice: 'Next Level Orthodontics',
+    lbAddr1: '320 NW 76th Drive',
+    lbAddr2: 'Gainesville, FL 32607',
+    lbPhone: '(352) 332-7466',
+    lbBank: 'Bank of America',
+    lbAcctName: '',
+    lbAcctNum: ''
+  };
+  function loadLabelInfo(){
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(LBL_KEY) || '{}') || {}; } catch(e){ saved = {}; }
+    Object.keys(LBL_DEFAULTS).forEach(function(id){
+      $(id).value = (typeof saved[id] === 'string') ? saved[id] : LBL_DEFAULTS[id];
+      $(id).addEventListener('input', saveLabelInfo);
+    });
+  }
+  function saveLabelInfo(){
+    var o = {};
+    Object.keys(LBL_DEFAULTS).forEach(function(id){ o[id] = $(id).value; });
+    try { localStorage.setItem(LBL_KEY, JSON.stringify(o)); } catch(e){}
+  }
+  function labelInfo(){
+    var o = {};
+    Object.keys(LBL_DEFAULTS).forEach(function(id){ o[id] = $(id).value.trim(); });
+    return o;
+  }
+  function labelsHtml(s){
+    var i = labelInfo();
+    function page(inner){ return '<div class="lbl-page"><div class="lbl">' + inner + '</div></div>'; }
+    function ln(t){ return t ? '<div class="ln">' + esc(t) + '</div>' : ''; }
+    function kv(k, v){ return v ? '<div class="ln">' + k + ': <b>' + esc(v) + '</b></div>' : ''; }
+
+    var depositor = page(
+      '<div class="k"><span>Depositor</span></div>' +
+      '<div class="big">' + esc(i.lbPractice || LBL_DEFAULTS.lbPractice) + '</div>' +
+      ln(i.lbAddr1) + ln(i.lbAddr2) + ln(i.lbPhone));
+
+    var bank = page(
+      '<div class="k"><span>Deposit to</span></div>' +
+      '<div class="big">' + esc(i.lbBank || LBL_DEFAULTS.lbBank) + '</div>' +
+      kv('Account name', i.lbAcctName) + kv('Account #', i.lbAcctNum));
+
+    var totals = page(
+      '<div class="k"><span>Deposit</span><span class="d">' + esc(stamp(s.when)) + '</span></div>' +
+      '<div class="amt"><span>Total cash</span><span class="n">' + money(s.cash) + '</span></div>' +
+      '<div class="amt"><span>Total checks</span><span class="n">' + money(s.checksTotal) + '</span></div>' +
+      '<div class="amt tot"><span>Total</span><span class="n">' + money(s.total) + '</span></div>');
+
+    return depositor + bank + totals;
+  }
+  /* Label mode swaps the page size to the Zebra's 2x4 stock and shows only the stickers.
+     The @page rule lives in its own <style> so the regular slip keeps printing on letter paper. */
+  function labelMode(on){
+    document.documentElement.classList.toggle('lbl-print', on);
+    $('pageRule').textContent = on ? '@page{size:2in 4in;margin:0}' : '';
+    if(!on) $('labels').innerHTML = '';
+  }
+  window.printLabels = function(){
+    var s = snapshot();
+    if(s.total === 0){ toast('Enter cash or checks first'); return; }
+    note('print', '');
+    sendEmail(s, false);                         /* same as the slip: the deposit is emailed to Dr. A once */
+    $('labels').innerHTML = labelsHtml(s);
+    labelMode(true);
+    var opened = false, done = false;
+    function seen(){ opened = true; }
+    function finish(){
+      if(done) return;
+      done = true;
+      window.removeEventListener('beforeprint', seen);
+      window.removeEventListener('afterprint', finish);
+      labelMode(false);
+      if(!opened) note('print', "Printing didn't open in this browser.", 'off');
+    }
+    window.addEventListener('beforeprint', seen);
+    window.addEventListener('afterprint', finish);   /* back to normal once the print dialog closes */
+    try { window.print(); } catch(e){}
+    setTimeout(function(){ if(!opened) finish(); }, 1500);   /* the print window never came up */
   };
 
   /* ================= Email it to Dr. A =================
@@ -2094,6 +2259,7 @@
   window.__depositParse = { findAmount: findAmount, findPayer: findPayer, wordsAmount: wordsAmount,
     bestAmount: bestAmount, checkMarks: checkMarks, checkNumber: checkNumber, droppedFiles: droppedFiles };
 
+  loadLabelInfo();
   renderChecks();
   paint();
   $('bill100').focus();
