@@ -1668,7 +1668,11 @@ function renderDrawer() {
   // in-house aligners and retainers: Print labels in the header, never folded away (Amir, 5 Oct 2026: "I could not find the print
   // labels easily ... it should be clearly visible in the header") — the aligner labels once the set's counts are in; the
   // retainer bag label, which then offers to complete the case
-  const lblBtn = c.type === 'nla' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="labels"' + (nAl ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
+  const lblBtn = c.type === 'nla' ? '<div class="dLbl" id="dLbl">' +
+      // the design in Virtual Tech on the lab PC, one click from the case (Amir, 22 Nov 2026: "there should be a button on My Cases that says
+      // ... design now ... and then you click it and automatically pulls ... all the information about the patient") - vtOpen below
+      (done ? '' : '<button type="button" class="btn btn-sec btn-sm" data-act="vtDesign" title="Open Virtual Tech on the lab PC with this patient filled in: name, chart #, initial or refinement, Dr. A’s instructions, the tooth chart and the stage at the scan. Just add the scans">' + ic('lab', 15) + 'Design now</button>') +
+      '<button type="button" class="btn btn-pri btn-sm" data-act="labels"' + (nAl ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
       (nAl ? '' : '<span class="small muted">once the aligner counts are in (Edit)</span>') + '</div>'
     : c.type === 'retainer' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="retLabels" title="The label for the bag: patient, upper/lower, retainers or whitening trays">' + ic('print', 15) + 'Print labels</button>' +
       // the models for the printer come from the Bleach Tray app (Amir, 15 Oct 2026: "integrate this with the case tracker app so staff
@@ -2404,6 +2408,7 @@ function onClick(e) {
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
     case 'retLabels': { const c = findCase(S.openId); if (c && c.type === 'retainer') retLabelsModal(c); break; }
     case 'btModels': { const c = findCase(S.openId); if (c && c.type === 'retainer') openBleachTray(c); break; }
+    case 'vtDesign': { const c = findCase(S.openId); if (c && c.type === 'nla') vtOpen(c); break; }
     case 'rec': toggleRecord(t); break;
     case 'copyNote': { const c = findCase(S.openId); if (!c) break; const v = noteVisitOf(c);
       copyText(chartNote(c, v)).then(ok => toast(ok ? 'Chart note copied (' + noteVisitName(c, v).toLowerCase() + ') — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
@@ -2585,6 +2590,41 @@ function openBleachTray(c) {
   const q = new URLSearchParams({ first, last, make: makes.join(','), arches: arches.join(','), case: c.id, from: 'cases', origin: location.origin });
   const w = window.open(bleachTrayBase() + '?' + q.toString(), 'nlo-bleachtray');
   if (!w) toast('The browser blocked the new tab — allow pop-ups for this page, then try again', { bad: true });
+}
+/* ---------- Virtual Tech (the in-house aligner setups, on the lab PC), 22 Nov 2026 (Amir: "there should be a button on My Cases that says
+   open or create a new case ... or design now ... and then you click it and automatically pulls the information, all the information
+   about the patient. And just all you have to do is just add the scans"): an in-house set's panel has Design now. It opens Virtual Tech's
+   New patient form with the patient's name and chart #, initial or which refinement (refN), Dr. A's instructions (its Tx goals), the
+   tooth chart (missing, pontic, implant and don't move go on its diagrams; no attachments and crowns into the goals) and the stage at the
+   scan — all of it after the # of the address, which a browser never sends, so none of it reaches a server or its log. Virtual Tech runs
+   on the lab PC, LAB: http://lab:8768 from the office's computers, as its own README says (another name: localStorage nlo.vtech.labpc);
+   away from the office, on a computer or phone in the office's Tailscale network, its private address answers and is used instead
+   (tried first, 1.5 s; CSP connect-src allows it). ---------- */
+const VTECH = { port: 8768, pc: 'lab', pcKey: 'nlo.vtech.labpc', remote: 'https://lab.tail00bd21.ts.net/', key: 'nlo.vtech.remote' };
+function vtLocalBase() { let pc = ''; try { pc = localStorage.getItem(VTECH.pcKey) || ''; } catch (e) { } return 'http://' + (pc || VTECH.pc) + ':' + VTECH.port + '/'; }
+function vtRemoteBase() { let r = ''; try { r = localStorage.getItem(VTECH.key) || ''; } catch (e) { } return /^https:\/\/[^/]+\/$/.test(r) ? r : VTECH.remote; }
+function vtPayload(c) {
+  const parts = String(c.patient || '').replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean);
+  let first = parts[0] || '', middle = '', last = parts.slice(1).join(' ');
+  if (parts.length >= 3 && parts[1].replace(/\./g, '').length <= 2) { middle = parts[1].replace(/\./g, ''); last = parts.slice(2).join(' '); }
+  const fin = c.variant === 'finishing', ref = !fin && (c.initial === 'no' || c.initial === 'mid'), st = scanStNums(c);      // (finishing: Virtual Tech's own Finishing, 23 Nov 2026)
+  const d = { v: 1, first, middle, last, chart: String(c.chart || ''), kind: fin ? 'finishing' : ref ? 'refinement' : 'initial', case: c.id, goals: drLines(c.instructions).join('\n'), teeth: canonTeeth(c.teeth), teethNote: String(c.teethNote || '') };
+  if (ref && Number(c.refN) > 0) d.n = Math.floor(Number(c.refN));
+  if (c.scanStNone) d.stage = { none: true };
+  else if (st.u || st.l) d.stage = Object.assign({}, st.u ? { upper: st.u } : {}, st.l ? { lower: st.l } : {});
+  return d;
+}
+function vtHash(c) { const b = new TextEncoder().encode(JSON.stringify(vtPayload(c))); let bin = ''; for (const x of b) bin += String.fromCharCode(x); return '#new=' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+async function vtOpen(c) {
+  const hash = vtHash(c);
+  const w = window.open('', 'nlo-vtech'); // opened at the click, so a pop-up blocker lets it through; sent on once the address is known
+  if (!w) { toast('The browser blocked the new tab — allow pop-ups for this page, then try again', { bad: true }); return; }
+  let base = vtLocalBase();
+  try {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 1500);
+    await fetch(vtRemoteBase() + 'api/ping', { mode: 'no-cors', cache: 'no-store', signal: ctl.signal }); clearTimeout(t); base = vtRemoteBase();
+  } catch (e) { /* not in the Tailscale network: the lab PC by name */ }
+  try { w.location.href = base + hash; w.focus(); } catch (e) { toast('Virtual Tech could not be opened: ' + errText(e), { bad: true }); }
 }
 window.addEventListener('message', async ev => {
   const m = ev.data; if (!m || m.nlo !== 'bleachtray' || !/^http:\/\/[^/]+:8765$/i.test(ev.origin)) return;
