@@ -483,7 +483,7 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
    Cadence shows each person's action items and has a "raise for the
    staff meeting" button (see the add-on block at the end of cadence.html).
    ===================================================================== */
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.0.1';
 const FB_CONFIG = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
@@ -849,12 +849,15 @@ function seedCatalog(manual) {
 function kpiMonth() {
   const o = S.meeting && S.meeting.meta && S.meeting.meta.kpiMonth;
   if (/^\d{4}-\d{2}$/.test(o || '')) return o;
-  /* the latest completed month (Oct 2026 review: meetings fall on the 22nd–30th, so "this month after the 20th" showed a month
-     whose Month-End numbers can't be in yet); "Numbers for" still picks any other month */
+  /* a meeting after the 20th: its own month, month to date (how Amir runs it: Oct 22 "for the meeting, month to date"; on
+     Nov 24 the Hub showing October read as old information, so 2.3.1's "always the month before" is undone). Earlier in the
+     month: the month before, which is complete by then. "Numbers for" still picks any other month. */
   const d = parseYmd(meetingDate()) || new Date();
-  const m = new Date(d.getFullYear(), d.getMonth() - 1, 15);
+  const m = new Date(d.getFullYear(), d.getMonth() - (d.getDate() <= 20 ? 1 : 0), 15);
   return m.getFullYear() + '-' + pad(m.getMonth() + 1);
 }
+/* the month the numbers show is still under way (today is in it): month-to-date wording */
+const isMtd = ym => ym === todayYmd().slice(0, 7);
 function addMonthsYm(ym, n) { const d = parseYmd(ym + '-15') || new Date(); d.setDate(15); d.setMonth(d.getMonth() + n); return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
 const ymLabel = (ym, o) => fmtDate(ym + '-15', o || { month: 'long', year: 'numeric' });
 const kpiMonthLabel = () => ymLabel(kpiMonth());
@@ -1550,7 +1553,7 @@ function spendLine(sp) {
     (sp.top.length ? ' · biggest: ' + sp.top.slice(0, 3).map(c => c.label + ' ' + fmtNum(c.amt, '$')).join(', ') : '') + (spendVsAvg(sp) ? ' · ' + spendVsAvg(sp).replace(/^Same/, 'same') : '') + (sp.partial ? ' (may be incomplete)' : '');
 }
 function spendVsAvg(s) {
-  if (s.avg == null || !s.avg) return '';
+  if (s.avg == null || !s.avg || isMtd(s.month)) return '';   /* a month still under way isn't compared with whole months */
   const d = Math.round((s.total - s.avg) / s.avg * 100);
   return (d === 0 ? 'Same as' : Math.abs(d) + '% ' + (d > 0 ? 'above' : 'below')) + ' the ' + s.avgN + '-month average (' + fmtNum(s.avg, '$') + ')';
 }
@@ -1632,7 +1635,7 @@ function cadenceBlock(c) {
 function spendBlock(sp) {
   if (!sp) return '';
   if (sp.err) return errBlock('Supply spending', sp.err);
-  const s = spendSummary(sp, kpiMonth()), over = !!(s.budget && s.total > s.budget), mon = ymLabel(s.month, { month: 'long' });
+  const s = spendSummary(sp, kpiMonth()), over = !!(s.budget && s.total > s.budget), mon = ymLabel(s.month, { month: 'long' }) + (isMtd(s.month) ? ' so far' : '');
   const cats = s.top.slice(0, 4).map(c => '<li><span class="grow">' + esc(c.label) + '</span><b>' + fmtNum(c.amt, '$') + '</b>' + (c.alloc && c.amt > c.alloc ? '<span class="tag red" title="Category budget ' + esc(fmtNum(c.alloc, '$')) + '">over</span>' : '') + '</li>').join('');
   return '<div class="app-b"><div class="eyebrow">Supply spending · Inventory</div>' +
     '<div class="big" style="margin-top:6px">' + fmtNum(s.total, '$') + '<small>' + esc(mon) + '</small></div>' +
@@ -1706,8 +1709,8 @@ function kpiCardHTML() {
   }).join('') + '</div></div>').join('');
   const opts = []; for (let i = 0; i < 13; i++) { const ym = addMonthsYm(addMonthsYm(todayYmd().slice(0, 7), 0), -i); opts.push('<option value="' + ym + '"' + (ym === km ? ' selected' : '') + '>' + esc(ymLabel(ym, { month: 'short', year: 'numeric' })) + '</option>'); }
   if (opts.join('').indexOf('value="' + km + '"') < 0) opts.unshift('<option value="' + km + '" selected>' + esc(ymLabel(km, { month: 'short', year: 'numeric' })) + '</option>');
-  const status = t ? (rec && rec.final ? '<span class="tag green">✓ month-end complete</span>' : '<span class="tag amber">month-end in progress</span>') : '<span class="tag">month-end not in yet</span>';
-  const note = !t ? '<div class="warnbar" style="margin-bottom:10px">' + esc(kpiMonthLabel()) + '’s month-end numbers aren’t in yet. <a href="' + MONTHEND_URL + '#' + km + '">Enter them in Month-End ›</a></div>'
+  const status = t ? (rec && rec.final ? '<span class="tag green">✓ month-end complete</span>' : '<span class="tag amber">' + (isMtd(km) ? 'month to date' : 'month-end in progress') + '</span>') : '<span class="tag">' + (isMtd(km) ? 'month to date · not in yet' : 'month-end not in yet') + '</span>';
+  const note = !t ? '<div class="warnbar" style="margin-bottom:10px">' + esc(kpiMonthLabel()) + (isMtd(km) ? '’s month-to-date numbers aren’t in Month-End yet. <a href="' + MONTHEND_URL + '#' + km + '">Enter them in Month-End ›</a>' : '’s month-end numbers aren’t in yet. <a href="' + MONTHEND_URL + '#' + km + '">Enter them in Month-End ›</a>') + '</div>'
     : open ? '<p class="hint" style="margin-bottom:10px">Tiles marked <span class="src">Month-End</span> come straight from the Month-End app. Type only the others — they save as you go.' + (rows.some(r => r.from && r.from.app === 'A/R') ? ' The ones marked <span class="src">A/R</span> are the goal gauges at the top of NLO A/R.' : '') + '</p>' : '';
   const offRows = rows.filter(r => r.met === false);
   const folded = offRows.length ? '<div class="koff"><span class="small bold" style="color:var(--coral-7)">Off goal:</span>' + offRows.map(r => '<span class="tag red">' + esc(r.label) + ' · ' + esc(fmtNum(r.value, r.unit)) + '<span style="opacity:.65;font-weight:600">&nbsp;/ goal ' + esc(r.goal || '—') + '</span></span>').join('') + '</div>'
@@ -2406,6 +2409,11 @@ function outcomeHTML(key, o) {
   if (o.type === 'dropped') rows.push('<div class="outrow drop">✕ Dropped</div>');
   return '<div class="outs">' + rows.join('') + '<div class="row"><button class="sbtn" data-act="out-undo" data-key="' + esc(key) + '">Undo this item</button></div></div>';
 }
+function numbersTitle(s) {
+  const ym = (s.me && s.me.month) || (s.spend && s.spend.month) || kpiMonth(), mon = ymLabel(ym, { month: 'long' });
+  const live = ym === String(meetingDate()).slice(0, 7) && (!s.at || ymdOf(new Date(s.at)).slice(0, 7) === ym);
+  return live ? 'How ' + mon + ' is going' : 'How ' + mon + ' went';
+}
 function numbersHTML() {
   const s = S.meeting.snapshot || {}, o = outcomeOf('numbers');
   const boxes = [];
@@ -2415,7 +2423,7 @@ function numbersHTML() {
   if (s.me) boxes.push('<div class="ibox"><h4>Month-end · ' + esc(ymLabel(s.me.month, { month: 'short', year: 'numeric' })) + (s.me.final ? '' : ' (in progress)') + '</h4><ul>' + [['New patients', s.me.np, ''], ['Starts', s.me.starts, ''], ['Conversion', s.me.conv, '%'], ['Net collections', s.me.coll, '$'], ['Gross production', s.me.prod, '$']].filter(x => x[1] != null).map(x => '<li><span class="grow">' + x[0] + '</span><b>' + esc(fmtNum(x[1], x[2])) + '</b></li>').join('') + '</ul></div>');
   const k = (s.kpis || []).filter(x => x.value != null);
   if (k.length) boxes.push('<div class="ibox" style="grid-column:1/-1"><h4>KPIs vs goal</h4><ul class="kcols">' + k.map(x => '<li style="break-inside:avoid;flex-wrap:nowrap;align-items:flex-start"><span class="' + (x.met === true ? 'ok' : x.met === false ? 'bad' : '') + '">' + (x.met === true ? '✓' : x.met === false ? '✕' : '•') + '</span><span class="grow">' + esc(x.label) + ': <b>' + esc(fmtNum(x.value, x.unit)) + '</b> <span style="opacity:.6">goal ' + esc(x.goal || '—') + '</span></span></li>').join('') + '</ul></div>');
-  return '<div class="sec">Numbers</div><div class="big" style="font-size:clamp(20px,2.6vw,30px)">How last month went</div><div class="info">' + (boxes.join('') || '<div class="ibox">No numbers this time.</div>') + '</div>' +
+  return '<div class="sec">Numbers</div><div class="big" style="font-size:clamp(20px,2.6vw,30px)">' + esc(numbersTitle(s)) + '</div><div class="info">' + (boxes.join('') || '<div class="ibox">No numbers this time.</div>') + '</div>' +
     '<div class="row" style="margin-top:12px"><a class="sbtn" href="' + MONTHEND_URL + '#' + esc(((S.meeting.snapshot || {}).me || {}).month || kpiMonth()) + '" target="_blank" rel="noopener">Open Month-End ↗</a></div>' + outcomeHTML('numbers', o) + coverBtns('numbers', o);
 }
 function teamHTML() {
