@@ -2612,7 +2612,22 @@ function vtPayload(c) {
   if (ref && Number(c.refN) > 0) d.n = Math.floor(Number(c.refN));
   if (c.scanStNone) d.stage = { none: true };
   else if (st.u || st.l) d.stage = Object.assign({}, st.u ? { upper: st.u } : {}, st.l ? { lower: st.l } : {});
+  let ir = null; try { ir = vtIpr(c); } catch (e) { ir = null; }      // (the IPR Tracker's latest visit: its black triangles and spaces - never in the way of opening Virtual Tech)
+  if (ir) d.ipr = ir;
   return d;
+}
+/* the IPR Tracker's latest visit for the case's chart # (Amir, 25 Nov 2026: "if there are teeth that are marked as black triangles, automatically
+   do IPR and close the space ... The app should pull this data from IPR Tracker app or from the Case Tracker app"): the visit's date, its black
+   triangles and its spaces, by contact as the IPR Tracker keys them ("UR1|UL1") - the live reading when this computer has one (the case's IPR
+   section reads it as the panel opens), else the one kept on the case (iprSnap). Virtual Tech puts the black triangles on its spaces chart and does Dr. A's black-triangle recipe at each (IPR,
+   the contact overclosed, the roots tipped together); the spaces of 0.5 mm or less go on the chart too, the bigger ones it leaves to the scan */
+function vtIpr(c) {
+  if (!c || !c.chart) return null;
+  const lv = (S.iprCache || {})[IPR.norm(c.chart)], r = lv && lv.status === 'ok' && lv.d ? lv : iprSnapOf(c);
+  if (!r || !r.d) return null;
+  const bt = o => Object.keys(o || {}).filter(k => o[k] === true || o[k] === 'true').sort(), sp = o => { const m = {}; Object.keys(o || {}).sort().forEach(k => { const v = parseFloat(o[k]); if (v > 0) m[k] = Math.round(v * 100) / 100; }); return m; };
+  const x = { date: String(r.date || '').slice(0, 10), bt: { upper: bt(r.d.upperBT), lower: bt(r.d.lowerBT) }, sp: { upper: sp(r.d.upperSpaces), lower: sp(r.d.lowerSpaces) } };
+  return x.bt.upper.length || x.bt.lower.length || Object.keys(x.sp.upper).length || Object.keys(x.sp.lower).length ? x : null;
 }
 function vtHash(c) { const b = new TextEncoder().encode(JSON.stringify(vtPayload(c))); let bin = ''; for (const x of b) bin += String.fromCharCode(x); return '#new=' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 async function vtOpen(c) {
